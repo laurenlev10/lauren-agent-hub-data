@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Agent Hub</title>
+<style>
+  :root {
+    --bg: #f6f7fb;
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --accent: #2563eb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 32px 24px;
+    min-height: 100vh;
+  }
+  header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  h1 { margin: 0 0 6px 0; font-size: 28px; }
+  .subtitle { color: var(--muted); font-size: 14px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .agent {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    text-decoration: none;
+    color: var(--text);
+    display: block;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .agent:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    border-color: var(--accent);
+  }
+  .agent .icon {
+    font-size: 36px;
+    margin-bottom: 10px;
+  }
+  .agent .name {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .agent .desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.4;
+    margin-bottom: 14px;
+  }
+  .agent .lastRun {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .agent .lastRun b { color: var(--accent); font-weight: 600; }
+
+  .run-btn {
+    display: block;
+    width: 100%;
+    margin-top: 14px;
+    padding: 10px 14px;
+    background: linear-gradient(180deg, #2563eb, #1d4ed8);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+    box-shadow: 0 1px 2px rgba(37,99,235,0.3);
+    transition: all 0.15s;
+  }
+  .run-btn:hover { background: linear-gradient(180deg, #1d4ed8, #1e40af); transform: translateY(-1px); }
+  .run-btn.copied { background: #059669; }
+  .run-hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<script id="hub-data">
+const HUB = {
+  meta:    { lastRun: "Saturday, April 11 · 08:57" },
+  housing: { lastRun: "Thursday, April 9 · 15:33" },
+  mbs:     { lastRun: "Not run yet" }
+};
+</script>
+
+<header>
+  <h1>🎯 Agent Hub</h1>
+  <div class="subtitle">Quick links to Lauren's dashboards</div>
+</header>
+
+<div class="grid">
+  <div class="agent">
+    <a href="meta/" style="text-decoration:none;color:inherit;display:block">
+      <div class="icon">📬</div>
+      <div class="name">Meta Inbox</div>
+      <div class="desc">Daily Messenger / Instagram / WhatsApp triage for Makeup Blowout Sale.</div>
+      <div class="lastRun">Last run: <b id="meta-lastRun">—</b></div>
+    </a>
+    <button class="run-btn" data-cmd="Run the meta-inbox-scan skill">▶ Run scan now</button>
+    <div class="run-hint">Copies the command — paste (Ctrl+V) in Cowork chat</div>
+  </div>
+
+  <div class="agent">
+    <a href="housing/" style="text-decoration:none;color:inherit;display:block">
+      <div class="icon">🏡</div>
+      <div class="name">West SFV Rentals</div>
+      <div class="desc">On-demand search for 5+ bedroom rental homes in the West San Fernando Valley.</div>
+      <div class="lastRun">Last run: <b id="housing-lastRun">—</b></div>
+    </a>
+    <button class="run-btn" data-cmd="Run the housing skill">▶ Run search now</button>
+    <div class="run-hint">Copies the command — paste (Ctrl+V) in Cowork chat</div>
+  </div>
+
+  <div class="agent">
+    <a href="mbs/" style="text-decoration:none;color:inherit;display:block">
+      <div class="icon">📊</div>
+      <div class="name">MBS Event Summary</div>
+      <div class="desc">Post-event P&amp;L — QuickBooks + OCTOPOS + Meta/TikTok Ads → full summary, Excel, Dashboard + Hebrew Word doc.</div>
+      <div class="lastRun">Last run: <b id="mbs-lastRun">—</b></div>
+    </a>
+    <button class="run-btn" data-cmd="Run the MBS Event Summary agent. Read SKILL.md first, then ask me which event to summarize.">▶ Run summary now</button>
+    <div class="run-hint">Copies the command — paste (Ctrl+V) in Cowork chat</div>
+  </div>
+</div>
+
+<script>
+  document.getElementById("meta-lastRun").textContent    = HUB.meta.lastRun    || "—";
+  document.getElementById("housing-lastRun").textContent = HUB.housing.lastRun || "—";
+  document.getElementById("mbs-lastRun").textContent     = HUB.mbs.lastRun     || "—";
+
+  document.querySelectorAll(".run-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const cmd = btn.getAttribute("data-cmd");
+      try {
+        await navigator.clipboard.writeText(cmd);
+        const original = btn.textContent;
+        btn.textContent = "✓ Copied — paste in Cowork";
+        btn.classList.add("copied");
+        setTimeout(() => { btn.textContent = original; btn.classList.remove("copied"); }, 2500);
+      } catch (err) {
+        alert("Copy failed. Command:\n\n" + cmd);
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

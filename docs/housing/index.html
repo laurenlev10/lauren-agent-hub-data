@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>West SFV Rental Dashboard</title>
+<style>
+  :root {
+    --bg: #f6f7fb;
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --gold: #f59e0b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  h1 { margin: 0; font-size: 24px; }
+  .stamp { color: var(--muted); font-size: 14px; }
+  .back-hub {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: #4338ca;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    transition: all 0.15s;
+  }
+  .back-hub:hover { background: #eef2ff; border-color: #c7d2fe; }
+  .run-now {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: linear-gradient(180deg, #2563eb, #1d4ed8);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(37,99,235,0.3);
+    transition: all 0.15s;
+  }
+  .run-now:hover { background: linear-gradient(180deg, #1d4ed8, #1e40af); }
+  .run-now.copied { background: #059669; }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    text-align: center;
+  }
+  .stat .n { font-size: 30px; font-weight: 700; color: var(--accent); }
+  .stat .l { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+
+  .section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+    margin: 18px 0 8px 2px;
+  }
+
+  .listing {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .listing.highlight {
+    border-left: 4px solid var(--gold);
+    background: #fffbeb;
+  }
+  .listing .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .listing .address {
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .listing .address a { color: var(--text); text-decoration: none; }
+  .listing .address a:hover { color: var(--accent); text-decoration: underline; }
+  .listing .price {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .listing .specs {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 6px 0;
+  }
+  .listing .specs span { margin-right: 14px; }
+  .listing .note {
+    font-size: 13px;
+    padding: 8px 10px;
+    background: #f9fafb;
+    border-radius: 6px;
+    margin-top: 8px;
+    color: #374151;
+  }
+  .listing .my-note-wrap {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+  }
+  .listing .my-note-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .listing .my-note-saved {
+    font-size: 10px;
+    color: #059669;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .listing .my-note-saved.show { opacity: 1; }
+  .listing textarea.my-note {
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #1f2937;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 6px;
+    resize: vertical;
+    box-sizing: border-box;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .listing textarea.my-note:focus {
+    outline: none;
+    border-color: #f59e0b;
+    background: #fff;
+  }
+  .listing textarea.my-note::placeholder { color: #9ca3af; font-style: italic; }
+
+  .listing .status-wrap {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .listing .status-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .listing select.status-select {
+    flex: 1;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+    color: #1f2937;
+    cursor: pointer;
+    direction: rtl;
+  }
+  .listing select.status-select:focus { outline: none; border-color: var(--accent); }
+
+  /* Color-code the whole card based on saved status */
+  /* New (no status yet) → green */
+  .listing[data-status=""]                    { background: #f0fdf4; border-color: #86efac; }
+  /* In progress → blue */
+  .listing[data-status="tour_scheduled"]      { background: #eff6ff; border-color: #93c5fd; }
+  .listing[data-status="toured_applying"]     { background: #dbeafe; border-color: #60a5fa; }
+  /* Not relevant → red / gray, moved to bottom */
+  .listing[data-status="toured_disliked"]     { background: #fef2f2; border-color: #fca5a5; opacity: 0.75; }
+  .listing[data-status="application_rejected"]{ background: #f3f4f6; border-color: #d4d4d4; opacity: 0.55; text-decoration: line-through; }
+  .listing[data-status="photos_rejected"]     { background: #f3f4f6; border-color: #d4d4d4; opacity: 0.6; }
+  .star {
+    display: inline-block;
+    color: var(--gold);
+    margin-right: 4px;
+  }
+  .empty {
+    background: var(--card);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  @media (max-width: 600px) {
+    .stat-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<script id="dashboard-data">
+const SCAN = {
+  date: "Thursday, April 9, 2026",
+  time: "15:33",
+  area: "West SFV (Woodland Hills + West Hills + Tarzana + Winnetka + Canoga Park) — 5+ bd · $6,000–$7,000/mo",
+  priceMin: 6000,
+  priceMax: 7000,
+  stats: {
+    total:    13,
+    newToday: 3,
+    notable:  2
+  },
+  newListings: [
+    { address: "24136 Kittridge St, West Hills, CA 91307", price: "$6,470/mo", beds: "5", baths: "5", sqft: "2,600", link: "https://www.zillow.com/homedetails/24136-Kittridge-St-West-Hills-CA-91307/19874547_zpid/", note: "🆕 Listed 1 day ago · 5 full baths · West Hills", isHighlight: false },
+    { address: "7223 Bernadine Ave, West Hills, CA 91307", price: "$6,500/mo", beds: "5", baths: "2.5", sqft: "2,600", link: "https://www.zillow.com/homedetails/7223-Bernadine-Ave-West-Hills-CA-91307/19869845_zpid/", note: "🆕 Listed 2 days ago · Apply instantly · West Hills", isHighlight: false },
+    { address: "19150 Topham St, Tarzana, CA 91356", price: "$6,675/mo", beds: "6", baths: "3", sqft: "2,495", link: "https://www.zillow.com/homedetails/19150-Topham-St-Tarzana-CA-91356/19933042_zpid/", note: "🆕 Listed 2 days ago · 6 BEDROOMS · Tarzana", isHighlight: false }
+  ],
+  notableListings: [
+    { address: "6022 Maury Ave, Woodland Hills, CA 91367", price: "$6,100/mo", beds: "5", baths: "4.5", sqft: "2,724", link: "https://www.zillow.com/homedetails/6022-Maury-Ave-Woodland-Hills-CA-91367/19872896_zpid/", note: "🏆 CHEAPEST 5BR in the WH core · 33 days on market · likely negotiable · Zillow + Redfin", isHighlight: true },
+    { address: "22621 Dolorosa St, Woodland Hills, CA 91367", price: "$7,000/mo", beds: "5", baths: "3", sqft: "1,800", link: "https://www.zillow.com/homedetails/22621-Dolorosa-St-Woodland-Hills-CA-91367/82870543_zpid/", note: "79 days on market (longest) → highly negotiable · Zillow + Redfin", isHighlight: true },
+    { address: "6716 Faust Ave, West Hills, CA 91307", price: "$6,500/mo", beds: "5", baths: "3", sqft: "2,894", link: "https://www.zillow.com/homedetails/6716-Faust-Ave-West-Hills-CA-91307/19876671_zpid/", note: "3 days on market · 2,894 sqft (large) · West Hills", isHighlight: false },
+    { address: "4626 Monarca Dr, Tarzana, CA 91356", price: "$7,000/mo", beds: "5", baths: "3.5", sqft: "3,016", link: "https://www.zillow.com/homedetails/4626-Monarca-Dr-Tarzana-CA-91356/19948707_zpid/", note: "72 days on market → negotiable · 3,016 sqft · Tarzana", isHighlight: false },
+    { address: "24510 Welby Way, West Hills, CA 91307", price: "$6,150/mo", beds: "5", baths: "3", sqft: "2,696", link: "https://www.zillow.com/homedetails/24510-Welby-Way-West-Hills-CA-91307/19872436_zpid/", note: "21 days on market · low price · West Hills", isHighlight: false },
+    { address: "20221 Baltar St, Winnetka, CA 91306", price: "$6,490/mo", beds: "5", baths: "3", sqft: "3,045", link: "https://www.zillow.com/homedetails/20221-Baltar-St-Winnetka-CA-91306/19908420_zpid/", note: "36 days on market · 3,045 sqft · Apply instantly · Winnetka", isHighlight: false },
+    { address: "7169 Castle Peak Dr, West Hills, CA 91307", price: "$6,995/mo", beds: "5", baths: "3", sqft: "2,471", link: "https://www.zillow.com/homedetails/7169-Castle-Peak-Dr-West-Hills-CA-91307/19872037_zpid/", note: "Apply instantly · West Hills", isHighlight: false },
+    { address: "7507 Graystone Dr, Canoga Park, CA 91304", price: "$6,995/mo", beds: "5", baths: "3.5", sqft: "3,087", link: "https://www.zillow.com/homedetails/7507-Graystone-Dr-Canoga-Park-CA-91304/19864759_zpid/", note: "3,087 sqft · Apply instantly · Canoga Park", isHighlight: false },
+    { address: "20934 De Mina St, Woodland Hills, CA 91364", price: "$6,400/mo", beds: "5", baths: "4", sqft: "2,483", link: "https://www.redfin.com/CA/Woodland-Hills/20934-De-Mina-St-91364/home/4173600", note: "🆕 Redfin-only find · heated pool · central air · 91364 south of Ventura", isHighlight: false },
+    { address: "5156 Campo Rd, Woodland Hills, CA 91364", price: "$6,000/mo", beds: "5", baths: "4", sqft: "", link: "https://www.redfin.com/CA/Woodland-Hills/5156-Campo-Rd-91364/home/4179674", note: "🆕 Redfin-only find · $6,000/mo — at the floor of your range · 91364", isHighlight: false }
+  ]
+};
+</script>
+
+<header>
+  <div>
+    <h1>🏡 West SFV Rentals (5+ bedrooms)</h1>
+    <div class="stamp" id="stamp"></div>
+  </div>
+  <div class="header-actions">
+    <button class="run-now" data-cmd="Run the housing skill">▶ Run search now</button>
+    <a class="back-hub" href="../">← Agent Hub</a>
+  </div>
+</header>
+
+<div class="stat-row">
+  <div class="stat"><div class="n" id="s-total">0</div><div class="l">Total Found</div></div>
+  <div class="stat"><div class="n" id="s-new">0</div><div class="l">New Today</div></div>
+  <div class="stat"><div class="n" id="s-notable">0</div><div class="l">Notable</div></div>
+</div>
+
+<div class="section-title">✅ Active / Relevant</div>
+<div id="active-list"></div>
+
+<div class="section-title">🗑 Not Relevant (toured & passed / rejected)</div>
+<div id="irrelevant-list"></div>
+
+<script>
+  const el = (id) => document.getElementById(id);
+
+  el("stamp").textContent = `${SCAN.date} · ${SCAN.time}`;
+
+  // Persistent notes / status / full listing archive keyed by listing URL
+  const NOTE_PREFIX   = "housing_note::";
+  const STATUS_PREFIX = "housing_status::";
+  const LISTINGS_KEY  = "housing_listings_v1";
+  const IRRELEVANT_STATUSES = new Set(["toured_disliked", "application_rejected", "photos_rejected"]);
+  function noteKey(p)   { return NOTE_PREFIX   + (p.link || p.address || ""); }
+  function statusKey(p) { return STATUS_PREFIX + (p.link || p.address || ""); }
+  function loadNote(p)   { try { return localStorage.getItem(noteKey(p))   || ""; } catch (e) { return ""; } }
+  function loadStatus(p) { try { return localStorage.getItem(statusKey(p)) || ""; } catch (e) { return ""; } }
+  function escapeHtml(s) {
+    return (s || "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  const STATUS_OPTIONS = [
+    { value: "",                     label: "— ללא סטטוס —" },
+    { value: "tour_scheduled",       label: "📅 נקבע סיור" },
+    { value: "toured_disliked",      label: "👎 היה סיור – לא אהבתי" },
+    { value: "toured_applying",      label: "✅ היה סיור – אהבתי – שולחת אפליקיישן" },
+    { value: "application_rejected", label: "❌ נשלח אפליקיישן – נדחה" },
+    { value: "photos_rejected",      label: "🚫 לא אהבתי את התמונות – לא רוצה להתקדם" }
+  ];
+
+  function renderListing(p, showStar) {
+    const star = (showStar && p.isHighlight) ? '<span class="star">★</span>' : '';
+    const link = p.link
+      ? `<a href="${p.link}" target="_blank" rel="noopener">${p.address || 'Listing'}</a>`
+      : (p.address || 'Listing');
+    const savedNote = loadNote(p);
+    const savedStatus = loadStatus(p);
+    const noteId = "note_" + (p.link || p.address || "").replace(/[^a-zA-Z0-9]/g, "_");
+    const statusOptionsHtml = STATUS_OPTIONS.map(o =>
+      `<option value="${escapeHtml(o.value)}"${o.value === savedStatus ? ' selected' : ''}>${escapeHtml(o.label)}</option>`
+    ).join("");
+    return `
+      <div class="listing ${p.isHighlight ? 'highlight' : ''}" data-status="${escapeHtml(savedStatus)}">
+        <div class="top">
+          <div class="address">${star}${link}</div>
+          <div class="price">${p.price || ''}</div>
+        </div>
+        <div class="specs">
+          <span>🛏 ${p.beds || '—'} bd</span>
+          <span>🛁 ${p.baths || '—'} ba</span>
+          <span>📐 ${p.sqft || '—'} sqft</span>
+        </div>
+        ${p.note ? `<div class="note">${p.note}</div>` : ''}
+        <div class="my-note-wrap">
+          <div class="my-note-label">
+            <span>📝 Your notes</span>
+            <span class="my-note-saved" id="${noteId}_saved">✓ Saved</span>
+          </div>
+          <textarea
+            class="my-note"
+            id="${noteId}"
+            data-key="${escapeHtml(noteKey(p))}"
+            placeholder="Add personal notes — called landlord, visited, too small, etc. Saved automatically."
+          >${escapeHtml(savedNote)}</textarea>
+        </div>
+        <div class="status-wrap">
+          <span class="status-label">סטטוס</span>
+          <select class="status-select" data-key="${escapeHtml(statusKey(p))}">
+            ${statusOptionsHtml}
+          </select>
+        </div>
+      </div>
+    `;
+  }
+
+  function attachNoteHandlers() {
+    document.querySelectorAll("textarea.my-note").forEach(ta => {
+      let timer;
+      const savedBadge = document.getElementById(ta.id + "_saved");
+      ta.addEventListener("input", () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          try {
+            localStorage.setItem(ta.getAttribute("data-key"), ta.value);
+            if (savedBadge) {
+              savedBadge.classList.add("show");
+              setTimeout(() => savedBadge.classList.remove("show"), 1500);
+            }
+          } catch (e) { /* ignore */ }
+        }, 400);
+      });
+    });
+  }
+
+  function attachStatusHandlers() {
+    document.querySelectorAll("select.status-select").forEach(sel => {
+      sel.addEventListener("change", () => {
+        try {
+          localStorage.setItem(sel.getAttribute("data-key"), sel.value);
+          const card = sel.closest(".listing");
+          if (card) card.setAttribute("data-status", sel.value);
+        } catch (e) { /* ignore */ }
+      });
+    });
+  }
+
+  // ---- Persistent archive: merge current scan with everything we've ever seen ----
+  function propKey(p) { return p.link || p.address || ""; }
+
+  // Price-range filter — parses "$6,100/mo" → 6100 and rejects anything outside SCAN.priceMin/priceMax
+  function parsePrice(s) {
+    if (!s) return null;
+    const m = String(s).replace(/[,\s]/g, "").match(/\$?(\d+)/);
+    return m ? parseInt(m[1], 10) : null;
+  }
+  function inPriceRange(p) {
+    const min = SCAN.priceMin, max = SCAN.priceMax;
+    if (min == null && max == null) return true;
+    const v = parsePrice(p.price);
+    if (v == null) return true; // keep if unparseable
+    if (min != null && v < min) return false;
+    if (max != null && v > max) return false;
+    return true;
+  }
+
+  function loadArchive() {
+    try { return JSON.parse(localStorage.getItem(LISTINGS_KEY) || "[]"); }
+    catch (e) { return []; }
+  }
+  function saveArchive(list) {
+    try { localStorage.setItem(LISTINGS_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+
+  function mergeScanIntoArchive() {
+    // Prune out-of-range listings from the archive first
+    const archive = loadArchive().filter(inPriceRange);
+    const byKey = new Map(archive.map(p => [propKey(p), p]));
+
+    const incoming = [
+      ...((SCAN.newListings     || []).map(p => ({...p, _src: "new"}))),
+      ...((SCAN.notableListings || []).map(p => ({...p, _src: "notable"})))
+    ];
+
+    incoming.forEach(p => {
+      const k = propKey(p);
+      if (!k) return;
+      if (!inPriceRange(p)) return; // hard price filter
+      if (!byKey.has(k)) {
+        // brand new — stamp firstSeen
+        byKey.set(k, { ...p, firstSeen: SCAN.date });
+      } else {
+        // already stored — refresh volatile fields, keep firstSeen + any user data
+        const existing = byKey.get(k);
+        byKey.set(k, {
+          ...existing,
+          price:       p.price       || existing.price,
+          beds:        p.beds        || existing.beds,
+          baths:       p.baths       || existing.baths,
+          sqft:        p.sqft        || existing.sqft,
+          note:        p.note        || existing.note,
+          isHighlight: existing.isHighlight || p.isHighlight,
+          lastSeen:    SCAN.date
+        });
+      }
+    });
+
+    const merged = Array.from(byKey.values());
+    saveArchive(merged);
+    return merged;
+  }
+
+  const STATUS_ORDER = { "": 0, "tour_scheduled": 1, "toured_applying": 2 };
+
+  const allListings = mergeScanIntoArchive();
+  const active      = allListings.filter(p => !IRRELEVANT_STATUSES.has(loadStatus(p)));
+  const irrelevant  = allListings.filter(p =>  IRRELEVANT_STATUSES.has(loadStatus(p)));
+
+  active.sort((a, b) => {
+    const sa = loadStatus(a), sb = loadStatus(b);
+    return (STATUS_ORDER[sa] ?? 9) - (STATUS_ORDER[sb] ?? 9);
+  });
+
+  // Stats reflect the full archive after merge
+  el("s-total").textContent   = allListings.length;
+  el("s-new").textContent     = allListings.filter(p => !loadStatus(p)).length;
+  el("s-notable").textContent = irrelevant.length;
+  document.querySelector('.stat:nth-child(1) .l').textContent = 'Total Tracked';
+  document.querySelector('.stat:nth-child(2) .l').textContent = 'New / No Status';
+  document.querySelector('.stat:nth-child(3) .l').textContent = 'Not Relevant';
+
+  const activeEl = el("active-list");
+  if (active.length === 0) {
+    activeEl.innerHTML = '<div class="empty">No active listings.</div>';
+  } else {
+    activeEl.innerHTML = active.map(p => renderListing(p, true)).join("");
+  }
+
+  const irrEl = el("irrelevant-list");
+  if (irrelevant.length === 0) {
+    irrEl.innerHTML = '<div class="empty">Nothing marked as not relevant yet.</div>';
+  } else {
+    irrEl.innerHTML = irrelevant.map(p => renderListing(p, false)).join("");
+  }
+
+  attachNoteHandlers();
+  attachStatusHandlers();
+
+  // When status changes to/from an irrelevant one, move the card to the right section
+  document.querySelectorAll("select.status-select").forEach(sel => {
+    sel.addEventListener("change", () => {
+      const card = sel.closest(".listing");
+      if (!card) return;
+      const newSection = IRRELEVANT_STATUSES.has(sel.value) ? irrEl : activeEl;
+      if (card.parentElement !== newSection) {
+        // Remove "empty" placeholder if present
+        const placeholder = newSection.querySelector(".empty");
+        if (placeholder) placeholder.remove();
+        newSection.appendChild(card);
+      }
+    });
+  });
+
+  document.querySelectorAll(".run-now").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const cmd = btn.getAttribute("data-cmd");
+      try {
+        await navigator.clipboard.writeText(cmd);
+        const original = btn.textContent;
+        btn.textContent = "✓ Copied — paste in Cowork";
+        btn.classList.add("copied");
+        setTimeout(() => { btn.textContent = original; btn.classList.remove("copied"); }, 2500);
+      } catch (err) {
+        alert("Copy failed. Command:\n\n" + cmd);
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

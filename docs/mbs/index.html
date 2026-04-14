@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MBS 2026 — Agent Hub</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
+  html, body { overflow-x: hidden; width: 100%; margin: 0; padding: 0; }
+  body {
+    font-family: 'Heebo', sans-serif;
+    background: #faf7fb;
+    color: #2D3436;
+    min-height: 100vh;
+    padding: 24px 16px;
+  }
+  .mbs-dashboard {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+    background: linear-gradient(135deg, #FFF5F8 0%, #F8F4FF 100%);
+    border-radius: 20px;
+  }
+  .mbs-dashboard * { box-sizing: border-box; max-width: 100%; }
+
+  /* HEADER */
+  .mbs-header {
+    text-align: center;
+    margin-bottom: 24px;
+    padding: 28px 30px;
+    background: linear-gradient(135deg, #E91E63 0%, #9C27B0 100%);
+    border-radius: 15px;
+    color: white;
+    position: relative;
+  }
+  .mbs-header h1 { margin: 0 0 8px 0; font-size: 28px; font-weight: 700; }
+  .mbs-header p { margin: 0; opacity: 0.92; font-size: 14px; }
+  .mbs-header .agent-tag {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 4px 12px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  /* RUN-EVENT FORM */
+  .run-event-section {
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(233, 30, 99, 0.08);
+    border-top: 4px solid #E91E63;
+  }
+  .run-event-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #E91E63;
+    margin: 0 0 6px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .run-event-sub {
+    font-size: 13px;
+    color: #636E72;
+    margin: 0 0 18px 0;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 0.7fr;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .form-grid label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #636E72;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 5px;
+  }
+  .form-grid input,
+  .form-grid select {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1.5px solid #F3D6E2;
+    border-radius: 10px;
+    font-family: 'Heebo', sans-serif;
+    font-size: 14px;
+    color: #2D3436;
+    background: #FFFAFC;
+    transition: all 0.2s ease;
+  }
+  .form-grid input:focus,
+  .form-grid select:focus {
+    outline: none;
+    border-color: #E91E63;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(233, 30, 99, 0.12);
+  }
+  .form-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .run-btn {
+    padding: 13px 28px;
+    background: linear-gradient(135deg, #E91E63 0%, #9C27B0 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-family: 'Heebo', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 15px rgba(233, 30, 99, 0.3);
+  }
+  .run-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(233, 30, 99, 0.4); }
+  .run-btn:active { transform: translateY(0); }
+  .run-btn.copied { background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%); }
+  .form-hint {
+    flex: 1;
+    font-size: 12px;
+    color: #999;
+  }
+  .preview-box {
+    margin-top: 14px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, #FFF5F8 0%, #F8F4FF 100%);
+    border-radius: 10px;
+    border: 1px dashed #E91E63;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 12px;
+    color: #6A1B9A;
+    direction: ltr;
+    text-align: left;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    display: none;
+  }
+  .preview-box.show { display: block; }
+
+  /* SUMMARY CARDS */
+  .mbs-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .mbs-card {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  }
+  .mbs-card-icon { font-size: 28px; margin-bottom: 6px; }
+  .mbs-card-value { font-size: 22px; font-weight: 700; color: #2D3436; margin-bottom: 4px; }
+  .mbs-card-label { font-size: 11px; color: #636E72; text-transform: uppercase; letter-spacing: 0.5px; }
+  .mbs-card.sales { border-top: 4px solid #E91E63; }
+  .mbs-card.profit { border-top: 4px solid #4CAF50; }
+  .mbs-card.events { border-top: 4px solid #9C27B0; }
+  .mbs-card.avg { border-top: 4px solid #FF9800; }
+  .mbs-card.transactions { border-top: 4px solid #2196F3; }
+
+  /* SECTIONS */
+  .mbs-section {
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  }
+  .mbs-section-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #2D3436;
+    margin: 0 0 18px 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #FFE4EC;
+  }
+
+  /* TABLES */
+  .mbs-table-wrapper { overflow-x: auto; }
+  .mbs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .mbs-table th {
+    background: linear-gradient(135deg, #F8F9FA 0%, #FCE4EC 100%);
+    padding: 12px 8px;
+    text-align: center;
+    font-weight: 600;
+    color: #2D3436;
+    white-space: nowrap;
+    border-bottom: 2px solid #E91E63;
+    font-size: 11px;
+  }
+  .mbs-table td {
+    padding: 11px 8px;
+    text-align: center;
+    border-bottom: 1px solid #F5E5EC;
+    vertical-align: middle;
+  }
+  .mbs-table tbody tr:hover td { background: #FFF5F8; }
+  .event-name { font-weight: 600; color: #E91E63; text-align: right; }
+  .money { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+  .money.pos { color: #2E7D32; }
+  .money.neg { color: #C62828; }
+  .delta { display: block; font-size: 10px; font-weight: 500; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .delta.good { color: #4CAF50; }
+  .delta.bad { color: #F44336; }
+  .delta.warn { color: #FF9800; }
+
+  .tier-badge {
+    display: inline-block;
+    width: 26px;
+    height: 26px;
+    line-height: 26px;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 13px;
+    color: white;
+  }
+  .tier-1 { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); }
+  .tier-2 { background: linear-gradient(135deg, #C0C0C0 0%, #909090 100%); }
+  .tier-3 { background: linear-gradient(135deg, #CD7F32 0%, #8B4513 100%); }
+
+  .status-pill {
+    display: inline-block;
+    padding: 4px 11px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+  .status-tbd { background: #FFF3E0; color: #E65100; }
+  .status-future { background: #F3E5F5; color: #6A1B9A; }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    inset-inline-start: 30px;
+    background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+    color: white;
+    padding: 14px 22px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 8px 25px rgba(76, 175, 80, 0.35);
+    transform: translateY(calc(100% + 60px));
+    opacity: 0;
+    visibility: hidden;
+    transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.4), opacity 0.3s ease, visibility 0.3s ease;
+    z-index: 1000;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; visibility: visible; }
+
+  /* BACK BUTTON */
+  .back-btn-wrapper {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 22px;
+    background: white;
+    color: #E91E63;
+    border: 2px solid #E91E63;
+    border-radius: 12px;
+    font-family: 'Heebo', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+  .back-btn:hover {
+    background: #E91E63;
+    color: white;
+    box-shadow: 0 4px 15px rgba(233, 30, 99, 0.3);
+  }
+
+  .mbs-footer {
+    text-align: center;
+    padding: 18px;
+    color: #636E72;
+    font-size: 12px;
+  }
+  .mbs-footer a { color: #E91E63; text-decoration: none; font-weight: 600; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .form-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 600px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .mbs-header h1 { font-size: 22px; }
+    .mbs-cards { grid-template-columns: repeat(2, 1fr); }
+    .mbs-card-value { font-size: 18px; }
+    .mbs-section { padding: 16px; }
+    .mbs-table { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<script id="dashboard-data">
+const SEASON = {
+  year: 2026,
+  completedEvents: 13,
+  avgs: {
+    sales: 50858, profit: 9374, margin: 18.4
+  },
+  totals: {
+    sales: 661152, profit: 121862
+  },
+  events: [
+    { n:1, city:"Glendale",        state:"AZ", dates:"Jan 9-11",    tier:2, sales:51993, profit:7794,   margin:15.0, note:"", status:"done" },
+    { n:2, city:"Fresno",          state:"CA", dates:"Jan 16-18",   tier:1, sales:88230, profit:27202,  margin:30.8, note:"💪 Strong", status:"done" },
+    { n:3, city:"El Cajon",        state:"CA", dates:"Jan 23-25",   tier:3, sales:46700, profit:7218,   margin:15.5, note:"16mo return", status:"done" },
+    { n:4, city:"Emeryville",      state:"CA", dates:"Jan 30-Feb 1",tier:3, sales:43456, profit:12475,  margin:28.7, note:"TikTok ZIP issue", status:"done" },
+    { n:5, city:"Concord",         state:"CA", dates:"Feb 6-8",     tier:3, sales:52956, profit:8752,   margin:16.5, note:"", status:"done" },
+    { n:6, city:"Burbank",         state:"CA", dates:"Feb 13-15",   tier:3, sales:36745, profit:1678,   margin:4.6,  note:"13mo return · high venue", status:"done" },
+    { n:7, city:"North Las Vegas", state:"NV", dates:"Feb 20-22",   tier:2, sales:92658, profit:42693,  margin:46.1, note:"🏆 Best 2026", status:"done" },
+    { n:8, city:"Amarillo",        state:"TX", dates:"Feb 27-Mar 1",tier:3, sales:53928, profit:5418,   margin:10.1, note:"", status:"done" },
+    { n:9, city:"Garland",         state:"TX", dates:"Mar 6-8",     tier:3, sales:36669, profit:-7547,  margin:-20.6,note:"❌ Winter Storm Fern", status:"done" },
+    { n:10,city:"Fort Worth",      state:"TX", dates:"Mar 13-15",   tier:3, sales:58230, profit:20378,  margin:35.0, note:"💪 Strong", status:"done" },
+    { n:11,city:"Tulsa",           state:"OK", dates:"Mar 20-22",   tier:3, sales:38640, profit:768,    margin:2.0,  note:"Venue+hotel bundle deal", status:"done" },
+    { n:12,city:"Hampton",         state:"VA", dates:"Mar 27-29",   tier:2, sales:34033, profit:-11628, margin:-34.2,note:"❌ New market · demo mismatch · ROAS 5.2x", status:"done" },
+    { n:13,city:"Syracuse",        state:"NY", dates:"Apr 3-5",     tier:3, sales:34930, profit:7314,   margin:20.9, note:"🆕 שוק חדש · מלאי רזה · דמוגרפיה חלשה", status:"done" },
+    { n:14,city:"Reading",         state:"PA", dates:"Apr 10-12",   tier:3, sales:null,  profit:null,   margin:null, note:"This weekend · 68% Hispanic", status:"future" },
+    { n:15,city:"Columbus",        state:"OH", dates:"Apr 17-19",   tier:2, sales:null,  profit:null,   margin:null, note:"", status:"future" },
+    { n:16,city:"Louisville",      state:"KY", dates:"Apr 24-26",   tier:3, sales:null,  profit:null,   margin:null, note:"", status:"future" }
+  ]
+};
+</script>
+
+<div class="back-btn-wrapper">
+  <a class="back-btn" href="../">→ חזרה לתפריט הראשי</a>
+</div>
+
+<div class="mbs-dashboard">
+
+  <!-- HEADER -->
+  <div class="mbs-header">
+    <h1>💄 THE MAKEUP BLOWOUT SALE</h1>
+    <p id="header-sub">Agent Hub · 2026 Season</p>
+    <span class="agent-tag">🤖 POST-EVENT AUTOMATION</span>
+  </div>
+
+  <!-- RUN EVENT SUMMARY FORM -->
+  <div class="run-event-section">
+    <h2 class="run-event-title">▶ סכם אירוע חדש</h2>
+    <p class="run-event-sub">מלאי את הפרטים, לחצי על הכפתור, ותקבלי פקודה להעתקה ל-Cowork. הסוכן ימשוך הכל מ-OctoPos / QB / Meta / TikTok ויעדכן את כל הקבצים.</p>
+
+    <div class="form-grid">
+      <div>
+        <label>שם האירוע (עיר, מדינה)</label>
+        <input type="text" id="evt-name" placeholder="לדוגמה: Syracuse, NY" autocomplete="off">
+      </div>
+      <div>
+        <label>תאריך התחלה</label>
+        <input type="date" id="evt-start">
+      </div>
+      <div>
+        <label>תאריך סיום</label>
+        <input type="date" id="evt-end">
+      </div>
+      <div>
+        <label>Tier</label>
+        <select id="evt-tier">
+          <option value="1">Tier 1</option>
+          <option value="2">Tier 2</option>
+          <option value="3" selected>Tier 3</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="run-btn" id="run-btn">▶ Run Event Summary</button>
+      <span class="form-hint">הפקודה תועתק אוטומטית — הדביקי בצ'אט של Cowork</span>
+    </div>
+
+    <div class="preview-box" id="preview"></div>
+  </div>
+
+  <!-- SUMMARY CARDS -->
+  <div class="mbs-cards">
+    <div class="mbs-card sales">
+      <div class="mbs-card-icon">💰</div>
+      <div class="mbs-card-value" id="s-sales">$0</div>
+      <div class="mbs-card-label">סה"כ מכירות</div>
+    </div>
+    <div class="mbs-card profit">
+      <div class="mbs-card-icon">📈</div>
+      <div class="mbs-card-value" id="s-profit">$0</div>
+      <div class="mbs-card-label">סה"כ רווח</div>
+    </div>
+    <div class="mbs-card events">
+      <div class="mbs-card-icon">🎪</div>
+      <div class="mbs-card-value" id="s-events">0</div>
+      <div class="mbs-card-label" id="s-events-label">אירועים הושלמו</div>
+    </div>
+    <div class="mbs-card avg">
+      <div class="mbs-card-icon">📊</div>
+      <div class="mbs-card-value" id="s-avg-sales">$0</div>
+      <div class="mbs-card-label">ממוצע מכירות / אירוע</div>
+    </div>
+    <div class="mbs-card profit">
+      <div class="mbs-card-icon">💵</div>
+      <div class="mbs-card-value" id="s-margin">0%</div>
+      <div class="mbs-card-label">% רווח ממוצע</div>
+    </div>
+  </div>
+
+  <!-- COMPLETED EVENTS -->
+  <div class="mbs-section">
+    <h2 class="mbs-section-title">✅ אירועים שהושלמו (השוואה לממוצע 2026)</h2>
+    <div class="mbs-table-wrapper">
+      <table class="mbs-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>אירוע</th>
+            <th>תאריכים</th>
+            <th>Tier</th>
+            <th>מכירות</th>
+            <th>רווח</th>
+            <th>מרג׳ין</th>
+            <th>הערות</th>
+          </tr>
+        </thead>
+        <tbody id="events-done"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PENDING / UPCOMING -->
+  <div class="mbs-section">
+    <h2 class="mbs-section-title">⏳ ממתינים לסיכום / אירועים קרובים</h2>
+    <div class="mbs-table-wrapper">
+      <table class="mbs-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>אירוע</th>
+            <th>תאריכים</th>
+            <th>Tier</th>
+            <th>סטטוס</th>
+            <th>הערות</th>
+          </tr>
+        </thead>
+        <tbody id="events-pending"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="mbs-footer">
+    🤖 הסוכן מעדכן את הדף הזה אוטומטית בסיום כל סיכום אירוע | <a href="https://www.themakeupblowoutsale-group.com/events-summary-202663791493" target="_blank">צפי בדף הציבורי</a>
+  </div>
+
+</div>
+
+<div class="toast" id="toast">✓ הפקודה הועתקה — הדביקי ב-Cowork</div>
+
+<script>
+  const fmt = (v) => v == null ? "—" : "$" + Math.round(v).toLocaleString("en-US");
+  const pct = (v) => v == null ? "" : (v >= 0 ? "+" : "") + v.toFixed(1) + "%";
+  const deltaClass = (actualPct) =>
+    actualPct >= 10 ? 'good' : actualPct <= -10 ? 'bad' : 'warn';
+
+  // Header subtitle
+  document.getElementById("header-sub").textContent =
+    `Agent Hub · ${SEASON.year} Season · ${SEASON.completedEvents} אירועים הושלמו · עדכון אחרון: ${new Date().toLocaleDateString("he-IL")}`;
+
+  // KPI cards
+  document.getElementById("s-sales").textContent     = fmt(SEASON.totals.sales);
+  document.getElementById("s-profit").textContent    = fmt(SEASON.totals.profit);
+  document.getElementById("s-events").textContent    = SEASON.completedEvents;
+  document.getElementById("s-events-label").textContent =
+    `מתוך ${SEASON.events.length} מתוכננים`;
+  document.getElementById("s-avg-sales").textContent = fmt(SEASON.avgs.sales);
+  document.getElementById("s-margin").textContent    =
+    (SEASON.totals.profit / SEASON.totals.sales * 100).toFixed(1) + "%";
+
+  // Render completed events
+  const done = SEASON.events
+    .filter(e => e.status === 'done')
+    .sort((a, b) => (b.profit || 0) - (a.profit || 0));
+  const tbodyDone = document.getElementById("events-done");
+  done.forEach(e => {
+    const salesDelta  = ((e.sales  - SEASON.avgs.sales)  / SEASON.avgs.sales)  * 100;
+    const profitDelta = ((e.profit - SEASON.avgs.profit) / SEASON.avgs.profit) * 100;
+    const profitClass = e.profit >= 0 ? 'pos' : 'neg';
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${e.n}</td>
+      <td class="event-name">${e.city}, ${e.state}</td>
+      <td>${e.dates}</td>
+      <td><span class="tier-badge tier-${e.tier}">${e.tier}</span></td>
+      <td class="money">${fmt(e.sales)}<span class="delta ${deltaClass(salesDelta)}">${pct(salesDelta)}</span></td>
+      <td class="money ${profitClass}">${fmt(e.profit)}<span class="delta ${deltaClass(profitDelta)}">${pct(profitDelta)}</span></td>
+      <td class="money ${profitClass}">${e.margin.toFixed(1)}%</td>
+      <td>${e.note || ""}</td>
+    `;
+    tbodyDone.appendChild(tr);
+  });
+
+  // Render pending / upcoming
+  const pending = SEASON.events.filter(e => e.status !== 'done');
+  const tbodyPending = document.getElementById("events-pending");
+  pending.forEach(e => {
+    const statusClass = e.status === 'tbd' ? 'status-tbd' : 'status-future';
+    const statusLabel = e.status === 'tbd' ? '⏳ ממתין לסיכום' : '📅 מתוכנן';
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${e.n}</td>
+      <td class="event-name">${e.city}, ${e.state}</td>
+      <td>${e.dates}</td>
+      <td><span class="tier-badge tier-${e.tier}">${e.tier}</span></td>
+      <td><span class="status-pill ${statusClass}">${statusLabel}</span></td>
+      <td>${e.note || ""}</td>
+    `;
+    tbodyPending.appendChild(tr);
+  });
+
+  // ===== RUN EVENT SUMMARY FORM =====
+  const runBtn = document.getElementById("run-btn");
+  const preview = document.getElementById("preview");
+  const toast = document.getElementById("toast");
+
+  function buildCommand() {
+    const name  = document.getElementById("evt-name").value.trim();
+    const start = document.getElementById("evt-start").value;
+    const end   = document.getElementById("evt-end").value;
+    const tier  = document.getElementById("evt-tier").value;
+
+    if (!name || !start || !end) {
+      return null;
+    }
+
+    const fmtDate = (iso) => {
+      const [y, m, d] = iso.split("-");
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      return `${months[parseInt(m,10)-1]} ${parseInt(d,10)}, ${y}`;
+    };
+    const fmtMDY = (iso) => {
+      const [y, m, d] = iso.split("-");
+      return `${m}/${d}/${y}`;
+    };
+
+    return `Run the MBS Event Summary agent for the event below. Read the SKILL.md at mbs-event-summary/SKILL.md FIRST and follow the full 8-step workflow.
+
+EVENT
+  Name:  ${name}
+  Dates: ${fmtDate(start)} → ${fmtDate(end)}
+  Tier:  Tier ${tier}
+
+DATA SOURCES TO PULL AUTONOMOUSLY
+  1. OctoPos sales report:
+     https://themakeup.octoretail.com/app/dist/#/reports/sales/sales-summary-for-single-locations
+     → date range ${fmtMDY(start)} – ${fmtMDY(end)} → Apply
+     → extract Total Sales, #Transactions, Avg ticket, Payment breakdown, Top products
+  2. QuickBooks Online → Tags → search "${name} ${start.slice(0,4)}"
+     → run P&L + transaction list
+  3. Meta Ads Manager → filter by event/date window → spend, impressions, ROAS
+  4. TikTok Ads Manager → same filters
+  5. Ask me for the cash report from the on-site manager
+
+WHAT TO PRODUCE
+  • Fill the event tab in the 2026 P&L Google Sheet (use Name Box navigation)
+  • Compare to PRE-event averages (N−1 events, not N)
+  • Compute Cost/txn, Δ per customer, ROAS, CPA, % of loss by category
+  • Flag anomalies (Misc > $1k, demographics, East Coast premium)
+  • Generate updated dashboard block (V## → V##+1) for ClickFunnels
+  • Generate standalone Event Detail page in matching pink/purple style
+  • Generate Hebrew .docx for NotebookLM with insights + next-event inventory budget
+  • Update this Agent Hub dashboard (move event from pending → done)`;
+  }
+
+  runBtn.addEventListener("click", async () => {
+    const cmd = buildCommand();
+    if (!cmd) {
+      preview.textContent = "⚠ אנא מלאי שם אירוע, תאריך התחלה ותאריך סיום";
+      preview.classList.add("show");
+      preview.style.borderColor = "#F44336";
+      preview.style.color = "#C62828";
+      return;
+    }
+    preview.textContent = cmd;
+    preview.classList.add("show");
+    preview.style.borderColor = "#E91E63";
+    preview.style.color = "#6A1B9A";
+
+    try {
+      await navigator.clipboard.writeText(cmd);
+      runBtn.textContent = "✓ הפקודה הועתקה!";
+      runBtn.classList.add("copied");
+      toast.classList.add("show");
+      setTimeout(() => {
+        runBtn.textContent = "▶ Run Event Summary";
+        runBtn.classList.remove("copied");
+        toast.classList.remove("show");
+      }, 3000);
+    } catch (err) {
+      // clipboard blocked — preview is still visible for manual copy
+      runBtn.textContent = "📋 העתיקי מהתצוגה למטה";
+    }
+  });
+
+  // Auto-fill from first pending event for convenience
+  const firstPending = SEASON.events.find(e => e.status === 'tbd');
+  if (firstPending) {
+    document.getElementById("evt-name").value = `${firstPending.city}, ${firstPending.state}`;
+    document.getElementById("evt-tier").value = firstPending.tier;
+  }
+</script>
+
+</body>
+</html>
