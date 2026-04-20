@@ -237,6 +237,92 @@
   @media (max-width: 600px) {
     .stat-row { grid-template-columns: 1fr; }
   }
+
+  /* ---- Sync button + status ---- */
+  .sync-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: #374151;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    transition: all 0.15s;
+  }
+  .sync-btn:hover { background: #f9fafb; border-color: #d1d5db; }
+  .sync-btn.state-synced   { color: #059669; border-color: #6ee7b7; background: #ecfdf5; }
+  .sync-btn.state-syncing  { color: #2563eb; border-color: #93c5fd; background: #eff6ff; }
+  .sync-btn.state-offline  { color: #9ca3af; }
+  .sync-btn.state-error    { color: #b91c1c; border-color: #fca5a5; background: #fef2f2; }
+  .sync-btn .sync-dot      { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .sync-btn.state-syncing .sync-dot { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+  /* ---- Modal ---- */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(17,24,39,0.55);
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 480px;
+    padding: 24px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+  }
+  .modal h2 { margin: 0 0 6px; font-size: 18px; }
+  .modal p.modal-sub { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .modal label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); font-weight: 600; margin: 10px 0 4px; }
+  .modal input[type=password], .modal input[type=text] {
+    width: 100%;
+    padding: 9px 11px;
+    font-size: 13px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-sizing: border-box;
+  }
+  .modal input:focus { outline: none; border-color: var(--accent); }
+  .modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+  .modal button {
+    padding: 9px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .modal button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .modal button.primary:hover { background: #1d4ed8; }
+  .modal button.danger { color: #b91c1c; }
+  .modal .modal-msg { font-size: 12px; margin-top: 10px; min-height: 16px; }
+  .modal .modal-msg.ok   { color: #059669; }
+  .modal .modal-msg.err  { color: #b91c1c; }
+  .modal .modal-help {
+    font-size: 12px;
+    color: var(--muted);
+    background: #f9fafb;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-top: 12px;
+    line-height: 1.5;
+  }
+  .modal .modal-help a { color: var(--accent); }
+  .modal .modal-help code { font-family: ui-monospace, "SF Mono", Menlo, monospace; background: #e5e7eb; padding: 1px 4px; border-radius: 3px; }
 </style>
 </head>
 <body>
@@ -279,10 +365,39 @@ const SCAN = {
     <div class="stamp" id="stamp"></div>
   </div>
   <div class="header-actions">
+    <button class="sync-btn state-offline" id="syncBtn" title="Cross-device sync settings">
+      <span class="sync-dot"></span>
+      <span id="syncBtnLabel">Sync: off</span>
+    </button>
     <button class="run-now" data-cmd="Run the housing skill">▶ Run search now</button>
     <a class="back-hub" href="../">← Agent Hub</a>
   </div>
 </header>
+
+<!-- Sync settings modal -->
+<div class="modal-overlay" id="syncModal">
+  <div class="modal">
+    <h2>🔗 Cross-device sync</h2>
+    <p class="modal-sub">
+      Your notes and statuses are stored in <code>notes.json</code> inside your GitHub repo, so every device you open this dashboard on shows the same data.
+      To enable writes from this browser, paste a fine-grained GitHub token that has <strong>Contents: Read and write</strong> on
+      <code>laurenlev10/lauren-agent-hub-data</code>.
+    </p>
+    <label for="ghToken">GitHub token</label>
+    <input type="password" id="ghToken" placeholder="github_pat_..." autocomplete="off" spellcheck="false">
+    <div class="modal-msg" id="modalMsg"></div>
+    <div class="modal-help">
+      Create one at <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com → Settings → Developer settings → Personal access tokens → Fine-grained</a>.
+      Repository access: select only <code>laurenlev10/lauren-agent-hub-data</code>. Permissions → Repository → <strong>Contents: Read and write</strong>. Copy the token and paste it above.
+      The token stays on this device only (browser localStorage).
+    </div>
+    <div class="modal-actions">
+      <button class="danger" id="btnForget" type="button">Forget token</button>
+      <button id="btnCancel" type="button">Cancel</button>
+      <button class="primary" id="btnSave" type="button">Save &amp; test</button>
+    </div>
+  </div>
+</div>
 
 <div class="stat-row">
   <div class="stat"><div class="n" id="s-total">0</div><div class="l">Total Found</div></div>
@@ -296,10 +411,272 @@ const SCAN = {
 <div class="section-title">🗑 Not Relevant (toured & passed / rejected)</div>
 <div id="irrelevant-list"></div>
 
+<!-- ==========================================================
+     RemoteSync: reads/writes notes.json in the GitHub repo so
+     notes + statuses follow Lauren across devices.
+     ========================================================== -->
+<script>
+  const RemoteSync = (function () {
+    const OWNER  = "laurenlev10";
+    const REPO   = "lauren-agent-hub-data";
+    const PATH   = "docs/housing/notes.json";
+    const BRANCH = "main";
+    const TOKEN_KEY = "housing_gh_token_v1";
+    const NOTE_PREFIX   = "housing_note::";
+    const STATUS_PREFIX = "housing_status::";
+    const DEBOUNCE_MS   = 1500;
+
+    // --- token storage ---
+    function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; } }
+    function setToken(t) { try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+    function hasToken() { return !!getToken(); }
+
+    // --- status badge ---
+    function setState(state, label) {
+      const btn = document.getElementById("syncBtn");
+      if (!btn) return;
+      btn.classList.remove("state-synced", "state-syncing", "state-offline", "state-error");
+      btn.classList.add("state-" + state);
+      const lbl = document.getElementById("syncBtnLabel");
+      if (lbl) lbl.textContent = label;
+    }
+
+    // --- base64 helpers (unicode-safe) ---
+    function b64encode(str) {
+      return btoa(unescape(encodeURIComponent(str)));
+    }
+    function b64decode(str) {
+      return decodeURIComponent(escape(atob(str.replace(/\s/g, ""))));
+    }
+
+    // --- GitHub Contents API ---
+    async function apiGet() {
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${BRANCH}&_=${Date.now()}`;
+      const headers = { "Accept": "application/vnd.github+json" };
+      const t = getToken();
+      if (t) headers["Authorization"] = "Bearer " + t;
+      const res = await fetch(url, { headers, cache: "no-store" });
+      if (res.status === 404) return { data: {}, sha: null };
+      if (!res.ok) throw new Error(`GET ${res.status}`);
+      const json = await res.json();
+      let data = {};
+      try { data = JSON.parse(b64decode(json.content)); } catch (e) { data = {}; }
+      return { data, sha: json.sha };
+    }
+
+    async function apiPut(data, sha, message) {
+      const t = getToken();
+      if (!t) throw new Error("no token");
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`;
+      const body = {
+        message: message || "Update housing notes",
+        content: b64encode(JSON.stringify(data, null, 2) + "\n"),
+        branch: BRANCH
+      };
+      if (sha) body.sha = sha;
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Accept": "application/vnd.github+json",
+          "Authorization": "Bearer " + t,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        const err = new Error(`PUT ${res.status}: ${txt.slice(0, 200)}`);
+        err.status = res.status;
+        throw err;
+      }
+      const json = await res.json();
+      return json.content && json.content.sha;
+    }
+
+    // --- merge remote into localStorage ---
+    // Remote format: { "<link>": { note: "...", status: "..." } }
+    function mergeRemoteToLocal(remote) {
+      if (!remote || typeof remote !== "object") return;
+      Object.keys(remote).forEach(link => {
+        const rec = remote[link] || {};
+        try {
+          if (typeof rec.note === "string")   localStorage.setItem(NOTE_PREFIX   + link, rec.note);
+          if (typeof rec.status === "string") localStorage.setItem(STATUS_PREFIX + link, rec.status);
+        } catch (e) {}
+      });
+    }
+
+    // --- build remote payload from localStorage ---
+    function buildPayloadFromLocal() {
+      const out = {};
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          if (k.startsWith(NOTE_PREFIX)) {
+            const link = k.slice(NOTE_PREFIX.length);
+            if (!link) continue;
+            out[link] = out[link] || {};
+            out[link].note = localStorage.getItem(k) || "";
+          } else if (k.startsWith(STATUS_PREFIX)) {
+            const link = k.slice(STATUS_PREFIX.length);
+            if (!link) continue;
+            out[link] = out[link] || {};
+            out[link].status = localStorage.getItem(k) || "";
+          }
+        }
+        // Prune keys with only empty values to keep the file tidy
+        Object.keys(out).forEach(link => {
+          const r = out[link];
+          const emptyNote = !r.note || !r.note.trim();
+          const emptyStatus = !r.status || !r.status.trim();
+          if (emptyNote && emptyStatus) delete out[link];
+          else {
+            if (r.note   === undefined) r.note = "";
+            if (r.status === undefined) r.status = "";
+          }
+        });
+      } catch (e) {}
+      return out;
+    }
+
+    // --- initial load from remote ---
+    let currentSha = null;
+    async function loadInitial() {
+      if (!hasToken()) {
+        setState("offline", "Sync: off");
+        // Still try anonymous read — repo is public, so remote notes can seed the UI
+        try {
+          const { data, sha } = await apiGet();
+          currentSha = sha;
+          mergeRemoteToLocal(data);
+        } catch (e) { /* ignore — anon may be rate-limited */ }
+        return;
+      }
+      setState("syncing", "Syncing…");
+      try {
+        const { data, sha } = await apiGet();
+        currentSha = sha;
+        mergeRemoteToLocal(data);
+        setState("synced", "Synced ✓");
+      } catch (e) {
+        console.warn("[RemoteSync] initial load failed:", e);
+        setState("error", "Sync error");
+      }
+    }
+
+    // --- debounced save (last-write-wins, with 1x conflict retry) ---
+    let saveTimer = null;
+    let saving = false;
+    let savePending = false;
+
+    async function doSave() {
+      if (!hasToken()) { setState("offline", "Sync: off"); return; }
+      if (saving) { savePending = true; return; }
+      saving = true;
+      setState("syncing", "Syncing…");
+      try {
+        const payload = buildPayloadFromLocal();
+        try {
+          currentSha = await apiPut(payload, currentSha, "Update housing notes from dashboard");
+        } catch (e) {
+          if (e.status === 409 || e.status === 422) {
+            // Someone else pushed. Refetch, re-merge our changes over theirs, retry once.
+            const fresh = await apiGet();
+            const merged = Object.assign({}, fresh.data || {}, payload);
+            currentSha = await apiPut(merged, fresh.sha, "Update housing notes (after conflict)");
+          } else { throw e; }
+        }
+        setState("synced", "Synced ✓");
+      } catch (e) {
+        console.warn("[RemoteSync] save failed:", e);
+        setState("error", "Sync error");
+      } finally {
+        saving = false;
+        if (savePending) { savePending = false; scheduleSave(0); }
+      }
+    }
+
+    function scheduleSave(delay) {
+      const d = (typeof delay === "number") ? delay : DEBOUNCE_MS;
+      if (!hasToken()) { setState("offline", "Sync: off"); return; }
+      clearTimeout(saveTimer);
+      setState("syncing", "Unsaved…");
+      saveTimer = setTimeout(doSave, d);
+    }
+
+    // --- modal UI wiring ---
+    function wireModal() {
+      const overlay = document.getElementById("syncModal");
+      const input   = document.getElementById("ghToken");
+      const msg     = document.getElementById("modalMsg");
+      const btn     = document.getElementById("syncBtn");
+      const save    = document.getElementById("btnSave");
+      const cancel  = document.getElementById("btnCancel");
+      const forget  = document.getElementById("btnForget");
+      if (!overlay || !btn) return;
+
+      function open() {
+        input.value = getToken();
+        msg.textContent = "";
+        msg.className = "modal-msg";
+        overlay.classList.add("open");
+        setTimeout(() => input.focus(), 50);
+      }
+      function close() { overlay.classList.remove("open"); }
+
+      btn.addEventListener("click", open);
+      cancel.addEventListener("click", close);
+      overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+      forget.addEventListener("click", () => {
+        setToken("");
+        input.value = "";
+        msg.className = "modal-msg ok";
+        msg.textContent = "Token removed. Sync is off.";
+        setState("offline", "Sync: off");
+      });
+      save.addEventListener("click", async () => {
+        const t = (input.value || "").trim();
+        if (!t) { msg.className = "modal-msg err"; msg.textContent = "Paste a token first."; return; }
+        setToken(t);
+        msg.className = "modal-msg";
+        msg.textContent = "Testing…";
+        setState("syncing", "Testing…");
+        try {
+          const { data, sha } = await apiGet();
+          currentSha = sha;
+          mergeRemoteToLocal(data);
+          // Also push current local state up so remote reflects it
+          const payload = buildPayloadFromLocal();
+          currentSha = await apiPut(payload, currentSha, "Enable dashboard sync");
+          msg.className = "modal-msg ok";
+          msg.textContent = "Connected. Notes will now sync across devices.";
+          setState("synced", "Synced ✓");
+          setTimeout(() => { close(); location.reload(); }, 900);
+        } catch (e) {
+          msg.className = "modal-msg err";
+          msg.textContent = "Failed: " + (e.message || e);
+          setState("error", "Sync error");
+        }
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && overlay.classList.contains("open")) close();
+      });
+    }
+
+    return { loadInitial, scheduleSave, wireModal, hasToken };
+  })();
+</script>
+
 <script>
   const el = (id) => document.getElementById(id);
 
   el("stamp").textContent = `${SCAN.date} · ${SCAN.time}`;
+
+  // Wire up the sync settings modal before anything else (button must work even on errors).
+  if (typeof RemoteSync !== "undefined") {
+    try { RemoteSync.wireModal(); } catch (e) { console.warn("wireModal failed:", e); }
+  }
 
   // Persistent notes / status / full listing archive keyed by listing URL
   const NOTE_PREFIX   = "housing_note::";
@@ -381,6 +758,7 @@ const SCAN = {
               savedBadge.classList.add("show");
               setTimeout(() => savedBadge.classList.remove("show"), 1500);
             }
+            if (typeof RemoteSync !== "undefined") RemoteSync.scheduleSave();
           } catch (e) { /* ignore */ }
         }, 400);
       });
@@ -394,6 +772,7 @@ const SCAN = {
           localStorage.setItem(sel.getAttribute("data-key"), sel.value);
           const card = sel.closest(".listing");
           if (card) card.setAttribute("data-status", sel.value);
+          if (typeof RemoteSync !== "undefined") RemoteSync.scheduleSave();
         } catch (e) { /* ignore */ }
       });
     });
@@ -466,6 +845,28 @@ const SCAN = {
 
   const STATUS_ORDER = { "": 0, "tour_scheduled": 1, "toured_applying": 2 };
 
+  // Run/now button is wired outside the async init so it works even if sync fails.
+  document.querySelectorAll(".run-now").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const cmd = btn.getAttribute("data-cmd");
+      try {
+        await navigator.clipboard.writeText(cmd);
+        const original = btn.textContent;
+        btn.textContent = "✓ Copied — paste in Cowork";
+        btn.classList.add("copied");
+        setTimeout(() => { btn.textContent = original; btn.classList.remove("copied"); }, 2500);
+      } catch (err) {
+        alert("Copy failed. Command:\n\n" + cmd);
+      }
+    });
+  });
+
+  (async function initDashboard() {
+    // Pull the latest notes.json from GitHub so every device sees the same notes+statuses.
+    if (typeof RemoteSync !== "undefined") {
+      try { await RemoteSync.loadInitial(); } catch (e) { console.warn("RemoteSync init failed:", e); }
+    }
+
   const allListings = mergeScanIntoArchive();
   const active      = allListings.filter(p => !IRRELEVANT_STATUSES.has(loadStatus(p)));
   const irrelevant  = allListings.filter(p =>  IRRELEVANT_STATUSES.has(loadStatus(p)));
@@ -514,21 +915,7 @@ const SCAN = {
       }
     });
   });
-
-  document.querySelectorAll(".run-now").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const cmd = btn.getAttribute("data-cmd");
-      try {
-        await navigator.clipboard.writeText(cmd);
-        const original = btn.textContent;
-        btn.textContent = "✓ Copied — paste in Cowork";
-        btn.classList.add("copied");
-        setTimeout(() => { btn.textContent = original; btn.classList.remove("copied"); }, 2500);
-      } catch (err) {
-        alert("Copy failed. Command:\n\n" + cmd);
-      }
-    });
-  });
+  })(); // end of initDashboard IIFE
 </script>
 
 </body>
