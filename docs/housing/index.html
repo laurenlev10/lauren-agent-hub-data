@@ -323,6 +323,47 @@
   }
   .modal .modal-help a { color: var(--accent); }
   .modal .modal-help code { font-family: ui-monospace, "SF Mono", Menlo, monospace; background: #e5e7eb; padding: 1px 4px; border-radius: 3px; }
+
+  /* ---- First-visit sync banner ---- */
+  .sync-banner {
+    display: none;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border: 1px solid #fbbf24;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    color: #78350f;
+    font-size: 14px;
+    line-height: 1.5;
+    position: relative;
+  }
+  .sync-banner.show { display: block; }
+  .sync-banner strong { color: #451a03; }
+  .sync-banner .banner-actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .sync-banner button {
+    padding: 7px 14px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .sync-banner .banner-enable { background: #b45309; color: #fff; border-color: #92400e; }
+  .sync-banner .banner-enable:hover { background: #92400e; }
+  .sync-banner .banner-dismiss { background: transparent; color: #78350f; border-color: #fbbf24; }
+  .sync-banner .banner-dismiss:hover { background: #fef3c7; }
+  .sync-banner .banner-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    color: #92400e;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+  }
 </style>
 </head>
 <body>
@@ -396,6 +437,17 @@ const SCAN = {
       <button id="btnCancel" type="button">Cancel</button>
       <button class="primary" id="btnSave" type="button">Save &amp; test</button>
     </div>
+  </div>
+</div>
+
+<div class="sync-banner" id="syncBanner">
+  <button class="banner-close" id="bannerClose" aria-label="Close">×</button>
+  <strong>💡 Cross-device sync is off on this device.</strong>
+  Your notes and statuses will only be saved in this browser until you enable it.
+  Enable sync once per device and your notes follow you everywhere — phone, laptop, anywhere.
+  <div class="banner-actions">
+    <button class="banner-enable" id="bannerEnable">Enable sync →</button>
+    <button class="banner-dismiss" id="bannerDismiss">Not now</button>
   </div>
 </div>
 
@@ -664,7 +716,35 @@ const SCAN = {
       });
     }
 
-    return { loadInitial, scheduleSave, wireModal, hasToken };
+    // --- first-visit banner ---
+    const BANNER_DISMISS_KEY = "housing_sync_banner_dismissed_v1";
+    function wireBanner() {
+      const banner  = document.getElementById("syncBanner");
+      if (!banner) return;
+      const close   = document.getElementById("bannerClose");
+      const enable  = document.getElementById("bannerEnable");
+      const dismiss = document.getElementById("bannerDismiss");
+      const syncBtn = document.getElementById("syncBtn");
+
+      let dismissed = false;
+      try { dismissed = localStorage.getItem(BANNER_DISMISS_KEY) === "1"; } catch (e) {}
+
+      // Show only when there's no token AND Lauren hasn't dismissed it on this device
+      if (!hasToken() && !dismissed) banner.classList.add("show");
+
+      function hide(remember) {
+        banner.classList.remove("show");
+        if (remember) { try { localStorage.setItem(BANNER_DISMISS_KEY, "1"); } catch (e) {} }
+      }
+      close   && close.addEventListener("click",   () => hide(true));
+      dismiss && dismiss.addEventListener("click", () => hide(true));
+      enable  && enable.addEventListener("click",  () => {
+        hide(true);
+        if (syncBtn) syncBtn.click();
+      });
+    }
+
+    return { loadInitial, scheduleSave, wireModal, wireBanner, hasToken };
   })();
 </script>
 
@@ -673,9 +753,10 @@ const SCAN = {
 
   el("stamp").textContent = `${SCAN.date} · ${SCAN.time}`;
 
-  // Wire up the sync settings modal before anything else (button must work even on errors).
+  // Wire up the sync settings modal + first-visit banner before anything else (must work even on errors).
   if (typeof RemoteSync !== "undefined") {
-    try { RemoteSync.wireModal(); } catch (e) { console.warn("wireModal failed:", e); }
+    try { RemoteSync.wireModal();  } catch (e) { console.warn("wireModal failed:",  e); }
+    try { RemoteSync.wireBanner(); } catch (e) { console.warn("wireBanner failed:", e); }
   }
 
   // Persistent notes / status / full listing archive keyed by listing URL
