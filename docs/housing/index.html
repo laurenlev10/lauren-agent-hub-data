@@ -473,7 +473,20 @@ const SCAN = {
     const REPO   = "lauren-agent-hub-data";
     const PATH   = "docs/housing/notes.json";
     const BRANCH = "main";
-    const TOKEN_KEY = "housing_gh_token_v1";
+    const TOKEN_KEY = "lauren_gh_token_v1";     // shared across all of Lauren's dashboards
+    const LEGACY_TOKEN_KEYS = ["housing_gh_token_v1"]; // one-time migration from per-dashboard keys
+    // Migrate any legacy per-dashboard token into the shared slot, once.
+    try {
+      if (!localStorage.getItem(TOKEN_KEY)) {
+        for (const k of LEGACY_TOKEN_KEYS) {
+          const legacy = localStorage.getItem(k);
+          if (legacy) { localStorage.setItem(TOKEN_KEY, legacy); localStorage.removeItem(k); break; }
+        }
+      } else {
+        // New key already has a value — clean up any stale legacy copies.
+        LEGACY_TOKEN_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
+      }
+    } catch (e) { /* localStorage blocked — migration is best-effort */ }
     const NOTE_PREFIX   = "housing_note::";
     const STATUS_PREFIX = "housing_status::";
     const DEBOUNCE_MS   = 1500;
