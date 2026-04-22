@@ -224,6 +224,97 @@
     color: var(--gold);
     margin-right: 4px;
   }
+
+  /* ---- Reconsider section ---- */
+  .section-title.reconsider-title {
+    background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%);
+    border: 2px solid #f59e0b;
+    color: #78350f;
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin-top: 20px;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(245,158,11,0.2);
+  }
+  .reconsider-card {
+    background: #fffbeb;
+    border: 2px solid #f59e0b;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(245,158,11,0.15);
+  }
+  .reconsider-card .rc-banner {
+    background: #f59e0b;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    display: inline-block;
+    margin-bottom: 10px;
+  }
+  .reconsider-card .rc-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .reconsider-card .rc-address { font-size: 16px; font-weight: 600; }
+  .reconsider-card .rc-address a { color: #78350f; text-decoration: none; }
+  .reconsider-card .rc-address a:hover { text-decoration: underline; }
+  .reconsider-card .rc-price {
+    font-size: 18px;
+    font-weight: 700;
+    color: #047857;
+  }
+  .reconsider-card .rc-price-strike {
+    font-size: 13px;
+    color: #9ca3af;
+    text-decoration: line-through;
+    margin-right: 6px;
+  }
+  .reconsider-card .rc-specs {
+    color: #6b7280;
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  .reconsider-card .rc-specs span { margin-left: 10px; }
+  .reconsider-card .rc-lauren {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 10px 0;
+    font-size: 13px;
+    color: #7c2d12;
+  }
+  .reconsider-card .rc-lauren-label { font-weight: 600; display: block; margin-bottom: 4px; }
+  .reconsider-card .rc-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .reconsider-card .rc-btn {
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .reconsider-card .rc-btn-keep {
+    background: #fff;
+    border-color: #d1d5db;
+    color: #4b5563;
+  }
+  .reconsider-card .rc-btn-keep:hover { background: #f9fafb; }
+  .reconsider-card .rc-btn-reopen {
+    background: #047857;
+    color: #fff;
+    border-color: #047857;
+  }
+  .reconsider-card .rc-btn-reopen:hover { background: #065f46; }
   .empty {
     background: var(--card);
     border: 1px dashed var(--border);
@@ -381,6 +472,9 @@ const SCAN = {
     notable:  6
   },
   newListings: [],
+  reconsiderListings: [
+    { address: "19150 Topham St, Tarzana, CA 91356", price: "$6,475/mo", beds: "6", baths: "3", sqft: "2,495", link: "https://www.zillow.com/homedetails/19150-Topham-St-Tarzana-CA-91356/19933042_zpid/", reconsider: { reason: "price_drop", prevPrice: "$6,675/mo", currPrice: "$6,475/mo", delta: "-$200", deltaPct: -3.0 } }
+  ],
   notableListings: [
     { address: "6022 Maury Ave, Woodland Hills, CA 91367", price: "$6,100/mo", beds: "5", baths: "4", sqft: "2,724", link: "https://www.zillow.com/homedetails/6022-Maury-Ave-Woodland-Hills-CA-91367/19872896_zpid/", note: "🏆 CHEAPEST 5BR in WH core · still on from 4/21 · 21 hrs ago · Zillow", isHighlight: false },
     { address: "6201 Corbin Ave, Tarzana, CA 91356", price: "$6,480/mo", beds: "5", baths: "4", sqft: "3,160", link: "https://www.zillow.com/homedetails/6201-Corbin-Ave-Tarzana-CA-91356/19932656_zpid/", note: "3,160 sqft (large) · still on · Tarzana/Woodland Hills border", isHighlight: false },
@@ -450,6 +544,9 @@ const SCAN = {
     <button class="banner-dismiss" id="bannerDismiss">Not now</button>
   </div>
 </div>
+
+<div class="section-title reconsider-title" id="reconsider-title" style="display:none;">🔔 שקולי שוב — שינוי על listing שסומן</div>
+<div id="reconsider-list"></div>
 
 <div class="stat-row">
   <div class="stat"><div class="n" id="s-total">0</div><div class="l">Total Found</div></div>
@@ -872,6 +969,98 @@ const SCAN = {
     });
   }
 
+  // ---- Reconsider section: re-surface rejected listings on meaningful changes ----
+  // A listing appears here when the agent detects e.g. a price drop on a listing
+  // Lauren previously marked as toured_disliked / application_rejected / photos_rejected.
+  // Lauren's existing note + status stay intact; she just gets a chance to re-evaluate.
+  const RECONSIDER_DISMISS_PREFIX = "housing_reconsider_dismissed::";
+  function reconsiderDismissKey(p) { return RECONSIDER_DISMISS_PREFIX + (p.link || p.address || ""); }
+  function isReconsiderDismissed(p) {
+    try {
+      // Value stored is the price at which Lauren dismissed. If current price matches → still dismissed.
+      // If a new (lower) price arrives, the stored value won't match → card reappears.
+      const dismissedAtPrice = localStorage.getItem(reconsiderDismissKey(p));
+      return dismissedAtPrice !== null && dismissedAtPrice === (p.price || "");
+    } catch (e) { return false; }
+  }
+
+  function renderReconsider(p) {
+    const r = p.reconsider || {};
+    const savedNote = loadNote(p);
+    const savedStatus = loadStatus(p);
+    const statusLabel = (STATUS_OPTIONS.find(o => o.value === savedStatus) || {}).label || "(אין סטטוס)";
+    const link = p.link
+      ? `<a href="${escapeHtml(p.link)}" target="_blank" rel="noopener">${escapeHtml(p.address || 'Listing')}</a>`
+      : escapeHtml(p.address || 'Listing');
+    // Build the drop banner — e.g. "💸 ירידת מחיר: $6,675 → $6,475 (חיסכון $200)"
+    let banner = "🔔 שינוי על listing שסומן";
+    if (r.reason === "price_drop" && r.prevPrice && r.currPrice) {
+      const saved = r.delta || "";
+      banner = `💸 ירידת מחיר ${saved ? `(${saved})` : ""}`.trim();
+    }
+    const priceLine = (r.prevPrice && r.currPrice)
+      ? `<span class="rc-price-strike">${escapeHtml(r.prevPrice)}</span><span>${escapeHtml(r.currPrice || p.price || '')}</span>`
+      : `<span>${escapeHtml(p.price || '')}</span>`;
+    const encKey = escapeHtml(p.link || p.address || "");
+    const encPrice = escapeHtml(p.price || "");
+    return `
+      <div class="reconsider-card" data-rc-key="${encKey}" data-rc-price="${encPrice}">
+        <div class="rc-banner">${banner}</div>
+        <div class="rc-top">
+          <div class="rc-address">${link}</div>
+          <div class="rc-price">${priceLine}</div>
+        </div>
+        <div class="rc-specs">
+          <span>🛏 ${escapeHtml(p.beds || '—')} bd</span>
+          <span>🛁 ${escapeHtml(p.baths || '—')} ba</span>
+          <span>📐 ${escapeHtml(p.sqft || '—')} sqft</span>
+        </div>
+        <div class="rc-lauren">
+          <span class="rc-lauren-label">הסטטוס וההערה הקודמים שלך נשמרים:</span>
+          <div><b>סטטוס:</b> ${escapeHtml(statusLabel)}</div>
+          ${savedNote ? `<div style="margin-top:4px;"><b>פתק:</b> ${escapeHtml(savedNote)}</div>` : ""}
+        </div>
+        <div class="rc-actions">
+          <button class="rc-btn rc-btn-keep" data-rc-action="keep">בדקתי — תמשיכי להסתיר</button>
+          <button class="rc-btn rc-btn-reopen" data-rc-action="reopen">רוצה להסתכל שוב</button>
+        </div>
+      </div>`;
+  }
+
+  function attachReconsiderHandlers() {
+    document.querySelectorAll(".reconsider-card").forEach(card => {
+      const key   = card.getAttribute("data-rc-key");
+      const price = card.getAttribute("data-rc-price");
+      card.querySelectorAll("button.rc-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const action = btn.getAttribute("data-rc-action");
+          if (action === "keep") {
+            // Remember the dismissal was at THIS price. Next drop will re-surface.
+            try { localStorage.setItem(RECONSIDER_DISMISS_PREFIX + key, price); } catch (e) {}
+            card.remove();
+            maybeHideReconsiderTitle();
+          } else if (action === "reopen") {
+            // Clear the status for this listing so it rejoins the Active section.
+            // Lauren's note stays intact.
+            try {
+              localStorage.setItem(STATUS_PREFIX + key, "");
+              localStorage.removeItem(RECONSIDER_DISMISS_PREFIX + key);
+              if (typeof RemoteSync !== "undefined") RemoteSync.scheduleSave();
+            } catch (e) {}
+            // Re-render: simplest is a reload so the Active section picks up the change.
+            window.location.reload();
+          }
+        });
+      });
+    });
+  }
+
+  function maybeHideReconsiderTitle() {
+    const list  = document.getElementById("reconsider-list");
+    const title = document.getElementById("reconsider-title");
+    if (list && title && list.children.length === 0) title.style.display = "none";
+  }
+
   // ---- Persistent archive: merge current scan with everything we've ever seen ----
   function propKey(p) { return p.link || p.address || ""; }
 
@@ -960,6 +1149,20 @@ const SCAN = {
     if (typeof RemoteSync !== "undefined") {
       try { await RemoteSync.loadInitial(); } catch (e) { console.warn("RemoteSync init failed:", e); }
     }
+
+  // --- Reconsider section (rendered above everything) ---
+  // Only surface listings whose status is "irrelevant" (rejected), whose dismiss-price
+  // doesn't match today's price, so a new drop re-opens the question.
+  const reconsiderCandidates = (SCAN.reconsiderListings || [])
+    .filter(p => IRRELEVANT_STATUSES.has(loadStatus(p)))
+    .filter(p => !isReconsiderDismissed(p));
+  if (reconsiderCandidates.length) {
+    const rcTitle = el("reconsider-title");
+    const rcList  = el("reconsider-list");
+    if (rcTitle) rcTitle.style.display = "";
+    if (rcList)  rcList.innerHTML = reconsiderCandidates.map(renderReconsider).join("");
+    attachReconsiderHandlers();
+  }
 
   const allListings = mergeScanIntoArchive();
   const active      = allListings.filter(p => !IRRELEVANT_STATUSES.has(loadStatus(p)));
