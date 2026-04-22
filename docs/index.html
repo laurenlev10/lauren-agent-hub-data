@@ -101,31 +101,45 @@
     text-align: center;
   }
 
-  /* Meta-tool card (builder) — subtly different to signal "creates other agents" */
-  .agent-builder {
-    border: 1px dashed #a855f7;
-    background: linear-gradient(180deg, #fafaff, #fff);
+  /* Senior meta-agent card (architect) — distinctive styling to signal authority over the system */
+  .agent-architect {
+    border: 2px solid #7c3aed;
+    background: linear-gradient(180deg, #faf5ff, #fff);
+    position: relative;
   }
-  .agent-builder:hover {
-    border-color: #7c3aed;
-    border-style: solid;
+  .agent-architect::before {
+    content: "SENIOR";
+    position: absolute;
+    top: -10px;
+    left: 16px;
+    background: linear-gradient(90deg, #7c3aed, #a855f7);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 2px 10px;
+    border-radius: 10px;
   }
-  .agent-builder .run-btn {
+  .agent-architect:hover {
+    border-color: #6d28d9;
+    box-shadow: 0 8px 24px rgba(124, 58, 237, 0.18);
+  }
+  .agent-architect .run-btn {
     background: linear-gradient(180deg, #a855f7, #7c3aed);
     box-shadow: 0 1px 2px rgba(168, 85, 247, 0.3);
   }
-  .agent-builder .run-btn:hover { background: linear-gradient(180deg, #7c3aed, #6d28d9); }
-  .agent-builder .lastRun b { color: #7c3aed; }
+  .agent-architect .run-btn:hover { background: linear-gradient(180deg, #7c3aed, #6d28d9); }
+  .agent-architect .lastRun b { color: #7c3aed; }
 </style>
 </head>
 <body>
 
 <script id="hub-data">
 const HUB = {
-  meta:    { lastRun: "Tuesday, April 21 · 12:51" },
-  housing: { lastRun: "Wednesday, April 22 · 09:15" },
-  mbs:     { lastRun: "Tuesday, April 21 · 16:45 — Reading PA (−$8,381)" },
-  builder: { lastRun: "On-demand" }
+  architect: { lastRun: "On-demand · Senior role" },
+  meta:      { lastRun: "Tuesday, April 21 · 12:51" },
+  housing:   { lastRun: "Wednesday, April 22 · 09:15" },
+  mbs:       { lastRun: "Tuesday, April 21 · 16:45 — Reading PA (−$8,381)" }
 };
 </script>
 
@@ -135,6 +149,17 @@ const HUB = {
 </header>
 
 <div class="grid">
+  <div class="agent agent-architect">
+    <div style="display:block">
+      <div class="icon">🏛️</div>
+      <div class="name">Agent Architect</div>
+      <div class="desc">Senior manager over the entire agent system. Two roles: (A) creates new scheduled agents with every integration wired in, (B) propagates system-wide changes across all existing agents when a shared rule needs to roll out uniformly.</div>
+      <div class="lastRun">Mode: <b id="architect-lastRun">—</b></div>
+    </div>
+    <button class="run-btn" data-cmd="Run the agent-architect skill. Read SKILL.md at Scheduled/NEW/agent-architect/SKILL.md first. Then ask me whether this is Mode A (create a new scheduled agent) or Mode B (propagate a system-wide change across existing agents), and walk me through the appropriate flow step by step.">🏛️ Manage agents</button>
+    <div class="run-hint">Copies the command — paste (Ctrl+V) in Cowork chat</div>
+  </div>
+
   <div class="agent">
     <a href="meta/" style="text-decoration:none;color:inherit;display:block">
       <div class="icon">📬</div>
@@ -168,23 +193,13 @@ const HUB = {
     <div class="run-hint">Copies the command — paste (Ctrl+V) in Cowork chat</div>
   </div>
 
-  <div class="agent agent-builder">
-    <div style="display:block">
-      <div class="icon">✨</div>
-      <div class="name">Create New Agent</div>
-      <div class="desc">Meta-skill — builds a new scheduled agent for you with SMS touchpoints, GitHub deploy, and the shared comms protocol already wired in. No manual integration needed.</div>
-      <div class="lastRun">Mode: <b id="builder-lastRun">—</b></div>
-    </div>
-    <button class="run-btn" data-cmd="Run the new-agent-builder skill. Read SKILL.md at Scheduled/NEW/new-agent-builder/SKILL.md first, then walk me through creating a new scheduled agent step by step — with full SMS touchpoints, deploy-dashboard push, and shared-table registrations built in from the start.">✨ Build new agent</button>
-    <div class="run-hint">Copies the command — paste (Ctrl+V) in Cowork chat</div>
-  </div>
 </div>
 
 <script>
-  document.getElementById("meta-lastRun").textContent    = HUB.meta.lastRun    || "—";
-  document.getElementById("housing-lastRun").textContent = HUB.housing.lastRun || "—";
-  document.getElementById("mbs-lastRun").textContent     = HUB.mbs.lastRun     || "—";
-  document.getElementById("builder-lastRun").textContent = HUB.builder.lastRun || "—";
+  document.getElementById("architect-lastRun").textContent = HUB.architect.lastRun || "—";
+  document.getElementById("meta-lastRun").textContent      = HUB.meta.lastRun      || "—";
+  document.getElementById("housing-lastRun").textContent   = HUB.housing.lastRun   || "—";
+  document.getElementById("mbs-lastRun").textContent       = HUB.mbs.lastRun       || "—";
 
   document.querySelectorAll(".run-btn").forEach(btn => {
     btn.addEventListener("click", async (e) => {
