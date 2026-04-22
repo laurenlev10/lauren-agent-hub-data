@@ -201,6 +201,148 @@
     margin-top: 20px;
   }
 
+  /* ----- Bucket B: handled state + mark button ----- */
+  .item.handled { opacity: 0.55; background: #f9fafb; }
+  .item.handled .msg, .item.handled .draft { background: #f3f4f6; }
+  .item.handled .name::after {
+    content: " · handled";
+    font-weight: 500;
+    color: var(--green);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-left: 4px;
+  }
+  .b-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .b-actions .btn-open {
+    display: inline-block;
+    padding: 6px 12px;
+    background: #1877f2;
+    color: #fff;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .b-actions .btn-handled {
+    display: inline-block;
+    padding: 6px 12px;
+    background: #fff;
+    color: var(--green);
+    border: 1.5px solid var(--green);
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .b-actions .btn-handled:hover { background: #ecfdf5; }
+  .b-actions .btn-handled.is-handled { background: var(--green); color: #fff; }
+  .b-actions .btn-handled.is-handled:hover { background: #1e8449; }
+  .b-actions .ts {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  /* ----- Toolbar above Bucket B list ----- */
+  .b-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .b-toolbar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .b-toolbar input[type="checkbox"] { margin: 0; }
+  .b-counts { color: var(--muted); }
+
+  /* ----- Sync status pill in header ----- */
+  .sync-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    font-family: inherit;
+  }
+  .sync-pill .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+  .sync-pill.state-synced  .dot { background: var(--green); }
+  .sync-pill.state-syncing .dot { background: var(--orange); }
+  .sync-pill.state-offline .dot { background: var(--muted); }
+  .sync-pill.state-error   .dot { background: var(--red); }
+  .sync-pill:hover { background: #f9fafb; }
+
+  /* ----- Sync settings modal ----- */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 50;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 12px;
+    max-width: 540px;
+    width: 100%;
+    padding: 22px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+  }
+  .modal h2 { margin: 0 0 6px; font-size: 18px; }
+  .modal-sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  .modal-sub code { background: #f3f4f6; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+  .modal label { display: block; font-size: 12px; font-weight: 600; margin: 8px 0 4px; }
+  .modal input[type="password"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px;
+    box-sizing: border-box;
+  }
+  .modal-msg { font-size: 12px; min-height: 16px; margin-top: 6px; }
+  .modal-msg.ok { color: var(--green); }
+  .modal-msg.err { color: var(--red); }
+  .modal-help { font-size: 11px; color: var(--muted); margin-top: 12px; line-height: 1.5; }
+  .modal-help a { color: #4338ca; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .modal-actions button {
+    padding: 7px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .modal-actions .primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .modal-actions .danger  { color: var(--red); border-color: #fecaca; }
+
   @media (max-width: 600px) {
     .stat-row { grid-template-columns: repeat(2, 1fr); }
   }
@@ -229,6 +371,7 @@ const SCAN = {
   },
   bucketB: [
     {
+      id: "ig-comment:houndstooth31:new-city-milwaukee-staff",
       from: "houndstooth31 (IG comment, 'New city. New deals.' post)",
       channel: "Instagram comment",
       type: "collab",
@@ -254,10 +397,35 @@ const SCAN = {
     <div class="stamp" id="stamp"></div>
   </div>
   <div class="header-actions">
+    <button class="sync-pill state-offline" id="syncPill" title="Cross-device sync settings">
+      <span class="dot"></span>
+      <span id="syncPillLabel">Sync: off</span>
+    </button>
     <button class="run-now" data-cmd="Run the meta-inbox-scan skill">▶ Run scan now</button>
     <a class="back-hub" href="../">← Agent Hub</a>
   </div>
 </header>
+
+<!-- Sync settings modal -->
+<div class="modal-overlay" id="syncModal">
+  <div class="modal">
+    <h2>🔗 Cross-device sync</h2>
+    <p class="modal-sub">
+      "Mark as handled" state for Bucket B is stored in <code>handled.json</code> in your GitHub repo, so the agent can see what you've already taken care of and skip those items on the next run. To enable writes from this browser, paste a fine-grained GitHub token with <strong>Contents: Read and write</strong> on <code>laurenlev10/lauren-agent-hub-data</code>.
+    </p>
+    <label for="ghToken">GitHub token</label>
+    <input type="password" id="ghToken" placeholder="github_pat_..." autocomplete="off" spellcheck="false">
+    <div class="modal-msg" id="modalMsg"></div>
+    <div class="modal-help">
+      Create one at <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com → Settings → Developer settings → Personal access tokens → Fine-grained</a>. Repository access: only <code>laurenlev10/lauren-agent-hub-data</code>. Permissions → Repository → <strong>Contents: Read and write</strong>. The token stays on this device only (browser localStorage). The same token also powers the housing dashboard's notes sync.
+    </div>
+    <div class="modal-actions">
+      <button class="danger" id="btnForget" type="button">Forget token</button>
+      <button id="btnCancel" type="button">Cancel</button>
+      <button class="primary" id="btnSave" type="button">Save &amp; test</button>
+    </div>
+  </div>
+</div>
 
 <div class="card briefing">
   <h2>📅 Today Briefing</h2>
@@ -279,6 +447,10 @@ const SCAN = {
 
 <div class="section-title">🛑 Needs your review (Bucket B)</div>
 <div class="card" id="bucketB-card">
+  <div class="b-toolbar">
+    <span class="b-counts" id="bucketB-counts">—</span>
+    <label style="margin-left:auto"><input type="checkbox" id="showHandledToggle"> Show items I already handled</label>
+  </div>
   <div id="bucketB-list"></div>
 </div>
 
@@ -312,25 +484,98 @@ const SCAN = {
   el("s-spam").textContent    = SCAN.auto.spam      ?? 0;
   el("s-react").textContent   = SCAN.auto.reactions ?? 0;
 
+  // ---- Bucket B IDs (stable across runs) ----
+  // Prefer the agent-emitted `id`. Otherwise build a stable fallback from
+  // (channel + from + first 80 chars of message). The agent emits `id` going
+  // forward, but old SCAN payloads may not have one.
+  function fnv1a(str) {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return ("00000000" + h.toString(16)).slice(-8);
+  }
+  function bucketBId(b) {
+    if (b && typeof b.id === "string" && b.id) return b.id;
+    const seed = (b.channel || "") + "|" + (b.from || "") + "|" + (b.message || "").slice(0, 80);
+    return "fb:" + fnv1a(seed);
+  }
+
+  // ---- Render Bucket B with handled-state filtering ----
   const bList = el("bucketB-list");
-  if (!SCAN.bucketB || SCAN.bucketB.length === 0) {
-    bList.innerHTML = '<div class="empty">Nothing needs review. 🎉</div>';
-  } else {
-    bList.innerHTML = SCAN.bucketB.map(b => `
-      <div class="item">
+  const bCounts = el("bucketB-counts");
+  const showHandledToggle = el("showHandledToggle");
+
+  function escapeHtml(s) {
+    return String(s || "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
+  function renderBucketB() {
+    const items = SCAN.bucketB || [];
+    if (items.length === 0) {
+      bList.innerHTML = '<div class="empty">Nothing needs review. 🎉</div>';
+      bCounts.textContent = "0 items";
+      return;
+    }
+
+    const showHandled = !!(showHandledToggle && showHandledToggle.checked);
+    let openCount = 0, handledCount = 0;
+    const cards = items.map(b => {
+      const id = bucketBId(b);
+      const state = MetaHandled.get(id);
+      const isHandled = !!(state && state.handled);
+      if (isHandled) handledCount++; else openCount++;
+      if (isHandled && !showHandled) return null;
+
+      const tsLabel = isHandled && state.handledAt
+        ? `handled ${new Date(state.handledAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+        : "";
+
+      return `
+      <div class="item ${isHandled ? "handled" : ""}" data-bid="${escapeHtml(id)}">
         <div class="who">
           <div>
-            <span class="name">${b.from || "Unknown"}</span>
-            <span class="type ${b.type || ''}">${b.type || ''}</span>
+            <span class="name">${escapeHtml(b.from || "Unknown")}</span>
+            <span class="type ${escapeHtml(b.type || '')}">${escapeHtml(b.type || '')}</span>
           </div>
-          <span class="channel">${b.channel || ''}</span>
+          <span class="channel">${escapeHtml(b.channel || '')}</span>
         </div>
-        <div class="msg">${b.message || ''}</div>
-        ${b.draft ? `<div class="draft">${b.draft}</div>` : ''}
-        ${b.link ? `<div style="margin-top:8px"><a href="${b.link}" target="_blank" rel="noopener" style="display:inline-block;padding:6px 12px;background:#1877f2;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:13px">↗ Open & reply</a></div>` : ''}
+        <div class="msg">${escapeHtml(b.message || '')}</div>
+        ${b.draft ? `<div class="draft">${escapeHtml(b.draft)}</div>` : ''}
+        <div class="b-actions">
+          ${b.link ? `<a class="btn-open" href="${escapeHtml(b.link)}" target="_blank" rel="noopener">↗ Open & reply</a>` : ''}
+          <button class="btn-handled ${isHandled ? "is-handled" : ""}" data-bid="${escapeHtml(id)}" type="button">
+            ${isHandled ? "✓ Handled — click to undo" : "Mark as handled"}
+          </button>
+          ${tsLabel ? `<span class="ts">${escapeHtml(tsLabel)}</span>` : ""}
+        </div>
       </div>
-    `).join("");
+      `;
+    }).filter(Boolean);
+
+    bList.innerHTML = cards.length
+      ? cards.join("")
+      : `<div class="empty">All ${handledCount} item${handledCount === 1 ? "" : "s"} marked handled. 🎉</div>`;
+    bCounts.textContent = `${openCount} open · ${handledCount} handled`;
+
+    // Wire mark/unmark buttons
+    bList.querySelectorAll(".btn-handled").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-bid");
+        const state = MetaHandled.get(id);
+        const newHandled = !(state && state.handled);
+        MetaHandled.set(id, {
+          handled: newHandled,
+          handledAt: newHandled ? new Date().toISOString() : null
+        });
+        renderBucketB();
+      });
+    });
   }
+  if (showHandledToggle) showHandledToggle.addEventListener("change", renderBucketB);
 
   const nList = el("neg-list");
   if (!SCAN.negativeComments || SCAN.negativeComments.length === 0) {
@@ -358,6 +603,240 @@ const SCAN = {
       }
     });
   });
+</script>
+
+<!-- ==========================================================
+     MetaHandled + RemoteSync: reads/writes docs/meta/handled.json
+     in the GitHub repo so the agent can see what Lauren has
+     already handled and skip those Bucket B items on the next run.
+     Mirrors the housing dashboard's notes.json sync.
+     ========================================================== -->
+<script>
+  // ---- MetaHandled: localStorage cache of per-item handled state ----
+  const MetaHandled = (function () {
+    const STORAGE_KEY = "meta_handled_v1"; // single key holding the full map
+    let cache = null;
+    function load() {
+      if (cache) return cache;
+      try {
+        cache = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {};
+      } catch (e) { cache = {}; }
+      return cache;
+    }
+    function persist() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cache)); } catch (e) {}
+    }
+    return {
+      get(id) { return load()[id]; },
+      set(id, state) {
+        load();
+        if (!state || (state.handled === false && !state.handledAt)) {
+          delete cache[id];
+        } else {
+          cache[id] = {
+            handled: !!state.handled,
+            handledAt: state.handledAt || null
+          };
+        }
+        persist();
+        if (window.MetaHandledSync) MetaHandledSync.scheduleSave();
+      },
+      all() { return Object.assign({}, load()); },
+      mergeFromRemote(remote) {
+        if (!remote || typeof remote !== "object") return;
+        load();
+        Object.keys(remote).forEach(id => {
+          const r = remote[id] || {};
+          if (typeof r.handled !== "boolean") return;
+          // last-write-wins by handledAt timestamp; remote wins on tie
+          const local = cache[id];
+          const remoteAt = r.handledAt ? Date.parse(r.handledAt) : 0;
+          const localAt  = (local && local.handledAt) ? Date.parse(local.handledAt) : 0;
+          if (!local || remoteAt >= localAt) {
+            cache[id] = { handled: !!r.handled, handledAt: r.handledAt || null };
+          }
+        });
+        persist();
+      }
+    };
+  })();
+
+  // ---- MetaHandledSync: GitHub Contents API ----
+  const MetaHandledSync = (function () {
+    const OWNER  = "laurenlev10";
+    const REPO   = "lauren-agent-hub-data";
+    const PATH   = "docs/meta/handled.json";
+    const BRANCH = "main";
+    const TOKEN_KEY = "lauren_gh_token_v1"; // shared with housing dashboard
+    const DEBOUNCE_MS = 1500;
+
+    function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; } }
+    function setToken(t) {
+      try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+    }
+    function hasToken() { return !!getToken(); }
+
+    function setState(state, label) {
+      const pill = document.getElementById("syncPill");
+      if (!pill) return;
+      pill.classList.remove("state-synced", "state-syncing", "state-offline", "state-error");
+      pill.classList.add("state-" + state);
+      const lbl = document.getElementById("syncPillLabel");
+      if (lbl) lbl.textContent = label;
+    }
+
+    function b64encode(str) { return btoa(unescape(encodeURIComponent(str))); }
+    function b64decode(str) { return decodeURIComponent(escape(atob(str.replace(/\s/g, "")))); }
+
+    let currentSha = null;
+
+    async function apiGet() {
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${BRANCH}&_=${Date.now()}`;
+      const headers = { "Accept": "application/vnd.github+json" };
+      const t = getToken();
+      if (t) headers["Authorization"] = "Bearer " + t;
+      const res = await fetch(url, { headers, cache: "no-store" });
+      if (res.status === 404) return { data: {}, sha: null };
+      if (!res.ok) throw new Error(`GET ${res.status}`);
+      const json = await res.json();
+      let data = {};
+      try { data = JSON.parse(b64decode(json.content)); } catch (e) { data = {}; }
+      return { data, sha: json.sha };
+    }
+
+    async function apiPut(data, sha, message) {
+      const t = getToken();
+      if (!t) throw new Error("no token");
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`;
+      const body = {
+        message: message || "Update meta-inbox handled state",
+        content: b64encode(JSON.stringify(data, null, 2) + "\n"),
+        branch: BRANCH
+      };
+      if (sha) body.sha = sha;
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Accept": "application/vnd.github+json",
+          "Authorization": "Bearer " + t,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        const err = new Error(`PUT ${res.status}: ${txt.slice(0, 200)}`);
+        err.status = res.status;
+        throw err;
+      }
+      const json = await res.json();
+      return json.content && json.content.sha;
+    }
+
+    async function loadInitial() {
+      try {
+        const { data, sha } = await apiGet();
+        currentSha = sha;
+        MetaHandled.mergeFromRemote(data);
+        if (typeof renderBucketB === "function") renderBucketB();
+        if (hasToken()) setState("synced", "Synced ✓"); else setState("offline", "Sync: off");
+      } catch (e) {
+        console.warn("[MetaHandledSync] initial load failed:", e);
+        setState(hasToken() ? "error" : "offline", hasToken() ? "Sync error" : "Sync: off");
+      }
+    }
+
+    let saveTimer = null;
+    let saving = false;
+    let savePending = false;
+
+    async function doSave() {
+      if (!hasToken()) { setState("offline", "Sync: off"); return; }
+      if (saving) { savePending = true; return; }
+      saving = true;
+      setState("syncing", "Syncing…");
+      try {
+        const payload = MetaHandled.all();
+        try {
+          currentSha = await apiPut(payload, currentSha, "Update meta-inbox handled state from dashboard");
+        } catch (e) {
+          if (e.status === 409 || e.status === 422) {
+            const fresh = await apiGet();
+            const merged = Object.assign({}, fresh.data || {}, payload);
+            currentSha = await apiPut(merged, fresh.sha, "Update meta-inbox handled state (after conflict)");
+          } else { throw e; }
+        }
+        setState("synced", "Synced ✓");
+      } catch (e) {
+        console.warn("[MetaHandledSync] save failed:", e);
+        setState("error", "Sync error");
+      } finally {
+        saving = false;
+        if (savePending) { savePending = false; scheduleSave(0); }
+      }
+    }
+
+    function scheduleSave(delay) {
+      if (delay === undefined) delay = DEBOUNCE_MS;
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(doSave, delay);
+    }
+
+    return { loadInitial, scheduleSave, getToken, setToken, hasToken, doSave };
+  })();
+  window.MetaHandledSync = MetaHandledSync;
+
+  // ---- Sync settings modal ----
+  (function wireSyncModal() {
+    const pill = document.getElementById("syncPill");
+    const modal = document.getElementById("syncModal");
+    const input = document.getElementById("ghToken");
+    const msg   = document.getElementById("modalMsg");
+    if (!pill || !modal) return;
+
+    function open() {
+      input.value = MetaHandledSync.getToken() || "";
+      msg.textContent = "";
+      msg.className = "modal-msg";
+      modal.classList.add("open");
+      setTimeout(() => input.focus(), 50);
+    }
+    function close() { modal.classList.remove("open"); }
+
+    pill.addEventListener("click", open);
+    document.getElementById("btnCancel").addEventListener("click", close);
+    document.getElementById("btnForget").addEventListener("click", () => {
+      MetaHandledSync.setToken("");
+      msg.textContent = "Token forgotten. This device will no longer sync writes.";
+      msg.className = "modal-msg ok";
+      MetaHandledSync.loadInitial();
+      setTimeout(close, 800);
+    });
+    document.getElementById("btnSave").addEventListener("click", async () => {
+      const t = (input.value || "").trim();
+      if (!t) {
+        msg.textContent = "Paste a token first.";
+        msg.className = "modal-msg err";
+        return;
+      }
+      MetaHandledSync.setToken(t);
+      msg.textContent = "Testing…";
+      msg.className = "modal-msg";
+      try {
+        await MetaHandledSync.doSave();
+        msg.textContent = "Saved ✓ This device now syncs.";
+        msg.className = "modal-msg ok";
+        setTimeout(close, 700);
+      } catch (e) {
+        msg.textContent = "Save failed: " + (e.message || e);
+        msg.className = "modal-msg err";
+      }
+    });
+    modal.addEventListener("click", e => { if (e.target === modal) close(); });
+  })();
+
+  // Kick off initial sync (reads remote handled.json, merges into local cache, re-renders)
+  MetaHandledSync.loadInitial();
 </script>
 
 </body>
