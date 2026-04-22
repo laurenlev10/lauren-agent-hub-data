@@ -320,12 +320,12 @@
 <script id="dashboard-data">
 const SEASON = {
   year: 2026,
-  completedEvents: 13,
+  completedEvents: 14,
   avgs: {
-    sales: 50858, profit: 9374, margin: 18.4
+    sales: 50335, profit: 8106, margin: 16.1
   },
   totals: {
-    sales: 661152, profit: 121862
+    sales: 704684, profit: 113481
   },
   events: [
     { n:1, city:"Glendale",        state:"AZ", dates:"Jan 9-11",    tier:2, sales:51993, profit:7794,   margin:15.0, note:"", status:"done" },
@@ -341,15 +341,15 @@ const SEASON = {
     { n:11,city:"Tulsa",           state:"OK", dates:"Mar 20-22",   tier:3, sales:38640, profit:768,    margin:2.0,  note:"Venue+hotel bundle deal", status:"done" },
     { n:12,city:"Hampton",         state:"VA", dates:"Mar 27-29",   tier:2, sales:34033, profit:-11628, margin:-34.2,note:"❌ New market · demo mismatch · ROAS 5.2x", status:"done" },
     { n:13,city:"Syracuse",        state:"NY", dates:"Apr 3-5",     tier:3, sales:34930, profit:7314,   margin:20.9, note:"🆕 שוק חדש · מלאי רזה · דמוגרפיה חלשה", status:"done" },
-    { n:14,city:"Reading",         state:"PA", dates:"Apr 10-12",   tier:3, sales:null,  profit:null,   margin:null, note:"This weekend · 68% Hispanic", status:"future" },
-    { n:15,city:"Columbus",        state:"OH", dates:"Apr 17-19",   tier:2, sales:null,  profit:null,   margin:null, note:"", status:"future" },
+    { n:14,city:"Reading",         state:"PA", dates:"Apr 10-12",   tier:3, sales:43532, profit:-8381,  margin:-19.3,note:"❌ East Coast premium · 68% Hispanic · first-time market", status:"done" },
+    { n:15,city:"Columbus",        state:"OH", dates:"Apr 17-19",   tier:2, sales:null,  profit:null,   margin:null, note:"This weekend", status:"future" },
     { n:16,city:"Louisville",      state:"KY", dates:"Apr 24-26",   tier:3, sales:null,  profit:null,   margin:null, note:"", status:"future" }
   ]
 };
 </script>
 
 <div class="back-btn-wrapper">
-  <a class="back-btn" href="../">→ חזרה לתפריט הראשי</a>
+  <a class="back-btn" onclick="history.back(); return false;" href="#">→ חזרה לתפריט הראשי</a>
 </div>
 
 <div class="mbs-dashboard">
@@ -562,33 +562,31 @@ const SEASON = {
       return `${m}/${d}/${y}`;
     };
 
-    return `Run the MBS Event Summary agent for the event below. Read the SKILL.md at mbs-event-summary/SKILL.md FIRST and follow the full 8-step workflow.
+    return `Run the MBS Event Summary agent for the event below. Read the SKILL.md at mbs-event-summary/SKILL.md FIRST and follow the Request Package workflow (no live scraping of OctoPos/QB/Meta/TikTok).
 
 EVENT
   Name:  ${name}
   Dates: ${fmtDate(start)} → ${fmtDate(end)}
   Tier:  Tier ${tier}
 
-DATA SOURCES TO PULL AUTONOMOUSLY
-  1. OctoPos sales report:
-     https://themakeup.octoretail.com/app/dist/#/reports/sales/sales-summary-for-single-locations
-     → date range ${fmtMDY(start)} – ${fmtMDY(end)} → Apply
-     → extract Total Sales, #Transactions, Avg ticket, Payment breakdown, Top products
-  2. QuickBooks Online → Tags → search "${name} ${start.slice(0,4)}"
-     → run P&L + transaction list
-  3. Meta Ads Manager → filter by event/date window → spend, impressions, ROAS
-  4. TikTok Ads Manager → same filters
-  5. Ask me for the cash report from the on-site manager
+STEP 2 — Ask me for the following 6-item package and wait until all arrive:
+  1. Manager's cash report (PDF) — staff cash + Other expenses + register reconciliation
+  2. OctoPos sales summary (screenshot or paste) — Net Sales, #Tx, Avg, cash/credit, Top 10 products
+  3. Meta Ads Manager CSV — filtered to "${name}" for ${fmtMDY(start)}–${fmtMDY(end)}
+  4. TikTok Ads Manager XLSX — filtered to "${name}" for same window
+  5. Confirmation the event tab in the 2026 P&L sheet is prepped (inventory, Misc, Gas, Shipping, Venue row ready)
+  6. Confirmation QB transactions are pasted into cols K+ of the event tab (tag "${name} ${start.slice(0,4)}" in col R)
 
-WHAT TO PRODUCE
-  • Fill the event tab in the 2026 P&L Google Sheet (use Name Box navigation)
-  • Compare to PRE-event averages (N−1 events, not N)
-  • Compute Cost/txn, Δ per customer, ROAS, CPA, % of loss by category
-  • Flag anomalies (Misc > $1k, demographics, East Coast premium)
-  • Generate updated dashboard block (V## → V##+1) for ClickFunnels
-  • Generate standalone Event Detail page in matching pink/purple style
-  • Generate Hebrew .docx for NotebookLM with insights + next-event inventory budget
-  • Update this Agent Hub dashboard (move event from pending → done)`;
+THEN BUILD (10–15 min):
+  • Populate event tab H-I cells via direct click navigation (minus rule, SUMIFS for QB rows: Q=Amount, N=Category, R=Tags)
+  • Replace staff names to match cash report (cash-report-canonical rule)
+  • Compare to PRE-event averages (N−1, not N)
+  • Compute Cost/txn, Δ per customer, ROAS, CPA
+  • Flag anomalies >25% off avg (remember: East Coast +$2-3K travel is expected, not anomaly)
+  • Generate Hebrew .docx for NotebookLM (voice: syracuse_summary_hebrew.docx)
+  • Generate standalone event detail HTML (structure: syracuse_event_detail.html)
+  • Update this MBS dashboard (move event from pending → done, refresh KPIs + averages)
+  • Append run log, update MEMORY.md if new rule surfaced`;
   }
 
   runBtn.addEventListener("click", async () => {
