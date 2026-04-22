@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏛️ Agent Architect · ניהול סוכנים</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
+  :root {
+    --bg: #faf7fb;
+    --card: #ffffff;
+    --accent: #7c3aed;
+    --accent-light: #a855f7;
+    --accent-dark: #6d28d9;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: 'Heebo', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 24px 16px; line-height: 1.55; }
+  .container { max-width: 900px; margin: 0 auto; }
+
+  /* Header */
+  header {
+    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+    color: white;
+    padding: 28px 30px;
+    border-radius: 18px;
+    text-align: center;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  header h1 { margin: 0 0 6px 0; font-size: 26px; font-weight: 800; }
+  header .subtitle { opacity: 0.92; font-size: 14px; }
+  header .senior-pill {
+    display: inline-block;
+    background: rgba(255,255,255,0.22);
+    padding: 3px 12px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    margin-top: 8px;
+  }
+
+  .back-btn {
+    display: inline-block;
+    margin-bottom: 12px;
+    padding: 6px 14px;
+    background: white;
+    color: var(--accent);
+    border: 1.5px solid var(--accent);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .back-btn:hover { background: var(--accent); color: white; }
+
+  /* Mode tabs */
+  .mode-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+  .mode-tab {
+    flex: 1;
+    padding: 18px 20px;
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: right;
+  }
+  .mode-tab.active {
+    border-color: var(--accent);
+    background: linear-gradient(180deg, #faf5ff, #fff);
+    box-shadow: 0 4px 14px rgba(124, 58, 237, 0.12);
+  }
+  .mode-tab:not(.active):hover { border-color: var(--accent-light); }
+  .mode-tab .icon { font-size: 22px; margin-bottom: 4px; }
+  .mode-tab .title { font-size: 16px; font-weight: 700; }
+  .mode-tab .desc { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+  /* Form card */
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 26px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    margin-bottom: 18px;
+  }
+  .card h2 {
+    margin: 0 0 6px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent-dark);
+  }
+  .card .hint {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 18px;
+  }
+
+  /* Form */
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+  .field .label-hint { font-size: 11px; color: var(--muted); font-weight: 400; margin-right: 4px; }
+  .field input, .field textarea, .field select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 9px;
+    font-family: 'Heebo', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    background: #fff;
+    transition: border-color 0.15s;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+  }
+  .field textarea { resize: vertical; min-height: 90px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* Generate button */
+  .generate-btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(180deg, var(--accent-light), var(--accent));
+    color: white;
+    border: none;
+    border-radius: 11px;
+    font-family: 'Heebo', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgba(124, 58, 237, 0.3);
+    transition: all 0.15s;
+  }
+  .generate-btn:hover { background: linear-gradient(180deg, var(--accent), var(--accent-dark)); transform: translateY(-1px); }
+  .generate-btn:active { transform: translateY(0); }
+  .generate-btn.copied { background: linear-gradient(180deg, #10b981, #059669); }
+
+  /* Output preview */
+  .output {
+    margin-top: 16px;
+    padding: 16px;
+    background: linear-gradient(180deg, #faf5ff, #fff);
+    border: 1.5px dashed var(--accent);
+    border-radius: 11px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 12px;
+    color: #3b0764;
+    direction: ltr;
+    text-align: left;
+    white-space: pre-wrap;
+    line-height: 1.5;
+    display: none;
+    max-height: 360px;
+    overflow-y: auto;
+  }
+  .output.show { display: block; }
+
+  .mode-section { display: none; }
+  .mode-section.active { display: block; }
+
+  .required-star { color: #dc2626; }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 28px;
+    padding: 14px;
+  }
+  footer b { color: var(--accent); }
+
+  @media (max-width: 640px) {
+    .mode-tabs { flex-direction: column; }
+    .field-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <a class="back-btn" href="../">← חזרה ל-Agent Hub</a>
+
+  <header>
+    <h1>🏛️ Agent Architect</h1>
+    <div class="subtitle">מנהל סוכנים בכיר · יצירה ועדכון של המערכת</div>
+    <span class="senior-pill">SENIOR · ROLE</span>
+  </header>
+
+  <div class="mode-tabs">
+    <div class="mode-tab active" data-mode="a" onclick="switchMode('a')">
+      <div class="icon">🆕</div>
+      <div class="title">A · יצירת סוכן חדש</div>
+      <div class="desc">טופס מובנה — מגדיר סוכן חדש עם כל האינטגרציות</div>
+    </div>
+    <div class="mode-tab" data-mode="b" onclick="switchMode('b')">
+      <div class="icon">🔧</div>
+      <div class="title">B · עדכון כלל-מערכתי</div>
+      <div class="desc">תיאור חופשי — שינוי/תיקון/שיפור לכל הסוכנים</div>
+    </div>
+  </div>
+
+  <!-- MODE A: Create new agent -->
+  <div id="mode-a" class="mode-section active">
+    <div class="card">
+      <h2>🆕 יצירת סוכן חדש</h2>
+      <p class="hint">מלאי את הטופס. הסוכן-ארכיטקט יקבל אותו מראש, יידלג על שאלות הפתיחה, ויתחיל ישירות ב-scaffolding. חוסך ~50% מהזמן וה-tokens.</p>
+
+      <div class="field">
+        <label>מטרת הסוכן <span class="required-star">*</span><span class="label-hint">(משפט אחד שמתאר מה הוא עושה)</span></label>
+        <textarea id="a-purpose" rows="2" placeholder="לדוגמה: סריקה יומית של LinkedIn לתיוג של פרסומים חדשים בתחום X"></textarea>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>שם הסוכן <span class="required-star">*</span><span class="label-hint">(kebab-case, ייחודי)</span></label>
+          <input type="text" id="a-name" placeholder="linkedin-scanner">
+        </div>
+        <div class="field">
+          <label>SMS Prefix <span class="required-star">*</span><span class="label-hint">(מתחיל ב-@, ייחודי)</span></label>
+          <input type="text" id="a-prefix" placeholder="@linkedin">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>לוח זמנים <span class="required-star">*</span></label>
+          <select id="a-schedule">
+            <option value="on-demand">On-demand (רק כשאני מפעילה)</option>
+            <option value="daily">יומי</option>
+            <option value="weekly">שבועי</option>
+            <option value="custom">מותאם אישית</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>תת-תיקיה ב-docs/ <span class="required-star">*</span><span class="label-hint">(ייחודית)</span></label>
+          <input type="text" id="a-subfolder" placeholder="linkedin">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>תיאור המשימה המלאה<span class="label-hint">(מה הסוכן עושה בפועל — אילו אתרים, אילו נתונים, אילו פלטים)</span></label>
+        <textarea id="a-task" rows="4" placeholder="לדוגמה: 1) נכנס ל-LinkedIn. 2) מסנן פרסומים של X מהשבוע האחרון. 3) מייצר סיכום HTML. 4) שולח SMS עם 3 תקציפים חמים."></textarea>
+      </div>
+
+      <button class="generate-btn" onclick="generateCommandA()">🏛️ ייצר פקודה להעתקה</button>
+
+      <div id="output-a" class="output"></div>
+    </div>
+  </div>
+
+  <!-- MODE B: System-wide change -->
+  <div id="mode-b" class="mode-section">
+    <div class="card">
+      <h2>🔧 עדכון כלל-מערכתי</h2>
+      <p class="hint">תארי את השינוי/תיקון/שיפור שצריך לחול על כל הסוכנים או חלק מהם. הסוכן-ארכיטקט יעשה survey, יציג טבלה, יחכה לאישור, ואז יתקן בצורה אחידה.</p>
+
+      <div class="field">
+        <label>סוג השינוי <span class="required-star">*</span></label>
+        <select id="b-type">
+          <option value="bug-fix">תיקון באג (חזר על עצמו באחד הסוכנים)</option>
+          <option value="new-rule">כלל חדש (משהו שלא היה, צריך להיכנס לכולם)</option>
+          <option value="enhancement">שיפור (משהו שיעבוד טוב יותר לכולם)</option>
+          <option value="documentation">תיעוד (הבהרה/הוספה ל-README או לקבצי reference)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>היקף <span class="required-star">*</span></label>
+        <select id="b-scope">
+          <option value="all">כל הסוכנים הפעילים</option>
+          <option value="scheduled-only">רק סוכנים שרצים אוטומטית</option>
+          <option value="specific">רק סוכנים ספציפיים (אציין בתיאור)</option>
+          <option value="shared-only">רק תשתית משותפת (deploy-dashboard / lauren-comms)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>תיאור השינוי <span class="required-star">*</span><span class="label-hint">(מפורט — מה בדיוק צריך לעשות, למה, ומה החשיבות)</span></label>
+        <textarea id="b-description" rows="5" placeholder="לדוגמה: שמתי לב שאף סוכן לא מעביר אותי התראה ב-SMS כשהוא נתקע יותר מ-10 דקות. אני רוצה שכל סוכן יבדוק את הזמן שעבר בכל שלב, ואם עברו 10 דקות בלי התקדמות — ישלח אליי SMS עם הסטטוס."></textarea>
+      </div>
+
+      <div class="field">
+        <label>התנהגות ישנה שצריך להסיר<span class="label-hint">(אופציונלי — אם יש משהו שהסוכנים צריכים להפסיק לעשות)</span></label>
+        <textarea id="b-remove" rows="2" placeholder="לדוגמה: להסיר התראות SMS אחרי 2 שעות בלי התקדמות — שיהפוך ל-10 דקות במקום"></textarea>
+      </div>
+
+      <button class="generate-btn" onclick="generateCommandB()">🔧 ייצר פקודה להעתקה</button>
+
+      <div id="output-b" class="output"></div>
+    </div>
+  </div>
+
+  <footer>
+    🏛️ <b>Agent Architect</b> · הסוכן הבכיר במערכת · הפקודה מועתקת אוטומטית ל-clipboard כדי שתוכלי להדביק ב-<b>New Task</b> של Cowork
+  </footer>
+</div>
+
+<script>
+  function switchMode(mode) {
+    document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+    document.querySelectorAll('.mode-section').forEach(s => s.classList.toggle('active', s.id === 'mode-' + mode));
+  }
+
+  function copyToClipboard(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+      const original = btn.textContent;
+      btn.textContent = "✓ הועתק! הדביקי ב-Cowork";
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 3000);
+    }).catch(() => alert("Copy failed. Command is shown below — copy manually."));
+  }
+
+  function generateCommandA() {
+    const purpose = document.getElementById('a-purpose').value.trim();
+    const name = document.getElementById('a-name').value.trim();
+    const prefix = document.getElementById('a-prefix').value.trim();
+    const schedule = document.getElementById('a-schedule').value;
+    const subfolder = document.getElementById('a-subfolder').value.trim();
+    const task = document.getElementById('a-task').value.trim();
+    const btn = event.target;
+
+    if (!purpose || !name || !prefix || !subfolder) {
+      alert("אנא מלאי את כל השדות המחויבים (עם ⁕)");
+      return;
+    }
+
+    const cmd = `Run the agent-architect skill in Mode A (create new agent).
+Read SKILL.md at Scheduled/NEW/agent-architect/SKILL.md first. STEP 1-A questions are already answered below — skip them and go straight to STEP 2-A (subfolder confirm) then STEP 3-A (scaffold).
+
+Agent spec (pre-filled):
+• Purpose: ${purpose}
+• Name: ${name}
+• Prefix: ${prefix}
+• Schedule: ${schedule}
+• docs/ subfolder: ${subfolder}
+• Task description: ${task || "(not provided — ask me for details during scaffolding)"}
+
+Confirm the spec back to me once, then scaffold the 4-file bundle, register in all 5 shared places, run the STEP 5-A dry-run checklist, deploy the updated agent_hub.html, and hand me the first-run verification checklist. Stay short and use the minimum tool calls — spec is complete, no need to re-ask.`;
+
+    const out = document.getElementById('output-a');
+    out.textContent = cmd;
+    out.classList.add('show');
+    copyToClipboard(cmd, btn);
+  }
+
+  function generateCommandB() {
+    const type = document.getElementById('b-type').value;
+    const scope = document.getElementById('b-scope').value;
+    const description = document.getElementById('b-description').value.trim();
+    const remove = document.getElementById('b-remove').value.trim();
+    const btn = event.target;
+
+    if (!description) {
+      alert("אנא מלאי את תיאור השינוי");
+      return;
+    }
+
+    const typeLabels = {
+      'bug-fix': 'Bug fix',
+      'new-rule': 'New rule',
+      'enhancement': 'Enhancement',
+      'documentation': 'Documentation update'
+    };
+    const scopeLabels = {
+      'all': 'All active agents',
+      'scheduled-only': 'Scheduled (auto-recurring) agents only',
+      'specific': 'Specific agents (see description)',
+      'shared-only': 'Shared infrastructure only (deploy-dashboard / lauren-comms / etc.)'
+    };
+
+    const cmd = `Run the agent-architect skill in Mode B (system-wide change).
+Read SKILL.md at Scheduled/NEW/agent-architect/SKILL.md first. STEP 1-B questions are already answered below — skip them and go straight to STEP 2-B (survey + table).
+
+Change request (pre-filled):
+• Type: ${typeLabels[type]}
+• Scope: ${scopeLabels[scope]}
+• What to do: ${description}
+• What to stop doing: ${remove || "(nothing to remove — pure addition)"}
+
+Proceed: survey all agents in scope, build the "Current state / Matches new rule / Action needed" table, show it to me for approval, make edits after approval, recheck consistency (STEP 5-B), update central docs if needed, deploy if public HTML changed, and report back in Hebrew with the final consistency table. Stay focused — spec is clear, no need to re-ask the STEP 1-B questions.`;
+
+    const out = document.getElementById('output-b');
+    out.textContent = cmd;
+    out.classList.add('show');
+    copyToClipboard(cmd, btn);
+  }
+</script>
+</body>
+</html>
