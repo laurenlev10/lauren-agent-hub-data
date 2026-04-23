@@ -217,44 +217,51 @@
   <div id="mode-a" class="mode-section active">
     <div class="card">
       <h2>🆕 יצירת סוכן חדש</h2>
-      <p class="hint">מלאי את הטופס. הסוכן-ארכיטקט יקבל אותו מראש, יידלג על שאלות הפתיחה, ויתחיל ישירות ב-scaffolding. חוסך ~50% מהזמן וה-tokens.</p>
+      <p class="hint">רק 3 שדות עיקריים — הסוכן-ארכיטקט יגזור לבד את השם הטכני, ה-prefix, ומבנה התיקיות. יש גם אפשרות לצרף תמונת reference.</p>
 
       <div class="field">
-        <label>מטרת הסוכן <span class="required-star">*</span><span class="label-hint">(משפט אחד שמתאר מה הוא עושה)</span></label>
-        <textarea id="a-purpose" rows="2" placeholder="לדוגמה: סריקה יומית של LinkedIn לתיוג של פרסומים חדשים בתחום X"></textarea>
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label>שם הסוכן <span class="required-star">*</span><span class="label-hint">(kebab-case, ייחודי)</span></label>
-          <input type="text" id="a-name" placeholder="linkedin-scanner">
-        </div>
-        <div class="field">
-          <label>SMS Prefix <span class="required-star">*</span><span class="label-hint">(מתחיל ב-@, ייחודי)</span></label>
-          <input type="text" id="a-prefix" placeholder="@linkedin">
-        </div>
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label>לוח זמנים <span class="required-star">*</span></label>
-          <select id="a-schedule">
-            <option value="on-demand">On-demand (רק כשאני מפעילה)</option>
-            <option value="daily">יומי</option>
-            <option value="weekly">שבועי</option>
-            <option value="custom">מותאם אישית</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>תת-תיקיה ב-docs/ <span class="required-star">*</span><span class="label-hint">(ייחודית)</span></label>
-          <input type="text" id="a-subfolder" placeholder="linkedin">
-        </div>
+        <label>🎯 מה הסוכן יעשה? <span class="required-star">*</span><span class="label-hint">(משפט אחד — כמו שהיית מספרת לחבר)</span></label>
+        <textarea id="a-purpose" rows="2" placeholder="לדוגמה: יתחבר ל-Canva, ייקח עיצוב קיים, וייצר לי וריאציות עם שם עיר/מדינה/תאריך משתנים לכל אירוע"></textarea>
       </div>
 
       <div class="field">
-        <label>תיאור המשימה המלאה<span class="label-hint">(מה הסוכן עושה בפועל — אילו אתרים, אילו נתונים, אילו פלטים)</span></label>
-        <textarea id="a-task" rows="4" placeholder="לדוגמה: 1) נכנס ל-LinkedIn. 2) מסנן פרסומים של X מהשבוע האחרון. 3) מייצר סיכום HTML. 4) שולח SMS עם 3 תקציפים חמים."></textarea>
+        <label>📋 פירוט המשימה <span class="required-star">*</span><span class="label-hint">(כל הצעדים — אילו כלים, אילו נתונים, איזה פלט בסוף)</span></label>
+        <textarea id="a-task" rows="5" placeholder="לדוגמה:&#10;1. מתחבר ל-Canva דרך API או extension&#10;2. מקבל ממני: שם אירוע, עיר, מדינה, תאריכים&#10;3. לוקח את התבנית הקיימת (מזהה: X) ומשכפל&#10;4. מחליף את הטקסטים בעותק החדש&#10;5. שולח לי SMS עם הלינק לעיצוב החדש"></textarea>
       </div>
+
+      <div class="field">
+        <label>⏰ לוח זמנים <span class="required-star">*</span></label>
+        <select id="a-schedule">
+          <option value="on-demand">On-demand — רק כשאני מפעילה ידנית (ממליץ לסוכנים שקשורים לאירוע ספציפי)</option>
+          <option value="daily">יומי — רץ כל יום אוטומטית</option>
+          <option value="weekly">שבועי — רץ פעם בשבוע</option>
+          <option value="custom">מותאם אישית — אני אגדיר מתי בצ'אט</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>🖼️ תמונות reference <span class="label-hint">(אופציונלי — אם את רוצה להראות דוגמה של הפלט הרצוי, עיצוב קיים, skrinshot של אתר, וכו')</span></label>
+        <input type="file" id="a-images" accept="image/*" multiple style="padding: 8px;">
+        <div id="a-image-preview" style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px;"></div>
+      </div>
+
+      <details style="margin-bottom: 16px;">
+        <summary style="cursor: pointer; color: var(--muted); font-size: 13px; padding: 8px 0;">⚙️ הגדרות מתקדמות (אופציונלי — אחרת אני אגזור אוטומטית)</summary>
+        <div class="field-row" style="margin-top: 10px;">
+          <div class="field">
+            <label>שם טכני <span class="label-hint">(kebab-case, באנגלית)</span></label>
+            <input type="text" id="a-name" placeholder="canva-designer (ייגזר מהמטרה אם ריק)">
+          </div>
+          <div class="field">
+            <label>SMS Prefix <span class="label-hint">(למשל @canva)</span></label>
+            <input type="text" id="a-prefix" placeholder="@canva (ייגזר מהשם)">
+          </div>
+        </div>
+        <div class="field">
+          <label>תת-תיקיית docs <span class="label-hint">(בכתובת הדשבורד)</span></label>
+          <input type="text" id="a-subfolder" placeholder="canva (ייגזר מהשם)">
+        </div>
+      </details>
 
       <button class="generate-btn" onclick="generateCommandA()">🏛️ ייצר פקודה להעתקה</button>
 
@@ -324,32 +331,78 @@
     }).catch(() => alert("Copy failed. Command is shown below — copy manually."));
   }
 
+  // Image preview + storage
+  const uploadedImages = [];
+  document.getElementById('a-images').addEventListener('change', (e) => {
+    uploadedImages.length = 0;
+    const preview = document.getElementById('a-image-preview');
+    preview.innerHTML = '';
+    Array.from(e.target.files).forEach((file, i) => {
+      uploadedImages.push(file.name);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = document.createElement('img');
+        img.src = ev.target.result;
+        img.style.cssText = 'width: 70px; height: 70px; object-fit: cover; border-radius: 8px; border: 2px solid var(--accent);';
+        img.title = file.name;
+        preview.appendChild(img);
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+
+  // Auto-derive technical fields from purpose
+  function autoDerive(purpose) {
+    // Extract first English word or transliterate first Hebrew word to English
+    const englishMatch = purpose.match(/[a-zA-Z][a-zA-Z0-9\s-]{2,}/);
+    let base = englishMatch ? englishMatch[0].toLowerCase() : 'agent';
+    base = base.trim().split(/\s+/)[0].replace(/[^a-z0-9]/g, '');
+    if (base.length < 3) base = 'agent';
+    return {
+      name: `${base}-agent`,
+      prefix: `@${base}`,
+      subfolder: base
+    };
+  }
+
   function generateCommandA() {
     const purpose = document.getElementById('a-purpose').value.trim();
-    const name = document.getElementById('a-name').value.trim();
-    const prefix = document.getElementById('a-prefix').value.trim();
-    const schedule = document.getElementById('a-schedule').value;
-    const subfolder = document.getElementById('a-subfolder').value.trim();
     const task = document.getElementById('a-task').value.trim();
+    const schedule = document.getElementById('a-schedule').value;
+    let name = document.getElementById('a-name').value.trim();
+    let prefix = document.getElementById('a-prefix').value.trim();
+    let subfolder = document.getElementById('a-subfolder').value.trim();
     const btn = event.target;
 
-    if (!purpose || !name || !prefix || !subfolder) {
-      alert("אנא מלאי את כל השדות המחויבים (עם ⁕)");
+    if (!purpose || !task) {
+      alert("אנא מלאי את שני השדות העיקריים: 'מה הסוכן יעשה' ו'פירוט המשימה'");
       return;
     }
 
+    // Auto-derive technical fields if empty
+    const derived = autoDerive(purpose);
+    if (!name) name = derived.name;
+    if (!prefix) prefix = derived.prefix;
+    if (!subfolder) subfolder = derived.subfolder;
+
+    const imageNote = uploadedImages.length > 0
+      ? `\n\nReference images attached (${uploadedImages.length}): ${uploadedImages.join(', ')}\n→ Save them to /Scheduled/NEW/<agent-name>/reference-images/ during STEP 3-A scaffolding. Use them to understand the desired output style/design.`
+      : '';
+
     const cmd = `Run the agent-architect skill in Mode A (create new agent).
-Read SKILL.md at Scheduled/NEW/agent-architect/SKILL.md first. STEP 1-A questions are already answered below — skip them and go straight to STEP 2-A (subfolder confirm) then STEP 3-A (scaffold).
+Read SKILL.md at Scheduled/NEW/agent-architect/SKILL.md first. Skip STEP 1-A questions (already answered below). Auto-derive any technical fields Lauren didn't fill explicitly — she shouldn't be burdened with kebab-case/prefix conventions.
 
-Agent spec (pre-filled):
+Agent spec (pre-filled from form):
 • Purpose: ${purpose}
-• Name: ${name}
-• Prefix: ${prefix}
+• Task description: ${task}
 • Schedule: ${schedule}
-• docs/ subfolder: ${subfolder}
-• Task description: ${task || "(not provided — ask me for details during scaffolding)"}
+• Technical name (auto-derived or manual): ${name}
+• SMS prefix (auto-derived or manual): ${prefix}
+• docs/ subfolder (auto-derived or manual): ${subfolder}${imageNote}
 
-Confirm the spec back to me once, then scaffold the 4-file bundle, register in all 5 shared places, run the STEP 5-A dry-run checklist, deploy the updated agent_hub.html, and hand me the first-run verification checklist. Stay short and use the minimum tool calls — spec is complete, no need to re-ask.`;
+CRITICAL: Lauren doesn't want to deal with technical details. If any of the auto-derived fields (name/prefix/subfolder) seem off or conflict with existing agents, propose a better alternative yourself based on the Purpose, then ask her for one-word confirmation — don't make her read conventions.
+
+Confirm the full spec back to her ONCE in plain Hebrew, then scaffold the 4-file bundle, register in all shared places (lauren-comms prefix table, sms-chat memory, deploy-dashboard copy rule, agent_hub.html card, NEW/README.md layout), run the STEP 5-A dry-run checklist, deploy updated agent_hub.html via deploy-dashboard, and hand her the first-run verification checklist. Stay short, minimum tool calls.`;
 
     const out = document.getElementById('output-a');
     out.textContent = cmd;
