@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Canva Event Images</title>
+<style>
+  :root {
+    --bg: #f6f7fb;
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --accent: #ec4899;
+    --accent-dark: #db2777;
+    --accent-soft: #fdf2f8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 28px 20px 60px;
+    min-height: 100vh;
+  }
+  header {
+    max-width: 860px;
+    margin: 0 auto 20px auto;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header .title { font-size: 22px; font-weight: 700; }
+  header .meta { color: var(--muted); font-size: 13px; }
+  header .back { color: var(--accent); text-decoration: none; font-size: 13px; }
+  header .back:hover { text-decoration: underline; }
+
+  .panel {
+    max-width: 860px;
+    margin: 0 auto 18px auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 24px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+  }
+  .panel h2 {
+    margin: 0 0 14px 0;
+    font-size: 16px;
+  }
+  .panel .hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+    margin-bottom: 10px;
+  }
+
+  .row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .row > .field { flex: 1 1 220px; }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  select, input[type="text"], textarea {
+    width: 100%;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--text);
+  }
+  select:focus, input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  textarea {
+    min-height: 160px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+  }
+
+  .templates {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+  }
+  .tpl {
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    cursor: pointer;
+    background: #fff;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .tpl.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .tpl.unavailable {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .tpl .yr { font-size: 22px; font-weight: 700; }
+  .tpl .status { font-size: 11px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .tpl.active .status { color: var(--accent-dark); font-weight: 700; }
+
+  .preview-box {
+    margin-top: 8px;
+    padding: 10px;
+    background: #f8fafc;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    color: var(--text);
+    max-height: 240px;
+    overflow: auto;
+  }
+
+  .primary-btn {
+    display: block;
+    width: 100%;
+    padding: 14px 16px;
+    background: linear-gradient(180deg, #ec4899, #db2777);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+    box-shadow: 0 2px 4px rgba(219,39,119,0.3);
+    transition: all 0.15s;
+    margin-top: 10px;
+  }
+  .primary-btn:hover { transform: translateY(-1px); background: linear-gradient(180deg, #db2777, #be185d); }
+  .primary-btn.copied { background: #059669; box-shadow: none; }
+  .primary-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .run-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+    text-align: center;
+  }
+
+  .recent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    margin-top: 4px;
+  }
+  .recent-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .recent-card img {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #eef2f7;
+  }
+  .recent-card .cap {
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .recent-card .dt {
+    padding: 0 10px 8px 10px;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 28px 16px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    background: #fafafa;
+  }
+  .empty .big { font-size: 26px; margin-bottom: 6px; }
+
+  .step {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    width: 22px; height: 22px;
+    line-height: 22px;
+    border-radius: 50%;
+    margin-right: 8px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<script id="dashboard-data">
+// Updated each run by the agent. Defaults: blank so the form renders even before first run.
+const RUN = {
+  lastRun: null,              // "Thursday, April 23 · 15:45" or null
+  batches: [],                // [{batchStamp, date, year, count, sample: [{filename, thumbDataUri}, ...]}] — last 6
+  availableYears: [           // which designs are set up (template PNG + config both present)
+    // {year: 2026, ready: true},
+    // {year: 2027, ready: false}  // file exists but config missing → setup needed
+  ]
+};
+
+// Fallback year list if availableYears is empty (before any template is uploaded).
+// The agent itself discovers templates at runtime — this list is only the UI hint.
+const DEFAULT_YEARS = [2026, 2027, 2028];
+</script>
+
+<header>
+  <div>
+    <div class="title">🎨 Canva Event Images</div>
+    <div class="meta" id="run-meta">On-demand</div>
+  </div>
+  <a class="back" href="../">← Back to Agent Hub</a>
+</header>
+
+<div class="panel">
+  <h2><span class="step">1</span>Choose the design year</h2>
+  <div class="hint">Each year uses its own master template exported from Canva. Templates marked <b>Not yet uploaded</b> need to be set up once before first use.</div>
+  <div class="templates" id="templates"></div>
+</div>
+
+<div class="panel">
+  <h2><span class="step">2</span>Paste — or upload — the city list</h2>
+  <div class="hint">
+    One city per line. Two accepted formats:<br>
+    <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px">Columbus OH — Sep 4-6</code> (dates per city) · or just
+    <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px">Columbus OH</code> + a single date range below (same for all).<br>
+    <b>Many cities or just one — doesn't matter.</b>
+  </div>
+
+  <div id="dropZone" style="border:2px dashed var(--border); border-radius:10px; padding:14px; background:#fafafa; margin-bottom:12px; text-align:center; transition: all 0.2s;">
+    <div style="display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap;">
+      <label for="fileUpload" style="display:inline-block; cursor:pointer; background:var(--accent); color:#fff; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:600; margin:0;">
+        📎 Choose a file
+      </label>
+      <input id="fileUpload" type="file" accept=".txt,.csv,.tsv,.md,text/plain,text/csv,text/tab-separated-values" style="display:none;">
+      <span style="font-size:13px; color:var(--muted);">or drag a file here · or paste below</span>
+      <span id="fileName" style="font-size:12px; color:var(--accent-dark); font-weight:600;"></span>
+    </div>
+    <div class="hint" style="margin-top:8px; margin-bottom:0;">
+      Accepted: <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">.txt</code>
+      <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">.csv</code>
+      <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">.tsv</code>
+      <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">.md</code>
+      · For Excel, save as CSV first. For images/PDFs, type or paste the text.
+    </div>
+  </div>
+
+  <textarea id="cities" placeholder="Columbus OH — Sep 4-6&#10;Reno NV — Oct 9-11&#10;Salt Lake City UT — Sep 25-27&#10;&#10;(or just one: Ontario CA — Feb 19-21)"></textarea>
+
+  <div class="row" style="margin-top:14px">
+    <div class="field">
+      <label for="globalDates">Single date range (optional — applies to every line that doesn't have its own)</label>
+      <input id="globalDates" type="text" placeholder="e.g. Sep 4-6">
+    </div>
+    <div class="field">
+      <label for="notes">Extra notes for the agent (optional)</label>
+      <input id="notes" type="text" placeholder="e.g. use bigger font, save PNG as RGB">
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2><span class="step">3</span>Copy the command</h2>
+  <div class="hint">Press the button to copy a pre-structured command. Then paste it (Ctrl+V / ⌘+V) into Cowork chat to run the agent.</div>
+  <div class="preview-box" id="preview">—</div>
+  <button class="primary-btn" id="copyBtn">▶ Copy command & open Cowork</button>
+  <div class="run-hint">The agent will read the command, generate the PNGs locally, and SMS you <b>@canva ✓</b> when done.</div>
+</div>
+
+<div class="panel">
+  <h2>Recent batches</h2>
+  <div id="recent"></div>
+</div>
+
+<script>
+  // ---- Template selector ----
+  const templatesEl = document.getElementById("templates");
+  const years = (RUN.availableYears && RUN.availableYears.length)
+    ? RUN.availableYears
+    : DEFAULT_YEARS.map(y => ({year: y, ready: false}));
+
+  let selectedYear = null;
+  // Pick the first READY year as default; otherwise just the first in the list
+  const firstReady = years.find(y => y.ready);
+  selectedYear = (firstReady || years[0]).year;
+
+  function renderTemplates() {
+    templatesEl.innerHTML = "";
+    years.forEach(y => {
+      const div = document.createElement("div");
+      div.className = "tpl" + (y.year === selectedYear ? " active" : "") + (y.ready ? "" : " unavailable");
+      div.innerHTML = `<div class="yr">${y.year}</div>
+                       <div class="status">${y.ready ? "Ready" : "Not yet uploaded"}</div>`;
+      div.addEventListener("click", () => {
+        selectedYear = y.year;
+        renderTemplates();
+        updatePreview();
+      });
+      templatesEl.appendChild(div);
+    });
+  }
+
+  // ---- Command preview ----
+  const citiesEl = document.getElementById("cities");
+  const globalDatesEl = document.getElementById("globalDates");
+  const notesEl = document.getElementById("notes");
+  const previewEl = document.getElementById("preview");
+  const copyBtn = document.getElementById("copyBtn");
+
+  function buildCommand() {
+    const lines = citiesEl.value.split("\n").map(l => l.trim()).filter(Boolean);
+    const globalDates = globalDatesEl.value.trim();
+    const notes = notesEl.value.trim();
+
+    let cmd = "Run the canva-event-images skill.\n\n";
+    cmd += `Design year: ${selectedYear}\n`;
+    cmd += `Event year (for filename): ${selectedYear}\n`;
+    if (globalDates) cmd += `Default date range (applies when a line has no dates): ${globalDates}\n`;
+    cmd += "\nCities:\n";
+    if (lines.length === 0) {
+      cmd += "  (no cities yet — paste a list above)\n";
+    } else {
+      for (const line of lines) cmd += line + "\n";
+    }
+    if (notes) cmd += "\nNotes: " + notes + "\n";
+    cmd += "\nSave each output as \"CITY ST YEAR.png\" in /mnt/Claude/event-images/<stamp>/.";
+    return cmd;
+  }
+
+  function updatePreview() {
+    previewEl.textContent = buildCommand();
+    copyBtn.disabled = citiesEl.value.trim().length === 0;
+  }
+
+  [citiesEl, globalDatesEl, notesEl].forEach(el => el.addEventListener("input", updatePreview));
+
+  // ---- File upload / drag-and-drop support ----
+  const fileInput = document.getElementById("fileUpload");
+  const dropZone = document.getElementById("dropZone");
+  const fileNameEl = document.getElementById("fileName");
+
+  function reformatCsv(text, delimiter) {
+    // Parse CSV/TSV and try to normalize into "City ST — Dates" lines.
+    // Simple parser (no quoted-string support — sufficient for this use case).
+    const rows = text.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+    if (rows.length === 0) return text;
+
+    // Heuristic: if first row looks like a header (contains "city"/"state"/"date" case-insensitive), skip it.
+    const looksHeader = /city|state|date/i.test(rows[0]) && !/[0-9]/.test(rows[0]);
+    const startIdx = looksHeader ? 1 : 0;
+
+    const out = [];
+    for (let i = startIdx; i < rows.length; i++) {
+      const cells = rows[i].split(delimiter).map(c => c.trim()).filter(Boolean);
+      if (cells.length === 0) continue;
+      // 1 cell → assume already a formatted line, keep as-is
+      if (cells.length === 1) { out.push(cells[0]); continue; }
+      // 2 cells → City, ST  (no dates)
+      if (cells.length === 2) { out.push(`${cells[0]} ${cells[1]}`); continue; }
+      // 3 cells → City, ST, Dates
+      if (cells.length === 3) { out.push(`${cells[0]} ${cells[1]} — ${cells[2]}`); continue; }
+      // 4+ cells → City, ST, Dates, (ignore rest)
+      out.push(`${cells[0]} ${cells[1]} — ${cells[2]}`);
+    }
+    return out.join("\n");
+  }
+
+  function handleFile(file) {
+    if (!file) return;
+    const name = (file.name || "").toLowerCase();
+    fileNameEl.textContent = "✓ " + file.name;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = String(evt.target.result || "");
+      let content = text;
+      if (name.endsWith(".csv"))         content = reformatCsv(text, ",");
+      else if (name.endsWith(".tsv"))    content = reformatCsv(text, "\t");
+      // .txt / .md / unknown → keep as-is
+      citiesEl.value = content.trim();
+      updatePreview();
+      citiesEl.focus();
+    };
+    reader.onerror = () => {
+      alert("Couldn't read that file. Try pasting the text instead.");
+      fileNameEl.textContent = "";
+    };
+    reader.readAsText(file);
+  }
+
+  fileInput.addEventListener("change", (e) => handleFile(e.target.files && e.target.files[0]));
+
+  // Drag-and-drop on the drop zone + the textarea
+  ["dragenter", "dragover"].forEach(ev => {
+    [dropZone, citiesEl].forEach(el => el.addEventListener(ev, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      dropZone.style.borderColor = "var(--accent)";
+      dropZone.style.background = "var(--accent-soft)";
+    }));
+  });
+  ["dragleave", "drop"].forEach(ev => {
+    [dropZone, citiesEl].forEach(el => el.addEventListener(ev, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      dropZone.style.borderColor = "var(--border)";
+      dropZone.style.background = "#fafafa";
+    }));
+  });
+  [dropZone, citiesEl].forEach(el => el.addEventListener("drop", (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  }));
+
+  copyBtn.addEventListener("click", async () => {
+    const cmd = buildCommand();
+    try {
+      await navigator.clipboard.writeText(cmd);
+      copyBtn.textContent = "✓ Copied — now paste (Ctrl+V) in Cowork chat";
+      copyBtn.classList.add("copied");
+      setTimeout(() => {
+        copyBtn.textContent = "▶ Copy command & open Cowork";
+        copyBtn.classList.remove("copied");
+      }, 3500);
+    } catch (err) {
+      alert("Copy failed. Command:\n\n" + cmd);
+    }
+  });
+
+  // ---- Recent batches ----
+  const recentEl = document.getElementById("recent");
+  const runMetaEl = document.getElementById("run-meta");
+
+  if (RUN.lastRun) {
+    runMetaEl.textContent = "Last run: " + RUN.lastRun;
+  }
+
+  if (!RUN.batches || RUN.batches.length === 0) {
+    recentEl.innerHTML = `<div class="empty">
+      <div class="big">🎨</div>
+      <div>No batches yet. Fill the form above and copy the command to start.</div>
+    </div>`;
+  } else {
+    RUN.batches.forEach(b => {
+      const h = document.createElement("div");
+      h.style.marginBottom = "10px";
+      h.innerHTML = `<b style="font-size:13px">${b.date}</b> <span style="color:var(--muted);font-size:12px">· ${b.count} images · year ${b.year}</span>`;
+      recentEl.appendChild(h);
+
+      const g = document.createElement("div");
+      g.className = "recent-grid";
+      (b.sample || []).slice(0, 6).forEach(s => {
+        const c = document.createElement("div");
+        c.className = "recent-card";
+        c.innerHTML = `<img src="${s.thumbDataUri || ''}" alt="${s.filename}">
+                       <div class="cap">${s.filename}</div>`;
+        g.appendChild(c);
+      });
+      recentEl.appendChild(g);
+    });
+  }
+
+  // ---- Init ----
+  renderTemplates();
+  updatePreview();
+</script>
+
+</body>
+</html>
