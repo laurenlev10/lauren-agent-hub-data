@@ -246,6 +246,22 @@ const DEFAULT_YEARS = [2026, 2027, 2028];
   <h2><span class="step">1</span>Choose the design year</h2>
   <div class="hint">Each year uses its own master template exported from Canva. Templates marked <b>Not yet uploaded</b> need to be set up once before first use.</div>
   <div class="templates" id="templates"></div>
+
+  <div id="setupHelp" style="display:none; margin-top:14px; padding:14px 16px; background:#fff7ed; border:1px solid #fdba74; border-radius:10px; font-size:13px; line-height:1.55;">
+    <div style="font-weight:700; color:#9a3412; margin-bottom:6px;">
+      🎨 Setup for year <span id="setupYear">2026</span> — one-time upload needed
+    </div>
+    <div style="color:#7c2d12;">
+      This form is a static page and can't save files to your computer. To upload the master template:
+      <ol style="margin:8px 0 4px 20px; padding:0;">
+        <li>Open <b>Cowork chat</b> (the main Claude chat window).</li>
+        <li><b>Drag the clean template PNG</b> (Canva export — no city/date text on it) into the chat message area.</li>
+        <li>Type: <code style="background:#fde68a;padding:2px 6px;border-radius:4px;font-weight:600">שמרי כ-master <span class="setupYearInline">2026</span></code> and send.</li>
+        <li>Refresh this page — the <b><span class="setupYearInline">2026</span></b> tile will switch to <span style="color:#059669;font-weight:700">Ready</span>.</li>
+      </ol>
+      Each year needs this once. After that, just fill the form below and generate.
+    </div>
+  </div>
 </div>
 
 <div class="panel">
@@ -325,9 +341,22 @@ const DEFAULT_YEARS = [2026, 2027, 2028];
         selectedYear = y.year;
         renderTemplates();
         updatePreview();
+        renderSetupHelp();
       });
       templatesEl.appendChild(div);
     });
+  }
+
+  function renderSetupHelp() {
+    const selected = years.find(y => y.year === selectedYear);
+    const help = document.getElementById("setupHelp");
+    if (!selected || selected.ready) {
+      help.style.display = "none";
+      return;
+    }
+    help.style.display = "block";
+    document.getElementById("setupYear").textContent = selectedYear;
+    document.querySelectorAll(".setupYearInline").forEach(el => el.textContent = selectedYear);
   }
 
   // ---- Command preview ----
@@ -491,6 +520,7 @@ const DEFAULT_YEARS = [2026, 2027, 2028];
 
   // ---- Init ----
   renderTemplates();
+  renderSetupHelp();
   updatePreview();
 </script>
 
