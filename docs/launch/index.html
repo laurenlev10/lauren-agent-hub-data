@@ -5,206 +5,68 @@
 <title>Event Launch — Makeup Blowout</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  :root {
-    --bg: #f6f7fb;
-    --card: #ffffff;
-    --border: #e5e7eb;
-    --text: #1f2937;
-    --muted: #6b7280;
-    --accent: #ec4899;
-    --accent-dark: #be185d;
-    --ok: #059669;
-    --ok-bg: #d1fae5;
-    --warn: #b45309;
-    --warn-bg: #fef3c7;
-    --err: #dc2626;
-    --err-bg: #fee2e2;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    padding: 28px 16px 60px;
-    min-height: 100vh;
-  }
-  .wrap { max-width: 720px; margin: 0 auto; }
-  header { text-align: center; margin-bottom: 22px; }
-  h1 { margin: 0 0 6px 0; font-size: 26px; }
-  h1 .emoji { margin-right: 6px; }
-  .subtitle { color: var(--muted); font-size: 14px; }
-  a.back { font-size: 13px; color: var(--accent); text-decoration: none; }
-  a.back:hover { text-decoration: underline; }
-
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 22px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-    margin-bottom: 18px;
-  }
-  .card h2 { margin: 0 0 14px 0; font-size: 17px; font-weight: 700; }
-
-  label {
-    display: block;
-    font-size: 13px;
-    font-weight: 600;
-    margin: 12px 0 4px;
-    color: var(--text);
-  }
-  label .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
-  .field-row { position: relative; }
-  input[type="text"], input[type="date"], input[type="number"] {
-    width: 100%;
-    padding: 9px 40px 9px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 14px;
-    font-family: inherit;
-  }
-  input:focus { outline: none; border-color: var(--accent); }
-  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  @media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
-
-  /* Inline status indicator next to each field */
-  .status-icon {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    line-height: 1;
-    color: #9ca3af;
-    background: #f3f4f6;
-    pointer-events: none;
-    user-select: none;
-  }
-  .status-icon.ok   { color: var(--ok);   background: var(--ok-bg); }
-  .status-icon.warn { color: var(--warn); background: var(--warn-bg); }
-  .status-icon.err  { color: var(--err);  background: var(--err-bg); }
-  .status-icon.spin { color: var(--accent); background: #fce7f3; }
-  .status-icon.spin::before {
-    content: "";
-    width: 12px; height: 12px;
-    border: 2px solid var(--accent);
-    border-top-color: transparent;
-    border-radius: 50%;
-    display: inline-block;
-    animation: spin 0.7s linear infinite;
-  }
-  .status-icon.spin span { display: none; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Per-field message line under the input */
-  .field-msg {
-    font-size: 12px;
-    margin-top: 4px;
-    line-height: 1.4;
-    min-height: 14px;
-  }
-  .field-msg.ok   { color: var(--ok); }
-  .field-msg.warn { color: var(--warn); }
-  .field-msg.err  { color: var(--err); }
-  .field-msg.muted { color: var(--muted); }
-  .field-msg a { color: inherit; text-decoration: underline; }
-
-  .validate-btn, .copy-btn {
-    display: block;
-    width: 100%;
-    padding: 12px 16px;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    letter-spacing: 0.3px;
-    transition: all 0.15s;
-  }
-  .validate-btn {
-    margin-top: 18px;
-    background: linear-gradient(180deg, #2563eb, #1d4ed8);
-    box-shadow: 0 1px 2px rgba(37,99,235,0.3);
-  }
-  .validate-btn:hover { background: linear-gradient(180deg, #1d4ed8, #1e40af); }
-  .validate-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-  .copy-btn {
-    margin-top: 10px;
-    background: linear-gradient(180deg, var(--accent), var(--accent-dark));
-    box-shadow: 0 1px 2px rgba(236,72,153,0.3);
-  }
-  .copy-btn:hover { background: linear-gradient(180deg, var(--accent-dark), #9d174d); }
-  .copy-btn.copied { background: var(--ok); }
-  .copy-btn.warned { background: linear-gradient(180deg, #f59e0b, #b45309); }
-
-  .summary {
-    margin-top: 14px;
-    border: 1px dashed var(--border);
-    border-radius: 8px;
-    padding: 12px;
-    font-size: 13px;
-    line-height: 1.55;
-    color: var(--muted);
-  }
-  .summary.ok   { border-color: var(--ok);   background: #ecfdf5; color: #065f46; }
-  .summary.warn { border-color: var(--warn); background: #fffbeb; color: var(--warn); }
-  .summary.err  { border-color: var(--err);  background: #fef2f2; color: var(--err); }
-  .summary ul { margin: 6px 0 0; padding-inline-start: 20px; }
-  .summary li { margin-bottom: 4px; }
-
-  .preview {
-    margin-top: 14px;
-    background: #f9fafb;
-    border: 1px dashed var(--border);
-    border-radius: 8px;
-    padding: 12px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 12px;
-    color: #374151;
-    white-space: pre-wrap;
-    line-height: 1.5;
-    min-height: 100px;
-  }
-
-  .recent-run {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 12px; background: #f9fafb;
-    border: 1px solid var(--border); border-radius: 8px;
-    margin-bottom: 8px; font-size: 13px;
-  }
-  .recent-run .city { font-weight: 600; }
-  .recent-run .when { color: var(--muted); font-size: 12px; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; }
-  .badge-ok { background: var(--ok-bg); color: var(--ok); }
-  .badge-err { background: var(--err-bg); color: var(--err); }
-  .empty { color: var(--muted); font-size: 13px; font-style: italic; }
-  .footnote { font-size: 11px; color: var(--muted); margin-top: 14px; line-height: 1.5; }
-
-  .data-source {
-    font-size: 11px; color: var(--muted); margin-top: 8px;
-    font-style: italic;
-  }
+  :root { --bg:#f6f7fb;--card:#fff;--border:#e5e7eb;--text:#1f2937;--muted:#6b7280;--accent:#ec4899;--accent-dark:#be185d;--ok:#059669;--ok-bg:#d1fae5;--warn:#b45309;--warn-bg:#fef3c7;--err:#dc2626;--err-bg:#fee2e2; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);padding:28px 16px 60px;min-height:100vh}
+  .wrap{max-width:720px;margin:0 auto}
+  header{text-align:center;margin-bottom:22px}
+  h1{margin:0 0 6px;font-size:26px}
+  h1 .emoji{margin-right:6px}
+  .subtitle{color:var(--muted);font-size:14px}
+  a.back{font-size:13px;color:var(--accent);text-decoration:none}
+  a.back:hover{text-decoration:underline}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 2px 6px rgba(0,0,0,.04);margin-bottom:18px}
+  .card h2{margin:0 0 14px;font-size:17px;font-weight:700}
+  label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px;color:var(--text)}
+  label .hint{font-weight:400;color:var(--muted);font-size:12px}
+  .field-row{position:relative}
+  input[type="text"],input[type="date"],input[type="number"]{width:100%;padding:9px 40px 9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit}
+  input:focus{outline:none;border-color:var(--accent)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:480px){.row{grid-template-columns:1fr}}
+  .status-icon{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;line-height:1;color:#9ca3af;background:#f3f4f6;pointer-events:none;user-select:none}
+  .status-icon.ok{color:var(--ok);background:var(--ok-bg)}
+  .status-icon.warn{color:var(--warn);background:var(--warn-bg)}
+  .status-icon.err{color:var(--err);background:var(--err-bg)}
+  .status-icon.spin{color:var(--accent);background:#fce7f3}
+  .status-icon.spin::before{content:"";width:12px;height:12px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;display:inline-block;animation:spin .7s linear infinite}
+  .status-icon.spin span{display:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .field-msg{font-size:12px;margin-top:4px;line-height:1.4;min-height:14px}
+  .field-msg.ok{color:var(--ok)}
+  .field-msg.warn{color:var(--warn)}
+  .field-msg.err{color:var(--err)}
+  .field-msg.muted{color:var(--muted)}
+  .field-msg a{color:inherit;text-decoration:underline}
+  .validate-btn,.copy-btn{display:block;width:100%;padding:12px 16px;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.3px;transition:all .15s}
+  .validate-btn{margin-top:18px;background:linear-gradient(180deg,#2563eb,#1d4ed8);box-shadow:0 1px 2px rgba(37,99,235,.3)}
+  .validate-btn:hover{background:linear-gradient(180deg,#1d4ed8,#1e40af)}
+  .validate-btn:disabled{opacity:.55;cursor:not-allowed}
+  .copy-btn{margin-top:10px;background:linear-gradient(180deg,var(--accent),var(--accent-dark));box-shadow:0 1px 2px rgba(236,72,153,.3)}
+  .copy-btn:hover{background:linear-gradient(180deg,var(--accent-dark),#9d174d)}
+  .copy-btn.copied{background:var(--ok)}
+  .summary{margin-top:14px;border:1px dashed var(--border);border-radius:8px;padding:12px;font-size:13px;line-height:1.55;color:var(--muted)}
+  .summary.ok{border-color:var(--ok);background:#ecfdf5;color:#065f46}
+  .summary.warn{border-color:var(--warn);background:#fffbeb;color:var(--warn)}
+  .summary.err{border-color:var(--err);background:#fef2f2;color:var(--err)}
+  .summary ul{margin:6px 0 0;padding-inline-start:20px}
+  .summary li{margin-bottom:4px}
+  .preview{margin-top:14px;background:#f9fafb;border:1px dashed var(--border);border-radius:8px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#374151;white-space:pre-wrap;line-height:1.5;min-height:100px}
+  .recent-run{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;font-size:13px}
+  .recent-run .city{font-weight:600}
+  .recent-run .when{color:var(--muted);font-size:12px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.3px}
+  .badge-ok{background:var(--ok-bg);color:var(--ok)}
+  .badge-err{background:var(--err-bg);color:var(--err)}
+  .empty{color:var(--muted);font-size:13px;font-style:italic}
+  .footnote{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.5}
+  .data-source{font-size:11px;color:var(--muted);margin-top:8px;font-style:italic}
 </style>
 </head>
 <body>
 
 <script id="dashboard-data">
-const RUN = {
-  date:    "—",
-  time:    "—",
-  status:  null,
-  event:   null,
-  webhookResponse: null,
-  errorReason:     null,
-  previousRuns: []
-};
+const RUN = { date:"—", time:"—", status:null, event:null, webhookResponse:null, errorReason:null, previousRuns:[] };
 </script>
 
 <div class="wrap">
@@ -219,44 +81,335 @@ const RUN = {
     <p style="font-size:13px;color:var(--muted);margin:0 0 6px">Fill the form, click "Validate", review warnings, then "Copy command".</p>
 
     <label>City <span class="hint">(include 2-letter state, e.g. Dallas, TX)</span></label>
-    <div class="field-row">
-      <input type="text" id="city" placeholder="Dallas, TX" autocomplete="off">
-      <span class="status-icon" id="city-icon" title="Not checked yet"><span>·</span></span>
-    </div>
+    <div class="field-row"><input type="text" id="city" placeholder="Dallas, TX" autocomplete="off"><span class="status-icon" id="city-icon"><span>·</span></span></div>
     <div class="field-msg muted" id="city-msg">Live spell-check via OpenStreetMap.</div>
 
     <label>Street <span class="hint">(full address with ZIP)</span></label>
-    <div class="field-row">
-      <input type="text" id="street" placeholder="2645 LBJ Fwy, Dallas, TX 75234" autocomplete="off">
-      <span class="status-icon" id="street-icon"><span>·</span></span>
-    </div>
+    <div class="field-row"><input type="text" id="street" placeholder="2645 LBJ Fwy, Dallas, TX 75234" autocomplete="off"><span class="status-icon" id="street-icon"><span>·</span></span></div>
     <div class="field-msg muted" id="street-msg">We'll geocode this and confirm it's near the city.</div>
 
     <label>Hotel / Venue <span class="hint">(checked against OpenStreetMap — flags renames / ownership changes)</span></label>
-    <div class="field-row">
-      <input type="text" id="hotel" placeholder="Crowne Plaza Dallas Near Galleria-Addison" autocomplete="off">
-      <span class="status-icon" id="hotel-icon"><span>·</span></span>
-    </div>
+    <div class="field-row"><input type="text" id="hotel" placeholder="Crowne Plaza Dallas Near Galleria-Addison" autocomplete="off"><span class="status-icon" id="hotel-icon"><span>·</span></span></div>
     <div class="field-msg muted" id="hotel-msg">If OSM doesn't know this name at the address, you'll get a warning.</div>
 
     <div class="row">
       <div>
         <label>Start date <span class="hint">(should be Friday)</span></label>
-        <div class="field-row">
-          <input type="date" id="start_date">
-          <span class="status-icon" id="start_date-icon"><span>·</span></span>
-        </div>
+        <div class="field-row"><input type="date" id="start_date"><span class="status-icon" id="start_date-icon"><span>·</span></span></div>
       </div>
       <div>
         <label>End date <span class="hint">(should be Sunday)</span></label>
-        <div class="field-row">
-          <input type="date" id="end_date">
-          <span class="status-icon" id="end_date-icon"><span>·</span></span>
-        </div>
+        <div class="field-row"><input type="date" id="end_date"><span class="status-icon" id="end_date-icon"><span>·</span></span></div>
       </div>
     </div>
     <div class="field-msg muted" id="dates-msg">Events run Fri–Sun. Dates also checked: future, same year, start &lt; end.</div>
 
     <label>Year <span class="hint">(auto-derived from start date)</span></label>
-    <div class="field-row">
-      <input type="nu
+    <div class="field-row"><input type="number" id="year" min="2024" max="2030" value="2026"><span class="status-icon" id="year-icon"><span>·</span></span></div>
+
+    <button class="validate-btn" id="validate">🔍 Validate all fields</button>
+    <div class="summary muted" id="summary">Press Validate when ready.</div>
+
+    <button class="copy-btn" id="copy">📋 Copy command</button>
+
+    <div class="preview" id="preview">Run the event-launch skill.
+
+City:
+Street:
+Hotel:
+Year: 2026
+Start date:
+End date: </div>
+    <div class="data-source">Validation uses OpenStreetMap / Nominatim (free, ~1 req/sec). Hotel data may lag real-world ownership changes by weeks; treat warnings as a prompt to double-check, not a block.</div>
+  </div>
+
+  <div class="card">
+    <h2>Last launch</h2>
+    <div id="last-run-block"><span class="empty">No launches yet — fire the first one above.</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Recent launches</h2>
+    <div id="recent-runs"><span class="empty">No history yet.</span></div>
+    <p class="footnote">The empty SimpleTexting list and the new Eventbrite event are created by the Zapier "Blowout Event Launch" Zap. Customer outreach is separate — Lauren handles those.</p>
+  </div>
+</div>
+
+<script>
+  const fields = ["city","street","hotel","year","start_date","end_date"];
+  const NOMINATIM = "https://nominatim.openstreetmap.org";
+  const status = {};
+  fields.forEach(f => status[f] = { state:"idle", msg:"" });
+
+  function setStatus(field, state, msg){
+    status[field] = { state, msg };
+    const icon = document.getElementById(field + "-icon");
+    if (icon){
+      icon.className = "status-icon" + (state === "checking" ? " spin" : (state === "idle" ? "" : " " + state));
+      const inner = icon.querySelector("span");
+      if (inner) inner.textContent = state === "ok" ? "✓" : state === "warn" ? "!" : state === "err" ? "✗" : "·";
+      icon.title = msg || state;
+    }
+    const msgEl = document.getElementById(field + "-msg");
+    if (msgEl && msg){ msgEl.className = "field-msg " + state; msgEl.innerHTML = msg; }
+    refreshSummary();
+  }
+  function setDatesMsg(state, msg){
+    const el = document.getElementById("dates-msg");
+    el.className = "field-msg " + state;
+    el.innerHTML = msg;
+  }
+  function refreshSummary(){
+    const sum = document.getElementById("summary");
+    const states = fields.map(f => status[f].state);
+    const anyChecking = states.includes("checking");
+    const errs  = fields.filter(f => status[f].state === "err");
+    const warns = fields.filter(f => status[f].state === "warn");
+    const oks   = fields.filter(f => status[f].state === "ok");
+    if (anyChecking){ sum.className = "summary muted"; sum.innerHTML = "🔄 Checking…"; return; }
+    if (errs.length){ sum.className = "summary err"; sum.innerHTML = "✗ Fix these before launching:<ul>" + errs.map(f => "<li><b>" + f + "</b>: " + status[f].msg.replace(/<[^>]*>/g, "") + "</li>").join("") + "</ul>"; return; }
+    if (warns.length){ sum.className = "summary warn"; sum.innerHTML = "⚠ Warnings — review, then copy if you're sure:<ul>" + warns.map(f => "<li><b>" + f + "</b>: " + status[f].msg.replace(/<[^>]*>/g, "") + "</li>").join("") + "</ul>"; return; }
+    if (oks.length >= fields.length - 1){ sum.className = "summary ok"; sum.innerHTML = "✓ All fields validated. Safe to copy."; return; }
+    sum.className = "summary muted"; sum.innerHTML = "Press Validate when ready.";
+  }
+  function rebuildPreview(){
+    const v = {};
+    fields.forEach(f => v[f] = document.getElementById(f).value || "");
+    if (v.start_date && (!v.year || v.year === "")) v.year = v.start_date.slice(0,4);
+    document.getElementById("preview").textContent =
+      "Run the event-launch skill.\n\n" +
+      "City: " + v.city + "\n" +
+      "Street: " + v.street + "\n" +
+      "Hotel: " + v.hotel + "\n" +
+      "Year: " + v.year + "\n" +
+      "Start date: " + v.start_date + "\n" +
+      "End date: " + v.end_date;
+  }
+  fields.forEach(f => {
+    const el = document.getElementById(f);
+    el.addEventListener("input", () => {
+      if (status[f].state !== "idle") setStatus(f, "idle", "");
+      rebuildPreview();
+    });
+  });
+  document.getElementById("start_date").addEventListener("change", () => {
+    const sd = document.getElementById("start_date").value;
+    if (sd) document.getElementById("year").value = sd.slice(0,4);
+    rebuildPreview();
+  });
+
+  function distKm(lat1, lon1, lat2, lon2){
+    const R = 6371, toRad = d => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+  function norm(s){ return (s||"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim(); }
+  function lev(a, b){
+    a = norm(a); b = norm(b);
+    if (a === b) return 0;
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+    const m = Array.from({length:a.length+1}, (_,i) => [i, ...Array(b.length).fill(0)]);
+    for (let j=1;j<=b.length;j++) m[0][j]=j;
+    for (let i=1;i<=a.length;i++) for (let j=1;j<=b.length;j++){
+      const cost = a[i-1] === b[j-1] ? 0 : 1;
+      m[i][j] = Math.min(m[i-1][j]+1, m[i][j-1]+1, m[i-1][j-1]+cost);
+    }
+    return m[a.length][b.length];
+  }
+  async function nominatim(path, params){
+    const qs = new URLSearchParams(Object.assign({format:"json", limit:"5"}, params));
+    const r = await fetch(NOMINATIM + path + "?" + qs.toString(), { headers:{ "Accept-Language":"en" } });
+    if (!r.ok) throw new Error("Nominatim HTTP " + r.status);
+    return await r.json();
+  }
+  let lastCall = 0;
+  async function throttle(){
+    const now = Date.now();
+    const wait = Math.max(0, 1100 - (now - lastCall));
+    if (wait) await new Promise(res => setTimeout(res, wait));
+    lastCall = Date.now();
+  }
+
+  let cityCoords = null;
+  async function checkCity(){
+    const v = document.getElementById("city").value.trim();
+    if (!v){ setStatus("city","err","Empty"); return false; }
+    const m = v.match(/^([^,]+),\s*([A-Za-z]{2})\s*$/);
+    if (!m){ setStatus("city","err","Use format <b>City, ST</b> (2-letter state). Got: \"" + v + "\""); return false; }
+    const inputCity = m[1].trim(), inputState = m[2].toUpperCase();
+    setStatus("city","checking","Looking up in OpenStreetMap…");
+    try {
+      await throttle();
+      const results = await nominatim("/search", { q:v, addressdetails:"1" });
+      if (!results.length){ setStatus("city","err","Not found in OpenStreetMap. Check the spelling."); return false; }
+      const hit = results.find(r => r.address && (r.address.state || r.address.city || r.address.town || r.address.village)) || results[0];
+      const a = hit.address || {};
+      const foundCity = a.city || a.town || a.village || a.hamlet || a.county || "";
+      const foundState = a.state || "";
+      cityCoords = [parseFloat(hit.lat), parseFloat(hit.lon)];
+      const stateMap = {AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming",DC:"District of Columbia"};
+      const expectedState = stateMap[inputState];
+      if (!expectedState){ setStatus("city","err","\"" + inputState + "\" is not a valid US state code."); return false; }
+      const stateOk = norm(foundState) === norm(expectedState);
+      const cityDist = lev(inputCity, foundCity);
+      if (stateOk && cityDist === 0){ setStatus("city","ok","Found: <b>" + foundCity + ", " + foundState + "</b>"); return true; }
+      if (stateOk && cityDist <= 2){ setStatus("city","warn","Spelling differs — did you mean <b>" + foundCity + ", " + foundState + "</b>?"); return true; }
+      if (!stateOk && foundState){ setStatus("city","warn","OpenStreetMap places \"" + inputCity + "\" in <b>" + foundState + "</b>, not <b>" + expectedState + "</b>. Verify which one you mean."); return true; }
+      setStatus("city","warn","Best match: <b>" + (foundCity||"—") + ", " + (foundState||"—") + "</b>. Verify this is the city you mean.");
+      return true;
+    } catch(e){ setStatus("city","warn","Couldn't reach OpenStreetMap (" + e.message + "). Verify manually."); return true; }
+  }
+
+  async function checkStreet(){
+    const v = document.getElementById("street").value.trim();
+    if (!v){ setStatus("street","err","Empty"); return false; }
+    if (!/\b\d{5}\b/.test(v)) setStatus("street","warn","No 5-digit ZIP code in the address. Add one — Eventbrite needs it.");
+    setStatus("street","checking","Geocoding the address…");
+    try {
+      await throttle();
+      const results = await nominatim("/search", { q:v, addressdetails:"1" });
+      if (!results.length){ setStatus("street","err","Address not found. Check the spelling and ZIP."); return false; }
+      const hit = results[0];
+      const lat = parseFloat(hit.lat), lon = parseFloat(hit.lon);
+      const a = hit.address || {};
+      const matched = hit.display_name;
+      let distMsg = "";
+      if (cityCoords){
+        const d = distKm(cityCoords[0], cityCoords[1], lat, lon);
+        if (d > 80){ setStatus("street","warn","Resolved to <b>" + matched + "</b> — but that's <b>" + d.toFixed(0) + " km</b> from the city you entered. Wrong address?"); window._streetCoords=[lat,lon]; return true; }
+        distMsg = " (~" + d.toFixed(0) + " km from city center)";
+      }
+      if (!a.road && !a.house_number){ setStatus("street","warn","Resolved fuzzily to <b>" + matched + "</b>" + distMsg + ". Verify ZIP + street name."); window._streetCoords=[lat,lon]; return true; }
+      setStatus("street","ok","Found: <b>" + [a.house_number,a.road,a.city||a.town,a.state,a.postcode].filter(Boolean).join(", ") + "</b>" + distMsg);
+      window._streetCoords=[lat,lon];
+      return true;
+    } catch(e){ setStatus("street","warn","Couldn't reach OpenStreetMap (" + e.message + "). Verify manually."); return true; }
+  }
+
+  async function checkHotel(){
+    const v = document.getElementById("hotel").value.trim();
+    if (!v){ setStatus("hotel","err","Empty"); return false; }
+    if (!window._streetCoords){ setStatus("hotel","warn","Couldn't check — street validation didn't return coordinates. Verify manually on Google Maps."); return true; }
+    setStatus("hotel","checking","Searching OpenStreetMap for this hotel name nearby…");
+    try {
+      await throttle();
+      const cityVal = document.getElementById("city").value.trim();
+      const results = await nominatim("/search", { q: v + ", " + cityVal, addressdetails:"1", extratags:"1" });
+      const slat = window._streetCoords[0], slon = window._streetCoords[1];
+      let nearbyHotel = null, nearestKm = 999;
+      for (const r of results){
+        const d = distKm(slat, slon, parseFloat(r.lat), parseFloat(r.lon));
+        const t = (r.type||"") + " " + (r.class||"") + " " + (r.category||"");
+        const looksLikeHotel = /hotel|motel|inn|hostel|guest_house|tourism|lodging|hospitality|building/i.test(t) || /hotel|inn|motel|resort|suites|plaza/i.test(r.display_name);
+        if (d < nearestKm) nearestKm = d;
+        if (d <= 3 && looksLikeHotel){ nearbyHotel = r; break; }
+      }
+      const gmapsUrl = "https://www.google.com/maps/search/" + encodeURIComponent(v + ", " + cityVal);
+      if (nearbyHotel){
+        const matchedName = nearbyHotel.display_name.split(",")[0];
+        const nameDist = lev(v, matchedName);
+        if (nameDist === 0) setStatus("hotel","ok","Found at this location in OSM: <b>" + matchedName + "</b>.");
+        else if (nameDist <= 5) setStatus("hotel","warn","OSM lists <b>" + matchedName + "</b> at this address (slight name diff — possibly a rename). Confirm <a href=\"" + gmapsUrl + "\" target=\"_blank\" rel=\"noopener\">on Google Maps</a>.");
+        else setStatus("hotel","warn","OSM lists <b>" + matchedName + "</b> here, not \"" + v + "\" — possible rename or change of ownership. Confirm <a href=\"" + gmapsUrl + "\" target=\"_blank\" rel=\"noopener\">on Google Maps</a>.");
+      } else if (results.length){
+        setStatus("hotel","warn","Hotel not found at the address — closest match in OSM is ~" + nearestKm.toFixed(0) + " km away. <a href=\"" + gmapsUrl + "\" target=\"_blank\" rel=\"noopener\">Verify on Google Maps</a>.");
+      } else {
+        setStatus("hotel","warn","OpenStreetMap doesn't know \"" + v + "\" near this address. Could be renamed/changed ownership/new build. <a href=\"" + gmapsUrl + "\" target=\"_blank\" rel=\"noopener\">Verify on Google Maps</a>.");
+      }
+      return true;
+    } catch(e){ setStatus("hotel","warn","Couldn't reach OpenStreetMap (" + e.message + "). Verify manually."); return true; }
+  }
+
+  function checkDates(){
+    const sdRaw = document.getElementById("start_date").value;
+    const edRaw = document.getElementById("end_date").value;
+    const yr    = parseInt(document.getElementById("year").value, 10);
+    if (!sdRaw || !edRaw){ setStatus("start_date","err",""); setStatus("end_date","err",""); setDatesMsg("err","Both start and end date are required."); return false; }
+    const sd = new Date(sdRaw + "T00:00:00");
+    const ed = new Date(edRaw + "T00:00:00");
+    const today = new Date(); today.setHours(0,0,0,0);
+    const dayName = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const issues = [];
+    let startState = "ok", endState = "ok";
+    if (sd >= ed){ issues.push("Start (" + sdRaw + ") is on or after end (" + edRaw + ")."); startState = endState = "err"; }
+    if (sd < today){ issues.push("Start date " + sdRaw + " is in the past."); if (startState !== "err") startState = "warn"; }
+    if (sd.getFullYear() !== ed.getFullYear()){ issues.push("Start year (" + sd.getFullYear() + ") ≠ end year (" + ed.getFullYear() + ")."); startState = endState = "err"; }
+    if (yr && yr !== sd.getFullYear()){ issues.push("Year field (" + yr + ") ≠ start-date year (" + sd.getFullYear() + ")."); if (startState !== "err") startState = "warn"; }
+    if (sd.getDay() !== 5){ issues.push("Start is " + dayName[sd.getDay()] + ", not Friday. Events normally run Fri–Sun."); if (startState !== "err") startState = "warn"; }
+    if (ed.getDay() !== 0){ issues.push("End is " + dayName[ed.getDay()] + ", not Sunday."); if (endState !== "err") endState = "warn"; }
+    const diffDays = Math.round((ed - sd) / 86400000);
+    if (diffDays !== 2){ issues.push("Span is " + diffDays + " day(s), expected 2 (Fri→Sun)."); if (startState !== "err") startState = "warn"; if (endState !== "err") endState = "warn"; }
+    setStatus("start_date", startState, startState === "ok" ? dayName[sd.getDay()] + " " + sdRaw + " ✓" : "");
+    setStatus("end_date",   endState,   endState   === "ok" ? dayName[ed.getDay()] + " " + edRaw + " ✓" : "");
+    if (yr === sd.getFullYear()) setStatus("year","ok","");
+    else if (yr) setStatus("year","warn","Year doesn't match start date.");
+    else setStatus("year","ok","");
+    if (issues.length){
+      const cls = (startState === "err" || endState === "err") ? "err" : "warn";
+      setDatesMsg(cls, issues.map(s => "• " + s).join("<br>"));
+      return cls !== "err";
+    } else {
+      setDatesMsg("ok","Friday <b>" + sdRaw + "</b> → Sunday <b>" + edRaw + "</b>. Looks right.");
+      return true;
+    }
+  }
+
+  async function validateAll(){
+    const btn = document.getElementById("validate");
+    btn.disabled = true; btn.textContent = "🔄 Validating…";
+    try {
+      const cityOk = await checkCity();
+      if (cityOk) await checkStreet(); else setStatus("street","idle","Skipped — fix city first.");
+      if (status.street.state === "ok" || status.street.state === "warn") await checkHotel();
+      else setStatus("hotel","idle","Skipped — fix street first.");
+      checkDates();
+    } finally { btn.disabled = false; btn.textContent = "🔍 Validate all fields"; }
+  }
+  document.getElementById("validate").addEventListener("click", validateAll);
+
+  document.getElementById("copy").addEventListener("click", async () => {
+    const btn = document.getElementById("copy");
+    const cmd = document.getElementById("preview").textContent;
+    const errs = fields.filter(f => status[f].state === "err");
+    const warns = fields.filter(f => status[f].state === "warn");
+    const anyChecked = fields.some(f => status[f].state !== "idle");
+    if (errs.length){ alert("✗ Cannot copy — fix these first:\n\n" + errs.map(f => "• " + f + ": " + status[f].msg.replace(/<[^>]*>/g, "")).join("\n")); return; }
+    if (!anyChecked && !confirm("You haven't validated yet. Copy anyway?")) return;
+    if (warns.length && !confirm("⚠ There are warnings:\n\n" + warns.map(f => "• " + f + ": " + status[f].msg.replace(/<[^>]*>/g, "")).join("\n") + "\n\nCopy anyway?")) return;
+    try {
+      await navigator.clipboard.writeText(cmd);
+      btn.textContent = "✓ Copied — paste in Cowork";
+      btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = "📋 Copy command"; btn.classList.remove("copied"); }, 2500);
+    } catch(err){ alert("Copy failed. Command:\n\n" + cmd); }
+  });
+
+  function renderRunState(){
+    if (RUN && RUN.event){
+      const ok = RUN.status === "success";
+      const ev = RUN.event;
+      const eventLink = ev.eventUrl ? "<a href=\"" + ev.eventUrl + "\" target=\"_blank\" rel=\"noopener\" style=\"color:var(--accent)\">View on Eventbrite</a>" : "<span class=\"empty\">No Eventbrite link returned</span>";
+      document.getElementById("last-run-block").innerHTML =
+        "<div style=\"font-size:14px;line-height:1.6\">" +
+          "<span class=\"badge " + (ok ? "badge-ok" : "badge-err") + "\">" + (ok ? "✓ Success" : "⚠ Error") + "</span> " +
+          "<b>" + ev.city + "</b> · " + RUN.date + " " + RUN.time + "<br>" +
+          ev.startDate + " → " + ev.endDate + " · " + ev.hotel + "<br>" +
+          ev.street + "<br>" + eventLink +
+          (RUN.errorReason ? "<div style=\"margin-top:8px;color:var(--err);font-size:12px\">" + RUN.errorReason + "</div>" : "") +
+        "</div>";
+    }
+    if (RUN && RUN.previousRuns && RUN.previousRuns.length){
+      document.getElementById("recent-runs").innerHTML = RUN.previousRuns.map(r =>
+        "<div class=\"recent-run\"><span><span class=\"city\">" + r.city + "</span> · <span class=\"when\">" + r.date + "</span></span>" +
+        "<span class=\"badge " + (r.status === "success" ? "badge-ok" : "badge-err") + "\">" + (r.status === "success" ? "✓" : "⚠") + "</span></div>"
+      ).join("");
+    }
+  }
+  renderRunState();
+  rebuildPreview();
+</script>
+
+</body>
+</html>
