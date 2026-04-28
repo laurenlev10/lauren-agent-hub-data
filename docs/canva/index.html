@@ -239,7 +239,17 @@ const DEFAULT_CALIBRATION = {
           <div class="field-row"><label>Stroke</label><input id="strokeSlider" type="range" min="0" max="120" step="1"><div class="val" id="strokeVal">—</div></div>
           <div class="field-row"><label>Text</label><input id="fillColor" type="color"><span class="val" id="fillColorHex">—</span><div style="flex:1"></div></div>
           <div class="field-row"><label>Outline</label><input id="strokeColor" type="color"><span class="val" id="strokeColorHex">—</span><div style="flex:1"></div></div>
-          <div class="field-row"><label>Position</label><span class="val" id="posVal" style="flex:1; text-align:left;">—</span></div>
+          <div class="field-row"><label>X (←→)</label>
+            <button class="btn btn-secondary" id="posXMinus" style="padding:3px 9px;font-size:14px;line-height:1;">−</button>
+            <input id="posX" type="number" min="0" step="10" style="flex:1; text-align:center;">
+            <button class="btn btn-secondary" id="posXPlus" style="padding:3px 9px;font-size:14px;line-height:1;">+</button>
+          </div>
+          <div class="field-row"><label>Y (↑↓)</label>
+            <button class="btn btn-secondary" id="posYMinus" style="padding:3px 9px;font-size:14px;line-height:1;">−</button>
+            <input id="posY" type="number" min="0" step="10" style="flex:1; text-align:center;">
+            <button class="btn btn-secondary" id="posYPlus" style="padding:3px 9px;font-size:14px;line-height:1;">+</button>
+          </div>
+          <div class="hint" style="margin-top:-2px; font-size:10px;">Tip: click on canvas, then use ← → ↑ ↓ keys (Shift = bigger steps)</div>
         </div>
       </div>
     </div>
@@ -416,7 +426,8 @@ const DEFAULT_CALIBRATION = {
   const strokeSlider = document.getElementById("strokeSlider"), strokeVal = document.getElementById("strokeVal");
   const fillColor = document.getElementById("fillColor"), fillColorHex = document.getElementById("fillColorHex");
   const strokeColor = document.getElementById("strokeColor"), strokeColorHex = document.getElementById("strokeColorHex");
-  const posVal = document.getElementById("posVal");
+  const posX = document.getElementById("posX");
+  const posY = document.getElementById("posY");
   const calibStatus = document.getElementById("calibStatus");
 
   const FIELD_LABELS = { city_text: "City", state_text: "State", month_text: "Month", daterange_text: "Dates" };
@@ -449,7 +460,7 @@ const DEFAULT_CALIBRATION = {
     strokeSlider.value = f.stroke_width; strokeVal.textContent = f.stroke_width;
     fillColor.value = f.color; fillColorHex.textContent = f.color;
     strokeColor.value = f.stroke_fill; strokeColorHex.textContent = f.stroke_fill;
-    posVal.textContent = `x=${f.x}, y=${f.y}`;
+    posX.value = f.x; posY.value = f.y;
     fontSelect.value = f.font;
     const fc = FONT_CHOICES.find(x => x.value === f.font);
     fontWarn.style.display = (fc && fc.warn) ? "" : "none";
@@ -466,6 +477,36 @@ const DEFAULT_CALIBRATION = {
     fontWarn.style.display = (fc && fc.warn) ? "" : "none";
     draw(); updatePreview();
   };
+
+  // ---- X / Y inputs + nudge buttons + arrow keys ----
+  function nudge(dx, dy) {
+    const f = getField(selectedField);
+    const nx = Math.max(0, Math.min(defaults.canvas_size[0], f.x + dx));
+    const ny = Math.max(0, Math.min(defaults.canvas_size[1], f.y + dy));
+    setFieldProp(selectedField, "x", nx);
+    setFieldProp(selectedField, "y", ny);
+    posX.value = nx; posY.value = ny;
+    draw(); updatePreview();
+  }
+  posX.oninput = () => { const v = parseInt(posX.value || "0"); setFieldProp(selectedField, "x", v); draw(); updatePreview(); };
+  posY.oninput = () => { const v = parseInt(posY.value || "0"); setFieldProp(selectedField, "y", v); draw(); updatePreview(); };
+  document.getElementById("posXMinus").onclick = () => nudge(-10, 0);
+  document.getElementById("posXPlus").onclick  = () => nudge(+10, 0);
+  document.getElementById("posYMinus").onclick = () => nudge(0, -10);
+  document.getElementById("posYPlus").onclick  = () => nudge(0, +10);
+
+  // Arrow key support — works whenever the calibration panel area has focus / is visible
+  document.addEventListener("keydown", (e) => {
+    // Don't intercept arrow keys when typing in a text/number input
+    const tag = (e.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") return;
+    if (!templateImg) return;
+    const step = e.shiftKey ? 50 : 10;
+    if (e.key === "ArrowLeft")  { nudge(-step, 0); e.preventDefault(); }
+    if (e.key === "ArrowRight") { nudge(+step, 0); e.preventDefault(); }
+    if (e.key === "ArrowUp")    { nudge(0, -step); e.preventDefault(); }
+    if (e.key === "ArrowDown")  { nudge(0, +step); e.preventDefault(); }
+  });
 
   fileInput.onchange = (e) => {
     const f = e.target.files[0]; if (!f) return;
@@ -583,7 +624,7 @@ const DEFAULT_CALIBRATION = {
     const y = Math.max(0, Math.min(defaults.canvas_size[1], Math.round((my - dragging.offY) / scale)));
     setFieldProp(dragging.key, "x", x);
     setFieldProp(dragging.key, "y", y);
-    posVal.textContent = `x=${x}, y=${y}`;
+    posX.value = x; posY.value = y;
     draw();
   });
   const endDrag = () => { if (dragging) { dragging = null; canvas.classList.remove("dragging"); updatePreview(); } };
