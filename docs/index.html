@@ -140,7 +140,8 @@ const HUB = {
   meta:      { lastRun: "Thursday, April 23 · 12:50" },
   housing:   { lastRun: "Friday, April 24 · 09:12" },
   mbs:       { lastRun: "Tuesday, April 21 · 16:45 — Reading PA (−$8,381)" },
-  canva:     { lastRun: "Tuesday, April 28 · 09:17 — 6 images (locked-in 2026)" }
+  canva:     { lastRun: "Tuesday, April 28 · 09:17 — 6 images (locked-in 2026)" },
+  launch:    { lastRun: "—" }
 };
 </script>
 
@@ -205,31 +206,21 @@ const HUB = {
     <div class="run-hint">Opens the form — choose year, list cities + dates, copy command → paste in Cowork</div>
   </div>
 
+  <div class="agent">
+    <a href="launch/" style="text-decoration:none;color:inherit;display:block">
+      <div class="icon">🎪</div>
+      <div class="name">Event Launch</div>
+      <div class="desc">On-demand — fires the Zapier "Blowout Event Launch" Zap to create an empty SimpleTexting list + new Eventbrite event for a city. Fill the form and paste the command into Cowork.</div>
+      <div class="lastRun">Last run: <b id="launch-lastRun">—</b></div>
+    </a>
+    <a href="launch/" class="run-btn" style="text-align:center;text-decoration:none;color:#fff">🎪 פתחי טופס</a>
+    <div class="run-hint">Opens the form — fill city + dates + venue, copy command → paste in Cowork</div>
+  </div>
+
 </div>
 
 <script>
   document.getElementById("architect-lastRun").textContent = HUB.architect.lastRun || "—";
   document.getElementById("meta-lastRun").textContent      = HUB.meta.lastRun      || "—";
   document.getElementById("housing-lastRun").textContent   = HUB.housing.lastRun   || "—";
-  document.getElementById("mbs-lastRun").textContent       = HUB.mbs.lastRun       || "—";
-  document.getElementById("canva-lastRun").textContent     = HUB.canva.lastRun     || "—";
-
-  document.querySelectorAll(".run-btn").forEach(btn => {
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const cmd = btn.getAttribute("data-cmd");
-      try {
-        await navigator.clipboard.writeText(cmd);
-        const original = btn.textContent;
-        btn.textContent = "✓ Copied — paste in Cowork";
-        btn.classList.add("copied");
-        setTimeout(() => { btn.textContent = original; btn.classList.remove("copied"); }, 2500);
-      } catch (err) {
-        alert("Copy failed. Command:\n\n" + cmd);
-      }
-    });
-  });
-</script>
-
-</body>
-</html>
+  documen
