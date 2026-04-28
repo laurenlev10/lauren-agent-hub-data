@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<title>Simple Texting — Makeup Blowout</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#f6f7fb;--card:#fff;--border:#e5e7eb;--text:#1f2937;--muted:#6b7280;--accent:#0ea5e9;--accent-dark:#0369a1;--ok:#059669;--ok-bg:#d1fae5;--warn:#b45309;--warn-bg:#fef3c7;--err:#dc2626;--err-bg:#fee2e2; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);padding:28px 16px 60px;min-height:100vh}
+  .wrap{max-width:920px;margin:0 auto}
+  header{text-align:center;margin-bottom:18px}
+  h1{margin:0 0 6px;font-size:26px}
+  h1 .emoji{margin-right:6px}
+  .subtitle{color:var(--muted);font-size:14px}
+  a.back{font-size:13px;color:var(--accent);text-decoration:none}
+  a.back:hover{text-decoration:underline}
+  .tabs{display:flex;gap:8px;justify-content:center;margin:14px 0 22px;border-bottom:1px solid var(--border)}
+  .tab{padding:10px 20px;border:none;background:transparent;font-weight:600;font-size:14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--accent)}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .tab-panel{display:none}
+  .tab-panel.active{display:block}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 2px 6px rgba(0,0,0,.04);margin-bottom:18px}
+  .card h2{margin:0 0 14px;font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .card h2 .meta{font-size:12px;font-weight:500;color:var(--muted)}
+  label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px}
+  label .hint{font-weight:400;color:var(--muted);font-size:12px}
+  input[type="text"],input[type="number"],select,textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit}
+  textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.5;min-height:140px;resize:vertical}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:600px){.row{grid-template-columns:1fr}}
+  .btn{display:inline-block;padding:10px 16px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;letter-spacing:.3px;transition:all .15s}
+  .btn-primary{background:linear-gradient(180deg,var(--accent),var(--accent-dark));color:#fff;box-shadow:0 1px 2px rgba(14,165,233,.3)}
+  .btn-primary:hover{background:linear-gradient(180deg,var(--accent-dark),#075985)}
+  .btn-primary.copied{background:var(--ok)}
+  .btn-secondary{background:#fff;color:var(--muted);border:1px solid var(--border)}
+  .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+  .saved-toast{font-size:11px;color:var(--ok);font-weight:600;margin-left:6px;opacity:0;transition:opacity .3s}
+  .saved-toast.show{opacity:1}
+  .touch-card{border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;background:#fafbfc}
+  .touch-card.disabled{opacity:.55}
+  .touch-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .touch-header .title{font-weight:700;font-size:14px}
+  .touch-header label.toggle{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;margin:0;cursor:pointer}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.3px}
+  .badge-ok{background:var(--ok-bg);color:var(--ok)}
+  .badge-warn{background:var(--warn-bg);color:var(--warn)}
+  .badge-empty{background:#f3f4f6;color:var(--muted)}
+  .preview{margin-top:14px;background:#f9fafb;border:1px dashed var(--border);border-radius:8px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#374151;white-space:pre-wrap;line-height:1.55;max-height:520px;overflow-y:auto}
+  .empty{color:var(--muted);font-style:italic}
+  .footnote{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.55}
+  .recent-run{padding:10px 12px;background:#f9fafb;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;font-size:13px;display:flex;justify-content:space-between;align-items:center}
+</style>
+</head>
+<body>
+
+<script id="dashboard-data">
+const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaigns:[], autoresponder:null, signupForm:null, errorReason:null, previousRuns:[] };
+</script>
+
+<div class="wrap">
+  <header>
+    <h1><span class="emoji">📲</span>Simple Texting</h1>
+    <div class="subtitle">Templates editor + per-event command builder for SMS marketing setup</div>
+    <div style="margin-top:8px"><a class="back" href="../">← Back to Agent Hub</a></div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="templates">📝 Templates</button>
+    <button class="tab" data-tab="launch">🚀 Run for an event</button>
+    <button class="tab" data-tab="history">📊 Recent runs</button>
+  </div>
+
+  <!-- Tab: Templates -->
+  <div class="tab-panel active" id="panel-templates">
+    <div class="card">
+      <h2><span>Touch templates</span><span class="meta">5 touches · drag-to-edit · auto-saves</span></h2>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Edit the message text, schedule rule, and image filename per touch. Edits save to your browser's localStorage. Touch 5 only fires when prior-year lists exist.</p>
+      <div id="touch-cards"></div>
+      <div class="toolbar">
+        <button class="btn btn-secondary" id="reset-touches">↺ Reset all touches to defaults</button>
+        <span class="saved-toast" id="touches-saved">✓ Saved</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span>Auto-responder</span><span class="meta">welcome message for new sign-ups</span></h2>
+      <label>Keyword pattern <span class="hint">(uppercase city; year appended if taken — agent handles)</span></label>
+      <input type="text" id="ar-keyword" placeholder="{CITY_NO_SPACES_UPPER}">
+      <label>Message text <span class="hint">(placeholders: {city} {state} {date_range} {venue} {address} {year})</span></label>
+      <textarea id="ar-text" rows="6" placeholder="Welcome! 🎉 You're now signed up for the {city} Makeup Blowout Sale..."></textarea>
+      <span class="saved-toast" id="ar-saved">✓ Saved</span>
+    </div>
+
+    <div class="card">
+      <h2><span>Web sign-up form</span><span class="meta">SimpleTexting → public URL</span></h2>
+      <div class="row">
+        <div>
+          <label>Form name (internal)</label>
+          <input type="text" id="form-name" placeholder="{city}, {state} {year} Sign-up">
+        </div>
+        <div>
+          <label>Subscribe to list</label>
+          <input type="text" id="form-list" placeholder="{event_year_list_name}" disabled>
+        </div>
+      </div>
+      <label>Title (visible)</label>
+      <input type="text" id="form-title" placeholder="Makeup Blowout Sale — {city}, {state}">
+      <label>Description (visible)</label>
+      <textarea id="form-desc" rows="3" placeholder="Sign up for SMS alerts about the {city} sale on {date_range}..."></textarea>
+      <div class="row">
+        <div>
+          <label>Phone required?</label>
+          <select id="form-phone-required"><option value="true">Yes</option><option value="false">No</option></select>
+        </div>
+        <div>
+          <label>Email required?</label>
+          <select id="form-email-required"><option value="false">No</option><option value="true">Yes</option></select>
+        </div>
+      </div>
+      <label>Success message (after signup)</label>
+      <textarea id="form-success" rows="3" placeholder="Thanks! 🎉 You're on the list for {city}..."></textarea>
+      <span class="saved-toast" id="form-saved">✓ Saved</span>
+    </div>
+  </div>
+
+  <!-- Tab: Run for an event -->
+  <div class="tab-panel" id="panel-launch">
+    <div class="card">
+      <h2><span>Pick an event</span><span class="meta">params can also come from URL: ?city=...&start_date=...</span></h2>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Fill the event details, then preview the rendered campaigns + auto-responder + form. Click "Copy command" → paste in Cowork.</p>
+      <div class="row">
+        <div>
+          <label>City (City, ST)</label>
+          <input type="text" id="ev-city" placeholder="Nashville, TN">
+        </div>
+        <div>
+          <label>Year</label>
+          <input type="number" id="ev-year" min="2024" max="2030" value="2026">
+        </div>
+      </div>
+      <label>Venue / Hotel</label>
+      <input type="text" id="ev-venue" placeholder="Holiday Inn Nashville Airport by IHG">
+      <label>Address (full + ZIP)</label>
+      <input type="text" id="ev-address" placeholder="2864 Elm Hill Pike, Nashville, TN 37214">
+      <div class="row">
+        <div>
+          <label>Start date (Friday)</label>
+          <input type="date" id="ev-start">
+        </div>
+        <div>
+          <label>End date (Sunday)</label>
+          <input type="date" id="ev-end">
+        </div>
+      </div>
+      <label>Mode</label>
+      <select id="ev-mode">
+        <option value="draft" selected>Save as Draft (recommended — you review and press Schedule)</option>
+        <option value="schedule">Schedule directly (campaigns fire automatically — use only when you're 100% sure)</option>
+      </select>
+      <div class="toolbar" style="margin-top:14px">
+        <button class="btn btn-primary" id="copy-cmd">📋 Copy command</button>
+        <span class="saved-toast" id="cmd-copied">✓ Copied — paste in Cowork</span>
+      </div>
+      <div class="preview" id="preview">Fill the event details to see the rendered command preview.</div>
+      <p class="footnote">⚠ Before pasting: make sure SimpleTexting is open in Chrome and the active sender shows <b>(424) 432-5565</b> (NOT the (866) primary number).</p>
+    </div>
+  </div>
+
+  <!-- Tab: History -->
+  <div class="tab-panel" id="panel-history">
+    <div class="card">
+      <h2>Recent runs</h2>
+      <div id="recent-runs"><span class="empty">No runs yet.</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ─────────────────────────────────────────
+  // Defaults (seeded from templates.md)
+  // ─────────────────────────────────────────
+  const DEFAULT_TOUCHES = [
+    {
+      enabled: true,
+      name: "Touch 1 — Monday morning of event week",
+      schedule_rule: "5 days before, Monday 09:30 local",
+      recipient_lists: "{event_year_list_name}, match:{city}",
+      type: "MMS",
+      image_filename: "brushes_first_100.png",
+      text: "Reminder: Our HUGE Sale is THIS WEEKEND! 🎉\n{date_range} | 10 AM - 5 PM\n{venue}.\n🚗 Free Parking!!\n✨ FREE gift on arrival\n💄 Huge savings on Makeup, Skin Care, Hair Products and more!\n⚡ Special Offer: FIRST 100 Customers ONLY!\n   22-Piece Makeup Brush Set - Only $5! (95% OFF!) Don't miss out!\nReply stop to stop"
+    },
+    { enabled:false, name:"Touch 2 — TBD", schedule_rule:"TBD", recipient_lists:"{event_year_list_name}, match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template)" },
+    { enabled:false, name:"Touch 3 — TBD", schedule_rule:"TBD", recipient_lists:"{event_year_list_name}, match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template)" },
+    { enabled:false, name:"Touch 4 — TBD", schedule_rule:"TBD", recipient_lists:"{event_year_list_name}, match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template)" },
+    { enabled:false, name:"Touch 5 — only when prior-year list exists", schedule_rule:"TBD", recipient_lists:"match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template — sent only to lists matching {city} from prior years)" }
+  ];
+  const DEFAULT_AR = {
+    keyword: "{CITY_NO_SPACES_UPPER}",
+    text: "Welcome! 🎉 You're now signed up for the {city}, {state} Makeup Blowout Sale, {date_range} at {venue}.\nWe'll text you when doors open. Free entry, see you there! 💄\nReply STOP to stop."
+  };
+  const DEFAULT_FORM = {
+    name: "{city}, {state} {year} Sign-up",
+    title: "Makeup Blowout Sale — {city}, {state}",
+    desc: "Sign up for SMS alerts about the {city} sale on {date_range}.\nFree entry, free gift on arrival, up to 75% OFF.",
+    phone_required: "true",
+    email_required: "false",
+    success: "Thanks! 🎉 You're on the list for {city}, {state} {year}.\nMark {date_range} on your calendar — see you there!"
+  };
+
+  const KEY = "simple-texting:templates";
+
+  // ─────────────────────────────────────────
+  // State
+  // ─────────────────────────────────────────
+  function loadState(){
+    try {
+      const saved = JSON.parse(localStorage.getItem(KEY) || "null");
+      if (saved && saved.touches && saved.ar && saved.form) return saved;
+    } catch(e){}
+    return { touches: structuredClone(DEFAULT_TOUCHES), ar: structuredClone(DEFAULT_AR), form: structuredClone(DEFAULT_FORM) };
+  }
+  function saveState(s){ try { localStorage.setItem(KEY, JSON.stringify(s)); } catch(e){} }
+  function showToast(id){ const el = document.getElementById(id); if(!el) return; el.classList.add("show"); setTimeout(()=>el.classList.remove("show"), 1400); }
+
+  let state = loadState();
+
+  // ─────────────────────────────────────────
+  // Render touches editor
+  // ─────────────────────────────────────────
+  function renderTouches(){
+    const container = document.getElementById("touch-cards");
+    container.innerHTML = "";
+    state.touches.forEach((t, i) => {
+      const card = document.createElement("div");
+      card.className = "touch-card" + (t.enabled ? "" : " disabled");
+      card.innerHTML = `
+        <div class="touch-header">
+          <div class="title">${escapeHtml(t.name)}</div>
+          <label class="toggle"><input type="checkbox" ${t.enabled?'checked':''} data-i="${i}" data-f="enabled"> Enabled</label>
+        </div>
+        <label>Display name <span class="hint">(internal)</span></label>
+        <input type="text" data-i="${i}" data-f="name" value="${escapeHtml(t.name)}">
+        <label>Schedule rule <span class="hint">(e.g. "5 days before, Monday 09:30 local")</span></label>
+        <input type="text" data-i="${i}" data-f="schedule_rule" value="${escapeHtml(t.schedule_rule)}">
+        <div class="row">
+          <div>
+            <label>Recipient lists</label>
+            <input type="text" data-i="${i}" data-f="recipient_lists" value="${escapeHtml(t.recipient_lists)}">
+          </div>
+          <div>
+            <label>Type</label>
+            <select data-i="${i}" data-f="type"><option ${t.type==='SMS'?'selected':''}>SMS</option><option ${t.type==='MMS'?'selected':''}>MMS</option></select>
+          </div>
+        </div>
+        <label>Image filename <span class="hint">(MMS only — exact name in SimpleTexting library)</span></label>
+        <input type="text" data-i="${i}" data-f="image_filename" value="${escapeHtml(t.image_filename||'')}">
+        <label>Message text <span class="hint">(placeholders: {city} {state} {venue} {address} {year} {date_range} {start_day})</span></label>
+        <textarea rows="7" data-i="${i}" data-f="text">${escapeHtml(t.text)}</textarea>
+      `;
+      container.appendChild(card);
+    });
+    // Wire change events
+    container.querySelectorAll("[data-i]").forEach(el => {
+      el.addEventListener("input", e => {
+        const i = parseInt(el.dataset.i, 10);
+        const f = el.dataset.f;
+        let v = el.type === "checkbox" ? el.checked : el.value;
+        state.touches[i][f] = v;
+        saveState(state);
+        showToast("touches-saved");
+        if (f === "enabled" || f === "name") renderTouches();  // re-render for class/title changes
+      });
+    });
+  }
+
+  // ─────────────────────────────────────────
+  // Render auto-responder + form editors
+  // ─────────────────────────────────────────
+  function renderAutoresponder(){
+    document.getElementById("ar-keyword").value = state.ar.keyword;
+    document.getElementById("ar-text").value = state.ar.text;
+  }
+  function renderForm(){
+    document.getElementById("form-name").value = state.form.name;
+    document.getElementById("form-list").value = "{event_year_list_name}";
+    document.getElementById("form-title").value = state.form.title;
+    document.getElementById("form-desc").value = state.form.desc;
+    document.getElementById("form-phone-required").value = state.form.phone_required;
+    document.getElementById("form-email-required").value = state.form.email_required;
+    document.getElementById("form-success").value = state.form.success;
+  }
+  function bindEditors(){
+    [["ar-keyword","ar","keyword"],["ar-text","ar","text"]].forEach(([id,sec,k]) => {
+      document.getElementById(id).addEventListener("input", e => {
+        state[sec][k] = e.target.value;
+        saveState(state);
+        showToast("ar-saved");
+      });
+    });
+    [["form-name","form","name"],["form-title","form","title"],["form-desc","form","desc"],
+     ["form-success","form","success"],["form-phone-required","form","phone_required"],
+     ["form-email-required","form","email_required"]].forEach(([id,sec,k]) => {
+      document.getElementById(id).addEventListener("input", e => {
+        state[sec][k] = e.target.value;
+        saveState(state);
+        showToast("form-saved");
+      });
+      document.getElementById(id).addEventListener("change", e => {
+        state[sec][k] = e.target.value;
+        saveState(state);
+        showToast("form-saved");
+      });
+    });
+  }
+
+  document.getElementById("reset-touches").addEventListener("click", () => {
+    if (!confirm("Reset all touch templates to defaults? Your edits will be lost.")) return;
+    state.touches = structuredClone(DEFAULT_TOUCHES);
+    saveState(state);
+    renderTouches();
+  });
+
+  // ─────────────────────────────────────────
+  // Tab switching
+  // ─────────────────────────────────────────
+  document.querySelectorAll(".tab").forEach(t => {
+    t.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach(x => x.classList.remove("active"));
+      t.classList.add("active");
+      document.getElementById("panel-" + t.dataset.tab).classList.add("active");
+      if (t.dataset.tab === "launch") rebuildPreview();
+    });
+  });
+
+  // ─────────────────────────────────────────
+  // Render command preview
+  // ─────────────────────────────────────────
+  function ordinal(n){ if(11<=n%100&&n%100<=13) return n+"th"; return n+["th","st","nd","rd","th","th","th","th","th","th"][n%10]; }
+  function dateRangeStr(sd, ed){
+    if (!sd || !ed) return "";
+    const s = new Date(sd+"T00:00:00"), e = new Date(ed+"T00:00:00");
+    const sm = s.toLocaleDateString("en-US",{month:"long"});
+    const em = e.toLocaleDateString("en-US",{month:"long"});
+    const yr = s.getFullYear();
+    if (s.getMonth() === e.getMonth()) return sm + " " + ordinal(s.getDate()) + " - " + ordinal(e.getDate()) + ", " + yr;
+    return sm + " " + ordinal(s.getDate()) + " - " + em + " " + ordinal(e.getDate()) + ", " + yr;
+  }
+  function fillPlaceholders(text, ev){
+    return text
+      .replace(/\{city\}/g, ev.cityOnly)
+      .replace(/\{state\}/g, ev.state)
+      .replace(/\{venue\}/g, ev.venue)
+      .replace(/\{address\}/g, ev.address)
+      .replace(/\{year\}/g, ev.year)
+      .replace(/\{date_range\}/g, ev.dateRange)
+      .replace(/\{start_day\}/g, ev.startDay)
+      .replace(/\{end_day\}/g, ev.endDay)
+      .replace(/\{event_year_list_name\}/g, ev.cityFull + " " + ev.year)
+      .replace(/\{CITY_NO_SPACES_UPPER\}/g, ev.cityOnly.toUpperCase().replace(/\s+/g,""));
+  }
+  function eventCtx(){
+    const cityFull = document.getElementById("ev-city").value.trim();
+    const m = cityFull.match(/^([^,]+),\s*([A-Za-z]{2})\s*$/);
+    const cityOnly = m ? m[1].trim() : cityFull;
+    const state = m ? m[2].toUpperCase() : "";
+    const venue = document.getElementById("ev-venue").value.trim();
+    const address = document.getElementById("ev-address").value.trim();
+    const year = document.getElementById("ev-year").value || "2026";
+    const sd = document.getElementById("ev-start").value;
+    const ed = document.getElementById("ev-end").value;
+    const dateRange = dateRangeStr(sd, ed);
+    const startDay = sd ? (new Date(sd+"T00:00:00").toLocaleDateString("en-US",{month:"long"}) + " " + ordinal(new Date(sd+"T00:00:00").getDate())) : "";
+    const endDay = ed ? (new Date(ed+"T00:00:00").toLocaleDateString("en-US",{month:"long"}) + " " + ordinal(new Date(ed+"T00:00:00").getDate())) : "";
+    return { cityFull, cityOnly, state, venue, address, year, sd, ed, dateRange, startDay, endDay };
+  }
+  function rebuildPreview(){
+    const ev = eventCtx();
+    if (!ev.cityFull || !ev.sd || !ev.ed){
+      document.getElementById("preview").textContent = "Fill city + start + end date to see the preview.";
+      return;
+    }
+    const mode = document.getElementById("ev-mode").value;
+    let cmd = `Run the simple-texting skill.\n\nCity: ${ev.cityFull}\nStreet: ${ev.address}\nHotel: ${ev.venue}\nYear: ${ev.year}\nStart date: ${ev.sd}\nEnd date: ${ev.ed}\nMode: ${mode}\n\n`;
+    state.touches.forEach((t, i) => {
+      if (!t.enabled) return;
+      cmd += `=== Touch ${i+1} — ${t.name} (${t.schedule_rule}) ===\n`;
+      cmd += `List(s): ${fillPlaceholders(t.recipient_lists, ev)}\n`;
+      cmd += `Type: ${t.type}\n`;
+      if (t.type === "MMS" && t.image_filename) cmd += `Image: ${t.image_filename}\n`;
+      cmd += `\n${fillPlaceholders(t.text, ev)}\n\n`;
+    });
+    cmd += `=== Auto-responder ===\nKeyword: ${fillPlaceholders(state.ar.keyword, ev)}\nList: ${ev.cityFull} ${ev.year}\n\n${fillPlaceholders(state.ar.text, ev)}\n\n`;
+    cmd += `=== Sign-up form ===\nForm name: ${fillPlaceholders(state.form.name, ev)}\nSubscribe to list: ${ev.cityFull} ${ev.year}\nTitle: ${fillPlaceholders(state.form.title, ev)}\nDescription: ${fillPlaceholders(state.form.desc, ev)}\nPhone required: ${state.form.phone_required}\nEmail required: ${state.form.email_required}\nSuccess message: ${fillPlaceholders(state.form.success, ev)}\n`;
+    document.getElementById("preview").textContent = cmd;
+    return cmd;
+  }
+  ["ev-city","ev-year","ev-venue","ev-address","ev-start","ev-end","ev-mode"].forEach(id => {
+    document.getElementById(id).addEventListener("input", rebuildPreview);
+    document.getElementById(id).addEventListener("change", rebuildPreview);
+  });
+  document.getElementById("copy-cmd").addEventListener("click", async () => {
+    const cmd = rebuildPreview();
+    if (!cmd || cmd.startsWith("Fill")){ alert("Fill city + start + end date first."); return; }
+    try {
+      await navigator.clipboard.writeText(cmd);
+      showToast("cmd-copied");
+    } catch(e){ alert("Copy failed.\n\n" + cmd); }
+  });
+
+  // ─────────────────────────────────────────
+  // URL params auto-fill (from launch dashboard's "Run campaigns" link)
+  // ─────────────────────────────────────────
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has("city")){
+    document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === "launch"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "panel-launch"));
+    document.getElementById("ev-city").value = urlParams.get("city") || "";
+    document.getElementById("ev-year").value = urlParams.get("year") || "2026";
+    document.getElementById("ev-venue").value = urlParams.get("venue") || "";
+    document.getElementById("ev-address").value = urlParams.get("address") || "";
+    document.getElementById("ev-start").value = urlParams.get("start_date") || "";
+    document.getElementById("ev-end").value = urlParams.get("end_date") || "";
+    setTimeout(rebuildPreview, 50);
+  }
+
+  // ─────────────────────────────────────────
+  // Initial render
+  // ─────────────────────────────────────────
+  function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+  renderTouches();
+  renderAutoresponder();
+  renderForm();
+  bindEditors();
+  // Render history
+  if (RUN.previousRuns && RUN.previousRuns.length){
+    document.getElementById("recent-runs").innerHTML = RUN.previousRuns.map(r =>
+      `<div class="recent-run"><span><b>${r.city}</b> · ${r.date}</span><span class="badge ${r.status==='success'?'badge-ok':r.status==='partial'?'badge-warn':'badge-empty'}">${r.status||'—'}</span></div>`
+    ).join("");
+  }
+</script>
+
+</body>
+</html>
