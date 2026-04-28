@@ -63,6 +63,7 @@
   .badge-signed{background:var(--signed-bg);color:var(--signed)}
   .badge-tentative{background:var(--tentative-bg);color:var(--tentative)}
   .badge-empty{background:#f3f4f6;color:var(--muted)}
+  .badge-done{background:#e2e8f0;color:#475569}
   .empty{color:var(--muted);font-size:13px;font-style:italic}
   .footnote{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.5}
   .data-source{font-size:11px;color:var(--muted);margin-top:8px;font-style:italic}
@@ -74,6 +75,9 @@
   .schedule-table tbody tr.row-launched td{background:#f0fdf4}
   .schedule-table tbody tr.row-signed td{background:#f0f9ff}
   .schedule-table tbody tr.row-tentative td{background:#fffbeb}
+  .schedule-table tbody tr.row-done td{background:#f8fafc;color:#94a3b8}
+  .schedule-table tbody tr.row-done td b{color:#64748b;font-weight:600}
+  .schedule-table tbody tr.row-done .btn-launch-row{display:none}
   .schedule-table tbody tr.row-next td{background:#fef08a !important;border-top:2px solid #facc15;border-bottom:2px solid #facc15}
   .schedule-table tbody tr.row-next td:first-child{border-left:4px solid #f59e0b}
   .badge-next{background:#fef08a;color:#92400e;animation:pulse 1.6s ease-in-out infinite}
@@ -189,6 +193,7 @@ End date: </div>
       <span><span class="badge badge-launched">🚀 Launched</span> webhook fired through this dashboard</span>
       <span><span class="badge badge-signed">✓ Signed</span> contract signed (green cell in xlsx)</span>
       <span><span class="badge badge-tentative">❓ Tentative</span> planned, may move</span>
+      <span><span class="badge badge-done">🏁 Done</span> already happened</span>
       <span><span class="badge badge-next">🔜 Next</span> next upcoming event</span>
       <span><span class="badge badge-empty">—</span> open weekend</span>
     </div>
@@ -488,6 +493,7 @@ End date: </div>
   }
 
   function badgeFor(eff){
+    if (eff === "done") return '<span class="badge badge-done">🏁 Done</span>';
     if (eff === "launched") return '<span class="badge badge-launched">🚀 Launched</span>';
     if (eff === "signed" || eff === "confirmed") return '<span class="badge badge-signed">✓ Signed</span>';
     if (eff === "tentative") return '<span class="badge badge-tentative">❓ Tentative</span>';
@@ -495,6 +501,7 @@ End date: </div>
   }
 
   function rowClassFor(eff){
+    if (eff === "done") return "row-done";
     if (eff === "launched") return "row-launched";
     if (eff === "signed" || eff === "confirmed") return "row-signed";
     if (eff === "tentative") return "row-tentative";
@@ -515,18 +522,25 @@ End date: </div>
       const { baked, launched } = eventForDate(activeYear, iso);
       if (baked || launched){ nextIso = iso; break; }
     }
-    let counts = { launched:0, signed:0, tentative:0, open:0 };
+    let counts = { done:0, launched:0, signed:0, tentative:0, open:0 };
     const rows = fridays.map(({start, end}) => {
       const iso = isoDate(start);
       const { baked, launched } = eventForDate(activeYear, iso);
       let eff = "open";
       let ev = null;
-      if (launched){ eff = "launched"; ev = launched; counts.launched++; }
-      else if (baked){
+      // Past events override everything: end < today (start-of-day) → Done.
+      const isPast = end < today;
+      if (launched && !isPast){ eff = "launched"; ev = launched; counts.launched++; }
+      else if (baked && !isPast){
         eff = baked.status === "confirmed" ? "signed" : "tentative";
         ev = baked;
         if (eff === "signed") counts.signed++; else counts.tentative++;
-      } else {
+      }
+      else if (baked || launched){
+        // Past weekend that had an event — it already happened.
+        eff = "done"; ev = (launched || baked); counts.done++;
+      }
+      else {
         counts.open++;
       }
       const dateCell = fmtRange(start, end);
@@ -572,7 +586,7 @@ End date: </div>
     });
     tbody.innerHTML = rows.join("");
     document.getElementById("schedule-stats").textContent =
-      counts.launched + " launched · " + counts.signed + " signed · " + counts.tentative + " tentative · " + counts.open + " open · " + fridays.length + " weekends total";
+      counts.done + " done · " + counts.launched + " launched · " + counts.signed + " signed · " + counts.tentative + " tentative · " + counts.open + " open · " + fridays.length + " weekends total";
   }
 
   function setActiveYear(y){
