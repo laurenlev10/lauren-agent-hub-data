@@ -77,6 +77,11 @@
   .schedule-table tbody tr.row-next td{background:#fef08a !important;border-top:2px solid #facc15;border-bottom:2px solid #facc15}
   .schedule-table tbody tr.row-next td:first-child{border-left:4px solid #f59e0b}
   .badge-next{background:#fef08a;color:#92400e;animation:pulse 1.6s ease-in-out infinite}
+  .btn-launch-row{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:5px 10px;background:linear-gradient(180deg,var(--accent),var(--accent-dark));color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.3px;box-shadow:0 1px 2px rgba(236,72,153,.3);transition:all .12s;white-space:nowrap}
+  .btn-launch-row:hover{background:linear-gradient(180deg,var(--accent-dark),#9d174d);transform:translateY(-1px)}
+  .btn-launch-row.copied{background:var(--ok)}
+  .btn-launch-row.warned{background:linear-gradient(180deg,#f59e0b,#b45309)}
+  .btn-launch-row[disabled]{opacity:.5;cursor:not-allowed;transform:none}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.65}}
   .col-date{width:130px;font-weight:600;white-space:nowrap}
   .col-city{width:160px;font-weight:600}
@@ -540,11 +545,29 @@ End date: </div>
       const isNext = (iso === nextIso);
       const cls = rowClassFor(eff) + (isNext ? " row-next" : "");
       const statusBadge = (isNext ? '<span class="badge badge-next" style="margin-right:4px">🔜 Next</span>' : '') + badgeFor(eff);
+      // Per-row "copy launch command" button — only when there is an event
+      let rowBtn = "";
+      if (ev){
+        const incomplete = !(ev.venue && ev.address);
+        const btnLabel = (eff === "launched" ? "📋 Re-copy" : "📋 Copy launch") + (incomplete ? " ⚠" : "");
+        const btnTitle = incomplete
+          ? "Venue/address missing for this event — command will copy with blanks. The agent will ask for them via SMS."
+          : "Copy a ready-to-paste launch command for this event.";
+        const payload = JSON.stringify({
+          city: ev.city + ", " + ev.state,
+          street: ev.address || "",
+          hotel: ev.venue || "",
+          year: (ev.start_date || "").slice(0,4),
+          start: ev.start_date || "",
+          end: ev.end_date || ""
+        }).replace(/"/g,"&quot;");
+        rowBtn = '<button class="btn-launch-row' + (incomplete ? " warned" : "") + '" data-event="' + payload + '" title="' + btnTitle + '">' + btnLabel + '</button>';
+      }
       return '<tr class="' + cls + '" data-iso="' + iso + '">' +
                '<td class="col-date">' + dateCell + '</td>' +
                '<td class="col-city">' + escapeHtml(cityCell) + '</td>' +
                '<td class="col-venue">' + venueCell + '</td>' +
-               '<td class="col-status">' + statusBadge + '</td>' +
+               '<td class="col-status"><div>' + statusBadge + '</div>' + rowBtn + '</td>' +
              '</tr>';
     });
     tbody.innerHTML = rows.join("");
@@ -793,6 +816,52 @@ End date: </div>
     localStorage.removeItem(KEY_UPLOAD_AT);
     showBakedLabel();
     renderSchedule();
+  });
+
+
+  // Per-row "Copy launch" — same payload as the form's Copy button
+  document.getElementById("schedule-tbody").addEventListener("click", async (e) => {
+    const btn = e.target.closest(".btn-launch-row");
+    if (!btn) return;
+    e.stopPropagation();
+    const data = JSON.parse(btn.getAttribute("data-event").replace(/&quot;/g,'"'));
+    const cmd =
+      "Run the event-launch skill.\n\n" +
+      "City: "       + data.city   + "\n" +
+      "Street: "     + data.street + "\n" +
+      "Hotel: "      + data.hotel  + "\n" +
+      "Year: "       + data.year   + "\n" +
+      "Start date: " + data.start  + "\n" +
+      "End date: "   + data.end;
+    // Persist to overlay so the row turns Launched immediately
+    if (data.start && data.end){
+      const yr = data.start.slice(0,4);
+      const cm = data.city.match(/^([^,]+),\s*([A-Za-z]{2})\s*$/);
+      if (cm){
+        const overlay = loadOverlay();
+        overlay[yr] = (overlay[yr] || []).filter(e => e.start_date !== data.start);
+        overlay[yr].push({
+          city: cm[1].trim(), state: cm[2].toUpperCase(),
+          start_date: data.start, end_date: data.end,
+          venue: data.hotel, address: data.street,
+          copiedAt: new Date().toISOString()
+        });
+        saveOverlay(overlay);
+      }
+    }
+    const orig = btn.textContent;
+    try {
+      await navigator.clipboard.writeText(cmd);
+      btn.textContent = "✓ Copied — paste in Cowork";
+      btn.classList.remove("warned"); btn.classList.add("copied");
+      setTimeout(() => {
+        btn.textContent = orig;
+        btn.classList.remove("copied");
+        renderSchedule();
+      }, 2400);
+    } catch(err){
+      alert("Copy failed. Command:\n\n" + cmd);
+    }
   });
 
   // Initial render
