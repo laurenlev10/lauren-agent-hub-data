@@ -14,7 +14,11 @@
     --accent: #ec4899;
     --accent-dark: #be185d;
     --ok: #059669;
+    --ok-bg: #d1fae5;
+    --warn: #b45309;
+    --warn-bg: #fef3c7;
     --err: #dc2626;
+    --err-bg: #fee2e2;
   }
   * { box-sizing: border-box; }
   body {
@@ -41,11 +45,7 @@
     box-shadow: 0 2px 6px rgba(0,0,0,0.04);
     margin-bottom: 18px;
   }
-  .card h2 {
-    margin: 0 0 14px 0;
-    font-size: 17px;
-    font-weight: 700;
-  }
+  .card h2 { margin: 0 0 14px 0; font-size: 17px; font-weight: 700; }
 
   label {
     display: block;
@@ -55,9 +55,10 @@
     color: var(--text);
   }
   label .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
+  .field-row { position: relative; }
   input[type="text"], input[type="date"], input[type="number"] {
     width: 100%;
-    padding: 9px 12px;
+    padding: 9px 40px 9px 12px;
     border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 14px;
@@ -67,12 +68,57 @@
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
 
-  .copy-btn {
+  /* Inline status indicator next to each field */
+  .status-icon {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    line-height: 1;
+    color: #9ca3af;
+    background: #f3f4f6;
+    pointer-events: none;
+    user-select: none;
+  }
+  .status-icon.ok   { color: var(--ok);   background: var(--ok-bg); }
+  .status-icon.warn { color: var(--warn); background: var(--warn-bg); }
+  .status-icon.err  { color: var(--err);  background: var(--err-bg); }
+  .status-icon.spin { color: var(--accent); background: #fce7f3; }
+  .status-icon.spin::before {
+    content: "";
+    width: 12px; height: 12px;
+    border: 2px solid var(--accent);
+    border-top-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    animation: spin 0.7s linear infinite;
+  }
+  .status-icon.spin span { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Per-field message line under the input */
+  .field-msg {
+    font-size: 12px;
+    margin-top: 4px;
+    line-height: 1.4;
+    min-height: 14px;
+  }
+  .field-msg.ok   { color: var(--ok); }
+  .field-msg.warn { color: var(--warn); }
+  .field-msg.err  { color: var(--err); }
+  .field-msg.muted { color: var(--muted); }
+  .field-msg a { color: inherit; text-decoration: underline; }
+
+  .validate-btn, .copy-btn {
     display: block;
     width: 100%;
-    margin-top: 18px;
     padding: 12px 16px;
-    background: linear-gradient(180deg, var(--accent), var(--accent-dark));
     color: #fff;
     border: none;
     border-radius: 8px;
@@ -80,11 +126,38 @@
     font-weight: 700;
     cursor: pointer;
     letter-spacing: 0.3px;
-    box-shadow: 0 1px 2px rgba(236,72,153,0.3);
     transition: all 0.15s;
+  }
+  .validate-btn {
+    margin-top: 18px;
+    background: linear-gradient(180deg, #2563eb, #1d4ed8);
+    box-shadow: 0 1px 2px rgba(37,99,235,0.3);
+  }
+  .validate-btn:hover { background: linear-gradient(180deg, #1d4ed8, #1e40af); }
+  .validate-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .copy-btn {
+    margin-top: 10px;
+    background: linear-gradient(180deg, var(--accent), var(--accent-dark));
+    box-shadow: 0 1px 2px rgba(236,72,153,0.3);
   }
   .copy-btn:hover { background: linear-gradient(180deg, var(--accent-dark), #9d174d); }
   .copy-btn.copied { background: var(--ok); }
+  .copy-btn.warned { background: linear-gradient(180deg, #f59e0b, #b45309); }
+
+  .summary {
+    margin-top: 14px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--muted);
+  }
+  .summary.ok   { border-color: var(--ok);   background: #ecfdf5; color: #065f46; }
+  .summary.warn { border-color: var(--warn); background: #fffbeb; color: var(--warn); }
+  .summary.err  { border-color: var(--err);  background: #fef2f2; color: var(--err); }
+  .summary ul { margin: 6px 0 0; padding-inline-start: 20px; }
+  .summary li { margin-bottom: 4px; }
 
   .preview {
     margin-top: 14px;
@@ -101,34 +174,22 @@
   }
 
   .recent-run {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
-    background: #f9fafb;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    margin-bottom: 8px;
-    font-size: 13px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; background: #f9fafb;
+    border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 8px; font-size: 13px;
   }
   .recent-run .city { font-weight: 600; }
   .recent-run .when { color: var(--muted); font-size: 12px; }
-  .badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-  }
-  .badge-ok { background: #d1fae5; color: var(--ok); }
-  .badge-err { background: #fee2e2; color: var(--err); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; }
+  .badge-ok { background: var(--ok-bg); color: var(--ok); }
+  .badge-err { background: var(--err-bg); color: var(--err); }
   .empty { color: var(--muted); font-size: 13px; font-style: italic; }
-  .footnote {
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 14px;
-    line-height: 1.5;
+  .footnote { font-size: 11px; color: var(--muted); margin-top: 14px; line-height: 1.5; }
+
+  .data-source {
+    font-size: 11px; color: var(--muted); margin-top: 8px;
+    font-style: italic;
   }
 </style>
 </head>
@@ -155,123 +216,47 @@ const RUN = {
 
   <div class="card">
     <h2>New event</h2>
-    <p style="font-size:13px;color:var(--muted);margin:0 0 6px">Fill the form, click "Copy command", then paste into a new Cowork task.</p>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 6px">Fill the form, click "Validate", review warnings, then "Copy command".</p>
 
-    <label>City <span class="hint">(include 2-letter state)</span></label>
-    <input type="text" id="city" placeholder="Dallas, TX">
+    <label>City <span class="hint">(include 2-letter state, e.g. Dallas, TX)</span></label>
+    <div class="field-row">
+      <input type="text" id="city" placeholder="Dallas, TX" autocomplete="off">
+      <span class="status-icon" id="city-icon" title="Not checked yet"><span>·</span></span>
+    </div>
+    <div class="field-msg muted" id="city-msg">Live spell-check via OpenStreetMap.</div>
 
     <label>Street <span class="hint">(full address with ZIP)</span></label>
-    <input type="text" id="street" placeholder="2645 LBJ Fwy, Dallas, TX 75234">
+    <div class="field-row">
+      <input type="text" id="street" placeholder="2645 LBJ Fwy, Dallas, TX 75234" autocomplete="off">
+      <span class="status-icon" id="street-icon"><span>·</span></span>
+    </div>
+    <div class="field-msg muted" id="street-msg">We'll geocode this and confirm it's near the city.</div>
 
-    <label>Hotel / Venue</label>
-    <input type="text" id="hotel" placeholder="Crowne Plaza Dallas Near Galleria-Addison">
+    <label>Hotel / Venue <span class="hint">(checked against OpenStreetMap — flags renames / ownership changes)</span></label>
+    <div class="field-row">
+      <input type="text" id="hotel" placeholder="Crowne Plaza Dallas Near Galleria-Addison" autocomplete="off">
+      <span class="status-icon" id="hotel-icon"><span>·</span></span>
+    </div>
+    <div class="field-msg muted" id="hotel-msg">If OSM doesn't know this name at the address, you'll get a warning.</div>
 
     <div class="row">
       <div>
-        <label>Start date</label>
-        <input type="date" id="start_date">
+        <label>Start date <span class="hint">(should be Friday)</span></label>
+        <div class="field-row">
+          <input type="date" id="start_date">
+          <span class="status-icon" id="start_date-icon"><span>·</span></span>
+        </div>
       </div>
       <div>
-        <label>End date</label>
-        <input type="date" id="end_date">
+        <label>End date <span class="hint">(should be Sunday)</span></label>
+        <div class="field-row">
+          <input type="date" id="end_date">
+          <span class="status-icon" id="end_date-icon"><span>·</span></span>
+        </div>
       </div>
     </div>
+    <div class="field-msg muted" id="dates-msg">Events run Fri–Sun. Dates also checked: future, same year, start &lt; end.</div>
 
-    <label>Year <span class="hint">(usually auto-derived from dates)</span></label>
-    <input type="number" id="year" min="2024" max="2030" value="2026">
-
-    <button class="copy-btn" id="copy">📋 Copy command</button>
-
-    <div class="preview" id="preview">Run the event-launch skill.
-
-City:
-Street:
-Hotel:
-Year: 2026
-Start date:
-End date: </div>
-  </div>
-
-  <div class="card">
-    <h2>Last launch</h2>
-    <div id="last-run-block"><span class="empty">No launches yet — fire the first one above.</span></div>
-  </div>
-
-  <div class="card">
-    <h2>Recent launches</h2>
-    <div id="recent-runs"><span class="empty">No history yet.</span></div>
-    <p class="footnote">The empty SimpleTexting list and the new Eventbrite event are created by the Zapier "Blowout Event Launch" Zap. Customer outreach (sending actual SMS, posting on Meta, cloning the ClickFunnels funnel) is separate — Lauren handles those.</p>
-  </div>
-</div>
-
-<script>
-  const fields = ["city", "street", "hotel", "year", "start_date", "end_date"];
-
-  function rebuildPreview() {
-    const v = {};
-    fields.forEach(f => v[f] = document.getElementById(f).value || "");
-    if (v.start_date && (!v.year || v.year === "")) v.year = v.start_date.slice(0, 4);
-    document.getElementById("preview").textContent =
-      "Run the event-launch skill.\n\n" +
-      "City: "       + v.city       + "\n" +
-      "Street: "     + v.street     + "\n" +
-      "Hotel: "      + v.hotel      + "\n" +
-      "Year: "       + v.year       + "\n" +
-      "Start date: " + v.start_date + "\n" +
-      "End date: "   + v.end_date;
-  }
-
-  fields.forEach(f => document.getElementById(f).addEventListener("input", rebuildPreview));
-
-  // Auto-fill year from start_date
-  document.getElementById("start_date").addEventListener("change", () => {
-    const sd = document.getElementById("start_date").value;
-    if (sd) document.getElementById("year").value = sd.slice(0, 4);
-    rebuildPreview();
-  });
-
-  document.getElementById("copy").addEventListener("click", async () => {
-    const btn = document.getElementById("copy");
-    const cmd = document.getElementById("preview").textContent;
-    try {
-      await navigator.clipboard.writeText(cmd);
-      const orig = btn.textContent;
-      btn.textContent = "✓ Copied — paste in Cowork";
-      btn.classList.add("copied");
-      setTimeout(() => { btn.textContent = orig; btn.classList.remove("copied"); }, 2500);
-    } catch (err) {
-      alert("Copy failed. Command:\n\n" + cmd);
-    }
-  });
-
-  // Render last-run + history from RUN object (populated by the agent on each successful run)
-  function renderRunState() {
-    if (RUN && RUN.event) {
-      const ok = RUN.status === "success";
-      const ev = RUN.event;
-      const eventLink = ev.eventUrl
-        ? `<a href="${ev.eventUrl}" target="_blank" rel="noopener" style="color:var(--accent)">View on Eventbrite</a>`
-        : '<span class="empty">No Eventbrite link returned</span>';
-      document.getElementById("last-run-block").innerHTML =
-        `<div style="font-size:14px;line-height:1.6">` +
-          `<span class="badge ${ok ? 'badge-ok' : 'badge-err'}">${ok ? '✓ Success' : '⚠ Error'}</span> ` +
-          `<b>${ev.city}</b> &middot; ${RUN.date} ${RUN.time}<br>` +
-          `${ev.startDate} → ${ev.endDate} &middot; ${ev.hotel}<br>` +
-          `${ev.street}<br>` +
-          eventLink +
-          (RUN.errorReason ? `<div style="margin-top:8px;color:var(--err);font-size:12px">${RUN.errorReason}</div>` : '') +
-        `</div>`;
-    }
-    if (RUN && RUN.previousRuns && RUN.previousRuns.length) {
-      document.getElementById("recent-runs").innerHTML = RUN.previousRuns.map(r =>
-        `<div class="recent-run"><span><span class="city">${r.city}</span> &middot; <span class="when">${r.date}</span></span>` +
-        `<span class="badge ${r.status === 'success' ? 'badge-ok' : 'badge-err'}">${r.status === 'success' ? '✓' : '⚠'}</span></div>`
-      ).join("");
-    }
-  }
-  renderRunState();
-  rebuildPreview();
-</script>
-
-</body>
-</html>
+    <label>Year <span class="hint">(auto-derived from start date)</span></label>
+    <div class="field-row">
+      <input type="nu
