@@ -5,18 +5,23 @@
 <title>Event Launch — Makeup Blowout</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  :root { --bg:#f6f7fb;--card:#fff;--border:#e5e7eb;--text:#1f2937;--muted:#6b7280;--accent:#ec4899;--accent-dark:#be185d;--ok:#059669;--ok-bg:#d1fae5;--warn:#b45309;--warn-bg:#fef3c7;--err:#dc2626;--err-bg:#fee2e2; }
+  :root { --bg:#f6f7fb;--card:#fff;--border:#e5e7eb;--text:#1f2937;--muted:#6b7280;--accent:#ec4899;--accent-dark:#be185d;--ok:#059669;--ok-bg:#d1fae5;--warn:#b45309;--warn-bg:#fef3c7;--err:#dc2626;--err-bg:#fee2e2;--scheduled:#2563eb;--scheduled-bg:#dbeafe; }
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);padding:28px 16px 60px;min-height:100vh}
-  .wrap{max-width:720px;margin:0 auto}
-  header{text-align:center;margin-bottom:22px}
+  .wrap{max-width:920px;margin:0 auto}
+  header{text-align:center;margin-bottom:18px}
   h1{margin:0 0 6px;font-size:26px}
   h1 .emoji{margin-right:6px}
   .subtitle{color:var(--muted);font-size:14px}
   a.back{font-size:13px;color:var(--accent);text-decoration:none}
   a.back:hover{text-decoration:underline}
+  .year-tabs{display:flex;gap:8px;justify-content:center;margin:14px 0 22px}
+  .year-tab{padding:8px 18px;border-radius:999px;border:1px solid var(--border);background:#fff;font-weight:700;font-size:14px;cursor:pointer;transition:all .15s;color:var(--muted)}
+  .year-tab:hover{border-color:var(--accent);color:var(--accent)}
+  .year-tab.active{background:linear-gradient(180deg,var(--accent),var(--accent-dark));color:#fff;border-color:var(--accent-dark);box-shadow:0 1px 2px rgba(236,72,153,.3)}
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 2px 6px rgba(0,0,0,.04);margin-bottom:18px}
-  .card h2{margin:0 0 14px;font-size:17px;font-weight:700}
+  .card h2{margin:0 0 14px;font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .card h2 .meta{font-size:12px;font-weight:500;color:var(--muted)}
   label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px;color:var(--text)}
   label .hint{font-weight:400;color:var(--muted);font-size:12px}
   .field-row{position:relative}
@@ -52,20 +57,36 @@
   .summary ul{margin:6px 0 0;padding-inline-start:20px}
   .summary li{margin-bottom:4px}
   .preview{margin-top:14px;background:#f9fafb;border:1px dashed var(--border);border-radius:8px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#374151;white-space:pre-wrap;line-height:1.5;min-height:100px}
-  .recent-run{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f9fafb;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;font-size:13px}
-  .recent-run .city{font-weight:600}
-  .recent-run .when{color:var(--muted);font-size:12px}
-  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.3px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.3px;white-space:nowrap}
   .badge-ok{background:var(--ok-bg);color:var(--ok)}
   .badge-err{background:var(--err-bg);color:var(--err)}
+  .badge-sched{background:var(--scheduled-bg);color:var(--scheduled)}
+  .badge-empty{background:#f3f4f6;color:var(--muted)}
   .empty{color:var(--muted);font-size:13px;font-style:italic}
   .footnote{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.5}
   .data-source{font-size:11px;color:var(--muted);margin-top:8px;font-style:italic}
+  .schedule-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  .schedule-table thead th{text-align:left;padding:10px 8px;border-bottom:2px solid var(--border);font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-size:11px;background:#fafafa;position:sticky;top:0}
+  .schedule-table tbody td{padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+  .schedule-table tbody tr:hover{background:#fafafa}
+  .schedule-table tbody tr.empty-row td{color:#cbd5e1}
+  .schedule-table tbody tr.launched td{background:#f0fdf4}
+  .col-date{width:130px;font-weight:600;white-space:nowrap}
+  .col-city{width:160px;font-weight:600}
+  .col-venue{}
+  .col-status{width:110px;text-align:right}
+  .schedule-meta{font-size:13px;color:var(--muted);margin-bottom:12px;display:flex;gap:14px;flex-wrap:wrap}
+  .schedule-meta span b{color:var(--text);font-weight:700}
+  details.row-detail summary{cursor:pointer;list-style:none;color:var(--muted);font-size:12px}
+  details.row-detail summary::-webkit-details-marker{display:none}
+  details.row-detail[open] summary{color:var(--accent)}
+  details.row-detail .addr{margin-top:4px;font-size:12px;color:var(--muted);line-height:1.4}
 </style>
 </head>
 <body>
 
 <script id="dashboard-data">
+const SCHEDULE = {"2026":[{"city":"Glendale","state":"AZ","start_date":"2026-01-09","end_date":"2026-01-11","venue":"Renaissance Phoenix Glendale Hotel & Spa","address":"9495 W Entertainment Blvd, Glendale, AZ 85305"},{"city":"Fresno","state":"CA","start_date":"2026-01-16","end_date":"2026-01-18","venue":"Fresno Convention Center.","address":"848 M St Fresno CA 93721"},{"city":"El Cajon","state":"CA","start_date":"2026-01-23","end_date":"2026-01-25","venue":"Courtyard by Marriott.","address":"141 Magnolia Ave, El Cajon, CA 92020"},{"city":"Emeryville","state":"CA","start_date":"2026-01-30","end_date":"2026-02-01","venue":"Hilton Garden Inn Oakland Bay Bridge.","address":"1800 Powell St, Emeryville, CA 94608"},{"city":"Concord","state":"CA","start_date":"2026-02-06","end_date":"2026-02-08","venue":"","address":""},{"city":"Burbank","state":"CA","start_date":"2026-02-13","end_date":"2026-02-15","venue":"Burbank CA 91505 Marriott Burbank airport","address":"2500 N Hollywood way"},{"city":"North Las Vegas","state":"NV","start_date":"2026-02-20","end_date":"2026-02-22","venue":"Aliante Casino Hotel.","address":"7300 N Aliante Pkwy, North Las Vegas, NV 89084"},{"city":"Amarillo","state":"TX","start_date":"2026-02-27","end_date":"2026-03-01","venue":"Embassy Suites Amarillo Dowtown","address":"550 Buchanan Street Amarillo, TX 79101"},{"city":"Garland","state":"TX","start_date":"2026-03-06","end_date":"2026-03-08","venue":"Garland TX 75040","address":"5110 North president george bush frwy"},{"city":"Fort Worth","state":"TX","start_date":"2026-03-13","end_date":"2026-03-15","venue":"Hilton Garden Inn Fort Worth Medical Center.","address":"912 Northton St, Fort Worth, TX 76104"},{"city":"Tulsa","state":"OK","start_date":"2026-03-20","end_date":"2026-03-22","venue":"Hilton Garden Inn Tulsa Midtown.","address":"4518 E Skelly Dr, Tulsa, OK 74135"},{"city":"Hampton","state":"VA","start_date":"2026-03-27","end_date":"2026-03-29","venue":"HOLIDAY INN NEWPORT NEWS CITY CENTER","address":"980 Omni Boulevard | Newport News, VA 23606"},{"city":"Syracuse","state":"NY","start_date":"2026-04-03","end_date":"2026-04-05","venue":"Doubletree by hilton","address":"6301 NY-298, East Syracuse, NY 13057"},{"city":"Reading","state":"PA","start_date":"2026-04-10","end_date":"2026-04-12","venue":"DoubleTree by Hilton Reading","address":"701 Penn Street Reading, PA 19601"},{"city":"Columbus","state":"OH","start_date":"2026-04-17","end_date":"2026-04-19","venue":"Colombus OH 43229 Crown Plaza","address":"6500 Doubletree Ave"},{"city":"Louisville","state":"KY","start_date":"2026-04-24","end_date":"2026-04-26","venue":"Crown Plaza by IHG","address":"830 Phillips Lane Lousiville KY 40209"},{"city":"Nashville","state":"TN","start_date":"2026-05-01","end_date":"2026-05-03","venue":"Nashville, TN 37214","address":"Holiday Inn, 2864 Elm Hill Pike"},{"city":"Columbia","state":"MO","start_date":"2026-05-08","end_date":"2026-05-10","venue":"Courtyard by Marriott","address":"3301 Lemone Industrial Blvd, Columbia, MO 65201"},{"city":"Milwaukee","state":"WI","start_date":"2026-05-15","end_date":"2026-05-17","venue":"Milwaukee, WI 53212 Holidain Inn Milwaukee Riverfront","address":"4700 N Port Washington Rd"},{"city":"Cleveland","state":"OH","start_date":"2026-05-29","end_date":"2026-05-31","venue":"Independence, OH 44131 Holiday Inn Conference Center.","address":"6001 Rockside Rd"},{"city":"Omaha","state":"NE","start_date":"2026-06-05","end_date":"2026-06-07","venue":"Bellevue NE 68123 Courtyard Marriott","address":"3730 Raynor Parkway"},{"city":"Overland","state":"KS","start_date":"2026-06-12","end_date":"2026-06-14","venue":"Holiday Inn & Suites Overland Park","address":"8787 Reeder St, Overland Park, KS 66214"},{"city":"Wichita","state":"KS","start_date":"2026-06-19","end_date":"2026-06-21","venue":"DoubleTree by Hilton Hotel Wichita Airport","address":"2098 Airport Road, Wichita, Kansas, 67209"},{"city":"Topeka","state":"KS","start_date":"2026-06-26","end_date":"2026-06-28","venue":"City Center","address":"1717 SW Topeka Blvd, Topeka, KS 66612 Hotel Topeka"},{"city":"Mesa","state":"AZ","start_date":"2026-07-10","end_date":"2026-07-12","venue":"Wrigleyville West.","address":"2224 W Rio Salado Pkwy, Mesa, AZ 85201 Courtyard by Marriott Mesa"},{"city":"Santa Maria","state":"CA","start_date":"2026-07-17","end_date":"2026-07-19","venue":"Radisson Hotel Santa Maria","address":"3455 Skyway Dr, Santa Maria, CA 93455"},{"city":"Modesto","state":"CA","start_date":"2026-07-24","end_date":"2026-07-26","venue":"CA 95354 Same room as last event!","address":"Modesto center plaza 1001 K Street Modesto"},{"city":"Victorville","state":"CA","start_date":"2026-07-31","end_date":"2026-08-02","venue":"Hilton Garden inn and Victorville Conference center","address":"12603 Mariposa Rd, Victorville, CA 92395"},{"city":"Richmond","state":"CA","start_date":"2026-08-07","end_date":"2026-08-09","venue":"Richmond CA 94804 Sure Stay Plus Hotel","address":"915 w cutting blvd"},{"city":"Visalia","state":"CA","start_date":"2026-08-14","end_date":"2026-08-16","venue":"Visalia Convention Center.","address":"303 E Acequia ave, Visalia 93291"},{"city":"Riverside","state":"CA","start_date":"2026-08-21","end_date":"2026-08-23","venue":"Riverside Convention Center","address":"3637 Fifth street Riverside CA 92501"},{"city":"San Jose","state":"CA","start_date":"2026-08-28","end_date":"2026-08-30","venue":"Holiday inn San Jose","address":"1350 North 1st st San Jose Ca 95112"},{"city":"Portland","state":"OR","start_date":"2026-09-04","end_date":"2026-09-06","venue":"DoubleTree Hotel.","address":"1000 NE Multnomah St Portland, OR 97232"},{"city":"Boise","state":"ID","start_date":"2026-09-11","end_date":"2026-09-13","venue":"Hilton Garden Inn","address":"7699 W Spectrum St, Boise, ID 83709"},{"city":"Salt Lake City","state":"UT","start_date":"2026-09-25","end_date":"2026-09-27","venue":"Salt Lake City UT 84101 Doubletree By Hilton","address":"110 West 600 South"},{"city":"Bakersfield","state":"CA","start_date":"2026-10-02","end_date":"2026-10-04","venue":"Four point by Sheraton Hotel.","address":"5101 California Ave, Bakersfield, CA 93309"},{"city":"Reno","state":"NV","start_date":"2026-10-09","end_date":"2026-10-11","venue":"Circus Circus Hotel.","address":"500 N Sierra St, Reno, NV 89503"},{"city":"Santa Fe","state":"NM","start_date":"2026-10-16","end_date":"2026-10-18","venue":"Courtyard Santa Fe","address":"3347 Cerrillos Rd, Santa Fe, NM 87507"},{"city":"Albuquerque","state":"NM","start_date":"2026-10-23","end_date":"2026-10-25","venue":"New Mexico 87102 United States Crown Plaza","address":"1901 University Boulevard NE Albuquerque,"},{"city":"Westminster","state":"CO","start_date":"2026-11-13","end_date":"2026-11-15","venue":"DoubleTree by Hilton Denver-Westminster","address":"8773 Yates Drive, Westminster, CO 80031"},{"city":"Tucson","state":"AZ","start_date":"2026-11-20","end_date":"2026-11-22","venue":"DoubleTree by Hilton Hotel Tucson - Reid Park.","address":"445 S Alvernon Way, Tucson, AZ 85711"},{"city":"Santa Ana","state":"CA","start_date":"2026-12-04","end_date":"2026-12-06","venue":"Holiday Inn","address":"2726 S Grand Ave Santa Ana CA 92705"},{"city":"Anaheim","state":"CA","start_date":"2026-12-18","end_date":"2026-12-20","venue":"Hotel LULU.","address":"1850 S Harbor Blvd, Anaheim, CA 92802"}],"2027":[{"city":"Lancaster","state":"CA","start_date":"2027-01-08","end_date":"2027-01-10","venue":"","address":""},{"city":"Long Beach","state":"CA","start_date":"2027-01-15","end_date":"2027-01-17","venue":"","address":""},{"city":"Oxnard/Ventura","state":"CA","start_date":"2027-01-22","end_date":"2027-01-24","venue":"","address":""},{"city":"San Bernardino","state":"CA","start_date":"2027-01-29","end_date":"2027-01-31","venue":"","address":""},{"city":"Mission Valley San Diego","state":"CA","start_date":"2027-02-05","end_date":"2027-02-07","venue":"","address":""},{"city":"Yuma","state":"AZ","start_date":"2027-02-12","end_date":"2027-02-14","venue":"","address":""},{"city":"Phoenix CENTER","state":"AZ","start_date":"2027-02-19","end_date":"2027-02-21","venue":"","address":""},{"city":"Goodyear","state":"AZ","start_date":"2027-02-26","end_date":"2027-02-28","venue":"","address":""},{"city":"Gilbert","state":"AZ","start_date":"2027-03-05","end_date":"2027-03-07","venue":"","address":""},{"city":"Henderson","state":"NV","start_date":"2027-03-12","end_date":"2027-03-14","venue":"","address":""},{"city":"Salt Lake City","state":"UT","start_date":"2027-03-19","end_date":"2027-03-21","venue":"","address":""},{"city":"Ogden","state":"UT","start_date":"2027-03-26","end_date":"2027-03-28","venue":"","address":""},{"city":"Provo","state":"UT","start_date":"2027-04-02","end_date":"2027-04-04","venue":"","address":""},{"city":"Colorado Springs","state":"CO","start_date":"2027-04-09","end_date":"2027-04-11","venue":"","address":""},{"city":"Pueblo","state":"CO","start_date":"2027-04-16","end_date":"2027-04-18","venue":"","address":""},{"city":"Denver Central","state":"CO","start_date":"2027-04-23","end_date":"2027-04-25","venue":"","address":""},{"city":"Lincoln","state":"NE","start_date":"2027-04-30","end_date":"2027-05-02","venue":"","address":""},{"city":"Des Moines","state":"IA","start_date":"2027-05-07","end_date":"2027-05-09","venue":"","address":""},{"city":"St. Paul","state":"MN","start_date":"2027-05-14","end_date":"2027-05-16","venue":"","address":""},{"city":"Green Bay","state":"WI","start_date":"2027-05-21","end_date":"2027-05-23","venue":"","address":""},{"city":"St. Louis","state":"MO","start_date":"2027-05-28","end_date":"2027-05-30","venue":"","address":""},{"city":"Lubbock","state":"TX","start_date":"2027-06-11","end_date":"2027-06-13","venue":"","address":""},{"city":"El Paso","state":"TX","start_date":"2027-06-18","end_date":"2027-06-20","venue":"","address":""},{"city":"Las Cruces","state":"NM","start_date":"2027-06-25","end_date":"2027-06-27","venue":"","address":""},{"city":"Dallas","state":"TX","start_date":"2027-07-02","end_date":"2027-07-04","venue":"","address":""},{"city":"Arlington","state":"TX","start_date":"2027-07-09","end_date":"2027-07-11","venue":"","address":""},{"city":"Austin","state":"TX","start_date":"2027-07-16","end_date":"2027-07-18","venue":"","address":""},{"city":"San Antonio West","state":"TX","start_date":"2027-07-23","end_date":"2027-07-25","venue":"","address":""},{"city":"Corpus Christi","state":"TX","start_date":"2027-07-30","end_date":"2027-08-01","venue":"","address":""},{"city":"Houston North","state":"TX","start_date":"2027-08-06","end_date":"2027-08-08","venue":"","address":""},{"city":"Spokane","state":"WA","start_date":"2027-08-13","end_date":"2027-08-15","venue":"","address":""},{"city":"Pasco","state":"WA","start_date":"2027-08-20","end_date":"2027-08-22","venue":"","address":""},{"city":"Tacoma","state":"WA","start_date":"2027-08-27","end_date":"2027-08-29","venue":"","address":""},{"city":"Santa Rosa","state":"CA","start_date":"2027-09-03","end_date":"2027-09-05","venue":"","address":""},{"city":"Stockton","state":"CA","start_date":"2027-09-10","end_date":"2027-09-12","venue":"","address":""},{"city":"Merced","state":"CA","start_date":"2027-09-24","end_date":"2027-09-26","venue":"","address":""},{"city":"Union City","state":"CA","start_date":"2027-10-01","end_date":"2027-10-03","venue":"","address":""},{"city":"Burlingame/S. San Francisco","state":"CA","start_date":"2027-10-08","end_date":"2027-10-10","venue":"","address":""},{"city":"Roseville","state":"CA","start_date":"2027-10-15","end_date":"2027-10-17","venue":"","address":""},{"city":"Sacramento","state":"CA","start_date":"2027-10-22","end_date":"2027-10-24","venue":"","address":""},{"city":"Modesto","state":"CA","start_date":"2027-10-29","end_date":"2027-10-31","venue":"","address":""},{"city":"Chatsworth/Canoga Park","state":"CA","start_date":"2027-11-05","end_date":"2027-11-07","venue":"","address":""},{"city":"Anaheim","state":"CA","start_date":"2027-11-12","end_date":"2027-11-14","venue":"","address":""},{"city":"National City (San Diego)","state":"CA","start_date":"2027-11-19","end_date":"2027-11-21","venue":"","address":""},{"city":"Tucson","state":"AZ","start_date":"2027-12-03","end_date":"2027-12-05","venue":"","address":""},{"city":"Chandler","state":"AZ","start_date":"2027-12-10","end_date":"2027-12-12","venue":"","address":""}],"2028":[]};
 const RUN = { date:"—", time:"—", status:null, event:null, webhookResponse:null, errorReason:null, previousRuns:[] };
 </script>
 
@@ -76,8 +97,14 @@ const RUN = { date:"—", time:"—", status:null, event:null, webhookResponse:n
     <div style="margin-top:8px"><a class="back" href="../">← Back to Agent Hub</a></div>
   </header>
 
+  <div class="year-tabs" id="year-tabs">
+    <button class="year-tab active" data-year="2026">2026</button>
+    <button class="year-tab" data-year="2027">2027</button>
+    <button class="year-tab" data-year="2028">2028</button>
+  </div>
+
   <div class="card">
-    <h2>New event</h2>
+    <h2>New event <span class="meta" id="form-year-label">for 2026</span></h2>
     <p style="font-size:13px;color:var(--muted);margin:0 0 6px">Fill the form, click "Validate", review warnings, then "Copy command".</p>
 
     <label>City <span class="hint">(include 2-letter state, e.g. Dallas, TX)</span></label>
@@ -104,13 +131,13 @@ const RUN = { date:"—", time:"—", status:null, event:null, webhookResponse:n
     </div>
     <div class="field-msg muted" id="dates-msg">Events run Fri–Sun. Dates also checked: future, same year, start &lt; end.</div>
 
-    <label>Year <span class="hint">(auto-derived from start date)</span></label>
+    <label>Year <span class="hint">(auto-derived from start date — also driven by year tabs above)</span></label>
     <div class="field-row"><input type="number" id="year" min="2024" max="2030" value="2026"><span class="status-icon" id="year-icon"><span>·</span></span></div>
 
     <button class="validate-btn" id="validate">🔍 Validate all fields</button>
     <div class="summary muted" id="summary">Press Validate when ready.</div>
 
-    <button class="copy-btn" id="copy">📋 Copy command</button>
+    <button class="copy-btn" id="copy">📋 Copy command (and add to schedule)</button>
 
     <div class="preview" id="preview">Run the event-launch skill.
 
@@ -124,18 +151,34 @@ End date: </div>
   </div>
 
   <div class="card">
-    <h2>Last launch</h2>
-    <div id="last-run-block"><span class="empty">No launches yet — fire the first one above.</span></div>
-  </div>
-
-  <div class="card">
-    <h2>Recent launches</h2>
-    <div id="recent-runs"><span class="empty">No history yet.</span></div>
-    <p class="footnote">The empty SimpleTexting list and the new Eventbrite event are created by the Zapier "Blowout Event Launch" Zap. Customer outreach is separate — Lauren handles those.</p>
+    <h2>
+      <span><span id="schedule-year">2026</span> — All weekends</span>
+      <span class="meta" id="schedule-stats"></span>
+    </h2>
+    <div class="schedule-meta" id="schedule-legend">
+      <span><span class="badge badge-ok">✓ Launched</span> webhook fired through this dashboard</span>
+      <span><span class="badge badge-sched">📅 Scheduled</span> on the calendar (from the master xlsx)</span>
+      <span><span class="badge badge-empty">—</span> open weekend</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="schedule-table" id="schedule-table">
+        <thead><tr>
+          <th class="col-date">Weekend</th>
+          <th class="col-city">City, State</th>
+          <th class="col-venue">Venue / Address</th>
+          <th class="col-status">Status</th>
+        </tr></thead>
+        <tbody id="schedule-tbody"></tbody>
+      </table>
+    </div>
+    <p class="footnote">The empty SimpleTexting list and the new Eventbrite event are created by the Zapier "Blowout Event Launch" Zap. Customer outreach (sending actual SMS, posting on Meta, cloning the ClickFunnels funnel) is separate — Lauren handles those. Each "Copy command" you press here adds the event to the table for that year, marked Scheduled. The agent run marks it ✓ Launched once the Zap returns success.</p>
   </div>
 </div>
 
 <script>
+  // ────────────────────────────────────────────────────────────
+  // Form validation (city / street / hotel / dates) — same as before
+  // ────────────────────────────────────────────────────────────
   const fields = ["city","street","hotel","year","start_date","end_date"];
   const NOMINATIM = "https://nominatim.openstreetmap.org";
   const status = {};
@@ -369,6 +412,107 @@ End date: </div>
   }
   document.getElementById("validate").addEventListener("click", validateAll);
 
+  // ────────────────────────────────────────────────────────────
+  // Year tabs + Schedule table
+  // ────────────────────────────────────────────────────────────
+  const STORAGE_KEY = "event-launch:schedule-overlay";  // { "2026":[{...event}], ... }
+  const ALL_YEARS = ["2026","2027","2028"];
+  let activeYear = "2026";
+
+  function loadOverlay(){
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
+    catch(e){ return {}; }
+  }
+  function saveOverlay(o){
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(o)); } catch(e){}
+  }
+
+  function fridaysOfYear(y){
+    const fridays = [];
+    let d = new Date(y, 0, 1);
+    // Find first Friday
+    while (d.getDay() !== 5) d.setDate(d.getDate() + 1);
+    while (d.getFullYear() === y){
+      const sd = new Date(d);
+      const ed = new Date(d); ed.setDate(ed.getDate() + 2);
+      fridays.push({ start: sd, end: ed });
+      d.setDate(d.getDate() + 7);
+    }
+    return fridays;
+  }
+
+  function fmtDate(d){
+    return d.toLocaleDateString("en-US", { month:"short", day:"numeric" });
+  }
+  function fmtRange(sd, ed){
+    if (sd.getMonth() === ed.getMonth()) return sd.toLocaleDateString("en-US",{month:"short"}) + " " + sd.getDate() + " – " + ed.getDate();
+    return fmtDate(sd) + " – " + fmtDate(ed);
+  }
+  function isoDate(d){ return d.toISOString().slice(0,10); }
+
+  function findEventByStart(year, isoStart){
+    const baked = (SCHEDULE[year] || []).find(e => e.start_date === isoStart);
+    const overlay = loadOverlay()[year] || [];
+    const launched = overlay.find(e => e.start_date === isoStart);
+    return { baked, launched };
+  }
+
+  function renderSchedule(){
+    document.getElementById("schedule-year").textContent = activeYear;
+    const tbody = document.getElementById("schedule-tbody");
+    const fridays = fridaysOfYear(parseInt(activeYear, 10));
+    let scheduled = 0, launched = 0, empty = 0;
+    const rows = fridays.map(({start, end}) => {
+      const iso = isoDate(start);
+      const { baked, launched: ld } = findEventByStart(activeYear, iso);
+      const ev = ld || baked;
+      let statusBadge, rowClass = "";
+      if (ld){ statusBadge = '<span class="badge badge-ok">✓ Launched</span>'; launched++; rowClass = "launched"; }
+      else if (baked){ statusBadge = '<span class="badge badge-sched">📅 Scheduled</span>'; scheduled++; }
+      else { statusBadge = '<span class="badge badge-empty">—</span>'; empty++; rowClass = "empty-row"; }
+      const dateCell = fmtRange(start, end);
+      const cityCell = ev ? (ev.city + ", " + ev.state) : "—";
+      let venueCell = "—";
+      if (ev){
+        const venue = ev.venue || "";
+        const addr = ev.address || "";
+        if (venue || addr){
+          venueCell = '<div>' + (venue ? '<b>' + escapeHtml(venue) + '</b>' : '') + '</div>' +
+                      (addr ? '<details class="row-detail"><summary>address</summary><div class="addr">' + escapeHtml(addr) + '</div></details>' : '');
+        } else {
+          venueCell = '<span class="empty">no venue yet</span>';
+        }
+      }
+      return '<tr class="' + rowClass + '" data-iso="' + iso + '">' +
+               '<td class="col-date">' + dateCell + '</td>' +
+               '<td class="col-city">' + escapeHtml(cityCell) + '</td>' +
+               '<td class="col-venue">' + venueCell + '</td>' +
+               '<td class="col-status">' + statusBadge + '</td>' +
+             '</tr>';
+    });
+    tbody.innerHTML = rows.join("");
+    document.getElementById("schedule-stats").textContent =
+      launched + " launched · " + scheduled + " scheduled · " + empty + " open · " + fridays.length + " weekends total";
+  }
+
+  function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function setActiveYear(y){
+    activeYear = y;
+    document.querySelectorAll(".year-tab").forEach(t => t.classList.toggle("active", t.dataset.year === y));
+    document.getElementById("form-year-label").textContent = "for " + y;
+    document.getElementById("year").value = y;
+    rebuildPreview();
+    renderSchedule();
+  }
+
+  document.querySelectorAll(".year-tab").forEach(tab => {
+    tab.addEventListener("click", () => setActiveYear(tab.dataset.year));
+  });
+
+  // ────────────────────────────────────────────────────────────
+  // Copy button — copies command, also adds to local schedule overlay
+  // ────────────────────────────────────────────────────────────
   document.getElementById("copy").addEventListener("click", async () => {
     const btn = document.getElementById("copy");
     const cmd = document.getElementById("preview").textContent;
@@ -378,37 +522,41 @@ End date: </div>
     if (errs.length){ alert("✗ Cannot copy — fix these first:\n\n" + errs.map(f => "• " + f + ": " + status[f].msg.replace(/<[^>]*>/g, "")).join("\n")); return; }
     if (!anyChecked && !confirm("You haven't validated yet. Copy anyway?")) return;
     if (warns.length && !confirm("⚠ There are warnings:\n\n" + warns.map(f => "• " + f + ": " + status[f].msg.replace(/<[^>]*>/g, "")).join("\n") + "\n\nCopy anyway?")) return;
+
+    // Save to overlay so the table reflects the new event right away
+    const sd = document.getElementById("start_date").value;
+    const ed = document.getElementById("end_date").value;
+    const cityRaw = document.getElementById("city").value.trim();
+    const cm = cityRaw.match(/^([^,]+),\s*([A-Za-z]{2})\s*$/);
+    if (sd && ed && cm){
+      const yr = sd.slice(0,4);
+      const overlay = loadOverlay();
+      overlay[yr] = overlay[yr] || [];
+      // Replace any existing entry with same start_date
+      overlay[yr] = overlay[yr].filter(e => e.start_date !== sd);
+      overlay[yr].push({
+        city: cm[1].trim(),
+        state: cm[2].toUpperCase(),
+        start_date: sd,
+        end_date: ed,
+        venue: document.getElementById("hotel").value.trim(),
+        address: document.getElementById("street").value.trim(),
+        copiedAt: new Date().toISOString()
+      });
+      saveOverlay(overlay);
+      if (yr === activeYear) renderSchedule();
+    }
+
     try {
       await navigator.clipboard.writeText(cmd);
-      btn.textContent = "✓ Copied — paste in Cowork";
+      btn.textContent = "✓ Copied + added to schedule";
       btn.classList.add("copied");
-      setTimeout(() => { btn.textContent = "📋 Copy command"; btn.classList.remove("copied"); }, 2500);
+      setTimeout(() => { btn.textContent = "📋 Copy command (and add to schedule)"; btn.classList.remove("copied"); }, 2800);
     } catch(err){ alert("Copy failed. Command:\n\n" + cmd); }
   });
 
-  function renderRunState(){
-    if (RUN && RUN.event){
-      const ok = RUN.status === "success";
-      const ev = RUN.event;
-      const eventLink = ev.eventUrl ? "<a href=\"" + ev.eventUrl + "\" target=\"_blank\" rel=\"noopener\" style=\"color:var(--accent)\">View on Eventbrite</a>" : "<span class=\"empty\">No Eventbrite link returned</span>";
-      document.getElementById("last-run-block").innerHTML =
-        "<div style=\"font-size:14px;line-height:1.6\">" +
-          "<span class=\"badge " + (ok ? "badge-ok" : "badge-err") + "\">" + (ok ? "✓ Success" : "⚠ Error") + "</span> " +
-          "<b>" + ev.city + "</b> · " + RUN.date + " " + RUN.time + "<br>" +
-          ev.startDate + " → " + ev.endDate + " · " + ev.hotel + "<br>" +
-          ev.street + "<br>" + eventLink +
-          (RUN.errorReason ? "<div style=\"margin-top:8px;color:var(--err);font-size:12px\">" + RUN.errorReason + "</div>" : "") +
-        "</div>";
-    }
-    if (RUN && RUN.previousRuns && RUN.previousRuns.length){
-      document.getElementById("recent-runs").innerHTML = RUN.previousRuns.map(r =>
-        "<div class=\"recent-run\"><span><span class=\"city\">" + r.city + "</span> · <span class=\"when\">" + r.date + "</span></span>" +
-        "<span class=\"badge " + (r.status === "success" ? "badge-ok" : "badge-err") + "\">" + (r.status === "success" ? "✓" : "⚠") + "</span></div>"
-      ).join("");
-    }
-  }
-  renderRunState();
-  rebuildPreview();
+  // Initial render
+  setActiveYear("2026");
 </script>
 
 </body>
