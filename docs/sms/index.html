@@ -49,6 +49,11 @@
   .badge-ok{background:var(--ok-bg);color:var(--ok)}
   .badge-warn{background:var(--warn-bg);color:var(--warn)}
   .badge-empty{background:#f3f4f6;color:var(--muted)}
+  .recipient-badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;margin-left:8px;letter-spacing:.2px}
+  .recipient-badge.all{background:#e0f2fe;color:#0369a1}
+  .recipient-badge.prior{background:#fef3c7;color:#92400e}
+  .recipient-badge.thisyear{background:#d1fae5;color:#065f46}
+  .recipient-badge.custom{background:#f3f4f6;color:var(--muted)}
   .preview{margin-top:14px;background:#f9fafb;border:1px dashed var(--border);border-radius:8px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#374151;white-space:pre-wrap;line-height:1.55;max-height:520px;overflow-y:auto}
   .empty{color:var(--muted);font-style:italic}
   .footnote{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.55}
@@ -78,7 +83,14 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   <div class="tab-panel active" id="panel-templates">
     <div class="card">
       <h2><span>Touch templates</span><span class="meta">5 touches · drag-to-edit · auto-saves</span></h2>
-      <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Edit the message text, schedule rule, and image filename per touch. Edits save to your browser's localStorage. Touch 5 only fires when prior-year lists exist.</p>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Edit the message text, schedule rule, and image filename per touch. Edits save to your browser's localStorage automatically.</p>
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;line-height:1.6">
+        <b style="color:#0369a1">Recipient list patterns:</b><br>
+        • <code>{event_year_list_name}</code> — only the new list created this year (e.g. <i>Tulsa, OK 2026</i>)<br>
+        • <code>match:{city}</code> — every list whose name contains the city name (any year, any format)<br>
+        • <code>prior_years_only:{city}</code> — matching lists EXCEPT this year's<br>
+        • Combine with commas: <code>{event_year_list_name}, match:{city}</code> = all lists with the city name from any year (deduped)
+      </div>
       <div id="touch-cards"></div>
       <div class="toolbar">
         <button class="btn btn-secondary" id="reset-touches">↺ Reset all touches to defaults</button>
@@ -333,7 +345,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       card.className = "touch-card" + (t.enabled ? "" : " disabled");
       card.innerHTML = `
         <div class="touch-header">
-          <div class="title">${escapeHtml(t.name)}</div>
+          <div class="title">${escapeHtml(t.name)}<span class="recipient-badge ${classifyRecipients(t.recipient_lists).kind}">${escapeHtml(classifyRecipients(t.recipient_lists).label)}</span></div>
           <label class="toggle"><input type="checkbox" ${t.enabled?'checked':''} data-i="${i}" data-f="enabled"> Enabled</label>
         </div>
         <label>Display name <span class="hint">(internal)</span></label>
@@ -342,7 +354,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
         <input type="text" data-i="${i}" data-f="schedule_rule" value="${escapeHtml(t.schedule_rule)}">
         <div class="row">
           <div>
-            <label>Recipient lists</label>
+            <label>Recipient lists <span class="hint">(patterns below — combine with commas)</span></label>
             <input type="text" data-i="${i}" data-f="recipient_lists" value="${escapeHtml(t.recipient_lists)}">
           </div>
           <div>
@@ -622,6 +634,19 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   // ─────────────────────────────────────────
   // Initial render
   // ─────────────────────────────────────────
+  function classifyRecipients(rl){
+    rl = (rl || "").trim();
+    if (!rl) return { kind:"custom", label:"none / custom" };
+    const hasEvent = rl.includes("{event_year_list_name}");
+    const hasMatch = rl.includes("match:{city}");
+    const hasPriorOnly = rl.includes("prior_years_only:{city}");
+    if (hasPriorOnly) return { kind:"prior", label:"📨 Prior years ONLY" };
+    if (hasEvent && hasMatch) return { kind:"all", label:"📨 All lists (this year + prior years matching)" };
+    if (hasMatch && !hasEvent) return { kind:"all", label:"📨 All matching lists (any year)" };
+    if (hasEvent && !hasMatch) return { kind:"thisyear", label:"📨 This year only" };
+    return { kind:"custom", label:"📨 " + rl };
+  }
+
   function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
   renderTouches();
   renderAutoresponder();
