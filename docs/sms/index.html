@@ -94,16 +94,29 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       <div id="touch-cards"></div>
       <div class="toolbar">
         <button class="btn btn-secondary" id="reset-touches">↺ Reset all touches to defaults</button>
+        <button class="btn btn-secondary" id="export-templates">⬇ Export all templates (.json)</button>
+        <button class="btn btn-secondary" id="import-templates-trigger">⬆ Import from .json</button>
+        <input type="file" id="import-templates-file" accept=".json" style="display:none">
         <span class="saved-toast" id="touches-saved">✓ Saved</span>
       </div>
     </div>
 
     <div class="card">
-      <h2><span>Auto-responder</span><span class="meta">welcome message for new sign-ups</span></h2>
+      <h2><span>Auto-responder</span><span class="meta">message sent to anyone who texts the keyword</span></h2>
       <label>Keyword pattern <span class="hint">(uppercase city; year appended if taken — agent handles)</span></label>
       <input type="text" id="ar-keyword" placeholder="{CITY_NO_SPACES_UPPER}">
-      <label>Message text <span class="hint">(placeholders: {city} {state} {date_range} {venue} {address} {year})</span></label>
-      <textarea id="ar-text" rows="6" placeholder="Welcome! 🎉 You're now signed up for the {city} Makeup Blowout Sale..."></textarea>
+      <div class="row">
+        <div>
+          <label>Type</label>
+          <select id="ar-type"><option value="SMS">SMS</option><option value="MMS" selected>MMS</option></select>
+        </div>
+        <div>
+          <label>Image filename <span class="hint">(MMS only)</span></label>
+          <input type="text" id="ar-image" placeholder="ig_story_voucher.png">
+        </div>
+      </div>
+      <label>Message text <span class="hint">(placeholders: {city} {state} {date_range} {venue} {address} {year} {tracking_link})</span></label>
+      <textarea id="ar-text" rows="6" placeholder="This is your Free Fabulous Glitter✨ Voucher!..."></textarea>
       <span class="saved-toast" id="ar-saved">✓ Saved</span>
     </div>
 
@@ -256,7 +269,9 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   ];
   const DEFAULT_AR = {
     keyword: "{CITY_NO_SPACES_UPPER}",
-    text: "Welcome! 🎉 You're now signed up for the {city}, {state} Makeup Blowout Sale, {date_range} at {venue}.\nWe'll text you when doors open. Free entry, see you there! 💄\nReply STOP to stop."
+    type: "MMS",
+    image_filename: "ig_story_voucher.png",
+    text: "This is your Free Fabulous Glitter✨ Voucher! The Makeup Blowout Sale Group Are Coming To {city}, {state} {year} For Only 3 days! 🗓️ When: {date_range} 🕙 Hours: 10 AM - 5 PM 📍 Where: {address}. At {venue}. CLICK & SHARE On Your Story: {tracking_link} If you share - you will GET a FREE Eyeshadow at the event, too!"
   };
   const DEFAULT_FORM = {
     name: "{city}, {state} {year} Sign-up",
@@ -268,7 +283,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   };
 
   const KEY = "simple-texting:templates";
-  const TEMPLATE_VERSION = 8;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
+  const TEMPLATE_VERSION = 9;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
   // State (with auto-migration on version bump)
@@ -320,13 +335,22 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     s.touches = newTouches;
 
     // v7 → v8: Touch 2 (Tuesday) was SMS w/ no image; now MMS w/ brushes_first_100.png.
-    // Only sync if Lauren hasn't customized the image_filename (i.e., still empty).
     if (v < 8){
       const t2 = s.touches[1];
       if (t2 && (!t2.image_filename || t2.image_filename === "")){
         t2.type = "MMS";
         t2.image_filename = "brushes_first_100.png";
       }
+    }
+    // v8 → v9: Auto-responder gained type/image fields + new voucher template (replaces old "Welcome!" placeholder)
+    if (v < 9){
+      if (!s.ar) s.ar = structuredClone(DEFAULT_AR);
+      // Replace the old "Welcome!" placeholder text with the new voucher template (only if Lauren hadn't customized)
+      const isOldPlaceholder = s.ar.text && (s.ar.text.startsWith("Welcome! 🎉") || s.ar.text.startsWith("(awaiting"));
+      if (isOldPlaceholder) s.ar.text = DEFAULT_AR.text;
+      // Add new fields if missing
+      if (!s.ar.type) s.ar.type = DEFAULT_AR.type;
+      if (s.ar.image_filename === undefined) s.ar.image_filename = DEFAULT_AR.image_filename;
     }
 
     s.version = TEMPLATE_VERSION;
@@ -406,8 +430,10 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   // Render auto-responder + form editors
   // ─────────────────────────────────────────
   function renderAutoresponder(){
-    document.getElementById("ar-keyword").value = state.ar.keyword;
-    document.getElementById("ar-text").value = state.ar.text;
+    document.getElementById("ar-keyword").value = state.ar.keyword || "";
+    document.getElementById("ar-type").value = state.ar.type || "MMS";
+    document.getElementById("ar-image").value = state.ar.image_filename || "";
+    document.getElementById("ar-text").value = state.ar.text || "";
   }
   function renderForm(){
     document.getElementById("form-name").value = state.form.name;
@@ -419,7 +445,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     document.getElementById("form-success").value = state.form.success;
   }
   function bindEditors(){
-    [["ar-keyword","ar","keyword"],["ar-text","ar","text"]].forEach(([id,sec,k]) => {
+    [["ar-keyword","ar","keyword"],["ar-text","ar","text"],["ar-type","ar","type"],["ar-image","ar","image_filename"]].forEach(([id,sec,k]) => {
       document.getElementById(id).addEventListener("input", e => {
         state[sec][k] = e.target.value;
         saveState(state);
@@ -447,6 +473,46 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     state.touches = structuredClone(DEFAULT_TOUCHES);
     saveState(state);
     renderTouches();
+  });
+
+  // ─────────────────────────────────────────
+  // Export / Import — full templates state to .json file
+  // ─────────────────────────────────────────
+  document.getElementById("export-templates").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const today = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = "simple-texting-templates-backup-" + today + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById("import-templates-trigger").addEventListener("click", () => {
+    document.getElementById("import-templates-file").click();
+  });
+  document.getElementById("import-templates-file").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const imported = JSON.parse(text);
+      if (!imported.touches || !imported.ar || !imported.form){
+        alert("⚠ This file doesn't look like a simple-texting templates backup (missing touches/ar/form keys).");
+        return;
+      }
+      if (!confirm("Replace your current templates with the imported file?\n\nFile: " + file.name + "\nTouches: " + (imported.touches||[]).length + "\nVersion: " + (imported.version || "?") + "\n\nYour current edits will be lost.")) return;
+      state = migrateState(imported);  // run through migrations in case the import is from an older version
+      saveState(state);
+      renderTouches(); renderAutoresponder(); renderForm();
+      alert("✓ Imported successfully. Templates loaded.");
+    } catch(err) {
+      alert("⚠ Failed to import: " + err.message);
+    }
+    e.target.value = "";
   });
 
   // ─────────────────────────────────────────
@@ -638,7 +704,9 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       skippedDueToFirstTime.forEach(s => { cmd += "• " + s + "\n"; });
       cmd += "\n";
     }
-    cmd += `=== Auto-responder ===\nKeyword: ${fillPlaceholders(state.ar.keyword, ev)}\nList: ${ev.cityFull} ${ev.year}\n\n${fillPlaceholders(state.ar.text, ev)}\n\n`;
+    cmd += `=== Auto-responder ===\nKeyword: ${fillPlaceholders(state.ar.keyword, ev)}\nList: ${ev.cityFull} ${ev.year}\nType: ${state.ar.type || "MMS"}\n`;
+    if ((state.ar.type || "MMS") === "MMS" && state.ar.image_filename) cmd += `Image: ${state.ar.image_filename}\n`;
+    cmd += `\n${fillPlaceholders(state.ar.text, ev)}\n\n`;
     cmd += `=== Sign-up form ===\nForm name: ${fillPlaceholders(state.form.name, ev)}\nSubscribe to list: ${ev.cityFull} ${ev.year}\nTitle: ${fillPlaceholders(state.form.title, ev)}\nDescription: ${fillPlaceholders(state.form.desc, ev)}\nPhone required: ${state.form.phone_required}\nEmail required: ${state.form.email_required}\nSuccess message: ${fillPlaceholders(state.form.success, ev)}\n`;
     document.getElementById("preview").textContent = cmd;
     return cmd;
