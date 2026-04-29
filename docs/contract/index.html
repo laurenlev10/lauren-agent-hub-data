@@ -129,49 +129,49 @@
 const KEY = "contract-review:clauses";
 const DEFAULT_CLAUSES = [
   { id:"room_hold", label:"שמירה על החדר (Hold) — 24h Thursday→Friday", enabled:true, critical:true,
-    what_to_check:"Contract explicitly states a 24-hour HOLD on the room from Thursday morning to Friday morning, with NO additional charge. The hotel cannot resell or relocate the room during that window.",
-    search_terms:"hold, Thursday, 24 hours, reserved, room reservation",
-    redline:"Add: "Hotel will hold the {venue_room} for 24 hours from Thursday 12:01 AM through Friday 12:01 AM at no additional charge. Hotel may not resell or relocate the room during this hold window.""
+    what_to_check:`Contract explicitly states a 24-hour HOLD on the room from Thursday morning to Friday morning, with NO additional charge. The hotel cannot resell or relocate the room during that window.`,
+    search_terms:`hold, Thursday, 24 hours, reserved, room reservation`,
+    redline:`Add: "Hotel will hold the {venue_room} for 24 hours from Thursday 12:01 AM through Friday 12:01 AM at no additional charge. Hotel may not resell or relocate the room during this hold window."`
   },
   { id:"hall_size", label:"גודל האולם (≥ 2,500 sq ft)", enabled:true, critical:true,
-    what_to_check:"Contract explicitly states the EXACT square footage of the event room, AND it is at least 2,500 sq ft. REJECT: vague language like "approximately", "flexible", or square footage below 2,500.",
-    search_terms:"square feet, sq ft, ft², sqft, room size, capacity",
-    redline:"Confirm/add: "The {venue_room} measures exactly {square_feet} sq ft (must be ≥ 2,500).""
+    what_to_check:`Contract explicitly states the EXACT square footage of the event room, AND it is at least 2,500 sq ft. REJECT: vague language like "approximately", "flexible", or square footage below 2,500.`,
+    search_terms:`square feet, sq ft, ft², sqft, room size, capacity`,
+    redline:`Confirm/add: "The {venue_room} measures exactly {square_feet} sq ft (must be ≥ 2,500)."`
   },
   { id:"final_price", label:"מחיר סופי ≤ $1,500/day (incl. taxes + setup + cleaning + AV + parking)", enabled:true, critical:true,
-    what_to_check:"Contract explicitly states ALL fees per day INCLUDING taxes + setup + cleaning + AV + parking. The final all-in daily total must NOT exceed $1,500/day. Watch for hidden fees: 'service charge', 'gratuity', 'resort fee', 'F&B minimum', or 'subject to change'.",
-    search_terms:"price, rate, total, daily, taxes, service charge, gratuity, resort fee, setup fee, cleaning fee, AV, parking",
-    redline:"Confirm/add: "All-inclusive daily rate (room + taxes + setup + cleaning + AV + parking + any service charges) shall not exceed $1,500.00/day for {date_range}. No additional fees may be added.""
+    what_to_check:`Contract explicitly states ALL fees per day INCLUDING taxes + setup + cleaning + AV + parking. The final all-in daily total must NOT exceed $1,500/day. Watch for hidden fees: 'service charge', 'gratuity', 'resort fee', 'F&B minimum', or 'subject to change'.`,
+    search_terms:`price, rate, total, daily, taxes, service charge, gratuity, resort fee, setup fee, cleaning fee, AV, parking`,
+    redline:`Confirm/add: "All-inclusive daily rate (room + taxes + setup + cleaning + AV + parking + any service charges) shall not exceed $1,500.00/day for {date_range}. No additional fees may be added."`
   },
   { id:"free_parking", label:"חניה חינם לאורחים", enabled:true, critical:true,
-    what_to_check:"Contract explicitly states parking is FREE for ALL event guests (vendors AND customers) for the entire event. REJECT: "valet only", "$X/car", "subject to availability", or "customers pay separately".",
-    search_terms:"parking, valet, self-parking, garage, free",
-    redline:"Add: "Self-parking is included for all event guests and vendors at NO charge for the entire {date_range}. No validation required.""
+    what_to_check:`Contract explicitly states parking is FREE for ALL event guests (vendors AND customers) for the entire event. REJECT: "valet only", "$X/car", "subject to availability", or "customers pay separately".`,
+    search_terms:`parking, valet, self-parking, garage, free`,
+    redline:`Add: "Self-parking is included for all event guests and vendors at NO charge for the entire {date_range}. No validation required."`
   },
   { id:"hours_in_out", label:"שעות כניסה ויציאה (setup + teardown)", enabled:true, critical:true,
-    what_to_check:"Contract explicitly states the time vendors can ENTER (setup, Thursday morning) and EXIT (teardown, Sunday after close). Both times must be specific (e.g., "Thursday 8 AM" and "Sunday 8 PM"), not vague.",
-    search_terms:"setup, set-up, teardown, tear-down, load-in, load-out, access, vendor entry",
-    redline:"Add: "Vendor access for setup begins Thursday {thursday_date} at 8 AM. Teardown ends by Sunday {sunday_date} at 8 PM. Both at no additional charge.""
+    what_to_check:`Contract explicitly states the time vendors can ENTER (setup, Thursday morning) and EXIT (teardown, Sunday after close). Both times must be specific (e.g., "Thursday 8 AM" and "Sunday 8 PM"), not vague.`,
+    search_terms:`setup, set-up, teardown, tear-down, load-in, load-out, access, vendor entry`,
+    redline:`Add: "Vendor access for setup begins Thursday {thursday_date} at 8 AM. Teardown ends by Sunday {sunday_date} at 8 PM. Both at no additional charge."`
   },
   { id:"cancellation_policy", label:"Cancellation Policy — fee-free window", enabled:true, critical:true,
-    what_to_check:"Contract has a CLEAR cancellation policy stating how many days before the event Lauren can cancel WITHOUT penalty. REJECT: "no refunds", silence, or unreasonably short windows (< 30 days).",
-    search_terms:"cancellation, refund, force majeure, termination, notice period",
-    redline:"Add: "Either party may cancel with at least 30 days' written notice prior to {start_date} for a 100% refund of deposit. Force-majeure events trigger a full refund or rescheduling option at Lauren's discretion.""
+    what_to_check:`Contract has a CLEAR cancellation policy stating how many days before the event Lauren can cancel WITHOUT penalty. REJECT: "no refunds", silence, or unreasonably short windows (< 30 days).`,
+    search_terms:`cancellation, refund, force majeure, termination, notice period`,
+    redline:`Add: "Either party may cancel with at least 30 days' written notice prior to {start_date} for a 100% refund of deposit. Force-majeure events trigger a full refund or rescheduling option at Lauren's discretion."`
   },
   { id:"load_in_doors", label:"Load-in/Load-out — direct doors from parking (no elevator)", enabled:true, critical:true,
-    what_to_check:"Contract states there are direct doors from the parking area to the event room — NO ELEVATOR REQUIRED for load-in/load-out. If elevator is the only path, that's a deal-breaker for vendor logistics.",
-    search_terms:"loading, load-in, doors, entrance, elevator, freight, ground level",
-    redline:"Add: "Vendors will have access via direct doors from {parking_area} to {venue_room}, with NO elevator required for load-in or load-out.""
+    what_to_check:`Contract states there are direct doors from the parking area to the event room — NO ELEVATOR REQUIRED for load-in/load-out. If elevator is the only path, that's a deal-breaker for vendor logistics.`,
+    search_terms:`loading, load-in, doors, entrance, elevator, freight, ground level`,
+    redline:`Add: "Vendors will have access via direct doors from {parking_area} to {venue_room}, with NO elevator required for load-in or load-out."`
   },
   { id:"fire_capacity", label:"Fire Code Capacity — max occupancy", enabled:true, critical:true,
-    what_to_check:"Contract explicitly states the maximum occupancy of the room per Fire Code. Lauren needs this number to know how many customers can be admitted. REJECT: silence on this point.",
-    search_terms:"capacity, fire code, occupancy, maximum, fire marshal",
-    redline:"Confirm/add: "Maximum Fire Code occupancy of the {venue_room} is {max_capacity} persons.""
+    what_to_check:`Contract explicitly states the maximum occupancy of the room per Fire Code. Lauren needs this number to know how many customers can be admitted. REJECT: silence on this point.`,
+    search_terms:`capacity, fire code, occupancy, maximum, fire marshal`,
+    redline:`Confirm/add: "Maximum Fire Code occupancy of the {venue_room} is {max_capacity} persons."`
   },
   { id:"deposit_amount", label:"ערבות / Deposit — paid + refundable amounts", enabled:true, critical:true,
-    what_to_check:"Contract explicitly states (a) the deposit amount Lauren must pay UPFRONT, (b) the date the deposit is due, (c) what amount of the deposit is REFUNDABLE after the event, and (d) under what conditions any portion is forfeited. REJECT: vague "per agreement" language.",
-    search_terms:"deposit, security deposit, refundable, forfeit, due, payment schedule",
-    redline:"Add: "Deposit of $X due {deposit_date}. Of this, $Y is refundable post-event upon room return in original condition (within 30 days). $Z is the non-refundable booking fee.""
+    what_to_check:`Contract explicitly states (a) the deposit amount Lauren must pay UPFRONT, (b) the date the deposit is due, (c) what amount of the deposit is REFUNDABLE after the event, and (d) under what conditions any portion is forfeited. REJECT: vague "per agreement" language.`,
+    search_terms:`deposit, security deposit, refundable, forfeit, due, payment schedule`,
+    redline:`Add: "Deposit of $X due {deposit_date}. Of this, $Y is refundable post-event upon room return in original condition (within 30 days). $Z is the non-refundable booking fee."`
   }
 ];
 
