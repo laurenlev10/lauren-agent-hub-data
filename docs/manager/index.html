@@ -279,19 +279,31 @@ const CHECKLIST = [
     const cityState = ev.city + ", " + ev.state;
     const startDate = ev.start_date;
     const hotel = ev.venue || "(set in launch dashboard)";
+    // Every command starts with an explicit Read directive so the receiving Cowork
+    // session knows the agent SKILL lives in the workspace folder (not as a registered
+    // built-in skill). Without this, sessions reply "I don't have a contract-review
+    // skill installed" because Cowork's skill registry doesn't include our custom NEW/.
+    const SKILL_BASE = "C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW";
+    const skillRead = (folder) => `Read this file and follow its instructions exactly:\n${SKILL_BASE}\\${folder}\\SKILL.md\n\nIt's the orchestrator for the ${folder} agent — it'll tell you which other files to read (clauses.md, review.md, comms.md, dashboard.md, etc.) and walk through every step.\n\nInputs for this run:\n`;
     switch (task.command_kind){
       case "contract":
-        return `Run the contract-review skill.\n\nCity: ${cityState}\nHotel: ${hotel}\nYear: ${year}\nStart date: ${startDate}\nSource mode: paste\n\n(Paste the contract text below, OR change Source mode to 'pdf' and attach the PDF, OR set to 'email' to fetch from eli@makeupblowoutsalegroup.com.)\n\n--- CONTRACT TEXT BELOW ---\n`;
+        return skillRead("contract-review") +
+          `City: ${cityState}\nHotel: ${hotel}\nYear: ${year}\nStart date: ${startDate}\nSource mode: paste\n\n(Paste the contract text below, OR change Source mode to 'pdf' and attach the PDF, OR set to 'email' to fetch from eli@makeupblowoutsalegroup.com.)\n\n--- CONTRACT TEXT BELOW ---\n`;
       case "canva":
-        return `Run @canva for ${cityState} ${year}.\nStart date: ${startDate}.\nUse master_${year}.png template.`;
+        return skillRead("canva-event-images") +
+          `City: ${cityState}\nYear: ${year}\nStart date: ${startDate}\nUse master_${year}.png template.`;
       case "launch":
-        return `Run the event-launch skill.\n\nCity: ${cityState}\nVenue: ${hotel}\nAddress: ${ev.address || "(fill in)"}\nYear: ${year}\nStart date: ${startDate}\nEnd date: ${ev.end_date}`;
+        return skillRead("event-launch") +
+          `City: ${cityState}\nVenue: ${hotel}\nAddress: ${ev.address || "(fill in)"}\nYear: ${year}\nStart date: ${startDate}\nEnd date: ${ev.end_date}`;
       case "sms_full":
-        return `Run @sms for ${cityState} ${year}.\nStart date: ${startDate}.\nMode: full (campaigns + auto-responder + sign-up form).\n\nReview templates in SMS dashboard before pasting. The agent creates DRAFTS only and never sends — but verify lists, sender (must be 424-#), and schedule first.`;
+        return skillRead("simple-texting") +
+          `City: ${cityState}\nYear: ${year}\nStart date: ${startDate}\nMode: full (campaigns + auto-responder + sign-up form)\n\n⚠ Review templates in SMS dashboard before pasting. The agent creates DRAFTS only and never sends — but verify lists, sender (must be 424-#), and schedule first.`;
       case "sms_webform":
-        return `Run @sms for ${cityState} ${year}.\nMode: webform-only (capture webFormId from Get Code modal).`;
+        return skillRead("simple-texting") +
+          `City: ${cityState}\nYear: ${year}\nMode: webform-only (capture webFormId from Get Code modal)`;
       case "sms_ig_update":
-        return `Run @sms for ${cityState} ${year}.\nMode: ig-update (re-run auto-responder with the latest reel link).`;
+        return skillRead("simple-texting") +
+          `City: ${cityState}\nYear: ${year}\nMode: ig-update (re-run auto-responder with the latest reel link)`;
       default:
         return null;
     }
@@ -499,6 +511,7 @@ const CHECKLIST = [
       renderEvents();
     });
   });
+
 
   if (window.location.hash.startsWith("#auto-mark?")){
     const params = new URLSearchParams(window.location.hash.slice(11));
