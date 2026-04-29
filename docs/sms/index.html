@@ -198,7 +198,15 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     },
     { enabled:false, name:"Touch 2 — TBD", schedule_rule:"TBD", recipient_lists:"{event_year_list_name}, match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template)" },
     { enabled:false, name:"Touch 3 — TBD", schedule_rule:"TBD", recipient_lists:"{event_year_list_name}, match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template)" },
-    { enabled:false, name:"Touch 4 — TBD", schedule_rule:"TBD", recipient_lists:"{event_year_list_name}, match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template)" },
+    {
+      enabled: true,
+      name: "Touch 4 — Friday morning (event opening day)",
+      schedule_rule: "0 days before, Friday 09:30 local",
+      recipient_lists: "{event_year_list_name}, match:{city}",
+      type: "MMS",
+      image_filename: "see_you_soon.png",
+      text: "Hey Gorgeous! 🤩 The Makeup Blowout Sale Group are in {city}, {state}! Join our amazing makeup sale event TODAY for great savings and lots of fun! Prices: $1 - $25 on Makeup, Skin Care, Hair Tools and more! We're open Friday - Sunday from 10am until 5pm. 🚨 This is your ONLY chance - we won't be back to {city}, {state} for the next 2 YEARS! Can't wait to see you there! 🙂 Address: {address} At {venue}. 🚗 Free Parking!!"
+    },
     {
       enabled: true,
       name: "Touch 5 — Tuesday of event week (prior years ONLY — skipped for first-time cities)",
@@ -223,7 +231,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   };
 
   const KEY = "simple-texting:templates";
-  const TEMPLATE_VERSION = 2;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
+  const TEMPLATE_VERSION = 3;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
   // State (with auto-migration on version bump)
@@ -252,13 +260,17 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
 
     // v1 → v2: Touch 1 schedule_rule was "5 days before" (wrong); Touch 5 was a placeholder
     if (v < 2){
-      // Touch 1 — fix the schedule rule if Lauren hasn't customized it
       if (s.touches[0] && s.touches[0].schedule_rule && s.touches[0].schedule_rule.startsWith("5 days before")){
         s.touches[0].schedule_rule = DEFAULT_TOUCHES[0].schedule_rule;
       }
-      // Touch 5 — if still placeholder text, replace with the new prior-years template
       if (s.touches[4] && s.touches[4].text && s.touches[4].text.startsWith("(awaiting Lauren's template")){
         s.touches[4] = structuredClone(DEFAULT_TOUCHES[4]);
+      }
+    }
+    // v2 → v3: Touch 4 added (Friday opening day)
+    if (v < 3){
+      if (s.touches[3] && s.touches[3].text && s.touches[3].text.startsWith("(awaiting Lauren's template")){
+        s.touches[3] = structuredClone(DEFAULT_TOUCHES[3]);
       }
     }
 
@@ -398,6 +410,72 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   // ─────────────────────────────────────────
   // Render command preview
   // ─────────────────────────────────────────
+  // ─────────────────────────────────────────
+  // Timezone — SimpleTexting fires from LA time. Convert each touch's local 9:30 → LA equivalent.
+  // ─────────────────────────────────────────
+  const ST_TZ = {AL:"America/Chicago",AK:"America/Anchorage",AZ:"America/Phoenix",AR:"America/Chicago",CA:"America/Los_Angeles",CO:"America/Denver",CT:"America/New_York",DE:"America/New_York",FL:"America/New_York",GA:"America/New_York",HI:"Pacific/Honolulu",ID:"America/Boise",IL:"America/Chicago",IN:"America/Indiana/Indianapolis",IA:"America/Chicago",KS:"America/Chicago",KY:"America/New_York",LA:"America/Chicago",ME:"America/New_York",MD:"America/New_York",MA:"America/New_York",MI:"America/Detroit",MN:"America/Chicago",MS:"America/Chicago",MO:"America/Chicago",MT:"America/Denver",NE:"America/Chicago",NV:"America/Los_Angeles",NH:"America/New_York",NJ:"America/New_York",NM:"America/Denver",NY:"America/New_York",NC:"America/New_York",ND:"America/Chicago",OH:"America/New_York",OK:"America/Chicago",OR:"America/Los_Angeles",PA:"America/New_York",RI:"America/New_York",SC:"America/New_York",SD:"America/Chicago",TN:"America/Chicago",TX:"America/Chicago",UT:"America/Denver",VT:"America/New_York",VA:"America/New_York",WA:"America/Los_Angeles",WV:"America/New_York",WI:"America/Chicago",WY:"America/Denver",DC:"America/New_York"};
+
+  // Returns offset of `tz` from UTC in minutes for `date` (e.g. CDT during DST = -300)
+  function getTzOffsetMin(date, tz){
+    const parts = new Intl.DateTimeFormat("sv-SE", {timeZone: tz, year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false}).formatToParts(date);
+    const o = {};
+    for (const p of parts){ if(p.type !== "literal") o[p.type] = p.value; }
+    const tzMs = Date.UTC(+o.year, +o.month-1, +o.day, +o.hour, +o.minute, +o.second);
+    return Math.round((tzMs - date.getTime()) / 60000);
+  }
+
+  // Parse schedule_rule "N days before, DayName HH:MM local"
+  function parseScheduleRule(rule){
+    if (!rule) return null;
+    const m = rule.match(/^(\d+)\s*days?\s*before[, ]+(\w+)\s*(\d{1,2}):(\d{2})\s*local/i);
+    if (!m) return null;
+    return { daysBefore: +m[1], dayName: m[2], hour: +m[3], minute: +m[4] };
+  }
+
+  // Compute schedule for a touch given the event start_date and state
+  function touchSchedule(rule, eventStartIso, state){
+    const parsed = parseScheduleRule(rule);
+    if (!parsed || !eventStartIso) return null;
+    const start = new Date(eventStartIso + "T12:00:00Z");
+    // Date the touch fires (subtract daysBefore days from event start)
+    const fire = new Date(start);
+    fire.setUTCDate(fire.getUTCDate() - parsed.daysBefore);
+    const fireDateStr = fire.toISOString().slice(0,10);
+    const eventTz = ST_TZ[state] || "America/Los_Angeles";
+    // Sample point at noon UTC on the fire date — use to compute offsets
+    const sample = new Date(fireDateStr + "T12:00:00Z");
+    const eventOffsetMin = getTzOffsetMin(sample, eventTz);
+    const laOffsetMin = getTzOffsetMin(sample, "America/Los_Angeles");
+    // diff = event - LA  (in minutes; positive = event ahead of LA)
+    const diffMin = eventOffsetMin - laOffsetMin;
+    let laTotalMin = parsed.hour * 60 + parsed.minute - diffMin;
+    let laDateStr = fireDateStr;
+    if (laTotalMin < 0){
+      laTotalMin += 24*60;
+      const prev = new Date(fireDateStr + "T12:00:00Z");
+      prev.setUTCDate(prev.getUTCDate() - 1);
+      laDateStr = prev.toISOString().slice(0,10);
+    } else if (laTotalMin >= 24*60){
+      laTotalMin -= 24*60;
+      const next = new Date(fireDateStr + "T12:00:00Z");
+      next.setUTCDate(next.getUTCDate() + 1);
+      laDateStr = next.toISOString().slice(0,10);
+    }
+    const laHour = Math.floor(laTotalMin / 60);
+    const laMin = laTotalMin % 60;
+    const dayName = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(fireDateStr + "T12:00:00Z").getUTCDay()];
+    return {
+      eventLocalDate: fireDateStr,
+      eventLocalTime: String(parsed.hour).padStart(2,"0") + ":" + String(parsed.minute).padStart(2,"0"),
+      eventTz,
+      eventDayName: dayName,
+      laDate: laDateStr,
+      laTime: String(laHour).padStart(2,"0") + ":" + String(laMin).padStart(2,"0"),
+      offsetHours: diffMin / 60,
+      dayMatch: dayName.toLowerCase().startsWith(parsed.dayName.toLowerCase().slice(0,3))
+    };
+  }
+
   function ordinal(n){ if(11<=n%100&&n%100<=13) return n+"th"; return n+["th","st","nd","rd","th","th","th","th","th","th"][n%10]; }
   function dateRangeStr(sd, ed){
     if (!sd || !ed) return "";
@@ -448,7 +526,17 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     let cmd = `Run the simple-texting skill.\n\nCity: ${ev.cityFull}\nStreet: ${ev.address}\nHotel: ${ev.venue}\nYear: ${ev.year}\nStart date: ${ev.sd}\nEnd date: ${ev.ed}\nMode: ${mode}\n\n`;
     state.touches.forEach((t, i) => {
       if (!t.enabled) return;
-      cmd += `=== Touch ${i+1} — ${t.name} (${t.schedule_rule}) ===\n`;
+      const sched = touchSchedule(t.schedule_rule, ev.sd, ev.state);
+      const schedSuffix = sched
+        ? ` — fires ${sched.eventDayName} ${sched.eventLocalDate} ${sched.eventLocalTime} ${ev.state} = ${sched.laDate} ${sched.laTime} LA`
+        : ` — schedule_rule unparseable: ${t.schedule_rule}`;
+      cmd += `=== Touch ${i+1} — ${t.name}${schedSuffix} ===\n`;
+      if (sched){
+        cmd += `Enter in SimpleTexting (LA time): ${sched.laDate} at ${sched.laTime}\n`;
+        if (!sched.dayMatch){
+          cmd += `⚠ schedule_rule day name (${t.schedule_rule}) doesn't match computed day (${sched.eventDayName}) — verify\n`;
+        }
+      }
       const listSpec = fillPlaceholders(t.recipient_lists, ev);
       const listLabel = listSpec.startsWith("prior_years_only:")
         ? `Prior-year lists matching "${ev.cityOnly}" ONLY (skip if no matches found)`
