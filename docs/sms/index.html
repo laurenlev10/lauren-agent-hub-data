@@ -222,8 +222,8 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       name: "Touch 2 — Tuesday of event week (prior years ONLY — auto-skipped for first-time cities)",
       schedule_rule: "3 days before, Tuesday 10:00 local",
       recipient_lists: "prior_years_only:{city}",
-      type: "SMS",
-      image_filename: "",
+      type: "MMS",
+      image_filename: "brushes_first_100.png",
       text: "The Makeup Blowout Sale is BACK! 🎉 THIS WEEKEND! ({date_range}) | 10AM-5PM 📍 {venue}, {address} 🚗 Free Parking | ✨ FREE Fabulous Glitter on arrival! ⚡ Because you've shopped with us before - this one's for YOU! 🎁 22-Piece Makeup Brush Set - Only $5! (95% OFF!) FIRST 100 CUSTOMERS ONLY! 🎁 BONUS: Share this Reel on your Instagram Story & get a FREE Eyeshadow! 👉 {instagram_reel_url} 💕 See you this weekend!"
     },
     {
@@ -268,7 +268,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   };
 
   const KEY = "simple-texting:templates";
-  const TEMPLATE_VERSION = 7;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
+  const TEMPLATE_VERSION = 8;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
   // State (with auto-migration on version bump)
@@ -318,6 +318,17 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     });
 
     s.touches = newTouches;
+
+    // v7 → v8: Touch 2 (Tuesday) was SMS w/ no image; now MMS w/ brushes_first_100.png.
+    // Only sync if Lauren hasn't customized the image_filename (i.e., still empty).
+    if (v < 8){
+      const t2 = s.touches[1];
+      if (t2 && (!t2.image_filename || t2.image_filename === "")){
+        t2.type = "MMS";
+        t2.image_filename = "brushes_first_100.png";
+      }
+    }
+
     s.version = TEMPLATE_VERSION;
     return s;
   }
