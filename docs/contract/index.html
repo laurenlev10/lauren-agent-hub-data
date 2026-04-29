@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<title>Contract Review — Makeup Blowout</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#f6f7fb;--card:#fff;--border:#e5e7eb;--text:#1f2937;--muted:#6b7280;--accent:#dc2626;--accent-dark:#991b1b;--ok:#059669;--ok-bg:#d1fae5;--warn:#b45309;--warn-bg:#fef3c7;--err:#dc2626;--err-bg:#fee2e2; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);padding:28px 16px 60px;min-height:100vh}
+  .wrap{max-width:920px;margin:0 auto}
+  header{text-align:center;margin-bottom:18px}
+  h1{margin:0 0 6px;font-size:26px}
+  h1 .emoji{margin-right:6px}
+  .subtitle{color:var(--muted);font-size:14px}
+  a.back{font-size:13px;color:var(--accent);text-decoration:none}
+  .tabs{display:flex;gap:8px;justify-content:center;margin:14px 0 22px;border-bottom:1px solid var(--border)}
+  .tab{padding:10px 20px;border:none;background:transparent;font-weight:600;font-size:14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .tab-panel{display:none}
+  .tab-panel.active{display:block}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 2px 6px rgba(0,0,0,.04);margin-bottom:18px}
+  .card h2{margin:0 0 14px;font-size:17px;font-weight:700}
+  label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px}
+  label .hint{font-weight:400;color:var(--muted);font-size:12px}
+  input[type="text"],input[type="number"],input[type="date"],select,textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit}
+  textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.5;min-height:90px;resize:vertical}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .clause-card{border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;background:#fafbfc}
+  .clause-card.disabled{opacity:.55}
+  .clause-card.critical{border-left:4px solid var(--err)}
+  .clause-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+  .clause-head .title{font-weight:700;font-size:14px}
+  .toggle{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;margin:0;cursor:pointer}
+  .btn{display:inline-block;padding:9px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:#fff;color:var(--muted);border:1px solid var(--border);text-decoration:none}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn-primary{background:linear-gradient(180deg,var(--accent),var(--accent-dark));color:#fff;border-color:var(--accent-dark)}
+  .btn-primary:hover{background:var(--accent-dark);color:#fff}
+  .btn.copied{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+  .saved-toast{font-size:11px;color:var(--ok);font-weight:600;margin-left:6px;opacity:0;transition:opacity .3s}
+  .saved-toast.show{opacity:1}
+  .preview{margin-top:14px;background:#f9fafb;border:1px dashed var(--border);border-radius:8px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#374151;white-space:pre-wrap;line-height:1.55;max-height:520px;overflow-y:auto}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+  .badge-critical{background:var(--err-bg);color:var(--err)}
+  .badge-non{background:#f3f4f6;color:var(--muted)}
+  .footnote{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.55}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1><span class="emoji">📋</span>Contract Review</h1>
+    <div class="subtitle">Hotel/venue contract checker — runs FIRST in the per-event prep flow</div>
+    <div style="margin-top:8px"><a class="back" href="../">← Back to Agent Hub</a></div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="clauses">📋 Clauses editor</button>
+    <button class="tab" data-tab="run">🚀 Run for a contract</button>
+    <button class="tab" data-tab="history">📊 Recent reviews</button>
+  </div>
+
+  <div class="tab-panel active" id="panel-clauses">
+    <div class="card">
+      <h2>Required clauses (auto-saves)</h2>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 14px">These are the clauses the agent verifies in every contract. Edit, add, disable, or mark critical/non-critical. Edits save to your browser's localStorage automatically.</p>
+      <div id="clauses-list"></div>
+      <div class="toolbar">
+        <button class="btn" id="add-clause">+ Add new clause</button>
+        <button class="btn" id="reset-clauses">↺ Reset to defaults</button>
+        <button class="btn" id="export-clauses">⬇ Export (.json)</button>
+        <button class="btn" id="import-clauses-trigger">⬆ Import (.json)</button>
+        <input type="file" id="import-clauses-file" accept=".json" style="display:none">
+        <span class="saved-toast" id="clauses-saved">✓ Saved</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="panel-run">
+    <div class="card">
+      <h2>Generate review command</h2>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Fill the event details + paste contract text (or note that a PDF is attached). Click "Generate command", paste in Cowork chat, attach the PDF separately if needed.</p>
+      <div class="row">
+        <div><label>City (City, ST)</label><input type="text" id="ev-city" placeholder="Nashville, TN"></div>
+        <div><label>Year</label><input type="number" id="ev-year" min="2024" max="2030" value="2026"></div>
+      </div>
+      <label>Hotel / Venue</label>
+      <input type="text" id="ev-hotel" placeholder="Holiday Inn Nashville Airport by IHG">
+      <label>Event start date (Friday)</label>
+      <input type="date" id="ev-start">
+      <label>Contract text (paste — or write "PDF attached" and drop the file in Cowork chat)</label>
+      <textarea id="ev-contract" rows="8" placeholder="Paste the contract text here, OR write 'PDF attached: filename.pdf' and attach the PDF separately to the Cowork message."></textarea>
+      <div class="toolbar" style="margin-top:14px">
+        <button class="btn-primary btn" id="gen-cmd">📋 Generate & copy command</button>
+        <span class="saved-toast" id="cmd-copied">✓ Copied — paste in Cowork</span>
+      </div>
+      <div class="preview" id="preview">Fill the event details + contract text to preview the command.</div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="panel-history">
+    <div class="card">
+      <h2>Recent reviews</h2>
+      <div id="history-list"><span style="color:var(--muted);font-style:italic">No reviews yet.</span></div>
+      <p class="footnote">History saved in localStorage as the agent reports back via #review-saved hash hook (planned).</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEY = "contract-review:clauses";
+const DEFAULT_CLAUSES = [
+  { id:"free_parking", label:"Free parking (or pre-set symbolic fee)", enabled:true, critical:true,
+    what_to_check:"Contract explicitly states parking is FREE for vendors and customers, OR discloses a fixed symbolic fee (e.g. \"$5/day flat\") agreed in advance. REJECT: \"subject to availability\", \"valet only\", \"market rate\".",
+    search_terms:"parking, valet, self-parking, garage",
+    redline:"Add: \"Self-parking is included for all event guests and vendors at no charge for {date_range}.\""
+  },
+  { id:"thursday_setup", label:"Thursday is setup day; room available from morning", enabled:true, critical:true,
+    what_to_check:"Contract specifies the event ROOM is available to vendors on Thursday (the day before doors open Friday) starting in the MORNING (not just afternoon), AT NO ADDITIONAL CHARGE.",
+    search_terms:"Thursday, set-up, setup, load-in, vendor access, before event",
+    redline:"Add: \"Vendor access to {venue_room} on Thursday {thursday_date} from 8 AM for setup, at no additional charge.\""
+  },
+  { id:"event_hours", label:"Event hours: Friday-Sunday 10 AM – 5 PM", enabled:true, critical:true,
+    what_to_check:"Contract specifies the event runs Friday-Sunday with doors 10 AM to 5 PM. Hours must NOT close earlier on any day.",
+    search_terms:"10 AM, 5 PM, 10:00, 17:00, event hours, doors, Friday, Sunday",
+    redline:"Confirm/change: \"Event hours: Friday {start_date} 10 AM – 5 PM, Saturday 10 AM – 5 PM, Sunday {end_date} 10 AM – 5 PM.\""
+  },
+  { id:"specific_room", label:"Specific room/space (not 'flexible')", enabled:true, critical:true,
+    what_to_check:"Contract names the EXACT room/ballroom Lauren is booking, with square footage. REJECT: \"to be assigned\", \"flexible based on hotel needs\", \"TBD\".",
+    search_terms:"ballroom, room, space, venue, sq ft, square feet",
+    redline:"Add: \"Event will be held in {venue_room_name} ({sq_ft} sq ft) for the entirety of the event.\""
+  },
+  { id:"load_in_access", label:"Loading dock / freight elevator access", enabled:true, critical:false,
+    what_to_check:"Contract grants Lauren's vendors access to a loading dock OR freight elevator for setup deliveries on Thursday.",
+    search_terms:"loading dock, freight elevator, delivery, load-in",
+    redline:"Add: \"Vendors will have access to the loading dock and freight elevator on Thursday {thursday_date} from 8 AM.\""
+  },
+  { id:"wifi_included", label:"Wi-Fi available for vendors and customers", enabled:true, critical:false,
+    what_to_check:"Contract includes complimentary Wi-Fi for vendors and customers in the event space.",
+    search_terms:"Wi-Fi, WiFi, internet, wireless",
+    redline:"Add: \"Complimentary Wi-Fi will be available throughout the event space at no additional charge.\""
+  },
+  { id:"cancellation_terms", label:"Reasonable cancellation / refund terms", enabled:true, critical:false,
+    what_to_check:"Contract has CLEAR cancellation terms — what fees apply at what dates, refund eligibility, force-majeure clause.",
+    search_terms:"cancellation, refund, force majeure, termination",
+    redline:"Add: \"Either party may cancel with at least 30 days' notice for a 50% refund of deposit. Force-majeure events trigger a full refund or rescheduling option.\""
+  },
+  { id:"deposit_payment_dates", label:"Deposit + final payment dates clearly stated", enabled:true, critical:false,
+    what_to_check:"Contract specifies deposit amount + due date AND final payment due date.",
+    search_terms:"deposit, payment, due, balance",
+    redline:"Confirm: \"Deposit of $X due {deposit_date}; remaining balance of $Y due {final_payment_date}.\""
+  },
+  { id:"ownership_change_clause", label:"Ownership change / rebrand notification clause", enabled:true, critical:false,
+    what_to_check:"Contract requires the hotel to notify Lauren if ownership/management/branding changes between signing and event date, with renegotiation rights.",
+    search_terms:"ownership, assignment, successor, rebranding, brand change",
+    redline:"Add: \"Hotel will provide written notice within 14 days of any change in ownership, management company, or brand affiliation. Lauren reserves the right to renegotiate or cancel without penalty.\""
+  },
+  { id:"av_equipment", label:"AV / sound / tables / chairs included or itemized", enabled:true, critical:false,
+    what_to_check:"Contract clearly itemizes whether AV, tables, and chairs are included or charged separately. Quantities specified.",
+    search_terms:"AV, audio visual, microphone, tables, chairs, speakers",
+    redline:"Confirm: \"Event includes {N} 6-foot tables, {M} chairs, basic AV (1 wireless microphone + house sound) at no additional charge.\""
+  }
+];
+
+function loadClauses(){
+  try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && Array.isArray(s)) return s; } catch(e){}
+  return structuredClone(DEFAULT_CLAUSES);
+}
+function saveClauses(c){ try { localStorage.setItem(KEY, JSON.stringify(c)); } catch(e){} }
+function showToast(id){ const el=document.getElementById(id); if(!el)return; el.classList.add("show"); setTimeout(()=>el.classList.remove("show"), 1400); }
+function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+
+let clauses = loadClauses();
+
+function renderClauses(){
+  const c = document.getElementById("clauses-list");
+  c.innerHTML = clauses.map((cl, i) => `
+    <div class="clause-card ${cl.enabled?'':'disabled'} ${cl.critical?'critical':''}">
+      <div class="clause-head">
+        <div class="title">${escapeHtml(cl.label)} <span class="badge ${cl.critical?'badge-critical':'badge-non'}">${cl.critical?'CRITICAL':'optional'}</span></div>
+        <div style="display:flex;gap:12px">
+          <label class="toggle"><input type="checkbox" ${cl.enabled?'checked':''} data-i="${i}" data-f="enabled"> Enabled</label>
+          <label class="toggle"><input type="checkbox" ${cl.critical?'checked':''} data-i="${i}" data-f="critical"> Critical</label>
+        </div>
+      </div>
+      <label>Label (display name)</label>
+      <input type="text" data-i="${i}" data-f="label" value="${escapeHtml(cl.label)}">
+      <label>What to check <span class="hint">(precise rule for the agent)</span></label>
+      <textarea rows="3" data-i="${i}" data-f="what_to_check">${escapeHtml(cl.what_to_check)}</textarea>
+      <div class="row">
+        <div><label>Search terms <span class="hint">(comma-separated)</span></label><input type="text" data-i="${i}" data-f="search_terms" value="${escapeHtml(cl.search_terms)}"></div>
+        <div><label>Clause id <span class="hint">(stable key)</span></label><input type="text" data-i="${i}" data-f="id" value="${escapeHtml(cl.id)}"></div>
+      </div>
+      <label>Suggested redline (when missing/wrong)</label>
+      <textarea rows="2" data-i="${i}" data-f="redline">${escapeHtml(cl.redline)}</textarea>
+      <button class="btn" data-delete="${i}" style="margin-top:8px;color:var(--err);border-color:var(--err)">🗑 Delete</button>
+    </div>`).join("");
+  c.querySelectorAll("[data-i]").forEach(el => {
+    el.addEventListener("input", () => {
+      const i = +el.dataset.i, f = el.dataset.f;
+      const v = el.type === "checkbox" ? el.checked : el.value;
+      clauses[i][f] = v; saveClauses(clauses); showToast("clauses-saved");
+      if (f === "critical" || f === "enabled" || f === "label") renderClauses();
+    });
+  });
+  c.querySelectorAll("[data-delete]").forEach(b => {
+    b.addEventListener("click", () => {
+      if (!confirm("Delete this clause?")) return;
+      clauses.splice(+b.dataset.delete, 1); saveClauses(clauses); renderClauses();
+    });
+  });
+}
+
+document.getElementById("add-clause").addEventListener("click", () => {
+  const id = "custom_" + Date.now().toString(36);
+  clauses.push({ id, label:"New clause", enabled:true, critical:false, what_to_check:"", search_terms:"", redline:"" });
+  saveClauses(clauses); renderClauses();
+});
+document.getElementById("reset-clauses").addEventListener("click", () => {
+  if (!confirm("Reset all clauses to defaults? Your edits will be lost.")) return;
+  clauses = structuredClone(DEFAULT_CLAUSES); saveClauses(clauses); renderClauses();
+});
+document.getElementById("export-clauses").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(clauses, null, 2)], {type:"application/json"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = "contract-clauses-backup-" + new Date().toISOString().slice(0,10) + ".json";
+  document.body.appendChild(a); a.click(); a.remove();
+});
+document.getElementById("import-clauses-trigger").addEventListener("click", () => document.getElementById("import-clauses-file").click());
+document.getElementById("import-clauses-file").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    if (!Array.isArray(j)) { alert("Not a clauses backup."); return; }
+    if (!confirm("Replace current clauses with imported file (" + j.length + " clauses)?")) return;
+    clauses = j; saveClauses(clauses); renderClauses();
+  } catch(err){ alert("Import failed: " + err.message); }
+  e.target.value = "";
+});
+
+// Tab switching
+document.querySelectorAll(".tab").forEach(t => {
+  t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(x => x.classList.remove("active"));
+    t.classList.add("active");
+    document.getElementById("panel-" + t.dataset.tab).classList.add("active");
+  });
+});
+
+// Run-tab — generate command
+function buildCommand(){
+  const city = document.getElementById("ev-city").value.trim();
+  const year = document.getElementById("ev-year").value;
+  const hotel = document.getElementById("ev-hotel").value.trim();
+  const start = document.getElementById("ev-start").value;
+  const contract = document.getElementById("ev-contract").value.trim();
+  const activeClauses = clauses.filter(c => c.enabled);
+  let cmd = "Run the contract-review skill.\n\n";
+  cmd += `City: ${city}\nHotel: ${hotel}\nYear: ${year}\nStart date: ${start}\n\n`;
+  cmd += `Active clauses (${activeClauses.length}):\n`;
+  activeClauses.forEach((c, i) => {
+    cmd += `${i+1}. [${c.critical?"CRITICAL":"optional"}] ${c.label}\n`;
+    cmd += `   What to check: ${c.what_to_check.replace(/\n/g," ")}\n`;
+    cmd += `   Search terms: ${c.search_terms}\n`;
+    cmd += `   Redline if missing: ${c.redline.replace(/\n/g," ")}\n\n`;
+  });
+  cmd += `\n--- CONTRACT TEXT BELOW ---\n${contract}`;
+  return cmd;
+}
+function rebuildPreview(){
+  document.getElementById("preview").textContent = buildCommand() || "Fill the event details to see the preview.";
+}
+["ev-city","ev-year","ev-hotel","ev-start","ev-contract"].forEach(id => {
+  document.getElementById(id).addEventListener("input", rebuildPreview);
+});
+document.getElementById("gen-cmd").addEventListener("click", async () => {
+  const cmd = buildCommand();
+  try {
+    await navigator.clipboard.writeText(cmd);
+    showToast("cmd-copied");
+  } catch(e){ alert("Copy failed.\n\n" + cmd); }
+});
+
+renderClauses();
+rebuildPreview();
+</script>
+</body>
+</html>
