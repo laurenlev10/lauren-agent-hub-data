@@ -223,21 +223,68 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   };
 
   const KEY = "simple-texting:templates";
+  const TEMPLATE_VERSION = 2;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
-  // State
+  // State (with auto-migration on version bump)
   // ─────────────────────────────────────────
   function loadState(){
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || "null");
-      if (saved && saved.touches && saved.ar && saved.form) return saved;
+      if (saved && saved.touches && saved.ar && saved.form){
+        const migrated = migrateState(saved);
+        if (migrated.version !== saved.version) saveState(migrated);
+        return migrated;
+      }
     } catch(e){}
-    return { touches: structuredClone(DEFAULT_TOUCHES), ar: structuredClone(DEFAULT_AR), form: structuredClone(DEFAULT_FORM) };
+    return { version: TEMPLATE_VERSION, touches: structuredClone(DEFAULT_TOUCHES), ar: structuredClone(DEFAULT_AR), form: structuredClone(DEFAULT_FORM) };
+  }
+
+  // Auto-migration — preserves Lauren's custom edits, replaces unmodified placeholders / fixes stale rules
+  function migrateState(s){
+    const v = s.version || 1;
+    if (v >= TEMPLATE_VERSION) return s;
+
+    // Pad to 5 touches if older saves had fewer
+    while (s.touches.length < DEFAULT_TOUCHES.length){
+      s.touches.push(structuredClone(DEFAULT_TOUCHES[s.touches.length]));
+    }
+
+    // v1 → v2: Touch 1 schedule_rule was "5 days before" (wrong); Touch 5 was a placeholder
+    if (v < 2){
+      // Touch 1 — fix the schedule rule if Lauren hasn't customized it
+      if (s.touches[0] && s.touches[0].schedule_rule && s.touches[0].schedule_rule.startsWith("5 days before")){
+        s.touches[0].schedule_rule = DEFAULT_TOUCHES[0].schedule_rule;
+      }
+      // Touch 5 — if still placeholder text, replace with the new prior-years template
+      if (s.touches[4] && s.touches[4].text && s.touches[4].text.startsWith("(awaiting Lauren's template")){
+        s.touches[4] = structuredClone(DEFAULT_TOUCHES[4]);
+      }
+    }
+
+    s.version = TEMPLATE_VERSION;
+    return s;
   }
   function saveState(s){ try { localStorage.setItem(KEY, JSON.stringify(s)); } catch(e){} }
   function showToast(id){ const el = document.getElementById(id); if(!el) return; el.classList.add("show"); setTimeout(()=>el.classList.remove("show"), 1400); }
 
+  const _stateBefore = localStorage.getItem(KEY);
   let state = loadState();
+  // Notify Lauren if templates were just migrated by this load
+  if (_stateBefore){
+    try {
+      const before = JSON.parse(_stateBefore);
+      if ((before.version || 1) < TEMPLATE_VERSION){
+        setTimeout(() => {
+          const note = document.createElement("div");
+          note.style.cssText = "position:fixed;top:14px;right:14px;background:#ecfdf5;border:1px solid var(--ok);color:#065f46;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.08);max-width:320px";
+          note.innerHTML = "✓ Templates updated to latest version (Touch 1 schedule fix + new Touch 5 content). Your custom edits are preserved.";
+          document.body.appendChild(note);
+          setTimeout(() => note.remove(), 7000);
+        }, 200);
+      }
+    } catch(e){}
+  }
 
   // ─────────────────────────────────────────
   // Render touches editor
