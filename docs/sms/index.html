@@ -164,6 +164,12 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
         <option value="draft" selected>Save as Draft (recommended — you review and press Schedule)</option>
         <option value="schedule">Schedule directly (campaigns fire automatically — use only when you're 100% sure)</option>
       </select>
+
+      <label style="margin-top:14px;display:flex;gap:8px;align-items:center;cursor:pointer">
+        <input type="checkbox" id="ev-first-time" style="width:auto;margin:0">
+        <span>First time in this city — skip the Tuesday prior-years touch</span>
+      </label>
+      <div id="first-time-note" style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4">If checked, Touch 2 (Tuesday — prior-year customers) is excluded from the rendered command. Use this when you have no SimpleTexting list from previous years for this city.</div>
       <div class="toolbar" style="margin-top:14px">
         <button class="btn btn-primary" id="copy-cmd">📋 Copy command</button>
         <span class="saved-toast" id="cmd-copied">✓ Copied — paste in Cowork</span>
@@ -196,25 +202,25 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       image_filename: "brushes_first_100.png",
       text: "Reminder: Our HUGE Sale is THIS WEEKEND! 🎉\n{date_range} | 10 AM - 5 PM\n{venue}.\n🚗 Free Parking!!\n✨ FREE gift on arrival\n💄 Huge savings on Makeup, Skin Care, Hair Products and more!\n⚡ Special Offer: FIRST 100 Customers ONLY!\n   22-Piece Makeup Brush Set - Only $5! (95% OFF!) Don't miss out!\nReply stop to stop"
     },
-    { enabled:false, name:"Touch 2 — TBD", schedule_rule:"TBD", recipient_lists:"{event_year_list_name}, match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template)" },
-    { enabled:false, name:"Touch 3 — TBD", schedule_rule:"TBD", recipient_lists:"{event_year_list_name}, match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template)" },
     {
       enabled: true,
-      name: "Touch 4 — Friday morning (event opening day)",
-      schedule_rule: "0 days before, Friday 09:30 local",
-      recipient_lists: "{event_year_list_name}, match:{city}",
-      type: "MMS",
-      image_filename: "see_you_soon.png",
-      text: "Hey Gorgeous! 🤩 The Makeup Blowout Sale Group are in {city}, {state}! Join our amazing makeup sale event TODAY for great savings and lots of fun! Prices: $1 - $25 on Makeup, Skin Care, Hair Tools and more! We're open Friday - Sunday from 10am until 5pm. 🚨 This is your ONLY chance - we won't be back to {city}, {state} for the next 2 YEARS! Can't wait to see you there! 🙂 Address: {address} At {venue}. 🚗 Free Parking!!"
-    },
-    {
-      enabled: true,
-      name: "Touch 5 — Tuesday of event week (prior years ONLY — skipped for first-time cities)",
+      name: "Touch 2 — Tuesday of event week (prior years ONLY — auto-skipped for first-time cities)",
       schedule_rule: "3 days before, Tuesday 10:00 local",
       recipient_lists: "prior_years_only:{city}",
       type: "SMS",
       image_filename: "",
       text: "The Makeup Blowout Sale is BACK! 🎉 THIS WEEKEND! ({date_range}) | 10AM-5PM 📍 {venue}, {address} 🚗 Free Parking | ✨ FREE Fabulous Glitter on arrival! ⚡ Because you've shopped with us before - this one's for YOU! 🎁 22-Piece Makeup Brush Set - Only $5! (95% OFF!) FIRST 100 CUSTOMERS ONLY! 🎁 BONUS: Share this Reel on your Instagram Story & get a FREE Eyeshadow! 👉 {instagram_reel_url} 💕 See you this weekend!"
+    },
+    { enabled:false, name:"Touch 3 — TBD", schedule_rule:"TBD", recipient_lists:"{event_year_list_name}, match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template)" },
+    { enabled:false, name:"Touch 4 — TBD", schedule_rule:"TBD", recipient_lists:"{event_year_list_name}, match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template)" },
+    {
+      enabled: true,
+      name: "Touch 5 — Friday morning (event opening day)",
+      schedule_rule: "0 days before, Friday 09:30 local",
+      recipient_lists: "{event_year_list_name}, match:{city}",
+      type: "MMS",
+      image_filename: "see_you_soon.png",
+      text: "Hey Gorgeous! 🤩 The Makeup Blowout Sale Group are in {city}, {state}! Join our amazing makeup sale event TODAY for great savings and lots of fun! Prices: $1 - $25 on Makeup, Skin Care, Hair Tools and more! We're open Friday - Sunday from 10am until 5pm. 🚨 This is your ONLY chance - we won't be back to {city}, {state} for the next 2 YEARS! Can't wait to see you there! 🙂 Address: {address} At {venue}. 🚗 Free Parking!!"
     }
   ];
   const DEFAULT_AR = {
@@ -231,7 +237,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   };
 
   const KEY = "simple-texting:templates";
-  const TEMPLATE_VERSION = 3;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
+  const TEMPLATE_VERSION = 4;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
   // State (with auto-migration on version bump)
@@ -269,9 +275,27 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     }
     // v2 → v3: Touch 4 added (Friday opening day)
     if (v < 3){
-      if (s.touches[3] && s.touches[3].text && s.touches[3].text.startsWith("(awaiting Lauren's template")){
-        s.touches[3] = structuredClone(DEFAULT_TOUCHES[3]);
-      }
+      // Old position [3] received the Friday content in v3. Just record so v4 can find it.
+    }
+    // v3 → v4: Reorder chronologically. Old [4]=Tuesday prior-years moves to [1]; old [3]=Friday opening moves to [4]; placeholder slots [1],[2] become [2],[3].
+    if (v < 4){
+      const findByText = (snip) => s.touches.find(t => t.text && t.text.includes(snip));
+      const tuesday  = findByText("BACK! 🎉 THIS WEEKEND") || findByText("BACK!");
+      const friday   = findByText("Hey Gorgeous") || findByText("Address:");
+      const monday   = s.touches[0];  // unchanged in v4
+      s.touches = [
+        monday || structuredClone(DEFAULT_TOUCHES[0]),
+        tuesday || structuredClone(DEFAULT_TOUCHES[1]),
+        structuredClone(DEFAULT_TOUCHES[2]),
+        structuredClone(DEFAULT_TOUCHES[3]),
+        friday || structuredClone(DEFAULT_TOUCHES[4])
+      ];
+      // Update the "Touch N — ..." prefixes in name to match new index
+      s.touches.forEach((t, i) => {
+        if (t.name && t.name.match(/^Touch \d+/)){
+          t.name = t.name.replace(/^Touch \d+/, "Touch " + (i+1));
+        }
+      });
     }
 
     s.version = TEMPLATE_VERSION;
@@ -524,8 +548,16 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     }
     const mode = document.getElementById("ev-mode").value;
     let cmd = `Run the simple-texting skill.\n\nCity: ${ev.cityFull}\nStreet: ${ev.address}\nHotel: ${ev.venue}\nYear: ${ev.year}\nStart date: ${ev.sd}\nEnd date: ${ev.ed}\nMode: ${mode}\n\n`;
+    const isFirstTime = document.getElementById("ev-first-time").checked;
+    let skippedDueToFirstTime = [];
     state.touches.forEach((t, i) => {
       if (!t.enabled) return;
+      // Auto-skip prior-years-only touches when first-time-in-city is checked
+      const isPriorYearsOnly = (t.recipient_lists || "").startsWith("prior_years_only:");
+      if (isPriorYearsOnly && isFirstTime){
+        skippedDueToFirstTime.push("Touch " + (i+1) + " — " + t.name);
+        return;
+      }
       const sched = touchSchedule(t.schedule_rule, ev.sd, ev.state);
       const schedSuffix = sched
         ? ` — fires ${sched.eventDayName} ${sched.eventLocalDate} ${sched.eventLocalTime} ${ev.state} = ${sched.laDate} ${sched.laTime} LA`
@@ -546,12 +578,17 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       if (t.type === "MMS" && t.image_filename) cmd += `Image: ${t.image_filename}\n`;
       cmd += `\n${fillPlaceholders(t.text, ev)}\n\n`;
     });
+    if (skippedDueToFirstTime.length){
+      cmd += "=== SKIPPED (first time in this city) ===\n";
+      skippedDueToFirstTime.forEach(s => { cmd += "• " + s + "\n"; });
+      cmd += "\n";
+    }
     cmd += `=== Auto-responder ===\nKeyword: ${fillPlaceholders(state.ar.keyword, ev)}\nList: ${ev.cityFull} ${ev.year}\n\n${fillPlaceholders(state.ar.text, ev)}\n\n`;
     cmd += `=== Sign-up form ===\nForm name: ${fillPlaceholders(state.form.name, ev)}\nSubscribe to list: ${ev.cityFull} ${ev.year}\nTitle: ${fillPlaceholders(state.form.title, ev)}\nDescription: ${fillPlaceholders(state.form.desc, ev)}\nPhone required: ${state.form.phone_required}\nEmail required: ${state.form.email_required}\nSuccess message: ${fillPlaceholders(state.form.success, ev)}\n`;
     document.getElementById("preview").textContent = cmd;
     return cmd;
   }
-  ["ev-city","ev-year","ev-venue","ev-address","ev-start","ev-end","ev-mode","ev-instagram-reel"].forEach(id => {
+  ["ev-city","ev-year","ev-venue","ev-address","ev-start","ev-end","ev-mode","ev-instagram-reel","ev-first-time"].forEach(id => {
     document.getElementById(id).addEventListener("input", rebuildPreview);
     document.getElementById(id).addEventListener("change", rebuildPreview);
   });
@@ -578,6 +615,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     document.getElementById("ev-start").value = urlParams.get("start_date") || "";
     document.getElementById("ev-end").value = urlParams.get("end_date") || "";
     document.getElementById("ev-instagram-reel").value = urlParams.get("ig_reel") || "";
+    document.getElementById("ev-first-time").checked = urlParams.get("first_time") === "1" || urlParams.get("first_time") === "true";
     setTimeout(rebuildPreview, 50);
   }
 
