@@ -235,7 +235,15 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       image_filename: "super_saturday_sale.png",
       text: "Good Morning {city}, {state}! 👋😍 The Makeup Blowout Sale is HERE - just minutes away from you! This is your ONLY chance - we won't be back to the {city} area for the next 2 YEARS! 🎉 DO NOT MISS OUT!!! ✨ Amazing deals up to 90% OFF ✨ Free Entry ✨ Free Parking ✨ Free Gifts  📍 {address} At {venue}.  ⏰ {remaining_dates}  See you there! 💄 {tracking_link}"
     },
-    { enabled:false, name:"Touch 4 — TBD", schedule_rule:"TBD", recipient_lists:"{event_year_list_name}, match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template)" },
+    {
+      enabled: true,
+      name: "Touch 4 — Sunday morning (Last Day Special)",
+      schedule_rule: "2 days after, Sunday 09:30 local",
+      recipient_lists: "{event_year_list_name}, match:{city}",
+      type: "MMS",
+      image_filename: "5_off_coupon.png",
+      text: "Last day special! 💄 Don't miss the Makeup Blowout Sale happening today in {city}, {state}! It's the last day, so bring your family and friends and stock up on your favorites. Use this $5 Off coupon ❤ The sale runs until 5 PM at: {address}. At {venue}. 🚗 Free Parking!! See you there!"
+    },
     {
       enabled: true,
       name: "Touch 5 — Friday morning (event opening day)",
@@ -260,7 +268,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   };
 
   const KEY = "simple-texting:templates";
-  const TEMPLATE_VERSION = 5;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
+  const TEMPLATE_VERSION = 6;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
   // State (with auto-migration on version bump)
@@ -324,6 +332,12 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     if (v < 5){
       if (s.touches[2] && s.touches[2].text && s.touches[2].text.startsWith("(awaiting Lauren's template")){
         s.touches[2] = structuredClone(DEFAULT_TOUCHES[2]);
+      }
+    }
+    // v5 → v6: Touch 4 added (Sunday last day) — completes all 5 touches
+    if (v < 6){
+      if (s.touches[3] && s.touches[3].text && s.touches[3].text.startsWith("(awaiting Lauren's template")){
+        s.touches[3] = structuredClone(DEFAULT_TOUCHES[3]);
       }
     }
 
