@@ -168,8 +168,11 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
           <input type="date" id="ev-end">
         </div>
       </div>
-      <label>Instagram Reel URL <span class="hint">(per-event — used in Touch 5 BONUS line; leave blank for first-time cities or to skip)</span></label>
+      <label>Instagram Reel URL <span class="hint">(per-event — used in Touch 2 BONUS line; leave blank for first-time cities or to skip)</span></label>
       <input type="text" id="ev-instagram-reel" placeholder="https://www.instagram.com/reel/...">
+
+      <label>Tracking link <span class="hint">(per-event — used in Touch 3 closing line; SimpleTexting txt.so short URL or your event page)</span></label>
+      <input type="text" id="ev-tracking-link" placeholder="https://txt.so/...">
 
       <label>Mode</label>
       <select id="ev-mode">
@@ -223,7 +226,15 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       image_filename: "",
       text: "The Makeup Blowout Sale is BACK! 🎉 THIS WEEKEND! ({date_range}) | 10AM-5PM 📍 {venue}, {address} 🚗 Free Parking | ✨ FREE Fabulous Glitter on arrival! ⚡ Because you've shopped with us before - this one's for YOU! 🎁 22-Piece Makeup Brush Set - Only $5! (95% OFF!) FIRST 100 CUSTOMERS ONLY! 🎁 BONUS: Share this Reel on your Instagram Story & get a FREE Eyeshadow! 👉 {instagram_reel_url} 💕 See you this weekend!"
     },
-    { enabled:false, name:"Touch 3 — TBD", schedule_rule:"TBD", recipient_lists:"{event_year_list_name}, match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template)" },
+    {
+      enabled: true,
+      name: "Touch 3 — Saturday morning (Super Saturday Sale)",
+      schedule_rule: "1 day after, Saturday 09:30 local",
+      recipient_lists: "{event_year_list_name}, match:{city}",
+      type: "MMS",
+      image_filename: "super_saturday_sale.png",
+      text: "Good Morning {city}, {state}! 👋😍 The Makeup Blowout Sale is HERE - just minutes away from you! This is your ONLY chance - we won't be back to the {city} area for the next 2 YEARS! 🎉 DO NOT MISS OUT!!! ✨ Amazing deals up to 90% OFF ✨ Free Entry ✨ Free Parking ✨ Free Gifts  📍 {address} At {venue}.  ⏰ {remaining_dates}  See you there! 💄 {tracking_link}"
+    },
     { enabled:false, name:"Touch 4 — TBD", schedule_rule:"TBD", recipient_lists:"{event_year_list_name}, match:{city}", type:"SMS", image_filename:"", text:"(awaiting Lauren's template)" },
     {
       enabled: true,
@@ -249,7 +260,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   };
 
   const KEY = "simple-texting:templates";
-  const TEMPLATE_VERSION = 4;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
+  const TEMPLATE_VERSION = 5;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
   // State (with auto-migration on version bump)
@@ -308,6 +319,12 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
           t.name = t.name.replace(/^Touch \d+/, "Touch " + (i+1));
         }
       });
+    }
+    // v4 → v5: Touch 3 added (Saturday)
+    if (v < 5){
+      if (s.touches[2] && s.touches[2].text && s.touches[2].text.startsWith("(awaiting Lauren's template")){
+        s.touches[2] = structuredClone(DEFAULT_TOUCHES[2]);
+      }
     }
 
     s.version = TEMPLATE_VERSION;
@@ -460,12 +477,13 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     return Math.round((tzMs - date.getTime()) / 60000);
   }
 
-  // Parse schedule_rule "N days before, DayName HH:MM local"
+  // Parse schedule_rule "N days before/after, DayName HH:MM local"
   function parseScheduleRule(rule){
     if (!rule) return null;
-    const m = rule.match(/^(\d+)\s*days?\s*before[, ]+(\w+)\s*(\d{1,2}):(\d{2})\s*local/i);
+    const m = rule.match(/^(\d+)\s*days?\s*(before|after)[, ]+(\w+)\s*(\d{1,2}):(\d{2})\s*local/i);
     if (!m) return null;
-    return { daysBefore: +m[1], dayName: m[2], hour: +m[3], minute: +m[4] };
+    const sign = m[2].toLowerCase() === "after" ? +1 : -1;
+    return { daysOffset: sign * (+m[1]), dayName: m[3], hour: +m[4], minute: +m[5] };
   }
 
   // Compute schedule for a touch given the event start_date and state
@@ -475,7 +493,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     const start = new Date(eventStartIso + "T12:00:00Z");
     // Date the touch fires (subtract daysBefore days from event start)
     const fire = new Date(start);
-    fire.setUTCDate(fire.getUTCDate() - parsed.daysBefore);
+    fire.setUTCDate(fire.getUTCDate() + parsed.daysOffset);
     const fireDateStr = fire.toISOString().slice(0,10);
     const eventTz = ST_TZ[state] || "America/Los_Angeles";
     // Sample point at noon UTC on the fire date — use to compute offsets
@@ -512,6 +530,22 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     };
   }
 
+  function remainingDatesStr(fireIso, endIso, year){
+    if (!fireIso || !endIso) return "";
+    const fd = new Date(fireIso + "T00:00:00");
+    const ed = new Date(endIso + "T00:00:00");
+    if (fd > ed) return "";
+    const sm = fd.toLocaleDateString("en-US",{month:"long"});
+    const em = ed.toLocaleDateString("en-US",{month:"long"});
+    if (fd.getTime() === ed.getTime()){
+      return sm + " " + ordinal(fd.getDate()) + ", " + year;
+    }
+    if (fd.getMonth() === ed.getMonth()){
+      return sm + " " + ordinal(fd.getDate()) + " - " + ordinal(ed.getDate()) + ", " + year;
+    }
+    return sm + " " + ordinal(fd.getDate()) + " - " + em + " " + ordinal(ed.getDate()) + ", " + year;
+  }
+
   function ordinal(n){ if(11<=n%100&&n%100<=13) return n+"th"; return n+["th","st","nd","rd","th","th","th","th","th","th"][n%10]; }
   function dateRangeStr(sd, ed){
     if (!sd || !ed) return "";
@@ -534,6 +568,8 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       .replace(/\{end_day\}/g, ev.endDay)
       .replace(/\{event_year_list_name\}/g, ev.cityFull + " " + ev.year)
       .replace(/\{instagram_reel_url\}/g, ev.instagramReel || "(no reel — skip BONUS line)")
+      .replace(/\{tracking_link\}/g, ev.trackingLink || "(no tracking link)")
+      .replace(/\{remaining_dates\}/g, ev.remainingDates || ev.dateRange)
       .replace(/\{CITY_NO_SPACES_UPPER\}/g, ev.cityOnly.toUpperCase().replace(/\s+/g,""));
   }
   function eventCtx(){
@@ -550,7 +586,8 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     const startDay = sd ? (new Date(sd+"T00:00:00").toLocaleDateString("en-US",{month:"long"}) + " " + ordinal(new Date(sd+"T00:00:00").getDate())) : "";
     const endDay = ed ? (new Date(ed+"T00:00:00").toLocaleDateString("en-US",{month:"long"}) + " " + ordinal(new Date(ed+"T00:00:00").getDate())) : "";
     const instagramReel = document.getElementById("ev-instagram-reel").value.trim();
-    return { cityFull, cityOnly, state, venue, address, year, sd, ed, dateRange, startDay, endDay, instagramReel };
+    const trackingLink = document.getElementById("ev-tracking-link").value.trim();
+    return { cityFull, cityOnly, state, venue, address, year, sd, ed, dateRange, startDay, endDay, instagramReel, trackingLink };
   }
   function rebuildPreview(){
     const ev = eventCtx();
@@ -588,7 +625,11 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       cmd += `List(s): ${listLabel}\n`;
       cmd += `Type: ${t.type}\n`;
       if (t.type === "MMS" && t.image_filename) cmd += `Image: ${t.image_filename}\n`;
-      cmd += `\n${fillPlaceholders(t.text, ev)}\n\n`;
+      // Per-touch ev: enrich with remainingDates relative to the touch's fire date
+      const touchEv = Object.assign({}, ev, {
+        remainingDates: sched ? remainingDatesStr(sched.eventLocalDate, ev.ed, ev.year) : ev.dateRange
+      });
+      cmd += `\n${fillPlaceholders(t.text, touchEv)}\n\n`;
     });
     if (skippedDueToFirstTime.length){
       cmd += "=== SKIPPED (first time in this city) ===\n";
@@ -600,7 +641,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     document.getElementById("preview").textContent = cmd;
     return cmd;
   }
-  ["ev-city","ev-year","ev-venue","ev-address","ev-start","ev-end","ev-mode","ev-instagram-reel","ev-first-time"].forEach(id => {
+  ["ev-city","ev-year","ev-venue","ev-address","ev-start","ev-end","ev-mode","ev-instagram-reel","ev-tracking-link","ev-first-time"].forEach(id => {
     document.getElementById(id).addEventListener("input", rebuildPreview);
     document.getElementById(id).addEventListener("change", rebuildPreview);
   });
@@ -627,6 +668,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     document.getElementById("ev-start").value = urlParams.get("start_date") || "";
     document.getElementById("ev-end").value = urlParams.get("end_date") || "";
     document.getElementById("ev-instagram-reel").value = urlParams.get("ig_reel") || "";
+    document.getElementById("ev-tracking-link").value = urlParams.get("tracking") || "";
     document.getElementById("ev-first-time").checked = urlParams.get("first_time") === "1" || urlParams.get("first_time") === "true";
     setTimeout(rebuildPreview, 50);
   }
