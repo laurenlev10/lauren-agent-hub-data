@@ -81,7 +81,7 @@
   <div class="tab-panel" id="panel-run">
     <div class="card">
       <h2>Generate review command</h2>
-      <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Fill the event details + paste contract text (or note that a PDF is attached). Click "Generate command", paste in Cowork chat, attach the PDF separately if needed.</p>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Fill the event details, choose how to give the contract to the agent, and click "Generate". Paste the command in Cowork chat (and attach the PDF if you chose that mode).</p>
       <div class="row">
         <div><label>City (City, ST)</label><input type="text" id="ev-city" placeholder="Nashville, TN"></div>
         <div><label>Year</label><input type="number" id="ev-year" min="2024" max="2030" value="2026"></div>
@@ -90,13 +90,29 @@
       <input type="text" id="ev-hotel" placeholder="Holiday Inn Nashville Airport by IHG">
       <label>Event start date (Friday)</label>
       <input type="date" id="ev-start">
-      <label>Contract text (paste — or write "PDF attached" and drop the file in Cowork chat)</label>
-      <textarea id="ev-contract" rows="8" placeholder="Paste the contract text here, OR write 'PDF attached: filename.pdf' and attach the PDF separately to the Cowork message."></textarea>
+
+      <label style="margin-top:14px">How will you give the contract to the agent?</label>
+      <select id="ev-source-mode">
+        <option value="paste">📋 Paste contract text below</option>
+        <option value="pdf">⬆ Attach PDF in Cowork chat (after pasting command)</option>
+        <option value="email">📧 Agent will fetch from email (eli@makeupblowoutsalegroup.com)</option>
+      </select>
+      <div id="source-paste-block">
+        <label>Contract text (paste here)</label>
+        <textarea id="ev-contract" rows="8" placeholder="Paste the contract text here..."></textarea>
+      </div>
+      <div id="source-pdf-block" style="display:none;font-size:12px;color:var(--muted);background:#fef3c7;border:1px solid #facc15;border-radius:8px;padding:12px;margin-top:8px">
+        ⚠ When you press "Generate", the command will say "PDF attached." Paste the command into Cowork chat AND drag-drop the PDF into the same message — the agent will read both together.
+      </div>
+      <div id="source-email-block" style="display:none;font-size:12px;color:var(--muted);background:#e0f2fe;border:1px solid #0ea5e9;border-radius:8px;padding:12px;margin-top:8px">
+        📧 The agent will search Gmail for the most recent contract from this hotel/venue (search subject/body for the hotel name and "contract"/"agreement"). <b>Requires Gmail MCP connected to <code>eli@makeupblowoutsalegroup.com</code></b> — if it isn't, agent will respond with a blocker.
+      </div>
+
       <div class="toolbar" style="margin-top:14px">
         <button class="btn-primary btn" id="gen-cmd">📋 Generate & copy command</button>
         <span class="saved-toast" id="cmd-copied">✓ Copied — paste in Cowork</span>
       </div>
-      <div class="preview" id="preview">Fill the event details + contract text to preview the command.</div>
+      <div class="preview" id="preview">Fill the event details + pick a source mode to preview the command.</div>
     </div>
   </div>
 
@@ -112,55 +128,50 @@
 <script>
 const KEY = "contract-review:clauses";
 const DEFAULT_CLAUSES = [
-  { id:"free_parking", label:"Free parking (or pre-set symbolic fee)", enabled:true, critical:true,
-    what_to_check:"Contract explicitly states parking is FREE for vendors and customers, OR discloses a fixed symbolic fee (e.g. \"$5/day flat\") agreed in advance. REJECT: \"subject to availability\", \"valet only\", \"market rate\".",
-    search_terms:"parking, valet, self-parking, garage",
-    redline:"Add: \"Self-parking is included for all event guests and vendors at no charge for {date_range}.\""
+  { id:"room_hold", label:"שמירה על החדר (Hold) — 24h Thursday→Friday", enabled:true, critical:true,
+    what_to_check:"Contract explicitly states a 24-hour HOLD on the room from Thursday morning to Friday morning, with NO additional charge. The hotel cannot resell or relocate the room during that window.",
+    search_terms:"hold, Thursday, 24 hours, reserved, room reservation",
+    redline:"Add: "Hotel will hold the {venue_room} for 24 hours from Thursday 12:01 AM through Friday 12:01 AM at no additional charge. Hotel may not resell or relocate the room during this hold window.""
   },
-  { id:"thursday_setup", label:"Thursday is setup day; room available from morning", enabled:true, critical:true,
-    what_to_check:"Contract specifies the event ROOM is available to vendors on Thursday (the day before doors open Friday) starting in the MORNING (not just afternoon), AT NO ADDITIONAL CHARGE.",
-    search_terms:"Thursday, set-up, setup, load-in, vendor access, before event",
-    redline:"Add: \"Vendor access to {venue_room} on Thursday {thursday_date} from 8 AM for setup, at no additional charge.\""
+  { id:"hall_size", label:"גודל האולם (≥ 2,500 sq ft)", enabled:true, critical:true,
+    what_to_check:"Contract explicitly states the EXACT square footage of the event room, AND it is at least 2,500 sq ft. REJECT: vague language like "approximately", "flexible", or square footage below 2,500.",
+    search_terms:"square feet, sq ft, ft², sqft, room size, capacity",
+    redline:"Confirm/add: "The {venue_room} measures exactly {square_feet} sq ft (must be ≥ 2,500).""
   },
-  { id:"event_hours", label:"Event hours: Friday-Sunday 10 AM – 5 PM", enabled:true, critical:true,
-    what_to_check:"Contract specifies the event runs Friday-Sunday with doors 10 AM to 5 PM. Hours must NOT close earlier on any day.",
-    search_terms:"10 AM, 5 PM, 10:00, 17:00, event hours, doors, Friday, Sunday",
-    redline:"Confirm/change: \"Event hours: Friday {start_date} 10 AM – 5 PM, Saturday 10 AM – 5 PM, Sunday {end_date} 10 AM – 5 PM.\""
+  { id:"final_price", label:"מחיר סופי ≤ $1,500/day (incl. taxes + setup + cleaning + AV + parking)", enabled:true, critical:true,
+    what_to_check:"Contract explicitly states ALL fees per day INCLUDING taxes + setup + cleaning + AV + parking. The final all-in daily total must NOT exceed $1,500/day. Watch for hidden fees: 'service charge', 'gratuity', 'resort fee', 'F&B minimum', or 'subject to change'.",
+    search_terms:"price, rate, total, daily, taxes, service charge, gratuity, resort fee, setup fee, cleaning fee, AV, parking",
+    redline:"Confirm/add: "All-inclusive daily rate (room + taxes + setup + cleaning + AV + parking + any service charges) shall not exceed $1,500.00/day for {date_range}. No additional fees may be added.""
   },
-  { id:"specific_room", label:"Specific room/space (not 'flexible')", enabled:true, critical:true,
-    what_to_check:"Contract names the EXACT room/ballroom Lauren is booking, with square footage. REJECT: \"to be assigned\", \"flexible based on hotel needs\", \"TBD\".",
-    search_terms:"ballroom, room, space, venue, sq ft, square feet",
-    redline:"Add: \"Event will be held in {venue_room_name} ({sq_ft} sq ft) for the entirety of the event.\""
+  { id:"free_parking", label:"חניה חינם לאורחים", enabled:true, critical:true,
+    what_to_check:"Contract explicitly states parking is FREE for ALL event guests (vendors AND customers) for the entire event. REJECT: "valet only", "$X/car", "subject to availability", or "customers pay separately".",
+    search_terms:"parking, valet, self-parking, garage, free",
+    redline:"Add: "Self-parking is included for all event guests and vendors at NO charge for the entire {date_range}. No validation required.""
   },
-  { id:"load_in_access", label:"Loading dock / freight elevator access", enabled:true, critical:false,
-    what_to_check:"Contract grants Lauren's vendors access to a loading dock OR freight elevator for setup deliveries on Thursday.",
-    search_terms:"loading dock, freight elevator, delivery, load-in",
-    redline:"Add: \"Vendors will have access to the loading dock and freight elevator on Thursday {thursday_date} from 8 AM.\""
+  { id:"hours_in_out", label:"שעות כניסה ויציאה (setup + teardown)", enabled:true, critical:true,
+    what_to_check:"Contract explicitly states the time vendors can ENTER (setup, Thursday morning) and EXIT (teardown, Sunday after close). Both times must be specific (e.g., "Thursday 8 AM" and "Sunday 8 PM"), not vague.",
+    search_terms:"setup, set-up, teardown, tear-down, load-in, load-out, access, vendor entry",
+    redline:"Add: "Vendor access for setup begins Thursday {thursday_date} at 8 AM. Teardown ends by Sunday {sunday_date} at 8 PM. Both at no additional charge.""
   },
-  { id:"wifi_included", label:"Wi-Fi available for vendors and customers", enabled:true, critical:false,
-    what_to_check:"Contract includes complimentary Wi-Fi for vendors and customers in the event space.",
-    search_terms:"Wi-Fi, WiFi, internet, wireless",
-    redline:"Add: \"Complimentary Wi-Fi will be available throughout the event space at no additional charge.\""
+  { id:"cancellation_policy", label:"Cancellation Policy — fee-free window", enabled:true, critical:true,
+    what_to_check:"Contract has a CLEAR cancellation policy stating how many days before the event Lauren can cancel WITHOUT penalty. REJECT: "no refunds", silence, or unreasonably short windows (< 30 days).",
+    search_terms:"cancellation, refund, force majeure, termination, notice period",
+    redline:"Add: "Either party may cancel with at least 30 days' written notice prior to {start_date} for a 100% refund of deposit. Force-majeure events trigger a full refund or rescheduling option at Lauren's discretion.""
   },
-  { id:"cancellation_terms", label:"Reasonable cancellation / refund terms", enabled:true, critical:false,
-    what_to_check:"Contract has CLEAR cancellation terms — what fees apply at what dates, refund eligibility, force-majeure clause.",
-    search_terms:"cancellation, refund, force majeure, termination",
-    redline:"Add: \"Either party may cancel with at least 30 days' notice for a 50% refund of deposit. Force-majeure events trigger a full refund or rescheduling option.\""
+  { id:"load_in_doors", label:"Load-in/Load-out — direct doors from parking (no elevator)", enabled:true, critical:true,
+    what_to_check:"Contract states there are direct doors from the parking area to the event room — NO ELEVATOR REQUIRED for load-in/load-out. If elevator is the only path, that's a deal-breaker for vendor logistics.",
+    search_terms:"loading, load-in, doors, entrance, elevator, freight, ground level",
+    redline:"Add: "Vendors will have access via direct doors from {parking_area} to {venue_room}, with NO elevator required for load-in or load-out.""
   },
-  { id:"deposit_payment_dates", label:"Deposit + final payment dates clearly stated", enabled:true, critical:false,
-    what_to_check:"Contract specifies deposit amount + due date AND final payment due date.",
-    search_terms:"deposit, payment, due, balance",
-    redline:"Confirm: \"Deposit of $X due {deposit_date}; remaining balance of $Y due {final_payment_date}.\""
+  { id:"fire_capacity", label:"Fire Code Capacity — max occupancy", enabled:true, critical:true,
+    what_to_check:"Contract explicitly states the maximum occupancy of the room per Fire Code. Lauren needs this number to know how many customers can be admitted. REJECT: silence on this point.",
+    search_terms:"capacity, fire code, occupancy, maximum, fire marshal",
+    redline:"Confirm/add: "Maximum Fire Code occupancy of the {venue_room} is {max_capacity} persons.""
   },
-  { id:"ownership_change_clause", label:"Ownership change / rebrand notification clause", enabled:true, critical:false,
-    what_to_check:"Contract requires the hotel to notify Lauren if ownership/management/branding changes between signing and event date, with renegotiation rights.",
-    search_terms:"ownership, assignment, successor, rebranding, brand change",
-    redline:"Add: \"Hotel will provide written notice within 14 days of any change in ownership, management company, or brand affiliation. Lauren reserves the right to renegotiate or cancel without penalty.\""
-  },
-  { id:"av_equipment", label:"AV / sound / tables / chairs included or itemized", enabled:true, critical:false,
-    what_to_check:"Contract clearly itemizes whether AV, tables, and chairs are included or charged separately. Quantities specified.",
-    search_terms:"AV, audio visual, microphone, tables, chairs, speakers",
-    redline:"Confirm: \"Event includes {N} 6-foot tables, {M} chairs, basic AV (1 wireless microphone + house sound) at no additional charge.\""
+  { id:"deposit_amount", label:"ערבות / Deposit — paid + refundable amounts", enabled:true, critical:true,
+    what_to_check:"Contract explicitly states (a) the deposit amount Lauren must pay UPFRONT, (b) the date the deposit is due, (c) what amount of the deposit is REFUNDABLE after the event, and (d) under what conditions any portion is forfeited. REJECT: vague "per agreement" language.",
+    search_terms:"deposit, security deposit, refundable, forfeit, due, payment schedule",
+    redline:"Add: "Deposit of $X due {deposit_date}. Of this, $Y is refundable post-event upon room return in original condition (within 30 days). $Z is the non-refundable booking fee.""
   }
 ];
 
@@ -256,10 +267,12 @@ function buildCommand(){
   const year = document.getElementById("ev-year").value;
   const hotel = document.getElementById("ev-hotel").value.trim();
   const start = document.getElementById("ev-start").value;
+  const sourceMode = document.getElementById("ev-source-mode").value;
   const contract = document.getElementById("ev-contract").value.trim();
   const activeClauses = clauses.filter(c => c.enabled);
   let cmd = "Run the contract-review skill.\n\n";
-  cmd += `City: ${city}\nHotel: ${hotel}\nYear: ${year}\nStart date: ${start}\n\n`;
+  cmd += `City: ${city}\nHotel: ${hotel}\nYear: ${year}\nStart date: ${start}\n`;
+  cmd += `Source mode: ${sourceMode}\n\n`;
   cmd += `Active clauses (${activeClauses.length}):\n`;
   activeClauses.forEach((c, i) => {
     cmd += `${i+1}. [${c.critical?"CRITICAL":"optional"}] ${c.label}\n`;
@@ -267,13 +280,34 @@ function buildCommand(){
     cmd += `   Search terms: ${c.search_terms}\n`;
     cmd += `   Redline if missing: ${c.redline.replace(/\n/g," ")}\n\n`;
   });
-  cmd += `\n--- CONTRACT TEXT BELOW ---\n${contract}`;
+  cmd += `\nReport requirements (in addition to per-clause verdicts):\n`;
+  cmd += `1. Per-clause: ✓/❌/⚠ + verbatim quote + suggested redline if needed.\n`;
+  cmd += `2. סיכום קצר בנקודות (Hebrew) — סעיפים מיוחדים / יוצאי דופן שיש בחוזה (לא מהרשימה).\n`;
+  cmd += `3. הערות לאיש הקשר במלון — מה לזכור לבקש / לוודא בהתכתבות.\n\n`;
+  if (sourceMode === "paste"){
+    cmd += `--- CONTRACT TEXT BELOW ---\n${contract}`;
+  } else if (sourceMode === "pdf"){
+    cmd += `--- CONTRACT SOURCE ---\nPDF attached in this Cowork message. Read it via Read tool and run the review.`;
+  } else if (sourceMode === "email"){
+    cmd += `--- CONTRACT SOURCE ---\nFetch from Gmail (eli@makeupblowoutsalegroup.com).\nSearch threads for: "${hotel}" + ("contract" OR "agreement"). Take the most recent attachment.\nIf Gmail MCP is not connected to eli@ → return a blocker SMS asking Lauren to connect or paste/attach manually.`;
+  }
   return cmd;
 }
 function rebuildPreview(){
   document.getElementById("preview").textContent = buildCommand() || "Fill the event details to see the preview.";
 }
-["ev-city","ev-year","ev-hotel","ev-start","ev-contract"].forEach(id => {
+["ev-city","ev-year","ev-hotel","ev-start","ev-contract","ev-source-mode"].forEach(id => {
+  const el = document.getElementById(id);
+  if (id === "ev-source-mode"){
+    el.addEventListener("change", () => {
+      const m = el.value;
+      document.getElementById("source-paste-block").style.display = m === "paste" ? "" : "none";
+      document.getElementById("source-pdf-block").style.display   = m === "pdf"   ? "" : "none";
+      document.getElementById("source-email-block").style.display = m === "email" ? "" : "none";
+      rebuildPreview();
+    });
+  }
+}); ["ev-city","ev-year","ev-hotel","ev-start","ev-contract"].forEach(id => {
   document.getElementById(id).addEventListener("input", rebuildPreview);
 });
 document.getElementById("gen-cmd").addEventListener("click", async () => {
