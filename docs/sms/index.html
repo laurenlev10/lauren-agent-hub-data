@@ -121,33 +121,12 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     </div>
 
     <div class="card">
-      <h2><span>Web sign-up form</span><span class="meta">SimpleTexting → public URL</span></h2>
-      <div class="row">
-        <div>
-          <label>Form name (internal)</label>
-          <input type="text" id="form-name" placeholder="{city}, {state} {year} Sign-up">
-        </div>
-        <div>
-          <label>Subscribe to list</label>
-          <input type="text" id="form-list" placeholder="{event_year_list_name}" disabled>
-        </div>
-      </div>
-      <label>Title (visible)</label>
-      <input type="text" id="form-title" placeholder="Makeup Blowout Sale — {city}, {state}">
-      <label>Description (visible)</label>
-      <textarea id="form-desc" rows="3" placeholder="Sign up for SMS alerts about the {city} sale on {date_range}..."></textarea>
-      <div class="row">
-        <div>
-          <label>Phone required?</label>
-          <select id="form-phone-required"><option value="true">Yes</option><option value="false">No</option></select>
-        </div>
-        <div>
-          <label>Email required?</label>
-          <select id="form-email-required"><option value="false">No</option><option value="true">Yes</option></select>
-        </div>
-      </div>
-      <label>Success message (after signup)</label>
-      <textarea id="form-success" rows="3" placeholder="Thanks! 🎉 You're on the list for {city}..."></textarea>
+      <h2><span>Web sign-up form</span><span class="meta">SimpleTexting → Apps → Web Sign-up Forms</span></h2>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 8px;line-height:1.5">SimpleTexting's form has only 2 editable fields: <b>Form name</b> + <b>Confirmation text</b>. The Phone field is auto-added (required), the Contact list is auto-set to this year's list.</p>
+      <label>Form name <span class="hint">(internal — same convention as the list name)</span></label>
+      <input type="text" id="form-name" placeholder="{city}, {state} {year}">
+      <label>Confirmation text <span class="hint">(shown after the user submits the form)</span></label>
+      <textarea id="form-confirmation" rows="3" placeholder="Thank you for signing up! You will receive messages from The Makeup Blowout Sale Group."></textarea>
       <span class="saved-toast" id="form-saved">✓ Saved</span>
     </div>
   </div>
@@ -271,16 +250,12 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     text: "This is your Free Fabulous Glitter✨ Voucher! The Makeup Blowout Sale Group Are Coming To {city}, {state} {year} For Only 3 days! 🗓️ When: {date_range} 🕙 Hours: 10 AM - 5 PM 📍 Where: {address}. At {venue}. CLICK & SHARE On Your Story: {reel_link} If you share - you will GET a FREE Eyeshadow at the event, too!"
   };
   const DEFAULT_FORM = {
-    name: "{city}, {state} {year} Sign-up",
-    title: "Makeup Blowout Sale — {city}, {state}",
-    desc: "Sign up for SMS alerts about the {city} sale on {date_range}.\nFree entry, free gift on arrival, up to 75% OFF.",
-    phone_required: "true",
-    email_required: "false",
-    success: "Thanks! 🎉 You're on the list for {city}, {state} {year}.\nMark {date_range} on your calendar — see you there!"
+    form_name: "{city}, {state} {year}",
+    confirmation_text: "Thank you for signing up! You will receive messages from The Makeup Blowout Sale Group."
   };
 
   const KEY = "simple-texting:templates";
-  const TEMPLATE_VERSION = 10;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
+  const TEMPLATE_VERSION = 11;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
   // State (with auto-migration on version bump)
@@ -347,14 +322,19 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       if (!s.ar.type) s.ar.type = DEFAULT_AR.type;
       if (s.ar.image_filename === undefined) s.ar.image_filename = DEFAULT_AR.image_filename;
     }
-    // v9 → v10: Consolidate {instagram_reel_url} and {tracking_link} → {reel_link} (single per-event field).
-    // All three placeholders still resolve at render time, but updating saved text keeps things tidy.
+    // v9 → v10: Consolidate {instagram_reel_url} and {tracking_link} → {reel_link}
     if (v < 10){
-      const swapPlaceholders = (txt) => (txt || "")
-        .replace(/\{instagram_reel_url\}/g, "{reel_link}")
-        .replace(/\{tracking_link\}/g, "{reel_link}");
-      s.touches.forEach(t => { if (t.text) t.text = swapPlaceholders(t.text); });
-      if (s.ar && s.ar.text) s.ar.text = swapPlaceholders(s.ar.text);
+      const swap = (txt) => (txt || "").replace(/\{instagram_reel_url\}/g, "{reel_link}").replace(/\{tracking_link\}/g, "{reel_link}");
+      s.touches.forEach(t => { if (t.text) t.text = swap(t.text); });
+      if (s.ar && s.ar.text) s.ar.text = swap(s.ar.text);
+    }
+    // v10 → v11: Simplify form schema to match SimpleTexting's actual UI (Form name + Confirmation text only)
+    if (v < 11){
+      const oldForm = s.form || {};
+      s.form = {
+        form_name: oldForm.form_name || (oldForm.name && oldForm.name.replace(" Sign-up","")) || DEFAULT_FORM.form_name,
+        confirmation_text: oldForm.confirmation_text || oldForm.success || DEFAULT_FORM.confirmation_text
+      };
     }
 
     s.version = TEMPLATE_VERSION;
@@ -440,13 +420,8 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     document.getElementById("ar-text").value = state.ar.text || "";
   }
   function renderForm(){
-    document.getElementById("form-name").value = state.form.name;
-    document.getElementById("form-list").value = "{event_year_list_name}";
-    document.getElementById("form-title").value = state.form.title;
-    document.getElementById("form-desc").value = state.form.desc;
-    document.getElementById("form-phone-required").value = state.form.phone_required;
-    document.getElementById("form-email-required").value = state.form.email_required;
-    document.getElementById("form-success").value = state.form.success;
+    document.getElementById("form-name").value = state.form.form_name || "";
+    document.getElementById("form-confirmation").value = state.form.confirmation_text || "";
   }
   function bindEditors(){
     [["ar-keyword","ar","keyword"],["ar-text","ar","text"],["ar-type","ar","type"],["ar-image","ar","image_filename"]].forEach(([id,sec,k]) => {
@@ -456,9 +431,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
         showToast("ar-saved");
       });
     });
-    [["form-name","form","name"],["form-title","form","title"],["form-desc","form","desc"],
-     ["form-success","form","success"],["form-phone-required","form","phone_required"],
-     ["form-email-required","form","email_required"]].forEach(([id,sec,k]) => {
+    [["form-name","form","form_name"],["form-confirmation","form","confirmation_text"]].forEach(([id,sec,k]) => {
       document.getElementById(id).addEventListener("input", e => {
         state[sec][k] = e.target.value;
         saveState(state);
@@ -711,7 +684,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     cmd += `=== Auto-responder ===\nKeyword: ${fillPlaceholders(state.ar.keyword, ev)}\nList: ${ev.cityFull} ${ev.year}\nType: ${state.ar.type || "MMS"}\n`;
     if ((state.ar.type || "MMS") === "MMS" && state.ar.image_filename) cmd += `Image: ${state.ar.image_filename}\n`;
     cmd += `\n${fillPlaceholders(state.ar.text, ev)}\n\n`;
-    cmd += `=== Sign-up form ===\nForm name: ${fillPlaceholders(state.form.name, ev)}\nSubscribe to list: ${ev.cityFull} ${ev.year}\nTitle: ${fillPlaceholders(state.form.title, ev)}\nDescription: ${fillPlaceholders(state.form.desc, ev)}\nPhone required: ${state.form.phone_required}\nEmail required: ${state.form.email_required}\nSuccess message: ${fillPlaceholders(state.form.success, ev)}\n`;
+    cmd += `=== Sign-up form ===\nForm name: ${fillPlaceholders(state.form.form_name, ev)}\nContact list: ${ev.cityFull} ${ev.year}\nForm fields: Phone (required)\nConfirmation text: ${fillPlaceholders(state.form.confirmation_text, ev)}\n`;
     document.getElementById("preview").textContent = cmd;
     return cmd;
   }
