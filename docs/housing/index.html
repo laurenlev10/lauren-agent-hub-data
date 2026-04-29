@@ -501,7 +501,7 @@ const SCAN = {
       <span class="sync-dot"></span>
       <span id="syncBtnLabel">Sync: off</span>
     </button>
-    <button class="run-now" data-cmd="Run the housing skill">▶ Run search now</button>
+    <button class="run-now" data-cmd="Read this file and follow its instructions exactly: C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\la-rental-search\\SKILL.md — it is the orchestrator for  and tells you which other files to read (search.md, dashboard.md, comms.md).">▶ Run search now</button>
     <a class="back-hub" href="../">← Agent Hub</a>
   </div>
 </header>
@@ -1200,4 +1200,17 @@ const SCAN = {
     sel.addEventListener("change", () => {
       const card = sel.closest(".listing");
       if (!card) return;
-      const newSection = IRRELEVANT_STATUSES.has(sel.value) ? irrEl : activeEl
+      const newSection = IRRELEVANT_STATUSES.has(sel.value) ? irrEl : activeEl;
+      if (card.parentElement !== newSection) {
+        // Remove "empty" placeholder if present
+        const placeholder = newSection.querySelector(".empty");
+        if (placeholder) placeholder.remove();
+        newSection.appendChild(card);
+      }
+    });
+  });
+  })(); // end of initDashboard IIFE
+</script>
+
+</body>
+</html>
