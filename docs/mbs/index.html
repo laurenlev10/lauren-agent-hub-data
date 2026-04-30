@@ -246,6 +246,67 @@
   .status-tbd { background: #FFF3E0; color: #E65100; }
   .status-future { background: #F3E5F5; color: #6A1B9A; }
 
+  /* VENUE RESEARCH BUTTON + ACCORDION */
+  .venue-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 11px;
+    background: linear-gradient(135deg, #FFE0B2 0%, #FFCC80 100%);
+    color: #6A1B9A;
+    border: none;
+    border-radius: 999px;
+    font-family: 'Heebo', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+  }
+  .venue-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(106, 27, 154, 0.18); }
+  .venue-btn.has-research {
+    background: linear-gradient(135deg, #C8E6C9 0%, #A5D6A7 100%);
+    color: #1B5E20;
+  }
+  .venue-btn.has-research.expanded {
+    background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+    color: white;
+  }
+  .venue-btn.copied {
+    background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+    color: white;
+  }
+  .venue-research-row { display: none; }
+  .venue-research-row.expanded { display: table-row; }
+  .venue-research-row > td {
+    padding: 0 !important;
+    background: linear-gradient(135deg, #FAFAFC 0%, #F8F4FF 100%);
+    border-bottom: 2px solid #E91E63;
+  }
+  .venue-research-content {
+    padding: 22px 26px;
+    text-align: right;
+    direction: rtl;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+  .venue-research-content h3 { color: #9C27B0; font-size: 16px; font-weight: 700; margin: 0 0 8px; }
+  .venue-research-content h4 { color: #4A148C; font-size: 14px; font-weight: 700; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #F3E5F5; }
+  .venue-research-content table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+  .venue-research-content th { background: linear-gradient(135deg, #F8BBD0 0%, #E1BEE7 100%); padding: 7px 9px; text-align: right; font-weight: 700; color: #4A148C; }
+  .venue-research-content td { padding: 7px 9px; border-bottom: 1px solid #F3E5F5; }
+  .venue-research-content .vr-good { color: #059669; font-weight: 600; }
+  .venue-research-content .vr-bad { color: #DC2626; font-weight: 600; }
+  .venue-research-content .vr-warn { color: #D97706; font-weight: 600; }
+  .venue-research-content .vr-neutral { color: #9CA3AF; font-weight: 500; }
+  .venue-research-content .vr-insight { background: linear-gradient(135deg, #FFF5F8 0%, #F8F4FF 100%); border-right: 3px solid #E91E63; padding: 10px 13px; border-radius: 8px; margin: 8px 0; }
+  .venue-research-content .vr-insight.critical { border-right-color: #DC2626; background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%); }
+  .venue-research-content .vr-insight.success { border-right-color: #10B981; background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); }
+  .venue-research-content .vr-insight.warning { border-right-color: #D97706; background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%); }
+  .venue-research-content .vr-insight strong { color: #9C27B0; }
+  .venue-research-content .vr-contract { background: #FFF8E1; padding: 12px 14px; border-radius: 10px; margin: 12px 0; border: 1px dashed #D97706; }
+  .venue-research-content .vr-contract h4 { margin-top: 0; color: #B45309; border: none; }
+
   /* TOAST */
   .toast {
     position: fixed;
@@ -343,7 +404,7 @@ const SEASON = {
     { n:13,city:"Syracuse",        state:"NY", dates:"Apr 3-5",     tier:3, sales:34930, profit:-9328,  margin:-26.7,note:"❌ Corrected: TikTok minus rule fix · Inventory P&L source", status:"done" },
     { n:14,city:"Reading",         state:"PA", dates:"Apr 10-12",   tier:3, sales:43532, profit:-8381,  margin:-19.3,note:"❌ East Coast premium · 68% Hispanic · first-time market", status:"done" },
     { n:15,city:"Columbus",        state:"OH", dates:"Apr 17-19",   tier:2, sales:48958, profit:7152,   margin:14.6, note:"✅ שבירת רצף 4 הפסדים · drove from Reading", status:"done" },
-    { n:16,city:"Louisville",      state:"KY", dates:"Apr 24-26",   tier:3, sales:35872, profit:2413,   margin:6.7,  note:"✅ Marginal profit · 666 tx · ROAS 4.80× · Crowne Plaza airport zone (Walk Score 31) · venue research → Holiday Inn East-Hurstbourne for return", status:"done" },
+    { n:16,city:"Louisville",      state:"KY", dates:"Apr 24-26",   tier:3, sales:35872, profit:2413,   margin:6.7,  note:"✅ Marginal profit · 666 tx · ROAS 4.80× · Crowne Plaza airport zone (Walk Score 31) · venue research → Holiday Inn East-Hurstbourne for return", status:"done", slug:"louisville-ky" },
     { n:17,city:"Nashville",       state:"TN", dates:"May 1-3",     tier:3, sales:null,  profit:null,   margin:null, note:"This weekend", status:"future" }
   ]
 };
@@ -442,6 +503,7 @@ const SEASON = {
             <th>רווח</th>
             <th>מרג׳ין</th>
             <th>הערות</th>
+            <th>📍 וונו</th>
           </tr>
         </thead>
         <tbody id="events-done"></tbody>
@@ -497,6 +559,108 @@ const SEASON = {
   document.getElementById("s-margin").textContent    =
     (SEASON.totals.profit / SEASON.totals.sales * 100).toFixed(1) + "%";
 
+  // ===== VENUE RESEARCH DATA =====
+  // Each entry keyed by city-state slug (e.g. "louisville-ky"). The agent populates this
+  // when it runs the mbs-venue-research skill. UI renders an accordion row per event.
+  window.VENUE_RESEARCH = {
+    "louisville-ky": {
+      venue: "Crowne Plaza Louisville Airport Expo Ctr by IHG",
+      address: "830 Phillips Ln, Louisville, KY 40209",
+      researchedAt: "2026-04-29",
+      html: `
+        <h3>📍 Louisville KY — חקר וונו מקיף</h3>
+        <p><strong>הוונו:</strong> Crowne Plaza Louisville Airport Expo Ctr by IHG · 830 Phillips Ln, Louisville KY 40209 · 24 חדרי ישיבות · 55,000 sqft · 9.1/10 Booking.com · ממול Kentucky Exposition Center · 1 מייל מ-Louisville Muhammad Ali Airport.</p>
+
+        <h4>השוואה לפרופיל לקוחה אופטימלית של MBS</h4>
+        <table>
+          <thead><tr><th>Metric</th><th>ZIP 40209 (Crowne Plaza)</th><th>פרופיל אופטימלי</th><th>סטטוס</th></tr></thead>
+          <tbody>
+            <tr><td>הכנסה חציונית</td><td>$52,697</td><td>$55-75K</td><td><span class="vr-warn">🟠 קצת מתחת</span></td></tr>
+            <tr><td>% היספני</td><td><strong>23.5% (#1 בעיר!)</strong></td><td>25-50%</td><td><span class="vr-good">✅ Match</span></td></tr>
+            <tr><td>חציון גיל</td><td>35.3 (צעיר)</td><td>25-44</td><td><span class="vr-good">✅ Match</span></td></tr>
+            <tr><td>פיצול מגדר</td><td>52.6% גברים / 47.4% נשים</td><td>נשים 50%+</td><td><span class="vr-bad">❌ אזור גברים-רוב</span></td></tr>
+            <tr><td>Walk Score</td><td><strong>31/100 (Car-dependent)</strong></td><td>50+</td><td><span class="vr-bad">❌ אין foot traffic</span></td></tr>
+            <tr><td>אופי האזור</td><td>Airport zone, Expo, hotels</td><td>Mall / strip plaza</td><td><span class="vr-bad">❌ Mismatch</span></td></tr>
+            <tr><td>foot traffic מקומי</td><td>Travelers בלבד</td><td>Local shoppers</td><td><span class="vr-bad">❌ אפס מקומי</span></td></tr>
+          </tbody>
+        </table>
+
+        <div class="vr-insight critical"><strong>🚨 התובנה הגדולה:</strong> ה-ZIP של הוונו דווקא הכי טוב ב-Louisville מבחינת היספני (23.5%). הבעיה אינה הדמוגרפיה — אלא אופי האזור. airport zone + Expo Center = destination venue ל-conferences ו-state fairs, לא מיקום עם foot traffic מקומי. זה הסביר את ה-conversion 2.72% (חצי מהיעד 4-6%): 24K קליקים מ-Meta ($0.24 CPC מצוין!), אבל בין "ראיתי מודעה" ל-"נסעתי לאזור Expo" יש מחסום פיזי גדול.</div>
+
+        <div class="vr-contract">
+          <h4>📋 בדיקת קריטריוני חוזה</h4>
+          <table>
+            <thead><tr><th>קריטריון</th><th>נדרש</th><th>בוונו הנוכחי</th><th>סטטוס</th></tr></thead>
+            <tbody>
+              <tr><td>גודל אולם</td><td>≥ 2,500 sqft בחוזה</td><td>4,400 sqft (Master List)</td><td><span class="vr-good">✅</span></td></tr>
+              <tr><td>חניה חינם לאורחים</td><td>מצוין במפורש בחוזה</td><td>15,000 חניות באתר Expo Center (חינם נראה)</td><td><span class="vr-warn">❓ לאמת בחוזה</span></td></tr>
+              <tr><td>Load-in/out ישיר</td><td>דלתות מהחניה לאולם, ללא מעלית</td><td>לא אומת אונליין</td><td><span class="vr-warn">❓ לאמת בשיחה עם המלון</span></td></tr>
+              <tr><td>קיבולת מקסימלית</td><td>מצוין בחוזה</td><td>הוונו תומך עד 800 איש (Grand Ballroom Total)</td><td><span class="vr-good">✅ ברמת המתקן</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>🎯 היתרון שלא נוצל</h4>
+        <div class="vr-insight warning">
+          <strong>השוק היה איכותי, האזור הספציפי לא:</strong>
+          <ul style="margin:8px 0;">
+            <li>✅ 23.5% היספני ב-ZIP 40209 — הכי גבוה בכל Louisville. דמוגרפיה מושלמת.</li>
+            <li>✅ Hispanic + multiracial = הקהילות הצומחות הכי מהר ב-Jefferson County (8% ב-2020 vs 1% ב-1990).</li>
+            <li>✅ השיווק עבד — Meta CPC $0.24, 705K חשיפות, 19,782 קליקים.</li>
+            <li>❌ אבל Walk Score 31 = car-dependent → ה-funnel הפיזי איבד 60% מהקליקים.</li>
+            <li>❌ 52.6% גברים-רוב — אזור התעופה לא טבעי לקהל יעד נשי 25-44.</li>
+            <li>❌ אין foot traffic — חוץ מנוסעי כנסים ותיירי State Fair, אין אנשים "במקרה באזור".</li>
+          </ul>
+          <p><strong>בחזרה ל-Louisville עם venue באזור עם 20%+ היספני וגם foot traffic מקומי — אנחנו בונים על potential של $50-60K (לעומת $35K שהיה).</strong></p>
+        </div>
+
+        <h4>🏨 המלצות וונו ספציפיות לחזרה ל-Louisville</h4>
+
+        <p><strong>⭐ אופציה A (ההמלצה הראשונה): Holiday Inn Louisville East — Hurstbourne</strong><br>
+        1325 S Hurstbourne Pkwy, Louisville, KY 40222 · ☎ 1-800-652-3705</p>
+        <ul>
+          <li>🏢 <strong>22,000 sqft</strong>, Grand Ballroom עד 800 איש, 14 חדרי ישיבה (5× יותר מהוונו הנוכחי)</li>
+          <li>🛏️ 271 חדרים מחודשים · בריכה פנימית</li>
+          <li>🚗 <strong>96,375 מכוניות/יום</strong> בצומת TaylorHurst Shopping Center — הצומת הכי מתועד בקנטקי</li>
+          <li>🛍️ Kroger, Target, Home Depot, Petco, AMC theater · Oxmoor, Mall St. Matthews, Paddock Shops ב-10 דקות</li>
+          <li>💰 <strong>$5 מיליארד</strong> ב-spend צרכני ב-15 דקות נסיעה</li>
+          <li>⚠️ Trade-off: 5.5% היספני, $82K הכנסה — פחות sweet-spot, אבל foot traffic מפצה.</li>
+          <li><strong>הציון:</strong> Foot traffic 10/10 · Demographics 5/10 · Event space 10/10. שיפור צפוי במכירות $50K-60K.</li>
+        </ul>
+
+        <p><strong>⭐ אופציה B: Jefferson Mall + Holiday Inn Airport South</strong><br>
+        אירוע: 4801 Outer Loop, Louisville KY 40219 · לינה: 6551 Paramount Park Dr, 40213 (1.5 מייל)</p>
+        <ul>
+          <li>🏬 Jefferson Mall — מארח אירועים, events page פעיל</li>
+          <li>👥 <strong>20.8% היספני</strong> ב-ZIP 40219 (#2 בעיר)</li>
+          <li>💰 הכנסה $52-56K — ב-target</li>
+          <li>🚶 Mall foot traffic מובנה</li>
+          <li>🛏️ Holiday Inn Airport South $102/לילה</li>
+          <li>⚠️ דורש שני חוזים נפרדים</li>
+          <li><strong>הציון:</strong> Foot traffic 9/10 · Demographics 9/10 · Logistics 6/10</li>
+        </ul>
+
+        <p><strong>🟡 אופציה C: Embassy Suites Louisville East</strong><br>
+        9940 Corporate Campus Dr, Louisville, KY 40223</p>
+        <ul>
+          <li>בלב Hurstbourne Corridor — Hurstbourne Corners, Mall St. Matthews קרוב</li>
+          <li>Ballroom + meeting rooms (גדלים מדויקים דורשים בדיקה)</li>
+          <li>Hispanic% נמוך</li>
+        </ul>
+
+        <div class="vr-insight critical">
+          <strong>🎯 ההמלצה הסופית:</strong>
+          <p style="margin:6px 0;">תוצאה צפויה ובטוחה → <strong>אופציה A (Holiday Inn East-Hurstbourne)</strong></p>
+          <p style="margin:6px 0;">Direct deal עם Mall → <strong>אופציה B (Jefferson Mall)</strong></p>
+          <p style="margin:6px 0;"><strong>לא ב-Crowne Plaza Airport</strong> — אלא אם משלבים עם State Fair / convention.</p>
+        </div>
+      `
+    }
+  };
+
+  // Slugify city/state for venue-research key matching
+  const slugify = (e) => e.slug || (e.city + "-" + e.state).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
   // Render completed events
   const done = SEASON.events
     .filter(e => e.status === 'done')
@@ -506,7 +670,14 @@ const SEASON = {
     const salesDelta  = ((e.sales  - SEASON.avgs.sales)  / SEASON.avgs.sales)  * 100;
     const profitDelta = ((e.profit - SEASON.avgs.profit) / SEASON.avgs.profit) * 100;
     const profitClass = e.profit >= 0 ? 'pos' : 'neg';
+    const slug = slugify(e);
+    const hasResearch = !!(window.VENUE_RESEARCH && window.VENUE_RESEARCH[slug]);
+    const btnLabel = hasResearch ? "📍 הצגת מחקר ▼" : "📍 מחקר וונו";
+    const btnClass = hasResearch ? "venue-btn has-research" : "venue-btn";
+
     const tr = document.createElement("tr");
+    tr.dataset.eventKey = slug;
+    if (hasResearch) tr.dataset.hasResearch = "true";
     tr.innerHTML = `
       <td>${e.n}</td>
       <td class="event-name">${e.city}, ${e.state}</td>
@@ -516,8 +687,63 @@ const SEASON = {
       <td class="money ${profitClass}">${fmt(e.profit)}<span class="delta ${deltaClass(profitDelta)}">${pct(profitDelta)}</span></td>
       <td class="money ${profitClass}">${e.margin.toFixed(1)}%</td>
       <td>${e.note || ""}</td>
+      <td><button class="${btnClass}" data-event-key="${slug}" data-event-name="${e.city}, ${e.state}" data-event-dates="${e.dates}" data-event-tier="${e.tier}">${btnLabel}</button></td>
     `;
     tbodyDone.appendChild(tr);
+
+    const rr = document.createElement("tr");
+    rr.className = "venue-research-row";
+    rr.dataset.eventKey = slug;
+    if (hasResearch) {
+      rr.innerHTML = `<td colspan="9"><div class="venue-research-content">${window.VENUE_RESEARCH[slug].html}</div></td>`;
+    } else {
+      rr.innerHTML = `<td colspan="9"><div class="venue-research-content"><em style="color:#9CA3AF;">אין מחקר וונו עדיין לאירוע הזה — לחצי על הכפתור 📍 מחקר וונו כדי להעתיק את הפקודה ל-Cowork.</em></div></td>`;
+    }
+    tbodyDone.appendChild(rr);
+  });
+
+  tbodyDone.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest(".venue-btn");
+    if (!btn) return;
+    const key = btn.dataset.eventKey;
+    const row = tbodyDone.querySelector(`tr.venue-research-row[data-event-key="${key}"]`);
+    const hasResearch = btn.classList.contains("has-research");
+
+    if (hasResearch) {
+      const isOpen = row.classList.toggle("expanded");
+      btn.classList.toggle("expanded", isOpen);
+      btn.textContent = isOpen ? "📍 סגור מחקר ▲" : "📍 הצגת מחקר ▼";
+      if (isOpen) row.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      const eventName  = btn.dataset.eventName;
+      const eventDates = btn.dataset.eventDates;
+      const eventTier  = btn.dataset.eventTier;
+      const prompt = `Run the MBS Venue Research skill for the event below. Read SKILL.md at mbs-venue-research/SKILL.md FIRST.
+
+EVENT
+  Name:  ${eventName}
+  Dates: ${eventDates}
+  Tier:  Tier ${eventTier}
+
+Look up the venue address in EVENT_DATA.md "Venue Master List 2026". If missing — ASK Lauren.
+
+Run STEPS 1-10 from the skill: profile, web research (5-7 searches), contract criteria checklist (sqft 2,500+ / free parking / direct load-in / capacity), MBS optimal-profile comparison, location-driven insights, 3+ alternative venues, scoped HTML block, insert into mbs_dashboard.html as window.VENUE_RESEARCH["${key}"], deploy to GH Pages with sanity check. End: confirm dashboard button is green and accordion opens.`;
+
+      try {
+        await navigator.clipboard.writeText(prompt);
+        const original = btn.textContent;
+        btn.classList.add("copied");
+        btn.textContent = "✓ הועתק! הדביקי ב-Cowork";
+        setTimeout(() => {
+          btn.classList.remove("copied");
+          btn.textContent = original;
+        }, 3500);
+      } catch (err) {
+        row.querySelector(".venue-research-content").innerHTML =
+          `<strong>העתיקי את הפקודה הבאה ל-Cowork:</strong><pre style="white-space:pre-wrap;direction:ltr;text-align:left;font-size:11px;background:#fff;padding:10px;border-radius:6px;border:1px solid #ddd;">${prompt.replace(/</g,"&lt;")}</pre>`;
+        row.classList.add("expanded");
+      }
+    }
   });
 
   // Render pending / upcoming
@@ -548,69 +774,55 @@ const SEASON = {
     const start = document.getElementById("evt-start").value;
     const end   = document.getElementById("evt-end").value;
     const tier  = document.getElementById("evt-tier").value;
-
-    if (!name || !start || !end) {
-      return null;
-    }
-
+    if (!name || !start || !end) return null;
     const fmtDate = (iso) => {
       const [y, m, d] = iso.split("-");
       const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
       return `${months[parseInt(m,10)-1]} ${parseInt(d,10)}, ${y}`;
     };
-    const fmtMDY = (iso) => {
-      const [y, m, d] = iso.split("-");
-      return `${m}/${d}/${y}`;
-    };
-
-    return `Run the MBS Event Summary agent for the event below. Read SKILL.md at mbs-event-summary/SKILL.md FIRST, then MEMORY.md (especially §16-26, the Louisville lessons). Follow the Request Package workflow — no live scraping of OctoPos/QB/Meta/TikTok.
+    const fmtMDY = (iso) => { const [y,m,d] = iso.split("-"); return `${m}/${d}/${y}`; };
+    const citySlug = name.split(',')[0].trim();
+    return `Run the MBS Event Summary agent for the event below. Read SKILL.md at mbs-event-summary/SKILL.md FIRST, then MEMORY.md (especially §16-26, the Louisville lessons). Follow the Request Package workflow.
 
 EVENT
   Name:  ${name}
   Dates: ${fmtDate(start)} → ${fmtDate(end)}
   Tier:  Tier ${tier}
 
-STEP 2 — Ask Lauren for the following 7-item package and wait until all arrive:
-  1. Manager's cash report (PDF) — staff cash + Other + register reconciliation. Per §23, mark Brit as "מנהלת" (Manager).
-  2. OctoPos SALES SUMMARY (NOT items report) — must contain Net Sales, #Tx, Avg ticket, Cash/Credit split. If only Items-by-Sales report is provided, ASK explicitly for Net Sales / #Tx / Avg as standalone numbers (§16). Items report is fine for Top 10 products.
-  3. Meta Ads Manager CSV — filtered to "${name}" for ${fmtMDY(start)}–${fmtMDY(end)}.
-  4. TikTok Ads Manager XLSX — filtered to "${name}" for same window. ⚠️ When summing, EXCLUDE the auto-summary row where Ad group name == "-" / Ad name starts with "Total of N results" (§21 — caused $2,679 double-count in Louisville).
-  5. Event tab in the 2026 P&L sheet prepped — inventory, Misc, Gas, Shipping, Venue Rent rows ready. (Per §24, if previous event's drive-route shared inventory, low inventory is intentional, not anomaly.)
-  6. QB transactions pasted into cols K+ — tag "${name} ${start.slice(0,4)}" in col R. Layout: Q=Amount, N=Category, R=Tags.
-  7. Venue address (hotel name + full street address). Look up first in EVENT_DATA.md "Venue Master List 2026"; ask Lauren only if missing. Mandatory for §22 venue research.
+STEP 2 — 7-item package (wait until all arrive):
+  1. Manager's cash report PDF (Brit = Manager per §23)
+  2. OctoPos SALES SUMMARY (NOT items report — per §16). Net Sales/#Tx/Avg/Cash-Credit + Top 10 products.
+  3. Meta Ads CSV filtered to "${name}", ${fmtMDY(start)}–${fmtMDY(end)}.
+  4. TikTok XLSX filtered to "${name}". ⚠️ Exclude "Total of N results" row (Ad group="-") per §21.
+  5. Event tab prepped (inventory/Misc/Gas/Shipping/Venue Rent).
+  6. QB transactions in cols K+, tag "${name} ${start.slice(0,4)}" in col R.
+  7. Venue address — look up in EVENT_DATA.md Master List 2026; ask Lauren only if missing.
 
-THEN BUILD (15–25 min — venue research adds 5-10 min):
-  • Populate event tab H-I cells via DIRECT CLICK navigation (no form_input on Name Box, §3). Minus rule. SUMIFS for QB rows.
-  • TRAVEL split into 3 separate rows in P&L (§25.1):
-    🚗 Car rental:    =SUMIFS(Q:Q,N:N,"*Rental*",R:R,"*${name.split(',')[0].trim()}*")
-    🛏️ Accommodations: =SUMIFS(Q:Q,N:N,"*Accommodation*",R:R,"*${name.split(',')[0].trim()}*")
-    ✈️ Flights+Lyft:   =SUMIFS(Q:Q,N:N,"*Airfare*",R:R,"*${name.split(',')[0].trim()}*") + SUMIFS(Q:Q,N:N,"*Transportation*",R:R,"*${name.split(',')[0].trim()}*")
-  • BEN SIMON → Total Shipping inventory (Driver) row (§20). Other Subcontractors → Warehouse Worker.
-  • Replace staff names to match cash report (cash-report-canonical rule). Mark Brit as Manager (§23) with highlighted row in deliverables.
-  • Compare to PRE-event averages (N−1).
+THEN BUILD (15-25 min):
+  • Populate H-I cells via direct click (§3). Travel split into 3 rows (§25.1):
+    🚗 Car rental:    =SUMIFS(Q:Q,N:N,"*Rental*",R:R,"*${citySlug}*")
+    🛏️ Accommodations: =SUMIFS(Q:Q,N:N,"*Accommodation*",R:R,"*${citySlug}*")
+    ✈️ Flights+Lyft:   =SUMIFS(Q:Q,N:N,"*Airfare*",R:R,"*${citySlug}*") + SUMIFS(Q:Q,N:N,"*Transportation*",R:R,"*${citySlug}*")
+  • BEN SIMON → Total Shipping (Driver) per §20.
+  • Brit highlighted as ⭐ Manager (§23).
+  • Compare to PRE-event averages (N-1).
   • Compute Cost/txn, Δ/customer, ROAS, CPA.
-  • Flag anomalies >25% off avg. East Coast +$2-3K travel is expected, not anomaly. Inventory low after back-to-back is intentional (§24).
-  • STEP 5.5 MANDATORY VENUE RESEARCH (§22 + §25.4): web-search ZIP demographics, Walk Score, area character, foot traffic, ≥2 alternative hotel/venue recommendations in same city. For marginal/loss events, do FULL deep research. For strong profit, document "what good looks like." NEVER placeholder "ממתין לכתובת".
-  • Generate Hebrew .docx for NotebookLM (voice: syracuse_summary_hebrew.docx).
-  • Generate standalone event detail HTML (structure: syracuse_event_detail.html — ClickFunnels-safe scoping per §14.5).
-  • Output file ordering (§25.5): Header → Bottom Line → Event Details → P&L (with travel split) → Inventory explanation → Marketing → Staff/Driver → Story → Insights → YTD → ════ → VENUE RESEARCH AT BOTTOM → Footer.
-  • DO NOT include "לאירוע הבא: [next city]" section (§25.2). The next event will get its own summary.
-  • DO NOT include TikTok bug callouts in deliverables (Lauren said not relevant, 2026-04-29).
+  • Inventory low after back-to-back drive = intentional, not anomaly (§24).
+  • STEP 5.5 MANDATORY VENUE RESEARCH (§22 + §25.4): ZIP demographics, Walk Score, area, ≥2 alt venues. Marginal/loss = full deep research.
+  • Generate Hebrew docx + event detail HTML (ClickFunnels-safe per §14.5).
+  • Output ordering (§25.5): Header → Bottom Line → Event Details → P&L (travel split) → Inventory note → Marketing → Staff/Driver → Story → Insights → YTD → ════ → VENUE RESEARCH AT BOTTOM → Footer.
+  • DO NOT: "לאירוע הבא" section (§25.2). DO NOT: TikTok bug callouts in deliverables.
 
-CLOSEOUT (MANDATORY — §26):
-  1. Ask Lauren for the ClickFunnels event-page URL: "מה ה-URL של דף ${name.split(',')[0].trim()} בClickFunnels?" Wait for response. Never invent.
-  2. Update MAIN ClickFunnels dashboard (state/clickfunnels_dashboard.html):
-     - Insert new <tr> for this event with the URL embedded in <a class="detail-btn">
-     - Refresh KPI cards (sales/profit/N/avg/margin) + averages grid (inventory/team/marketing/venue/travel/meals/other)
-     - Move event from future-row → completed; add new future-row for next event
-     - Bump V## version
-     - Save to state/, archive/, AND outputs/ (UTF-8 wrapped per §19 for Cowork preview)
-  3. Update INTERNAL Agent Hub mbs_dashboard.html: SEASON.events array — set this event status:"done" with verified P&L. Hand off to deploy-dashboard for GitHub Pages push.
-  4. Update agent_hub.html mbs.lastRun.
-  5. Update AVERAGES.md (N+1) with verified totals.
-  6. Append run log to outputs/mbs-event-summary_<date>_<time>PDT_report.md.
-  7. Update MEMORY.md if new lesson surfaced.
-  8. End-of-summary message must include: 🔴 dashboard V## ready for paste OR 🔴 missing URL flag.`;
+CLOSEOUT (§26 + §26.5 — MANDATORY):
+  1. Ask Lauren for ClickFunnels event-page URL. Wait. Never invent.
+  2. Update MAIN ClickFunnels dashboard (state + archive + outputs UTF-8 wrapped).
+  3. Update INTERNAL Agent Hub mbs_dashboard.html (SEASON.events status:"done" + slug field).
+  4. agent_hub.html mbs.lastRun + AVERAGES.md (N+1) + run log + MEMORY.md if new lesson.
+  5. Sanity check (per §26.5 Louisville truncation lesson): <\/script>×2, <\/body>×1, <\/html>×1, node --check passes.
+  6. Deploy to GH Pages (clone repo, copy files, push).
+  7. End-of-summary: 🔴 dashboard V## ready / 🔴 missing URL flag.
+
+After event summary done, optionally run mbs-venue-research skill for deeper venue analysis.`;
   }
 
   runBtn.addEventListener("click", async () => {
@@ -626,7 +838,6 @@ CLOSEOUT (MANDATORY — §26):
     preview.classList.add("show");
     preview.style.borderColor = "#E91E63";
     preview.style.color = "#6A1B9A";
-
     try {
       await navigator.clipboard.writeText(cmd);
       runBtn.textContent = "✓ הפקודה הועתקה!";
@@ -638,12 +849,10 @@ CLOSEOUT (MANDATORY — §26):
         toast.classList.remove("show");
       }, 3000);
     } catch (err) {
-      // clipboard blocked — preview is still visible for manual copy
       runBtn.textContent = "📋 העתיקי מהתצוגה למטה";
     }
   });
 
-  // Auto-fill from first pending event for convenience
   const firstPending = SEASON.events.find(e => e.status === 'tbd' || e.status === 'future');
   if (firstPending) {
     document.getElementById("evt-name").value = `${firstPending.city}, ${firstPending.state}`;
