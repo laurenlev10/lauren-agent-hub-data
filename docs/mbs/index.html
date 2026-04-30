@@ -589,4 +589,67 @@ THEN BUILD (15–25 min — venue research adds 5-10 min):
   • Replace staff names to match cash report (cash-report-canonical rule). Mark Brit as Manager (§23) with highlighted row in deliverables.
   • Compare to PRE-event averages (N−1).
   • Compute Cost/txn, Δ/customer, ROAS, CPA.
-  • Flag anomalies >25% off avg. East Coast +$2-3K travel is expected, not anomaly. Inventory low after back-to-back is intentio
+  • Flag anomalies >25% off avg. East Coast +$2-3K travel is expected, not anomaly. Inventory low after back-to-back is intentional (§24).
+  • STEP 5.5 MANDATORY VENUE RESEARCH (§22 + §25.4): web-search ZIP demographics, Walk Score, area character, foot traffic, ≥2 alternative hotel/venue recommendations in same city. For marginal/loss events, do FULL deep research. For strong profit, document "what good looks like." NEVER placeholder "ממתין לכתובת".
+  • Generate Hebrew .docx for NotebookLM (voice: syracuse_summary_hebrew.docx).
+  • Generate standalone event detail HTML (structure: syracuse_event_detail.html — ClickFunnels-safe scoping per §14.5).
+  • Output file ordering (§25.5): Header → Bottom Line → Event Details → P&L (with travel split) → Inventory explanation → Marketing → Staff/Driver → Story → Insights → YTD → ════ → VENUE RESEARCH AT BOTTOM → Footer.
+  • DO NOT include "לאירוע הבא: [next city]" section (§25.2). The next event will get its own summary.
+  • DO NOT include TikTok bug callouts in deliverables (Lauren said not relevant, 2026-04-29).
+
+CLOSEOUT (MANDATORY — §26):
+  1. Ask Lauren for the ClickFunnels event-page URL: "מה ה-URL של דף ${name.split(',')[0].trim()} בClickFunnels?" Wait for response. Never invent.
+  2. Update MAIN ClickFunnels dashboard (state/clickfunnels_dashboard.html):
+     - Insert new <tr> for this event with the URL embedded in <a class="detail-btn">
+     - Refresh KPI cards (sales/profit/N/avg/margin) + averages grid (inventory/team/marketing/venue/travel/meals/other)
+     - Move event from future-row → completed; add new future-row for next event
+     - Bump V## version
+     - Save to state/, archive/, AND outputs/ (UTF-8 wrapped per §19 for Cowork preview)
+  3. Update INTERNAL Agent Hub mbs_dashboard.html: SEASON.events array — set this event status:"done" with verified P&L. Hand off to deploy-dashboard for GitHub Pages push.
+  4. Update agent_hub.html mbs.lastRun.
+  5. Update AVERAGES.md (N+1) with verified totals.
+  6. Append run log to outputs/mbs-event-summary_<date>_<time>PDT_report.md.
+  7. Update MEMORY.md if new lesson surfaced.
+  8. End-of-summary message must include: 🔴 dashboard V## ready for paste OR 🔴 missing URL flag.`;
+  }
+
+  runBtn.addEventListener("click", async () => {
+    const cmd = buildCommand();
+    if (!cmd) {
+      preview.textContent = "⚠ אנא מלאי שם אירוע, תאריך התחלה ותאריך סיום";
+      preview.classList.add("show");
+      preview.style.borderColor = "#F44336";
+      preview.style.color = "#C62828";
+      return;
+    }
+    preview.textContent = cmd;
+    preview.classList.add("show");
+    preview.style.borderColor = "#E91E63";
+    preview.style.color = "#6A1B9A";
+
+    try {
+      await navigator.clipboard.writeText(cmd);
+      runBtn.textContent = "✓ הפקודה הועתקה!";
+      runBtn.classList.add("copied");
+      toast.classList.add("show");
+      setTimeout(() => {
+        runBtn.textContent = "▶ Run Event Summary";
+        runBtn.classList.remove("copied");
+        toast.classList.remove("show");
+      }, 3000);
+    } catch (err) {
+      // clipboard blocked — preview is still visible for manual copy
+      runBtn.textContent = "📋 העתיקי מהתצוגה למטה";
+    }
+  });
+
+  // Auto-fill from first pending event for convenience
+  const firstPending = SEASON.events.find(e => e.status === 'tbd' || e.status === 'future');
+  if (firstPending) {
+    document.getElementById("evt-name").value = `${firstPending.city}, ${firstPending.state}`;
+    document.getElementById("evt-tier").value = firstPending.tier;
+  }
+</script>
+
+</body>
+</html>
