@@ -320,12 +320,12 @@
 <script id="dashboard-data">
 const SEASON = {
   year: 2026,
-  completedEvents: 14,
+  completedEvents: 16,
   avgs: {
-    sales: 50335, profit: 8106, margin: 16.1
+    sales: 49345, profit: 6650, margin: 13.5
   },
   totals: {
-    sales: 704684, profit: 113481
+    sales: 789514, profit: 106404
   },
   events: [
     { n:1, city:"Glendale",        state:"AZ", dates:"Jan 9-11",    tier:2, sales:51993, profit:7794,   margin:15.0, note:"", status:"done" },
@@ -336,14 +336,15 @@ const SEASON = {
     { n:6, city:"Burbank",         state:"CA", dates:"Feb 13-15",   tier:3, sales:36745, profit:1678,   margin:4.6,  note:"13mo return · high venue", status:"done" },
     { n:7, city:"North Las Vegas", state:"NV", dates:"Feb 20-22",   tier:2, sales:92658, profit:42693,  margin:46.1, note:"🏆 Best 2026", status:"done" },
     { n:8, city:"Amarillo",        state:"TX", dates:"Feb 27-Mar 1",tier:3, sales:53928, profit:5418,   margin:10.1, note:"", status:"done" },
-    { n:9, city:"Garland",         state:"TX", dates:"Mar 6-8",     tier:3, sales:36669, profit:-7547,  margin:-20.6,note:"❌ Winter Storm Fern", status:"done" },
-    { n:10,city:"Fort Worth",      state:"TX", dates:"Mar 13-15",   tier:3, sales:58230, profit:20378,  margin:35.0, note:"💪 Strong", status:"done" },
-    { n:11,city:"Tulsa",           state:"OK", dates:"Mar 20-22",   tier:3, sales:38640, profit:768,    margin:2.0,  note:"Venue+hotel bundle deal", status:"done" },
+    { n:9, city:"Garland",         state:"TX", dates:"Mar 6-8",     tier:3, sales:36999, profit:-5434,  margin:-14.7,note:"❌ Winter Storm Fern", status:"done" },
+    { n:10,city:"Fort Worth",      state:"TX", dates:"Mar 13-15",   tier:3, sales:50474, profit:17612,  margin:34.9, note:"🌟 Strong", status:"done" },
+    { n:11,city:"Tulsa",           state:"OK", dates:"Mar 20-22",   tier:3, sales:38050, profit:768,    margin:2.0,  note:"Venue+hotel bundle deal", status:"done" },
     { n:12,city:"Hampton",         state:"VA", dates:"Mar 27-29",   tier:2, sales:34033, profit:-11628, margin:-34.2,note:"❌ New market · demo mismatch · ROAS 5.2x", status:"done" },
-    { n:13,city:"Syracuse",        state:"NY", dates:"Apr 3-5",     tier:3, sales:34930, profit:7314,   margin:20.9, note:"🆕 שוק חדש · מלאי רזה · דמוגרפיה חלשה", status:"done" },
+    { n:13,city:"Syracuse",        state:"NY", dates:"Apr 3-5",     tier:3, sales:34930, profit:-9328,  margin:-26.7,note:"❌ Corrected: TikTok minus rule fix · Inventory P&L source", status:"done" },
     { n:14,city:"Reading",         state:"PA", dates:"Apr 10-12",   tier:3, sales:43532, profit:-8381,  margin:-19.3,note:"❌ East Coast premium · 68% Hispanic · first-time market", status:"done" },
-    { n:15,city:"Columbus",        state:"OH", dates:"Apr 17-19",   tier:2, sales:null,  profit:null,   margin:null, note:"This weekend", status:"future" },
-    { n:16,city:"Louisville",      state:"KY", dates:"Apr 24-26",   tier:3, sales:null,  profit:null,   margin:null, note:"", status:"future" }
+    { n:15,city:"Columbus",        state:"OH", dates:"Apr 17-19",   tier:2, sales:48958, profit:7152,   margin:14.6, note:"✅ שבירת רצף 4 הפסדים · drove from Reading", status:"done" },
+    { n:16,city:"Louisville",      state:"KY", dates:"Apr 24-26",   tier:3, sales:35872, profit:2413,   margin:6.7,  note:"✅ Marginal profit · 666 tx · ROAS 4.80× · Crowne Plaza airport zone (Walk Score 31) · venue research → Holiday Inn East-Hurstbourne for return", status:"done" },
+    { n:17,city:"Nashville",       state:"TN", dates:"May 1-3",     tier:3, sales:null,  profit:null,   margin:null, note:"This weekend", status:"future" }
   ]
 };
 </script>
@@ -562,70 +563,30 @@ const SEASON = {
       return `${m}/${d}/${y}`;
     };
 
-    return `Run the MBS Event Summary agent for the event below. Read the SKILL.md at mbs-event-summary/SKILL.md FIRST and follow the Request Package workflow (no live scraping of OctoPos/QB/Meta/TikTok).
+    return `Run the MBS Event Summary agent for the event below. Read SKILL.md at mbs-event-summary/SKILL.md FIRST, then MEMORY.md (especially §16-26, the Louisville lessons). Follow the Request Package workflow — no live scraping of OctoPos/QB/Meta/TikTok.
 
 EVENT
   Name:  ${name}
   Dates: ${fmtDate(start)} → ${fmtDate(end)}
   Tier:  Tier ${tier}
 
-STEP 2 — Ask me for the following 6-item package and wait until all arrive:
-  1. Manager's cash report (PDF) — staff cash + Other expenses + register reconciliation
-  2. OctoPos sales summary (screenshot or paste) — Net Sales, #Tx, Avg, cash/credit, Top 10 products
-  3. Meta Ads Manager CSV — filtered to "${name}" for ${fmtMDY(start)}–${fmtMDY(end)}
-  4. TikTok Ads Manager XLSX — filtered to "${name}" for same window
-  5. Confirmation the event tab in the 2026 P&L sheet is prepped (inventory, Misc, Gas, Shipping, Venue row ready)
-  6. Confirmation QB transactions are pasted into cols K+ of the event tab (tag "${name} ${start.slice(0,4)}" in col R)
+STEP 2 — Ask Lauren for the following 7-item package and wait until all arrive:
+  1. Manager's cash report (PDF) — staff cash + Other + register reconciliation. Per §23, mark Brit as "מנהלת" (Manager).
+  2. OctoPos SALES SUMMARY (NOT items report) — must contain Net Sales, #Tx, Avg ticket, Cash/Credit split. If only Items-by-Sales report is provided, ASK explicitly for Net Sales / #Tx / Avg as standalone numbers (§16). Items report is fine for Top 10 products.
+  3. Meta Ads Manager CSV — filtered to "${name}" for ${fmtMDY(start)}–${fmtMDY(end)}.
+  4. TikTok Ads Manager XLSX — filtered to "${name}" for same window. ⚠️ When summing, EXCLUDE the auto-summary row where Ad group name == "-" / Ad name starts with "Total of N results" (§21 — caused $2,679 double-count in Louisville).
+  5. Event tab in the 2026 P&L sheet prepped — inventory, Misc, Gas, Shipping, Venue Rent rows ready. (Per §24, if previous event's drive-route shared inventory, low inventory is intentional, not anomaly.)
+  6. QB transactions pasted into cols K+ — tag "${name} ${start.slice(0,4)}" in col R. Layout: Q=Amount, N=Category, R=Tags.
+  7. Venue address (hotel name + full street address). Look up first in EVENT_DATA.md "Venue Master List 2026"; ask Lauren only if missing. Mandatory for §22 venue research.
 
-THEN BUILD (10–15 min):
-  • Populate event tab H-I cells via direct click navigation (minus rule, SUMIFS for QB rows: Q=Amount, N=Category, R=Tags)
-  • Replace staff names to match cash report (cash-report-canonical rule)
-  • Compare to PRE-event averages (N−1, not N)
-  • Compute Cost/txn, Δ per customer, ROAS, CPA
-  • Flag anomalies >25% off avg (remember: East Coast +$2-3K travel is expected, not anomaly)
-  • Generate Hebrew .docx for NotebookLM (voice: syracuse_summary_hebrew.docx)
-  • Generate standalone event detail HTML (structure: syracuse_event_detail.html)
-  • Update this MBS dashboard (move event from pending → done, refresh KPIs + averages)
-  • Append run log, update MEMORY.md if new rule surfaced`;
-  }
-
-  runBtn.addEventListener("click", async () => {
-    const cmd = buildCommand();
-    if (!cmd) {
-      preview.textContent = "⚠ אנא מלאי שם אירוע, תאריך התחלה ותאריך סיום";
-      preview.classList.add("show");
-      preview.style.borderColor = "#F44336";
-      preview.style.color = "#C62828";
-      return;
-    }
-    preview.textContent = cmd;
-    preview.classList.add("show");
-    preview.style.borderColor = "#E91E63";
-    preview.style.color = "#6A1B9A";
-
-    try {
-      await navigator.clipboard.writeText(cmd);
-      runBtn.textContent = "✓ הפקודה הועתקה!";
-      runBtn.classList.add("copied");
-      toast.classList.add("show");
-      setTimeout(() => {
-        runBtn.textContent = "▶ Run Event Summary";
-        runBtn.classList.remove("copied");
-        toast.classList.remove("show");
-      }, 3000);
-    } catch (err) {
-      // clipboard blocked — preview is still visible for manual copy
-      runBtn.textContent = "📋 העתיקי מהתצוגה למטה";
-    }
-  });
-
-  // Auto-fill from first pending event for convenience
-  const firstPending = SEASON.events.find(e => e.status === 'tbd');
-  if (firstPending) {
-    document.getElementById("evt-name").value = `${firstPending.city}, ${firstPending.state}`;
-    document.getElementById("evt-tier").value = firstPending.tier;
-  }
-</script>
-
-</body>
-</html>
+THEN BUILD (15–25 min — venue research adds 5-10 min):
+  • Populate event tab H-I cells via DIRECT CLICK navigation (no form_input on Name Box, §3). Minus rule. SUMIFS for QB rows.
+  • TRAVEL split into 3 separate rows in P&L (§25.1):
+    🚗 Car rental:    =SUMIFS(Q:Q,N:N,"*Rental*",R:R,"*${name.split(',')[0].trim()}*")
+    🛏️ Accommodations: =SUMIFS(Q:Q,N:N,"*Accommodation*",R:R,"*${name.split(',')[0].trim()}*")
+    ✈️ Flights+Lyft:   =SUMIFS(Q:Q,N:N,"*Airfare*",R:R,"*${name.split(',')[0].trim()}*") + SUMIFS(Q:Q,N:N,"*Transportation*",R:R,"*${name.split(',')[0].trim()}*")
+  • BEN SIMON → Total Shipping inventory (Driver) row (§20). Other Subcontractors → Warehouse Worker.
+  • Replace staff names to match cash report (cash-report-canonical rule). Mark Brit as Manager (§23) with highlighted row in deliverables.
+  • Compare to PRE-event averages (N−1).
+  • Compute Cost/txn, Δ/customer, ROAS, CPA.
+  • Flag anomalies >25% off avg. East Coast +$2-3K travel is expected, not anomaly. Inventory low after back-to-back is intentio
