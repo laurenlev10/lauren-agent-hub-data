@@ -84,6 +84,30 @@
   .agent-architect .run-btn:hover { background: linear-gradient(180deg, #7c3aed, #6d28d9); }
   .agent-architect .lastRun b { color: #7c3aed; }
 
+  /* City Scout (orange) */
+  .agent-scout { border: 2px solid #ea580c; background: linear-gradient(180deg, #fff7ed, #fff); }
+  .agent-scout:hover { border-color: #c2410c; box-shadow: 0 8px 24px rgba(234, 88, 12, 0.18); }
+  .agent-scout .run-btn { background: linear-gradient(180deg, #fb923c, #ea580c); box-shadow: 0 1px 2px rgba(251, 146, 60, 0.3); }
+  .agent-scout .run-btn:hover { background: linear-gradient(180deg, #ea580c, #c2410c); }
+  .agent-scout .run-btn.copied { background: linear-gradient(180deg, #4ade80, #16a34a); }
+  .agent-scout .lastRun b { color: #ea580c; }
+  .scout-form { display: grid; grid-template-columns: 1.4fr 0.6fr 1fr; gap: 6px; margin: 10px 0; }
+  .scout-form input, .scout-form select {
+    width: 100%; padding: 8px 10px; border: 1.5px solid #fed7aa; border-radius: 8px;
+    font-family: inherit; font-size: 13px; color: #2D3436; background: #fff; transition: all 0.2s ease;
+  }
+  .scout-form input:focus, .scout-form select:focus { outline: none; border-color: #ea580c; box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12); }
+  .scout-reports-list { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #fed7aa; font-size: 12px; }
+  .scout-reports-list .scout-report-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; border-bottom: 1px dotted #fed7aa;
+  }
+  .scout-reports-list .scout-report-item:last-child { border-bottom: none; }
+  .scout-reports-list a { color: #ea580c; text-decoration: none; font-weight: 600; }
+  .scout-reports-list a:hover { text-decoration: underline; }
+  .scout-reports-list .score { background: #fff7ed; color: #c2410c; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .scout-reports-empty { color: #999; font-size: 12px; font-style: italic; padding: 6px 0; }
+
   /* Senior orchestrator (event-manager — emerald) */
   .agent-manager { border: 2px solid #059669; background: linear-gradient(180deg, #ecfdf5, #fff); position: relative; }
   .agent-manager::before {
@@ -108,10 +132,15 @@ const HUB = {
   meta:      { lastRun: "Thursday, April 23 · 12:50" },
   housing:   { lastRun: "Wednesday, April 29 · 09:19" },
   mbs:       { lastRun: "Wednesday, April 29 · 23:50 — Louisville KY (profit +$2,413, TikTok bug fixed)" },
+  scout:     { lastRun: "—" },
   canva:     { lastRun: "Tuesday, April 28 · 09:17 — 6 images (locked-in 2026)" },
   launch:    { lastRun: "Tuesday, April 28 · 12:26 — Santa Maria, CA (✓)" },
   sms:       { lastRun: "—" }
 };
+// Past city-scout reports (agent appends here after each successful scout)
+const SCOUT_REPORTS = [
+  // { city: "Lancaster", state: "CA", date: "2026-04-30", url: "scout/lancaster-ca/", score: 22 }
+];
 </script>
 
 <header>
@@ -187,6 +216,32 @@ const HUB = {
     <div class="run-hint">Copies the command — paste (Ctrl+V) in Cowork chat</div>
   </div>
 
+  <div class="agent agent-scout">
+    <div class="icon">🔍</div>
+    <div class="name">City Scout</div>
+    <div class="desc">מחקר עיר לפני נסיעת סקאוט — דמוגרפיה, top 5-10 מועמדי וונו (מלונות / convention centers / banquet halls — בלי מותגי פרמיום), צ'ק-ליסט חוזה להדפסה, ערים סמוכות באזור. דו"ח עברית RTL ב-URL לשיתוף.</div>
+    <div class="lastRun">Last run: <b id="scout-lastRun">—</b></div>
+
+    <div class="scout-form">
+      <input type="text" id="scout-city" placeholder="עיר (לדוגמה: Lancaster)" autocomplete="off">
+      <input type="text" id="scout-state" placeholder="ST" maxlength="2" style="text-transform:uppercase" autocomplete="off">
+      <select id="scout-month">
+        <option value="">חודש (אופציונלי)</option>
+        <option>Jan</option><option>Feb</option><option>Mar</option>
+        <option>Apr</option><option>May</option><option>Jun</option>
+        <option>Jul</option><option>Aug</option><option>Sep</option>
+        <option>Oct</option><option>Nov</option><option>Dec</option>
+      </select>
+    </div>
+
+    <button class="run-btn" id="scout-btn">🔍 העתיקי פקודת סקאוט</button>
+    <div class="run-hint">מלאי עיר + ST → לחצי לכפתור → הדביקי בשיחת Cowork חדשה. הסוכן יכין דו"ח 10-15 דקות.</div>
+
+    <div class="scout-reports-list" id="scout-reports-list">
+      <div class="scout-reports-empty">עדיין לא הורצו דוחות סקאוט. דו"ח ראשון יופיע כאן אחרי שהסוכן יסיים.</div>
+    </div>
+  </div>
+
   <div class="agent">
     <a href="canva/" style="text-decoration:none;color:inherit;display:block">
       <div class="icon">🎨</div>
@@ -229,6 +284,7 @@ const HUB = {
   document.getElementById("meta-lastRun").textContent      = HUB.meta.lastRun      || "—";
   document.getElementById("housing-lastRun").textContent   = HUB.housing.lastRun   || "—";
   document.getElementById("mbs-lastRun").textContent       = HUB.mbs.lastRun       || "—";
+  document.getElementById("scout-lastRun").textContent     = HUB.scout.lastRun     || "—";
   document.getElementById("canva-lastRun").textContent     = HUB.canva.lastRun     || "—";
   document.getElementById("launch-lastRun").textContent    = HUB.launch.lastRun    || "—";
   document.getElementById("sms-lastRun").textContent       = HUB.sms.lastRun       || "—";
@@ -249,3 +305,61 @@ const HUB = {
       }
     });
   });
+
+  // ===== CITY SCOUT FORM =====
+  const scoutBtn = document.getElementById("scout-btn");
+  scoutBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const city = document.getElementById("scout-city").value.trim();
+    const state = document.getElementById("scout-state").value.trim().toUpperCase();
+    const month = document.getElementById("scout-month").value;
+    if (!city || !state || state.length !== 2) {
+      const original = scoutBtn.textContent;
+      scoutBtn.textContent = "⚠ מלאי עיר + ST (2 אותיות)";
+      scoutBtn.style.background = "linear-gradient(180deg, #fca5a5, #dc2626)";
+      setTimeout(() => { scoutBtn.textContent = original; scoutBtn.style.background = ""; }, 2500);
+      return;
+    }
+    const slug = (city + "-" + state).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const monthLine = month ? `\n  Target month: ${month}` : "";
+    const cmd = `Run the MBS City Scout skill for the city below. Read SKILL.md at mbs-city-scout/SKILL.md FIRST.
+
+CITY
+  Name:  ${city}, ${state}${monthLine}
+
+Look up if this city is already in EVENT_DATA.md Master List 2026:
+  • If YES (already a confirmed event) → recommend running mbs-venue-research instead.
+  • If NO → proceed with full city scout per skill STEPS 1-11.
+
+Run STEPS 1-11 from the skill: city profile, MBS optimal-profile match score, top 3-5 neighborhoods, 5-10 venue candidates (mid-tier brands or convention/banquet/mall ONLY — AVOID Hilton full / Marriott full / Westin / Ritz / Sheraton Grand / Hyatt Regency, sqft must be ≥2,500), printable contract criteria checklist, 3-5 nearby cities to scout same trip, timing recommendations, build Hebrew RTL HTML scoped to .mbs-scout, deploy to docs/scout/${slug}/index.html on GH Pages, update agent_hub.html SCOUT_REPORTS array + HUB.scout.lastRun and redeploy hub. Sanity check before push.
+
+End: confirm scout report URL https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/ is live and a new card appears under City Scout in the hub.`;
+
+    try {
+      await navigator.clipboard.writeText(cmd);
+      const original = scoutBtn.textContent;
+      scoutBtn.textContent = "✓ הועתק! הדביקי בשיחת Cowork חדשה";
+      scoutBtn.classList.add("copied");
+      setTimeout(() => { scoutBtn.textContent = original; scoutBtn.classList.remove("copied"); }, 3500);
+    } catch (err) {
+      alert("Copy failed. Command:\n\n" + cmd);
+    }
+  });
+
+  // Render past scout reports
+  const reportsList = document.getElementById("scout-reports-list");
+  if (SCOUT_REPORTS && SCOUT_REPORTS.length > 0) {
+    reportsList.innerHTML = SCOUT_REPORTS
+      .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+      .map(r => `
+        <div class="scout-report-item">
+          <a href="${r.url}" target="_blank">📄 ${r.city}, ${r.state}</a>
+          <span style="color:#999;font-size:11px;">${r.date}</span>
+          <span class="score">${r.score}/25</span>
+        </div>
+      `).join("");
+  }
+</script>
+
+</body>
+</html>
