@@ -110,7 +110,7 @@ const CHECKLIST = [
 
   // T-21 — Asset prep + initial agent runs
   { id:"images_generated",        label:"Generate per-city event images (Canva)",                                 owner:"@canva",          timing:"T-21", critical:false, auto_check:true,  tier:"one-click", command_kind:"canva",    hint:"Run @canva. Outputs go to /event-images/. Used for Meta posts + landing page." },
-  { id:"event_reel_for_fb_ig",    label:"Create event reel for FB & IG (Canva — manual or future @canva-reel)",   owner:"future-agent",    timing:"T-21", critical:false, auto_check:false, tier:"manual",    command_kind:null,       hint:"Currently manual in Canva. Future: @canva-reel agent (creative review still needed)." },
+  { id:"event_reel_for_fb_ig",    label:"Create event reel for FB & IG (Canva)",                                  owner:"@canva-reel",     timing:"T-21", critical:false, auto_check:true,  tier:"manual",    command_kind:"canva_reel", hint:"Triggers @canva-reel — duplicates Canva master template DAHIcf3JyqU, replaces text, swaps to POP ART background, exports MP4. You review the MP4 visually + click the auto-mark URL when satisfied." },
   { id:"facebook_event_created",  label:"Create new Facebook event (manual — future @meta agent)",                owner:"future-agent",    timing:"T-21", critical:false, auto_check:false, tier:"manual",    command_kind:null,       hint:"Currently manual on Facebook. Future: @meta agent will automate (with budget review)." },
   { id:"list_and_eventbrite",     label:"Create SimpleTexting list + Eventbrite event",                            owner:"@launch",         timing:"T-21", critical:true,  auto_check:true,  tier:"one-click", command_kind:"launch",   hint:"Triggers @launch. Verifies in 5 sec via direct API." },
   { id:"clickfunnels_3_pages",    label:"Create 3 ClickFunnels landing pages (with webFormId embed)",              owner:"future-agent",    timing:"T-21", critical:false, auto_check:false, tier:"one-click", command_kind:null,       hint:"Currently manual. Future: @clickfunnels agent will clone template + embed webFormId + Bitly." },
@@ -304,6 +304,9 @@ const CHECKLIST = [
       case "sms_ig_update":
         return skillRead("simple-texting") +
           `City: ${cityState}\nYear: ${year}\nMode: ig-update (re-run auto-responder with the latest reel link)`;
+      case "canva_reel":
+        return skillRead("canva-reel") +
+          `City: ${cityState}\nYear: ${year}\nStart date: ${startDate}\nEnd date: ${ev.end_date}`;
       default:
         return null;
     }

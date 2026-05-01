@@ -134,6 +134,7 @@ const HUB = {
   mbs:       { lastRun: "Wednesday, April 29 · 23:50 — Louisville KY (profit +$2,413, TikTok bug fixed)" },
   scout:     { lastRun: "—" },
   canva:     { lastRun: "Tuesday, April 28 · 09:17 — 6 images (locked-in 2026)" },
+  canva_reel:{ lastRun: "—" },
   launch:    { lastRun: "Tuesday, April 28 · 12:26 — Santa Maria, CA (✓)" },
   sms:       { lastRun: "—" }
 };
@@ -216,7 +217,7 @@ const SCOUT_REPORTS = [
       <div class="desc">Daily Messenger / Instagram / WhatsApp triage for Makeup Blowout Sale.</div>
       <div class="lastRun">Last run: <b id="meta-lastRun">—</b></div>
     </a>
-    <button class="run-btn" data-cmd="Read this file and follow its instructions exactly: C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\meta-inbox\\SKILL.md — it is the orchestrator for  and tells you which other files to read (triage.md, dashboard.md, comms.md, inbox_knowledge_base.docx, reported_negatives.jsonl).">▶ Run scan now</button>
+    <button class="run-btn" data-cmd="Read this file and follow its instructions exactly: C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\meta-inbox\\SKILL.md — it is the orchestrator for @meta and tells you which other files to read (triage.md, dashboard.md, comms.md, inbox_knowledge_base.docx, reported_negatives.jsonl).">▶ Run scan now</button>
     <div class="run-hint">Copies the command — paste (Ctrl+V) in Cowork chat</div>
   </div>
 
@@ -227,7 +228,7 @@ const SCOUT_REPORTS = [
       <div class="desc">On-demand search for 5+ bedroom rental homes in the West San Fernando Valley.</div>
       <div class="lastRun">Last run: <b id="housing-lastRun">—</b></div>
     </a>
-    <button class="run-btn" data-cmd="Read this file and follow its instructions exactly: C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\la-rental-search\\SKILL.md — it is the orchestrator for  and tells you which other files to read (search.md, dashboard.md, comms.md).">▶ Run search now</button>
+    <button class="run-btn" data-cmd="Read this file and follow its instructions exactly: C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\la-rental-search\\SKILL.md — it is the orchestrator for @housing and tells you which other files to read (search.md, dashboard.md, comms.md).">▶ Run search now</button>
     <div class="run-hint">Copies the command — paste (Ctrl+V) in Cowork chat</div>
   </div>
 
@@ -238,7 +239,7 @@ const SCOUT_REPORTS = [
       <div class="desc">Post-event P&amp;L — QuickBooks + OCTOPOS + Meta/TikTok Ads → full summary, Excel, Dashboard + Hebrew Word doc.</div>
       <div class="lastRun">Last run: <b id="mbs-lastRun">—</b></div>
     </a>
-    <button class="run-btn" data-cmd="Read this file and follow its instructions exactly: C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-event-summary\\SKILL.md — it is the orchestrator for . Then ask me which event to summarize.">▶ Run summary now</button>
+    <button class="run-btn" data-cmd="Read this file and follow its instructions exactly: C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-event-summary\\SKILL.md — it is the orchestrator for @mbs. Then ask me which event to summarize.">▶ Run summary now</button>
     <div class="run-hint">Copies the command — paste (Ctrl+V) in Cowork chat</div>
   </div>
 
@@ -253,6 +254,17 @@ const SCOUT_REPORTS = [
     </a>
     <a href="canva/" class="run-btn" style="text-align:center;text-decoration:none;color:#fff">🎨 פתחי טופס</a>
     <div class="run-hint">Opens the form — choose year, list cities + dates, copy command → paste in Cowork</div>
+  </div>
+
+  <div class="agent">
+    <a href="canva-reel/" style="text-decoration:none;color:inherit;display:block">
+      <div class="icon">🎬</div>
+      <div class="name">Canva Reel</div>
+      <div class="desc">On-demand — generates per-event reel MP4 from Canva master template. Phase 1: MP4 only (Bitly + auto-post in Phase 2).</div>
+      <div class="lastRun">Last run: <b id="canva-reel-lastRun">—</b></div>
+    </a>
+    <a href="canva-reel/" class="run-btn" style="text-align:center;text-decoration:none;color:#fff">🎬 פתחי טופס</a>
+    <div class="run-hint">Opens the form — fill city + dates, copy command → paste in NEW Cowork chat</div>
   </div>
 
   <div class="agent">
@@ -288,6 +300,8 @@ const SCOUT_REPORTS = [
   document.getElementById("mbs-lastRun").textContent       = HUB.mbs.lastRun       || "—";
   document.getElementById("scout-lastRun").textContent     = HUB.scout.lastRun     || "—";
   document.getElementById("canva-lastRun").textContent     = HUB.canva.lastRun     || "—";
+  const reelEl = document.getElementById("canva-reel-lastRun");
+  if (reelEl) reelEl.textContent = (HUB.canva_reel && HUB.canva_reel.lastRun) || "—";
   document.getElementById("launch-lastRun").textContent    = HUB.launch.lastRun    || "—";
   document.getElementById("sms-lastRun").textContent       = HUB.sms.lastRun       || "—";
 
@@ -356,13 +370,11 @@ End: confirm scout report URL https://laurenlev10.github.io/lauren-agent-hub-dat
       .map(r => `
         <div class="scout-report-item">
           <a href="${r.url}" target="_blank">📄 ${r.city}, ${r.state}</a>
-          <span style="color:#999;font-size:11px;">${r.date}</span>
-          <span class="score">${r.score}/25</span>
-        </div>
-      `).join("");
+          <span style="color:var(--muted);font-size:11px">${r.date || ""}${r.score ? " · score " + r.score : ""}</span>
+        </div>`)
+      .join("");
   }
 </script>
 
 </body>
 </html>
-      

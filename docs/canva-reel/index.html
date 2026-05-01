@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<title>Canva Reel — Makeup Blowout</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#f6f7fb;--card:#fff;--border:#e5e7eb;--text:#1f2937;--muted:#6b7280;--accent:#ec4899;--accent-dark:#be185d;--ok:#059669;--ok-bg:#d1fae5;--warn:#b45309;--warn-bg:#fef3c7;--err:#dc2626;--err-bg:#fee2e2; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);padding:28px 16px 60px;min-height:100vh}
+  .wrap{max-width:920px;margin:0 auto}
+  header{text-align:center;margin-bottom:18px}
+  h1{margin:0 0 6px;font-size:26px}
+  h1 .emoji{margin-right:6px}
+  .subtitle{color:var(--muted);font-size:14px}
+  a.back{font-size:13px;color:var(--accent);text-decoration:none}
+  a.back:hover{text-decoration:underline}
+  .phase-banner{background:#fef3c7;border:1px solid #facc15;color:#854d0e;border-radius:10px;padding:10px 14px;font-size:12px;margin-bottom:14px;text-align:center;line-height:1.5}
+  .phase-banner b{color:#713f12}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 2px 6px rgba(0,0,0,.04);margin-bottom:18px}
+  .card h2{margin:0 0 14px;font-size:17px;font-weight:700}
+  label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px}
+  label .hint{font-weight:400;color:var(--muted);font-size:12px}
+  input[type="text"],input[type="number"],input[type="date"],select{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .computed{background:#f9fafb;border:1px dashed var(--border);border-radius:8px;padding:10px 12px;margin-top:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#374151}
+  .computed b{color:var(--text);font-family:inherit;font-weight:600}
+  .btn{display:inline-block;padding:9px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:#fff;color:var(--muted);border:1px solid var(--border);text-decoration:none}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn-primary{background:linear-gradient(180deg,var(--accent),var(--accent-dark));color:#fff;border-color:var(--accent-dark)}
+  .btn-primary:hover{filter:brightness(1.05);color:#fff}
+  .btn.copied{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center}
+  .saved-toast{font-size:11px;color:var(--ok);font-weight:600;margin-left:6px;opacity:0;transition:opacity .3s}
+  .saved-toast.show{opacity:1}
+  .preview{margin-top:14px;background:#f9fafb;border:1px dashed var(--border);border-radius:8px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#374151;white-space:pre-wrap;line-height:1.55;max-height:380px;overflow-y:auto}
+  table.runs{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+  table.runs th{text-align:left;padding:8px;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  table.runs td{padding:8px;border-bottom:1px solid var(--border)}
+  table.runs tr:hover td{background:#fafafa}
+  .status-success{color:var(--ok);font-weight:600}
+  .status-blocked{color:var(--err);font-weight:600}
+  .footnote{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.55}
+  .footnote code{font-family:ui-monospace,monospace;background:#f3f4f6;padding:1px 4px;border-radius:3px}
+  .empty-state{color:var(--muted);font-style:italic;text-align:center;padding:24px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1><span class="emoji">🎬</span>Canva Reel</h1>
+    <div class="subtitle">Per-event reel MP4 generator — Canva master template <code>DAHIcf3JyqU</code></div>
+    <div style="margin-top:8px"><a class="back" href="../">← Back to Agent Hub</a></div>
+  </header>
+
+  <div class="phase-banner">
+    <b>Phase 1 (MVP):</b> מייצר רק MP4 מקומי. אין Bitly, אין SMS preview, אין auto-post — את עושה את כל אלה ידנית כרגע.
+    Phase 2 בעתיד יוסיף את היכולות האלו.
+  </div>
+
+  <div class="card">
+    <h2>🎬 Generate command</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 14px">מלא את פרטי האירוע, לחצי "Generate & copy", הדביקי בשיחה חדשה ב-Cowork. הסוכן יפתח את Canva, ישכפל את הטמפלט, יחליף עיר/תאריכים, יבחר רקע POP ART, וייצא MP4.</p>
+
+    <div class="row">
+      <div><label>City (City, ST)</label><input type="text" id="ev-city" placeholder="Santa Maria, CA"></div>
+      <div><label>Year</label><input type="number" id="ev-year" min="2024" max="2030" value="2026"></div>
+    </div>
+
+    <div class="row">
+      <div><label>Start date <span class="hint">(Friday)</span></label><input type="date" id="ev-start"></div>
+      <div><label>End date <span class="hint">(Sunday — auto +2 days)</span></label><input type="date" id="ev-end"></div>
+    </div>
+
+    <div class="computed" id="computed">
+      <div>Computed for the template:</div>
+      <div>• <b>CITY_STATE</b> → <span id="comp-city">—</span></div>
+      <div>• <b>DATE_RANGE</b> → <span id="comp-dates">—</span></div>
+      <div>• <b>Output file</b> → <span id="comp-output">—</span></div>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn-primary btn" id="gen-cmd">📋 Generate &amp; copy command</button>
+      <span class="saved-toast" id="cmd-copied">✓ Copied — paste in a NEW Cowork chat</span>
+    </div>
+
+    <div class="preview" id="preview">Fill the event fields above to see the command preview.</div>
+  </div>
+
+  <div class="card">
+    <h2>📊 Recent runs</h2>
+    <div id="runs-container">
+      <div class="empty-state">No runs yet. Generate a command and run it from Cowork to see results here.</div>
+    </div>
+    <p class="footnote">
+      The agent appends to this list at the end of every run. Status is <code>success</code> (MP4 created) or <code>blocked</code> (mid-flight failure). Local file paths are not clickable on GitHub Pages — they're for reference; open the file via your file manager.
+    </p>
+  </div>
+</div>
+
+<script id="dashboard-data">
+// Recent runs — appended by the agent at the end of every run.
+// Keep latest 20; oldest fall off.
+const RECENT_RUNS = [];
+</script>
+
+<script>
+  // Helpers
+  function pad(n){ return n < 10 ? "0"+n : ""+n; }
+  function fmtDateRange(start, end){
+    if (!start || !end) return "—";
+    const s = new Date(start+"T00:00:00"), e = new Date(end+"T00:00:00");
+    const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+    if (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()){
+      return `${months[s.getMonth()]} ${s.getDate()}-${e.getDate()}, ${s.getFullYear()}`;
+    }
+    return `${months[s.getMonth()]} ${s.getDate()} - ${months[e.getMonth()]} ${e.getDate()}, ${e.getFullYear()}`;
+  }
+  function citySlug(cityStr){
+    const m = (cityStr||"").match(/^(.+),\s*\w{2}$/);
+    const city = m ? m[1] : (cityStr||"");
+    return city.toLowerCase().trim().replace(/\s+/g, "-");
+  }
+  function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+
+  // Auto-fill end date when start changes (start + 2 days = Sunday)
+  document.getElementById("ev-start").addEventListener("change", () => {
+    const start = document.getElementById("ev-start").value;
+    const endEl = document.getElementById("ev-end");
+    if (start && !endEl.value){
+      const d = new Date(start + "T00:00:00");
+      d.setDate(d.getDate() + 2);
+      endEl.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    }
+    rebuildPreview();
+  });
+
+  function rebuildPreview(){
+    const city = document.getElementById("ev-city").value.trim();
+    const year = document.getElementById("ev-year").value;
+    const start = document.getElementById("ev-start").value;
+    const end = document.getElementById("ev-end").value;
+    const cityState = city.toUpperCase();
+    const dates = fmtDateRange(start, end);
+    const slug = citySlug(city);
+    document.getElementById("comp-city").textContent = cityState || "—";
+    document.getElementById("comp-dates").textContent = dates;
+    document.getElementById("comp-output").textContent = (slug && year) ? `<workspace>/Scheduled/outputs/event-images/${slug}_${year}/${slug}_${year}_reel.mp4` : "—";
+    document.getElementById("preview").textContent = buildCommand() || "Fill the event fields above to see the command preview.";
+  }
+
+  function buildCommand(){
+    const city = document.getElementById("ev-city").value.trim();
+    const year = document.getElementById("ev-year").value;
+    const start = document.getElementById("ev-start").value;
+    const end = document.getElementById("ev-end").value;
+    if (!city || !year || !start || !end) return "";
+    let cmd = `Read this file and follow its instructions exactly:\n`;
+    cmd += `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\canva-reel\\SKILL.md\n\n`;
+    cmd += `It's the orchestrator for @canva-reel — it'll tell you which other files to read (generate.md, comms.md, dashboard.md) and walk through every step.\n\n`;
+    cmd += `Inputs for this run:\n`;
+    cmd += `City: ${city}\nYear: ${year}\nStart date: ${start}\nEnd date: ${end}\n`;
+    return cmd;
+  }
+
+  ["ev-city","ev-year","ev-start","ev-end"].forEach(id => {
+    document.getElementById(id).addEventListener("input", rebuildPreview);
+  });
+
+  document.getElementById("gen-cmd").addEventListener("click", async () => {
+    const cmd = buildCommand();
+    if (!cmd){ alert("Fill all event fields first."); return; }
+    try {
+      await navigator.clipboard.writeText(cmd);
+      const toast = document.getElementById("cmd-copied");
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 2500);
+    } catch(e){
+      alert("Copy failed.\n\n" + cmd);
+    }
+  });
+
+  // Render Recent runs table
+  function renderRuns(){
+    const c = document.getElementById("runs-container");
+    if (!RECENT_RUNS.length){
+      c.innerHTML = '<div class="empty-state">No runs yet. Generate a command and run it from Cowork to see results here.</div>';
+      return;
+    }
+    const rows = RECENT_RUNS.slice().reverse().map(r => {
+      const dateStr = new Date(r.run_at).toLocaleString("en-US", { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" });
+      const statusClass = r.status === "success" ? "status-success" : "status-blocked";
+      const detailsCell = r.status === "success"
+        ? `<code style="font-size:10px">${escapeHtml(r.output_path||"")}</code> <span style="color:var(--muted)">(${(r.file_size_mb||0).toFixed(1)}MB)</span>`
+        : `<span style="color:var(--err)">blocked at: ${escapeHtml(r.failure_step||"unknown")}</span>`;
+      return `<tr>
+        <td>${escapeHtml(dateStr)}</td>
+        <td>${escapeHtml(r.city||"")}, ${escapeHtml(r.state||"")}</td>
+        <td>${escapeHtml(r.dates||"")}</td>
+        <td class="${statusClass}">${escapeHtml(r.status||"")}</td>
+        <td>${detailsCell}</td>
+      </tr>`;
+    }).join("");
+    c.innerHTML = `<table class="runs">
+      <thead><tr><th>When</th><th>Event</th><th>Dates</th><th>Status</th><th>Details</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  rebuildPreview();
+  renderRuns();
+</script>
+
+</body>
+</html>
