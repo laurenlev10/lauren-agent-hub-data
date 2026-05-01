@@ -156,9 +156,13 @@ const RECENT_RUNS = [];
     const start = document.getElementById("ev-start").value;
     const end = document.getElementById("ev-end").value;
     if (!city || !year || !start || !end) return "";
-    let cmd = `Read this file and follow its instructions exactly:\n`;
-    cmd += `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\canva-reel\\SKILL.md\n\n`;
-    cmd += `It's the orchestrator for @canva-reel — it'll tell you which other files to read (generate.md, comms.md, dashboard.md) and walk through every step.\n\n`;
+    // Wrap the path in a triple-backtick code fence to defeat Cowork's auto-linkifier,
+    // which otherwise turns ".md" filenames into broken markdown links.
+    let cmd = `Read the file at this path and follow its instructions exactly:\n\n`;
+    cmd += "```\n";
+    cmd += `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\canva-reel\\SKILL.md\n`;
+    cmd += "```\n\n";
+    cmd += `It is the orchestrator for the @canva-reel agent — it will tell you which other files to read in the same folder (generate, comms, dashboard) and walk through every step.\n\n`;
     cmd += `Inputs for this run:\n`;
     cmd += `City: ${city}\nYear: ${year}\nStart date: ${start}\nEnd date: ${end}\n`;
     return cmd;

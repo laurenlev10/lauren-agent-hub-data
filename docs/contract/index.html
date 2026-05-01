@@ -270,9 +270,14 @@ function buildCommand(){
   const sourceMode = document.getElementById("ev-source-mode").value;
   const contract = document.getElementById("ev-contract").value.trim();
   const activeClauses = clauses.filter(c => c.enabled);
-  // Explicit Read directive so the receiving Cowork session can find the agent
-  // (Cowork's built-in skill registry doesn't include our custom NEW/ agents).
-  let cmd = `Read this file and follow its instructions exactly:\nC:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\contract-review\\SKILL.md\n\nIt's the orchestrator — it'll tell you which other files to read (clauses.md, review.md, comms.md, dashboard.md) and walk through every step.\n\nInputs for this run:\n\n`;
+  // Explicit Read directive so the receiving Cowork session can find the agent.
+  // Wrap path in triple-backtick fence to defeat Cowork's auto-linkifier (which
+  // otherwise turns ".md" filenames into broken markdown links).
+  let cmd = `Read the file at this path and follow its instructions exactly:\n\n` +
+            "```\n" +
+            `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\contract-review\\SKILL.md\n` +
+            "```\n\n" +
+            `It is the orchestrator — it will tell you which other files to read in the same folder (clauses, review, comms, dashboard) and walk through every step.\n\nInputs for this run:\n\n`;
   cmd += `City: ${city}\nHotel: ${hotel}\nYear: ${year}\nStart date: ${start}\n`;
   cmd += `Source mode: ${sourceMode}\n\n`;
   cmd += `Active clauses (${activeClauses.length}):\n`;
