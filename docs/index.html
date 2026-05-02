@@ -136,7 +136,8 @@ const HUB = {
   canva:     { lastRun: "Tuesday, April 28 · 09:17 — 6 images (locked-in 2026)" },
   canva_reel:{ lastRun: "—" },
   launch:    { lastRun: "Tuesday, April 28 · 12:26 — Santa Maria, CA (✓)" },
-  sms:       { lastRun: "—" }
+  sms:       { lastRun: "—" },
+  pr:        { lastRun: "—" }
 };
 // Past city-scout reports (agent appends here after each successful scout)
 const SCOUT_REPORTS = [
@@ -289,6 +290,17 @@ const SCOUT_REPORTS = [
     <div class="run-hint">Edit templates here, then trigger from Event Launch's "Run campaigns" follow-up</div>
   </div>
 
+  <div class="agent">
+    <a href="pr/" style="text-decoration:none;color:inherit;display:block">
+      <div class="icon">🤝</div>
+      <div class="name">Local PR</div>
+      <div class="desc">On-demand — חיפוש שותפי PR ב-15 מייל סביב כתובת האירוע. נותן רשימה מדורגת של עסקים מקומיים (ציפורניים, שיער, ספא, lashes, brows, בוטיק, פילאטיס, מד-ספא ועוד) + תבניות פנייה (walk-in / DM / email) מוכנות לעריכה. את פונה — הסוכן רק חוקר.</div>
+      <div class="lastRun">Last run: <b id="pr-lastRun">—</b></div>
+    </a>
+    <a href="pr/" class="run-btn" style="text-align:center;text-decoration:none;color:#fff">🤝 פתחי טופס</a>
+    <div class="run-hint">Opens the form — fill city + venue + dates, copy command → paste in Cowork</div>
+  </div>
+
 </div>
 
 <script>
@@ -304,6 +316,8 @@ const SCOUT_REPORTS = [
   if (reelEl) reelEl.textContent = (HUB.canva_reel && HUB.canva_reel.lastRun) || "—";
   document.getElementById("launch-lastRun").textContent    = HUB.launch.lastRun    || "—";
   document.getElementById("sms-lastRun").textContent       = HUB.sms.lastRun       || "—";
+  const prEl = document.getElementById("pr-lastRun");
+  if (prEl) prEl.textContent = (HUB.pr && HUB.pr.lastRun) || "—";
 
   document.querySelectorAll(".run-btn").forEach(btn => {
     if (!btn.hasAttribute("data-cmd")) return;

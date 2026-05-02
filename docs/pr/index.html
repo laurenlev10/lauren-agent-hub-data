@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Local PR — Partner Finder</title>
+<style>
+  :root {
+    --bg: #fefce8;
+    --card: #ffffff;
+    --border: #fde68a;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --accent: #d97706;
+    --accent2: #b45309;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 32px 24px;
+    min-height: 100vh;
+    direction: rtl;
+  }
+  header { text-align: center; margin-bottom: 32px; direction: rtl; }
+  h1 { margin: 0 0 6px 0; font-size: 28px; }
+  .subtitle { color: var(--muted); font-size: 14px; }
+  .container { max-width: 980px; margin: 0 auto; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    margin-bottom: 20px;
+  }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+  input, select, textarea {
+    width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+    font-family: inherit; font-size: 14px; color: var(--text); background: #fffbeb;
+    direction: ltr; text-align: left;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.12); }
+  .copy-btn {
+    display: block; width: 100%; margin-top: 14px; padding: 12px 16px;
+    background: linear-gradient(180deg, var(--accent), var(--accent2)); color: #fff;
+    border: none; border-radius: 8px; font-size: 14px; font-weight: 700;
+    cursor: pointer; letter-spacing: 0.3px;
+  }
+  .copy-btn:hover { background: linear-gradient(180deg, var(--accent2), #92400e); }
+  .copy-btn.copied { background: #059669; }
+  .status-empty { color: var(--muted); font-style: italic; padding: 20px 0; text-align: center; }
+  .candidate { padding: 14px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; background: #fffbeb; }
+  .candidate-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .candidate-name { font-weight: 700; font-size: 15px; }
+  .candidate-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .stars { color: #f59e0b; font-size: 14px; letter-spacing: -1px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #fef3c7; color: var(--accent2); margin-left: 6px; }
+  .pitch-tabs { margin-top: 12px; display: none; }
+  .candidate.expanded .pitch-tabs { display: block; }
+  .pitch-tab-btns { display: flex; gap: 6px; margin-bottom: 8px; }
+  .pitch-tab-btn { padding: 6px 10px; border: 1px solid var(--border); background: #fff; border-radius: 6px; font-size: 12px; cursor: pointer; }
+  .pitch-tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .pitch-content { padding: 10px; background: #fff; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; white-space: pre-wrap; direction: rtl; }
+  .pitch-copy { margin-top: 6px; font-size: 12px; padding: 4px 10px; }
+  .status-dropdown { padding: 4px 8px; font-size: 12px; border-radius: 6px; }
+  .totals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-top: 12px; }
+  .totals-cell { background: #fef3c7; padding: 8px 10px; border-radius: 6px; font-size: 12px; text-align: center; }
+  .totals-cell b { display: block; font-size: 18px; color: var(--accent2); margin-top: 2px; }
+  .disclaimer { font-size: 12px; color: var(--muted); font-style: italic; padding: 12px 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<script id="dashboard-data">
+const RUN = {
+  date:    "—",
+  time:    "—",
+  status:  "empty",
+  event:   null,
+  totals:  { found: 0, by_category: {} },
+  candidates: [],
+  errorReason: null,
+  previousRuns: []
+};
+</script>
+
+<div class="container">
+  <header>
+    <h1>🤝 Local PR — מציאת שותפים</h1>
+    <div class="subtitle">חיפוש שותפי PR פוטנציאליים סביב כתובת האירוע</div>
+  </header>
+
+  <div class="card">
+    <h2 style="margin-top:0">הרצת חיפוש חדש</h2>
+    <div class="form-grid">
+      <div>
+        <label>עיר + מדינה</label>
+        <input type="text" id="f-city" placeholder="Dallas, TX">
+      </div>
+      <div>
+        <label>שנה</label>
+        <input type="number" id="f-year" placeholder="2026" value="2026">
+      </div>
+      <div style="grid-column: 1 / -1">
+        <label>כתובת מלאה של המלון/אולם (עם ZIP)</label>
+        <input type="text" id="f-address" placeholder="14315 Midway Rd, Addison, TX 75001">
+      </div>
+      <div style="grid-column: 1 / -1">
+        <label>שם המלון/אולם</label>
+        <input type="text" id="f-hotel" placeholder="Crowne Plaza Dallas Near Galleria-Addison">
+      </div>
+      <div>
+        <label>תאריך התחלה</label>
+        <input type="date" id="f-start">
+      </div>
+      <div>
+        <label>תאריך סיום</label>
+        <input type="date" id="f-end">
+      </div>
+      <div>
+        <label>רדיוס (מיילים)</label>
+        <input type="number" id="f-radius" value="15" min="1" max="100">
+      </div>
+      <div>
+        <label>קטגוריות</label>
+        <select id="f-categories">
+          <option value="ALL">ALL — כל הקטגוריות</option>
+          <option value="nail,hair,spa,lash,brow,med-spa">Beauty (nail/hair/spa/lash/brow/med-spa)</option>
+          <option value="bridal,boutique">Fashion (bridal + boutique)</option>
+          <option value="gym,pilates,yoga,dance">Fitness (gym/pilates/yoga/dance)</option>
+          <option value="plastic-surgery,med-spa,dermatology">Medical (plastic-surgery/med-spa/dermatology)</option>
+          <option value="mom-network">Mom networks only</option>
+        </select>
+      </div>
+    </div>
+    <button class="copy-btn" id="copy-cmd">📋 העתיקי פקודה</button>
+    <div style="text-align:center;font-size:12px;color:var(--muted);margin-top:6px">
+      מלאי, לחצי על הכפתור, הדביקי בשיחת Cowork חדשה. הסוכן רץ ~5-10 דקות.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">תוצאת ריצה אחרונה</h2>
+    <div id="run-summary"></div>
+    <div id="candidates-list"></div>
+  </div>
+
+  <div class="disclaimer">
+    🔍 מחקר בלבד. הסוכן <b>לא פונה לאף עסק</b> — את פונה בעצמך, ומסמנת סטטוס בכל שורה.
+  </div>
+</div>
+
+<script>
+  // Render run summary
+  const sumEl = document.getElementById("run-summary");
+  const listEl = document.getElementById("candidates-list");
+
+  if (RUN.status === "empty" || !RUN.event) {
+    sumEl.innerHTML = '<div class="status-empty">עוד לא הרצנו — מלאי את הטופס למעלה לריצה ראשונה.</div>';
+  } else {
+    const totalsHtml = Object.entries(RUN.totals.by_category || {})
+      .map(([k, v]) => `<div class="totals-cell">${k}<b>${v}</b></div>`).join("");
+    sumEl.innerHTML = `
+      <div><b>${RUN.event.city}</b> · ${RUN.event.venue} · רדיוס ${RUN.event.radius_mi} מייל</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${RUN.date} · ${RUN.time}</div>
+      <div class="totals-grid">
+        <div class="totals-cell">סה"כ נמצאו<b>${RUN.totals.found}</b></div>
+        ${totalsHtml}
+      </div>
+    `;
+
+    if ((RUN.candidates || []).length === 0) {
+      listEl.innerHTML = '<div class="status-empty">לא נמצאו מועמדים בריצה הזאת.</div>';
+    } else {
+      listEl.innerHTML = RUN.candidates.map((c, i) => `
+        <div class="candidate" data-idx="${i}">
+          <div class="candidate-row">
+            <div>
+              <span class="stars">${c.stars || ""}</span>
+              <b class="candidate-name">${c.rank}. ${c.name}</b>
+              <span class="badge">${c.category}</span>
+              <div class="candidate-meta">
+                ${c.distance_mi} מייל · ${c.address || ""}
+                ${c.phone ? " · 📞 " + c.phone : ""}
+                ${c.website ? ' · 🌐 <a href="' + c.website + '" target="_blank">site</a>' : ""}
+                ${c.ig_handle ? ' · 📷 ' + c.ig_handle : ""}
+              </div>
+              <div class="candidate-meta" style="color:var(--accent2);margin-top:4px">${c.why_fit || ""}</div>
+            </div>
+            <select class="status-dropdown" data-key="${RUN.event.city}+${c.rank}+${(c.name||'').toLowerCase().replace(/[^a-z0-9]+/g,'-')}">
+              <option>לא פניתי</option>
+              <option>פניתי — מחכה</option>
+              <option>הסכים — שותף!</option>
+              <option>סירב</option>
+              <option>לא רלוונטי בשבילי</option>
+            </select>
+          </div>
+          <div class="pitch-tabs">
+            <div class="pitch-tab-btns">
+              <button class="pitch-tab-btn active" data-tab="walkin">Walk-in / Phone</button>
+              <button class="pitch-tab-btn" data-tab="dm">IG DM</button>
+              <button class="pitch-tab-btn" data-tab="email">Email</button>
+            </div>
+            <div class="pitch-content" data-pitch="walkin">${(c.pitches && c.pitches.walkin) || "—"}</div>
+            <div class="pitch-content" data-pitch="dm" style="display:none">${(c.pitches && c.pitches.dm) || "—"}</div>
+            <div class="pitch-content" data-pitch="email" style="display:none">${(c.pitches && c.pitches.email) || "—"}</div>
+            <button class="pitch-tab-btn pitch-copy" data-copy-pitch>📋 העתיקי תבנית</button>
+          </div>
+        </div>
+      `).join("");
+    }
+  }
+
+  // Form → command builder
+  document.getElementById("copy-cmd").addEventListener("click", async () => {
+    const city = document.getElementById("f-city").value.trim();
+    const year = document.getElementById("f-year").value.trim();
+    const address = document.getElementById("f-address").value.trim();
+    const hotel = document.getElementById("f-hotel").value.trim();
+    const startD = document.getElementById("f-start").value;
+    const endD = document.getElementById("f-end").value;
+    const radius = document.getElementById("f-radius").value || "15";
+    const cats = document.getElementById("f-categories").value || "ALL";
+
+    if (!city || !address || !hotel || !startD || !endD) {
+      alert("חסר שדה — מלאי הכל קודם");
+      return;
+    }
+
+    const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\local-pr\\SKILL.md\` — it is the orchestrator for @pr.
+
+City: ${city}
+Venue address: ${address}
+Hotel: ${hotel}
+Year: ${year}
+Event dates: ${startD} → ${endD}
+Radius: ${radius}
+Categories: ${cats}`;
+
+    try {
+      await navigator.clipboard.writeText(cmd);
+      const btn = document.getElementById("copy-cmd");
+      const orig = btn.textContent;
+      btn.textContent = "✓ הועתק! הדביקי בשיחת Cowork חדשה";
+      btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = orig; btn.classList.remove("copied"); }, 3000);
+    } catch (e) {
+      alert("Copy failed — manual:\n\n" + cmd);
+    }
+  });
+
+  // Pitch tabs + copy + status persistence to docs/pr/notes.json (browser writes)
+  document.addEventListener("click", (e) => {
+    if (e.target.classList.contains("pitch-tab-btn") && e.target.hasAttribute("data-tab")) {
+      const card = e.target.closest(".candidate");
+      const tab = e.target.getAttribute("data-tab");
+      card.querySelectorAll(".pitch-tab-btn[data-tab]").forEach(b => b.classList.toggle("active", b === e.target));
+      card.querySelectorAll(".pitch-content").forEach(p => {
+        p.style.display = (p.getAttribute("data-pitch") === tab) ? "block" : "none";
+      });
+    }
+    if (e.target.hasAttribute("data-copy-pitch")) {
+      const card = e.target.closest(".candidate");
+      const visible = card.querySelector(".pitch-content[style*='block']") || card.querySelector(".pitch-content");
+      navigator.clipboard.writeText(visible.textContent.trim()).then(() => {
+        const orig = e.target.textContent;
+        e.target.textContent = "✓ הועתק";
+        setTimeout(() => { e.target.textContent = orig; }, 2000);
+      });
+    }
+    document.querySelectorAll(".candidate").forEach(c => {
+      c.addEventListener("click", (ev) => {
+        if (ev.target.tagName === "SELECT" || ev.target.tagName === "A" || ev.target.tagName === "BUTTON") return;
+        c.classList.toggle("expanded");
+      }, { once: false });
+    });
+  });
+</script>
+
+</body>
+</html>
