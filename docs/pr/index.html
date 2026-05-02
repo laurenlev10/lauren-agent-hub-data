@@ -484,24 +484,24 @@ const RUN = {
     `;
   }
 
-  function sectionHtml(title, items, kind, color) {
+  function sectionHtml(title, items, kind, color, openByDefault) {
     if (!items || items.length === 0) return "";
+    const colLabel = kind === "draft" ? "אימייל" : kind === "form" ? "טופס" : "טלפון";
     return `
-      <div style="margin-top:18px">
-        <h3 style="margin:0 0 8px 0;color:${color};font-size:14px;font-weight:700">${title} (${items.length})</h3>
-        <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,0.04)">
-          <thead style="background:#f9fafb">
-            <tr>
-              <th style="padding:8px 12px;text-align:right;font-size:11px;color:#6b7280;font-weight:600;letter-spacing:0.5px">ארגון</th>
-              <th style="padding:8px 12px;text-align:right;font-size:11px;color:#6b7280;font-weight:600;letter-spacing:0.5px">${kind === "draft" ? "אימייל" : kind === "form" ? "טופס" : "טלפון"}</th>
-              <th style="padding:8px 12px;text-align:right;font-size:11px;color:#6b7280;font-weight:600;letter-spacing:0.5px;width:160px">סטטוס</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${items.map(it => rowHtml(it, kind)).join("")}
-          </tbody>
+      <details ${openByDefault ? "open" : ""} style="margin-top:14px;background:#fff;border-radius:8px;border:1px solid #e5e7eb;overflow:hidden">
+        <summary class="pr-section-summary" style="padding:12px 14px;cursor:pointer;color:${color};font-size:14px;font-weight:700;list-style:none;background:#fafafa;user-select:none">
+          <span class="caret" style="display:inline-block;width:14px;color:#9ca3af;font-size:12px;transition:transform .15s;margin-left:6px">▶</span>
+          ${title} (${items.length})
+        </summary>
+        <table style="width:100%;border-collapse:collapse;background:#fff">
+          <thead style="background:#f9fafb"><tr>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:#6b7280;font-weight:600;letter-spacing:0.5px">ארגון</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:#6b7280;font-weight:600;letter-spacing:0.5px">${colLabel}</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:#6b7280;font-weight:600;letter-spacing:0.5px;width:160px">סטטוס</th>
+          </tr></thead>
+          <tbody>${items.map(it => rowHtml(it, kind)).join("")}</tbody>
         </table>
-      </div>
+      </details>
     `;
   }
 
@@ -509,9 +509,10 @@ const RUN = {
     listEl.innerHTML = '<div class="status-empty">לא נמצאו מועמדים בריצה הזאת.</div>';
   } else {
     listEl.innerHTML =
-      sectionHtml("📧 Phase 1 — טיוטות מוכנות לשליחה ב-pr@", drafts, "draft", "#166534") +
-      sectionHtml("📋 Phase 2 — טפסים למילוי ידני", forms, "form", "#92400e") +
-      sectionHtml("📞 רק טלפון (אין אימייל ציבורי)", phones, "phone", "#9f1239");
+      '<style>details[open] > summary .caret { transform: rotate(90deg); }</style>' +
+      sectionHtml("📧 Phase 1 — טיוטות מוכנות לשליחה ב-pr@", drafts, "draft", "#166534", true) +
+      sectionHtml("📋 Phase 2 — טפסים למילוי ידני", forms, "form", "#92400e", false) +
+      sectionHtml("📞 רק טלפון (אין אימייל ציבורי)", phones, "phone", "#9f1239", false);
     attachStatus();
   }
 
@@ -535,6 +536,19 @@ const RUN = {
     }
   });
 })();
+
+  // Auto-fill the form from URL params (so Event Launch's "🤝 PR" button can pass details)
+  // URL params (matching what launch dashboard sends): city, year, start_date, end_date, venue, address
+  (function () {
+    const u = new URL(location.href);
+    const get = k => (u.searchParams.get(k) || "").trim();
+    const city = get("city"); if (city) document.getElementById("f-city").value = city;
+    const year = get("year") || (get("start_date") || "").slice(0,4); if (year) document.getElementById("f-year").value = year;
+    const addr = get("address"); if (addr) document.getElementById("f-address").value = addr;
+    const venue = get("venue"); if (venue) document.getElementById("f-hotel").value = venue;
+    const start = get("start_date") || get("start"); if (start) document.getElementById("f-start").value = start;
+    const end = get("end_date") || get("end"); if (end) document.getElementById("f-end").value = end;
+  })();
 
   // Form → command builder
   document.getElementById("copy-cmd").addEventListener("click", async () => {
