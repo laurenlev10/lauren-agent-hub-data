@@ -312,67 +312,274 @@ const RUN = {
 </div>
 
 <script>
-  // Render run summary
+  /* ==========================================================
+   local-pr dashboard render — v2 (women's-org mode)
+   - Renders Phase 1 (drafts ready to send), Phase 2 (form-only), Phone-only
+   - Per-org status dropdown + notes textarea
+   - localStorage (immediate) + RemoteSync to docs/pr/notes.json (shared GitHub token)
+   ========================================================== */
+(function () {
   const sumEl = document.getElementById("run-summary");
   const listEl = document.getElementById("candidates-list");
 
-  if (RUN.status === "empty" || !RUN.event) {
-    sumEl.innerHTML = '<div class="status-empty">עוד לא הרצנו — מלאי את הטופס למעלה לריצה ראשונה.</div>';
-  } else {
-    const totalsHtml = Object.entries(RUN.totals.by_category || {})
-      .map(([k, v]) => `<div class="totals-cell">${k}<b>${v}</b></div>`).join("");
-    sumEl.innerHTML = `
-      <div><b>${RUN.event.city}</b> · ${RUN.event.venue} · רדיוס ${RUN.event.radius_mi} מייל</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px">${RUN.date} · ${RUN.time}</div>
-      <div class="totals-grid">
-        <div class="totals-cell">סה"כ נמצאו<b>${RUN.totals.found}</b></div>
-        ${totalsHtml}
+  // RemoteSync — reads/writes docs/pr/notes.json via GitHub Contents API.
+  // Shares the lauren_gh_token_v1 key with housing/meta dashboards (same token).
+  const RemoteSync = (function () {
+    const OWNER  = "laurenlev10";
+    const REPO   = "lauren-agent-hub-data";
+    const PATH   = "docs/pr/notes.json";
+    const BRANCH = "main";
+    const TOKEN_KEY = "lauren_gh_token_v1";
+    const RAW_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${PATH}?t=${Date.now()}`;
+    const API_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${BRANCH}`;
+    let sha = null;
+    let saving = false;
+    let savePending = false;
+    let pendingState = null;
+    function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; } }
+    function setStatus(kind, text) {
+      const el = document.getElementById("sync-status");
+      if (!el) return;
+      el.textContent = text;
+      el.dataset.kind = kind;
+    }
+    async function load() {
+      try {
+        const r = await fetch(RAW_URL, { cache: "no-store" });
+        if (!r.ok) throw new Error("load " + r.status);
+        const data = await r.json();
+        // Get sha for later writes (only if token present)
+        const tok = getToken();
+        if (tok) {
+          try {
+            const meta = await fetch(API_URL, { headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json" } });
+            if (meta.ok) sha = (await meta.json()).sha;
+          } catch (e) { /* ok if anonymous read worked but auth fetch didn't */ }
+        }
+        setStatus("ok", "✓ Synced");
+        return data || {};
+      } catch (e) {
+        setStatus("error", "Sync error");
+        return {};
+      }
+    }
+    async function save(state) {
+      pendingState = state;
+      if (saving) { savePending = true; return; }
+      const tok = getToken();
+      if (!tok) {
+        setStatus("token", "GitHub token needed for sync — click ⚙ to add");
+        return;
+      }
+      saving = true;
+      setStatus("saving", "⟳ Saving…");
+      try {
+        // Refresh sha
+        const meta = await fetch(API_URL, { headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json" } });
+        if (meta.ok) sha = (await meta.json()).sha;
+        const body = {
+          message: `pr/notes.json — ${new Date().toISOString().slice(0,16).replace("T"," ")}`,
+          content: btoa(unescape(encodeURIComponent(JSON.stringify(pendingState, null, 2)))),
+          branch: BRANCH,
+          sha: sha
+        };
+        const r = await fetch(API_URL, {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        if (!r.ok) throw new Error("save " + r.status);
+        const j = await r.json();
+        sha = j.content && j.content.sha;
+        setStatus("ok", "✓ Synced " + new Date().toLocaleTimeString().slice(0,5));
+      } catch (e) {
+        setStatus("error", "Sync error: " + e.message);
+      } finally {
+        saving = false;
+        if (savePending) { savePending = false; setTimeout(() => save(pendingState), 100); }
+      }
+    }
+    function setToken(tok) {
+      try { if (tok) localStorage.setItem(TOKEN_KEY, tok); else localStorage.removeItem(TOKEN_KEY); } catch(e){}
+    }
+    return { load, save, setToken, getToken };
+  })();
+
+  // ---------- main render ----------
+  if (!RUN || RUN.status === "empty" || !RUN.event) {
+    if (sumEl) sumEl.innerHTML = '<div class="status-empty">עוד לא הרצנו — מלאי את הטופס למעלה לריצה ראשונה.</div>';
+    return;
+  }
+
+  const ev = RUN.event;
+  const totals = RUN.totals || {};
+  const drafts = RUN.drafts || RUN.candidates || []; // Phase 1
+  const forms  = RUN.phase_2_forms || [];
+  const phones = RUN.phone_only || [];
+  const totalFound = (drafts.length + forms.length + phones.length) || (totals.found || 0);
+
+  // Summary header
+  const byCatHtml = Object.entries(totals.by_category || {})
+    .map(([k, v]) => `<div class="totals-cell">${k}<b>${v}</b></div>`).join("");
+  sumEl.innerHTML = `
+    <div><b>${ev.city}</b> · ${ev.venue || ""} ${ev.eventLandingUrl ? '· <a href="' + ev.eventLandingUrl + '" target="_blank" style="color:var(--accent2);font-weight:700">דף האירוע ↗</a>' : ""}</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px">${RUN.date} · ${RUN.time} ${RUN.mode ? '· mode: <code>' + RUN.mode + '</code>' : ""}</div>
+    <div class="totals-grid">
+      <div class="totals-cell" style="background:#dcfce7;color:#166534">📧 Phase 1 (Drafts)<b>${drafts.length}</b></div>
+      <div class="totals-cell" style="background:#fef3c7;color:#92400e">📋 Phase 2 (Forms)<b>${forms.length}</b></div>
+      <div class="totals-cell" style="background:#fce7f3;color:#9f1239">📞 Phone-only<b>${phones.length}</b></div>
+      <div class="totals-cell">סה"כ נמצאו<b>${totalFound}</b></div>
+      ${byCatHtml}
+    </div>
+    <div id="sync-status-row" style="margin-top:10px;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted)">
+      <span id="sync-status" data-kind="loading">⟳ Loading sync…</span>
+      <button id="sync-token-btn" style="margin-left:auto;padding:4px 10px;border-radius:6px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:12px">⚙ GitHub Token</button>
+    </div>
+  `;
+
+  // ---------- Status options + notes state ----------
+  const STATUS_OPTIONS = [
+    { value: "",                label: "— לא נשלח" },
+    { value: "email_sent",      label: "✉️ אימייל נשלח" },
+    { value: "form_sent",       label: "📋 טופס נשלח" },
+    { value: "phone_called",    label: "📞 התקשרתי" },
+    { value: "responded_yes",   label: "✅ הסכים — שותף!" },
+    { value: "responded_no",    label: "❌ סירב" },
+    { value: "no_response",     label: "🕐 אין תגובה" },
+    { value: "irrelevant",      label: "⏭ לא רלוונטי" },
+  ];
+
+  // notes state — keyed by `<city>+<name-slug>`
+  const citySlug = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  function nameSlug(name) { return (name || "").toLowerCase().replace(/[^a-z0-9א-ת]+/g, "-").slice(0, 60); }
+  function keyFor(name) { return `${citySlug}+${nameSlug(name)}`; }
+
+  const LS_KEY = "pr_notes_v1";
+  function loadLocalNotes() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch(e) { return {}; }
+  }
+  function saveLocalNotes(state) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
+  }
+  let notesState = loadLocalNotes();
+
+  // pull remote on load and merge (remote wins for any key it has)
+  RemoteSync.load().then(remote => {
+    if (remote && typeof remote === "object") {
+      // merge: remote values win for known keys
+      Object.keys(remote).forEach(k => { notesState[k] = remote[k]; });
+      saveLocalNotes(notesState);
+      // re-render rows with merged state
+      attachStateToRows();
+    }
+  });
+
+  function getEntry(name) {
+    const k = keyFor(name);
+    return notesState[k] || { status: "", notes: "" };
+  }
+  function setEntry(name, partial) {
+    const k = keyFor(name);
+    const cur = notesState[k] || { status: "", notes: "", updated: "" };
+    const next = { ...cur, ...partial, updated: new Date().toISOString() };
+    notesState[k] = next;
+    saveLocalNotes(notesState);
+    RemoteSync.save(notesState);
+  }
+
+  // ---------- render rows ----------
+  function rowHtml(item, kind, idx) {
+    const e = getEntry(item.name);
+    const statusOpts = STATUS_OPTIONS.map(o =>
+      `<option value="${o.value}"${o.value === e.status ? " selected" : ""}>${o.label}</option>`
+    ).join("");
+    const slug = nameSlug(item.name);
+    let primaryLink = "";
+    if (kind === "draft" && item.email) {
+      primaryLink = `📧 <a href="mailto:${item.email}">${item.email}</a> · <a href="https://mail.google.com/mail/u/?authuser=pr@makeupblowoutsalegroup.com#drafts" target="_blank" style="color:var(--accent2);font-weight:700">פתח טיוטה ב-pr@</a>`;
+    } else if (kind === "form" && item.url) {
+      primaryLink = `🔗 <a href="${item.url}" target="_blank">${item.url}</a> <span style="color:#9ca3af">(${item.reason || "form"})</span>`;
+    } else if (kind === "phone" && item.phone) {
+      primaryLink = `📞 <a href="tel:${item.phone.replace(/[^0-9+]/g, "")}">${item.phone}</a>${item.address ? ' · ' + item.address : ""}${item.notes ? ' <em>(' + item.notes + ')</em>' : ""}`;
+    }
+    const idAttr = `${kind}-${idx}-${slug}`;
+    const badge = kind === "draft" ? '<span class="badge" style="background:#dcfce7;color:#166534">Draft</span>'
+                : kind === "form"  ? '<span class="badge" style="background:#fef3c7;color:#92400e">Form</span>'
+                                   : '<span class="badge" style="background:#fce7f3;color:#9f1239">Phone</span>';
+    return `
+      <div class="candidate" data-key="${keyFor(item.name)}">
+        <div class="candidate-row" style="align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <b class="candidate-name">${item.name}</b>
+            ${badge}
+            ${item.category ? '<span class="badge">' + item.category + '</span>' : ""}
+            <div class="candidate-meta" style="word-break:break-word">${primaryLink}</div>
+          </div>
+          <select class="status-dropdown pr-status" data-name="${item.name.replace(/"/g, "&quot;")}">
+            ${statusOpts}
+          </select>
+        </div>
+        <div class="pr-notes-wrap" style="padding:8px 14px 12px 14px">
+          <textarea class="pr-notes" data-name="${item.name.replace(/"/g, "&quot;")}" placeholder="הערות... (נשמר אוטומטית)" style="width:100%;min-height:48px;border:1px solid #e5e7eb;border-radius:6px;padding:8px;font-family:inherit;font-size:13px;resize:vertical">${(e.notes || "").replace(/</g, "&lt;")}</textarea>
+        </div>
       </div>
     `;
-
-    if ((RUN.candidates || []).length === 0) {
-      listEl.innerHTML = '<div class="status-empty">לא נמצאו מועמדים בריצה הזאת.</div>';
-    } else {
-      listEl.innerHTML = RUN.candidates.map((c, i) => `
-        <div class="candidate" data-idx="${i}">
-          <div class="candidate-row">
-            <div>
-              <span class="stars">${c.stars || ""}</span>
-              <b class="candidate-name">${c.rank}. ${c.name}</b>
-              <span class="badge">${c.category}</span>
-              <div class="candidate-meta">
-                ${c.distance_mi} מייל · ${c.address || ""}
-                ${c.phone && c.phone !== "unknown" ? " · 📞 " + c.phone : ""}
-                ${c.website && c.website !== "unknown" ? ' · 🌐 <a href="' + c.website + '" target="_blank">site</a>' : ""}
-                ${c.ig_handle && c.ig_handle !== "unknown" ? ' · 📷 ' + c.ig_handle : ""}
-                ${c.email ? ' · ✉️ <a href="mailto:' + c.email + '">' + c.email + '</a>' : ' · <span style="color:#9ca3af">אין אימייל</span>'}
-                ${c.draft_id ? ' · <a href="https://mail.google.com/mail/u/?authuser=pr@makeupblowoutsalegroup.com#drafts" target="_blank" style="color:var(--accent2);font-weight:700">📧 טיוטה ב-pr@</a>' : ""}
-              </div>
-              <div class="candidate-meta" style="color:var(--accent2);margin-top:4px">${c.why_fit || ""}</div>
-            </div>
-            <select class="status-dropdown" data-key="${RUN.event.city}+${c.rank}+${(c.name||'').toLowerCase().replace(/[^a-z0-9]+/g,'-')}">
-              <option>לא פניתי</option>
-              <option>פניתי — מחכה</option>
-              <option>הסכים — שותף!</option>
-              <option>סירב</option>
-              <option>לא רלוונטי בשבילי</option>
-            </select>
-          </div>
-          <div class="pitch-tabs">
-            <div class="pitch-tab-btns">
-              <button class="pitch-tab-btn active" data-tab="walkin">Walk-in / Phone</button>
-              <button class="pitch-tab-btn" data-tab="dm">IG DM</button>
-              <button class="pitch-tab-btn" data-tab="email">Email</button>
-            </div>
-            <div class="pitch-content" data-pitch="walkin">${(c.pitches && c.pitches.walkin) || "—"}</div>
-            <div class="pitch-content" data-pitch="dm" style="display:none">${(c.pitches && c.pitches.dm) || "—"}</div>
-            <div class="pitch-content" data-pitch="email" style="display:none">${(c.pitches && c.pitches.email) || "—"}</div>
-            <button class="pitch-tab-btn pitch-copy" data-copy-pitch>📋 העתיקי תבנית</button>
-          </div>
-        </div>
-      `).join("");
-    }
   }
+
+  function sectionHtml(title, items, kind, color) {
+    if (!items || items.length === 0) return "";
+    const rows = items.map((it, i) => rowHtml(it, kind, i)).join("");
+    return `
+      <div style="margin-top:18px">
+        <h3 style="margin:0 0 10px 0;color:${color};font-size:15px">${title} (${items.length})</h3>
+        ${rows}
+      </div>
+    `;
+  }
+
+  if (totalFound === 0) {
+    listEl.innerHTML = '<div class="status-empty">לא נמצאו מועמדים בריצה הזאת.</div>';
+  } else {
+    listEl.innerHTML =
+      sectionHtml("📧 Phase 1 — טיוטות מוכנות לשליחה ב-pr@", drafts, "draft", "#166534") +
+      sectionHtml("📋 Phase 2 — טפסים למילוי ידני", forms, "form", "#92400e") +
+      sectionHtml("📞 רק טלפון (אין אימייל ציבורי)", phones, "phone", "#9f1239");
+
+    // Wire up status + notes
+    attachStateToRows();
+  }
+
+  function attachStateToRows() {
+    document.querySelectorAll(".pr-status").forEach(sel => {
+      const name = sel.getAttribute("data-name");
+      const e = getEntry(name);
+      if (sel.value !== e.status) sel.value = e.status;
+      sel.addEventListener("change", () => setEntry(name, { status: sel.value }));
+    });
+    document.querySelectorAll(".pr-notes").forEach(ta => {
+      const name = ta.getAttribute("data-name");
+      const e = getEntry(name);
+      if (ta.value !== e.notes) ta.value = e.notes;
+      let timer;
+      ta.addEventListener("input", () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => setEntry(name, { notes: ta.value }), 400);
+      });
+    });
+  }
+
+  // Token modal (simple prompt)
+  document.addEventListener("click", e => {
+    if (e.target && e.target.id === "sync-token-btn") {
+      const cur = RemoteSync.getToken();
+      const v = prompt("GitHub Personal Access Token (saved on this device only):\n(Token needs Contents: Read and Write on lauren-agent-hub-data)", cur || "");
+      if (v !== null) {
+        RemoteSync.setToken(v.trim());
+        location.reload();
+      }
+    }
+  });
+})();
 
   // Form → command builder
   document.getElementById("copy-cmd").addEventListener("click", async () => {
