@@ -138,7 +138,8 @@ const HUB = {
   launch:    { lastRun: "Tuesday, April 28 · 12:26 — Santa Maria, CA (✓)" },
   sms:       { lastRun: "—" },
   pr_organization: { lastRun: "Saturday, May 2 · 16:30 — Columbia, MO (15 ready-to-send drafts in pr@, 4 form-only, 1 phone-only)" },
-  pr_influencer: { lastRun: "On-demand · NEW 2026-05-02" }
+  pr_influencer: { lastRun: "On-demand · NEW 2026-05-02" },
+  forecast:  { lastRun: "On-demand · NEW 2026-05-03" }
 };
 // Past city-scout reports (agent appends here after each successful scout)
 const SCOUT_REPORTS = [
@@ -313,6 +314,17 @@ const SCOUT_REPORTS = [
     <div class="run-hint">חדש 2026-05-02 — תשתית בנויה, רץ-ראשון בריצה הבאה</div>
   </div>
 
+  <div class="agent agent-forecast" style="border:2px solid #7c3aed">
+    <a href="forecast/" style="text-decoration:none;color:inherit;display:block">
+      <div class="icon">🔮</div>
+      <div class="name">חוזה עתידות (Event Forecast)</div>
+      <div class="desc">On-demand — חוזה מכירות לאירוע הבא בעיר. מאחד היסטוריית P&L (mbs-event-summary) + אבחון אירועים חלשים (mbs-venue-research) + דמוגרפיה ברדיוס 15 מייל סביב כתובת המלון + עונתיות אונליין (Google Trends + מזג אוויר + אירועים מתחרים + לוח שנה לימודי) → טווח הכנסה (`$lo-$hi K`) + רמת ביטחון + 3 דגלי סיכון + 2 המלצות פעולה לפני האירוע. נקרא מהכרטיס הזה, מהכפתור ב-launch_dashboard, או דרך SMS @forecast.</div>
+      <div class="lastRun">Last run: <b id="forecast-lastRun">—</b></div>
+    </a>
+    <a href="forecast/" class="run-btn" style="text-align:center;text-decoration:none;color:#fff;background:linear-gradient(180deg,#7c3aed,#5b21b6)">🔮 פתחי טופס</a>
+    <div class="run-hint">חדש 2026-05-03 — מלאי עיר + מלון + תאריכים, העתיקי פקודה והדביקי בשיחת Cowork</div>
+  </div>
+
 </div>
 
 <script>
@@ -332,6 +344,8 @@ const SCOUT_REPORTS = [
   if (prEl) prEl.textContent = (HUB.pr_organization && HUB.pr_organization.lastRun) || "—";
   const prInfEl = document.getElementById("pr-influencer-lastRun");
   if (prInfEl) prInfEl.textContent = (HUB.pr_influencer && HUB.pr_influencer.lastRun) || "—";
+  const fcEl = document.getElementById("forecast-lastRun");
+  if (fcEl) fcEl.textContent = (HUB.forecast && HUB.forecast.lastRun) || "—";
 
   document.querySelectorAll(".run-btn").forEach(btn => {
     if (!btn.hasAttribute("data-cmd")) return;

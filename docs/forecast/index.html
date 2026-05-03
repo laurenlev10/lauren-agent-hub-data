@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>🔮 חוזה עתידות — Sales Forecast Dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f8f7fb;color:#1a1a2e;padding:20px;max-width:1100px;margin:0 auto}
+  header{background:linear-gradient(135deg,#7c3aed,#3b0764);color:#fff;padding:24px 28px;border-radius:14px;margin-bottom:24px}
+  header h1{margin:0 0 6px;font-size:30px}
+  header .sub{opacity:.9;font-size:14px}
+  .nav-back{display:inline-block;color:#fff;text-decoration:none;background:rgba(255,255,255,.2);padding:6px 14px;border-radius:8px;font-size:13px;margin-top:10px}
+  .tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+  .tab{padding:10px 18px;background:#fff;border:1px solid #ddd;border-radius:10px;cursor:pointer;font-size:15px;font-weight:500}
+  .tab.active{background:#7c3aed;color:#fff;border-color:#7c3aed}
+  .form-card{background:#fff;border-radius:14px;padding:22px;margin-bottom:24px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .form-card h2{margin:0 0 14px;font-size:19px}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px}
+  .form-row.single{grid-template-columns:1fr}
+  label{display:block;font-size:13px;color:#555;margin-bottom:4px}
+  input,select{width:100%;padding:10px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:inherit}
+  .copy-btn{display:block;width:100%;background:linear-gradient(180deg,#7c3aed,#5b21b6);color:#fff;border:0;padding:14px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;margin-top:10px}
+  .copy-btn:hover{filter:brightness(1.05)}
+  .hint{font-size:12px;color:#666;margin-top:6px;text-align:center}
+  .empty{background:#fff;border-radius:14px;padding:40px;text-align:center;color:#888;border:2px dashed #ddd}
+  .forecast-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+  .fc-card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 1px 3px rgba(0,0,0,.06);border-right:4px solid #7c3aed}
+  .fc-card .city{font-size:18px;font-weight:600;margin-bottom:4px}
+  .fc-card .dates{color:#666;font-size:13px;margin-bottom:10px}
+  .fc-card .estimate{font-size:24px;font-weight:700;color:#7c3aed;margin:8px 0 4px}
+  .fc-card .conf{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
+  .conf-high{background:#dcfce7;color:#166534}
+  .conf-medium{background:#fef3c7;color:#854d0e}
+  .conf-low{background:#fee2e2;color:#991b1b}
+  .fc-card .flags{margin-top:10px;font-size:12px;color:#444}
+  .fc-card .flags li{margin-bottom:3px}
+  .fc-card a.detail{display:inline-block;margin-top:10px;color:#7c3aed;text-decoration:none;font-size:13px;font-weight:500}
+  .fc-card a.detail:hover{text-decoration:underline}
+  .fc-card .gen-at{margin-top:8px;font-size:11px;color:#999}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔮 חוזה עתידות</h1>
+  <div class="sub">תחזית מכירות לאירועים עתידיים — היסטוריה + דמוגרפיה + עונתיות → אומדן הכנסה</div>
+  <a class="nav-back" href="../">← חזרה ל-Agent Hub</a>
+</header>
+
+<div class="tabs" id="year-tabs">
+  <button class="tab active" data-year="2026">2026</button>
+  <button class="tab" data-year="2027">2027</button>
+  <button class="tab" data-year="all">הכול</button>
+</div>
+
+<div class="form-card">
+  <h2>הריצי תחזית חדשה לעיר</h2>
+  <div class="form-row">
+    <div>
+      <label>עיר (City)</label>
+      <input type="text" id="f-city" placeholder="Santa Maria" autocomplete="off">
+    </div>
+    <div>
+      <label>מדינה (ST)</label>
+      <input type="text" id="f-state" maxlength="2" placeholder="CA" style="text-transform:uppercase" autocomplete="off">
+    </div>
+  </div>
+  <div class="form-row">
+    <div>
+      <label>תאריך התחלה</label>
+      <input type="date" id="f-start">
+    </div>
+    <div>
+      <label>תאריך סיום</label>
+      <input type="date" id="f-end">
+    </div>
+  </div>
+  <div class="form-row">
+    <div>
+      <label>שם המלון / האולם</label>
+      <input type="text" id="f-venue" placeholder="Radisson Hotel Santa Maria" autocomplete="off">
+    </div>
+    <div>
+      <label>כתובת מלאה</label>
+      <input type="text" id="f-address" placeholder="3455 Skyway Dr, Santa Maria CA 93455" autocomplete="off">
+    </div>
+  </div>
+  <button class="copy-btn" id="copy-cmd">📋 העתיקי פקודת תחזית</button>
+  <div class="hint">העתיקי → הדביקי בשיחת Cowork חדשה. הסוכן יחזיר תוצאה תוך 12-15 דק'.</div>
+</div>
+
+<div id="forecast-list-container">
+  <div class="empty" id="empty-state">
+    עדיין לא הורצו תחזיות. תחזית ראשונה תופיע כאן אחרי הריצה.
+  </div>
+  <div class="forecast-grid" id="forecast-grid" style="display:none"></div>
+</div>
+
+<script id="forecast-data" type="application/json">
+{"forecasts":[]}
+</script>
+
+<script>
+  // Load + render forecasts
+  function loadForecasts(){
+    try {
+      const raw = document.getElementById("forecast-data").textContent;
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed.forecasts) ? parsed.forecasts : [];
+    } catch(e){ return []; }
+  }
+
+  function renderGrid(year){
+    const all = loadForecasts();
+    const filtered = (year === "all") ? all : all.filter(f => (f.start_date||"").slice(0,4) === year);
+    const grid = document.getElementById("forecast-grid");
+    const empty = document.getElementById("empty-state");
+    if (filtered.length === 0){
+      grid.style.display = "none";
+      empty.style.display = "block";
+      empty.textContent = (year === "all")
+        ? "עדיין לא הורצו תחזיות. תחזית ראשונה תופיע כאן אחרי הריצה."
+        : `אין תחזיות לשנת ${year} עדיין.`;
+      return;
+    }
+    empty.style.display = "none";
+    grid.style.display = "grid";
+    grid.innerHTML = filtered.map(f => {
+      const slug = (f.city||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+      const detailHref = `forecast/${slug}-${f.start_date}/`;
+      const flags = (f.risk_flags||[]).slice(0,3).map(x => `<li>⚠ ${x}</li>`).join("");
+      return `<div class="fc-card">
+        <div class="city">${f.city}, ${f.state}</div>
+        <div class="dates">${f.start_date} → ${f.end_date} · ${f.venue||""}</div>
+        <div class="estimate">$${(f.estimate_low/1000).toFixed(1)}K – $${(f.estimate_high/1000).toFixed(1)}K</div>
+        <span class="conf conf-${f.confidence}">${({high:"ביטחון גבוהה",medium:"ביטחון בינונית",low:"ביטחון נמוכה"})[f.confidence]||""}</span>
+        ${flags ? `<ul class="flags">${flags}</ul>` : ""}
+        <a class="detail" href="${detailHref}">פרטים מלאים →</a>
+        <div class="gen-at">${f.generated_at||""}</div>
+      </div>`;
+    }).join("");
+  }
+
+  // Year tabs
+  document.querySelectorAll(".tab").forEach(t => {
+    t.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+      t.classList.add("active");
+      renderGrid(t.dataset.year);
+    });
+  });
+  renderGrid("2026");
+
+  // Pre-fill from URL params (so launch_dashboard's 🔮 button can hand off cleanly)
+  const params = new URLSearchParams(location.search);
+  if (params.size > 0){
+    const cityState = params.get("city") || "";
+    const m = cityState.match(/^(.+?),\s*([A-Z]{2})$/);
+    if (m){
+      document.getElementById("f-city").value = m[1];
+      document.getElementById("f-state").value = m[2];
+    } else {
+      document.getElementById("f-city").value = cityState;
+    }
+    document.getElementById("f-start").value   = params.get("start_date") || "";
+    document.getElementById("f-end").value     = params.get("end_date")   || "";
+    document.getElementById("f-venue").value   = params.get("venue")   || "";
+    document.getElementById("f-address").value = params.get("address") || "";
+    // Auto-trigger copy if all required fields are present
+    setTimeout(() => {
+      const allFilled = ["f-city","f-state","f-start","f-end","f-venue","f-address"]
+        .every(id => document.getElementById(id).value.trim());
+      if (allFilled && params.has("autorun")){
+        document.getElementById("copy-cmd").click();
+      }
+    }, 200);
+  }
+
+  // Copy command builder
+  document.getElementById("copy-cmd").addEventListener("click", () => {
+    const city = document.getElementById("f-city").value.trim();
+    const state = document.getElementById("f-state").value.trim().toUpperCase();
+    const start = document.getElementById("f-start").value.trim();
+    const end = document.getElementById("f-end").value.trim();
+    const venue = document.getElementById("f-venue").value.trim();
+    const address = document.getElementById("f-address").value.trim();
+    if (!city || !state || !start || !end){
+      alert("חסרים שדות חובה: עיר, מדינה, תאריך התחלה, תאריך סיום.");
+      return;
+    }
+    const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\event-forecast\\SKILL.md\` — it is the orchestrator for @forecast (🔮 חוזה עתידות). Run a sales forecast for the upcoming event:
+- city: ${city}, ${state}
+- start_date: ${start}
+- end_date: ${end}
+- venue: ${venue}
+- address: ${address}
+Read forecast.md, dashboard.md, and comms.md as the SKILL.md tells you to. Send Touchpoint 1 immediately, then run all 5 passes with 🔄 SMS between each, then deliver Touchpoint 3 with the dashboard URL on its own line.`;
+    navigator.clipboard.writeText(cmd).then(() => {
+      const btn = document.getElementById("copy-cmd");
+      const orig = btn.textContent;
+      btn.textContent = "✓ הועתק! הדביקי בשיחת Cowork חדשה";
+      setTimeout(() => { btn.textContent = orig; }, 2500);
+    });
+  });
+</script>
+</body>
+</html>
