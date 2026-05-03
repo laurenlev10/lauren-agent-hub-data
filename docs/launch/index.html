@@ -366,7 +366,7 @@ End date: </div>
   <div class="card">
     <h2>
       <span><span id="schedule-year">2026</span> — All weekends</span>
-      <span class="meta" id="schedule-stats"></span>
+      <!-- schedule-stats removed 2026-05-03 PM (Lauren feedback: redundant — period-tabs already show "Past N · Future M") -->
     </h2>
 
     <div class="upload-row">
@@ -998,8 +998,10 @@ End date: </div>
       return true;
     });
     tbody.innerHTML = visibleRows.map(r => r.html).join("");
-    document.getElementById("schedule-stats").textContent =
-      counts.done + " done · " + counts.launched + " launched · " + counts.signed + " signed · " + counts.tentative + " tentative · " + counts.open + " open · " + fridays.length + " weekends total";
+    // schedule-stats element removed 2026-05-03 PM — counts no longer surfaced in the header
+    // (period-tab badges already show past/future event counts)
+    const _statsEl = document.getElementById("schedule-stats");
+    if (_statsEl) _statsEl.textContent = "";
   }
 
   function setActiveYear(y){
