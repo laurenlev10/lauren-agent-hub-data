@@ -171,6 +171,28 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
         <option value="schedule">Schedule directly (campaigns fire automatically — use only when you're 100% sure)</option>
       </select>
 
+      <!-- 🎯 Weekend Hooks — added 2026-05-03 -->
+      <div id="hooks-section" style="margin-top:18px;padding:14px;background:#fef9e7;border:1px solid #f7d774;border-radius:8px">
+        <label style="margin:0 0 4px;font-weight:600;color:#7c5b00">🎯 Weekend Hooks <span style="font-weight:400;font-size:11px;color:#a07d2c">— hook your Touch 1 to a holiday/event happening that weekend</span></label>
+        <p style="font-size:12px;color:#7c5b00;margin:0 0 10px;line-height:1.4">לדוגמה: סופ"ש יום האם → "$5 brush set, perfect last-minute Mother's Day gift". סמני אילו hooks רלוונטיים, וערכי את הטקסט אם רוצה. הסוכן יזריק את ה-hook לשורה הראשונה של Touch 1 (ואופציונלית גם Touch 2).</p>
+        <div id="hooks-detected" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
+          <span style="font-size:12px;color:var(--muted)">Fill start + end date above to see suggestions.</span>
+        </div>
+        <label style="font-size:12px;color:#7c5b00;display:block;margin-top:6px">Custom hook text (overrides the selected ones if non-empty)</label>
+        <textarea id="hook-custom" rows="2" placeholder="🌷 Because it's Mother's Day weekend, get $5 brush sets — perfect last-minute gift!" style="width:100%;padding:8px;border:1px solid #e0c560;border-radius:6px;font-family:inherit;font-size:13px;resize:vertical"></textarea>
+        <div style="display:flex;gap:14px;align-items:center;margin-top:10px;flex-wrap:wrap">
+          <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px;color:#7c5b00;margin:0">
+            <input type="radio" name="hook-scope" value="touch1" checked style="width:auto;margin:0"> Apply to Touch 1 only (Mon)
+          </label>
+          <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px;color:#7c5b00;margin:0">
+            <input type="radio" name="hook-scope" value="touch12" style="width:auto;margin:0"> Apply to Touch 1 + Touch 2 (Mon + Tue)
+          </label>
+          <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px;color:#7c5b00;margin:0">
+            <input type="checkbox" id="hook-research-more" style="width:auto;margin:0"> Agent: also web-search for more local hooks before drafting
+          </label>
+        </div>
+      </div>
+
       <label style="margin-top:14px;display:flex;gap:8px;align-items:center;cursor:pointer">
         <input type="checkbox" id="ev-first-time" style="width:auto;margin:0">
         <span>First time in this city — skip the Tuesday prior-years touch</span>
@@ -639,6 +661,145 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     const reelLink = document.getElementById("ev-reel-link").value.trim();
     return { cityFull, cityOnly, state, venue, address, year, sd, ed, dateRange, startDay, endDay, reelLink };
   }
+  // ============================================================
+  // 🎯 Weekend Hooks — added 2026-05-03
+  // For a given Fri-Sun event date range, surface known recurring
+  // US holidays/observances within ±7 days. Lauren picks 0-N, optionally
+  // adds custom hook text, optionally asks the agent to web-search for
+  // additional local context. Selected hook(s) get injected into Touch 1
+  // (or Touch 1+2) as the opening line.
+  // ============================================================
+  function nthWeekdayOfMonth(year, month, weekday, n) {
+    // month: 1-12 ; weekday: 0=Sun..6=Sat ; n: 1..5 (use 5 for "last")
+    if (n === 5) {
+      const d = new Date(year, month, 0); // last day of month
+      const offset = (d.getDay() - weekday + 7) % 7;
+      return new Date(year, month - 1, d.getDate() - offset);
+    }
+    const first = new Date(year, month - 1, 1);
+    const offset = (weekday - first.getDay() + 7) % 7;
+    return new Date(year, month - 1, 1 + offset + (n - 1) * 7);
+  }
+  function easterSunday(year) {
+    // Anonymous Gregorian algorithm
+    const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+    const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4), k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month - 1, day);
+  }
+  function buildHolidayCalendar(year) {
+    // Each entry: { name (en+he), date, emoji, hook_he } ; hook_he is the seed text Lauren can edit
+    return [
+      { name: "New Year's Day",            date: new Date(year, 0, 1),                              emoji: "🎊", hook_he: "🎊 New Year, new looks — start 2026 with our blowout sale this weekend!" },
+      { name: "Valentine's Day",           date: new Date(year, 1, 14),                             emoji: "💝", hook_he: "💝 Treat yourself this Valentine's — full glam at 90% off all weekend!" },
+      { name: "MLK Jr. Day",               date: nthWeekdayOfMonth(year, 1, 1, 3),                  emoji: "🕊️", hook_he: "🕊️ Long weekend? Spend it shopping at our blowout sale!" },
+      { name: "Presidents Day",            date: nthWeekdayOfMonth(year, 2, 1, 3),                  emoji: "🇺🇸", hook_he: "🇺🇸 Presidents Day weekend = blowout sale weekend. Up to 90% off!" },
+      { name: "International Women's Day", date: new Date(year, 2, 8),                              emoji: "💪", hook_he: "💪 International Women's Day weekend — celebrate yourself with $1-$25 makeup!" },
+      { name: "St. Patrick's Day",         date: new Date(year, 2, 17),                             emoji: "🍀", hook_he: "🍀 Get lucky at our blowout sale this weekend — savings up to 90%!" },
+      { name: "Easter",                    date: easterSunday(year),                                emoji: "🐣", hook_he: "🐣 Easter weekend special — hop into our blowout sale for makeup gifts under $25!" },
+      { name: "Mother's Day",              date: nthWeekdayOfMonth(year, 5, 0, 2),                  emoji: "🌷", hook_he: "🌷 Because it's Mother's Day weekend — get $5 brush sets, the perfect last-minute gift!" },
+      { name: "Memorial Day",              date: nthWeekdayOfMonth(year, 5, 1, 5),                  emoji: "🇺🇸", hook_he: "🇺🇸 Memorial Day weekend = 3 days to shop our blowout sale. Don't miss it!" },
+      { name: "Father's Day",              date: nthWeekdayOfMonth(year, 6, 0, 3),                  emoji: "👔", hook_he: "👔 Treat yourself this Father's Day weekend — moms deserve a gift too!" },
+      { name: "Independence Day",          date: new Date(year, 6, 4),                              emoji: "🎆", hook_he: "🎆 4th of July weekend — celebrate with red, white, and 90% OFF makeup!" },
+      { name: "Labor Day",                 date: nthWeekdayOfMonth(year, 9, 1, 1),                  emoji: "🛍️", hook_he: "🛍️ Labor Day weekend = the biggest sale of the season. Up to 90% off!" },
+      { name: "Halloween",                 date: new Date(year, 9, 31),                             emoji: "🎃", hook_he: "🎃 Halloween weekend — stock up on costume + special-effect makeup at blowout prices!" },
+      { name: "Thanksgiving",              date: nthWeekdayOfMonth(year, 11, 4, 4),                 emoji: "🦃", hook_he: "🦃 Thanksgiving weekend — be thankful for 90% off makeup, skin care, and hair tools!" },
+      { name: "Black Friday",              date: (() => { const d = nthWeekdayOfMonth(year, 11, 4, 4); return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1); })(), emoji: "🖤", hook_he: "🖤 Skip the mall — Black Friday deals are HERE at our blowout sale, all weekend!" },
+      { name: "Christmas",                 date: new Date(year, 11, 25),                            emoji: "🎄", hook_he: "🎄 Last-minute Christmas gifts — full glam under $25, all weekend long!" },
+      { name: "New Year's Eve",            date: new Date(year, 11, 31),                            emoji: "🥂", hook_he: "🥂 NYE-ready makeup at blowout prices — the look you want, the price you'll love!" },
+      // Awareness months — these are ranges, treated as "any day in the month matches"
+      { name: "Breast Cancer Awareness Month", monthOnly: 10, emoji: "🎗️", hook_he: "🎗️ Breast Cancer Awareness Month — shop pink, support yourself, save up to 90%." },
+      { name: "Women's History Month",         monthOnly: 3,  emoji: "👩‍🎓", hook_he: "👩‍🎓 Women's History Month — celebrate by treating yourself to full glam under $25!" },
+    ];
+  }
+  function detectWeekendHooks(startDateISO, endDateISO) {
+    if (!startDateISO || !endDateISO) return [];
+    const start = new Date(startDateISO + "T00:00:00");
+    const end = new Date(endDateISO + "T00:00:00");
+    const year = start.getFullYear();
+    const cal = buildHolidayCalendar(year).concat(buildHolidayCalendar(year + 1)); // also next year for late-Dec events
+    const matches = [];
+    cal.forEach(h => {
+      if (h.monthOnly !== undefined) {
+        // Awareness month: match if event start or end falls in that month
+        if (start.getMonth() + 1 === h.monthOnly || end.getMonth() + 1 === h.monthOnly) {
+          matches.push({ ...h, daysFromEvent: 0, dateLabel: "throughout " + h.name.split(" Month")[0] });
+        }
+        return;
+      }
+      // Single-day holiday: match if within ±7 days of start_date
+      const diffDays = Math.round((h.date - start) / (1000 * 60 * 60 * 24));
+      if (Math.abs(diffDays) <= 7) {
+        const dateLabel = h.date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+        matches.push({ ...h, daysFromEvent: diffDays, dateLabel });
+      }
+    });
+    // Sort: in-window holidays first by absolute distance, awareness months last
+    matches.sort((a, b) => {
+      if (a.monthOnly !== undefined && b.monthOnly === undefined) return 1;
+      if (b.monthOnly !== undefined && a.monthOnly === undefined) return -1;
+      return Math.abs(a.daysFromEvent || 0) - Math.abs(b.daysFromEvent || 0);
+    });
+    return matches;
+  }
+  function renderHooks() {
+    const sd = document.getElementById("ev-start").value;
+    const ed = document.getElementById("ev-end").value;
+    const container = document.getElementById("hooks-detected");
+    const hooks = detectWeekendHooks(sd, ed);
+    if (!sd || !ed) {
+      container.innerHTML = '<span style="font-size:12px;color:var(--muted)">Fill start + end date above to see suggestions.</span>';
+      return;
+    }
+    if (hooks.length === 0) {
+      container.innerHTML = '<span style="font-size:12px;color:#7c5b00">No major holidays detected within ±7 days. Use a custom hook below, or check the "agent web-search" box.</span>';
+      return;
+    }
+    container.innerHTML = hooks.map((h, idx) => {
+      const distLabel = h.monthOnly !== undefined ? h.dateLabel : (h.daysFromEvent === 0 ? "ON event weekend" : (h.daysFromEvent > 0 ? `+${h.daysFromEvent}d after` : `${h.daysFromEvent}d before`));
+      return `<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 8px;background:#fff;border:1px solid #ead29a;border-radius:6px;cursor:pointer">
+        <input type="checkbox" class="hook-pick" data-idx="${idx}" data-hook='${JSON.stringify(h).replace(/'/g, "&#39;")}' style="width:auto;margin:3px 0 0 0">
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:#5a4500">${h.emoji} ${h.name} <span style="font-weight:400;font-size:11px;color:#a07d2c">(${distLabel})</span></div>
+          <div style="font-size:12px;color:#5a4500;margin-top:2px">${h.hook_he}</div>
+        </div>
+      </label>`;
+    }).join("");
+    container.querySelectorAll(".hook-pick").forEach(cb => cb.addEventListener("change", rebuildPreview));
+  }
+  function getSelectedHooks() {
+    const picks = [];
+    document.querySelectorAll("#hooks-detected .hook-pick:checked").forEach(cb => {
+      try { picks.push(JSON.parse(cb.dataset.hook.replace(/&#39;/g, "'"))); } catch(e) {}
+    });
+    return picks;
+  }
+  function buildHookSection() {
+    const custom = document.getElementById("hook-custom").value.trim();
+    const picks = getSelectedHooks();
+    const scope = (document.querySelector('input[name="hook-scope"]:checked') || {}).value || "touch1";
+    const researchMore = document.getElementById("hook-research-more").checked;
+    if (!custom && picks.length === 0 && !researchMore) return "";
+    let s = "=== Weekend Hooks (apply to: " + (scope === "touch12" ? "Touch 1 + Touch 2" : "Touch 1 only") + ") ===\n";
+    if (custom) {
+      s += "Custom hook (use VERBATIM as opening line, overrides detected):\n  " + custom + "\n";
+    } else if (picks.length > 0) {
+      s += "Detected hooks (pick the strongest, or combine if natural):\n";
+      picks.forEach(h => { s += "  • " + h.emoji + " " + h.name + " — " + h.hook_he + "\n"; });
+    }
+    if (researchMore) {
+      s += "Agent: ALSO web-search for additional local hooks (city festivals, school events, awareness months, weather notes) for the event date range. SMS Lauren a 🔄 with the strongest 1-2 you find before drafting Touch 1, ask if she wants to incorporate.\n";
+    }
+    s += "\n";
+    return s;
+  }
+
   function rebuildPreview(){
     const ev = eventCtx();
     if (!ev.cityFull || !ev.sd || !ev.ed){
@@ -647,6 +808,8 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     }
     const mode = document.getElementById("ev-mode").value;
     let cmd = `Run the simple-texting skill.\n\nCity: ${ev.cityFull}\nStreet: ${ev.address}\nHotel: ${ev.venue}\nYear: ${ev.year}\nStart date: ${ev.sd}\nEnd date: ${ev.ed}\nMode: ${mode}\n\n`;
+    // 🎯 Weekend Hooks — inject right after the event header, before any Touch
+    cmd += buildHookSection();
     const isFirstTime = document.getElementById("ev-first-time").checked;
     let skippedDueToFirstTime = [];
     state.touches.forEach((t, i) => {
@@ -693,6 +856,18 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     document.getElementById("preview").textContent = cmd;
     return cmd;
   }
+  // Weekend Hooks: re-render suggestions when dates change; rebuild preview on any hook input
+  ["ev-start","ev-end"].forEach(id => {
+    document.getElementById(id).addEventListener("change", renderHooks);
+  });
+  ["hook-custom","hook-research-more"].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener("input", rebuildPreview);
+    el.addEventListener("change", rebuildPreview);
+  });
+  document.querySelectorAll('input[name="hook-scope"]').forEach(r => r.addEventListener("change", rebuildPreview));
+  renderHooks(); // initial render (in case URL params already filled the dates)
+
   ["ev-city","ev-year","ev-venue","ev-address","ev-start","ev-end","ev-mode","ev-reel-link","ev-first-time"].forEach(id => {
     document.getElementById(id).addEventListener("input", rebuildPreview);
     document.getElementById(id).addEventListener("change", rebuildPreview);
