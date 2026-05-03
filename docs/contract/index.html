@@ -120,10 +120,49 @@
     <div class="card">
       <h2>Recent reviews</h2>
       <div id="history-list"><span style="color:var(--muted);font-style:italic">No reviews yet.</span></div>
-      <p class="footnote">History saved in localStorage as the agent reports back via #review-saved hash hook (planned).</p>
+      <p class="footnote">History is stored in this file under <code>&lt;script id="reviews-data"&gt;</code> and updated by <code>@contract</code> on every run (cross-device, served from GitHub Pages). Click any row to expand the full per-clause report.</p>
     </div>
   </div>
 </div>
+
+<style>
+  .review-row{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fafbfc;cursor:pointer;transition:border-color .15s}
+  .review-row:hover{border-color:var(--accent)}
+  .review-row .top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .review-row .city{font-weight:700;font-size:14px}
+  .review-row .meta{font-size:12px;color:var(--muted)}
+  .review-row .verdict-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-weight:700;font-size:12px}
+  .review-row .verdict-badge.pass{background:var(--ok-bg);color:var(--ok)}
+  .review-row .verdict-badge.warn{background:var(--warn-bg);color:var(--warn)}
+  .review-row .verdict-badge.fail{background:var(--err-bg);color:var(--err)}
+  .review-row .counts{display:flex;gap:8px;font-size:11px;font-weight:600}
+  .review-row .counts span{padding:2px 7px;border-radius:6px;background:#fff;border:1px solid var(--border)}
+  .review-row .counts .c-pass{color:var(--ok)} .review-row .counts .c-warn{color:var(--warn)} .review-row .counts .c-fail{color:var(--err)}
+  .review-row .open-link{margin-top:8px;font-size:12px;color:var(--accent);text-decoration:none;display:inline-block}
+  .review-row .open-link:hover{text-decoration:underline}
+</style>
+
+<script id="reviews-data">
+// 🚨 Owned by @contract. Single source of truth for recent reviews.
+// Schema: { slug, city, hotel, start_date, reviewed_at (ISO), verdict ("✓"|"⚠"|"✗"),
+//           pass, concerning, missing, href (relative to /contract/) }
+// On every contract-review run, the agent upserts into this array (latest first),
+// keeps the most recent ~50 entries, and re-deploys.
+const RECENT_REVIEWS = [
+  {
+    "slug": "columbia-2026-05-08",
+    "city": "Columbia, MO",
+    "hotel": "Courtyard by Marriott",
+    "start_date": "2026-05-08",
+    "reviewed_at": "2026-05-03T15:30:00-07:00",
+    "verdict": "✗",
+    "pass": 0,
+    "concerning": 2,
+    "missing": 7,
+    "href": "events/columbia-2026-05-08/"
+  }
+];
+</script>
 
 <script>
 const KEY = "contract-review:clauses";
@@ -328,6 +367,52 @@ document.getElementById("gen-cmd").addEventListener("click", async () => {
 
 renderClauses();
 rebuildPreview();
+
+// Recent reviews (server-side, sourced from <script id="reviews-data">)
+function fmtReviewedAt(iso){
+  try {
+    const d = new Date(iso);
+    const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const hh = String(d.getHours()).padStart(2,"0");
+    const mm = String(d.getMinutes()).padStart(2,"0");
+    return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} · ${hh}:${mm}`;
+  } catch(e){ return iso || "—"; }
+}
+function verdictClass(v){ return v === "✓" ? "pass" : v === "⚠" ? "warn" : "fail"; }
+function verdictLabel(v){ return v === "✓" ? "All pass" : v === "⚠" ? "Concerning" : "Critical fail"; }
+
+function renderReviews(){
+  const host = document.getElementById("history-list");
+  if (!host) return;
+  const list = (typeof RECENT_REVIEWS !== "undefined" && Array.isArray(RECENT_REVIEWS)) ? RECENT_REVIEWS.slice() : [];
+  // Sort newest first
+  list.sort((a,b) => (b.reviewed_at || "").localeCompare(a.reviewed_at || ""));
+  if (!list.length){
+    host.innerHTML = `<span style="color:var(--muted);font-style:italic">No reviews yet. Run the agent for an event and it will appear here automatically after deploy.</span>`;
+    return;
+  }
+  host.innerHTML = list.map(r => {
+    const v = r.verdict || "—";
+    return `
+      <a class="review-row" href="${escapeHtml(r.href || '#')}" style="display:block;text-decoration:none;color:inherit">
+        <div class="top">
+          <div>
+            <div class="city">${escapeHtml(r.city || r.slug || '—')} ${r.hotel ? '· <span class="meta">' + escapeHtml(r.hotel) + '</span>' : ''}</div>
+            <div class="meta">Event ${escapeHtml(r.start_date || '—')} · Reviewed ${escapeHtml(fmtReviewedAt(r.reviewed_at))}</div>
+          </div>
+          <span class="verdict-badge ${verdictClass(v)}">${escapeHtml(v)} ${escapeHtml(verdictLabel(v))}</span>
+        </div>
+        <div class="counts" style="margin-top:8px">
+          <span class="c-pass">✓ ${r.pass ?? 0} pass</span>
+          <span class="c-warn">⚠ ${r.concerning ?? 0} concerning</span>
+          <span class="c-fail">❌ ${r.missing ?? 0} missing</span>
+        </div>
+        <span class="open-link">📋 Open full per-clause report →</span>
+      </a>`;
+  }).join("");
+}
+renderReviews();
 
 // Pre-fill from URL params (added 2026-05-03 for the per-row 📋 Contract button on launch_dashboard).
 // URL contract: ../contract/?city=Columbia,+MO&start_date=2026-05-08&end_date=2026-05-10&year=2026&venue=...&address=...
