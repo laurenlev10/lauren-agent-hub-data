@@ -108,6 +108,10 @@
   .btn-launch-row.warned{background:linear-gradient(180deg,#f59e0b,#b45309)}
   .btn-launch-row.done{background:linear-gradient(180deg,#16a34a,#15803d) !important;color:#fff;text-decoration:none}
   .btn-launch-row.done:hover{background:linear-gradient(180deg,#15803d,#14532d) !important}
+  /* Small "+ List" / "+ EB" chip — partial-state action button next to the green main button */
+  .btn-add-chip{display:inline-flex;align-items:center;gap:3px;margin-top:6px;margin-left:4px;padding:5px 9px;background:linear-gradient(180deg,#f59e0b,#b45309);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.3px;box-shadow:0 1px 2px rgba(245,158,11,.35);transition:all .12s;white-space:nowrap}
+  .btn-add-chip:hover{background:linear-gradient(180deg,#d97706,#92400e);transform:translateY(-1px)}
+  .btn-add-chip.copied{background:linear-gradient(180deg,#16a34a,#15803d) !important}
   .btn-launch-row[disabled]{opacity:.5;cursor:not-allowed;transform:none}
   .btn-campaigns-row{display:inline-flex;align-items:center;gap:4px;margin-top:6px;margin-left:6px;padding:5px 10px;background:#0ea5e9;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none;letter-spacing:.3px;box-shadow:0 1px 2px rgba(14,165,233,.3);transition:all .12s}
   .btn-campaigns-row:hover{background:#0369a1;transform:translateY(-1px)}
@@ -700,6 +704,32 @@ End date: </div>
           if (setup.eventbrite && setup.eventbrite.generated_at) tipParts.push("Created " + setup.eventbrite.generated_at.slice(0,10));
           const linkHref = ebDone ? setup.eventbrite.url : (smsDone ? "https://app2.simpletexting.com/contact-lists" : "#");
           rowBtn = '<a class="btn-launch-row done" href="' + linkHref + '" target="_blank" rel="noopener" title="' + escapeHtml(tipParts.join(" · ")) + '">' + labelMain + '</a>';
+          // Partial-state action chip — copies a Cowork command to fill the missing half (mode=smslist-only or mode=eventbrite-only)
+          if (ebDone && !smsDone) {
+            const chipPayload = JSON.stringify({
+              mode: "smslist-only",
+              city: ev.city + ", " + ev.state,
+              year: (ev.start_date || "").slice(0,4),
+              start: ev.start_date || "",
+              end: ev.end_date || "",
+              eventbrite_url: setup.eventbrite.url,
+              eventbrite_id: setup.eventbrite.eventId
+            }).replace(/"/g,"&quot;");
+            rowBtn += '<button class="btn-add-chip" data-partial="' + chipPayload + '" title="Copy a Cowork command to create ONLY the SimpleTexting SMS list (Eventbrite event already exists).">📋 + Create List</button>';
+          } else if (!ebDone && smsDone) {
+            const chipPayload = JSON.stringify({
+              mode: "eventbrite-only",
+              city: ev.city + ", " + ev.state,
+              street: ev.address || "",
+              hotel: ev.venue || "",
+              year: (ev.start_date || "").slice(0,4),
+              start: ev.start_date || "",
+              end: ev.end_date || "",
+              smslist_id: setup.smslist.list_id,
+              smslist_name: setup.smslist.list_name
+            }).replace(/"/g,"&quot;");
+            rowBtn += '<button class="btn-add-chip" data-partial="' + chipPayload + '" title="Copy a Cowork command to create ONLY the Eventbrite event (SMS list already exists).">🎟️ + Create EB</button>';
+          }
         } else {
           // ── Run state — orange/cyan gradient, copies the launch command (same payload as before)
           const btnLabel = "🎟️ Eventbrite + List Setup" + (incomplete ? " ⚠" : "");
@@ -1114,10 +1144,53 @@ End date: </div>
   });
 
 
-  // Per-row "Copy launch" — same payload as the form's Copy button
+  // Per-row partial-state action chip — copies the smslist-only or eventbrite-only command
   document.getElementById("schedule-tbody").addEventListener("click", async (e) => {
+    const chip = e.target.closest(".btn-add-chip");
+    if (chip) {
+      e.stopPropagation();
+      const data = JSON.parse(chip.getAttribute("data-partial").replace(/&quot;/g,'"'));
+      let cmd;
+      if (data.mode === "smslist-only") {
+        cmd =
+          "Run eventbrite-setup with mode=smslist-only.\n\n" +
+          "The Eventbrite event already exists at: " + data.eventbrite_url + " (id " + data.eventbrite_id + "). Skip the EB steps. Only execute Step 6a — POST to SimpleTexting v2/api/contact-lists with {\"name\": \"" + data.city + " " + data.year + "\"} → capture and report listId.\n\n" +
+          "Inputs:\n" +
+          "City: "       + data.city  + "\n" +
+          "Year: "       + data.year  + "\n" +
+          "Start date: " + data.start + "\n" +
+          "End date: "   + data.end   + "\n\n" +
+          "After success, upsert the SETUPS map slot (smslist field only) and deploy via deploy-dashboard.";
+      } else if (data.mode === "eventbrite-only") {
+        cmd =
+          "Run eventbrite-setup with mode=eventbrite-only.\n\n" +
+          "The SimpleTexting list already exists (id " + data.smslist_id + ", name '" + data.smslist_name + "'). Skip Step 6a. Execute Steps 6b–6f only — create EB venue, event, ticket class, publish, set Overview.\n\n" +
+          "Inputs:\n" +
+          "City: "       + data.city   + "\n" +
+          "Street: "     + data.street + "\n" +
+          "Hotel: "      + data.hotel  + "\n" +
+          "Year: "       + data.year   + "\n" +
+          "Start date: " + data.start  + "\n" +
+          "End date: "   + data.end    + "\n\n" +
+          "After success, upsert the SETUPS map slot (eventbrite field only) and deploy via deploy-dashboard.";
+      } else {
+        return;
+      }
+      const orig = chip.textContent;
+      try {
+        await navigator.clipboard.writeText(cmd);
+        chip.textContent = "✓ Copied";
+        chip.classList.add("copied");
+        setTimeout(() => { chip.textContent = orig; chip.classList.remove("copied"); }, 2500);
+      } catch(err) {
+        alert("Copy failed. Command:\n\n" + cmd);
+      }
+      return;
+    }
+    // Per-row "🎟️ Eventbrite + List Setup" — full launch (replaces former "Copy launch")
     const btn = e.target.closest(".btn-launch-row");
     if (!btn) return;
+    if (btn.tagName === "A") return;   // done state — let the link navigate
     e.stopPropagation();
     const data = JSON.parse(btn.getAttribute("data-event").replace(/&quot;/g,'"'));
     const cmd =
