@@ -80,6 +80,22 @@
   .list-stats span{margin-left:4px}
   .list-stats.hist{color:#64748b;border-top:none;padding-top:2px;margin-top:2px;font-style:italic}
   .list-stats.hist b{color:#334155;font-style:normal;font-weight:700}
+  /* Staff assignments — defaults from xlsx, live-editable (Lauren 2026-05-03 PM) */
+  .staff-block{font-size:11px;color:#475569;margin-top:6px;padding-top:6px;border-top:1px dashed #e5e7eb;line-height:1.7}
+  .staff-line{display:flex;align-items:flex-start;gap:5px;flex-wrap:wrap}
+  .staff-line b{color:#1f2937;font-weight:700;flex-shrink:0}
+  .staff-val{flex:1;min-width:120px;color:#374151;word-break:break-word}
+  .staff-val.override{background:#fef3c7;padding:1px 5px;border-radius:4px;font-weight:600}
+  .staff-val.override::after{content:" ✏";font-size:9px;opacity:.6;margin-left:3px}
+  .staff-edit-btn{flex-shrink:0;background:transparent;border:none;cursor:pointer;font-size:13px;padding:0 4px;border-radius:4px;opacity:.5;transition:all .12s}
+  .staff-edit-btn:hover{opacity:1;background:#fef3c7}
+  .staff-edit-textarea{width:100%;font-size:11px;font-family:inherit;padding:6px 8px;border:1px solid #f59e0b;border-radius:5px;resize:vertical;min-height:40px;background:#fffbeb}
+  .staff-edit-toolbar{display:flex;gap:6px;margin-top:4px;font-size:10px}
+  .staff-edit-toolbar button{padding:3px 9px;border:none;border-radius:4px;font-weight:700;font-size:10px;cursor:pointer}
+  .staff-edit-toolbar .save{background:linear-gradient(180deg,#16a34a,#15803d);color:#fff}
+  .staff-edit-toolbar .cancel{background:#e5e7eb;color:#374151}
+  .staff-edit-toolbar .reset{background:#f59e0b;color:#fff}
+  .staff-edit-toolbar .reset[disabled]{opacity:.4;cursor:not-allowed}
   .badge-signed{background:var(--signed-bg);color:var(--signed)}
   .badge-tentative{background:var(--tentative-bg);color:var(--tentative)}
   .badge-empty{background:#f3f4f6;color:var(--muted)}
@@ -255,6 +271,13 @@ const LIST_STATS = {"nashville-2026-05-01":{"list_id":"68e83630372caf03d49d8769"
 // these are frozen lists from past events. The daily-sms-list-counts task does NOT re-check these.
 // Each entry: array of {year, list_id, list_name, total, active}, sorted year-desc, capped at 5.
 const HISTORICAL_LISTS = {"glendale-2026-01-09":[{"year":2022,"list_id":"62d21dc5a2f7d13f8008420a","list_name":"Glendale, AZ 2022","total":1061,"active":670}],"fresno-2026-01-16":[{"year":2023,"list_id":"6406293d299c386f496f0fee","list_name":"Fresno, CA 2023","total":2676,"active":1685},{"year":2022,"list_id":"62bc8801584c4041054c0551","list_name":"Fresno CA 2022","total":1301,"active":773},{"year":2021,"list_id":"60ca4b402e14c0626f7e8ffc","list_name":"Fresno CA 2021","total":1207,"active":645}],"el-cajon-2026-01-23":[{"year":2023,"list_id":"640625b1fa036872de11f976","list_name":"El Cajon, CA 2023","total":2068,"active":1325}],"emeryville-2026-01-30":[{"year":2024,"list_id":"6581cf9809f6010f819007a5","list_name":"Emeryville, CA 2024","total":1687,"active":1261}],"garland-2026-03-06":[{"year":2023,"list_id":"6406319f6aff1507d98bfa5b","list_name":"Garland TX 2023","total":1919,"active":1141}],"fort-worth-2026-03-13":[{"year":2023,"list_id":"640623f3299c386f496e9f7a","list_name":"Fort Worth, TX 2023","total":2260,"active":1280}],"tulsa-2026-03-20":[{"year":2021,"list_id":"617b4a88a1e63a3347193fc4","list_name":"Tulsa OK 2021","total":552,"active":320}],"milwaukee-2026-05-15":[{"year":2021,"list_id":"610c7b1b345aec75318be3ee","list_name":"Milwaukee, WI 2021","total":485,"active":294}],"overland-2026-06-12":[{"year":2025,"list_id":"67a264878e74223d4967e2f5","list_name":"Overland Park, KS 2025","total":1992,"active":1621}],"wichita-2026-06-19":[{"year":2025,"list_id":"67a26534b536db2d4baea4ad","list_name":"Wichita, KS 2025","total":2172,"active":1778}],"mesa-2026-07-10":[{"year":2022,"list_id":"62b9bd8ef158642f4be64432","list_name":"Mesa AZ 2022","total":806,"active":504},{"year":2021,"list_id":"60c7b12459bf902b9fafd1a0","list_name":"Mesa AZ 2021","total":723,"active":411}],"modesto-2026-07-24":[{"year":2023,"list_id":"64062f496aff1507d98be1dd","list_name":"Modesto, CA 2023","total":1839,"active":1222}],"richmond-2026-08-07":[{"year":2023,"list_id":"63cef3f51caa275c48e219b8","list_name":"Richmond CA 2023","total":1315,"active":917}],"visalia-2026-08-14":[{"year":2025,"list_id":"67928289aaccfb16c97a445f","list_name":"Visalia, CA 2025","total":1564,"active":1304},{"year":2024,"list_id":"659cc76fef7cbd7735257cca","list_name":"Visalia CA 2024","total":1744,"active":1291},{"year":2023,"list_id":"63939afb8f451e0c4534dfc9","list_name":"Visalia, CA 2023","total":1293,"active":875}],"san-jose-2026-08-28":[{"year":2023,"list_id":"64062eb4fa036872de1279c4","list_name":"San Jose, CA 2023","total":1786,"active":1258}],"portland-2026-09-04":[{"year":2023,"list_id":"64062df2f6cc92183c407a1c","list_name":"Portland, OR 2023","total":2736,"active":1829},{"year":2022,"list_id":"62705838fa06e52b6b41838f","list_name":"Portland, OR 2022","total":893,"active":491}],"boise-2026-09-11":[{"year":2022,"list_id":"62d1ab45024b6b783344ad7a","list_name":"Boise ID 2022","total":612,"active":395},{"year":2021,"list_id":"6082eebc627a9d7713255290","list_name":"Boise ID 2021","total":936,"active":521}],"salt-lake-city-2026-09-25":[{"year":2025,"list_id":"680fcb846c27fa0577291ce1","list_name":"Salt Lake, UT 2025","total":2119,"active":1735},{"year":2023,"list_id":"64022cc796af5e4a77915c01","list_name":"Salt Lake City, UT 2023","total":1840,"active":1207},{"year":2022,"list_id":"62bdace2b6cb9c1c0f5439ec","list_name":"Salt Lake City, UT 2022","total":772,"active":458}],"bakersfield-2026-10-02":[{"year":2025,"list_id":"67a26e488e74223d496ac86f","list_name":"Bakersfield, CA 2025","total":2316,"active":1936}],"reno-2026-10-09":[{"year":2025,"list_id":"680fcb0b6c27fa057728b0fd","list_name":"Reno, NV 2025","total":2107,"active":1803},{"year":2023,"list_id":"63e44307bc0c4d4d23352c57","list_name":"Reno NV 2023","total":1856,"active":1237}],"santa-fe-2026-10-16":[{"year":2025,"list_id":"67a26d89b536db2d4bb12a98","list_name":"Santa Fe, NM 2025","total":1539,"active":1286}],"albuquerque-2026-10-23":[{"year":2025,"list_id":"680fcc956c27fa057729d2cb","list_name":"Albuquerque, NM 2025","total":2584,"active":2218},{"year":2023,"list_id":"640623a8299c386f496e996d","list_name":"Albuquerque NM 2023","total":1802,"active":1166}],"tucson-2026-11-20":[{"year":2025,"list_id":"680fcd286c27fa05772a34c8","list_name":"Tucson, AZ 2025","total":2957,"active":2540},{"year":2023,"list_id":"64062757fa036872de120a0d","list_name":"Tucson, AZ 2023","total":2652,"active":1728},{"year":2022,"list_id":"62a52d5921dd987a8bb7be7e","list_name":"Tucson AZ 2022","total":977,"active":587},{"year":2021,"list_id":"60df4c92a7f28024a349178f","list_name":"Tucson AZ 2021","total":982,"active":533}],"anaheim-2026-12-18":[{"year":2023,"list_id":"640632daf6cc92183c40b7f4","list_name":"Anaheim CA 2023","total":2479,"active":1770}],"oxnard-ventura-2027-01-08":[{"year":2022,"list_id":"62d21767024b6b7833486f12","list_name":"Oxnard CA 2022","total":674,"active":449}],"lancaster-2027-01-22":[{"year":2023,"list_id":"64062999993ac349256a4205","list_name":"Lancaster, CA 2023","total":2776,"active":1889},{"year":2022,"list_id":"6290f16a10da020087aabca2","list_name":"Palmdale - Lancaster, CA 2022","total":580,"active":386},{"year":2021,"list_id":"615e56e372debb4e2d02e9bd","list_name":"Lancaster CA 2021","total":1133,"active":653}],"sacramento-2027-02-05":[{"year":2025,"list_id":"6806861e5ba98e0602525542","list_name":"Sacramento, CA 2025","total":1979,"active":1654},{"year":2021,"list_id":"60e79694699c655ade1d90d7","list_name":"Sacramento, CA 2021","total":679,"active":419}],"roseville-2027-02-12":[{"year":2024,"list_id":"671ffd9828ef8541d5d4a02e","list_name":"Roseville, CA 2024","total":1233,"active":1013}],"ontario-2027-02-19":[{"year":2023,"list_id":"64063297f6cc92183c40b421","list_name":"Ontario, CA 2023","total":2211,"active":1585}],"goodyear-2027-02-26":[{"year":2025,"list_id":"6838aad998eccf27bba9a0d5","list_name":"Goodyear, AZ 2025","total":1924,"active":1528},{"year":2023,"list_id":"63fd3049a83540023b5ad6e8","list_name":"Goodyear AZ 2023","total":2171,"active":1380}],"las-cruces-2027-03-12":[{"year":2025,"list_id":"67a26c6a8e74223d496a4a29","list_name":"Las Cruces, NM 2025","total":1345,"active":1143}],"el-paso-2027-03-19":[{"year":2025,"list_id":"6838a593499954054cc4536a","list_name":"El Paso, TX 2025","total":2663,"active":2308},{"year":2023,"list_id":"6406262a299c386f496eccfa","list_name":"El Paso, TX 2023","total":2645,"active":1745}],"austin-2027-03-26":[{"year":2025,"list_id":"67a267feb536db2d4baf7b27","list_name":"Austin, TX 2025","total":2185,"active":1815},{"year":2021,"list_id":"6176dd1ef44f2726ae6ccb12","list_name":"Austin TX 2021","total":552,"active":277}],"san-antonio-west-2027-04-02":[{"year":2025,"list_id":"680fcffb6c27fa05772c0c50","list_name":"San Antonio, TX 2025","total":2212,"active":1907},{"year":2023,"list_id":"64062725c1c4aa0e14dfd425","list_name":"San Antonio, TX 2023","total":3820,"active":2511},{"year":2020,"list_id":"6053c65368d7710a73ef080c","list_name":"San Antonio TX 2020","total":251,"active":119}],"houston-south-2027-05-07":[{"year":2025,"list_id":"680fcda26c27fa05772a8ae1","list_name":"Houston, TX 2025","total":2219,"active":1893},{"year":2020,"list_id":"6053c72bd905b935c868857a","list_name":"Houston, TX 2020","total":106,"active":62}],"corpus-christi-2027-05-14":[{"year":2025,"list_id":"680fcea4f945ca7aea446e14","list_name":"Corpus Christi, TX 2025","total":2236,"active":1906},{"year":2021,"list_id":"614debf63654d5418b9e801a","list_name":"Corpus Christi, TX 2021","total":809,"active":441}],"san-antonio-live-oak-2027-05-21":[{"year":2025,"list_id":"680fcffb6c27fa05772c0c50","list_name":"San Antonio, TX 2025","total":2212,"active":1907},{"year":2023,"list_id":"64062725c1c4aa0e14dfd425","list_name":"San Antonio, TX 2023","total":3820,"active":2511},{"year":2020,"list_id":"6053c65368d7710a73ef080c","list_name":"San Antonio TX 2020","total":251,"active":119}],"dallas-2027-05-28":[{"year":2021,"list_id":"605285eaf1fc1a50803d1e0c","list_name":"Dallas TX 2021","total":810,"active":375}],"colorado-springs-2027-07-30":[{"year":2023,"list_id":"640622be993ac3492569a82c","list_name":"Colorado Springs, CO 2023","total":1361,"active":920}],"denver-central-2027-08-06":[{"year":2021,"list_id":"6054c20c34f03e7b5a0e861f","list_name":"Denver CO 2021","total":1161,"active":625}],"salt-lake-city-south-2027-08-13":[{"year":2025,"list_id":"680fcb846c27fa0577291ce1","list_name":"Salt Lake, UT 2025","total":2119,"active":1735},{"year":2023,"list_id":"64022cc796af5e4a77915c01","list_name":"Salt Lake City, UT 2023","total":1840,"active":1207},{"year":2022,"list_id":"62bdace2b6cb9c1c0f5439ec","list_name":"Salt Lake City, UT 2022","total":772,"active":458}],"gilbert-2027-08-27":[{"year":2025,"list_id":"67a25fe3b536db2d4bad193f","list_name":"Gilbert, AZ 2025","total":1642,"active":1363}],"henderson-2027-09-10":[{"year":2025,"list_id":"680fca7df945ca7aea416c2e","list_name":"Henderson, NV 2025","total":2320,"active":1964},{"year":2023,"list_id":"639392e542c14c668fe83278","list_name":"Henderson NV 2023","total":776,"active":497}],"stockton-2027-09-24":[{"year":2025,"list_id":"680fc6298153f614eac8b830","list_name":"Stockton, CA 2025","total":1904,"active":1613},{"year":2022,"list_id":"62d212b7024b6b7833482bdd","list_name":"Stockton CA 2022","total":820,"active":479}],"union-city-2027-10-01":[{"year":2025,"list_id":"67a25a03d5d44834f308f2c2","list_name":"Union City, CA 2025","total":1453,"active":1230},{"year":2024,"list_id":"6585bc69352ffd2dd159432e","list_name":"Union City CA 2024","total":2159,"active":1623}],"tacoma-2027-10-15":[{"year":2025,"list_id":"6838aa39499954054cc76c56","list_name":"Tacoma, WA 2025","total":1831,"active":1557},{"year":2023,"list_id":"64062e54f6cc92183c408026","list_name":"Tacoma, WA 2023","total":1944,"active":1241}],"pasco-2027-10-22":[{"year":2025,"list_id":"6838a9e498eccf27bba9143b","list_name":"Pasco, WA 2025","total":1919,"active":1650}],"spokane-2027-10-29":[{"year":2025,"list_id":"6838a8ff98eccf27bba88ceb","list_name":"Spokane, WA 2025","total":1741,"active":1499},{"year":2023,"list_id":"64d271785aeb3e03e88d9ccc","list_name":"Spokane WA 2023","total":1924,"active":1200},{"year":2022,"list_id":"625998af459880193777c519","list_name":"Spokane, WA 2022","total":810,"active":423}],"santa-rosa-2027-11-19":[{"year":2025,"list_id":"6838aa800614343b85dfcec3","list_name":"Santa Rosa, CA 2025","total":1341,"active":1139}],"la-mirada-2027-12-17":[{"year":2025,"list_id":"6838a7e298eccf27bba7ca98","list_name":"La Mirada, CA 2025","total":2032,"active":1745}]};
+
+// Owner: bootstrap-staff (one-time fetch from Lauren's "NEW SCHEDULE 2023.xlsx" → "bookings" sheet, 2026-05-03 PM).
+// Default team + logistics assignments per event. Lauren can override per-event live via the
+// ✏️ pencil icons in the venue cell — overrides are stored in docs/launch/notes.json under
+// `team_override` / `logistics_override` keys (RemoteSync → GitHub → cross-machine sync).
+// To refresh defaults: re-upload the xlsx via the dashboard's "📤 Upload" button (next deploy).
+const STAFF_DEFAULTS = {"glendale-2026-01-09":{"team":"Mor Daniel Shai Dor Goni Razi","logistics":"Lina Shira Maiken Brit Eva"},"fresno-2026-01-16":{"team":"Lina, Maiken Goni Razi Shira Eva + Brit","logistics":"Shai Mor Daniel dor"},"el-cajon-2026-01-23":{"team":"Mor Goni Maiken Brit Shira Cecilie","logistics":"Lina Eva Goni Razi Dor"},"emeryville-2026-01-30":{"team":"Lina Brit Daniel Shira Dor","logistics":"Mor Maiken Dor Razi Cecilie + Eva"},"concord-2026-02-06":{"team":"Mor, Brit Shai Dor Cecilie + Daniel","logistics":"Maiken Lina, Goni Razi Eva, Shira"},"burbank-2026-02-13":{"team":"Lina, Maiken, Goni, Eva Shira + Cecilie","logistics":"Mor Brit Shai Daniel Dor"},"north-las-vegas-2026-02-20":{"team":"Lina Maiken Daniel Goni Razi Eva","logistics":"Mor Shai Cecilie Dor Brit"},"amarillo-2026-02-27":{"team":"Mor Daniel Brit Goni Dor","logistics":"Maiken Lina Goni Cecilie Razi Eva"},"garland-2026-03-06":{"team":"Mor Brit Goni Razi Cecilie Bryson + SHAI","logistics":"Eva Daniel Dor Shai lina Maiken"},"fort-worth-2026-03-13":{"team":"Brit Shai Daniel Maiken Eva Bryson","logistics":"Mor Lina Goni Cecilie Dor Razi"},"tulsa-2026-03-20":{"team":"Lina Daniel Goni Razi Dor Shai","logistics":"Mor Maiken Cecilie Brit Eva"},"hampton-2026-03-27":{"team":"Brit, Shai, Dor, Maiken, Eva + Hilla","logistics":"Cecilie, Daniel Razi Goni Bryson"},"syracuse-2026-04-03":{"team":"Brit, Dor, Eva, Goni, Razi","logistics":"Cecilie, Maiken Daniel Bryson"},"reading-2026-04-10":{"team":"Daniel, Shai, Dor, Goni Bryson + Roy","logistics":"Cecilie, Brit, Maiken Eva, Razi"},"columbus-2026-04-17":{"team":"Daniel Brit, Goni, Razi, Eva + Hilla","logistics":"Cecilie Dor Maiken Daniel Shai"},"louisville-2026-04-24":{"team":"Brit, Daniel, shai, Bryson Eva","logistics":"Cecilie Dor Maiken Goni Razi Hilla"},"nashville-2026-05-01":{"team":"Lina, Brit, Shai, Maiken Goni","logistics":"Cecilie Dor Daniel Eva Bryson Razi"},"columbia-2026-05-08":{"team":"Daniel, Cecilie, Shai, Razi Bryson","logistics":"Brit Dor Maiken Eva Goni, Roy"},"milwaukee-2026-05-15":{"team":"Brit, Maiken Goni, Razi Bryson + Hilla","logistics":"Cecilie Shai Dor Daniel Eva"},"cleveland-2026-05-29":{"team":"Brit, Shai, Dor, Maiken, Daniel, Eva","logistics":"Cecilie, Goni Razi Bryson"},"omaha-2026-06-05":{"team":"Brit Maiken Bryson Hila Cecilie","logistics":"Eva Daniel"},"overland-2026-06-12":{"team":"Brit Bryson Hila Cecilie","logistics":"Maiken Eva Daniel"},"wichita-2026-06-19":{"team":"Daniel Bryson Hila","logistics":"Maiken Brit Eva Cecilie"},"topeka-2026-06-26":{"team":"Daniel Bryson Hila Eva","logistics":"Maiken Brit Cecilie"},"mesa-2026-07-10":{"team":"Lina? Bryson Hila Eva","logistics":"Maiken Brit Cecilie Daniel"},"santa-maria-2026-07-17":{"team":"Daniel Bryson Hila","logistics":"Maiken Brit Eva Cecilie"},"modesto-2026-07-24":{"team":"Daniel Maiken Bryson Hila Eva","logistics":"Brit Cecilie"},"victorville-2026-07-31":{"team":"Daniel Bryson Hila Eva","logistics":"Maiken Brit Cecilie"}};
 
 // MANUAL_TASKS — Lauren-owned 5 manual-task checkboxes per event (replaced /manager/ on 2026-05-03).
 // Persisted to docs/launch/notes.json via RemoteSync (browser writes to GitHub via Contents API).
@@ -741,6 +764,27 @@ End date: </div>
           const parts = histList.map(h => h.year + ": <b>" + h.total.toLocaleString() + "</b>").join(" · ");
           const tipParts = histList.map(h => h.year + " (" + h.list_name + "): total " + h.total + " · active " + (h.active || 0));
           statsLine += '<div class="list-stats hist" title="' + escapeHtml(tipParts.join(" \\n ")) + '">📊 History: ' + parts + '</div>';
+        }
+        // Staff assignments (Lauren 2026-05-03 PM) — defaults from xlsx, overrides from notes.json (live edit)
+        const staffDef = (typeof STAFF_DEFAULTS !== "undefined") ? (STAFF_DEFAULTS[evKeyForStats] || {}) : {};
+        const noteRow = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKeyForStats] || {}) : {};
+        const teamVal      = (noteRow.team_override     != null ? noteRow.team_override     : (staffDef.team      || ""));
+        const logisticsVal = (noteRow.logistics_override!= null ? noteRow.logistics_override: (staffDef.logistics || ""));
+        if (teamVal || logisticsVal || staffDef.team || staffDef.logistics) {
+          const overridden = (noteRow.team_override != null) || (noteRow.logistics_override != null);
+          const renderField = (label, icon, val, fieldName) => {
+            const isOverride = (noteRow[fieldName + "_override"] != null);
+            const txt = val ? escapeHtml(val) : '<span style="color:#9ca3af;font-style:italic">— click ✏️ to add —</span>';
+            return '<div class="staff-line">' +
+                     icon + ' <b>' + label + ':</b> ' +
+                     '<span class="staff-val' + (isOverride ? " override" : "") + '" data-evkey="' + evKeyForStats + '" data-field="' + fieldName + '">' + txt + '</span> ' +
+                     '<button class="staff-edit-btn" data-evkey="' + evKeyForStats + '" data-field="' + fieldName + '" data-current="' + escapeHtml(val).replace(/"/g, "&quot;") + '" title="Edit (saved live to GitHub)">✏️</button>' +
+                   '</div>';
+          };
+          statsLine += '<div class="staff-block">' +
+                         renderField("Team",      "👥", teamVal,      "team") +
+                         renderField("Logistics", "🏢", logisticsVal, "logistics") +
+                       '</div>';
         }
         if (venue || addr){
           venueCell = '<div>' + (venue ? '<b>' + escapeHtml(venue) + '</b>' : '') + '</div>' +
@@ -1414,6 +1458,61 @@ End date: </div>
     const lbl = cb.closest("label");
     if (lbl) lbl.classList.toggle("done", cb.checked);
     ManualTasksSync.save(MANUAL_TASKS);
+  });
+
+  // Click handler for staff-edit (✏️) buttons — inline edit, saves to MANUAL_TASKS via ManualTasksSync
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".staff-edit-btn");
+    if (!btn) return;
+    e.stopPropagation();
+    const evKey = btn.dataset.evkey;
+    const field = btn.dataset.field;   // "team" or "logistics"
+    const current = btn.dataset.current || "";
+    const fieldName = field + "_override";
+    const def = (typeof STAFF_DEFAULTS !== "undefined" && STAFF_DEFAULTS[evKey]) ? (STAFF_DEFAULTS[evKey][field] || "") : "";
+    const note = MANUAL_TASKS[evKey] || {};
+    const hasOverride = note[fieldName] != null;
+
+    // Replace the staff-line with an inline editor
+    const line = btn.closest(".staff-line");
+    if (!line) return;
+    const editor = document.createElement("div");
+    editor.className = "staff-edit-wrap";
+    editor.innerHTML =
+      '<textarea class="staff-edit-textarea" rows="2">' + current.replace(/</g,"&lt;") + '</textarea>' +
+      '<div class="staff-edit-toolbar">' +
+        '<button class="save">💾 Save</button>' +
+        '<button class="cancel">Cancel</button>' +
+        '<button class="reset"' + (hasOverride ? '' : ' disabled') + ' title="Discard your override and restore the default from the xlsx">↺ Reset to default</button>' +
+      '</div>';
+    line.replaceWith(editor);
+    const ta = editor.querySelector("textarea"); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+
+    const restore = () => renderSchedule();   // simplest: full re-render restores correct row state
+
+    editor.querySelector(".save").addEventListener("click", async () => {
+      const newVal = ta.value.trim();
+      if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
+      // If the new value EQUALS the xlsx default, drop the override (cleaner data)
+      if (newVal === (def || "").trim()) delete MANUAL_TASKS[evKey][fieldName];
+      else MANUAL_TASKS[evKey][fieldName] = newVal;
+      MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+      ManualTasksSync.save(MANUAL_TASKS);
+      restore();
+    });
+    editor.querySelector(".cancel").addEventListener("click", restore);
+    editor.querySelector(".reset").addEventListener("click", () => {
+      if (MANUAL_TASKS[evKey]) {
+        delete MANUAL_TASKS[evKey][fieldName];
+        MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+        ManualTasksSync.save(MANUAL_TASKS);
+      }
+      restore();
+    });
+    ta.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") { ev.preventDefault(); restore(); }
+      if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); editor.querySelector(".save").click(); }
+    });
   });
 
   // Initial render
