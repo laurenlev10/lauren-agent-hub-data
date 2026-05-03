@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PR Influencer — Local Creator Finder</title>
+<style>
+  :root {
+    --bg: #fdf2f8;
+    --card: #ffffff;
+    --border: #fbcfe8;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --accent: #ec4899;
+    --accent2: #be185d;
+    --gold: #facc15;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 32px 24px;
+    min-height: 100vh;
+    direction: rtl;
+  }
+  header { text-align: center; margin-bottom: 32px; direction: rtl; }
+  h1 { margin: 0 0 6px 0; font-size: 28px; }
+  .subtitle { color: var(--muted); font-size: 14px; }
+  .container { max-width: 980px; margin: 0 auto; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    margin-bottom: 20px;
+  }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+  input, select, textarea {
+    width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+    font-family: inherit; font-size: 14px; color: var(--text); background: #fffafd;
+    direction: ltr; text-align: left;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.15); }
+  .niche-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 4px; }
+  .niche-grid label { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #fff7fb; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px; color: var(--text); margin: 0; font-weight: 500; }
+  .niche-grid input[type=checkbox] { width: auto; }
+  .copy-btn {
+    display: block; width: 100%; margin-top: 14px; padding: 12px 16px;
+    background: linear-gradient(180deg, var(--accent), var(--accent2)); color: #fff;
+    border: none; border-radius: 8px; font-size: 14px; font-weight: 700;
+    cursor: pointer; letter-spacing: 0.3px;
+  }
+  .copy-btn:hover { background: linear-gradient(180deg, var(--accent2), #9d174d); }
+  .copy-btn.copied { background: #059669; }
+  .section-title { display:flex; justify-content:space-between; align-items:center; cursor: pointer; padding: 10px 0; user-select: none; }
+  .section-title h3 { margin: 0; font-size: 16px; color: var(--accent2); }
+  .section-title .chevron { font-size: 14px; color: var(--muted); }
+  .section-body { display: block; padding-top: 8px; }
+  .section-body.collapsed { display: none; }
+  .creator-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .creator-table th { text-align: right; padding: 8px 10px; background: #fce7f3; color: var(--accent2); font-weight: 700; border-bottom: 2px solid var(--border); }
+  .creator-table td { padding: 10px; border-bottom: 1px solid #fee5f0; vertical-align: middle; }
+  .creator-table tr:hover td { background: #fffafd; }
+  .creator-table a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .creator-table a:hover { text-decoration: underline; }
+  .niche-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: #fce7f3; color: var(--accent2); font-weight: 600; }
+  .score-tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; background: var(--gold); color: #1f2937; font-weight: 700; }
+  .status-dropdown { padding: 4px 8px; font-size: 12px; border-radius: 6px; }
+  .totals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-top: 12px; }
+  .totals-cell { background: #fce7f3; padding: 8px 10px; border-radius: 6px; font-size: 12px; text-align: center; }
+  .totals-cell b { display: block; font-size: 18px; color: var(--accent2); margin-top: 2px; }
+  .small-btn { padding: 4px 8px; font-size: 11px; border: 1px solid var(--border); background: #fff; border-radius: 4px; cursor: pointer; color: var(--accent2); font-weight: 600; }
+  .small-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .small-btn.copied { background: #059669; color: #fff; border-color: #059669; }
+  .disclaimer { font-size: 12px; color: var(--muted); font-style: italic; padding: 12px 0; text-align: center; }
+  .status-empty { color: var(--muted); font-style: italic; padding: 20px 0; text-align: center; }
+  #sync-status { font-size: 11px; color: var(--muted); padding: 4px 10px; border-radius: 4px; }
+  #sync-status[data-kind=ok] { color: #059669; }
+  #sync-status[data-kind=error] { color: #dc2626; }
+  #sync-status[data-kind=saving] { color: var(--accent); }
+  #sync-status[data-kind=token] { color: #d97706; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<script id="dashboard-data">
+const RUN = {
+  "status": "empty",
+  "event": null,
+  "totals": { "found": 0, "phase1": 0, "phase2": 0, "drafts": 0 },
+  "creators": [],
+  "previousRuns": []
+};
+</script>
+
+<div style="background:#fce7f3;padding:10px 16px;border-bottom:1px solid #fbcfe8;text-align:left;">
+  <a href="../" style="display:inline-block;background:#000;color:var(--gold);padding:8px 14px;border-radius:18px;text-decoration:none;font-size:13px;font-weight:bold;font-family:Arial,sans-serif;">← Agent Hub</a>
+  <span id="sync-status" style="float:right;margin-top:6px;">⚙</span>
+</div>
+<div class="container">
+  <header>
+    <h1>🎬 PR Influencer — מציאת יוצרות מקומיות</h1>
+    <div class="subtitle">חיפוש משפיעניות מקומיות (1k-50k) ב-3 פאזות: Google בלוגים → IG/TikTok/YouTube → Heepsy</div>
+  </header>
+
+  <div class="card">
+    <h2 style="margin-top:0">הרצת חיפוש חדש</h2>
+    <div class="form-grid">
+      <div>
+        <label>עיר + מדינה</label>
+        <input type="text" id="f-city" placeholder="Columbia, MO">
+      </div>
+      <div>
+        <label>שנה</label>
+        <input type="number" id="f-year" placeholder="2026" value="2026">
+      </div>
+      <div style="grid-column: 1 / -1">
+        <label>שם המלון/אולם</label>
+        <input type="text" id="f-venue" placeholder="Courtyard by Marriott Columbia">
+      </div>
+      <div style="grid-column: 1 / -1">
+        <label>כתובת מלאה (עם ZIP)</label>
+        <input type="text" id="f-address" placeholder="3301 Lemone Industrial Blvd, Columbia, MO 65201">
+      </div>
+      <div>
+        <label>תאריך התחלה</label>
+        <input type="date" id="f-start">
+      </div>
+      <div>
+        <label>תאריך סיום</label>
+        <input type="date" id="f-end">
+      </div>
+      <div style="grid-column: 1 / -1">
+        <label>כתובת דף האירוע ⚠️ <span style="color:#dc2626;font-weight:700">חובה</span> — משובץ בכל אימייל ו-DM</label>
+        <input type="text" id="f-event-url" placeholder="https://www.themakeupblowoutsale-group.com/columbia-mo-2026">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">הדביקי URL מדויק. הסוכן לא מייצר אותו לבד.</div>
+      </div>
+      <div>
+        <label>טווח עוקבים — מינימום</label>
+        <input type="number" id="f-min" value="1000" min="500" max="100000">
+      </div>
+      <div>
+        <label>טווח עוקבים — מקסימום</label>
+        <input type="number" id="f-max" value="50000" min="5000" max="500000">
+      </div>
+      <div style="grid-column: 1 / -1">
+        <label>נישות (סמני אילו לחפש)</label>
+        <div class="niche-grid" id="f-niches">
+          <label><input type="checkbox" value="beauty" checked> 💄 Beauty / MUA</label>
+          <label><input type="checkbox" value="fashion" checked> 👗 Fashion / Style</label>
+          <label><input type="checkbox" value="mom" checked> 👶 Mom / Family</label>
+          <label><input type="checkbox" value="wellness" checked> 🧘 Wellness</label>
+          <label><input type="checkbox" value="lifestyle" checked> 🌃 Local Lifestyle</label>
+          <label><input type="checkbox" value="college" checked> 🎓 College / Student</label>
+          <label><input type="checkbox" value="bipoc" checked> 🌍 BIPOC Beauty</label>
+        </div>
+      </div>
+      <div style="grid-column: 1 / -1">
+        <label><input type="checkbox" id="f-heepsy" checked style="width:auto;margin-left:6px"> השתמשי ב-Heepsy ($50/mo) אם המפתח קיים</label>
+      </div>
+    </div>
+    <button class="copy-btn" id="copy-cmd">📋 העתיקי פקודה</button>
+    <div style="text-align:center;font-size:12px;color:var(--muted);margin-top:6px">
+      מלאי, לחצי על הכפתור, הדביקי בשיחת Cowork חדשה. הסוכן רץ ~10-15 דקות.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">תוצאת ריצה אחרונה</h2>
+    <div id="run-summary"></div>
+
+    <div id="phase1-section" style="margin-top:18px;display:none;">
+      <div class="section-title" data-target="phase1-body">
+        <h3>📧 Phase 1 — טיוטות מייל מוכנות</h3>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body" id="phase1-body">
+        <table class="creator-table" id="phase1-table"></table>
+      </div>
+    </div>
+
+    <div id="phase2-section" style="margin-top:18px;display:none;">
+      <div class="section-title" data-target="phase2-body">
+        <h3>📱 Phase 2 — רשימת DM ידני</h3>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body" id="phase2-body">
+        <table class="creator-table" id="phase2-table"></table>
+      </div>
+    </div>
+
+    <div id="search-section" style="margin-top:18px;display:none;">
+      <div class="section-title collapsed" data-target="search-body">
+        <h3>📊 סיכום חיפוש</h3>
+        <span class="chevron">◀</span>
+      </div>
+      <div class="section-body collapsed" id="search-body">
+        <div id="search-summary"></div>
+      </div>
+    </div>
+
+    <div id="prev-section" style="margin-top:18px;display:none;">
+      <div class="section-title collapsed" data-target="prev-body">
+        <h3>📅 ריצות קודמות</h3>
+        <span class="chevron">◀</span>
+      </div>
+      <div class="section-body collapsed" id="prev-body">
+        <table class="creator-table" id="prev-table"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    🔍 מחקר בלבד. הסוכן <b>לא שולח DMs</b> — רק מייצר טיוטות מייל ב-pr@ + סקריפטים ל-DM שאת מעתיקה ושולחת ידנית.
+  </div>
+</div>
+
+<script>
+/* ==========================================================
+ pr-influencer dashboard render — v1
+ ========================================================== */
+(function () {
+  const sumEl = document.getElementById("run-summary");
+
+  /* ---- RemoteSync (status tracking, shared lauren_gh_token_v1) ---- */
+  const RemoteSync = (function () {
+    const OWNER  = "laurenlev10";
+    const REPO   = "lauren-agent-hub-data";
+    const PATH   = "docs/pr-influencer/notes.json";
+    const BRANCH = "main";
+    const TOKEN_KEY = "lauren_gh_token_v1";
+    const RAW_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${PATH}?t=${Date.now()}`;
+    const API_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${BRANCH}`;
+    let sha = null, saving = false, savePending = false, pendingState = null;
+    function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; } }
+    function setStatus(kind, text) {
+      const el = document.getElementById("sync-status");
+      if (!el) return;
+      el.textContent = text;
+      el.dataset.kind = kind;
+    }
+    async function load() {
+      try {
+        const r = await fetch(RAW_URL, { cache: "no-store" });
+        if (!r.ok) throw new Error("load " + r.status);
+        const data = await r.json();
+        const tok = getToken();
+        if (tok) {
+          try {
+            const meta = await fetch(API_URL, { headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json" } });
+            if (meta.ok) sha = (await meta.json()).sha;
+          } catch (e) {}
+        }
+        setStatus("ok", "✓ Synced");
+        return data || {};
+      } catch (e) { setStatus("error", "Sync error"); return {}; }
+    }
+    async function save(state) {
+      pendingState = state;
+      if (saving) { savePending = true; return; }
+      const tok = getToken();
+      if (!tok) { setStatus("token", "טוקן GitHub חסר — לחצי ⚙"); return; }
+      saving = true;
+      setStatus("saving", "⟳ שומרת…");
+      try {
+        const meta = await fetch(API_URL, { headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json" } });
+        if (meta.ok) sha = (await meta.json()).sha;
+        const body = {
+          message: `pr-influencer/notes.json — ${new Date().toISOString().slice(0,16).replace("T"," ")}`,
+          content: btoa(unescape(encodeURIComponent(JSON.stringify(pendingState, null, 2)))),
+          branch: BRANCH, sha: sha
+        };
+        const r = await fetch(API_URL, {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        if (!r.ok) throw new Error("save " + r.status);
+        const j = await r.json();
+        sha = j.content && j.content.sha;
+        setStatus("ok", "✓ נשמר " + new Date().toLocaleTimeString().slice(0,5));
+      } catch (e) {
+        setStatus("error", "שגיאת sync: " + e.message);
+      } finally {
+        saving = false;
+        if (savePending) { savePending = false; setTimeout(() => save(pendingState), 100); }
+      }
+    }
+    function setToken(t) { try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch(e){} }
+    return { load, save, setToken, getToken };
+  })();
+
+  // Token prompt on click
+  document.getElementById("sync-status").addEventListener("click", () => {
+    const cur = RemoteSync.getToken();
+    const t = prompt("GitHub Personal Access Token (לאסון ללא — לא נשמר נקי, רק ב-localStorage):", cur || "");
+    if (t !== null) RemoteSync.setToken(t.trim());
+    location.reload();
+  });
+
+  /* ---- Section collapse handlers ---- */
+  document.querySelectorAll(".section-title").forEach(t => {
+    t.addEventListener("click", () => {
+      const id = t.dataset.target;
+      const body = document.getElementById(id);
+      const chevron = t.querySelector(".chevron");
+      if (body.classList.contains("collapsed")) {
+        body.classList.remove("collapsed");
+        t.classList.remove("collapsed");
+        chevron.textContent = "▼";
+      } else {
+        body.classList.add("collapsed");
+        t.classList.add("collapsed");
+        chevron.textContent = "◀";
+      }
+    });
+  });
+
+  /* ---- Form: read URL params and pre-fill from event-launch ---- */
+  (function prefill() {
+    const p = new URLSearchParams(window.location.search);
+    const setIf = (id, key) => { if (p.has(key)) document.getElementById(id).value = p.get(key); };
+    setIf("f-city", "city");
+    setIf("f-venue", "venue");
+    setIf("f-address", "address");
+    setIf("f-start", "start_date");
+    setIf("f-end", "end_date");
+    setIf("f-event-url", "event_url");
+  })();
+
+  /* ---- Copy command button ---- */
+  document.getElementById("copy-cmd").addEventListener("click", () => {
+    const city = document.getElementById("f-city").value.trim();
+    const year = document.getElementById("f-year").value.trim();
+    const venue = document.getElementById("f-venue").value.trim();
+    const address = document.getElementById("f-address").value.trim();
+    const start = document.getElementById("f-start").value;
+    const end = document.getElementById("f-end").value;
+    const eventUrl = document.getElementById("f-event-url").value.trim();
+    const minF = document.getElementById("f-min").value;
+    const maxF = document.getElementById("f-max").value;
+    const niches = Array.from(document.querySelectorAll("#f-niches input:checked")).map(c => c.value);
+    const useHeepsy = document.getElementById("f-heepsy").checked;
+
+    if (!city || !venue || !address || !start || !end) {
+      alert("אנא מלאי כל השדות — עיר, אולם, כתובת, תאריכים");
+      return;
+    }
+    if (!eventUrl || !/^https?:\/\//i.test(eventUrl)) {
+      alert("חסרה כתובת דף האירוע (חובה — צריכה להתחיל ב-https://)");
+      document.getElementById("f-event-url").focus();
+      return;
+    }
+    if (niches.length === 0) {
+      alert("בחרי לפחות נישה אחת");
+      return;
+    }
+
+    const cmd = `@pr-influencer\nCity: ${city}\nYear: ${year}\nVenue: ${venue}\nAddress: ${address}\nEvent dates: ${start} → ${end}\nEvent URL: ${eventUrl}\nFollower range: ${minF} - ${maxF}\nNiches: ${niches.join(", ")}\nUse Heepsy: ${useHeepsy ? "yes" : "no"}`;
+
+    navigator.clipboard.writeText(cmd).then(() => {
+      const btn = document.getElementById("copy-cmd");
+      const orig = btn.textContent;
+      btn.textContent = "✓ הועתק! הדביקי בשיחת Cowork חדשה";
+      btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = orig; btn.classList.remove("copied"); }, 2500);
+    });
+  });
+
+  /* ---- Render results ---- */
+  if (!RUN || RUN.status === "empty" || !RUN.event) {
+    sumEl.innerHTML = '<div class="status-empty">עדיין לא הורצה — מלאי את הטופס למעלה והעתיקי פקודה.</div>';
+    return;
+  }
+
+  // Summary card
+  const ev = RUN.event;
+  const t = RUN.totals || {};
+  sumEl.innerHTML = `
+    <div style="font-size:14px;line-height:1.7;">
+      <b>${ev.city}</b> · ${ev.dateRange} · ${ev.venueName || ""}<br>
+      <span style="color:var(--muted)">דף אירוע:</span> <a href="${ev.eventUrl}" target="_blank" style="color:var(--accent)">${ev.eventUrlDisplay || ev.eventUrl}</a>
+    </div>
+    <div class="totals-grid">
+      <div class="totals-cell">סה"כ <b>${t.found || 0}</b></div>
+      <div class="totals-cell">Phase 1 — מייל <b>${t.phase1 || 0}</b></div>
+      <div class="totals-cell">Phase 2 — DM <b>${t.phase2 || 0}</b></div>
+      <div class="totals-cell">טיוטות <b>${t.drafts || 0}</b></div>
+    </div>
+  `;
+
+  RemoteSync.load().then(notes => {
+    notes = notes || {};
+    const STATUSES = ["לא פניתי", "שלחתי טיוטה / DM", "הסכימה — שותפה!", "סירבה", "לא רלוונטית"];
+    const slug = c => `${ev.city}|${c.rank}|${(c.handle || c.display_name || "").replace(/[^a-zA-Z0-9]/g, "-").toLowerCase()}`;
+
+    function statusDropdown(c) {
+      const k = slug(c);
+      const cur = notes[k] || STATUSES[0];
+      const opts = STATUSES.map(s => `<option value="${s}" ${s === cur ? "selected" : ""}>${s}</option>`).join("");
+      return `<select class="status-dropdown" data-key="${k}">${opts}</select>`;
+    }
+
+    const phase1 = (RUN.creators || []).filter(c => c.phase === "phase_1");
+    const phase2 = (RUN.creators || []).filter(c => c.phase === "phase_2");
+
+    // Phase 1 table
+    if (phase1.length) {
+      document.getElementById("phase1-section").style.display = "block";
+      const rows = phase1.map(c => `
+        <tr>
+          <td><a href="${c.profile_url}" target="_blank">@${c.handle.replace(/^@/, "")}</a></td>
+          <td>${c.display_name || ""}</td>
+          <td>${(c.followers || 0).toLocaleString()}</td>
+          <td><span class="niche-tag">${c.niche || ""}</span></td>
+          <td><span class="score-tag">${c.score || 0}</span></td>
+          <td>${c.email ? `<a href="https://mail.google.com/mail/u/?authuser=pr@makeupblowoutsalegroup.com#drafts" target="_blank">📧 ${c.email}</a>` : "-"}</td>
+          <td>${statusDropdown(c)}</td>
+        </tr>
+      `).join("");
+      document.getElementById("phase1-table").innerHTML = `
+        <thead><tr><th>Handle</th><th>שם</th><th>עוקבים</th><th>נישה</th><th>ציון</th><th>אימייל</th><th>סטטוס</th></tr></thead>
+        <tbody>${rows}</tbody>
+      `;
+    }
+
+    // Phase 2 table
+    if (phase2.length) {
+      document.getElementById("phase2-section").style.display = "block";
+      const rows = phase2.map(c => `
+        <tr>
+          <td><a href="${c.profile_url}" target="_blank">@${c.handle.replace(/^@/, "")}</a></td>
+          <td>${c.display_name || ""}</td>
+          <td>${(c.followers || 0).toLocaleString()}</td>
+          <td><span class="niche-tag">${c.niche || ""}</span></td>
+          <td><span class="score-tag">${c.score || 0}</span></td>
+          <td><button class="small-btn dm-copy-btn" data-script="${(c.dm_script || "").replace(/"/g, "&quot;").replace(/\n/g, "&#10;")}">📋 העתיקי DM</button></td>
+          <td>${statusDropdown(c)}</td>
+        </tr>
+      `).join("");
+      document.getElementById("phase2-table").innerHTML = `
+        <thead><tr><th>Handle</th><th>שם</th><th>עוקבים</th><th>נישה</th><th>ציון</th><th>סקריפט</th><th>סטטוס</th></tr></thead>
+        <tbody>${rows}</tbody>
+      `;
+    }
+
+    // Search summary
+    if (RUN.search) {
+      document.getElementById("search-section").style.display = "block";
+      const s = RUN.search;
+      const byNiche = Object.entries(t.by_niche || {}).map(([k, v]) => `<span class="niche-tag" style="margin:2px">${k}: ${v}</span>`).join(" ");
+      const bySource = Object.entries(t.by_source || {}).map(([k, v]) => `<span class="niche-tag" style="margin:2px;background:#fef3c7;color:#92400e">${k}: ${v}</span>`).join(" ");
+      document.getElementById("search-summary").innerHTML = `
+        <div style="font-size:13px;line-height:1.7">
+          <div>Phase A (Google בלוגים): ${s.phase_a_done ? "✓ הושלם" : "⊘ לא רץ"}</div>
+          <div>Phase B (IG/TikTok/YouTube): ${s.phase_b_done ? "✓ הושלם" : "⊘ לא רץ"} ${s.ig_captcha_hit ? " ⚠ IG CAPTCHA" : ""}</div>
+          <div>Phase C (Heepsy): ${s.phase_c_done ? "✓ הושלם" : "⊘ דולגה (אין מפתח)"}</div>
+          <div style="margin-top:8px">סה"כ queries: <b>${s.queries_run || 0}</b></div>
+          <div style="margin-top:10px"><b>לפי נישה:</b><br>${byNiche || "-"}</div>
+          <div style="margin-top:8px"><b>לפי מקור:</b><br>${bySource || "-"}</div>
+        </div>
+      `;
+    }
+
+    // Previous runs
+    if ((RUN.previousRuns || []).length) {
+      document.getElementById("prev-section").style.display = "block";
+      const rows = RUN.previousRuns.map(r => `
+        <tr>
+          <td>${r.date}</td>
+          <td>${r.city}</td>
+          <td>${r.total}</td>
+          <td>${r.p1} / ${r.p2}</td>
+        </tr>
+      `).join("");
+      document.getElementById("prev-table").innerHTML = `
+        <thead><tr><th>תאריך</th><th>עיר</th><th>סה"כ</th><th>מייל / DM</th></tr></thead>
+        <tbody>${rows}</tbody>
+      `;
+    }
+
+    // Status dropdown change → save to notes.json
+    document.querySelectorAll(".status-dropdown").forEach(d => {
+      d.addEventListener("change", e => {
+        const k = e.target.dataset.key;
+        notes[k] = e.target.value;
+        RemoteSync.save(notes);
+      });
+    });
+
+    // DM copy buttons
+    document.querySelectorAll(".dm-copy-btn").forEach(b => {
+      b.addEventListener("click", e => {
+        const script = e.target.dataset.script.replace(/&quot;/g, '"').replace(/&#10;/g, "\n");
+        navigator.clipboard.writeText(script).then(() => {
+          const orig = e.target.textContent;
+          e.target.textContent = "✓ הועתק";
+          e.target.classList.add("copied");
+          setTimeout(() => { e.target.textContent = orig; e.target.classList.remove("copied"); }, 2000);
+        });
+      });
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
