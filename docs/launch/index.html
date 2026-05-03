@@ -130,6 +130,20 @@
   .btn-reel-row{background:linear-gradient(180deg,#4f46e5,#3730a3)}
   .btn-pr-influencer-row{background:linear-gradient(180deg,#d946ef,#a21caf)}
   .btn-summary-row{background:linear-gradient(180deg,#0891b2,#155e75)}
+  /* 5 manual-task checkboxes per event row (replaces former Event Manager dashboard, Lauren 2026-05-03) */
+  .manual-tasks{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding:8px 10px;background:#fafafa;border-radius:8px;border:1px solid #eee}
+  .manual-tasks .mt-label{font-size:11px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.4px;width:100%;margin-bottom:2px}
+  .manual-tasks label{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#374151;cursor:pointer;padding:3px 8px;border-radius:6px;background:#fff;border:1px solid #e5e7eb;transition:all .1s;user-select:none}
+  .manual-tasks label:hover{border-color:#9333ea;color:#9333ea}
+  .manual-tasks label.done{background:#dcfce7;border-color:#16a34a;color:#166534;font-weight:600}
+  .manual-tasks input[type=checkbox]{margin:0;cursor:pointer;accent-color:#16a34a}
+  /* RemoteSync status pill */
+  #sync-status-pill{position:fixed;top:14px;left:14px;background:#fff;border:1px solid var(--border);border-radius:999px;padding:6px 14px;font-size:11px;font-weight:700;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.06);display:none}
+  #sync-status-pill.visible{display:inline-block}
+  #sync-status-pill[data-kind=ok]{color:#16a34a;border-color:#bbf7d0}
+  #sync-status-pill[data-kind=saving]{color:#0891b2;border-color:#a5f3fc}
+  #sync-status-pill[data-kind=error]{color:#991b1b;border-color:#fecaca;background:#fef2f2}
+  #sync-status-pill[data-kind=token]{color:#854d0e;border-color:#fde68a;background:#fefce8;cursor:pointer}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.65}}
   .col-date{width:130px;font-weight:600;white-space:nowrap}
   .col-city{width:160px;font-weight:600}
@@ -187,6 +201,19 @@ const REELS = {};
 const PR_ORGS = {};
 // Owner: pr-influencer — entry: { influencer_count, href, generated_at }
 const PR_INFLUENCERS = {};
+
+// MANUAL_TASKS — Lauren-owned 5 manual-task checkboxes per event (replaced /manager/ on 2026-05-03).
+// Persisted to docs/launch/notes.json via RemoteSync (browser writes to GitHub via Contents API).
+// Key: same `${city-slug}-${start_date}` shape as the result maps above.
+// Value: { venue_confirmed: bool, webform_id_saved: bool, drafts_reviewed: bool, drafts_scheduled: bool, ready_to_open: bool, updated_at: ISO }
+let MANUAL_TASKS = {};   // mutable — populated from notes.json on load, written back on every checkbox toggle
+const MANUAL_TASK_DEFS = [
+  { key: "venue_confirmed",  label: "Venue ✓",      title: "T-30: Contract signed + venue confirmed for this event" },
+  { key: "webform_id_saved", label: "WebForm ID",    title: "T-14: SMS Sign-up Form created in SimpleTexting + webForm ID saved for landing page embed" },
+  { key: "drafts_reviewed",  label: "Drafts read",   title: "T-5: Lauren reviewed each campaign draft for tone/copy" },
+  { key: "drafts_scheduled", label: "Drafts ⏰",     title: "T-5: Lauren clicked Schedule on each draft inside SimpleTexting" },
+  { key: "ready_to_open",    label: "Ready to open", title: "T-1: All ops checks passed — venue setup confirmed, staff ready, supplies on-site" }
+];
 </script>
 
 <div class="wrap">
@@ -716,7 +743,7 @@ End date: </div>
           }
 
           // 📲 SMS Campaigns
-          rowBtn += '<a class="btn-campaigns-row" href="../sms/?' + params + '" target="_blank" rel="noopener" title="Open Simple Texting dashboard pre-filled with this event">📲 Campaigns</a>';
+          rowBtn += '<a class="btn-campaigns-row" href="../campaigns/?' + params + '" target="_blank" rel="noopener" title="Open SMS Campaigns dashboard pre-filled with this event">📲 Campaigns</a>';
 
           // 🤝 PR Organization
           const po = (typeof PR_ORGS !== "undefined") ? PR_ORGS[evKey] : null;
@@ -754,9 +781,24 @@ End date: </div>
           }
         }
       }
+      // 5 manual-task checkboxes per event (Lauren 2026-05-03 — Event Manager merge)
+      let manualHtml = "";
+      if (ev) {
+        const evKey2 = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
+        const tasks = MANUAL_TASKS[evKey2] || {};
+        const cells = MANUAL_TASK_DEFS.map(def => {
+          const checked = !!tasks[def.key];
+          return '<label class="' + (checked ? "done" : "") + '" title="' + escapeHtml(def.title) + '">' +
+                   '<input type="checkbox" data-evkey="' + evKey2 + '" data-task="' + def.key + '" ' + (checked ? "checked" : "") + '>' +
+                   ' ' + def.label +
+                 '</label>';
+        }).join("");
+        manualHtml = '<tr class="manual-tasks-row" data-evkey="' + evKey2 + '"><td colspan="4" style="padding:0 8px 6px"><div class="manual-tasks">' +
+                       '<div class="mt-label">📋 Manual checklist · ' + escapeHtml(ev.city + ", " + ev.state) + '</div>' +
+                       cells +
+                     '</div></td></tr>';
+      }
       // Tag the row with its period (past = end<today; future = end>=today)
-      // so we can filter post-render based on activePeriod, while keeping the counters above
-      // accurate across the full year.
       const periodTag = (end < today) ? "past" : "future";
       return {
         period: periodTag,
@@ -767,7 +809,7 @@ End date: </div>
                '<td class="col-city">' + escapeHtml(cityCell) + tierBadge + '</td>' +
                '<td class="col-venue">' + venueCell + '</td>' +
                '<td class="col-status"><div>' + statusBadge + '</div>' + rowBtn + '</td>' +
-             '</tr>'
+             '</tr>' + manualHtml
       };
     });
     // Period counts for the sub-tab badges
@@ -1090,9 +1132,122 @@ End date: </div>
     }
   });
 
+  // ────────────────────────────────────────────────────────────
+  // RemoteSync — reads/writes docs/launch/notes.json via GitHub Contents API.
+  // Persists the 5 manual-task checkboxes per event across machines (replaces
+  // the old localStorage-only event-manager dashboard, Lauren 2026-05-03).
+  // Pattern adapted from docs/pr-organization/index.html RemoteSync.
+  // ────────────────────────────────────────────────────────────
+  const ManualTasksSync = (function(){
+    const OWNER  = "laurenlev10";
+    const REPO   = "lauren-agent-hub-data";
+    const PATH   = "docs/launch/notes.json";
+    const BRANCH = "main";
+    const TOKEN_KEY = "lauren_gh_token_v1";  // shared with pr-organization / pr-influencer
+    const RAW_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${PATH}?t=${Date.now()}`;
+    const API_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${BRANCH}`;
+    let sha = null, saving = false, savePending = false, pendingState = null;
+
+    function getToken(){ try { return localStorage.getItem(TOKEN_KEY) || ""; } catch(e){ return ""; } }
+    function setToken(t){ try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch(e){} }
+    function setStatus(kind, text){
+      let pill = document.getElementById("sync-status-pill");
+      if (!pill){
+        pill = document.createElement("div");
+        pill.id = "sync-status-pill";
+        document.body.appendChild(pill);
+        pill.addEventListener("click", () => {
+          if (pill.dataset.kind === "token" || pill.dataset.kind === "error"){
+            const cur = getToken();
+            const v = prompt("GitHub fine-grained PAT (scope: Contents R/W on lauren-agent-hub-data):", cur);
+            if (v != null){ setToken(v.trim()); load().then(remote => { MANUAL_TASKS = remote || {}; renderSchedule(); }); }
+          }
+        });
+      }
+      pill.classList.add("visible");
+      pill.dataset.kind = kind;
+      pill.textContent = text;
+    }
+    async function load(){
+      try {
+        const r = await fetch(RAW_URL, { cache: "no-store" });
+        if (!r.ok) {
+          // 404 = file doesn't exist yet (first-time bootstrap)
+          if (r.status === 404){ setStatus("ok", "✓ Manual tasks: empty"); return {}; }
+          throw new Error("load " + r.status);
+        }
+        const data = await r.json();
+        const tok = getToken();
+        if (tok){
+          try {
+            const meta = await fetch(API_URL, { headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json" } });
+            if (meta.ok) sha = (await meta.json()).sha;
+          } catch(e){}
+        }
+        setStatus("ok", "✓ Manual tasks synced");
+        return data || {};
+      } catch(e){ setStatus("error", "Sync error — click to fix"); return {}; }
+    }
+    async function save(state){
+      pendingState = state;
+      if (saving){ savePending = true; return; }
+      const tok = getToken();
+      if (!tok){ setStatus("token", "🔑 GitHub token missing — click to set"); return; }
+      saving = true;
+      setStatus("saving", "⟳ Saving manual tasks…");
+      try {
+        const meta = await fetch(API_URL, { headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json" } });
+        if (meta.ok) sha = (await meta.json()).sha;
+        const body = {
+          message: `launch/notes.json — manual tasks ${new Date().toISOString().slice(0,16).replace("T"," ")}`,
+          content: btoa(unescape(encodeURIComponent(JSON.stringify(pendingState, null, 2)))),
+          branch: BRANCH
+        };
+        if (sha) body.sha = sha;
+        const r = await fetch(API_URL, {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        if (!r.ok) throw new Error("save " + r.status);
+        const j = await r.json();
+        sha = j.content && j.content.sha;
+        setStatus("ok", "✓ Saved " + new Date().toLocaleTimeString().slice(0,5));
+      } catch(e){
+        setStatus("error", "Save error: " + e.message);
+      } finally {
+        saving = false;
+        if (savePending){ savePending = false; setTimeout(() => save(pendingState), 100); }
+      }
+    }
+    return { load, save, getToken, setToken };
+  })();
+
+  // Click handler for manual-task checkboxes (event delegation)
+  document.addEventListener("change", (e) => {
+    const cb = e.target;
+    if (!(cb instanceof HTMLInputElement) || cb.type !== "checkbox") return;
+    if (!cb.dataset.task || !cb.dataset.evkey) return;
+    const evKey = cb.dataset.evkey;
+    const task = cb.dataset.task;
+    if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
+    MANUAL_TASKS[evKey][task] = cb.checked;
+    MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+    // Update the visual state of the parent label without full re-render
+    const lbl = cb.closest("label");
+    if (lbl) lbl.classList.toggle("done", cb.checked);
+    ManualTasksSync.save(MANUAL_TASKS);
+  });
+
   // Initial render
   showBakedLabel();
   setActiveYear("2026");
+
+  // Load manual-tasks state from GitHub on page load, then re-render to reflect saved checkboxes
+  ManualTasksSync.load().then(remote => {
+    MANUAL_TASKS = remote || {};
+    renderSchedule();
+  });
 </script>
 
 </body>
