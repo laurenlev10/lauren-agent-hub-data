@@ -731,9 +731,12 @@ End date: </div>
             rowBtn += '<a class="btn-launch-row done" href="' + setup.eventbrite.url + '" target="_blank" rel="noopener" title="' + escapeHtml(ebTip) + '">🎟️ Eventbrite ✓</a>';
           }
           if (smsDone) {
-            // SimpleTexting list direct URL — confirmed pattern: https://app2.simpletexting.com/contacts/lists/<id>
-            const listUrl = "https://app2.simpletexting.com/contacts/lists/" + setup.smslist.list_id;
-            const listTip = "SMS list: " + (setup.smslist.list_name || setup.smslist.list_id) + " · id " + setup.smslist.list_id;
+            // SimpleTexting per-list deep URL — confirmed pattern by Lauren 2026-05-03 PM:
+            // https://app2.simpletexting.com/contacts/lists/list/<list_id>
+            // (note the extra /list/ segment between /lists/ and the id — the earlier guess /contacts/lists/<id> 404s)
+            const listUrl = "https://app2.simpletexting.com/contacts/lists/list/" + setup.smslist.list_id;
+            const listName = setup.smslist.list_name || ("list " + setup.smslist.list_id);
+            const listTip = "SimpleTexting list: " + listName + " · id " + setup.smslist.list_id + (setup.smslist.generated_at ? " · created " + setup.smslist.generated_at.slice(0,10) : "");
             rowBtn += '<a class="btn-launch-row done" href="' + listUrl + '" target="_blank" rel="noopener" title="' + escapeHtml(listTip) + '">📋 List ✓</a>';
           }
           // Partial-state action chip — copies a Cowork command to fill the missing half (mode=smslist-only or mode=eventbrite-only)
