@@ -68,7 +68,24 @@
   .creator-table a:hover { text-decoration: underline; }
   .niche-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: #fce7f3; color: var(--accent2); font-weight: 600; }
   .score-tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; background: var(--gold); color: #1f2937; font-weight: 700; }
-  .status-dropdown { padding: 4px 8px; font-size: 12px; border-radius: 6px; }
+  .status-dropdown { padding: 4px 8px; font-size: 12px; border-radius: 6px; min-width: 180px; }
+  .status-dropdown[data-tone=neutral] { background: #f9fafb; color: #374151; }
+  .status-dropdown[data-tone=info] { background: #dbeafe; color: #1e40af; }
+  .status-dropdown[data-tone=positive] { background: #d1fae5; color: #065f46; }
+  .status-dropdown[data-tone=negative] { background: #fee2e2; color: #991b1b; }
+  .status-dropdown[data-tone=success] { background: #dcfce7; color: #14532d; font-weight: 700; }
+  .status-dropdown[data-tone=warn] { background: #fef3c7; color: #92400e; }
+  .status-dropdown[data-tone=blocked] { background: #1f2937; color: #fef3c7; font-weight: 700; }
+  .reminder-card { background: #fff7ed; border: 1px solid #fed7aa; border-left: 4px solid #ea580c; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .reminder-card .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .reminder-card .who { font-weight: 700; color: #9a3412; }
+  .reminder-card .days-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #ea580c; color: white; }
+  .reminder-card .preview { background: white; padding: 10px; border-radius: 6px; font-size: 12px; line-height: 1.5; color: #4b5563; max-height: 80px; overflow: hidden; margin: 6px 0; }
+  .reminder-card .actions { display: flex; gap: 6px; }
+  .hall-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .hall-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .hall-chip.fame { background: #dcfce7; color: #14532d; border: 1px solid #86efac; }
+  .hall-chip.shame { background: #1f2937; color: #fef3c7; border: 1px solid #4b5563; }
   .totals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-top: 12px; }
   .totals-cell { background: #fce7f3; padding: 8px 10px; border-radius: 6px; font-size: 12px; text-align: center; }
   .totals-cell b { display: block; font-size: 18px; color: var(--accent2); margin-top: 2px; }
@@ -165,6 +182,25 @@ const RUN = {
     <button class="copy-btn" id="copy-cmd">📋 העתיקי פקודה</button>
     <div style="text-align:center;font-size:12px;color:var(--muted);margin-top:6px">
       מלאי, לחצי על הכפתור, הדביקי בשיחת Cowork חדשה. הסוכן רץ ~10-15 דקות.
+    </div>
+  </div>
+
+  <div class="card" id="reminders-card" style="display:none;border-left:6px solid #ea580c;">
+    <h2 style="margin-top:0;color:#9a3412;">🔔 תזכורות שמחכות לך</h2>
+    <div style="font-size:12px;color:#92400e;margin-bottom:10px;">לחצי "העתק" ושלחי את ההודעה ל-DM/Email של היוצרת.</div>
+    <div id="reminders-list"></div>
+  </div>
+
+  <div class="card" id="hall-card" style="display:none;">
+    <h2 style="margin-top:0">🏆 מאגר היוצרות שלך (cross-event)</h2>
+    <div style="font-size:13px;color:var(--muted);">יוצרות שעבדת איתן בעבר באירועים אחרים — תפעלי הראשונה לקראת האירוע הבא.</div>
+    <div style="margin-top:10px;">
+      <div style="font-size:11px;font-weight:bold;color:#14532d;letter-spacing:1px;margin-bottom:4px;">🏆 HALL OF FAME — הביאו תוכן</div>
+      <div class="hall-chip-row" id="hall-fame-row"><span style="color:var(--muted);font-size:12px;font-style:italic;">עדיין ריק — מסמני אחרי האיוונט הראשון.</span></div>
+    </div>
+    <div style="margin-top:14px;">
+      <div style="font-size:11px;font-weight:bold;color:#1f2937;letter-spacing:1px;margin-bottom:4px;">🚫 HALL OF SHAME — לא הביאו תוכן ולא שילמו (אוטו-חסומות לעתיד)</div>
+      <div class="hall-chip-row" id="hall-shame-row"><span style="color:var(--muted);font-size:12px;font-style:italic;">ריק — נשמור את זה ככה!</span></div>
     </div>
   </div>
 
@@ -371,8 +407,19 @@ const RUN = {
   });
 
   /* ---- Render results ---- */
+  // Even on empty runs, show Hall of Fame / Shame from persistent notes
   if (!RUN || RUN.status === "empty" || !RUN.event) {
     sumEl.innerHTML = '<div class="status-empty">עדיין לא הורצה — מלאי את הטופס למעלה והעתיקי פקודה.</div>';
+    RemoteSync.load().then(loadedNotes => {
+      window.__notes = loadedNotes || {};
+      const fame = window.__notes.__hall_of_fame__ || [];
+      const shame = window.__notes.__hall_of_shame__ || [];
+      if (fame.length || shame.length) {
+        document.getElementById("hall-card").style.display = "block";
+        if (fame.length) document.getElementById("hall-fame-row").innerHTML = fame.map(h => `<span class="hall-chip fame">🏆 ${h}</span>`).join("");
+        if (shame.length) document.getElementById("hall-shame-row").innerHTML = shame.map(h => `<span class="hall-chip shame">🚫 ${h}</span>`).join("");
+      }
+    });
     return;
   }
 
@@ -394,14 +441,136 @@ const RUN = {
 
   RemoteSync.load().then(notes => {
     notes = notes || {};
-    const STATUSES = ["לא פניתי", "שלחתי טיוטה / DM", "הסכימה — שותפה!", "סירבה", "לא רלוונטית"];
+    // Full collab pipeline — 11 stages with tone color-coding
+    const STATUSES = [
+      { label: "לא פניתי", tone: "neutral" },
+      { label: "נשלחה טיוטה / DM", tone: "info" },
+      { label: "ענתה — לא מעוניינת", tone: "negative" },
+      { label: "ענתה — מעוניינת!", tone: "positive" },
+      { label: "אישרה הגעה (סטורי הועלה)", tone: "positive" },
+      { label: "הגיעה ולקחה מוצרים (חוזה חתום)", tone: "warn" },
+      { label: "הגישה תוכן ✓ (תיוג נכון)", tone: "success" },
+      { label: "לא הגישה תוכן (deadline עבר)", tone: "negative" },
+      { label: "החזירה מוצרים / שילמה", tone: "info" },
+      { label: "🏆 Hall of Fame", tone: "success" },
+      { label: "🚫 חסומה לעתיד", tone: "blocked" },
+    ];
+    const STATUS_LABELS = STATUSES.map(s => s.label);
+    const TONE_BY_LABEL = Object.fromEntries(STATUSES.map(s => [s.label, s.tone]));
     const slug = c => `${ev.city}|${c.rank}|${(c.handle || c.display_name || "").replace(/[^a-zA-Z0-9]/g, "-").toLowerCase()}`;
 
     function statusDropdown(c) {
       const k = slug(c);
-      const cur = notes[k] || STATUSES[0];
-      const opts = STATUSES.map(s => `<option value="${s}" ${s === cur ? "selected" : ""}>${s}</option>`).join("");
-      return `<select class="status-dropdown" data-key="${k}">${opts}</select>`;
+      const cur = notes[k] || STATUS_LABELS[0];
+      const tone = TONE_BY_LABEL[cur] || "neutral";
+      const opts = STATUSES.map(s => `<option value="${s.label}" ${s.label === cur ? "selected" : ""}>${s.label}</option>`).join("");
+      return `<select class="status-dropdown" data-tone="${tone}" data-key="${k}">${opts}</select>`;
+    }
+
+    // Compute days since event end (positive = past, negative = upcoming)
+    function daysSinceEvent() {
+      if (!ev.endDate) return null;
+      const end = new Date(ev.endDate + "T23:59:59");
+      const now = new Date();
+      return Math.floor((now - end) / 86400000);
+    }
+
+    // Reminder templates (Hebrew)
+    function reminderText(stage, name, daysSince, deadline) {
+      if (stage === 3) return `Hey ${name}! Hope you had fun at the event 💕 just a friendly nudge — your video is due in ${14 - daysSince} days, can't wait to see what you make!`;
+      if (stage === 10) return `Hi ${name}, just wanted to check in — your video deadline is in ${14 - daysSince} days, anything I can help with?`;
+      if (stage === 15) return `Hi ${name}, the deadline passed ${daysSince - 14} days ago. Per the brief you signed, can you let me know if you're returning products or settling via Venmo? Want to keep things clean between us 💕`;
+      return "";
+    }
+
+    // Identify creators needing reminders + render
+    function renderReminders(creators) {
+      const days = daysSinceEvent();
+      if (days === null || days < 3) {
+        document.getElementById("reminders-card").style.display = "none";
+        return;
+      }
+      const dueList = [];
+      creators.forEach(c => {
+        const k = slug(c);
+        const status = notes[k];
+        if (status !== "הגיעה ולקחה מוצרים (חוזה חתום)") return;
+        let stage = null;
+        if (days >= 15) stage = 15;
+        else if (days >= 10) stage = 10;
+        else if (days >= 3) stage = 3;
+        if (stage === null) return;
+        const lastReminder = notes[`${k}|reminder_sent_stage`];
+        if (lastReminder && parseInt(lastReminder) >= stage) return;
+        dueList.push({ creator: c, key: k, stage, days });
+      });
+      if (dueList.length === 0) {
+        document.getElementById("reminders-card").style.display = "none";
+        return;
+      }
+      document.getElementById("reminders-card").style.display = "block";
+      document.getElementById("reminders-list").innerHTML = dueList.map(d => {
+        const name = d.creator.display_name || d.creator.handle.replace(/^@/, "");
+        const text = reminderText(d.stage, name, d.days, 14);
+        return `<div class="reminder-card">
+          <div class="head">
+            <span class="who">@${d.creator.handle.replace(/^@/, "")} · ${name}</span>
+            <span class="days-tag">${d.days} ימים מהאירוע · Day +${d.stage} reminder</span>
+          </div>
+          <div class="preview">${text.replace(/</g, "&lt;").replace(/\n/g, "<br>")}</div>
+          <div class="actions">
+            <button class="small-btn rem-copy" data-text="${text.replace(/"/g, '&quot;')}">📋 העתיקי טקסט</button>
+            <button class="small-btn rem-mark" data-key="${d.key}" data-stage="${d.stage}">✓ סמני שנשלחה</button>
+          </div>
+        </div>`;
+      }).join("");
+
+      document.querySelectorAll(".rem-copy").forEach(b => b.addEventListener("click", e => {
+        const t = e.target.dataset.text.replace(/&quot;/g, '"');
+        navigator.clipboard.writeText(t).then(() => {
+          const orig = e.target.textContent;
+          e.target.textContent = "✓ הועתק";
+          e.target.classList.add("copied");
+          setTimeout(() => { e.target.textContent = orig; e.target.classList.remove("copied"); }, 2000);
+        });
+      }));
+      document.querySelectorAll(".rem-mark").forEach(b => b.addEventListener("click", e => {
+        notes[`${e.target.dataset.key}|reminder_sent_stage`] = e.target.dataset.stage;
+        notes[`${e.target.dataset.key}|reminder_sent_at`] = new Date().toISOString();
+        RemoteSync.save(notes);
+        // Re-render reminders
+        renderReminders(creators);
+      }));
+    }
+
+    // Render Hall of Fame / Hall of Shame
+    function renderHall() {
+      const fame = notes.__hall_of_fame__ || [];
+      const shame = notes.__hall_of_shame__ || [];
+      if (fame.length === 0 && shame.length === 0) {
+        document.getElementById("hall-card").style.display = "none";
+        return;
+      }
+      document.getElementById("hall-card").style.display = "block";
+      const fameRow = document.getElementById("hall-fame-row");
+      const shameRow = document.getElementById("hall-shame-row");
+      if (fame.length) fameRow.innerHTML = fame.map(h => `<span class="hall-chip fame">🏆 ${h}</span>`).join("");
+      if (shame.length) shameRow.innerHTML = shame.map(h => `<span class="hall-chip shame">🚫 ${h}</span>`).join("");
+    }
+
+    // Auto-update Hall of Fame / Shame on status change
+    function updateHallOnStatusChange(creator, newStatus) {
+      notes.__hall_of_fame__ = notes.__hall_of_fame__ || [];
+      notes.__hall_of_shame__ = notes.__hall_of_shame__ || [];
+      const handle = "@" + (creator.handle || "").replace(/^@/, "");
+      // Remove from both first
+      notes.__hall_of_fame__ = notes.__hall_of_fame__.filter(x => x !== handle);
+      notes.__hall_of_shame__ = notes.__hall_of_shame__.filter(x => x !== handle);
+      if (newStatus === "🏆 Hall of Fame" || newStatus === "הגישה תוכן ✓ (תיוג נכון)") {
+        notes.__hall_of_fame__.push(handle);
+      } else if (newStatus === "🚫 חסומה לעתיד") {
+        notes.__hall_of_shame__.push(handle);
+      }
     }
 
     const phase1 = (RUN.creators || []).filter(c => c.phase === "phase_1");
@@ -482,14 +651,27 @@ const RUN = {
       `;
     }
 
-    // Status dropdown change → save to notes.json
+    // Status dropdown change → save to notes.json + update tone + sync Hall buckets
+    const allCreators = (RUN.creators || []);
     document.querySelectorAll(".status-dropdown").forEach(d => {
       d.addEventListener("change", e => {
         const k = e.target.dataset.key;
-        notes[k] = e.target.value;
+        const newStatus = e.target.value;
+        notes[k] = newStatus;
+        // Update tone color immediately
+        e.target.dataset.tone = TONE_BY_LABEL[newStatus] || "neutral";
+        // Find the creator object for Hall sync
+        const creator = allCreators.find(c => slug(c) === k);
+        if (creator) updateHallOnStatusChange(creator, newStatus);
         RemoteSync.save(notes);
+        renderHall();
+        renderReminders(allCreators);
       });
     });
+
+    // Initial reminder + Hall renders
+    renderReminders(allCreators);
+    renderHall();
 
     // DM copy buttons
     document.querySelectorAll(".dm-copy-btn").forEach(b => {
