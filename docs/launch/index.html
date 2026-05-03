@@ -722,15 +722,20 @@ End date: </div>
         const ebDone  = setup && setup.eventbrite && setup.eventbrite.url;
         const smsDone = setup && setup.smslist    && setup.smslist.list_id;
         if (setup && (ebDone || smsDone)) {
-          // ── Done / partial-done state — green button, links to the EB event URL (or shows partial)
-          const bothDone = ebDone && smsDone;
-          const labelMain = bothDone ? "🎟️ Eventbrite + List ✓" : (ebDone ? "🎟️ Eventbrite ✓ · List ⚠" : "🎟️ List ✓ · Eventbrite ⚠");
-          const tipParts = [];
-          if (ebDone)  tipParts.push("Eventbrite: " + setup.eventbrite.url);
-          if (smsDone) tipParts.push("SMS list: " + (setup.smslist.list_name || setup.smslist.list_id));
-          if (setup.eventbrite && setup.eventbrite.generated_at) tipParts.push("Created " + setup.eventbrite.generated_at.slice(0,10));
-          const linkHref = ebDone ? setup.eventbrite.url : (smsDone ? "https://app2.simpletexting.com/contact-lists" : "#");
-          rowBtn = '<a class="btn-launch-row done" href="' + linkHref + '" target="_blank" rel="noopener" title="' + escapeHtml(tipParts.join(" · ")) + '">' + labelMain + '</a>';
+          // ── Done / partial-done state — TWO separate green buttons (Lauren 2026-05-03 PM):
+          //    🎟️ EB ✓ → opens the Eventbrite event in a new tab
+          //    📋 List ✓ → opens the specific SimpleTexting list in a new tab
+          //    Each button represents one resource and links directly to it.
+          if (ebDone) {
+            const ebTip = "Eventbrite: " + setup.eventbrite.url + (setup.eventbrite.generated_at ? " · created " + setup.eventbrite.generated_at.slice(0,10) : "");
+            rowBtn += '<a class="btn-launch-row done" href="' + setup.eventbrite.url + '" target="_blank" rel="noopener" title="' + escapeHtml(ebTip) + '">🎟️ Eventbrite ✓</a>';
+          }
+          if (smsDone) {
+            // SimpleTexting list direct URL — confirmed pattern: https://app2.simpletexting.com/contacts/lists/<id>
+            const listUrl = "https://app2.simpletexting.com/contacts/lists/" + setup.smslist.list_id;
+            const listTip = "SMS list: " + (setup.smslist.list_name || setup.smslist.list_id) + " · id " + setup.smslist.list_id;
+            rowBtn += '<a class="btn-launch-row done" href="' + listUrl + '" target="_blank" rel="noopener" title="' + escapeHtml(listTip) + '">📋 List ✓</a>';
+          }
           // Partial-state action chip — copies a Cowork command to fill the missing half (mode=smslist-only or mode=eventbrite-only)
           if (ebDone && !smsDone) {
             const chipPayload = JSON.stringify({
