@@ -20,6 +20,22 @@
   .year-tab{padding:8px 18px;border-radius:999px;border:1px solid var(--border);background:#fff;font-weight:700;font-size:14px;cursor:pointer;transition:all .15s;color:var(--muted)}
   .year-tab:hover{border-color:var(--accent);color:var(--accent)}
   .year-tab.active{background:linear-gradient(180deg,var(--accent),var(--accent-dark));color:#fff;border-color:var(--accent-dark);box-shadow:0 1px 2px rgba(236,72,153,.3)}
+  /* Past/Future sub-tabs (within the active year) */
+  .period-tabs{display:flex;gap:6px;justify-content:center;margin:8px 0 18px}
+  .period-tab{padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:#fff;font-weight:600;font-size:13px;cursor:pointer;transition:all .12s;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+  .period-tab:hover{border-color:#0891b2;color:#0891b2}
+  .period-tab.active{background:linear-gradient(180deg,#06b6d4,#0891b2);color:#fff;border-color:#0891b2;box-shadow:0 1px 2px rgba(8,145,178,.3)}
+  .period-tab .count{font-size:11px;background:rgba(255,255,255,.25);padding:1px 7px;border-radius:9px;font-weight:700}
+  .period-tab:not(.active) .count{background:#f1f5f9;color:var(--muted)}
+  /* Collapsible "New event" form */
+  details.collapsible-form{margin-bottom:18px}
+  details.collapsible-form > summary{list-style:none;cursor:pointer;padding:14px 18px;background:linear-gradient(180deg,#fff,#fafafa);border:1px solid var(--border);border-radius:10px;font-weight:700;font-size:15px;color:var(--accent);display:flex;align-items:center;gap:10px;transition:all .12s}
+  details.collapsible-form > summary::-webkit-details-marker{display:none}
+  details.collapsible-form > summary::before{content:"+";display:inline-block;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;text-align:center;line-height:24px;font-size:18px;font-weight:700;transition:transform .2s}
+  details.collapsible-form[open] > summary::before{content:"−";transform:rotate(0)}
+  details.collapsible-form > summary:hover{border-color:var(--accent);box-shadow:0 1px 3px rgba(236,72,153,.15)}
+  details.collapsible-form[open] > summary{border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:transparent}
+  details.collapsible-form > .card{border-top-left-radius:0;border-top-right-radius:0;margin-top:0;border-top-color:var(--border)}
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 2px 6px rgba(0,0,0,.04);margin-bottom:18px}
   .card h2{margin:0 0 14px;font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
   .card h2 .meta{font-size:12px;font-weight:500;color:var(--muted)}
@@ -186,6 +202,13 @@ const PR_INFLUENCERS = {};
     <button class="year-tab" data-year="2028">2028</button>
   </div>
 
+  <div class="period-tabs" id="period-tabs">
+    <button class="period-tab active" data-period="future">📅 אירועים עתידיים <span class="count" id="period-count-future">0</span></button>
+    <button class="period-tab" data-period="past">🏁 אירועים בעבר <span class="count" id="period-count-past">0</span></button>
+  </div>
+
+  <details class="collapsible-form" id="new-event-form-wrap">
+    <summary>➕ הוסיפי אירוע חדש <span class="meta" style="font-weight:500;color:var(--muted);margin-right:auto;font-size:12px">— כאן את ממלאת את הטופס לאירוע שעדיין לא בלו"ז</span></summary>
   <div class="card">
     <h2>New event <span class="meta" id="form-year-label">for 2026</span></h2>
     <p style="font-size:13px;color:var(--muted);margin:0 0 6px">Fill the form, click "Validate", review warnings, then "Copy command".</p>
@@ -232,6 +255,7 @@ Start date:
 End date: </div>
     <div class="data-source">Validation uses OpenStreetMap / Nominatim (free, ~1 req/sec). Hotel data may lag real-world ownership changes by weeks; treat warnings as a prompt to double-check, not a block.</div>
   </div>
+  </details>
 
   <div class="card">
     <h2>
@@ -516,6 +540,7 @@ End date: </div>
   const KEY_UPLOADED = "event-launch:schedule-uploaded";   // user-uploaded xlsx parsed
   const KEY_UPLOAD_AT= "event-launch:schedule-uploaded-at";
   let activeYear = "2026";
+  let activePeriod = "future";   // "future" (default) or "past" — sub-tab inside a year
 
   function loadOverlay(){ try { return JSON.parse(localStorage.getItem(KEY_OVERLAY) || "{}"); } catch(e){ return {}; } }
   function saveOverlay(o){ try { localStorage.setItem(KEY_OVERLAY, JSON.stringify(o)); } catch(e){} }
@@ -729,14 +754,36 @@ End date: </div>
           }
         }
       }
-      return '<tr class="' + cls + '" data-iso="' + iso + '">' +
+      // Tag the row with its period (past = end<today; future = end>=today)
+      // so we can filter post-render based on activePeriod, while keeping the counters above
+      // accurate across the full year.
+      const periodTag = (end < today) ? "past" : "future";
+      return {
+        period: periodTag,
+        eff: eff,
+        hasEvent: !!ev,
+        html: '<tr class="' + cls + '" data-iso="' + iso + '" data-period="' + periodTag + '">' +
                '<td class="col-date">' + dateCell + '</td>' +
                '<td class="col-city">' + escapeHtml(cityCell) + tierBadge + '</td>' +
                '<td class="col-venue">' + venueCell + '</td>' +
                '<td class="col-status"><div>' + statusBadge + '</div>' + rowBtn + '</td>' +
-             '</tr>';
+             '</tr>'
+      };
     });
-    tbody.innerHTML = rows.join("");
+    // Period counts for the sub-tab badges
+    const periodCounts = { future: 0, past: 0 };
+    rows.forEach(r => {
+      if (r.hasEvent) periodCounts[r.period]++;
+    });
+    document.getElementById("period-count-future").textContent = periodCounts.future;
+    document.getElementById("period-count-past").textContent   = periodCounts.past;
+    // Filter rows by activePeriod. We keep open weekends only on the "future" tab to avoid clutter on past.
+    const visibleRows = rows.filter(r => {
+      if (r.period !== activePeriod) return false;
+      if (activePeriod === "past" && !r.hasEvent) return false;   // hide open weekends in past view
+      return true;
+    });
+    tbody.innerHTML = visibleRows.map(r => r.html).join("");
     document.getElementById("schedule-stats").textContent =
       counts.done + " done · " + counts.launched + " launched · " + counts.signed + " signed · " + counts.tentative + " tentative · " + counts.open + " open · " + fridays.length + " weekends total";
   }
@@ -751,6 +798,15 @@ End date: </div>
   }
   document.querySelectorAll(".year-tab").forEach(tab => {
     tab.addEventListener("click", () => setActiveYear(tab.dataset.year));
+  });
+
+  function setActivePeriod(p){
+    activePeriod = p;
+    document.querySelectorAll(".period-tab").forEach(t => t.classList.toggle("active", t.dataset.period === p));
+    renderSchedule();
+  }
+  document.querySelectorAll(".period-tab").forEach(tab => {
+    tab.addEventListener("click", () => setActivePeriod(tab.dataset.period));
   });
 
   // ────────────────────────────────────────────────────────────
