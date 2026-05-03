@@ -376,15 +376,7 @@ End date: </div>
       <span class="upload-status" id="upload-status">Using built-in schedule from <b id="baked-date">—</b>. Upload the latest "NEW SCHEDULE" xlsx to refresh: events (2026 + 2027 sheets) <b>and</b> team assignments (bookings sheet). Live overrides you made via ✏️ are preserved.</span>
     </div>
 
-    <div class="schedule-meta" id="schedule-legend">
-      <span><span class="badge badge-launched">🎟️ Setup ✓</span> Eventbrite event + SMS list created via the eventbrite-setup agent</span>
-      <span><span class="badge badge-signed">✓ Signed</span> contract signed (green cell in xlsx)</span>
-      <span><span class="badge badge-tentative">❓ Tentative</span> planned, may move</span>
-      <span><span class="badge badge-done">🏁 Done</span> already happened</span>
-      <span><span class="badge badge-tier badge-tier-1">T1</span><span class="badge badge-tier badge-tier-2">T2</span><span class="badge badge-tier badge-tier-3">T3</span> Tier 1 (top) → 3</span>
-      <span><span class="badge badge-next">🔜 Next</span> next upcoming event</span>
-      <span><span class="badge badge-empty">—</span> open weekend</span>
-    </div>
+    <!-- Legend removed 2026-05-03 PM (Lauren feedback: redundant — badges are self-explanatory) -->
     <div style="overflow-x:auto">
       <table class="schedule-table" id="schedule-table">
         <thead><tr>
@@ -683,8 +675,10 @@ End date: </div>
 
   function badgeFor(eff){
     if (eff === "done") return '<span class="badge badge-done">🏁 Done</span>';
-    if (eff === "launched") return '<span class="badge badge-launched">🎟️ Setup ✓</span>';
-    if (eff === "signed" || eff === "confirmed") return '<span class="badge badge-signed">✓ Signed</span>';
+    // "launched" badge removed 2026-05-03 PM (Lauren feedback: redundant — the green
+    // 🎟️ Eventbrite ✓ + 📋 List ✓ buttons already convey "setup done"). Treat
+    // launched events the same as signed for the status pill.
+    if (eff === "launched" || eff === "signed" || eff === "confirmed") return '<span class="badge badge-signed">✓ Signed</span>';
     if (eff === "tentative") return '<span class="badge badge-tentative">❓ Tentative</span>';
     return '<span class="badge badge-empty">—</span>';
   }
