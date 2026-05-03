@@ -282,6 +282,11 @@ const RUN = {
         <label>רדיוס (מיילים)</label>
         <input type="number" id="f-radius" value="15" min="1" max="100">
       </div>
+      <div style="grid-column: 1 / -1">
+        <label>כתובת דף האירוע ⚠️ <span style="color:#dc2626;font-weight:700">חובה</span> — משובץ בכל אימייל</label>
+        <input type="text" id="f-event-url" placeholder="לדוגמה: https://www.themakeupblowoutsale-group.com/columbia-mo-2026">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">הדביקי את ה-URL המדויק של דף האירוע באתר שלך (כל אירוע יכול להיות בכתובת שונה).</div>
+      </div>
       <div>
         <label>קטגוריות (women's-org mode v2)</label>
         <select id="f-categories">
@@ -542,7 +547,7 @@ const RUN = {
 })();
 
   // Auto-fill the form from URL params (so Event Launch's "🤝 PR" button can pass details)
-  // URL params (matching what launch dashboard sends): city, year, start_date, end_date, venue, address
+  // URL params: city, year, start_date, end_date, venue, address, event_url
   (function () {
     const u = new URL(location.href);
     const get = k => (u.searchParams.get(k) || "").trim();
@@ -552,7 +557,11 @@ const RUN = {
     const venue = get("venue"); if (venue) document.getElementById("f-hotel").value = venue;
     const start = get("start_date") || get("start"); if (start) document.getElementById("f-start").value = start;
     const end = get("end_date") || get("end"); if (end) document.getElementById("f-end").value = end;
+    const url = get("event_url"); if (url) document.getElementById("f-event-url").value = url;
   })();
+
+  // Note: event_url is NOT auto-computed. Lauren provides the exact URL from her site
+  // (per her 2026-05-02 directive — event page slugs can vary).
 
   // Form → command builder
   document.getElementById("copy-cmd").addEventListener("click", async () => {
@@ -564,9 +573,20 @@ const RUN = {
     const endD = document.getElementById("f-end").value;
     const radius = document.getElementById("f-radius").value || "15";
     const cats = document.getElementById("f-categories").value || "ALL";
+    const eventUrl = document.getElementById("f-event-url").value.trim();
 
     if (!city || !address || !hotel || !startD || !endD) {
       alert("חסר שדה — מלאי הכל קודם");
+      return;
+    }
+    if (!eventUrl) {
+      alert("חסרה כתובת דף האירוע — חובה למלא לפני העתקת הפקודה (משובץ בכל אימייל).");
+      document.getElementById("f-event-url").focus();
+      return;
+    }
+    if (!/^https?:\/\/.+/i.test(eventUrl)) {
+      alert("כתובת דף האירוע לא תקינה — צריכה להתחיל ב-https://");
+      document.getElementById("f-event-url").focus();
       return;
     }
 
@@ -577,6 +597,7 @@ Venue address: ${address}
 Hotel: ${hotel}
 Year: ${year}
 Event dates: ${startD} → ${endD}
+Event URL: ${eventUrl}
 Radius: ${radius}
 Categories: ${cats}`;
 
