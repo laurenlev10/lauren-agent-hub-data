@@ -172,6 +172,22 @@ const RECENT_RUNS = [];
     document.getElementById(id).addEventListener("input", rebuildPreview);
   });
 
+  // Pre-fill from URL params (added 2026-05-03 for the per-row 🎬 Reel button on launch_dashboard).
+  // URL contract: ../canva-reel/?city=Columbia,+MO&start_date=2026-05-08&end_date=2026-05-10&year=2026&venue=...&address=...
+  (function prefillFromUrl(){
+    const p = new URLSearchParams(window.location.search);
+    if (!p.toString()) return;
+    const setIf = (id, key, transform) => {
+      const v = p.get(key);
+      if (v && document.getElementById(id)) document.getElementById(id).value = transform ? transform(v) : v;
+    };
+    setIf("ev-city",  "city");
+    setIf("ev-year",  "year");
+    setIf("ev-start", "start_date");
+    setIf("ev-end",   "end_date");
+    rebuildPreview();
+  })();
+
   document.getElementById("gen-cmd").addEventListener("click", async () => {
     const cmd = buildCommand();
     if (!cmd){ alert("Fill all event fields first."); return; }

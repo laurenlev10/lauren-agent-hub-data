@@ -642,7 +642,8 @@ End date: </div>
           const params = new URLSearchParams({
             city: ev.city + ", " + ev.state, year: (ev.start_date||"").slice(0,4),
             start_date: ev.start_date, end_date: ev.end_date,
-            venue: ev.venue || "", address: ev.address || ""
+            venue: ev.venue || "", address: ev.address || "",
+            tier: (ev.tier != null ? String(ev.tier) : "")
           }).toString();
           // Per-event agent buttons — each flips from "run for this event" → "see results" when the owner agent has produced a result.
           // Match key (must match every owner agent's upsert logic):
@@ -658,12 +659,19 @@ End date: </div>
             rowBtn += '<a class="btn-agent-row btn-contract-row" href="../contract/?' + params + '" target="_blank" rel="noopener" title="Open Contract Review pre-filled with this event">📋 Contract</a>';
           }
 
-          // 🔍 City Scout
+          // 🔍 City Scout — form lives on the agent_hub homepage (no /scout/ subfolder); pass scout-* params + anchor #scout-card
           const sc = (typeof SCOUTS !== "undefined") ? SCOUTS[evKey] : null;
           if (sc) {
             rowBtn += '<a class="btn-agent-row btn-scout-row done" href="' + sc.href + '" target="_blank" rel="noopener" title="City Scout · score ' + sc.score + ' · ' + (sc.generated_at||"").slice(0,10) + '">🔍 Scout: ' + sc.score + '⭐</a>';
           } else {
-            rowBtn += '<a class="btn-agent-row btn-scout-row" href="../scout/?' + params + '" target="_blank" rel="noopener" title="Open City Scout pre-filled with this event">🔍 City Scout</a>';
+            const monthsArr = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            const scoutMonth = monthsArr[parseInt((ev.start_date||"").slice(5,7),10) - 1] || "";
+            const scoutParams = new URLSearchParams({
+              "scout-city":  ev.city || "",
+              "scout-state": ev.state || "",
+              "scout-month": scoutMonth
+            }).toString();
+            rowBtn += '<a class="btn-agent-row btn-scout-row" href="../?' + scoutParams + '#scout-card" target="_blank" rel="noopener" title="Open City Scout (on Agent Hub) pre-filled with this event">🔍 City Scout</a>';
           }
 
           // 🎨 Canva Event Images

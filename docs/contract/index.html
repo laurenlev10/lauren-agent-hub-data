@@ -328,6 +328,22 @@ document.getElementById("gen-cmd").addEventListener("click", async () => {
 
 renderClauses();
 rebuildPreview();
+
+// Pre-fill from URL params (added 2026-05-03 for the per-row 📋 Contract button on launch_dashboard).
+// URL contract: ../contract/?city=Columbia,+MO&start_date=2026-05-08&end_date=2026-05-10&year=2026&venue=...&address=...
+(function prefillFromUrl(){
+  const p = new URLSearchParams(window.location.search);
+  if (!p.toString()) return;
+  const setIf = (id, key) => {
+    const v = p.get(key);
+    if (v && document.getElementById(id)) document.getElementById(id).value = v;
+  };
+  setIf("ev-city",  "city");
+  setIf("ev-year",  "year");
+  setIf("ev-start", "start_date");
+  setIf("ev-hotel", "venue");
+  rebuildPreview();
+})();
 </script>
 </body>
 </html>

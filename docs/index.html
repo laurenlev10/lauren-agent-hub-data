@@ -165,7 +165,7 @@ const SCOUT_REPORTS = [
     <div class="run-hint">Opens the form — fill + copy command → paste in new Cowork task</div>
   </div>
 
-  <div class="agent agent-scout">
+  <div class="agent agent-scout" id="scout-card">
     <div class="icon">🔍</div>
     <div class="name">City Scout</div>
     <div class="desc">מחקר עיר לפני נסיעת סקאוט — דמוגרפיה, top 5-10 מועמדי וונו (מלונות / convention centers / banquet halls — בלי מותגי פרמיום), צ'ק-ליסט חוזה להדפסה, ערים סמוכות באזור. דו"ח עברית RTL ב-URL לשיתוף.</div>
@@ -416,6 +416,36 @@ End: confirm scout report URL https://laurenlev10.github.io/lauren-agent-hub-dat
         </div>`)
       .join("");
   }
+
+  // Pre-fill the City Scout form from URL params (added 2026-05-03 for the per-row scout button on launch_dashboard).
+  // URL contract: ../?scout-city=Columbia&scout-state=MO&scout-month=May#scout-card
+  (function prefillScout(){
+    const p = new URLSearchParams(window.location.search);
+    if (!p.has("scout-city") && !p.has("city")) return;
+    const setIf = (id, key) => { const v = p.get(key); if (v && document.getElementById(id)) document.getElementById(id).value = v; };
+    setIf("scout-city",  "scout-city");
+    setIf("scout-state", "scout-state");
+    setIf("scout-month", "scout-month");
+    // Friendly fallback: also support generic ?city=Columbia,+MO so the same URL contract works
+    if (!p.get("scout-city") && p.get("city")) {
+      const m = (p.get("city") || "").match(/^(.+?),\s*([A-Z]{2})\s*$/);
+      if (m) {
+        document.getElementById("scout-city").value  = m[1].trim();
+        document.getElementById("scout-state").value = m[2];
+      }
+    }
+    // Derive month from start_date if provided
+    if (!p.get("scout-month") && p.get("start_date")) {
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const monthIdx = parseInt((p.get("start_date") || "").slice(5,7), 10) - 1;
+      if (monthIdx >= 0 && monthIdx < 12) {
+        document.getElementById("scout-month").value = months[monthIdx];
+      }
+    }
+    // Smooth-scroll to the card so Lauren lands directly on the form
+    const card = document.getElementById("scout-card");
+    if (card) setTimeout(() => card.scrollIntoView({behavior:"smooth", block:"start"}), 100);
+  })();
 </script>
 
 </body>

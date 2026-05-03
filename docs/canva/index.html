@@ -800,6 +800,47 @@ const DEFAULT_CALIBRATION = {
   syncControls();
   updateCalibStatus();
   refreshCityList();
+
+  // Pre-fill from URL params (added 2026-05-03 for the per-row 🎨 Images button on launch_dashboard).
+  // URL contract: ../canva/?city=Columbia,+MO&start_date=2026-05-08&end_date=2026-05-10&year=2026
+  // Auto-select the matching year tab + paste a single line into the cities textarea: "Columbia MO — May 8-10".
+  (function prefillFromUrl(){
+    const p = new URLSearchParams(window.location.search);
+    if (!p.toString()) return;
+    const cityFull   = p.get("city")       || "";
+    const startDate  = p.get("start_date") || "";
+    const endDate    = p.get("end_date")   || "";
+    const yearParam  = parseInt(p.get("year") || "", 10);
+    if (yearParam && DEFAULT_YEARS.includes(yearParam)) {
+      const target = years.find(y => y.year === yearParam);
+      if (target && target.ready) {
+        selectedYear = yearParam;
+        defaults  = loadDefaults(selectedYear);
+        overrides = loadOverrides(selectedYear);
+        renderTemplates();
+        renderSetupHelp();
+        syncControls();
+        updateCalibStatus();
+      }
+    }
+    if (!cityFull || !startDate || !endDate) return;
+    // Format: "Columbia MO — May 8-10" (matches the Step-2 placeholder format)
+    const m = cityFull.match(/^(.+?),\s*([A-Z]{2})\s*$/);
+    const cityPart = m ? (m[1].trim() + " " + m[2]) : cityFull;
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const sDay = parseInt(startDate.slice(8,10), 10);
+    const eDay = parseInt(endDate.slice(8,10), 10);
+    const sMon = months[parseInt(startDate.slice(5,7), 10) - 1] || "";
+    const eMon = months[parseInt(endDate.slice(5,7),   10) - 1] || "";
+    const dateRange = (sMon === eMon) ? (sMon + " " + sDay + "-" + eDay) : (sMon + " " + sDay + "-" + eMon + " " + eDay);
+    const line = cityPart + " — " + dateRange;
+    const textarea = document.getElementById("cities");
+    if (textarea && !textarea.value.trim()) {
+      textarea.value = line;
+      textarea.dispatchEvent(new Event("input", {bubbles: true}));
+      refreshCityList();
+    }
+  })();
 </script>
 
 </body>

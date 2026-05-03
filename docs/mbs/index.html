@@ -1302,6 +1302,18 @@ After event summary done, optionally run mbs-venue-research skill for deeper ven
     document.getElementById("evt-name").value = `${firstPending.city}, ${firstPending.state}`;
     document.getElementById("evt-tier").value = firstPending.tier;
   }
+
+  // Pre-fill from URL params (added 2026-05-03 for the per-row Run summary button on launch_dashboard).
+  // URL contract: ../mbs/?city=Columbia,+MO&start_date=2026-05-08&end_date=2026-05-10&venue=...&address=...&year=2026
+  (function prefillFromUrl(){
+    const p = new URLSearchParams(window.location.search);
+    if (!p.toString()) return;
+    if (p.get("city")) document.getElementById("evt-name").value = p.get("city");
+    if (p.get("start_date")) document.getElementById("evt-start").value = p.get("start_date");
+    if (p.get("end_date"))   document.getElementById("evt-end").value   = p.get("end_date");
+    // Tier comes from launch_dashboard's per-row data via &tier=N if you choose to pass it; otherwise the form default stays.
+    if (p.get("tier")) document.getElementById("evt-tier").value = p.get("tier");
+  })();
 </script>
 
 </body>
