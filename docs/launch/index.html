@@ -106,6 +106,8 @@
   .btn-launch-row:hover{background:linear-gradient(180deg,var(--accent-dark),#9d174d);transform:translateY(-1px)}
   .btn-launch-row.copied{background:var(--ok)}
   .btn-launch-row.warned{background:linear-gradient(180deg,#f59e0b,#b45309)}
+  .btn-launch-row.done{background:linear-gradient(180deg,#16a34a,#15803d) !important;color:#fff;text-decoration:none}
+  .btn-launch-row.done:hover{background:linear-gradient(180deg,#15803d,#14532d) !important}
   .btn-launch-row[disabled]{opacity:.5;cursor:not-allowed;transform:none}
   .btn-campaigns-row{display:inline-flex;align-items:center;gap:4px;margin-top:6px;margin-left:6px;padding:5px 10px;background:#0ea5e9;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none;letter-spacing:.3px;box-shadow:0 1px 2px rgba(14,165,233,.3);transition:all .12s}
   .btn-campaigns-row:hover{background:#0369a1;transform:translateY(-1px)}
@@ -201,6 +203,12 @@ const REELS = {};
 const PR_ORGS = {};
 // Owner: pr-influencer — entry: { influencer_count, href, generated_at }
 const PR_INFLUENCERS = {};
+
+// Owner: eventbrite-setup — entry: { eventbrite: {url, eventId, generated_at} | null, smslist: {list_id, list_name, generated_at} | null }
+// Both fields can populate independently — the agent reports per-service result.
+// Run state: button "🎟️ Eventbrite + List Setup" (orange/cyan gradient).
+// Done state: when eventbrite OR smslist exist, button turns green and clicking opens the EB URL (or focuses on what's missing if partial).
+const SETUPS = {};
 
 // MANUAL_TASKS — Lauren-owned 5 manual-task checkboxes per event (replaced /manager/ on 2026-05-03).
 // Persisted to docs/launch/notes.json via RemoteSync (browser writes to GitHub via Contents API).
@@ -300,7 +308,7 @@ End date: </div>
     </div>
 
     <div class="schedule-meta" id="schedule-legend">
-      <span><span class="badge badge-launched">🚀 Launched</span> webhook fired through this dashboard</span>
+      <span><span class="badge badge-launched">🎟️ Setup ✓</span> Eventbrite event + SMS list created via the eventbrite-setup agent</span>
       <span><span class="badge badge-signed">✓ Signed</span> contract signed (green cell in xlsx)</span>
       <span><span class="badge badge-tentative">❓ Tentative</span> planned, may move</span>
       <span><span class="badge badge-done">🏁 Done</span> already happened</span>
@@ -606,7 +614,7 @@ End date: </div>
 
   function badgeFor(eff){
     if (eff === "done") return '<span class="badge badge-done">🏁 Done</span>';
-    if (eff === "launched") return '<span class="badge badge-launched">🚀 Launched</span>';
+    if (eff === "launched") return '<span class="badge badge-launched">🎟️ Setup ✓</span>';
     if (eff === "signed" || eff === "confirmed") return '<span class="badge badge-signed">✓ Signed</span>';
     if (eff === "tentative") return '<span class="badge badge-tentative">❓ Tentative</span>';
     return '<span class="badge badge-empty">—</span>';
@@ -672,23 +680,42 @@ End date: </div>
       const isNext = (iso === nextIso);
       const cls = rowClassFor(eff) + (isNext ? " row-next" : "");
       const statusBadge = (isNext ? '<span class="badge badge-next" style="margin-right:4px">🔜 Next</span>' : '') + badgeFor(eff);
-      // Per-row "copy launch command" button — only when there is an event
+      // Per-row "🎟️ Eventbrite + List Setup" button — only when there is an event.
+      // Replaced "📋 Copy launch" / "📋 Re-copy" on 2026-05-03 (Lauren feedback: those names were
+      // ambiguous — agent does TWO things, Eventbrite event + SMS list creation).
       let rowBtn = "";
       if (ev){
         const incomplete = !(ev.venue && ev.address);
-        const btnLabel = (eff === "launched" ? "📋 Re-copy" : "📋 Copy launch") + (incomplete ? " ⚠" : "");
-        const btnTitle = incomplete
-          ? "Venue/address missing for this event — command will copy with blanks. The agent will ask for them via SMS."
-          : "Copy a ready-to-paste launch command for this event.";
-        const payload = JSON.stringify({
-          city: ev.city + ", " + ev.state,
-          street: ev.address || "",
-          hotel: ev.venue || "",
-          year: (ev.start_date || "").slice(0,4),
-          start: ev.start_date || "",
-          end: ev.end_date || ""
-        }).replace(/"/g,"&quot;");
-        rowBtn = '<button class="btn-launch-row' + (incomplete ? " warned" : "") + '" data-event="' + payload + '" title="' + btnTitle + '">' + btnLabel + '</button>';
+        const evKeyForSetup = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
+        const setup = (typeof SETUPS !== "undefined") ? SETUPS[evKeyForSetup] : null;
+        const ebDone  = setup && setup.eventbrite && setup.eventbrite.url;
+        const smsDone = setup && setup.smslist    && setup.smslist.list_id;
+        if (setup && (ebDone || smsDone)) {
+          // ── Done / partial-done state — green button, links to the EB event URL (or shows partial)
+          const bothDone = ebDone && smsDone;
+          const labelMain = bothDone ? "🎟️ Eventbrite + List ✓" : (ebDone ? "🎟️ Eventbrite ✓ · List ⚠" : "🎟️ List ✓ · Eventbrite ⚠");
+          const tipParts = [];
+          if (ebDone)  tipParts.push("Eventbrite: " + setup.eventbrite.url);
+          if (smsDone) tipParts.push("SMS list: " + (setup.smslist.list_name || setup.smslist.list_id));
+          if (setup.eventbrite && setup.eventbrite.generated_at) tipParts.push("Created " + setup.eventbrite.generated_at.slice(0,10));
+          const linkHref = ebDone ? setup.eventbrite.url : (smsDone ? "https://app2.simpletexting.com/contact-lists" : "#");
+          rowBtn = '<a class="btn-launch-row done" href="' + linkHref + '" target="_blank" rel="noopener" title="' + escapeHtml(tipParts.join(" · ")) + '">' + labelMain + '</a>';
+        } else {
+          // ── Run state — orange/cyan gradient, copies the launch command (same payload as before)
+          const btnLabel = "🎟️ Eventbrite + List Setup" + (incomplete ? " ⚠" : "");
+          const btnTitle = incomplete
+            ? "Venue/address missing for this event — command will copy with blanks. The agent will ask for them via SMS."
+            : "Copies the eventbrite-setup command — agent creates the Eventbrite event + empty SMS list via API.";
+          const payload = JSON.stringify({
+            city: ev.city + ", " + ev.state,
+            street: ev.address || "",
+            hotel: ev.venue || "",
+            year: (ev.start_date || "").slice(0,4),
+            start: ev.start_date || "",
+            end: ev.end_date || ""
+          }).replace(/"/g,"&quot;");
+          rowBtn = '<button class="btn-launch-row' + (incomplete ? " warned" : "") + '" data-event="' + payload + '" title="' + btnTitle + '">' + btnLabel + '</button>';
+        }
         // Chained "Run campaigns" link (only when event has full data — venue + address)
         if (!incomplete && (eff === "signed" || eff === "launched")){
           const params = new URLSearchParams({
