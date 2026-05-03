@@ -373,7 +373,7 @@ End date: </div>
         <input type="file" id="xlsx-upload" accept=".xlsx,.xlsm">
       </label>
       <button class="reset-btn" id="reset-upload">↺ Use built-in</button>
-      <span class="upload-status" id="upload-status">Using built-in schedule from <b id="baked-date">—</b>. Upload the latest "NEW SCHEDULE" xlsx to refresh both years.</span>
+      <span class="upload-status" id="upload-status">Using built-in schedule from <b id="baked-date">—</b>. Upload the latest "NEW SCHEDULE" xlsx to refresh: events (2026 + 2027 sheets) <b>and</b> team assignments (bookings sheet). Live overrides you made via ✏️ are preserved.</span>
     </div>
 
     <div class="schedule-meta" id="schedule-legend">
@@ -765,8 +765,12 @@ End date: </div>
           const tipParts = histList.map(h => h.year + " (" + h.list_name + "): total " + h.total + " · active " + (h.active || 0));
           statsLine += '<div class="list-stats hist" title="' + escapeHtml(tipParts.join(" \\n ")) + '">📊 History: ' + parts + '</div>';
         }
-        // Staff assignments (Lauren 2026-05-03 PM) — defaults from xlsx, overrides from notes.json (live edit)
-        const staffDef = (typeof STAFF_DEFAULTS !== "undefined") ? (STAFF_DEFAULTS[evKeyForStats] || {}) : {};
+        // Staff assignments (Lauren 2026-05-03 PM) — overlay layers in priority:
+        //   1) noteRow.team_override (Lauren's live in-page edit)        — highest
+        //   2) uploaded xlsx _staff_defaults (most recent xlsx upload)
+        //   3) baked STAFF_DEFAULTS (the version baked at last deploy)
+        const uploadedStaff = (typeof loadUploaded === "function" ? (loadUploaded() || {})._staff_defaults : null) || {};
+        const staffDef = uploadedStaff[evKeyForStats] || ((typeof STAFF_DEFAULTS !== "undefined") ? (STAFF_DEFAULTS[evKeyForStats] || {}) : {});
         const noteRow = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKeyForStats] || {}) : {};
         const teamVal = (noteRow.team_override != null ? noteRow.team_override : (staffDef.team || ""));
         if (teamVal || staffDef.team) {
@@ -1214,6 +1218,63 @@ End date: </div>
     }
   }
 
+  // Parse the "bookings" sheet for team assignments per event (added 2026-05-03 PM by Lauren).
+  // Format expected: rows under a "2026" or "2027" year-marker, columns:
+  //   col 2 = dates (e.g. "Jan 8 -11" or "May 7 - 10")
+  //   col 3 = city (e.g. "Glendale AZ", "Columbia MO", "Hampton, VA")
+  //   col 5 = team (comma/space-separated names)
+  function parseBookings(ws, schedule){
+    if (!ws) return {};
+    // Build city/state → [(start_date, slug)] lookup from the just-parsed schedule
+    function slug(city, sd){ return city.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + sd; }
+    const lookup = {};
+    for (const yr of ["2026","2027","2028"]){
+      for (const ev of (schedule[yr] || [])){
+        if (!ev.city || !ev.state || !ev.start_date) continue;
+        const k = (ev.city.toLowerCase() + "|" + ev.state.toUpperCase());
+        (lookup[k] = lookup[k] || []).push({ start_date: ev.start_date, slug: slug(ev.city, ev.start_date) });
+      }
+    }
+    const result = {};
+    let inYear = null;
+    ws.eachRow({includeEmpty:false}, (row) => {
+      // Year marker check (any cell in cols 1..6)
+      for (let c = 1; c <= 6; c++){
+        const v = row.getCell(c).value;
+        const s = (v == null) ? "" : String(v).trim();
+        if (s === "2026" || s === "2026.0") { inYear = 2026; return; }
+        if (s === "2027" || s === "2027.0") { inYear = 2027; return; }
+        if (/^(2025|2024|2023|2022|2021|2020)(\.0)?$/.test(s)) { inYear = null; return; }
+      }
+      if (inYear !== 2026 && inYear !== 2027) return;
+      const dates = String(row.getCell(2).value || "").trim();
+      const cityRaw = String(row.getCell(3).value || "").trim();
+      const team = String(row.getCell(5).value || "").trim().replace(/\s+/g, " ").replace(/,$/,"");
+      if (!dates || !cityRaw || !team) return;
+      if (!/\d/.test(dates)) return;
+      // Parse "City ST" or "City, ST"
+      const m = cityRaw.match(/^(.+?)[,\s]+([A-Z]{2})\b/);
+      if (!m) return;
+      let c = m[1].trim();
+      const st = m[2].toUpperCase();
+      if (c.toLowerCase() === "forth worth") c = "Fort Worth";
+      // Find candidates by city/state, prefer the one in inYear
+      let cands = lookup[c.toLowerCase() + "|" + st] || [];
+      if (cands.length === 0){
+        // Substring fallback
+        for (const k in lookup){
+          const [cl, sl] = k.split("|");
+          if (sl === st && (cl.indexOf(c.toLowerCase()) >= 0 || c.toLowerCase().indexOf(cl) >= 0)){
+            cands = lookup[k]; break;
+          }
+        }
+      }
+      const best = cands.find(x => x.start_date.slice(0,4) === String(inYear)) || cands[0];
+      if (best) result[best.slug] = { team };
+    });
+    return result;
+  }
+
   document.getElementById("xlsx-upload").addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1229,6 +1290,9 @@ End date: </div>
       out["2027"] = ws27 ? parse2027E(ws27) : [];
       const ws28 = wb.getWorksheet("2028") || wb.getWorksheet("2028 E");
       out["2028"] = ws28 ? parse2028(ws28) : [];
+      // Bookings sheet → team assignments per event
+      const wsB = wb.getWorksheet("bookings ") || wb.getWorksheet("bookings") || wb.getWorksheet("Bookings");
+      out._staff_defaults = wsB ? parseBookings(wsB, out) : {};
       // Diff vs current
       const sourceBefore = activeSource();
       const diff = ["2026","2027"].map(y => {
@@ -1238,13 +1302,15 @@ End date: </div>
         const afterSigned  = (out[y]||[]).filter(e => e.status === "confirmed").length;
         return y + ": " + after + " events (" + afterSigned + " signed)" + (after !== before || afterSigned !== beforeSigned ? " <i>(was " + before + " events / " + beforeSigned + " signed)</i>" : "");
       });
+      const teamCount = Object.keys(out._staff_defaults || {}).length;
+      const teamPart = teamCount > 0 ? " · 👥 " + teamCount + " team assignments" : "";
       localStorage.setItem(KEY_UPLOADED, JSON.stringify(out));
       localStorage.setItem(KEY_UPLOAD_AT, new Date().toLocaleString());
-      setUploadStatus("✓ Loaded <b>" + file.name + "</b>. " + diff.join(" · "), true);
+      setUploadStatus("✓ Loaded <b>" + file.name + "</b>. " + diff.join(" · ") + teamPart, true);
       renderSchedule();
     } catch(err){
       console.error(err);
-      setUploadStatus("⚠ Couldn't parse file: " + err.message + ". Make sure it's the same format as the latest NEW SCHEDULE xlsx (sheets named \"2026\" and \"2027 E\").", false);
+      setUploadStatus("⚠ Couldn't parse file: " + err.message + ". Make sure it's the same format as the latest NEW SCHEDULE xlsx (sheets named \"2026\", \"2027 E\", and \"bookings\").", false);
     }
     e.target.value = "";  // allow re-upload of same filename
   });
