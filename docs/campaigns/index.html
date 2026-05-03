@@ -246,7 +246,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     }
   ];
   const DEFAULT_AR = {
-    keyword: "{CITY_NO_SPACES_UPPER}",
+    keyword: "{CITY_NO_SPACES_UPPER}{YY}",   // updated 2026-05-03: append 2-digit year to avoid cross-year keyword collisions (browser.md Flow 2 convention)
     type: "MMS",
     image_filename: "ig_story_voucher.png",
     text: "This is your Free Fabulous Glitter✨ Voucher! The Makeup Blowout Sale Group Are Coming To {city}, {state} {year} For Only 3 days! 🗓️ When: {date_range} 🕙 Hours: 10 AM - 5 PM 📍 Where: {address}. At {venue}. CLICK & SHARE On Your Story: {reel_link} If you share - you will GET a FREE Eyeshadow at the event, too!"
@@ -618,7 +618,10 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       .replace(/\{tracking_link\}/g, ev.reelLink || "(no reel link — skip this line)")
       .replace(/\{reel_link\}/g, ev.reelLink || "(no reel link — skip this line)")
       .replace(/\{remaining_dates\}/g, ev.remainingDates || ev.dateRange)
-      .replace(/\{CITY_NO_SPACES_UPPER\}/g, ev.cityOnly.toUpperCase().replace(/\s+/g,""));
+      .replace(/\{CITY_NO_SPACES_UPPER\}/g, ev.cityOnly.toUpperCase().replace(/\s+/g,""))
+      // {YY} = 2-digit year (e.g. "26" for 2026). Added 2026-05-03 to support keyword convention <CITY><YY>
+      // (avoids cross-year collisions when Lauren returns to the same city in a future year).
+      .replace(/\{YY\}/g, String(ev.year).slice(-2));
   }
   function eventCtx(){
     const cityFull = document.getElementById("ev-city").value.trim();
