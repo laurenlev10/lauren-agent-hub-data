@@ -15,13 +15,21 @@
   a{color:var(--link)}
   h1{font-size:22px;margin:0 0 4px}
   h2{font-size:18px;margin:32px 0 12px;border-bottom:1px solid var(--line);padding-bottom:6px}
+  h2.heb{direction:rtl;text-align:right}
   .muted{color:var(--muted)}
   .header{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:18px}
   .meta{font-size:13px;color:var(--muted);margin-top:6px}
   .summary{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 0}
   .pill{display:inline-flex;gap:6px;align-items:center;padding:6px 12px;border-radius:999px;font-weight:600;font-size:14px;border:1px solid var(--line)}
   .pill.pass{color:var(--pass)} .pill.warn{color:var(--warn)} .pill.miss{color:var(--miss)}
-  .verdict{margin-top:14px;padding:12px 14px;border-radius:10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.4);color:#fca5a5;font-weight:600}
+  .summary-soft{margin-top:14px;padding:12px 14px;border-radius:10px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.4);color:#fcd34d;font-size:14px}
+  .summary-soft strong{color:#fde68a}
+  .summary-soft ol{margin:8px 0 0 20px;padding:0}
+  .summary-soft li{margin:3px 0}
+  .signed-note{margin-top:10px;font-size:12px;color:var(--muted);font-style:italic;line-height:1.5}
+  .email-actions{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0 0}
+  .email-btn{padding:10px 16px;border:1px solid rgba(96,165,250,.4);border-radius:10px;background:rgba(96,165,250,.1);color:var(--link);font-weight:600;cursor:pointer;font-size:14px;font-family:inherit}
+  .email-btn:hover{background:rgba(96,165,250,.2)}
   .clause{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0}
   .clause .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
   .clause h3{margin:0;font-size:16px}
@@ -35,7 +43,18 @@
   ul{padding-left:20px}
   li{margin:4px 0}
   .heb{direction:rtl;text-align:right}
-  .back{display:inline-block;margin:18px 0 0;font-size:14px}
+  .panel-block{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 18px}
+  .back{display:inline-block;margin:0 0 14px;font-size:14px}
+  /* Email modal */
+  .email-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;justify-content:center;align-items:center;padding:20px}
+  .email-modal.show{display:flex}
+  .email-modal .box{max-width:780px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;max-height:90vh;overflow-y:auto}
+  .email-modal h3{margin:0 0 4px;font-size:17px}
+  .email-modal .hint{margin:0 0 10px;font-size:13px;color:var(--muted)}
+  .email-modal textarea{width:100%;min-height:380px;padding:12px;background:#0f172a;color:var(--text);border:1px solid var(--line);border-radius:8px;font:13px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;resize:vertical}
+  .email-modal .actions{display:flex;gap:10px;margin-top:10px;justify-content:flex-end}
+  .email-modal .copy{background:var(--pass);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit}
+  .email-modal .close{background:var(--line);color:var(--text);border:none;padding:9px 14px;border-radius:8px;cursor:pointer;font-family:inherit}
 </style>
 </head>
 <body>
@@ -45,21 +64,78 @@
   <div class="header">
     <h1>Contract review — Courtyard by Marriott Columbia</h1>
     <div class="meta">
-      Columbia, MO · Event: Thu May 7 → Sun May 10, 2026 · Reviewed: 2026-05-03 15:30 PDT<br>
+      Columbia, MO · Event: Fri May 8 → Sun May 10, 2026 · Reviewed: 2026-05-03 15:30 PDT<br>
       Source: Banquet Event Order packet (BEO #5746–#5749)
     </div>
     <div class="summary">
-      <span class="pill pass">✓ 0 pass</span>
-      <span class="pill warn">⚠ 2 concerning</span>
-      <span class="pill miss">❌ 7 missing</span>
+      <span class="pill pass">✓ 0 present</span>
+      <span class="pill warn">⚠ 2 partial</span>
+      <span class="pill miss">❌ 7 not in document</span>
     </div>
-    <div class="verdict">🔴 DO NOT SIGN — 9/9 critical clauses fail. This document is a Banquet Event Order, not a venue contract.</div>
+
+    <div class="summary-soft">
+      <strong>Items not present in this document:</strong>
+      <ol>
+        <li>24-hour Thursday → Friday room hold (only the overnight 9 PM Thu → 9:30 AM Fri is shown)</li>
+        <li>Exact room square footage (must be ≥ 2,500 sq ft)</li>
+        <li>All-inclusive daily total ≤ $1,500/day (incl. 22% service charge + tax + AV + parking + cleaning) — math suggests ≈$1,323/day base, but AV/parking/cleaning aren't itemized</li>
+        <li>Free self-parking for guests and vendors</li>
+        <li>Specific Thursday morning setup window (Thursday is shown as an exhibition day with no early-AM access)</li>
+        <li>Cancellation policy / force-majeure terms</li>
+        <li>Direct doors from parking to the room (no elevator) for load-in</li>
+        <li>Fire Code maximum occupancy</li>
+        <li>Deposit amount, payment schedule, refundable portion</li>
+      </ol>
+      <div class="signed-note">
+        Note: this looks like a Banquet Event Order rather than a full venue contract. Some of these items may already be covered verbally or in email correspondence between you and the venue. If the agreement is already signed (digitally or otherwise — the agent can't always tell from the file alone), use the items above as a follow-up checklist with the hotel. If still pre-signing, use the redline-request email below to ask that they be added to the written agreement.
+      </div>
+    </div>
+
+    <div class="email-actions">
+      <button class="email-btn" id="open-email-followup">📧 Copy follow-up email (event already booked)</button>
+      <button class="email-btn" id="open-email-redline">📧 Copy redline-request email (before signing)</button>
+    </div>
+  </div>
+
+  <h2 class="heb">סעיפים מיוחדים שמצאתי בחוזה</h2>
+  <div class="panel-block">
+  <ul class="heb" style="margin:0">
+    <li>🚨 <strong>המלון יכול להעביר אותך לחדר אחר.</strong> "The hotel reserves the right to reassign meeting rooms based upon final guaranteed numbers" — שווה לסגור עם המלון בכתב שזה לא יקרה לחדר Show Me University.</li>
+    <li>💰 <strong>22% Service Charge על כל החיובים</strong> — מעבר לדמי השכירות $1,000/יום. כדאי לוודא שזה כלול בתוך התקרה של $1,500/יום ואין הפתעות.</li>
+    <li>⏰ <strong>שעות התערוכה: 11 AM – 9 PM</strong> — 10 שעות ביום. אם זה לא בכוונה, לבקש לקצר.</li>
+    <li>📅 <strong>יום חמישי (May 7) הוא יום תערוכה, לא יום הקמה.</strong> $1,000 גם ליום חמישי, ואין חלון בוקר להקמה לפני פתיחת דלתות.</li>
+    <li>🎤 <strong>Audio Visual ריק.</strong> כותרת קיימת, אין פירוט מה כלול. כדאי לאשר באימייל.</li>
+    <li>🚫 <strong>אסור אוכל/שתייה מבחוץ.</strong> חייבת לקנות מהמלון אם רוצים מים/קפה.</li>
+    <li>📊 <strong>Final guaranteed count אוטומטי</strong> — אם לא משלימה הצהרה 10 ימי עסקים מראש, הסט הופך לחיוב מובטח.</li>
+    <li>🪑 <strong>Setup: 25 שולחנות פריפריה + 8 במרכז + 10 כיסאות, בלי מפות.</strong> זה מה שנכתב ב-BEO.</li>
+    <li>📝 <strong>אין כתובת בחוזה</strong> — שדה Address ריק (",") עבור 337 Social 2026.</li>
+    <li>📞 <strong>אין שם/טלפון/אימייל ל-Catering Manager.</strong> כדאי לבקש איש קשר רשום.</li>
+    <li>💸 <strong>אין סכומי הפקדה/תשלום.</strong></li>
+  </ul>
+  </div>
+
+  <h2 class="heb">הערות לאיש הקשר במלון</h2>
+  <div class="panel-block">
+  <ul class="heb" style="margin:0">
+    <li>🔒 לסגור בכתב שאת לא תועברי לחדר אחר ללא אישורך.</li>
+    <li>💰 לבקש מחיר סופי all-inclusive (≤ $1,500/day).</li>
+    <li>📐 לבקש את ה-square footage של Show Me University.</li>
+    <li>🚗 לאשר חניה חינם לכל המוכרים והאורחים.</li>
+    <li>🚪 לאשר load-in route — דלת ישירה מהחניה, בלי מעלית.</li>
+    <li>🔥 לבקש Fire Code maximum occupancy של Show Me University.</li>
+    <li>🗓 להבהיר את יום חמישי 7/5: יום הקמה או יום תערוכה?</li>
+    <li>🎤 לפרט מה כלול ב-AV או לאשר ש-AV כלול בלי תוספת.</li>
+    <li>🔄 להוסיף סעיף ביטול: 30 יום הודעה = החזר; force-majeure = החזר/דחייה.</li>
+    <li>💵 לבקש לוח תשלומים מפורט: הפקדה $X ב-תאריך, יתרה $Y ב-תאריך.</li>
+    <li>🍽 לוודא F&amp;B: water station כלול? יש F&amp;B minimum סמוי?</li>
+    <li>👤 לבקש שם + טלפון + אימייל של Catering Manager.</li>
+  </ul>
   </div>
 
   <h2>Per-clause verdicts</h2>
 
   <div class="clause">
-    <div class="row1"><h3>[1] Hold (24h Thursday → Friday)</h3><span class="badge miss">❌ MISSING</span></div>
+    <div class="row1"><h3>[1] Hold (24h Thursday → Friday)</h3><span class="badge miss">❌ NOT IN BEO</span></div>
     <div class="label">Quote (BEO #5746, Thursday May 7)</div>
     <div class="quote">"9:00 PM - 9:30 AM Room Hold Show Me University Exhibition - Table Top $.00"</div>
     <p>Thursday is itself a full event day (Exhibition 11 AM – 9 PM). The only "Room Hold" is the overnight 9 PM Thu → 9:30 AM Fri (~12.5h). No 24-hour morning-to-morning hold language.</p>
@@ -68,104 +144,207 @@
   </div>
 
   <div class="clause">
-    <div class="row1"><h3>[2] Room size (≥ 2,500 sq ft)</h3><span class="badge miss">❌ MISSING</span></div>
+    <div class="row1"><h3>[2] Room size (≥ 2,500 sq ft)</h3><span class="badge miss">❌ NOT IN BEO</span></div>
     <p>Searched: <code>square feet · sq ft · ft² · sqft · size · capacity</code> — 0 hits. Room is named ("Show Me University") but no square footage stated.</p>
     <div class="label">Suggested redline</div>
     <div class="redline">"The Show Me University room measures exactly [X] sq ft (must be ≥ 2,500). Hotel confirms this footage in writing as part of the executed contract."</div>
   </div>
 
   <div class="clause">
-    <div class="row1"><h3>[3] Final price ≤ $1,500/day (incl. taxes + setup + cleaning + AV + parking)</h3><span class="badge warn">⚠ CONCERNING</span></div>
+    <div class="row1"><h3>[3] Final price ≤ $1,500/day (incl. taxes + setup + cleaning + AV + parking)</h3><span class="badge warn">⚠ PARTIAL</span></div>
     <div class="label">Quote (each BEO, footer)</div>
     <div class="quote">"All charges are subject to 22% Service Charge and Sales Tax."</div>
     <div class="label">Quote (rental line)</div>
     <div class="quote">"Exhibition/Trade Show Show Me University Exhibition - Table Top $1,000.00"</div>
-    <p>Math: $1,000 + 22% service charge ($220) + ~8.475% MO sales tax ≈ <strong>$1,323/day</strong>. Under $1,500 only if AV, parking, cleaning are included. AV section header is empty. Parking not mentioned. Cleaning not mentioned. "Subject to" is the exact red-flag phrase from the checklist.</p>
+    <p>Math: $1,000 + 22% service charge ($220) + ~8.475% MO sales tax ≈ <strong>$1,323/day</strong>. Under $1,500 only if AV, parking, cleaning are included. AV section header is empty. Parking not mentioned. Cleaning not mentioned.</p>
     <div class="label">Suggested redline</div>
     <div class="redline">"All-inclusive daily rate (room + 22% service charge + sales tax + setup + cleaning + AV + parking + any other fees) shall not exceed $1,500.00/day for May 7–10, 2026. No additional fees may be added. Hotel itemizes any AV equipment and confirms parking is included at no charge."</div>
   </div>
 
   <div class="clause">
-    <div class="row1"><h3>[4] Free parking for guests</h3><span class="badge miss">❌ MISSING</span></div>
+    <div class="row1"><h3>[4] Free parking for guests</h3><span class="badge miss">❌ NOT IN BEO</span></div>
     <p>Searched: <code>parking · valet · self-parking · garage</code> — 0 hits. Likely free in practice (suburban Marriott on Lemone Industrial Blvd) but not in writing.</p>
     <div class="label">Suggested redline</div>
     <div class="redline">"Self-parking is included for all event guests, vendors, and staff at NO charge for the entire May 7–10, 2026 event window. No validation required."</div>
   </div>
 
   <div class="clause">
-    <div class="row1"><h3>[5] Setup + teardown hours</h3><span class="badge warn">⚠ CONCERNING</span></div>
+    <div class="row1"><h3>[5] Setup + teardown hours</h3><span class="badge warn">⚠ PARTIAL</span></div>
     <div class="label">Quote (BEO #5746, Thursday)</div>
     <div class="quote">"11:00 AM - 9:00 PM Exhibition/Trade Show Show Me University ... $1,000.00"</div>
     <div class="label">Quote (BEO #5749, Sunday)</div>
     <div class="quote">"5:30 PM - 10:00 PM Teardown Show Me University Exhibition - Table Top $.00"</div>
-    <p>Sunday teardown ✓ clearly stated. Thursday vendor entry ⚠: Thursday is already an exhibition day starting 11 AM; no morning setup window before doors open. Mismatch with the <code>start_date: 2026-05-08</code> input — the contract treats Thursday May 7 as showtime, not setup-only.</p>
+    <p>Sunday teardown ✓ clearly stated. Thursday vendor entry ⚠: Thursday is already an exhibition day starting 11 AM; no morning setup window before doors open.</p>
     <div class="label">Suggested redline</div>
-    <div class="redline">"Vendor access for setup begins Thursday May 7, 2026 at 8 AM. Teardown ends by Sunday May 10, 2026 at 10 PM. Both at no additional charge. Either (a) confirm Thursday May 7 is setup-only with show opening Friday May 8, OR (b) add a documented early-AM setup window (e.g., 7 AM–11 AM) on Thursday before exhibition hours."</div>
+    <div class="redline">"Vendor access for setup begins Thursday May 7, 2026 at 8 AM. Teardown ends by Sunday May 10, 2026 at 10 PM. Both at no additional charge. Confirm whether Thursday May 7 is setup-only or already an exhibition day."</div>
   </div>
 
   <div class="clause">
-    <div class="row1"><h3>[6] Cancellation Policy — fee-free window</h3><span class="badge miss">❌ MISSING</span></div>
-    <p>Searched: <code>cancellation · refund · force majeure · termination · notice</code> — 0 hits. Completely silent. No cancellation rights, no force-majeure protection.</p>
+    <div class="row1"><h3>[6] Cancellation Policy — fee-free window</h3><span class="badge miss">❌ NOT IN BEO</span></div>
+    <p>Searched: <code>cancellation · refund · force majeure · termination · notice</code> — 0 hits.</p>
     <div class="label">Suggested redline</div>
     <div class="redline">"Either party may cancel with at least 30 days' written notice prior to May 7, 2026 for a 100% refund of deposit. Force-majeure events (including pandemic, government lockdown, severe weather, natural disaster) trigger a full refund or rescheduling option at the client's discretion."</div>
   </div>
 
   <div class="clause">
-    <div class="row1"><h3>[7] Load-in/Load-out — direct doors from parking (no elevator)</h3><span class="badge miss">❌ MISSING</span></div>
-    <p>Searched: <code>loading · load-in · doors · entrance · elevator · freight · ground level</code> — 0 hits. Deal-breaker for vendor logistics if load-in requires an elevator.</p>
+    <div class="row1"><h3>[7] Load-in/Load-out — direct doors from parking (no elevator)</h3><span class="badge miss">❌ NOT IN BEO</span></div>
+    <p>Searched: <code>loading · load-in · doors · entrance · elevator · freight · ground level</code> — 0 hits.</p>
     <div class="label">Suggested redline</div>
     <div class="redline">"Vendors will have access via direct doors from the self-parking area to the Show Me University room, with NO elevator required for load-in or load-out."</div>
   </div>
 
   <div class="clause">
-    <div class="row1"><h3>[8] Fire Code Capacity — max occupancy</h3><span class="badge miss">❌ MISSING</span></div>
+    <div class="row1"><h3>[8] Fire Code Capacity — max occupancy</h3><span class="badge miss">❌ NOT IN BEO</span></div>
     <p>Searched: <code>capacity · fire code · occupancy · maximum · fire marshal</code> — 0 hits.</p>
     <div class="label">Suggested redline</div>
     <div class="redline">"Maximum Fire Code occupancy of the Show Me University room is [X] persons (per local Columbia, MO fire marshal certification). Hotel provides documentation prior to event."</div>
   </div>
 
   <div class="clause">
-    <div class="row1"><h3>[9] Deposit — paid + refundable amounts</h3><span class="badge miss">❌ MISSING</span></div>
-    <p>Searched: <code>deposit · security deposit · refundable · forfeit · payment schedule · balance</code> — 0 hits. The only "due" reference is about attendance count, not money.</p>
+    <div class="row1"><h3>[9] Deposit — paid + refundable amounts</h3><span class="badge miss">❌ NOT IN BEO</span></div>
+    <p>Searched: <code>deposit · security deposit · refundable · forfeit · payment schedule · balance</code> — 0 hits.</p>
     <div class="label">Suggested redline</div>
     <div class="redline">"Deposit of $[X] due [date]. Of this amount, $[Y] is refundable post-event upon room return in original condition (within 30 days of May 10, 2026). $[Z] is the non-refundable booking fee. Final balance of $[remaining] due no later than [final-payment date]."</div>
   </div>
 
-  <h2 class="heb">סעיפים מיוחדים שמצאתי בחוזה</h2>
-  <ul class="heb">
-    <li>🚨 <strong>המלון יכול להעביר אותך לחדר אחר.</strong> "The hotel reserves the right to reassign meeting rooms based upon final guaranteed numbers" — סעיף קטלני.</li>
-    <li>💰 <strong>22% Service Charge על כל החיובים</strong> — מעבר לדמי השכירות. בלי לכלול את זה במחיר הסופי, אי-אפשר לדעת אם נשארים מתחת ל-$1,500/יום.</li>
-    <li>⏰ <strong>שעות התערוכה: 11 AM – 9 PM</strong> — 10 שעות ביום, הרבה יותר ארוך מהרגיל.</li>
-    <li>📅 <strong>יום חמישי (May 7) הוא יום תערוכה, לא יום הקמה.</strong> $1,000 גם ליום חמישי, ואין חלון בוקר להקמה.</li>
-    <li>🎤 <strong>Audio Visual ריק.</strong> כותרת קיימת, אין פירוט מה כלול.</li>
-    <li>🚫 <strong>אסור אוכל/שתייה מבחוץ.</strong> חייבת לקנות מהמלון אם רוצים מים/קפה.</li>
-    <li>📊 <strong>Final guaranteed count אוטומטי</strong> — אם לא משלימה הצהרה 10 ימי עסקים מראש, הסט הופך לחיוב מובטח.</li>
-    <li>🪑 <strong>Setup: 25 שולחנות פריפריה + 8 במרכז + 10 כיסאות, בלי מפות.</strong></li>
-    <li>📝 <strong>אין כתובת בחוזה</strong> — שדה Address ריק (",") עבור 337 Social 2026.</li>
-    <li>📞 <strong>אין שם/טלפון/אימייל ל-Catering Manager.</strong></li>
-    <li>💸 <strong>אין סכומי הפקדה/תשלום.</strong></li>
-  </ul>
-
-  <h2 class="heb">הערות לאיש הקשר במלון</h2>
-  <ul class="heb">
-    <li>❗ לדרוש שזה לא רק BEO אלא חוזה אירוע מלא עם cancellation, deposit, force-majeure, ו-room-reassignment protections.</li>
-    <li>🔒 לבטל את סעיף ה-room reassignment או לדרוש "only with written consent of client and only to a room of equal or greater size at no additional cost".</li>
-    <li>💰 לבקש מחיר סופי all-inclusive (≤ $1,500/day).</li>
-    <li>📐 לבקש בכתב את ה-square footage של Show Me University (≥ 2,500 sq ft).</li>
-    <li>🚗 לאשר בכתב חניה חינם לכל המוכרים והאורחים.</li>
-    <li>🚪 לאשר בכתב load-in route — דלת ישירה מהחניה, בלי מעלית.</li>
-    <li>🔥 לבקש Fire Code maximum occupancy של Show Me University.</li>
-    <li>🗓 להבהיר את יום חמישי 7/5: יום הקמה או יום תערוכה?</li>
-    <li>🎤 לפרט מה כלול ב-AV או לאשר ש-AV כלול בלי תוספת.</li>
-    <li>🔄 להוסיף סעיף ביטול: 30 יום הודעה = החזר מלא; force-majeure = החזר מלא או דחייה.</li>
-    <li>💵 לבקש לוח תשלומים מפורט: הפקדה $X ב-תאריך, יתרה $Y ב-תאריך.</li>
-    <li>🍽 לוודא F&amp;B: water station כלול? יש F&amp;B minimum סמוי?</li>
-    <li>📍 למלא את כתובת 337 Social 2026 לפני חתימה.</li>
-    <li>👤 לבקש שם + טלפון + אימייל של Catering Manager.</li>
-    <li>📅 לדרוש שעות תערוכה 10 AM – 5 PM (לא 11–9).</li>
-  </ul>
-
   <p class="muted" style="margin-top:32px;font-size:12px">Generated by <code>@contract</code> per <code>/Scheduled/NEW/contract-review/SKILL.md</code> — 2026-05-03 15:30 PDT</p>
 </div>
+
+<!-- Email modal -->
+<div class="email-modal" id="email-modal" role="dialog" aria-modal="true">
+  <div class="box">
+    <h3 id="email-modal-title">Email</h3>
+    <p class="hint">Edit if needed, then click Copy. Paste into your email client (Gmail, Outlook, etc.). The Subject line is the first line — copy it separately into the subject field.</p>
+    <textarea id="email-modal-body" spellcheck="true"></textarea>
+    <div class="actions">
+      <button class="close" id="email-modal-close">Close</button>
+      <button class="copy" id="email-modal-copy">📋 Copy to clipboard</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Per-event metadata — filled in by @contract at generation time
+// ============================================================
+const EVENT = {
+  hotel_full:   "Courtyard by Marriott Columbia",
+  hotel_short:  "Courtyard Columbia",
+  city:         "Columbia, MO",
+  start_date:   "May 8, 2026",
+  end_date:     "May 10, 2026",
+  date_range:   "May 8–10, 2026",
+  thursday_str: "Thursday, May 7",
+  sunday_str:   "Sunday, May 10",
+  room_name:    "Show Me University",
+  // BEO had no Catering Manager listed → use generic greeting + bracketed placeholder
+  contact_greeting: "Hi there,"
+};
+
+const SIGNATURE = `Best regards,
+Eli Frenkel
+The Makeup Blowout Sale Group
+eli@makeupblowoutsalegroup.com
+(323) 384-2262`;
+
+// Friendly redline lines — only the items flagged ❌ or ⚠ in this review.
+// @contract picks these per-clause from clauses.md and bakes them in here.
+const FRIENDLY_REQUESTS = [
+  `Could we add a 24-hour hold on the ${EVENT.room_name} room from Thursday morning through Friday morning, at no additional charge? This way the room is reserved exclusively for us during that window.`,
+  `Could you confirm the exact square footage of the ${EVENT.room_name} room in the agreement? Our setup needs at least 2,500 sq ft.`,
+  `Could you confirm in writing that the all-inclusive daily total — room rental, the 22% service charge, sales tax, AV, parking, and any cleaning fees — does not exceed $1,500 per day? An itemized list of any AV equipment included would also be helpful.`,
+  `Could we add a note that self-parking is included at no charge for all of our guests, vendors, and staff for the entire event window? No validation needed.`,
+  `For setup, could we confirm vendor access starting Thursday at 8 AM so we can have the room ready before the show opens? Teardown ending Sunday at 10 PM works perfectly. Could you also clarify whether Thursday May 7 is a setup-only day or already an exhibition day?`,
+  `Could we add a cancellation clause? Our standard is at least 30 days' written notice for a full refund, and force-majeure events (pandemic, government lockdown, severe weather) trigger a full refund or a rescheduling option.`,
+  `Could you confirm in writing that vendors can access the ${EVENT.room_name} room via direct doors from the parking area, without needing an elevator? This is important for our load-in.`,
+  `Could you share the maximum Fire Code occupancy of the ${EVENT.room_name} room (per the local Fire Marshal certification)? We need this number to manage admissions.`,
+  `Could we add the deposit details to the agreement — the deposit amount, due date, refundable portion, and the final balance due date?`
+];
+
+function buildFollowupEmail(){
+  return `Subject: Follow-up: Makeup Blowout Sale Event at ${EVENT.hotel_short} — ${EVENT.date_range}
+
+${EVENT.contact_greeting}
+
+I hope you're doing well!
+
+I'm writing to follow up about our upcoming Makeup Blowout Sale event at ${EVENT.hotel_full} on ${EVENT.date_range}.
+
+Regarding the setup for our upcoming event, we will need the following in the room:
+
+1. The ${EVENT.room_name} room clean and empty by Thursday morning, ready for our setup.
+2. Tables and chairs prepared as we requested:
+   • 25 six-foot tables placed around the perimeter of the room
+   • 8 six-foot tables placed in the middle
+   • 10 chairs placed in the middle
+3. My team will arrange these as needed once we arrive. Please note that we do not require linens, as we will be bringing our own.
+4. The water station prepared and ready for the event as we discussed.
+
+We're really excited about the event and just wanted to do a quick follow-up to make sure everything is on track. Please let me know if you need any additional information from our side.
+
+I'm here for any questions or requests — feel free to reach out anytime.
+
+${SIGNATURE}`;
+}
+
+function buildRedlineEmail(){
+  let body = `Subject: A few details to add to our agreement — Makeup Blowout Sale at ${EVENT.hotel_short}, ${EVENT.date_range}
+
+${EVENT.contact_greeting}
+
+I hope you're doing well!
+
+Thank you so much for putting together the agreement for our upcoming Makeup Blowout Sale event at ${EVENT.hotel_full} on ${EVENT.date_range}. Before we finalize and sign, could we please add a few clarifying details so we're all on the same page? These are standard items we like to confirm in writing for every event:
+
+`;
+  FRIENDLY_REQUESTS.forEach((line, i) => {
+    body += `${i+1}. ${line}\n\n`;
+  });
+  body += `Could you also share the name and direct contact details for the on-site Catering Manager for event week?
+
+Thanks so much — really excited for the event! Happy to jump on a quick call if any of this is easier to discuss live.
+
+${SIGNATURE}`;
+  return body;
+}
+
+// Modal wiring
+const modal       = document.getElementById("email-modal");
+const modalTitle  = document.getElementById("email-modal-title");
+const modalBody   = document.getElementById("email-modal-body");
+const modalCopy   = document.getElementById("email-modal-copy");
+const modalClose  = document.getElementById("email-modal-close");
+
+function openModal(title, content){
+  modalTitle.textContent = title;
+  modalBody.value = content;
+  modal.classList.add("show");
+  setTimeout(() => modalBody.focus(), 50);
+}
+function closeModal(){ modal.classList.remove("show"); }
+
+document.getElementById("open-email-followup").addEventListener("click", () => {
+  openModal("Follow-up email (event already booked)", buildFollowupEmail());
+});
+document.getElementById("open-email-redline").addEventListener("click", () => {
+  openModal("Redline-request email (before signing)", buildRedlineEmail());
+});
+modalClose.addEventListener("click", closeModal);
+modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+modalCopy.addEventListener("click", async () => {
+  const orig = modalCopy.textContent;
+  try {
+    await navigator.clipboard.writeText(modalBody.value);
+    modalCopy.textContent = "✓ Copied — paste into your email client";
+  } catch(e){
+    modalBody.select();
+    try { document.execCommand("copy"); modalCopy.textContent = "✓ Copied (fallback)"; }
+    catch(e2){ modalCopy.textContent = "Copy failed — select all + Ctrl/Cmd+C"; }
+  }
+  setTimeout(() => { modalCopy.textContent = orig; }, 2000);
+});
+</script>
 </body>
 </html>
