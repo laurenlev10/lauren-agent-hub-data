@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# pre-commit guardrail — blocks commit if any docs/**/*.html under change is malformed.
+# Why this exists: agents editing large HTML files (50KB+) sometimes silently truncate them
+# (mid-comment, mid-tag), shipping a broken dashboard. A truncated launch_dashboard rendered
+# 0 events on 2026-05-04. This hook prevents the regression at the git level — works
+# regardless of which agent is committing.
+#
+# Bypass with `git commit --no-verify` if you really know what you're doing.
+
+CHANGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E "^docs/.*\.html$" || true)
+if [ -z "$CHANGED" ]; then
+  exit 0
+fi
+
+fail=0
+TMPJS=$(mktemp --suffix=.js)
+trap "rm -f $TMPJS /tmp/_nodecheck_err" EXIT
+
+count_of() {
+  # echo the number of lines in $1 matching pattern $2; always prints exactly one integer.
+  local n
+  n=$(grep -c -- "$2" "$1" 2>/dev/null) || n=0
+  echo "$n"
+}
+
+for f in $CHANGED; do
+  # 1. Closing-tag sanity
+  body=$(count_of "$f" '</body>')
+  html=$(count_of "$f" '</html>')
+  if [ "$body" != "1" ] || [ "$html" != "1" ]; then
+    echo "❌ $f: missing closing tags (</body>=$body, </html>=$html). Likely truncation."
+    fail=1
+  fi
+
+  # 2. <script> open/close balance — count inline opens (no src=) and total closes
+  open_inline=$(grep -oE '<script[^>]*>' "$f" 2>/dev/null | grep -cv 'src=' 2>/dev/null || echo 0)
+  close=$(count_of "$f" '</script>')
+  if [ "$close" -lt "$open_inline" ] 2>/dev/null; then
+    echo "❌ $f: script tag imbalance (inline opens=$open_inline, closes=$close)."
+    fail=1
+  fi
+
+  # 3. node --check on inline JS (catches syntax errors from truncated/bad edits)
+  python3 - "$f" "$TMPJS" <<'PY'
+import re, sys
+src, dst = sys.argv[1], sys.argv[2]
+with open(src, 'r', encoding='utf-8') as f: s = f.read()
+js = '\n;\n'.join(re.findall(r'<script(?![^>]*src=)[^>]*>(.*?)</script>', s, re.S))
+with open(dst, 'w', encoding='utf-8') as f: f.write(js)
+PY
+  if [ -s "$TMPJS" ]; then
+    if ! node --check "$TMPJS" 2>/tmp/_nodecheck_err; then
+      echo "❌ $f: inline JS fails node --check:"
+      sed 's/^/    /' /tmp/_nodecheck_err
+      fail=1
+    fi
+  fi
+
+  # 4. Size-shrink heuristic: warn if file shrunk >5% vs HEAD (likely truncation)
+  if git cat-file -e "HEAD:$f" 2>/dev/null; then
+    old=$(git cat-file -s "HEAD:$f")
+    new=$(stat -c%s "$f" 2>/dev/null || wc -c < "$f")
+    if [ "$old" -gt 0 ] && [ $((new * 100)) -lt $((old * 95)) ] 2>/dev/null; then
+      echo "❌ $f: shrunk from $old → $new bytes (>5%). Likely truncation. Use --no-verify if intentional."
+      fail=1
+    fi
+  fi
+done
+
+if [ $fail -ne 0 ]; then
+  echo
+  echo "Commit blocked by .githooks/pre-commit."
+  echo "Fix the issues above, or run 'git commit --no-verify' if you've truly verified the change."
+  exit 1
+fi
+
+exit 0
