@@ -1563,4 +1563,40 @@ End date: </div>
     const restore = () => renderSchedule();   // simplest: full re-render restores correct row state
 
     editor.querySelector(".save").addEventListener("click", async () => {
-      const newVal = t
+      const newVal = ta.value.trim();
+      if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
+      // If the new value EQUALS the xlsx default, drop the override (cleaner data)
+      if (newVal === (def || "").trim()) delete MANUAL_TASKS[evKey][fieldName];
+      else MANUAL_TASKS[evKey][fieldName] = newVal;
+      MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+      ManualTasksSync.save(MANUAL_TASKS);
+      restore();
+    });
+    editor.querySelector(".cancel").addEventListener("click", restore);
+    editor.querySelector(".reset").addEventListener("click", () => {
+      if (MANUAL_TASKS[evKey]) {
+        delete MANUAL_TASKS[evKey][fieldName];
+        MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+        ManualTasksSync.save(MANUAL_TASKS);
+      }
+      restore();
+    });
+    ta.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") { ev.preventDefault(); restore(); }
+      if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); editor.querySelector(".save").click(); }
+    });
+  });
+
+  // Initial render
+  showBakedLabel();
+  setActiveYear("2026");
+
+  // Load manual-tasks state from GitHub on page load, then re-render to reflect saved checkboxes
+  ManualTasksSync.load().then(remote => {
+    MANUAL_TASKS = remote || {};
+    renderSchedule();
+  });
+</script>
+
+</body>
+</html>
