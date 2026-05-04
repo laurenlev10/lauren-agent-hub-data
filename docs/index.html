@@ -396,25 +396,17 @@ const SCOUT_REPORTS = [
   // navigator.clipboard.writeText is silently blocked. Falls back to a textarea
   // + execCommand('copy'), then to a manual-copy modal as a last resort.
   async function copyText(text) {
-    // 1) Modern API (best path; needs secure context + user gesture + iframe perm)
     try {
       if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
         await navigator.clipboard.writeText(text);
         return true;
       }
-    } catch (e) { /* fall through */ }
-
-    // 2) Legacy fallback: hidden textarea + execCommand
+    } catch (e) {}
     try {
       const ta = document.createElement("textarea");
       ta.value = text;
       ta.setAttribute("readonly", "");
-      ta.style.position = "fixed";
-      ta.style.top = "0";
-      ta.style.left = "0";
-      ta.style.width = "1px";
-      ta.style.height = "1px";
-      ta.style.opacity = "0";
+      ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0";
       document.body.appendChild(ta);
       ta.focus();
       ta.select();
@@ -422,65 +414,50 @@ const SCOUT_REPORTS = [
       const ok = document.execCommand("copy");
       document.body.removeChild(ta);
       if (ok) return true;
-    } catch (e) { /* fall through */ }
-
+    } catch (e) {}
     return false;
   }
 
-  // Manual-copy modal — shows the command in a textarea pre-selected so the
-  // user can hit Ctrl+C / Cmd+C. Used when both clipboard paths fail.
   function showManualCopyModal(text) {
-    // Remove any existing modal first
     const existing = document.getElementById("manual-copy-modal");
     if (existing) existing.remove();
-
     const overlay = document.createElement("div");
     overlay.id = "manual-copy-modal";
-    overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.78);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;direction:rtl;font-family:inherit;";
-
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.78);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;direction:rtl;font-family:inherit";
     const box = document.createElement("div");
-    box.style.cssText = "background:#fff;color:#0f172a;border-radius:12px;max-width:640px;width:100%;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.4);max-height:90vh;display:flex;flex-direction:column;gap:10px;";
-    box.innerHTML = `
-      <div style="font-weight:700;font-size:15px;">העתקה אוטומטית נחסמה ע״י הדפדפן</div>
-      <div style="font-size:13px;color:#475569;">סמני את הטקסט (Ctrl+A) ואז העתיקי (Ctrl+C / Cmd+C). הדביקי בשיחת Cowork חדשה.</div>
-    `;
-
+    box.style.cssText = "background:#fff;color:#0f172a;border-radius:12px;max-width:640px;width:100%;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.4);max-height:90vh;display:flex;flex-direction:column;gap:10px";
+    box.innerHTML = '<div style="font-weight:700;font-size:15px">העתקה אוטומטית נחסמה ע״י הדפדפן</div><div style="font-size:13px;color:#475569">סמני את הטקסט (Ctrl+A) ואז העתיקי (Ctrl+C / Cmd+C). הדביקי בשיחת Cowork חדשה.</div>';
     const ta = document.createElement("textarea");
     ta.value = text;
-    ta.style.cssText = "width:100%;flex:1;min-height:240px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;text-align:left;";
+    ta.style.cssText = "width:100%;flex:1;min-height:240px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;text-align:left";
     box.appendChild(ta);
-
     const row = document.createElement("div");
-    row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;";
+    row.style.cssText = "display:flex;gap:8px;justify-content:flex-end";
     const tryAgain = document.createElement("button");
     tryAgain.textContent = "נסי שוב להעתיק";
-    tryAgain.style.cssText = "padding:8px 14px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;font-size:13px;";
+    tryAgain.style.cssText = "padding:8px 14px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;font-size:13px";
     tryAgain.onclick = async () => {
       ta.focus();
       ta.select();
       ta.setSelectionRange(0, text.length);
       try {
-        const ok = document.execCommand("copy");
-        if (ok) {
+        if (document.execCommand("copy")) {
           tryAgain.textContent = "✓ הועתק!";
           setTimeout(() => overlay.remove(), 1200);
           return;
         }
-      } catch(e) {}
+      } catch (e) {}
       tryAgain.textContent = "סמני וקופי ידני (Ctrl+C)";
     };
     const close = document.createElement("button");
     close.textContent = "סגרי";
-    close.style.cssText = "padding:8px 14px;border-radius:8px;border:none;background:#dc2626;color:#fff;cursor:pointer;font-size:13px;";
+    close.style.cssText = "padding:8px 14px;border-radius:8px;border:none;background:#dc2626;color:#fff;cursor:pointer;font-size:13px";
     close.onclick = () => overlay.remove();
     row.appendChild(tryAgain);
     row.appendChild(close);
     box.appendChild(row);
-
     overlay.appendChild(box);
     document.body.appendChild(overlay);
-
-    // Pre-select the text so user can immediately Ctrl+C
     setTimeout(() => { ta.focus(); ta.select(); ta.setSelectionRange(0, text.length); }, 50);
   }
 
@@ -530,4 +507,13 @@ const SCOUT_REPORTS = [
     if (!city || !state || state.length !== 2) {
       const original = scoutBtn.textContent;
       scoutBtn.textContent = "⚠ מלאי עיר + ST (2 אותיות)";
-      scoutBtn.sty
+      scoutBtn.style.background = "linear-gradient(180deg, #fca5a5, #dc2626)";
+      setTimeout(() => { scoutBtn.textContent = original; scoutBtn.style.background = ""; }, 2500);
+      return;
+    }
+    const slug = (city + "-" + state).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const monthLine = month ? `\n  Target month: ${month}` : "";
+    const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\` — it is the orchestrator for MBS City Scout. Run for the city below.
+
+CITY
+  Name:  
