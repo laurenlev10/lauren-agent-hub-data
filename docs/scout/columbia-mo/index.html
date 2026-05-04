@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>סקאוט עיר — Columbia, MO · MBS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+.mbs-scout { font-family: 'Heebo', system-ui, sans-serif; color: #2a1a3a; background: linear-gradient(180deg, #fdf6ff 0%, #fff 100%); padding: 24px 16px 60px; min-height: 100vh; }
+.mbs-scout * { box-sizing: border-box; }
+.mbs-scout .wrap { max-width: 1100px; margin: 0 auto; }
+.mbs-scout .hdr { background: linear-gradient(135deg, #8a3ab9 0%, #cc2b5e 100%); color: #fff; padding: 28px 24px; border-radius: 18px; box-shadow: 0 6px 24px rgba(138,58,185,.18); margin-bottom: 22px; }
+.mbs-scout .hdr h1 { font-size: 28px; font-weight: 800; margin: 0 0 6px; letter-spacing: -.5px; }
+.mbs-scout .hdr .sub { opacity: .92; font-size: 15px; font-weight: 400; }
+.mbs-scout .hdr .meta { margin-top: 14px; display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; opacity: .9; }
+.mbs-scout .meta b { font-weight: 600; }
+
+.mbs-scout .verdict { display: flex; gap: 18px; align-items: center; background: #fff; border: 2px solid #f0d9ff; padding: 18px 22px; border-radius: 14px; box-shadow: 0 3px 14px rgba(138,58,185,.08); margin-bottom: 24px; }
+.mbs-scout .verdict .score-badge { flex-shrink: 0; width: 110px; height: 110px; border-radius: 50%; background: linear-gradient(135deg, #ffb347 0%, #cc2b5e 100%); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(204,43,94,.28); }
+.mbs-scout .verdict .score-badge .num { font-size: 34px; font-weight: 800; line-height: 1; }
+.mbs-scout .verdict .score-badge .den { font-size: 13px; opacity: .9; margin-top: 2px; }
+.mbs-scout .verdict .verdict-text h2 { margin: 0 0 6px; font-size: 22px; font-weight: 700; color: #cc2b5e; }
+.mbs-scout .verdict .verdict-text p { margin: 0; font-size: 14px; color: #555; line-height: 1.55; }
+
+.mbs-scout h3.section { margin: 28px 0 14px; font-size: 19px; font-weight: 700; color: #5a2a8a; padding-bottom: 6px; border-bottom: 2px solid #f0d9ff; }
+.mbs-scout .grid { display: grid; gap: 14px; }
+.mbs-scout .grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.mbs-scout .grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+
+.mbs-scout .card { background: #fff; border: 1px solid #ece0f5; border-radius: 12px; padding: 16px 18px; box-shadow: 0 2px 8px rgba(0,0,0,.03); }
+.mbs-scout .card.kpi { background: linear-gradient(135deg, #fff 0%, #fdf6ff 100%); border: 1px solid #f0d9ff; }
+.mbs-scout .card .label { font-size: 12px; color: #8a6cb0; font-weight: 500; margin-bottom: 4px; letter-spacing: .3px; text-transform: uppercase; }
+.mbs-scout .card .value { font-size: 20px; font-weight: 700; color: #2a1a3a; }
+.mbs-scout .card .note { font-size: 12px; color: #777; margin-top: 4px; }
+
+.mbs-scout table.score { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.04); }
+.mbs-scout table.score th, .mbs-scout table.score td { padding: 12px 14px; text-align: right; border-bottom: 1px solid #f3eaf9; font-size: 14px; }
+.mbs-scout table.score th { background: #f7eaff; font-weight: 600; color: #5a2a8a; font-size: 13px; }
+.mbs-scout table.score tr:last-child td { border-bottom: none; }
+.mbs-scout table.score tr.total td { background: #fdf6ff; font-weight: 700; }
+.mbs-scout .pill { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+.mbs-scout .pill.green { background: #d4f5d8; color: #2c6b3b; }
+.mbs-scout .pill.yellow { background: #fff2c4; color: #8a5a00; }
+.mbs-scout .pill.red { background: #ffd6d6; color: #a02020; }
+.mbs-scout .pill.gray { background: #ececec; color: #555; }
+.mbs-scout .pill.purple { background: #ede1ff; color: #5a2a8a; }
+
+.mbs-scout .neighborhood, .mbs-scout .nearby { background: #fff; border: 1px solid #ece0f5; border-right: 4px solid #cc2b5e; border-radius: 10px; padding: 14px 18px; }
+.mbs-scout .neighborhood h4, .mbs-scout .nearby h4 { margin: 0 0 6px; font-size: 16px; font-weight: 700; color: #2a1a3a; }
+.mbs-scout .neighborhood .demo, .mbs-scout .nearby .demo { font-size: 13px; color: #666; margin-bottom: 8px; }
+.mbs-scout .neighborhood .why, .mbs-scout .nearby .why { font-size: 13px; color: #444; line-height: 1.55; }
+
+.mbs-scout .venue { background: #fff; border: 1px solid #ece0f5; border-radius: 14px; padding: 18px 20px; box-shadow: 0 2px 10px rgba(0,0,0,.04); }
+.mbs-scout .venue.top { border: 2px solid #cc2b5e; box-shadow: 0 4px 18px rgba(204,43,94,.16); }
+.mbs-scout .venue.current { border: 2px dashed #8a6cb0; }
+.mbs-scout .venue h4 { margin: 0 0 4px; font-size: 17px; font-weight: 700; color: #2a1a3a; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mbs-scout .venue .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.mbs-scout .venue .badge.tier1 { background: #cc2b5e; color: #fff; }
+.mbs-scout .venue .badge.current { background: #8a6cb0; color: #fff; }
+.mbs-scout .venue .meta-row { font-size: 13px; color: #555; margin-bottom: 10px; line-height: 1.7; }
+.mbs-scout .venue .meta-row .ico { display: inline-block; width: 18px; }
+.mbs-scout .venue ul { margin: 8px 0 0; padding-right: 20px; font-size: 13px; color: #444; line-height: 1.55; }
+.mbs-scout .venue ul.flags li { color: #a04050; }
+
+.mbs-scout details { background: #fff; border: 1px solid #ece0f5; border-radius: 10px; padding: 12px 16px; margin-top: 10px; }
+.mbs-scout details summary { cursor: pointer; font-weight: 600; color: #5a2a8a; font-size: 14px; }
+.mbs-scout details[open] summary { margin-bottom: 10px; }
+.mbs-scout details ul { margin: 0; padding-right: 22px; line-height: 1.85; font-size: 13px; color: #333; }
+
+/* Printable contract checklist */
+.mbs-scout .checklist { background: #fff; border: 2px solid #cc2b5e; border-radius: 14px; padding: 22px 26px; margin-top: 14px; }
+.mbs-scout .checklist h4 { margin: 0 0 6px; font-size: 17px; color: #cc2b5e; font-weight: 700; }
+.mbs-scout .checklist .ven-name { font-size: 13px; color: #666; margin-bottom: 14px; }
+.mbs-scout .checklist ol { padding-right: 22px; line-height: 1.95; font-size: 14px; color: #2a1a3a; }
+.mbs-scout .checklist ol li { padding: 4px 0; border-bottom: 1px dashed #f0d9ff; }
+.mbs-scout .checklist .blank { display: inline-block; min-width: 60px; border-bottom: 1.5px solid #999; height: 16px; margin: 0 4px; }
+
+.mbs-scout .footer { margin-top: 36px; padding-top: 20px; border-top: 1px solid #ece0f5; font-size: 12px; color: #888; line-height: 1.7; }
+.mbs-scout .footer a { color: #5a2a8a; text-decoration: none; }
+.mbs-scout .footer a:hover { text-decoration: underline; }
+
+.mbs-scout .alert { background: #fff8e1; border-right: 4px solid #ffb347; padding: 14px 18px; border-radius: 10px; margin: 14px 0; font-size: 14px; color: #5a3a00; line-height: 1.55; }
+.mbs-scout .alert b { color: #8a5a00; }
+
+.mbs-scout .non-printable { }
+
+@media print {
+  .mbs-scout { background: #fff; padding: 0; }
+  .mbs-scout .non-printable { display: none !important; }
+  .mbs-scout .checklist { page-break-inside: avoid; box-shadow: none; }
+  .mbs-scout .hdr { background: none; color: #2a1a3a; box-shadow: none; padding: 8px 0; }
+  .mbs-scout .hdr h1 { color: #cc2b5e; }
+  .mbs-scout .verdict { box-shadow: none; }
+}
+
+@media (max-width: 560px) {
+  .mbs-scout .verdict { flex-direction: column; text-align: center; }
+  .mbs-scout .hdr h1 { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+<div class="mbs-scout">
+<div class="wrap">
+
+<div class="hdr">
+  <h1>🔍 סקאוט עיר — Columbia, MO</h1>
+  <div class="sub">דוח מקדים לטיול Scouting · MBS · יעד: מאי 2026</div>
+  <div class="meta">
+    <span><b>תאריך:</b> 2026-05-04</span>
+    <span><b>אירוע מתוכנן:</b> May 7-10, 2026</span>
+    <span><b>סטטוס:</b> כבר באירועים המאושרים — Tier 3</span>
+    <span><b>ונו נוכחי:</b> Courtyard by Marriott (3301 Lemone Industrial Blvd)</span>
+  </div>
+</div>
+
+<div class="alert">
+  <b>הקשר חשוב:</b> Columbia, MO כבר נמצאת ב-Master List 2026 (שורה 18, Courtyard by Marriott · 2,750 sqft · $4,000+).
+  בחרת להריץ סקאוט עיר מלא בכל זאת — הדוח כאן מתעד את המועמדים האלטרנטיביים, ומשמש גם כמקור ל-mbs-venue-research עתידי אם הביצוע יהיה חלש.
+</div>
+
+<div class="verdict">
+  <div class="score-badge">
+    <div class="num">15</div>
+    <div class="den">/ 30</div>
+  </div>
+  <div class="verdict-text">
+    <h2>Mixed — שוק בינוני עם פוטנציאל מותנה</h2>
+    <p>אחוז היספני נמוך מאוד (4.4%) אבל הכנסה חציונית מצוינת ($66.5K) ויש Mall גדול עם תנועה. המנוע המרכזי של העיר הוא University of Missouri — מה שמטה את הדמוגרפיה לאוכלוסייה צעירה לבנה ופחות מתאים ללקוחת היעד של MBS. שווה ליום אחד של סקאוט בשילוב Sedalia (15% היספני, ~65 mi).</p>
+  </div>
+</div>
+
+<h3 class="section">📊 STEP 1 — פרופיל העיר</h3>
+<div class="grid cols-3">
+  <div class="card kpi"><div class="label">אוכלוסייה</div><div class="value">125,500</div><div class="note">city-data.com 2026</div></div>
+  <div class="card kpi"><div class="label">הכנסה חציונית</div><div class="value">$66,498</div><div class="note">בתוך טווח MBS האידיאלי ✓</div></div>
+  <div class="card kpi"><div class="label">היספנים %</div><div class="value">4.4%</div><div class="note">מתחת לטווח MBS (25-50%)</div></div>
+  <div class="card kpi"><div class="label">לבנים %</div><div class="value">73.2%</div><div class="note">שחורים 12.2% · אסיאתים 6.4%</div></div>
+  <div class="card kpi"><div class="label">חציון גיל</div><div class="value">~28</div><div class="note">צעיר בגלל Mizzou</div></div>
+  <div class="card kpi"><div class="label">University of Missouri</div><div class="value">~31K סטודנטים</div><div class="note">מטה את הדמוגרפיה</div></div>
+  <div class="card kpi"><div class="label">ביקור MBS קודם</div><div class="value">לא נמצא</div><div class="note">שוק חדש לכאורה</div></div>
+  <div class="card kpi"><div class="label">24-month rule</div><div class="value">N/A</div><div class="note">אין ביקור קודם מתועד</div></div>
+  <div class="card kpi"><div class="label">עוני %</div><div class="value">19.25%</div><div class="note">גבוה — דמוגרפיה סטודנטיאלית</div></div>
+</div>
+
+<h3 class="section">🎯 STEP 2 — ציון התאמה ל-MBS (15/30)</h3>
+<table class="score">
+  <thead><tr><th>פרמטר</th><th>אופטימום MBS</th><th>Columbia, MO</th><th>ציון</th></tr></thead>
+  <tbody>
+    <tr><td>היספנים %</td><td>25-50%</td><td>4.4%</td><td><span class="pill red">1/5</span></td></tr>
+    <tr><td>הכנסה חציונית</td><td>$55-75K</td><td>$66.5K</td><td><span class="pill green">5/5</span></td></tr>
+    <tr><td>נשים 25-44 %</td><td>30%+</td><td>~14% (סקיו סטודנטיאלי)</td><td><span class="pill yellow">2/5</span></td></tr>
+    <tr><td>אוכלוסייה</td><td>200K+ (sweet 400K-1M)</td><td>125.5K</td><td><span class="pill yellow">2/5</span></td></tr>
+    <tr><td>אירוע MBS מצליח קרוב (&lt;2hr)</td><td>פחות משעתיים</td><td>אין — Tulsa 6h, Overland Park 3h</td><td><span class="pill red">1/5</span></td></tr>
+    <tr><td>תנועה רגלית / Walk Score</td><td>גבוה במרכזים מסחריים</td><td>Columbia Mall + Downtown ✓</td><td><span class="pill green">4/5</span></td></tr>
+    <tr class="total"><td colspan="3">סה"כ</td><td><span class="pill purple">15 / 30</span></td></tr>
+  </tbody>
+</table>
+
+<h3 class="section">🗺️ STEP 3 — שכונות מובילות לסקאוט (3-5 אזורים)</h3>
+<div class="grid cols-2">
+
+  <div class="neighborhood">
+    <h4>1. Columbia Mall District (ZIP 65203) ⭐</h4>
+    <div class="demo">
+      <span class="pill purple">היספנים ~5%</span> ·
+      <span class="pill purple">הכנסה $65K</span> ·
+      <span class="pill purple">High traffic</span>
+    </div>
+    <div class="why">
+      Columbia Mall (~120 חנויות, Target ו-Dillard's) הוא המגנט המסחרי הגדול ביותר במחוז. מסביב לו אשכול hotelים ומסעדות, גישה קלה מ-I-70. הקטגוריה האולטימטיבית של MBS — תנועה מובנית גם ללא קמפיין SMS.
+    </div>
+  </div>
+
+  <div class="neighborhood">
+    <h4>2. Downtown / The District (ZIP 65201) ⭐</h4>
+    <div class="demo">
+      <span class="pill purple">היספנים 6%</span> ·
+      <span class="pill purple">הכנסה $55K</span> ·
+      <span class="pill purple">Walk-able</span>
+    </div>
+    <div class="why">
+      מרכז העיר ההיסטורי, קרוב למרכז Mizzou. The Broadway Hotel (DoubleTree) שם. תנועה רגלית טובה אבל בעיקר סטודנטים — פחות פרימה ל-MBS, אלא אם חודש מחוץ לסמסטר.
+    </div>
+  </div>
+
+  <div class="neighborhood">
+    <h4>3. North Columbia / Vandiver (ZIP 65202)</h4>
+    <div class="demo">
+      <span class="pill purple">היספנים 4%</span> ·
+      <span class="pill purple">הכנסה $58K</span> ·
+      <span class="pill purple">Mid traffic</span>
+    </div>
+    <div class="why">
+      ליד Hilton Garden Inn ו-Stoney Creek. אזור עסקי-מסחרי עם dealerships, retail strips, יציאה ישירה ל-I-70. חניה חינם בשפע, גישה מצוינת לפלטות.
+    </div>
+  </div>
+
+  <div class="neighborhood">
+    <h4>4. South Columbia / Grindstone (ZIP 65203)</h4>
+    <div class="demo">
+      <span class="pill purple">היספנים 5%</span> ·
+      <span class="pill purple">הכנסה $72K</span> ·
+      <span class="pill purple">Suburban retail</span>
+    </div>
+    <div class="why">
+      Grindstone Plaza ו-Hubbell Place — אשכולות retail-suburb עם דמוגרפיה מבוססת. הכנסה גבוהה יותר אך פחות תנועה Hispanic. שוק "premium MBS" מוגבל.
+    </div>
+  </div>
+
+  <div class="neighborhood">
+    <h4>5. East / I-70 Corridor (ZIP 65201)</h4>
+    <div class="demo">
+      <span class="pill purple">היספנים 3%</span> ·
+      <span class="pill purple">הכנסה $51K</span> ·
+      <span class="pill purple">Industrial-mix</span>
+    </div>
+    <div class="why">
+      כאן יושב הוונו הנוכחי (Courtyard, Lemone Industrial Blvd). אזור תעשייתי-מלונאי שמשרת את I-70. Walk Score נמוך — תלוי לחלוטין ב-SMS marketing להזרים תנועה.
+    </div>
+  </div>
+
+</div>
+
+<h3 class="section">🏨 STEP 4 — מועמדי ונו (5-10 מקומות לבדוק פיזית)</h3>
+
+<div class="alert">
+  <b>סינון:</b> כל המועמדים שלהלן הם מותגים מסוג mid-tier / independent / convention-banquet. <b>סוננו החוצה:</b> Hilton (full), Marriott (full), Westin, Ritz, Sheraton Grand, Hyatt Regency. כל הוונואים ≥2,500 sqft, או צוין בפירוש מאיפה הציון מגיע.
+</div>
+
+<div class="grid cols-2" style="margin-top:14px;">
+
+  <div class="venue top">
+    <h4>1. Holiday Inn Executive Center — Columbia Mall <span class="badge tier1">TOP PICK</span></h4>
+    <div class="meta-row">
+      <div><span class="ico">📍</span> 2200 I-70 Dr SW, Columbia, MO 65203 (סמוך ל-Columbia Mall)</div>
+      <div><span class="ico">📐</span> 36,000 sqft total · Windsor Ballroom 8,400 sqft · Columbia Expo Center 19,000 sqft</div>
+      <div><span class="ico">🏨</span> Holiday Inn (mid-tier ✓)</div>
+      <div><span class="ico">🚗</span> חניה: לוט גדול חינם</div>
+      <div><span class="ico">💰</span> משוער: $5K-$8K (Holiday Inn ברמה זו · אישור על ידי בקשת RFP)</div>
+      <div><span class="ico">⭐</span> Cvent + IHG: 4.0+/5</div>
+      <div><span class="ico">📞</span> מקור: ihg.com/holidayinn coucc · visitcolumbiamo.com</div>
+    </div>
+    <b>למה לבדוק פיזית:</b>
+    <ul>
+      <li>השטח הגדול ביותר בעיר — Columbia Expo Center 19K sqft נותן גמישות אדירה ל-pop-up + storage</li>
+      <li>צמוד ל-Columbia Mall — תנועה רגלית מובנית, חוסך תלות מלאה ב-SMS</li>
+      <li>I-70 exit — load-in קל מאוד לשני semi-trucks</li>
+    </ul>
+    <b>דגלים אדומים שצריך לוודא בביקור:</b>
+    <ul class="flags">
+      <li>האם סדר גודל הקייטרינג מינימום הוא &lt;$500 — אם לא, כפי שלורן הזהירה: סוף הסיפור (אנחנו לא מוכרים F&B)</li>
+      <li>האם הכניסה ל-Expo Center היא דלת רחבה ישירה מהחניה (בלי מעלית/מסדרון)</li>
+      <li>בדקי שלא חוסם בתאריכים שלנו אירוע ספורט/חתונה גדול</li>
+    </ul>
+  </div>
+
+  <div class="venue top">
+    <h4>2. Stoney Creek Hotel & Conference Center <span class="badge tier1">TOP PICK</span></h4>
+    <div class="meta-row">
+      <div><span class="ico">📍</span> 2601 S Providence Rd, Columbia, MO 65203</div>
+      <div><span class="ico">📐</span> Ballroom 6,690 sqft · 25 ft ceiling · 600 capacity · 11,000 sqft total</div>
+      <div><span class="ico">🏨</span> Stoney Creek Hospitality (independent boutique chain ✓)</div>
+      <div><span class="ico">🚗</span> חניה: לוט חינם, גדול</div>
+      <div><span class="ico">💰</span> משוער: $3.5K-$5.5K (פחות תחרותי מ-Hilton/Marriott — צ'יין עצמאי גמיש)</div>
+      <div><span class="ico">⭐</span> WeddingWire 4.7/5 · Cvent 4.2/5</div>
+      <div><span class="ico">📞</span> stoneycreekhotels.com/meetings-events/columbia · 573-442-6400</div>
+    </div>
+    <b>למה לבדוק פיזית:</b>
+    <ul>
+      <li>תקרה של 25 ft — הכי טובה בעיר ל-pallet stacking וtripod-displays גדולים</li>
+      <li>צ'יין עצמאי = יותר גמיש על מחיר וקייטרינג (בניגוד ל-Marriott)</li>
+      <li>South Providence Rd — שכונה מבוססת, קרוב גם ל-Grindstone וגם ל-Mall</li>
+    </ul>
+    <b>דגלים אדומים שצריך לוודא בביקור:</b>
+    <ul class="flags">
+      <li>בדקי את חלוקת ה-11K sqft — האם 6.6K הם רצף אחד? (כן לפי המקור, אבל אישור פיזי)</li>
+      <li>איכות ה-Wi-Fi בקיבולת מלאה (300+ אנשים) — לורן ידעה שזה כשל ב-Tulsa</li>
+    </ul>
+  </div>
+
+  <div class="venue">
+    <h4>3. Hilton Garden Inn Columbia <span class="badge" style="background:#a4c8f0;color:#fff">RECOMMENDED</span></h4>
+    <div class="meta-row">
+      <div><span class="ico">📍</span> 3300 Vandiver Dr, Columbia, MO 65202</div>
+      <div><span class="ico">📐</span> 12,000+ sqft event/banquet space · 151 guest rooms</div>
+      <div><span class="ico">🏨</span> Hilton Garden Inn (mid-tier ✓ — לא Hilton full)</div>
+      <div><span class="ico">🚗</span> חניה: לוט חינם</div>
+      <div><span class="ico">💰</span> משוער: $4K-$6.5K</div>
+      <div><span class="ico">⭐</span> TripAdvisor 4.4/5</div>
+      <div><span class="ico">📞</span> 573-814-5464 · hilton.com coumhgi</div>
+    </div>
+    <b>למה לבדוק פיזית:</b>
+    <ul>
+      <li>אזור North Columbia עם כביש ראשי — load-in קל</li>
+      <li>HGI הוא מותג שלורן רגילה אליו (Fort Worth, Boise, Victorville) — תהליך RFP מוכר</li>
+      <li>חדרים על אותו אתר = staff hotel נוח אופציונלית</li>
+    </ul>
+    <b>דגלים אדומים שצריך לוודא בביקור:</b>
+    <ul class="flags">
+      <li>בדקי איך מחולקים 12K sqft — אם זה 4 חדרים של 3K כל אחד, פחות גמיש מ-Stoney Creek</li>
+      <li>האם יש דרישת קייטרינג? Hilton Garden Inn לפעמים מחייב מינימום</li>
+    </ul>
+  </div>
+
+  <div class="venue">
+    <h4>4. The Broadway — DoubleTree by Hilton (Downtown)</h4>
+    <div class="meta-row">
+      <div><span class="ico">📍</span> 1111 E Broadway, Columbia, MO 65201</div>
+      <div><span class="ico">📐</span> 5,000+ sqft event space · חדר גדול ביותר ~2,400 sqft (גבול תחתון של MBS)</div>
+      <div><span class="ico">🏨</span> DoubleTree by Hilton (mid-tier ✓)</div>
+      <div><span class="ico">🚗</span> חניה: garage עירוני בתשלום (downtown)</div>
+      <div><span class="ico">💰</span> משוער: $5K-$8K (Downtown premium)</div>
+      <div><span class="ico">⭐</span> Booking 8.6/10</div>
+      <div><span class="ico">📞</span> thebroadwaycolumbia.com · 573-875-7000</div>
+    </div>
+    <b>למה לבדוק פיזית:</b>
+    <ul>
+      <li>בלב Downtown — תנועה רגלית סטודנטיאלית גבוהה</li>
+      <li>DoubleTree הוא מותג שלורן יודעת לעבוד איתו (Reading, Syracuse, Roseville)</li>
+      <li>אופציה אסטרטגית אם בוחרים חודש מחוץ לסמסטר עם downtown energy</li>
+    </ul>
+    <b>דגלים אדומים שצריך לוודא בביקור:</b>
+    <ul class="flags">
+      <li>החדר הגדול ~2,400 sqft — בקושי מספיק (סף MBS = 2,500). וודאי שאפשר לחבר חדרים</li>
+      <li>חניה בתשלום באזור ה-downtown — בעיה קלאסית של Burbank — פגיעה בהמרה</li>
+      <li>תקופת מבחנים סופיים / graduation = מחירי מלון בשמיים</li>
+    </ul>
+  </div>
+
+  <div class="venue">
+    <h4>5. Northeast Event Center (City of Columbia)</h4>
+    <div class="meta-row">
+      <div><span class="ico">📍</span> 4801 Brown Station Rd, Columbia, MO 65202 (Northeast Regional Park)</div>
+      <div><span class="ico">📐</span> 88,000 sqft total facility · ראוי לחדר ייעודי 4,000-6,000 sqft</div>
+      <div><span class="ico">🏨</span> City-run banquet/event center (independent ✓)</div>
+      <div><span class="ico">🚗</span> חניה: park lot גדול חינם</div>
+      <div><span class="ico">💰</span> משוער: $1.5K-$3.5K (city pricing — הכי זול בעיר)</div>
+      <div><span class="ico">⭐</span> פחות reviews — מקום עירוני</div>
+      <div><span class="ico">📞</span> como.gov/parks-and-recreation · 573-874-7460</div>
+    </div>
+    <b>למה לבדוק פיזית:</b>
+    <ul>
+      <li>הזול בעיר. אם הציון של MBS ב-Columbia יורד בשנים הבאות — זה האופציה לתחזק רווחיות</li>
+      <li>אין דרישות קייטרינג / F&B — לורן אוהבת את זה</li>
+      <li>שטח ענק — אפשר לחלק לזון retail + storage + staff lounge</li>
+    </ul>
+    <b>דגלים אדומים שצריך לוודא בביקור:</b>
+    <ul class="flags">
+      <li>אזור Northeast Park — לא ליד retail, תלות מלאה בקמפיין SMS להבאת תנועה</li>
+      <li>בדקי שעות פעילות מותרות — facility עירוני לפעמים מקובץ עם אירועי קהילה ברקע</li>
+      <li>מקלחות / changing rooms — לפעמים חסרים ב-facility-מסוג park</li>
+    </ul>
+  </div>
+
+  <div class="venue current">
+    <h4>6. Courtyard by Marriott Columbia <span class="badge current">VENUE נוכחי 2026</span></h4>
+    <div class="meta-row">
+      <div><span class="ico">📍</span> 3301 Lemone Industrial Blvd, Columbia, MO 65201</div>
+      <div><span class="ico">📐</span> 9,602 sqft total · Grand Ballroom (450 cap) · 2,750 sqft חדר ראשי לפי החוזה הנוכחי</div>
+      <div><span class="ico">🏨</span> Courtyard by Marriott (mid-tier ✓ — לא Marriott full)</div>
+      <div><span class="ico">🚗</span> חניה: לוט חינם</div>
+      <div><span class="ico">💰</span> חוזה נוכחי: $4,000+</div>
+      <div><span class="ico">⭐</span> Yelp 4.0/5 · Cvent 4.1/5</div>
+      <div><span class="ico">📞</span> marriott.com coucy · ככה הזמנו ב-2026</div>
+    </div>
+    <b>הערכה לטיול הסקאוט:</b>
+    <ul>
+      <li>זה הוונו של הביקור הקרוב (May 7-10) — צילומי השוואה בתוך הוונו עצמו ל-baseline עתידי</li>
+      <li>בדקי בעין: האם 9,602 sqft הוא הצרוף או יחידה אחת? אם רצף אחד יש פוטנציאל להרחיב ל-3,500+</li>
+      <li>שקלי משא ומתן לחוזה 2027 בעת הסקאוט עצמו (לפני האירוע) — ייתכן לשפר ל-$3.5K עם התחייבות חוזרת</li>
+    </ul>
+    <b>דגלים אדומים אם הביצוע יהיה חלש:</b>
+    <ul class="flags">
+      <li>Lemone Industrial Blvd = אזור תעשייתי. Walk Score נמוך — תלות מלאה ב-SMS</li>
+      <li>אם המכירות &lt; $40K → הסקאוט הזה הופך ל-mbs-venue-research, ועוברים להמלצות 1/2/3/5 לעיל</li>
+    </ul>
+  </div>
+
+  <div class="venue">
+    <h4>7. Hampton Inn & Suites Columbia (at the University of Missouri)</h4>
+    <div class="meta-row">
+      <div><span class="ico">📍</span> 1225 Fellows Pl, Columbia, MO 65201 (סמוך ל-Mizzou)</div>
+      <div><span class="ico">📐</span> חדרי meeting קטנים-בינוניים · יש לאמת sqft בביקור</div>
+      <div><span class="ico">🏨</span> Hampton Inn (mid-tier ✓)</div>
+      <div><span class="ico">🚗</span> חניה: לוט חינם</div>
+      <div><span class="ico">💰</span> משוער: $3K-$5K</div>
+      <div><span class="ico">⭐</span> Booking 8.7/10</div>
+      <div><span class="ico">📞</span> hilton.com couumhx</div>
+    </div>
+    <b>למה לבדוק פיזית:</b>
+    <ul>
+      <li>backup option אם ההצעות של 1-5 לא מסתדרות במשא ומתן</li>
+      <li>קרוב לקמפוס Mizzou — תנועה סטודנטיאלית בחודשים אקדמיים</li>
+    </ul>
+    <b>דגלים אדומים שצריך לוודא בביקור:</b>
+    <ul class="flags">
+      <li>📞 חובה לאמת sqft חדר ראשי — סף MBS 2,500. אם פחות → לסנן</li>
+      <li>גרהדואיישן Mizzou (May 16-18) → מחירים בשמיים בכל מאי</li>
+    </ul>
+  </div>
+
+  <div class="venue">
+    <h4>8. Moss Building / City Activity Centers</h4>
+    <div class="meta-row">
+      <div><span class="ico">📍</span> 1905 Hillshire Dr, Columbia, MO (City of Columbia Parks)</div>
+      <div><span class="ico">📐</span> 4,000 sqft (חדר A 1,435 + חדר B 1,067 — צמודים עד ~2,500 sqft) · max 100 ppl לפי City</div>
+      <div><span class="ico">🏨</span> City-run banquet (independent ✓)</div>
+      <div><span class="ico">🚗</span> חניה: park lot חינם</div>
+      <div><span class="ico">💰</span> $24/שעה — הזול ביותר בעיר</div>
+      <div><span class="ico">⭐</span> N/A — מתקן עירוני</div>
+      <div><span class="ico">📞</span> como.gov · 573-874-7460</div>
+    </div>
+    <b>למה לבדוק פיזית:</b>
+    <ul>
+      <li>בעצם plan-Z — אם MBS צריכה אופציה זולה מאוד לבדיקת השוק</li>
+      <li>קיבולת 100 אנשים לא מספיקה ל-MBS regular — כלומר שיכרון של חצי-יום קצר</li>
+    </ul>
+    <b>דגלים אדומים שצריך לוודא בביקור:</b>
+    <ul class="flags">
+      <li>קיבולת רשמית 100 — מתחת ל-MBS standard 200-400. אופציה רק לשוק חדש שמוודאים</li>
+      <li>שעות מוגבלות (city facility) — וודאי load-in/out window</li>
+    </ul>
+  </div>
+
+</div>
+
+<h3 class="section">📋 STEP 5 — Checklist בדיקת חוזה (להדפסה — מילוי בכל ונו)</h3>
+
+<div class="alert">
+  <b>הוראה:</b> הדפיסי את הסעיף הזה לפני הטיסה. עותק לכל ונו שאת מבקרת בו פיזית. החוזה חייב לכלול את כל הסעיפים בכתב — לא הבטחות בעל-פה. <b>אזהרה:</b> אם ונו דורש קייטרינג מינימום &gt; $500 — סמני 🚩 ועברי לבא ברשימה.
+</div>
+
+<div class="checklist non-printable" style="display:block">
+  <h4>✅ Checklist בדיקת חוזה — Columbia, MO</h4>
+  <div class="ven-name">שם הוונו: <span class="blank" style="min-width:200px"></span> · תאריך ביקור: <span class="blank" style="min-width:120px"></span></div>
+  <ol>
+    <li>□ Sqft של החדר הראשי כתוב בחוזה במפורש: ≥ 2,500 sqft? <b>(בפועל: <span class="blank"></span> sqft)</b></li>
+    <li>□ חניה חינם לכל אורחי האירוע, כתוב במפורש? <b>(Y/N + מס' מקומות: <span class="blank"></span>)</b></li>
+    <li>□ Load-in / load-out: דלת ישירה מהחניה לאולם, ללא מעלית? <b>(Y/N)</b></li>
+    <li>□ קיבולת מקסימום מצויינת? <b><span class="blank"></span> אנשים</b></li>
+    <li>□ AV (מקרן/רמקול/מיק) כלול או תוספת? <b>(כלול / תוספת $<span class="blank"></span>)</b></li>
+    <li>□ ימי setup/teardown כלולים? <b>(Y/N + שעות: <span class="blank"></span>)</b></li>
+    <li>□ מידות הדלת הגדולה ביותר (ל-pallet load-in)? <b><span class="blank"></span> ft × <span class="blank"></span> ft</b></li>
+    <li>□ שקעי חשמל: מספיק? איפה? <b>(הערות: <span class="blank" style="min-width:160px"></span>)</b></li>
+    <li>□ Wi-Fi: חינם / בתשלום / מהירות? <b>(הערות: <span class="blank" style="min-width:160px"></span>)</b></li>
+    <li>□ הגבלות על שילוט / רעש / שעות? <b>(הערות: <span class="blank" style="min-width:160px"></span>)</b></li>
+    <li>□ אין דרישת מינימום קייטרינג? <b>(Y/N — אם N, MBS לא תהיה גמישה כי אנחנו לא מוכרים F&B 🚩)</b></li>
+    <li>□ שירותים: כמה? מרחק מהאולם? <b>(הערות: <span class="blank" style="min-width:160px"></span>)</b></li>
+    <li>□ קליטת סלולר באולם (3+ ספקים): טובה? <b>(Y/N)</b></li>
+    <li>□ דמי ביטול / רוורסיה: כמה ימים לפני? <b><span class="blank"></span> ימים, %?<span class="blank"></span></b></li>
+    <li>□ כותרת תפעולית בתוך הוונו: שם + טלפון. <b>(<span class="blank" style="min-width:160px"></span>)</b></li>
+  </ol>
+</div>
+
+<h3 class="section">🌆 STEP 6 — ערים סמוכות לסקאוט באותו טיול</h3>
+<div class="grid cols-2">
+
+  <div class="nearby">
+    <h4>⭐ Sedalia, MO — ~65 mi (1h 15min)</h4>
+    <div class="demo">
+      <span class="pill green">היספנים 15.1%</span> ·
+      <span class="pill yellow">הכנסה $50.7K</span> ·
+      <span class="pill yellow">21.9K אוכלוסייה</span> ·
+      <span class="pill purple">MBS match: ~16/30</span>
+    </div>
+    <div class="why">
+      <b>הערך הגבוה ביותר של הטיול הזה.</b> Sedalia היא העיר היחידה ברדיוס סביר עם אחוז היספני שמתקרב לטווח MBS האידיאלי (15% — 3× של Columbia עצמה). שווה חצי-יום של מיפוי. <b>סטטוס:</b> 🆕 לא בלוח 2026, אין רישום היסטורי. State Fair Community מאחסן אירועים שם (4-H Center).
+    </div>
+  </div>
+
+  <div class="nearby">
+    <h4>Jefferson City, MO — ~30 mi (35min)</h4>
+    <div class="demo">
+      <span class="pill yellow">היספנים 1.4%</span> ·
+      <span class="pill green">הכנסה $67.2K</span> ·
+      <span class="pill yellow">42.6K אוכלוסייה</span> ·
+      <span class="pill purple">MBS match: ~12/30</span>
+    </div>
+    <div class="why">
+      בירת המדינה. דמוגרפית פחות מתאימה (אחוז היספני נמוך מאוד) אבל הכנסה גבוהה ויש state employees stable retail. <b>סטטוס:</b> 🆕 לא בלוח 2026. אופציה רק אם Sedalia לא נסגר — לא מצדיק טיול נפרד.
+    </div>
+  </div>
+
+  <div class="nearby">
+    <h4>St. Louis, MO — ~120 mi (2h)</h4>
+    <div class="demo">
+      <span class="pill yellow">היספנים 4%</span> ·
+      <span class="pill green">הכנסה $52K</span> ·
+      <span class="pill green">300K (metro 2.8M)</span> ·
+      <span class="pill purple">MBS match: ~18/30</span>
+    </div>
+    <div class="why">
+      Metro גדול, דמוגרפיה מגוונת באזורי South City (Cherokee Street → היספנית 25%+). מצדיק טיול נפרד יותר משילוב — אבל אם את כבר עוברת ב-Columbia, יום נוסף ב-St. Louis סוגר 2 ערים גדולות בנסיעה אחת. <b>סטטוס:</b> 🆕 לא בלוח 2026.
+    </div>
+  </div>
+
+  <div class="nearby">
+    <h4>Kansas City, MO — ~125 mi (2h)</h4>
+    <div class="demo">
+      <span class="pill green">היספנים 10%</span> ·
+      <span class="pill green">הכנסה $61K</span> ·
+      <span class="pill green">510K אוכלוסייה</span> ·
+      <span class="pill purple">MBS match: ~22/30 (מסומן Mid-MO)</span>
+    </div>
+    <div class="why">
+      <b>שני בדירוג פוטנציאל.</b> Kansas City עצמה (לא Overland Park KS שכבר בלוח Jun 11-14) — אזור Argentine ו-Westside עם 30%+ היספני. ראוי ליום סקאוט נפרד. <b>סטטוס:</b> 🆕 KC,MO לא בלוח 2026 (Overland Park KS כן). שווה לשלב.
+    </div>
+  </div>
+
+  <div class="nearby">
+    <h4>Mexico, MO — ~30 mi (40min)</h4>
+    <div class="demo">
+      <span class="pill red">היספנים 2.2%</span> ·
+      <span class="pill yellow">הכנסה $47.6K</span> ·
+      <span class="pill red">11.5K אוכלוסייה (קטן מאוד)</span> ·
+      <span class="pill purple">MBS match: ~7/30</span>
+    </div>
+    <div class="why">
+      קטנה מדי לאירוע MBS standard. כוללת לרפרנס בלבד למקרה שהאסטרטגיה תשתנה ל-pop-up day-events.
+    </div>
+  </div>
+
+</div>
+
+<h3 class="section">📅 STEP 7 — המלצות תזמון</h3>
+<div class="grid cols-2">
+  <div class="card">
+    <div class="label">🟢 חודשים אופטימליים</div>
+    <div style="font-size:14px;line-height:1.7;color:#444;margin-top:6px">
+      <b>פברואר-מרץ</b> (post-tax season, פחות תחרות תיירותית)<br>
+      <b>תחילת ספטמבר</b> (לפני football season, אחרי back-to-school)<br>
+      <b>אמצע מאי</b> — אבל לא 16-18 (Mizzou graduation) ✓ Lauren נמצאת ב-7-10 לפני הגרהדואיישן — תזמון תקין
+    </div>
+  </div>
+  <div class="card">
+    <div class="label">🔴 חודשים להימנע</div>
+    <div style="font-size:14px;line-height:1.7;color:#444;margin-top:6px">
+      <b>May 15-20</b> — Mizzou Graduation Weekend (16-18) — מחירי מלון × 2-3<br>
+      <b>Sep-Nov סופי שבוע של football משחקים בית</b> — Mizzou Tigers פותחים תנועה אבל יקרים<br>
+      <b>חודשי חורף Dec-Feb</b> — סופות שלג ב-Midwest, סיכון cancel
+    </div>
+  </div>
+  <div class="card">
+    <div class="label">🌎 לוח קהילה היספני</div>
+    <div style="font-size:14px;line-height:1.7;color:#444;margin-top:6px">
+      Cinco de Mayo (5 May), Mexican Independence Day (16 Sep), Día de los Muertos (1-2 Nov)<br>
+      <b>Hispanic Heritage Month: Sep 15 - Oct 15</b> — חלון חזק במיוחד<br>
+      <i>Columbia עצמה עם 4.4% היספני — ההשפעה ממותנת. ב-Sedalia (15%) ההשפעה תהיה גדולה יותר.</i>
+    </div>
+  </div>
+  <div class="card">
+    <div class="label">✓ המלצה לאירוע May 7-10, 2026</div>
+    <div style="font-size:14px;line-height:1.7;color:#444;margin-top:6px">
+      התאריכים הנוכחיים הם <b>פני graduation</b> — תקין.<br>
+      המלצה: בדקי אם אפשר להזיז ל-<b>Apr 30-May 3</b> (סמוך ל-Cinco de Mayo) או להשאיר. הזזה תאפשר תוספת ~10-15% השפעה היספנית.<br>
+      <b>אם הביצוע יהיה חלש, ל-2027</b> — להעביר ל-<b>Sep 10-13</b> (Hispanic Heritage Month opener, לפני football).
+    </div>
+  </div>
+</div>
+
+<h3 class="section">📈 סיכום וחיזוי</h3>
+<div class="alert">
+  <b>החלטה אסטרטגית:</b> Columbia, MO היא שוק של "low-Hispanic, high-income, college-town." MBS optimal-profile match נמוך-בינוני (15/30). בכל זאת, הוונו הנוכחי (Courtyard) הוא mid-tier סביר ב-$4K. הביצוע יוכרע על ידי איכות ה-SMS marketing וקירבה ל-Columbia Mall (לא נכון בוונו הנוכחי — Lemone Industrial רחוק). <b>אם הביצוע ב-May 2026 פחות מ-$40K</b> → להפעיל mbs-venue-research, מועמד 1 (Holiday Inn Executive Center · Columbia Mall) הוא ה-pivot הברור. <b>הטיול הסקאוט שווה אם משלבים עם Sedalia (1h 15min)</b> — שם הפוטנציאל הדמוגרפי האמיתי.
+</div>
+
+<div class="footer">
+  <b>מקורות:</b><br>
+  • <a href="https://www.city-data.com/city/Columbia-Missouri.html">city-data.com — Columbia, MO profile</a><br>
+  • <a href="https://datausa.io/profile/geo/columbia-mo/">DataUSA — Columbia, MO</a><br>
+  • <a href="https://worldpopulationreview.com/us-cities/missouri/columbia">World Population Review 2026</a><br>
+  • <a href="https://www.ihg.com/holidayinn/hotels/us/en/columbia/coucc/hoteldetail/events-facilities">Holiday Inn Executive Center — IHG events</a><br>
+  • <a href="https://www.stoneycreekhotels.com/meetings-events/columbia/">Stoney Creek Hotels — meetings & events Columbia</a><br>
+  • <a href="https://www.hilton.com/en/hotels/coumhgi-hilton-garden-inn-columbia/events/">Hilton Garden Inn Columbia — events</a><br>
+  • <a href="https://thebroadwaycolumbia.com/venues/">The Broadway DoubleTree — venues</a><br>
+  • <a href="https://www.cvent.com/venues/columbia/hotel/courtyard-by-marriott/venue-f37ae329-6dc6-4d05-9227-df7bdaae06df">Courtyard by Marriott Columbia — Cvent</a><br>
+  • <a href="https://www.como.gov/parks-and-recreation/facility-rentals-and-reservations/">City of Columbia — facility rentals (Northeast Event Center, Moss Building)</a><br>
+  • <a href="https://www.visitcolumbiamall.com/en/">Columbia Mall — directory</a><br>
+  • <a href="https://datausa.io/profile/geo/sedalia-mo">DataUSA — Sedalia, MO</a> · <a href="https://datausa.io/profile/geo/jefferson-city-mo">Jefferson City</a> · <a href="https://datausa.io/profile/geo/mexico-mo">Mexico, MO</a><br><br>
+  <i>נוצר אוטומטית ב-2026-05-04 על ידי <code>mbs-city-scout</code> · prefix <code>@scout</code></i>
+</div>
+
+</div>
+</div>
+</body>
+</html>
