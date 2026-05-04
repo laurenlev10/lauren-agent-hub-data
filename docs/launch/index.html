@@ -162,6 +162,8 @@
   .btn-launch-row[disabled]{opacity:.5;cursor:not-allowed;transform:none}
   .btn-campaigns-row{display:inline-flex;align-items:center;gap:4px;margin-top:6px;margin-left:6px;padding:5px 10px;background:#0ea5e9;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none;letter-spacing:.3px;box-shadow:0 1px 2px rgba(14,165,233,.3);transition:all .12s}
   .btn-campaigns-row:hover{background:#0369a1;transform:translateY(-1px)}
+  .btn-campaigns-row.done{background:linear-gradient(180deg,#16a34a,#15803d) !important;box-shadow:0 1px 2px rgba(22,163,74,.35) !important}
+  .btn-campaigns-row.done:hover{filter:brightness(.95)}
   .btn-pr-row{display:inline-flex;align-items:center;gap:4px;margin-top:6px;margin-left:6px;padding:5px 10px;background:#a855f7;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none;letter-spacing:.3px;box-shadow:0 1px 2px rgba(168,85,247,.3);transition:all .12s}
   .btn-pr-row:hover{background:#7e22ce;transform:translateY(-1px)}
   .btn-forecast-row{display:inline-flex;align-items:center;gap:4px;margin-top:6px;margin-left:6px;padding:5px 10px;background:linear-gradient(180deg,#7c3aed,#5b21b6);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none;letter-spacing:.3px;box-shadow:0 1px 2px rgba(124,58,237,.35);transition:all .12s}
@@ -254,6 +256,8 @@ const REELS = {};
 const PR_ORGS = {};
 // Owner: pr-influencer — entry: { influencer_count, href, generated_at }
 const PR_INFLUENCERS = {};
+// Owner: sms-campaigns — entry: { mode: "cheat-sheet"|"draft"|"schedule", drafts_count, autoresponder_set, signup_form_set, href, generated_at }
+const CAMPAIGNS_RESULTS = {"columbia-2026-05-08":{"mode":"cheat-sheet","drafts_count":4,"autoresponder_set":true,"signup_form_set":true,"href":"../campaigns/cheat-sheet/columbia-mo-2026-05-08/","generated_at":"2026-05-03T20:14:00-07:00"}};
 
 // Owner: eventbrite-setup — entry: { eventbrite: {url, eventId, generated_at} | null, smslist: {list_id, list_name, generated_at} | null }
 // Both fields can populate independently — the agent reports per-service result.
@@ -914,7 +918,18 @@ End date: </div>
           }
 
           // 📲 SMS Campaigns
-          rowBtn += '<a class="btn-campaigns-row" href="../campaigns/?' + params + '" target="_blank" rel="noopener" title="Open SMS Campaigns dashboard pre-filled with this event">📲 Campaigns</a>';
+          const cmp = (typeof CAMPAIGNS_RESULTS !== "undefined") ? CAMPAIGNS_RESULTS[evKey] : null;
+          if (cmp) {
+            const cmpLabel = cmp.mode === "cheat-sheet"
+              ? '📲 ' + cmp.drafts_count + ' drafts + form ✓'
+              : '📲 Campaigns ✓';
+            const cmpTitle = 'Campaigns ready · ' + (cmp.mode || 'set') + ' · ' + cmp.drafts_count + ' drafts'
+              + (cmp.autoresponder_set ? ' + AR' : '') + (cmp.signup_form_set ? ' + form' : '')
+              + ' · ' + (cmp.generated_at || '').slice(0, 10);
+            rowBtn += '<a class="btn-campaigns-row done" href="' + cmp.href + '" target="_blank" rel="noopener" title="' + cmpTitle + '">' + cmpLabel + '</a>';
+          } else {
+            rowBtn += '<a class="btn-campaigns-row" href="../campaigns/?' + params + '" target="_blank" rel="noopener" title="Open SMS Campaigns dashboard pre-filled with this event">📲 Campaigns</a>';
+          }
 
           // 🤝 PR Organization
           const po = (typeof PR_ORGS !== "undefined") ? PR_ORGS[evKey] : null;
@@ -1548,40 +1563,4 @@ End date: </div>
     const restore = () => renderSchedule();   // simplest: full re-render restores correct row state
 
     editor.querySelector(".save").addEventListener("click", async () => {
-      const newVal = ta.value.trim();
-      if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
-      // If the new value EQUALS the xlsx default, drop the override (cleaner data)
-      if (newVal === (def || "").trim()) delete MANUAL_TASKS[evKey][fieldName];
-      else MANUAL_TASKS[evKey][fieldName] = newVal;
-      MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
-      ManualTasksSync.save(MANUAL_TASKS);
-      restore();
-    });
-    editor.querySelector(".cancel").addEventListener("click", restore);
-    editor.querySelector(".reset").addEventListener("click", () => {
-      if (MANUAL_TASKS[evKey]) {
-        delete MANUAL_TASKS[evKey][fieldName];
-        MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
-        ManualTasksSync.save(MANUAL_TASKS);
-      }
-      restore();
-    });
-    ta.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape") { ev.preventDefault(); restore(); }
-      if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); editor.querySelector(".save").click(); }
-    });
-  });
-
-  // Initial render
-  showBakedLabel();
-  setActiveYear("2026");
-
-  // Load manual-tasks state from GitHub on page load, then re-render to reflect saved checkboxes
-  ManualTasksSync.load().then(remote => {
-    MANUAL_TASKS = remote || {};
-    renderSchedule();
-  });
-</script>
-
-</body>
-</html>
+      const newVal = t
