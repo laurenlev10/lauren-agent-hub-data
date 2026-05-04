@@ -129,6 +129,9 @@
   .btn-launch-row.done{background:linear-gradient(180deg,#16a34a,#15803d) !important;color:#fff;text-decoration:none}
   .btn-launch-row.done:hover{background:linear-gradient(180deg,#15803d,#14532d) !important}
   /* Small "+ List" / "+ EB" chip — partial-state action button next to the green main button */
+  /* Manual-link chip (🔗) — small button next to Images, lets Lauren attach a Canva URL directly */
+  .image-link-btn{display:inline-flex;align-items:center;justify-content:center;margin-top:6px;margin-left:2px;padding:4px 7px;background:transparent;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:11px;color:#6b7280;transition:all .12s;vertical-align:middle}
+  .image-link-btn:hover{border-color:#9333ea;color:#9333ea;background:#faf5ff}
   .btn-add-chip{display:inline-flex;align-items:center;gap:3px;margin-top:6px;margin-left:4px;padding:5px 9px;background:linear-gradient(180deg,#f59e0b,#b45309);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.3px;box-shadow:0 1px 2px rgba(245,158,11,.35);transition:all .12s;white-space:nowrap}
   .btn-add-chip:hover{background:linear-gradient(180deg,#d97706,#92400e);transform:translateY(-1px)}
   .btn-add-chip.copied{background:linear-gradient(180deg,#16a34a,#15803d) !important}
@@ -901,13 +904,23 @@ End date: </div>
             rowBtn += '<a class="btn-agent-row btn-scout-row" href="../?' + scoutParams + '#scout-card" target="_blank" rel="noopener" title="Open City Scout (on Agent Hub) pre-filled with this event">🔍 City Scout</a>';
           }
 
-          // 🎨 Canva Event Images
+          // 🎨 Canva Event Images — three states (Lauren 2026-05-03 PM, manual override added)
+          //   1) Manual Canva link in notes.json → green, opens her direct link (HIGHEST priority)
+          //   2) IMAGES map populated by the agent → green, opens per-event gallery
+          //   3) Neither → black "🎨 Images" button (run state, opens form pre-filled)
+          // Plus: a small 🔗 chip on every state lets her attach/edit a manual link inline.
           const im = (typeof IMAGES !== "undefined") ? IMAGES[evKey] : null;
-          if (im) {
+          const noteRowImg = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKey] || {}) : {};
+          const imgOverride = noteRowImg.image_override_url;
+          if (imgOverride) {
+            rowBtn += '<a class="btn-agent-row btn-images-row done" href="' + imgOverride + '" target="_blank" rel="noopener" title="Manual Canva link · click to open · ' + (noteRowImg.image_override_set_at || "").slice(0,10) + '">🎨 Canva link ✓</a>';
+          } else if (im) {
             rowBtn += '<a class="btn-agent-row btn-images-row done" href="' + im.href + '" target="_blank" rel="noopener" title="' + im.count + ' images ready · ' + (im.generated_at||"").slice(0,10) + '">🎨 ' + im.count + ' images ✓</a>';
           } else {
             rowBtn += '<a class="btn-agent-row btn-images-row" href="../canva/?' + params + '" target="_blank" rel="noopener" title="Open Canva Event Images pre-filled with this event">🎨 Images</a>';
           }
+          // 🔗 attach-link chip — always visible next to Images
+          rowBtn += '<button class="image-link-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(imgOverride || "").replace(/"/g, "&quot;") + '" title="' + (imgOverride ? "Edit / clear the manual Canva link" : "Attach a Canva link directly (skip the agent)") + '">🔗</button>';
 
           // 🎬 Canva Reel
           const rl = (typeof REELS !== "undefined") ? REELS[evKey] : null;
@@ -1530,6 +1543,34 @@ End date: </div>
     const lbl = cb.closest("label");
     if (lbl) lbl.classList.toggle("done", cb.checked);
     ManualTasksSync.save(MANUAL_TASKS);
+  });
+
+  // Click handler for image-link (🔗) chip — prompts for Canva URL, saves to MANUAL_TASKS via ManualTasksSync
+  document.addEventListener("click", (e) => {
+    const linkBtn = e.target.closest(".image-link-btn");
+    if (!linkBtn) return;
+    e.stopPropagation();
+    const evKey = linkBtn.dataset.evkey;
+    const current = linkBtn.dataset.current || "";
+    const newUrl = prompt(
+      "Paste a Canva (or any) link for this event's image.\n" +
+      "Examples:\n  https://canva.link/...\n  https://www.canva.com/design/.../view\n" +
+      "Leave empty to clear the override.",
+      current
+    );
+    if (newUrl === null) return;   // canceled
+    if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
+    const trimmed = newUrl.trim();
+    if (trimmed === "") {
+      delete MANUAL_TASKS[evKey].image_override_url;
+      delete MANUAL_TASKS[evKey].image_override_set_at;
+    } else {
+      MANUAL_TASKS[evKey].image_override_url = trimmed;
+      MANUAL_TASKS[evKey].image_override_set_at = new Date().toISOString();
+    }
+    MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+    ManualTasksSync.save(MANUAL_TASKS);
+    renderSchedule();
   });
 
   // Click handler for staff-edit (✏️) buttons — inline edit, saves to MANUAL_TASKS via ManualTasksSync
