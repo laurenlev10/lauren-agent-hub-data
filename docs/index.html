@@ -516,4 +516,81 @@ const SCOUT_REPORTS = [
     const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\` — it is the orchestrator for MBS City Scout. Run for the city below.
 
 CITY
-  Name:  
+  Name:  ${city}, ${state}${monthLine}
+
+Look up if this city is already in EVENT_DATA.md Master List 2026:
+  • If YES (already a confirmed event) → recommend running mbs-venue-research instead.
+  • If NO → proceed with full city scout per skill STEPS 1-11.
+
+Run STEPS 0-12 from the skill IN FULL:
+  STEP 0   — read context (MEMORY, EVENT_DATA, AVERAGES, historical xlsx, comms.md, lauren-comms).
+  STEP 0.5 — 🚨 send Touchpoint 1 SMS via SimpleTexting BEFORE any web search ("@scout 🔍 מתחילה סקאוט ל-${city}, ${state}. אעדכן בסוף עם הציון והמועמדים הטובים.") per comms.md.
+  STEPS 1-7 — city profile + MBS match score (X/30) + top 3-5 neighborhoods + 5-10 venue candidates (mid-tier brands or convention/banquet/mall ONLY — AVOID Hilton full / Marriott full / Westin / Ritz / Sheraton Grand / Hyatt Regency, sqft ≥2,500) + printable contract checklist + 3-5 nearby cities + best-month recommendation.
+  STEP 8   — build Hebrew RTL HTML scoped to .mbs-scout.
+  STEP 9   — deploy via deploy-dashboard skill: docs/scout/${slug}/index.html on GH Pages.
+  STEP 10  — append to agent_hub.html SCOUT_REPORTS + HUB.scout.lastRun, redeploy hub.
+  STEP 10.5 — if ${city}, ${state} is in launch_dashboard.html SCHEDULE, upsert SCOUTS["${slug}-<start_date>"] = { score, top_count, href: "../scout/${slug}/", generated_at } so the row's 🔍 City Scout button flips to green "🔍 Scout: NN⭐". If not on schedule, skip.
+  STEP 11  — sanity check (script/body/html closing tags, node --check, browser preview, GH Pages 200).
+  STEP 12  — 🚨 send Touchpoint 3 end-summary SMS via SimpleTexting per comms.md (variant by score: ≥20=Strong / 12-19=Mixed / <12=Weak / on-schedule=City already in schedule). Always include https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/ on its own line.
+
+Mid-run rule: send SMS ONLY for blocker / judgment call / question for Lauren. No routine progress pings. If you ask Lauren anything in Cowork chat (AskUserQuestion), also fire "@scout ❓ שאלה בצ׳אט — תוכלי להגיע למחשב?" SMS at the same moment.
+
+End: confirm scout report URL https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/ is live, a new card appears under City Scout in the hub, and Touchpoints 1 + 3 SMS were both sent.`;
+
+    const ok = await copyText(cmd);
+    if (ok) {
+      const original = scoutBtn.textContent;
+      scoutBtn.textContent = "✓ הועתק! הדביקי בשיחת Cowork חדשה";
+      scoutBtn.classList.add("copied");
+      setTimeout(() => { scoutBtn.textContent = original; scoutBtn.classList.remove("copied"); }, 3500);
+    } else {
+      showManualCopyModal(cmd);
+    }
+  });
+
+  // Render past scout reports
+  const reportsList = document.getElementById("scout-reports-list");
+  if (SCOUT_REPORTS && SCOUT_REPORTS.length > 0) {
+    reportsList.innerHTML = SCOUT_REPORTS
+      .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+      .map(r => `
+        <div class="scout-report-item">
+          <a href="${r.url}" target="_blank">📄 ${r.city}, ${r.state}</a>
+          <span style="color:var(--muted);font-size:11px">${r.date || ""}${r.score ? " · score " + r.score : ""}</span>
+        </div>`)
+      .join("");
+  }
+
+  // Pre-fill the City Scout form from URL params (added 2026-05-03 for the per-row scout button on launch_dashboard).
+  // URL contract: ../?scout-city=Columbia&scout-state=MO&scout-month=May#scout-card
+  (function prefillScout(){
+    const p = new URLSearchParams(window.location.search);
+    if (!p.has("scout-city") && !p.has("city")) return;
+    const setIf = (id, key) => { const v = p.get(key); if (v && document.getElementById(id)) document.getElementById(id).value = v; };
+    setIf("scout-city",  "scout-city");
+    setIf("scout-state", "scout-state");
+    setIf("scout-month", "scout-month");
+    // Friendly fallback: also support generic ?city=Columbia,+MO so the same URL contract works
+    if (!p.get("scout-city") && p.get("city")) {
+      const m = (p.get("city") || "").match(/^(.+?),\s*([A-Z]{2})\s*$/);
+      if (m) {
+        document.getElementById("scout-city").value  = m[1].trim();
+        document.getElementById("scout-state").value = m[2];
+      }
+    }
+    // Derive month from start_date if provided
+    if (!p.get("scout-month") && p.get("start_date")) {
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const monthIdx = parseInt((p.get("start_date") || "").slice(5,7), 10) - 1;
+      if (monthIdx >= 0 && monthIdx < 12) {
+        document.getElementById("scout-month").value = months[monthIdx];
+      }
+    }
+    // Smooth-scroll to the card so Lauren lands directly on the form
+    const card = document.getElementById("scout-card");
+    if (card) setTimeout(() => card.scrollIntoView({behavior:"smooth", block:"start"}), 100);
+  })();
+</script>
+
+</body>
+</html>
