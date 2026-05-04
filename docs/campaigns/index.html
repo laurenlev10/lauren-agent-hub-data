@@ -63,7 +63,26 @@
 <body>
 
 <script id="dashboard-data">
-const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaigns:[], autoresponder:null, signupForm:null, errorReason:null, previousRuns:[] };
+const RUN = {
+  date: "2026-05-03", time: "20:14 PDT",
+  city: "Columbia, MO", year: 2026, status: "cheat-sheet",
+  mode: "cheat-sheet",
+  cheatSheetUrl: "https://laurenlev10.github.io/lauren-agent-hub-data/campaigns/cheat-sheet/columbia-mo-2026-05-08/",
+  weekendHook: { chosen: "🌷 Sunday is Mother's Day — grab a $5 brush set, the perfect last-minute gift for Mom (or yourself)!", basis: "Sunday 5/10 = Mother's Day, perfect audience match", injectedInto: ["Touch 1"] },
+  campaigns: [
+    { touch: 1, name: "Reminder — Monday of event week",     state: "cheat-sheet", scheduledFor: "Mon 2026-05-04 07:30 PDT", image: "brushes_first_100.png",     type: "MMS" },
+    { touch: 2, name: "Tuesday — prior years",               state: "skipped",     reason: "first-time city, no prior-year lists" },
+    { touch: 3, name: "Friday morning — opening day",        state: "cheat-sheet", scheduledFor: "Fri 2026-05-08 07:30 PDT", image: "see_you_soon.png",          type: "MMS" },
+    { touch: 4, name: "Saturday — Super Saturday Sale",      state: "cheat-sheet", scheduledFor: "Sat 2026-05-09 07:30 PDT", image: "super_saturday_sale.png",   type: "MMS" },
+    { touch: 5, name: "Sunday — Last Day Special",           state: "cheat-sheet", scheduledFor: "Sun 2026-05-10 07:30 PDT", image: "5_off_coupon.png",          type: "MMS" }
+  ],
+  autoresponder: { trigger: "subscribe_to_list", listName: "Columbia, MO 2026", state: "cheat-sheet", image: "ig_story_voucher.png", type: "MMS" },
+  signupForm: { formName: "Columbia, MO 2026", contactList: "Columbia, MO 2026", state: "cheat-sheet" },
+  errorReason: null,
+  previousRuns: [
+    { city: "Anaheim, CA", year: 2026, date: "2026-12-18", mode: "cheat-sheet" }
+  ]
+};
 // signupForm shape: { webFormId:"<24 hex>", fullJoinUrl:"...", formName:"..." }
 // previousRuns shape: [{ city:"Tulsa, OK", year:2026, date:"2026-04-29", webFormId:"..." }]
 </script>
@@ -1006,37 +1025,4 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     if (!record || !record.city) return;
     record.date = record.date || new Date().toISOString().slice(0,10);
     record.status = record.status || "success";
-    const list = loadRecentRuns();
-    // Replace existing entry for the same city+year, otherwise prepend
-    const key = (record.city + "_" + (record.year||"")).toLowerCase();
-    const filtered = list.filter(r => ((r.city||"") + "_" + (r.year||"")).toLowerCase() !== key);
-    filtered.unshift(record);
-    // Cap to 10 most recent
-    while (filtered.length > 10) filtered.pop();
-    localStorage.setItem("simple-texting:recent-runs", JSON.stringify(filtered));
-    renderRecentRuns();
-  };
-
-  // Also: support URL hash like #save?city=Tulsa%2C+OK&year=2026&webFormId=619e9b412f966868805a214d
-  if (window.location.hash.startsWith("#save?")){
-    const params = new URLSearchParams(window.location.hash.slice(6));
-    const rec = {};
-    for (const [k, v] of params) rec[k] = v;
-    if (rec.city && rec.webFormId){
-      window.simpleTextingSaveRun(rec);
-      // Clean the hash so refresh doesn't re-add
-      history.replaceState(null, "", window.location.pathname + window.location.search);
-      // Show a toast
-      setTimeout(() => {
-        const note = document.createElement("div");
-        note.style.cssText = "position:fixed;top:14px;right:14px;background:#ecfdf5;border:1px solid var(--ok);color:#065f46;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.08)";
-        note.innerHTML = "✓ Run record saved for " + rec.city + " " + (rec.year||"");
-        document.body.appendChild(note);
-        setTimeout(() => note.remove(), 5000);
-      }, 200);
-    }
-  }
-</script>
-
-</body>
-</html>
+    co
