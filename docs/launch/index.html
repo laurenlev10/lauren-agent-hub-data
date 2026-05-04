@@ -915,7 +915,11 @@ End date: </div>
           if (imgOverride) {
             rowBtn += '<a class="btn-agent-row btn-images-row done" href="' + imgOverride + '" target="_blank" rel="noopener" title="Manual Canva link · click to open · ' + (noteRowImg.image_override_set_at || "").slice(0,10) + '">🎨 Canva link ✓</a>';
           } else if (im) {
-            rowBtn += '<a class="btn-agent-row btn-images-row done" href="' + im.href + '" target="_blank" rel="noopener" title="' + im.count + ' images ready · ' + (im.generated_at||"").slice(0,10) + '">🎨 ' + im.count + ' images ✓</a>';
+            // Prefer the editable Canva URL when the agent uploaded the design to Canva (Lauren 2026-05-03 PM). Falls back to GH Pages gallery.
+            const imgHref = im.canva_url || im.href;
+            const imgLabel = im.canva_url ? "🎨 Canva design ✓" : ("🎨 " + im.count + " images ✓");
+            const imgTip = (im.canva_url ? "Editable Canva design" : (im.count + " images ready")) + " · " + (im.generated_at||"").slice(0,10) + (im.canva_folder ? " · folder: " + im.canva_folder : "");
+            rowBtn += '<a class="btn-agent-row btn-images-row done" href="' + imgHref + '" target="_blank" rel="noopener" title="' + escapeHtml(imgTip) + '">' + imgLabel + '</a>';
           } else {
             rowBtn += '<a class="btn-agent-row btn-images-row" href="../canva/?' + params + '" target="_blank" rel="noopener" title="Open Canva Event Images pre-filled with this event">🎨 Images</a>';
           }
