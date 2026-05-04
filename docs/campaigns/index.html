@@ -833,7 +833,10 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       return;
     }
     const mode = document.getElementById("ev-mode").value;
-    let cmd = `Run the simple-texting skill.\n\nCity: ${ev.cityFull}\nStreet: ${ev.address}\nHotel: ${ev.venue}\nYear: ${ev.year}\nStart date: ${ev.sd}\nEnd date: ${ev.ed}\nMode: ${mode}\n\n`;
+    // Cowork doesn't know about custom NEW/<agent>/SKILL.md files — the "Run the X skill" pattern
+    // fails with "I don't have a skill called X". The IRON RULE (Lauren 2026-04-29) requires every
+    // Run-now command to start with an explicit Read directive pointing at the canonical SKILL.md.
+    let cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\sms-campaigns\\SKILL.md\` — it is the orchestrator for @sms (Simple Texting marketing setup). It will tell you which other files to read (browser.md, templates.md, dashboard.md, comms.md). Run the full flow for this event:\n\nCity: ${ev.cityFull}\nStreet: ${ev.address}\nHotel: ${ev.venue}\nYear: ${ev.year}\nStart date: ${ev.sd}\nEnd date: ${ev.ed}\nMode: ${mode}\n\n`;
     // 🎯 Weekend Hooks — inject right after the event header, before any Touch
     cmd += buildHookSection();
     const isFirstTime = document.getElementById("ev-first-time").checked;
