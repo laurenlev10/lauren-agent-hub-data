@@ -104,9 +104,8 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     </div>
 
     <div class="card">
-      <h2><span>Auto-responder</span><span class="meta">message sent to anyone who texts the keyword</span></h2>
-      <label>Keyword pattern <span class="hint">(uppercase city; year appended if taken — agent handles)</span></label>
-      <input type="text" id="ar-keyword" placeholder="{CITY_NO_SPACES_UPPER}">
+      <h2><span>Autoresponder</span><span class="meta">fires automatically when someone joins the event list (via Sign-up Form). NOT keyword-based.</span></h2>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.4">⚠ Updated 2026-05-03 PM: keyword field removed — Lauren's customers don't text keywords. The agent creates this in the SimpleTexting <b>Autoresponders</b> menu (NOT Keywords) with trigger = "When a contact subscribes to a list" → list = the per-event list created by event-launch.</p>
       <div class="row">
         <div>
           <label>Type</label>
@@ -165,10 +164,11 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       <label>Reel link <span class="hint">(per-event — Instagram Reel URL or SimpleTexting txt.so short URL. Used in Touch 2 (BONUS line), Touch 4 (Sat closing), and Auto-responder — fill once, agent uses it everywhere. Leave blank to skip those lines.)</span></label>
       <input type="text" id="ev-reel-link" placeholder="https://www.instagram.com/reel/... or https://txt.so/...">
 
-      <label>Mode</label>
+      <label>Mode <span class="hint">(updated 2026-05-03 PM — API-first now default per Lauren's request)</span></label>
       <select id="ev-mode">
-        <option value="draft" selected>Save as Draft (recommended — you review and press Schedule)</option>
-        <option value="schedule">Schedule directly (campaigns fire automatically — use only when you're 100% sure)</option>
+        <option value="schedule" selected>⚡ Schedule via API (fast — recommended) — agent uses SimpleTexting API with sendAt ≥ +5 min in the future. Each campaign queued automatically. ~30 sec/campaign.</option>
+        <option value="draft">📝 Save as Draft via browser — agent uses Chrome to create drafts you review and Schedule yourself. Slower and prone to extension conflicts; choose only if you want a manual review gate before each touch.</option>
+        <option value="cheat-sheet">📋 Cheat-sheet only (skip browser entirely) — agent generates a copy-paste-ready HTML page; you create the 4 campaigns manually in SimpleTexting in ~2-3 min. Use when browser/API both fail.</option>
       </select>
 
       <!-- 🎯 Weekend Hooks — redesigned 2026-05-03 PM (agent does the writing, not Lauren) -->
@@ -283,7 +283,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     }
   ];
   const DEFAULT_AR = {
-    keyword: "{CITY_NO_SPACES_UPPER}{YY}",   // updated 2026-05-03: append 2-digit year to avoid cross-year keyword collisions (browser.md Flow 2 convention)
+    // 2026-05-03 PM: 'keyword' field removed from state — autoresponder is now subscribe-trigger, no keyword involved.
     type: "MMS",
     image_filename: "ig_story_voucher.png",
     text: "This is your Free Fabulous Glitter✨ Voucher! The Makeup Blowout Sale Group Are Coming To {city}, {state} {year} For Only 3 days! 🗓️ When: {date_range} 🕙 Hours: 10 AM - 5 PM 📍 Where: {address}. At {venue}. CLICK & SHARE On Your Story: {reel_link} If you share - you will GET a FREE Eyeshadow at the event, too!"
@@ -453,7 +453,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   // Render auto-responder + form editors
   // ─────────────────────────────────────────
   function renderAutoresponder(){
-    document.getElementById("ar-keyword").value = state.ar.keyword || "";
+    // ar-keyword input was removed 2026-05-03 PM (keyword workflow not relevant)
     document.getElementById("ar-type").value = state.ar.type || "MMS";
     document.getElementById("ar-image").value = state.ar.image_filename || "";
     document.getElementById("ar-text").value = state.ar.text || "";
@@ -463,7 +463,8 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
     document.getElementById("form-confirmation").value = state.form.confirmation_text || "";
   }
   function bindEditors(){
-    [["ar-keyword","ar","keyword"],["ar-text","ar","text"],["ar-type","ar","type"],["ar-image","ar","image_filename"]].forEach(([id,sec,k]) => {
+    // ar-keyword removed 2026-05-03 PM
+    [["ar-text","ar","text"],["ar-type","ar","type"],["ar-image","ar","image_filename"]].forEach(([id,sec,k]) => {
       document.getElementById(id).addEventListener("input", e => {
         state[sec][k] = e.target.value;
         saveState(state);
@@ -878,7 +879,8 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       skippedDueToFirstTime.forEach(s => { cmd += "• " + s + "\n"; });
       cmd += "\n";
     }
-    cmd += `=== Auto-responder ===\nKeyword: ${fillPlaceholders(state.ar.keyword, ev)}\nList: ${ev.cityFull} ${ev.year}\nType: ${state.ar.type || "MMS"}\n`;
+    // 2026-05-03 PM: keyword removed from Autoresponder section. Trigger is now list-subscribe (NOT keyword-based).
+    cmd += `=== Autoresponder ===\nTrigger: When a contact subscribes to a list\nList: ${ev.cityFull} ${ev.year}\nDelay: Immediate\nType: ${state.ar.type || "MMS"}\n`;
     if ((state.ar.type || "MMS") === "MMS" && state.ar.image_filename) cmd += `Image: ${state.ar.image_filename}\n`;
     cmd += `\n${fillPlaceholders(state.ar.text, ev)}\n\n`;
     cmd += `=== Sign-up form ===\nForm name: ${fillPlaceholders(state.form.form_name, ev)}\nContact list: ${ev.cityFull} ${ev.year}\nForm fields: Phone (required)\nConfirmation text: ${fillPlaceholders(state.form.confirmation_text, ev)}\n`;
