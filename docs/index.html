@@ -392,6 +392,98 @@ const SCOUT_REPORTS = [
 </div>
 
 <script>
+  // Robust clipboard copy. Works around iframe/Cowork-widget contexts where
+  // navigator.clipboard.writeText is silently blocked. Falls back to a textarea
+  // + execCommand('copy'), then to a manual-copy modal as a last resort.
+  async function copyText(text) {
+    // 1) Modern API (best path; needs secure context + user gesture + iframe perm)
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) { /* fall through */ }
+
+    // 2) Legacy fallback: hidden textarea + execCommand
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.top = "0";
+      ta.style.left = "0";
+      ta.style.width = "1px";
+      ta.style.height = "1px";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      if (ok) return true;
+    } catch (e) { /* fall through */ }
+
+    return false;
+  }
+
+  // Manual-copy modal — shows the command in a textarea pre-selected so the
+  // user can hit Ctrl+C / Cmd+C. Used when both clipboard paths fail.
+  function showManualCopyModal(text) {
+    // Remove any existing modal first
+    const existing = document.getElementById("manual-copy-modal");
+    if (existing) existing.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "manual-copy-modal";
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.78);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;direction:rtl;font-family:inherit;";
+
+    const box = document.createElement("div");
+    box.style.cssText = "background:#fff;color:#0f172a;border-radius:12px;max-width:640px;width:100%;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.4);max-height:90vh;display:flex;flex-direction:column;gap:10px;";
+    box.innerHTML = `
+      <div style="font-weight:700;font-size:15px;">העתקה אוטומטית נחסמה ע״י הדפדפן</div>
+      <div style="font-size:13px;color:#475569;">סמני את הטקסט (Ctrl+A) ואז העתיקי (Ctrl+C / Cmd+C). הדביקי בשיחת Cowork חדשה.</div>
+    `;
+
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.cssText = "width:100%;flex:1;min-height:240px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;text-align:left;";
+    box.appendChild(ta);
+
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;";
+    const tryAgain = document.createElement("button");
+    tryAgain.textContent = "נסי שוב להעתיק";
+    tryAgain.style.cssText = "padding:8px 14px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;font-size:13px;";
+    tryAgain.onclick = async () => {
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      try {
+        const ok = document.execCommand("copy");
+        if (ok) {
+          tryAgain.textContent = "✓ הועתק!";
+          setTimeout(() => overlay.remove(), 1200);
+          return;
+        }
+      } catch(e) {}
+      tryAgain.textContent = "סמני וקופי ידני (Ctrl+C)";
+    };
+    const close = document.createElement("button");
+    close.textContent = "סגרי";
+    close.style.cssText = "padding:8px 14px;border-radius:8px;border:none;background:#dc2626;color:#fff;cursor:pointer;font-size:13px;";
+    close.onclick = () => overlay.remove();
+    row.appendChild(tryAgain);
+    row.appendChild(close);
+    box.appendChild(row);
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    // Pre-select the text so user can immediately Ctrl+C
+    setTimeout(() => { ta.focus(); ta.select(); ta.setSelectionRange(0, text.length); }, 50);
+  }
+
   document.getElementById("architect-lastRun").textContent = HUB.architect.lastRun || "—";
   // manager-lastRun removed 2026-05-03 — Event Manager merged into Event Launch Hero
   document.getElementById("contract-lastRun").textContent  = HUB.contract.lastRun  || "—";
@@ -416,14 +508,14 @@ const SCOUT_REPORTS = [
     btn.addEventListener("click", async (e) => {
       e.stopPropagation();
       const cmd = btn.getAttribute("data-cmd");
-      try {
-        await navigator.clipboard.writeText(cmd);
+      const ok = await copyText(cmd);
+      if (ok) {
         const original = btn.textContent;
         btn.textContent = "✓ Copied — paste in Cowork";
         btn.classList.add("copied");
         setTimeout(() => { btn.textContent = original; btn.classList.remove("copied"); }, 2500);
-      } catch (err) {
-        alert("Copy failed. Command:\n\n" + cmd);
+      } else {
+        showManualCopyModal(cmd);
       }
     });
   });
@@ -438,74 +530,4 @@ const SCOUT_REPORTS = [
     if (!city || !state || state.length !== 2) {
       const original = scoutBtn.textContent;
       scoutBtn.textContent = "⚠ מלאי עיר + ST (2 אותיות)";
-      scoutBtn.style.background = "linear-gradient(180deg, #fca5a5, #dc2626)";
-      setTimeout(() => { scoutBtn.textContent = original; scoutBtn.style.background = ""; }, 2500);
-      return;
-    }
-    const slug = (city + "-" + state).toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    const monthLine = month ? `\n  Target month: ${month}` : "";
-    const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\` — it is the orchestrator for MBS City Scout. Run for the city below.
-
-CITY
-  Name:  ${city}, ${state}${monthLine}
-
-Look up if this city is already in EVENT_DATA.md Master List 2026:
-  • If YES (already a confirmed event) → recommend running mbs-venue-research instead.
-  • If NO → proceed with full city scout per skill STEPS 1-11.
-
-Run STEPS 1-11 from the skill: city profile, MBS optimal-profile match score, top 3-5 neighborhoods, 5-10 venue candidates (mid-tier brands or convention/banquet/mall ONLY — AVOID Hilton full / Marriott full / Westin / Ritz / Sheraton Grand / Hyatt Regency, sqft must be ≥2,500), printable contract criteria checklist, 3-5 nearby cities to scout same trip, timing recommendations, build Hebrew RTL HTML scoped to .mbs-scout, deploy to docs/scout/${slug}/index.html on GH Pages, update agent_hub.html SCOUT_REPORTS array + HUB.scout.lastRun and redeploy hub. Sanity check before push.
-
-End: confirm scout report URL https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/ is live and a new card appears under City Scout in the hub.`;
-
-    try {
-      await navigator.clipboard.writeText(cmd);
-      const original = scoutBtn.textContent;
-      scoutBtn.textContent = "✓ הועתק! הדביקי בשיחת Cowork חדשה";
-      scoutBtn.classList.add("copied");
-      setTimeout(() => { scoutBtn.textContent = original; scoutBtn.classList.remove("copied"); }, 3500);
-    } catch (err) {
-      alert("Copy failed. Command:\n\n" + cmd);
-    }
-  });
-
-  // Render past scout reports
-  const reportsList = document.getElementById("scout-reports-list");
-  if (SCOUT_REPORTS && SCOUT_REPORTS.length > 0) {
-    reportsList.innerHTML = SCOUT_REPORTS
-      .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
-      .map(r => `
-        <div class="scout-report-item">
-          <a href="${r.url}" target="_blank">📄 ${r.city}, ${r.state}</a>
-          <span style="color:var(--muted);font-size:11px">${r.date || ""}${r.score ? " · score " + r.score : ""}</span>
-        </div>`)
-      .join("");
-  }
-
-  // Pre-fill the City Scout form from URL params (added 2026-05-03 for the per-row scout button on launch_dashboard).
-  // URL contract: ../?scout-city=Columbia&scout-state=MO&scout-month=May#scout-card
-  (function prefillScout(){
-    const p = new URLSearchParams(window.location.search);
-    if (!p.has("scout-city") && !p.has("city")) return;
-    const setIf = (id, key) => { const v = p.get(key); if (v && document.getElementById(id)) document.getElementById(id).value = v; };
-    setIf("scout-city",  "scout-city");
-    setIf("scout-state", "scout-state");
-    setIf("scout-month", "scout-month");
-    // Friendly fallback: also support generic ?city=Columbia,+MO so the same URL contract works
-    if (!p.get("scout-city") && p.get("city")) {
-      const m = (p.get("city") || "").match(/^(.+?),\s*([A-Z]{2})\s*$/);
-      if (m) {
-        document.getElementById("scout-city").value  = m[1].trim();
-        document.getElementById("scout-state").value = m[2];
-      }
-    }
-    // Derive month from start_date if provided
-    if (!p.get("scout-month") && p.get("start_date")) {
-      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-      const monthIdx = parseInt((p.get("start_date") || "").slice(5,7), 10) - 1;
-      if (monthIdx >= 0 && monthIdx < 12) {
-        document.getElementById("scout-month").value = months[monthIdx];
-      }
-    }
-    // Smooth-scroll to the card so Lauren lands directly on the form
-    const card = document.getElementById("scout-card");
-    if (card) setTimeout(() 
+      scoutBtn.sty
