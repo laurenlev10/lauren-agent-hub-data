@@ -461,4 +461,23 @@ function cp(btn) {
     btn.classList.add('ok');
     setTimeout(() => {
       btn.textContent = original;
-      btn.classList
+      btn.classList.remove('ok');
+    }, 1400);
+  });
+}
+
+// Persist checklist progress to localStorage
+const KEY = 'columbia-mo-2026-05-08-progress';
+const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+document.querySelectorAll('.progress input[type="checkbox"]').forEach(cb => {
+  const k = cb.dataset.key;
+  if (saved[k]) cb.checked = true;
+  cb.addEventListener('change', () => {
+    saved[k] = cb.checked;
+    localStorage.setItem(KEY, JSON.stringify(saved));
+  });
+});
+</script>
+
+</body>
+</html>
