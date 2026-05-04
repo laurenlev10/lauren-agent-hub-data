@@ -171,25 +171,40 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
         <option value="schedule">Schedule directly (campaigns fire automatically — use only when you're 100% sure)</option>
       </select>
 
-      <!-- 🎯 Weekend Hooks — added 2026-05-03 -->
+      <!-- 🎯 Weekend Hooks — redesigned 2026-05-03 PM (agent does the writing, not Lauren) -->
       <div id="hooks-section" style="margin-top:18px;padding:14px;background:#fef9e7;border:1px solid #f7d774;border-radius:8px">
-        <label style="margin:0 0 4px;font-weight:600;color:#7c5b00">🎯 Weekend Hooks <span style="font-weight:400;font-size:11px;color:#a07d2c">— hook your Touch 1 to a holiday/event happening that weekend</span></label>
-        <p style="font-size:12px;color:#7c5b00;margin:0 0 10px;line-height:1.4">לדוגמה: סופ"ש יום האם → "$5 brush set, perfect last-minute Mother's Day gift". סמני אילו hooks רלוונטיים, וערכי את הטקסט אם רוצה. הסוכן יזריק את ה-hook לשורה הראשונה של Touch 1 (ואופציונלית גם Touch 2).</p>
-        <div id="hooks-detected" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
-          <span style="font-size:12px;color:var(--muted)">Fill start + end date above to see suggestions.</span>
-        </div>
-        <label style="font-size:12px;color:#7c5b00;display:block;margin-top:6px">Custom hook text (overrides the selected ones if non-empty)</label>
-        <textarea id="hook-custom" rows="2" placeholder="🌷 Because it's Mother's Day weekend, get $5 brush sets — perfect last-minute gift!" style="width:100%;padding:8px;border:1px solid #e0c560;border-radius:6px;font-family:inherit;font-size:13px;resize:vertical"></textarea>
-        <div style="display:flex;gap:14px;align-items:center;margin-top:10px;flex-wrap:wrap">
-          <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px;color:#7c5b00;margin:0">
-            <input type="radio" name="hook-scope" value="touch1" checked style="width:auto;margin:0"> Apply to Touch 1 only (Mon)
+        <label style="margin:0 0 6px;font-weight:600;color:#7c5b00;display:flex;gap:8px;align-items:center;cursor:pointer">
+          <input type="checkbox" id="hook-enabled" checked style="width:auto;margin:0">
+          <span>🎯 Weekend Hooks — הסוכן ימצא + יכתוב hook לאירוע / חג של אותו השבוע</span>
+        </label>
+        <p style="font-size:12px;color:#7c5b00;margin:0 0 10px 26px;line-height:1.5">כשמסומן: הפקודה תכלול הוראה לסוכן למצוא חג / יום מודעות / אירוע מקומי / מזג אוויר רלוונטי לסופ"ש האירוע, לכתוב שורת פתיחה מתאימה, ולהזריק אותה ל-touch(es) שתבחרי. <b>את לא צריכה לכתוב כלום</b> — הסוכן יראה את הצעות הדשבורד למטה כרמז ויחליט (או ימצא משהו טוב יותר), ויאשר איתך ב-SMS לפני יצירת הטיוטות.</p>
+
+        <div style="margin-right:26px">
+          <div style="font-size:12px;color:#5a4500;font-weight:600;margin-bottom:6px">📌 מה זוהה אוטומטית (הסוכן יראה את אלו):</div>
+          <div id="hooks-detected" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+            <span style="font-size:12px;color:var(--muted)">Fill start + end date above to see suggestions.</span>
+          </div>
+
+          <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:8px">
+            <span style="font-size:12px;color:#7c5b00;font-weight:600">Apply to:</span>
+            <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px;color:#7c5b00;margin:0">
+              <input type="radio" name="hook-scope" value="touch1" style="width:auto;margin:0"> Touch 1 only (Mon)
+            </label>
+            <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px;color:#7c5b00;margin:0">
+              <input type="radio" name="hook-scope" value="touch12" checked style="width:auto;margin:0"> Touch 1 + Touch 2 (Mon + Tue)
+            </label>
+          </div>
+
+          <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px;color:#7c5b00;margin:8px 0 0 0">
+            <input type="checkbox" id="hook-research-more" checked style="width:auto;margin:0">
+            <span>גם חיפוש אונליין נוסף — פסטיבלים מקומיים / סוף שנת לימודים / מזג אוויר (מומלץ)</span>
           </label>
-          <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px;color:#7c5b00;margin:0">
-            <input type="radio" name="hook-scope" value="touch12" style="width:auto;margin:0"> Apply to Touch 1 + Touch 2 (Mon + Tue)
-          </label>
-          <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:12px;color:#7c5b00;margin:0">
-            <input type="checkbox" id="hook-research-more" style="width:auto;margin:0"> Agent: also web-search for more local hooks before drafting
-          </label>
+
+          <details style="margin-top:10px;font-size:12px;color:#7c5b00">
+            <summary style="cursor:pointer;color:#a07d2c">⚙️ Override (אופציונלי, מתקדם) — כפי הסוכן להשתמש בטקסט מסויים</summary>
+            <textarea id="hook-custom" rows="2" placeholder="(השאירי ריק כדי שהסוכן יחליט לבד — מומלץ)" style="width:100%;padding:8px;border:1px solid #e0c560;border-radius:6px;font-family:inherit;font-size:13px;resize:vertical;margin-top:6px"></textarea>
+            <p style="font-size:11px;color:#a07d2c;margin:4px 0 0">אם תמלאי כאן משהו, הסוכן ישתמש בטקסט שלך VERBATIM ולא יחפש לבד.</p>
+          </details>
         </div>
       </div>
 
@@ -758,45 +773,56 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
       return;
     }
     if (hooks.length === 0) {
-      container.innerHTML = '<span style="font-size:12px;color:#7c5b00">No major holidays detected within ±7 days. Use a custom hook below, or check the "agent web-search" box.</span>';
+      container.innerHTML = '<span style="font-size:12px;color:#7c5b00">לא זוהה חג מרכזי במרחק ±7 ימים. הסוכן עדיין יחפש אונליין hooks מקומיים אם הסעיף הבא מסומן.</span>';
       return;
     }
-    container.innerHTML = hooks.map((h, idx) => {
+    container.innerHTML = hooks.map(h => {
       const distLabel = h.monthOnly !== undefined ? h.dateLabel : (h.daysFromEvent === 0 ? "ON event weekend" : (h.daysFromEvent > 0 ? `+${h.daysFromEvent}d after` : `${h.daysFromEvent}d before`));
-      return `<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 8px;background:#fff;border:1px solid #ead29a;border-radius:6px;cursor:pointer">
-        <input type="checkbox" class="hook-pick" data-idx="${idx}" data-hook='${JSON.stringify(h).replace(/'/g, "&#39;")}' style="width:auto;margin:3px 0 0 0">
+      return `<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 8px;background:#fff;border:1px solid #ead29a;border-radius:6px">
+        <span style="font-size:18px;line-height:1.2">${h.emoji}</span>
         <div style="flex:1">
-          <div style="font-size:13px;font-weight:600;color:#5a4500">${h.emoji} ${h.name} <span style="font-weight:400;font-size:11px;color:#a07d2c">(${distLabel})</span></div>
-          <div style="font-size:12px;color:#5a4500;margin-top:2px">${h.hook_he}</div>
+          <div style="font-size:13px;font-weight:600;color:#5a4500">${h.name} <span style="font-weight:400;font-size:11px;color:#a07d2c">(${distLabel})</span></div>
+          <div style="font-size:12px;color:#5a4500;margin-top:2px;font-style:italic">seed: ${h.hook_he}</div>
         </div>
-      </label>`;
+      </div>`;
     }).join("");
-    container.querySelectorAll(".hook-pick").forEach(cb => cb.addEventListener("change", rebuildPreview));
-  }
-  function getSelectedHooks() {
-    const picks = [];
-    document.querySelectorAll("#hooks-detected .hook-pick:checked").forEach(cb => {
-      try { picks.push(JSON.parse(cb.dataset.hook.replace(/&#39;/g, "'"))); } catch(e) {}
-    });
-    return picks;
+    // Note: no checkboxes anymore — these are informational hints for the agent.
   }
   function buildHookSection() {
+    const enabled = document.getElementById("hook-enabled").checked;
+    if (!enabled) return "";
     const custom = document.getElementById("hook-custom").value.trim();
-    const picks = getSelectedHooks();
-    const scope = (document.querySelector('input[name="hook-scope"]:checked') || {}).value || "touch1";
+    const scope = (document.querySelector('input[name="hook-scope"]:checked') || {}).value || "touch12";
     const researchMore = document.getElementById("hook-research-more").checked;
-    if (!custom && picks.length === 0 && !researchMore) return "";
-    let s = "=== Weekend Hooks (apply to: " + (scope === "touch12" ? "Touch 1 + Touch 2" : "Touch 1 only") + ") ===\n";
+    const sd = document.getElementById("ev-start").value;
+    const ed = document.getElementById("ev-end").value;
+    const detected = (sd && ed) ? detectWeekendHooks(sd, ed) : [];
+    const scopeLabel = scope === "touch12" ? "Touch 1 + Touch 2" : "Touch 1 only";
+
+    let s = "=== Weekend Hooks ===\n";
     if (custom) {
-      s += "Custom hook (use VERBATIM as opening line, overrides detected):\n  " + custom + "\n";
-    } else if (picks.length > 0) {
-      s += "Detected hooks (pick the strongest, or combine if natural):\n";
-      picks.forEach(h => { s += "  • " + h.emoji + " " + h.name + " — " + h.hook_he + "\n"; });
+      s += "Lauren's override — use this text VERBATIM as the opening line of " + scopeLabel + ":\n";
+      s += "  " + custom + "\n\n";
+      return s;
+    }
+    s += "Goal: find a relevant hook (holiday / awareness day / local event / weather note) for the event weekend and use it as the opening line of " + scopeLabel + ".\n";
+    s += "Lauren is NOT picking — agent decides based on relevance to the event city + audience (women 25-65, makeup/beauty shoppers).\n\n";
+    if (detected.length > 0) {
+      s += "Dashboard detected these recurring US holidays/observances (consider as starting hints; you can use one verbatim, adapt, or override with something better you find online):\n";
+      detected.forEach(h => {
+        const dist = h.monthOnly !== undefined ? h.dateLabel : (h.daysFromEvent === 0 ? "ON the event weekend" : (h.daysFromEvent > 0 ? "+" + h.daysFromEvent + "d after start" : h.daysFromEvent + "d before start"));
+        s += "  • " + h.emoji + " " + h.name + " (" + dist + ") — seed: \"" + h.hook_he + "\"\n";
+      });
+      s += "\n";
+    } else {
+      s += "Dashboard detected NO major US holidays within ±7 days of the event. Lean on the web search below.\n\n";
     }
     if (researchMore) {
-      s += "Agent: ALSO web-search for additional local hooks (city festivals, school events, awareness months, weather notes) for the event date range. SMS Lauren a 🔄 with the strongest 1-2 you find before drafting Touch 1, ask if she wants to incorporate.\n";
+      s += "Web-search ALSO required: city festivals, school-calendar moments (last day of school, graduations), awareness months, weather forecast (heat warning / snow / heavy rain). Spend 2-3 min, then SMS Lauren a 🔄 with your top pick + 1 alternative + a one-line reason for each. Wait for her ack (silent 60s = go with your top pick) before drafting.\n\n";
+    } else {
+      s += "Web-search NOT requested — pick the strongest from the dashboard-detected list above (if any). If list is empty → SMS Lauren a ❓ asking whether to skip the hook for this event or to research after all.\n\n";
     }
-    s += "\n";
+    s += "After picking: write a SHORT (1 line, ≤140 chars) Hebrew/English opener that ties the hook to the sale. Inject as the FIRST line of " + scopeLabel + "'s message body. The rest of each touch's text stays unchanged.\n\n";
     return s;
   }
 
@@ -860,7 +886,7 @@ const RUN = { date:"—", time:"—", city:null, year:null, status:null, campaig
   ["ev-start","ev-end"].forEach(id => {
     document.getElementById(id).addEventListener("change", renderHooks);
   });
-  ["hook-custom","hook-research-more"].forEach(id => {
+  ["hook-enabled","hook-custom","hook-research-more"].forEach(id => {
     const el = document.getElementById(id);
     el.addEventListener("input", rebuildPreview);
     el.addEventListener("change", rebuildPreview);
