@@ -49,7 +49,7 @@ for f in "$@"; do
   fi
 
   # 2. <script> open/close balance
-  open_inline=$(grep -oE '<script[^>]*>' "$f" 2>/dev/null | grep -cv 'src=' 2>/dev/null || echo 0)
+  open_inline=$(grep -oE '<script[^>]*>' "$f" 2>/dev/null | grep -cv 'src=' 2>/dev/null) || open_inline=0
   close=$(count_of "$f" '</script>')
   if [ "$close" -lt "$open_inline" ] 2>/dev/null; then
     echo "  ❌ script tag imbalance (inline opens=$open_inline, closes=$close)"
