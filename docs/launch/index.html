@@ -1571,4 +1571,71 @@ End date: </div>
     ManualTasksSync.save(MANUAL_TASKS);
   });
 
-  // Click handler for staff-edit (✏️) buttons — i
+  // Click handler for staff-edit (✏️) buttons — inline edit, saves to MANUAL_TASKS via ManualTasksSync
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".staff-edit-btn");
+    if (!btn) return;
+    e.stopPropagation();
+    const evKey = btn.dataset.evkey;
+    const field = btn.dataset.field;   // "team" or "logistics"
+    const current = btn.dataset.current || "";
+    const fieldName = field + "_override";
+    const def = (typeof STAFF_DEFAULTS !== "undefined" && STAFF_DEFAULTS[evKey]) ? (STAFF_DEFAULTS[evKey][field] || "") : "";
+    const note = MANUAL_TASKS[evKey] || {};
+    const hasOverride = note[fieldName] != null;
+
+    // Replace the staff-line with an inline editor
+    const line = btn.closest(".staff-line");
+    if (!line) return;
+    const editor = document.createElement("div");
+    editor.className = "staff-edit-wrap";
+    editor.innerHTML =
+      '<textarea class="staff-edit-textarea" rows="2">' + current.replace(/</g,"&lt;") + '</textarea>' +
+      '<div class="staff-edit-toolbar">' +
+        '<button class="save">💾 Save</button>' +
+        '<button class="cancel">Cancel</button>' +
+        '<button class="reset"' + (hasOverride ? '' : ' disabled') + ' title="Discard your override and restore the default from the xlsx">↺ Reset to default</button>' +
+      '</div>';
+    line.replaceWith(editor);
+    const ta = editor.querySelector("textarea"); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+
+    const restore = () => renderSchedule();   // simplest: full re-render restores correct row state
+
+    editor.querySelector(".save").addEventListener("click", async () => {
+      const newVal = ta.value.trim();
+      if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
+      // If the new value EQUALS the xlsx default, drop the override (cleaner data)
+      if (newVal === (def || "").trim()) delete MANUAL_TASKS[evKey][fieldName];
+      else MANUAL_TASKS[evKey][fieldName] = newVal;
+      MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+      ManualTasksSync.save(MANUAL_TASKS);
+      restore();
+    });
+    editor.querySelector(".cancel").addEventListener("click", restore);
+    editor.querySelector(".reset").addEventListener("click", () => {
+      if (MANUAL_TASKS[evKey]) {
+        delete MANUAL_TASKS[evKey][fieldName];
+        MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+        ManualTasksSync.save(MANUAL_TASKS);
+      }
+      restore();
+    });
+    ta.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") { ev.preventDefault(); restore(); }
+      if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); editor.querySelector(".save").click(); }
+    });
+  });
+
+  // Initial render
+  showBakedLabel();
+  setActiveYear("2026");
+
+  // Load manual-tasks state from GitHub on page load, then re-render to reflect saved checkboxes
+  ManualTasksSync.load().then(remote => {
+    MANUAL_TASKS = remote || {};
+    renderSchedule();
+  });
+</script>
+
+</body>
+</html>
