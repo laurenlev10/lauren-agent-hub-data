@@ -24,18 +24,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Refresh EVENTBRITE_STATS + send Lauren the upcoming-event SMS
+      - name: Refresh EVENTBRITE_STATS + send the weekly upcoming-event SMS to Lauren + Eli
         env:
-          EB_TOKEN:   ${{ secrets.EVENTBRITE_TOKEN }}
-          ST_TOKEN:   ${{ secrets.SIMPLETEXTING_TOKEN }}
-          LAUREN_PHONE: ${{ secrets.LAUREN_PHONE }}   # e.g. +14243547625
+          EB_TOKEN:     ${{ secrets.EVENTBRITE_TOKEN }}
+          ST_TOKEN:     ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE: ${{ secrets.LAUREN_PHONE }}   # +14243547625
+          ELI_PHONE:    ${{ secrets.ELI_PHONE }}      # +13233842662 — co-recipient (Lauren 2026-05-03 PM)
         run: |
           python3 <<'PY'
           import os, re, json, urllib.request, urllib.error, datetime, time
 
           EB_TOKEN     = os.environ["EB_TOKEN"]
           ST_TOKEN     = os.environ["ST_TOKEN"]
-          LAUREN_PHONE = os.environ["LAUREN_PHONE"]
+          # Recipients — Lauren is mandatory; Eli is added as a co-recipient if ELI_PHONE is set.
+          # Future co-recipients can be added by adding more *_PHONE secrets and appending below.
+          recipients = []
+          for env_key, label in [("LAUREN_PHONE", "Lauren"), ("ELI_PHONE", "Eli")]:
+              v = os.environ.get(env_key, "").strip()
+              if v: recipients.append((label, v))
+          if not recipients:
+              raise SystemExit("⚠ no SMS recipients configured (LAUREN_PHONE missing)")
           fp = "docs/launch/index.html"
           with open(fp, encoding="utf-8") as f:
               html = f.read()
@@ -179,23 +187,24 @@ jobs:
           print(msg)
           print("--- end ---")
 
-          # --- 5. Send SMS via SimpleTexting ---
-          try:
-              req = urllib.request.Request(
-                  "https://app2.simpletexting.com/v2/api/messages",
-                  data=json.dumps({"contactPhone": LAUREN_PHONE, "mode": "AUTO", "text": msg}).encode("utf-8"),
-                  headers={
-                      "Authorization": f"Bearer {ST_TOKEN}",
-                      "Content-Type":  "application/json"
-                  },
-                  method="POST"
-              )
-              with urllib.request.urlopen(req, timeout=15) as r:
-                  resp = json.load(r)
-              print(f"  ✓ SMS sent · id {resp.get('id')} · credits remaining {resp.get('credits')}")
-          except Exception as e:
-              print(f"  ⚠ SMS send failed: {e}")
-              # Don't fail the whole job — the data refresh + commit is what matters most.
+          # --- 5. Send SMS via SimpleTexting to every recipient (Lauren + Eli, etc.) ---
+          for label, phone in recipients:
+              try:
+                  req = urllib.request.Request(
+                      "https://app2.simpletexting.com/v2/api/messages",
+                      data=json.dumps({"contactPhone": phone, "mode": "AUTO", "text": msg}).encode("utf-8"),
+                      headers={
+                          "Authorization": f"Bearer {ST_TOKEN}",
+                          "Content-Type":  "application/json"
+                      },
+                      method="POST"
+                  )
+                  with urllib.request.urlopen(req, timeout=15) as r:
+                      resp = json.load(r)
+                  print(f"  ✓ SMS sent to {label} ({phone}) · id {resp.get('id')} · credits remaining {resp.get('credits')}")
+              except Exception as e:
+                  print(f"  ⚠ SMS send to {label} ({phone}) failed: {e}")
+                  # Don't fail the whole job — the data refresh + commit is what matters most.
           PY
 
       - name: Commit + push if changed
