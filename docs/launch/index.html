@@ -900,8 +900,15 @@ End date: </div>
           }).replace(/"/g,"&quot;");
           rowBtn = '<button class="btn-launch-row' + (incomplete ? " warned" : "") + '" data-event="' + payload + '" title="' + btnTitle + '">' + btnLabel + '</button>';
         }
-        // Chained "Run campaigns" link (only when event has full data — venue + address)
-        if (!incomplete && (eff === "signed" || eff === "launched")){
+        // Chained per-event action chips (Contract, Scout, Canva link, Reel,
+        // Campaigns, PR Org, Influencers, Forecast, Summary, …). Render when the
+        // event has full data (venue + address) AND is signed/launched OR already
+        // happened (done). Lauren 2026-05-05: extended to "done" so post-event
+        // chips persist on the "אירועים בעבר" tab — she still wants Contract/Scout/
+        // Canva/Reel/Summary etc. accessible after the event.
+        // 🛑 IRON RULE: any future per-event button MUST be added inside this block.
+        // It will then automatically also appear on past events without extra code.
+        if (!incomplete && (eff === "signed" || eff === "launched" || eff === "done")){
           const params = new URLSearchParams({
             city: ev.city + ", " + ev.state, year: (ev.start_date||"").slice(0,4),
             start_date: ev.start_date, end_date: ev.end_date,
@@ -1069,7 +1076,12 @@ End date: </div>
       if (activePeriod === "past" && !r.hasEvent) return false;   // hide open weekends in past view
       return true;
     });
-    tbody.innerHTML = visibleRows.map(r => r.html).join("");
+    // Past tab: most-recent-first (Lauren 2026-05-05). When an event ends and
+    // flips to "Done", it should land at the TOP of the past list, not the bottom.
+    // The base rows array is chronological (Jan → Dec) because it's built from
+    // fridaysOfYear(); reverse only the past view, leave future as-is.
+    const orderedRows = (activePeriod === "past") ? visibleRows.slice().reverse() : visibleRows;
+    tbody.innerHTML = orderedRows.map(r => r.html).join("");
     // schedule-stats element removed 2026-05-03 PM — counts no longer surfaced in the header
     // (period-tab badges already show past/future event counts)
     const _statsEl = document.getElementById("schedule-stats");
