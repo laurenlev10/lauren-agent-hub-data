@@ -191,13 +191,16 @@
   .btn-reel-row{background:linear-gradient(180deg,#4f46e5,#3730a3)}
   .btn-pr-influencer-row{background:linear-gradient(180deg,#d946ef,#a21caf)}
   .btn-summary-row{background:linear-gradient(180deg,#0891b2,#155e75)}
-  /* 5 manual-task checkboxes per event row (replaces former Event Manager dashboard, Lauren 2026-05-03) */
-  .manual-tasks{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding:8px 10px;background:#fafafa;border-radius:8px;border:1px solid #eee}
-  .manual-tasks .mt-label{font-size:11px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.4px;width:100%;margin-bottom:2px}
-  .manual-tasks label{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#374151;cursor:pointer;padding:3px 8px;border-radius:6px;background:#fff;border:1px solid #e5e7eb;transition:all .1s;user-select:none}
-  .manual-tasks label:hover{border-color:#9333ea;color:#9333ea}
-  .manual-tasks label.done{background:#dcfce7;border-color:#16a34a;color:#166534;font-weight:600}
-  .manual-tasks input[type=checkbox]{margin:0;cursor:pointer;accent-color:#16a34a}
+  /* Manual checklist per event (Lauren 2026-05-03 PM redesign) — 2 tasks: SMS scheduling + reel v2/refresh campaign */
+  .manual-tasks{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding:10px 14px;background:linear-gradient(180deg,#fefefe,#f8fafc);border-radius:10px;border:1px solid #e5e7eb;direction:rtl}
+  .manual-tasks .mt-label{font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
+  .manual-tasks label{display:flex;align-items:center;gap:8px;font-size:13px;color:#1e293b;cursor:pointer;padding:8px 12px;border-radius:8px;background:#fff;border:1px solid #e5e7eb;transition:all .15s;user-select:none;line-height:1.4;font-weight:500}
+  .manual-tasks label:hover{border-color:#9333ea;background:#faf5ff}
+  .manual-tasks label.done{background:linear-gradient(180deg,#dcfce7,#bbf7d0);border-color:#16a34a;color:#14532d;font-weight:700}
+  .manual-tasks label.done .mt-text{text-decoration:line-through;text-decoration-color:rgba(20,83,45,.4);text-decoration-thickness:1.5px}
+  .manual-tasks input[type=checkbox]{margin:0;cursor:pointer;accent-color:#16a34a;width:17px;height:17px;flex-shrink:0}
+  .manual-tasks .mt-timing{font-size:10px;color:#9ca3af;font-weight:600;margin-right:auto;background:#f1f5f9;padding:2px 7px;border-radius:6px}
+  .manual-tasks label.done .mt-timing{background:rgba(22,163,74,.18);color:#166534}
   /* RemoteSync status pill */
   #sync-status-pill{position:fixed;top:14px;left:14px;background:#fff;border:1px solid var(--border);border-radius:999px;padding:6px 14px;font-size:11px;font-weight:700;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.06);display:none}
   #sync-status-pill.visible{display:inline-block}
@@ -289,16 +292,17 @@ const HISTORICAL_LISTS = {"glendale-2026-01-09":[{"year":2022,"list_id":"62d21dc
 // To refresh defaults: re-upload the xlsx via the dashboard's "📤 Upload" button (next deploy).
 const STAFF_DEFAULTS = {"glendale-2026-01-09":{"team":"Mor Daniel Shai Dor Goni Razi"},"fresno-2026-01-16":{"team":"Lina, Maiken Goni Razi Shira Eva + Brit"},"el-cajon-2026-01-23":{"team":"Mor Goni Maiken Brit Shira Cecilie"},"emeryville-2026-01-30":{"team":"Lina Brit Daniel Shira Dor"},"concord-2026-02-06":{"team":"Mor, Brit Shai Dor Cecilie + Daniel"},"burbank-2026-02-13":{"team":"Lina, Maiken, Goni, Eva Shira + Cecilie"},"north-las-vegas-2026-02-20":{"team":"Lina Maiken Daniel Goni Razi Eva"},"amarillo-2026-02-27":{"team":"Mor Daniel Brit Goni Dor"},"garland-2026-03-06":{"team":"Mor Brit Goni Razi Cecilie Bryson + SHAI"},"fort-worth-2026-03-13":{"team":"Brit Shai Daniel Maiken Eva Bryson"},"tulsa-2026-03-20":{"team":"Lina Daniel Goni Razi Dor Shai"},"hampton-2026-03-27":{"team":"Brit, Shai, Dor, Maiken, Eva + Hilla"},"syracuse-2026-04-03":{"team":"Brit, Dor, Eva, Goni, Razi"},"reading-2026-04-10":{"team":"Daniel, Shai, Dor, Goni Bryson + Roy"},"columbus-2026-04-17":{"team":"Daniel Brit, Goni, Razi, Eva + Hilla"},"louisville-2026-04-24":{"team":"Brit, Daniel, shai, Bryson Eva"},"nashville-2026-05-01":{"team":"Lina, Brit, Shai, Maiken Goni"},"columbia-2026-05-08":{"team":"Daniel, Cecilie, Shai, Razi Bryson"},"milwaukee-2026-05-15":{"team":"Brit, Maiken Goni, Razi Bryson + Hilla"},"cleveland-2026-05-29":{"team":"Brit, Shai, Dor, Maiken, Daniel, Eva"},"omaha-2026-06-05":{"team":"Brit Maiken Bryson Hila Cecilie"},"overland-2026-06-12":{"team":"Brit Bryson Hila Cecilie"},"wichita-2026-06-19":{"team":"Daniel Bryson Hila"},"topeka-2026-06-26":{"team":"Daniel Bryson Hila Eva"},"mesa-2026-07-10":{"team":"Lina? Bryson Hila Eva"},"santa-maria-2026-07-17":{"team":"Daniel Bryson Hila"},"modesto-2026-07-24":{"team":"Daniel Maiken Bryson Hila Eva"},"victorville-2026-07-31":{"team":"Daniel Bryson Hila Eva"}};
 
-// MANUAL_TASKS — Lauren-owned 5 manual-task checkboxes per event (replaced /manager/ on 2026-05-03).
+// MANUAL_TASKS — Lauren-owned manual-task checkboxes per event (replaced /manager/ on 2026-05-03).
 // Persisted to docs/launch/notes.json via RemoteSync (browser writes to GitHub via Contents API).
 // Key: same `${city-slug}-${start_date}` shape as the result maps above.
-// Value: { venue_confirmed: bool, webform_id_saved: bool, drafts_reviewed: bool, drafts_scheduled: bool, ready_to_open: bool, updated_at: ISO }
+// Value: any subset of the keys in MANUAL_TASK_DEFS below + updated_at + (optionally) team_override / image_override_url.
 let MANUAL_TASKS = {};   // mutable — populated from notes.json on load, written back on every checkbox toggle
 const MANUAL_TASK_DEFS = [
-  // venue_confirmed + webform_id_saved removed 2026-05-03 PM at Lauren's request — not relevant right now
-  { key: "drafts_reviewed",  label: "Drafts read",   title: "T-5: Lauren reviewed each campaign draft for tone/copy" },
-  { key: "drafts_scheduled", label: "Drafts ⏰",     title: "T-5: Lauren clicked Schedule on each draft inside SimpleTexting" },
-  { key: "ready_to_open",    label: "Ready to open", title: "T-1: All ops checks passed — venue setup confirmed, staff ready, supplies on-site" }
+  // Redesigned 2026-05-03 PM (Lauren feedback: previous 5 tasks were noise; only 2 manual gates matter day-to-day).
+  // Old keys (drafts_reviewed, drafts_scheduled, ready_to_open, venue_confirmed, webform_id_saved) still survive in
+  // notes.json for any event Lauren had ticked — they're just not surfaced anymore.
+  { key: "sms_scheduled", label: "תיזמון הודעות טקסט לאירוע",                                  timing: "T-5",  title: "סימון אחרי שכל הקמפיינים ב-SimpleTexting מתוזמנים מראש לאירוע (Schedule כל draft, ולא Send Now)." },
+  { key: "reel_v2_campaign", label: "עידכון ריל חדש ויצירת קמפיין חדש לריל בשבוע אחרון",         timing: "T-7",  title: "סימון אחרי החלפת הריל ל-v2 ויצירת קמפיין חדש שמכיל אותו לשבוע האחרון של הפרסום (refresh)." }
 ];
 </script>
 
@@ -994,20 +998,21 @@ End date: </div>
           }
         }
       }
-      // 5 manual-task checkboxes per event (Lauren 2026-05-03 — Event Manager merge)
+      // Manual-task checkboxes per event (redesigned 2026-05-03 PM — Hebrew, RTL, 2 tasks)
       let manualHtml = "";
       if (ev) {
         const evKey2 = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
         const tasks = MANUAL_TASKS[evKey2] || {};
         const cells = MANUAL_TASK_DEFS.map(def => {
           const checked = !!tasks[def.key];
+          const timingHtml = def.timing ? '<span class="mt-timing">' + def.timing + '</span>' : '';
           return '<label class="' + (checked ? "done" : "") + '" title="' + escapeHtml(def.title) + '">' +
                    '<input type="checkbox" data-evkey="' + evKey2 + '" data-task="' + def.key + '" ' + (checked ? "checked" : "") + '>' +
-                   ' ' + def.label +
+                   '<span class="mt-text">' + escapeHtml(def.label) + '</span>' + timingHtml +
                  '</label>';
         }).join("");
         manualHtml = '<tr class="manual-tasks-row" data-evkey="' + evKey2 + '"><td colspan="4" style="padding:0 8px 6px"><div class="manual-tasks">' +
-                       '<div class="mt-label">📋 Manual checklist · ' + escapeHtml(ev.city + ", " + ev.state) + '</div>' +
+                       '<div class="mt-label">📋 משימות ידניות · ' + escapeHtml(ev.city + ", " + ev.state) + '</div>' +
                        cells +
                      '</div></td></tr>';
       }
