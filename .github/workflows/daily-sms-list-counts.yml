@@ -1,0 +1,107 @@
+# Daily SimpleTexting list-count refresh
+# Runs every day at 8:00 AM Pacific (= 15:00 UTC during PDT, 16:00 UTC during PST).
+# Updates the LIST_STATS map inside docs/launch/index.html and commits.
+#
+# Migrated from Cowork-scheduled task on 2026-05-03 PM (Lauren's request — independent of any open machine).
+# Original: Scheduled/daily-sms-list-counts/SKILL.md (now deprecated).
+
+name: daily-sms-list-counts
+
+on:
+  schedule:
+    # 15:00 UTC = 8:00 AM Pacific in PDT (March-November)
+    - cron: '0 15 * * *'
+  workflow_dispatch:   # allow manual run from GitHub Actions tab
+
+permissions:
+  contents: write   # to commit launch/index.html updates
+
+jobs:
+  refresh-list-counts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Refresh LIST_STATS from SimpleTexting API
+        env:
+          ST_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+        run: |
+          python3 <<'PY'
+          import os, re, json, urllib.request, urllib.error, datetime, time
+
+          ST_TOKEN = os.environ["ST_TOKEN"]
+          fp = "docs/launch/index.html"
+          with open(fp, encoding="utf-8") as f:
+              html = f.read()
+
+          # Pull SETUPS (only events with smslist.list_id) and current LIST_STATS
+          m_setups  = re.search(r'const SETUPS = ({[^;]+});',  html, re.S)
+          m_stats   = re.search(r'const LIST_STATS = ({[^;]+});', html, re.S)
+          SETUPS    = json.loads(m_setups.group(1))
+          LIST_STATS_PREV = json.loads(m_stats.group(1))
+
+          today = datetime.date.today().isoformat()
+          now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+
+          def fetch(list_id):
+              req = urllib.request.Request(
+                  f"https://app2.simpletexting.com/v2/api/contact-lists/{list_id}",
+                  headers={"Authorization": f"Bearer {ST_TOKEN}"}
+              )
+              with urllib.request.urlopen(req, timeout=15) as r:
+                  return json.load(r)
+
+          new_stats = {}
+          ok, fail = 0, 0
+          for key, s in SETUPS.items():
+              sms = s.get("smslist") or {}
+              lid = sms.get("list_id")
+              if not lid:
+                  continue
+              try:
+                  d = fetch(lid)
+                  prev = LIST_STATS_PREV.get(key, {})
+                  prev_total = prev.get("total", 0)
+                  new_total  = d.get("totalContactsCount", 0)
+                  delta      = new_total - prev_total
+                  history    = (prev.get("history", []) + [{"date": today, "total": new_total, "active": d.get("activeContactsCount", 0)}])[-30:]
+                  new_stats[key] = {
+                      "list_id":         lid,
+                      "list_name":       sms.get("list_name") or d.get("name"),
+                      "total":           new_total,
+                      "active":          d.get("activeContactsCount", 0),
+                      "invalid":         d.get("invalidContactsCount", 0),
+                      "unsubscribed":    d.get("unsubscribedContactsCount", 0),
+                      "yesterday_total": prev_total,
+                      "daily_delta":     delta,
+                      "history":         history,
+                      "updated_at":      now_iso
+                  }
+                  ok += 1
+                  time.sleep(0.1)
+              except Exception as e:
+                  print(f"  err {key}: {e}")
+                  fail += 1
+                  if key in LIST_STATS_PREV:
+                      new_stats[key] = LIST_STATS_PREV[key]   # preserve previous data on transient failure
+
+          print(f"  fetched {ok} ok, {fail} fail")
+
+          new_block = "const LIST_STATS = " + json.dumps(new_stats, ensure_ascii=False, separators=(",", ":")) + ";"
+          html_new = re.sub(r'const LIST_STATS = \{[^;]*\};', new_block, html, count=1, flags=re.S)
+          with open(fp, "w", encoding="utf-8") as f:
+              f.write(html_new)
+          PY
+
+      - name: Commit + push if changed
+        run: |
+          git config user.name  "Lauren (via GitHub Actions)"
+          git config user.email "lauren@noreply.github.com"
+          git add docs/launch/index.html
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "chore(daily): refresh LIST_STATS from SimpleTexting API ($(date -u +%Y-%m-%d))"
+            git push
+          fi

@@ -1,0 +1,211 @@
+# Weekly Eventbrite registration-count refresh + Sunday SMS to Lauren
+# Runs every Sunday at 9:00 AM Pacific (= 16:00 UTC during PDT, 17:00 UTC during PST).
+# Updates the EVENTBRITE_STATS map inside docs/launch/index.html, commits, and sends Lauren
+# a Hebrew SMS summarizing the upcoming event's registration status.
+#
+# Migrated from Cowork-scheduled task on 2026-05-03 PM (Lauren's request — independent of any open machine).
+# Original: Scheduled/weekly-eventbrite-counts/SKILL.md (now deprecated).
+
+name: weekly-eventbrite-counts
+
+on:
+  schedule:
+    # 16:00 UTC = 9:00 AM Pacific in PDT (March-November). Cron is UTC-only on GitHub.
+    - cron: '0 16 * * 0'
+  workflow_dispatch:   # allow manual run
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-and-notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Refresh EVENTBRITE_STATS + send Lauren the upcoming-event SMS
+        env:
+          EB_TOKEN:   ${{ secrets.EVENTBRITE_TOKEN }}
+          ST_TOKEN:   ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE: ${{ secrets.LAUREN_PHONE }}   # e.g. +14243547625
+        run: |
+          python3 <<'PY'
+          import os, re, json, urllib.request, urllib.error, datetime, time
+
+          EB_TOKEN     = os.environ["EB_TOKEN"]
+          ST_TOKEN     = os.environ["ST_TOKEN"]
+          LAUREN_PHONE = os.environ["LAUREN_PHONE"]
+          fp = "docs/launch/index.html"
+          with open(fp, encoding="utf-8") as f:
+              html = f.read()
+
+          # --- 1. Parse current state from launch_dashboard.html ---
+          def get_map(name):
+              m = re.search(rf'const {name} = (\{{[^;]+\}});', html, re.S)
+              return json.loads(m.group(1)) if m else {}
+          SETUPS    = get_map("SETUPS")
+          EB_STATS  = get_map("EVENTBRITE_STATS")
+          LIST_STATS= get_map("LIST_STATS")
+          SCHEDULE  = json.loads(re.search(r'const SCHEDULE = ({.*?});', html, re.S).group(1))
+
+          today_d  = datetime.date.today()
+          today    = today_d.isoformat()
+          now_iso  = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+
+          # --- 2. Fetch current registrations per event ---
+          def eb_get(eid):
+              req = urllib.request.Request(
+                  f"https://www.eventbriteapi.com/v3/events/{eid}/?expand=ticket_classes",
+                  headers={"Authorization": f"Bearer {EB_TOKEN}"}
+              )
+              with urllib.request.urlopen(req, timeout=15) as r:
+                  return json.load(r)
+
+          new_stats = dict(EB_STATS)  # start from previous
+          for key, s in SETUPS.items():
+              eid = ((s or {}).get("eventbrite") or {}).get("eventId")
+              if not eid:
+                  continue
+              try:
+                  d = eb_get(eid)
+                  prev = EB_STATS.get(key, {})
+                  prev_total = prev.get("registrations", 0)
+                  new_total  = sum(int(tc.get("quantity_sold", 0) or 0) for tc in d.get("ticket_classes", []))
+                  delta      = new_total - prev_total
+                  history    = (prev.get("history", []) + [{"date": today, "registrations": new_total}])[-20:]
+                  new_stats[key] = {
+                      "eventId":         eid,
+                      "registrations":   new_total,
+                      "capacity":        d.get("capacity", 0),
+                      "last_week_total": prev_total,
+                      "weekly_delta":    delta,
+                      "history":         history,
+                      "updated_at":      now_iso
+                  }
+                  time.sleep(0.1)
+              except Exception as e:
+                  print(f"  err {key}: {e}")
+                  if key in EB_STATS:
+                      new_stats[key] = EB_STATS[key]
+
+          # --- 3. Write back into launch/index.html ---
+          new_block = "const EVENTBRITE_STATS = " + json.dumps(new_stats, ensure_ascii=False, separators=(",", ":")) + ";"
+          html_new  = re.sub(r'const EVENTBRITE_STATS = \{[^;]*\};', new_block, html, count=1, flags=re.S)
+          with open(fp, "w", encoding="utf-8") as f:
+              f.write(html_new)
+          print(f"  wrote {len(new_stats)} EVENTBRITE_STATS entries")
+
+          # --- 4. Find the upcoming event (smallest start_date >= today) ---
+          def parse_key(k):
+              # "<city-slug>-YYYY-MM-DD"
+              parts = k.rsplit("-", 3)
+              if len(parts) < 4: return None
+              try: return datetime.date.fromisoformat("-".join(parts[-3:]))
+              except: return None
+
+          upcoming = None
+          upcoming_date = None
+          for k in SETUPS:
+              d = parse_key(k)
+              if d and d >= today_d and (upcoming_date is None or d < upcoming_date):
+                  upcoming = k
+                  upcoming_date = d
+
+          if not upcoming:
+              print("  no upcoming event — skipping SMS")
+              raise SystemExit(0)
+
+          # Resolve city/state from SCHEDULE entry
+          city, state, sd, ed = None, None, None, None
+          year = upcoming_date.year
+          for ev in SCHEDULE.get(str(year), []):
+              if ev.get("start_date") == upcoming_date.isoformat():
+                  city = ev.get("city"); state = ev.get("state")
+                  sd = ev.get("start_date"); ed = ev.get("end_date")
+                  break
+
+          if not city:
+              # fallback: parse city from the slug
+              parts = upcoming.rsplit("-", 3)
+              city = " ".join(p.capitalize() for p in parts[0].split("-"))
+              state = "?"
+              sd = upcoming_date.isoformat()
+              ed = sd
+
+          ebs   = new_stats.get(upcoming, {})
+          regs  = ebs.get("registrations", 0)
+          cap   = ebs.get("capacity", 0)
+          delta = ebs.get("weekly_delta", 0)
+          pct   = round(100 * regs / cap) if cap else 0
+          sms_active = ((LIST_STATS.get(upcoming) or {}).get("active", 0))
+
+          # Date range Hebrew-friendly
+          months_he = ["", "בינואר", "בפברואר", "במרץ", "באפריל", "במאי", "ביוני", "ביולי", "באוגוסט", "בספטמבר", "באוקטובר", "בנובמבר", "בדצמבר"]
+          sd_d = datetime.date.fromisoformat(sd)
+          ed_d = datetime.date.fromisoformat(ed)
+          if sd_d.month == ed_d.month:
+              dr = f"{sd_d.day}-{ed_d.day} {months_he[sd_d.month]} {sd_d.year}"
+          else:
+              dr = f"{sd_d.day} {months_he[sd_d.month]} - {ed_d.day} {months_he[ed_d.month]} {sd_d.year}"
+
+          if delta > 0:    delta_str = f"↑ +{delta}"
+          elif delta < 0:  delta_str = f"↓ {delta}"
+          else:            delta_str = "ללא שינוי"
+
+          warn = []
+          days_until = (sd_d - today_d).days
+          if regs >= 200:
+              warn.append("⚠ עברנו 200 נרשמות — להרחיב את הקיבולת ל-500 ב-Eventbrite כדי לא להגיע למקסימום.")
+          if pct >= 95:
+              warn.append("🚨 SOLD OUT צפוי — חייבים להרחיב את הקיבולת מיד.")
+          elif pct >= 80 and regs < 200:
+              warn.append("🔥 כמעט מלא!")
+          if pct < 20 and days_until < 14:
+              warn.append("⚠ נרשמות נמוכות יחסית — לחזק קמפיין דחוף.")
+
+          lines = [
+              "@signups 📊 סיכום שבועי — האירוע הקרוב",
+              f"🎪 {city}, {state} · {dr}",
+              f"🎟️ Eventbrite: {regs}/{cap} נרשמות ({pct}%)",
+              f"   השבוע: {delta_str}",
+              f"📲 SMS list: {sms_active} פעילים",
+          ]
+          for w in warn:
+              lines.append(w)
+          lines.append("https://laurenlev10.github.io/lauren-agent-hub-data/launch/")
+          msg = "\n".join(lines)
+          print("--- SMS body ---")
+          print(msg)
+          print("--- end ---")
+
+          # --- 5. Send SMS via SimpleTexting ---
+          try:
+              req = urllib.request.Request(
+                  "https://app2.simpletexting.com/v2/api/messages",
+                  data=json.dumps({"contactPhone": LAUREN_PHONE, "mode": "AUTO", "text": msg}).encode("utf-8"),
+                  headers={
+                      "Authorization": f"Bearer {ST_TOKEN}",
+                      "Content-Type":  "application/json"
+                  },
+                  method="POST"
+              )
+              with urllib.request.urlopen(req, timeout=15) as r:
+                  resp = json.load(r)
+              print(f"  ✓ SMS sent · id {resp.get('id')} · credits remaining {resp.get('credits')}")
+          except Exception as e:
+              print(f"  ⚠ SMS send failed: {e}")
+              # Don't fail the whole job — the data refresh + commit is what matters most.
+          PY
+
+      - name: Commit + push if changed
+        run: |
+          git config user.name  "Lauren (via GitHub Actions)"
+          git config user.email "lauren@noreply.github.com"
+          git add docs/launch/index.html
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "chore(weekly): refresh EVENTBRITE_STATS + send Lauren upcoming-event SMS ($(date -u +%Y-%m-%d))"
+            git push
+          fi
