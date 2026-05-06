@@ -177,6 +177,18 @@
     <div class="hint">הקישור לריל של האירוע — כפתור Share שולח אליו.</div>
   </div>
 
+  <div class="field">
+    <label>Facebook post URL</label>
+    <input type="text" id="f-fburl" placeholder="https://www.facebook.com/themakeupblowoutsale/posts/..." autocomplete="off">
+    <div class="hint">אופציונלי — לכפתור "Share on Facebook" בדף ה-share. אם ריק, יופנה לעמוד הראשי.</div>
+  </div>
+
+  <div class="field">
+    <label>TikTok post URL</label>
+    <input type="text" id="f-tiktokurl" placeholder="https://www.tiktok.com/@themakeupblowoutsale/video/..." autocomplete="off">
+    <div class="hint">אופציונלי — לכפתור "Share on TikTok" בדף ה-share. אם ריק, יופנה לעמוד הראשי.</div>
+  </div>
+
   <div class="actions">
     <button class="btn btn-primary" id="copy-btn">📋 העתיקי פקודה לסוכן</button>
     <button class="btn btn-secondary" id="preview-btn">👁️ תצוגה מקדימה</button>
@@ -202,6 +214,8 @@
   setIf("f-address", "address");
   setIf("f-formid",  "form_id");
   setIf("f-igurl",   "ig_url");
+  setIf("f-fburl",   "fb_url");
+  setIf("f-tiktokurl","tiktok_url");
 
   const slugEl = document.getElementById("f-slug");
   const slugPreview = document.getElementById("slug-preview");
@@ -236,6 +250,12 @@
     const address = document.getElementById("f-address").value.trim();
     const formid  = document.getElementById("f-formid").value.trim();
     const igurl   = document.getElementById("f-igurl").value.trim();
+    const fburl   = document.getElementById("f-fburl").value.trim();
+    const ttkurl  = document.getElementById("f-tiktokurl").value.trim();
+
+    // FB / TikTok lines are emitted only when filled; empty values fall back to defaults in build.py
+    const fbLine  = fburl  ? `\n  FB URL:   ${fburl}`   : "";
+    const ttkLine = ttkurl ? `\n  TIKTOK URL: ${ttkurl}` : "";
 
     return `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\landing-page-builder\\SKILL.md\` — it is the orchestrator for the @landing agent. Build the landing page for the event below, push to themakeupblowout-events repo, wait for GitHub Pages build, and SMS me with the live URL.
 
@@ -246,7 +266,7 @@ EVENT
   Venue:    ${venue}
   Address:  ${address}
   FORM_ID:  ${formid}
-  IG URL:   ${igurl}
+  IG URL:   ${igurl}${fbLine}${ttkLine}
 
 End: confirm the page is live at https://events.themakeupblowout.com/events/${slug}/ and Touchpoint 3 SMS sent under @landing.`;
   }
