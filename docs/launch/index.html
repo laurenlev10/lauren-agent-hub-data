@@ -242,6 +242,38 @@
   .upload-status{font-size:12px;color:var(--muted);flex:1;min-width:200px}
   .upload-status.loaded{color:var(--signed);font-weight:600}
 
+  /* 📊 Event Summary upload modal (Lauren 2026-05-05) */
+  .upload-modal{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center}
+  .upload-modal[hidden]{display:none}
+  .upload-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px)}
+  .upload-dialog{position:relative;background:#fff;border-radius:16px;width:min(720px,92vw);max-height:90vh;overflow-y:auto;box-shadow:0 30px 60px rgba(0,0,0,.3);direction:rtl;text-align:right}
+  .upload-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid #e5e7eb;background:linear-gradient(135deg,#fff5f8 0%,#f8f4ff 100%);border-radius:16px 16px 0 0}
+  .upload-head h2{margin:0;font-size:18px;font-weight:700;color:#2d3436}
+  .upload-close{background:none;border:none;font-size:28px;line-height:1;cursor:pointer;color:#888;padding:0 4px}
+  .upload-close:hover{color:#000}
+  .upload-body{padding:20px 22px}
+  .upload-intro{margin:0 0 18px;font-size:13px;color:#636e72}
+  .upload-zones{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+  @media(max-width:540px){.upload-zones{grid-template-columns:1fr}}
+  .upload-zone{border:2px dashed #d1d5db;border-radius:12px;padding:18px 14px;text-align:center;cursor:pointer;transition:all .15s;background:#fafafa}
+  .upload-zone:hover{border-color:#0891b2;background:#f0f9ff}
+  .upload-zone.drag-over{border-color:#0891b2;background:#e0f2fe;border-style:solid}
+  .upload-zone.filled{border-color:#16a34a;border-style:solid;background:#f0fdf4}
+  .upload-zone-icon{font-size:32px;margin-bottom:8px}
+  .upload-zone-title{font-weight:700;font-size:14px;color:#2d3436;margin-bottom:3px}
+  .upload-zone-hint{font-size:11px;color:#888;margin-bottom:8px}
+  .upload-zone-status{font-size:12px;color:#636e72;font-weight:500;word-break:break-word}
+  .upload-zone.filled .upload-zone-status{color:#16a34a;font-weight:700}
+  .upload-actions{display:flex;gap:10px;justify-content:flex-start;flex-direction:row-reverse}
+  #upload-submit{padding:10px 22px;background:linear-gradient(180deg,#f97316,#dc2626);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(249,115,22,.4)}
+  #upload-submit:hover:not(:disabled){filter:brightness(1.05);transform:translateY(-1px)}
+  #upload-submit:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.5)}
+  #upload-cancel{padding:10px 18px;background:#fff;color:#636e72;border:1px solid #d1d5db;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer}
+  #upload-cancel:hover{border-color:#888;color:#000}
+  .upload-progress{margin-top:16px;padding:12px;background:#f0f9ff;border-radius:10px;font-size:13px;color:#0c4a6e;font-weight:500;text-align:center}
+  .upload-progress.error{background:#fef2f2;color:#991b1b}
+  .upload-progress.success{background:#f0fdf4;color:#166534}
+
   /* Period-aware visibility (Lauren 2026-05-05).
      Future tab = focus on tasks: schedule-card + add-event form. MBS dashboard hidden.
      Past tab   = MBS dashboard (KPIs/insights) AT TOP, plus the same
@@ -924,6 +956,62 @@ End date: </div>
       </table>
     </div>
     <p class="footnote">Each row's <b>🎟️ Eventbrite + List Setup</b> button copies a Cowork command for the <code>eventbrite-setup</code> agent — direct API calls (SimpleTexting + Eventbrite) create the empty SMS list and the published Eventbrite event. Once both exist, the button flips green and links straight to the Eventbrite event + the specific SimpleTexting list.</p>
+  </div>
+</div>
+
+<!-- ──────────────────────────────────────────────────────────────
+     📊 Event Summary upload modal (Lauren 2026-05-05)
+     Triggered by clicking the highlighted '📊 לסיכום!' button
+     on a past event. Lauren drops 4 files (cash report, OctoPos,
+     Meta, TikTok), they upload to docs/mbs/inputs/<evKey>/ via
+     GitHub Contents API, a Cowork command is copied to clipboard.
+     Same RemoteSync pattern + lauren_gh_token_v1 PAT as notes.json.
+     ─────────────────────────────────────────────────────────────── -->
+<div id="upload-modal" class="upload-modal" hidden>
+  <div class="upload-backdrop"></div>
+  <div class="upload-dialog" role="dialog" aria-labelledby="upload-title">
+    <header class="upload-head">
+      <h2 id="upload-title">📊 סיכום אירוע — <span id="upload-event-title"></span></h2>
+      <button class="upload-close" aria-label="סגור" type="button">×</button>
+    </header>
+    <div class="upload-body">
+      <p class="upload-intro">גררי את 4 הקבצים (או לחצי על אזור כדי לבחור). נתמכים: PDF · תמונות / screenshots · CSV · XLSX.</p>
+      <div class="upload-zones">
+        <div class="upload-zone" data-kind="cash_report">
+          <div class="upload-zone-icon">📄</div>
+          <div class="upload-zone-title">דוח מזומן</div>
+          <div class="upload-zone-hint">PDF / תמונה / screenshot</div>
+          <div class="upload-zone-status">גררי קובץ או לחצי לבחירה</div>
+          <input type="file" accept=".pdf,image/*" hidden>
+        </div>
+        <div class="upload-zone" data-kind="octopos">
+          <div class="upload-zone-icon">🛒</div>
+          <div class="upload-zone-title">OctoPos Sales</div>
+          <div class="upload-zone-hint">XLSX / CSV / screenshot</div>
+          <div class="upload-zone-status">גררי קובץ או לחצי לבחירה</div>
+          <input type="file" accept=".xlsx,.csv,image/*" hidden>
+        </div>
+        <div class="upload-zone" data-kind="meta">
+          <div class="upload-zone-icon">📘</div>
+          <div class="upload-zone-title">Meta Ads Export</div>
+          <div class="upload-zone-hint">CSV / screenshot</div>
+          <div class="upload-zone-status">גררי קובץ או לחצי לבחירה</div>
+          <input type="file" accept=".csv,image/*" hidden>
+        </div>
+        <div class="upload-zone" data-kind="tiktok">
+          <div class="upload-zone-icon">🎵</div>
+          <div class="upload-zone-title">TikTok Ads Export</div>
+          <div class="upload-zone-hint">XLSX / CSV / screenshot</div>
+          <div class="upload-zone-status">גררי קובץ או לחצי לבחירה</div>
+          <input type="file" accept=".xlsx,.csv,image/*" hidden>
+        </div>
+      </div>
+      <div class="upload-actions">
+        <button id="upload-submit" type="button" disabled>🚀 העלי והתחילי</button>
+        <button id="upload-cancel" type="button">ביטול</button>
+      </div>
+      <div id="upload-progress" class="upload-progress" hidden></div>
+    </div>
   </div>
 </div>
 
@@ -2229,6 +2317,232 @@ End date: </div>
     MANUAL_TASKS = remote || {};
     renderSchedule();
   });
+
+  // ────────────────────────────────────────────────────────────
+  // 📊 Event Summary upload — drag-drop modal that pushes 4 files
+  // (cash report, OctoPos, Meta, TikTok) to docs/mbs/inputs/<evKey>/
+  // via GitHub Contents API, then copies a Cowork command to clipboard.
+  // Lauren 2026-05-05.
+  // ────────────────────────────────────────────────────────────
+  const MbsInputsUpload = (function(){
+    const OWNER     = "laurenlev10";
+    const REPO      = "lauren-agent-hub-data";
+    const BRANCH    = "main";
+    const TOKEN_KEY = "lauren_gh_token_v1";
+    const KINDS     = ["cash_report", "octopos", "meta", "tiktok"];
+
+    let currentEvent = null;
+    let stagedFiles  = {};   // { cash_report: File, octopos: File, ... }
+
+    function getToken(){ try { return localStorage.getItem(TOKEN_KEY) || ""; } catch(e){ return ""; } }
+
+    function evKeyFor(ev){
+      const slug = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+      return slug + "-" + (ev.start_date || "");
+    }
+
+    function open(ev){
+      currentEvent = ev;
+      stagedFiles  = {};
+      document.getElementById("upload-event-title").textContent =
+        ev.city + " (" + (ev.start_date || "").slice(5) + " - " + (ev.end_date || "").slice(5) + ")";
+      const modal = document.getElementById("upload-modal");
+      modal.hidden = false;
+      // Reset zones
+      document.querySelectorAll(".upload-zone").forEach(z => {
+        z.classList.remove("filled","drag-over");
+        z.querySelector(".upload-zone-status").textContent = "גררי קובץ או לחצי לבחירה";
+        z.querySelector("input[type=file]").value = "";
+      });
+      const submitBtn = document.getElementById("upload-submit");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "🚀 העלי והתחילי";
+      const prog = document.getElementById("upload-progress");
+      prog.hidden = true;
+      prog.className = "upload-progress";
+    }
+
+    function close(){
+      document.getElementById("upload-modal").hidden = true;
+      currentEvent = null;
+      stagedFiles  = {};
+    }
+
+    function stageFile(kind, file){
+      if (!file) return;
+      stagedFiles[kind] = file;
+      const zone = document.querySelector('.upload-zone[data-kind="' + kind + '"]');
+      zone.classList.add("filled");
+      const sizeKb = Math.round(file.size / 1024);
+      zone.querySelector(".upload-zone-status").textContent =
+        "✓ " + file.name + " (" + (sizeKb < 1024 ? sizeKb + "KB" : (sizeKb/1024).toFixed(1) + "MB") + ")";
+      const allStaged = KINDS.every(k => stagedFiles[k]);
+      document.getElementById("upload-submit").disabled = !allStaged;
+    }
+
+    function fileToBase64(file){
+      return new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload  = () => res(r.result.split(",")[1]);   // strip data: prefix
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+    }
+
+    async function uploadOne(token, path, contentB64, message){
+      const url = "https://api.github.com/repos/" + OWNER + "/" + REPO + "/contents/" + path;
+      // Get sha if file exists (for updates)
+      let sha = null;
+      try {
+        const r = await fetch(url + "?ref=" + BRANCH, { headers: { Authorization: "Bearer " + token } });
+        if (r.ok) sha = (await r.json()).sha;
+      } catch(e){}
+      const body = { message: message, content: contentB64, branch: BRANCH };
+      if (sha) body.sha = sha;
+      const r = await fetch(url, {
+        method:  "PUT",
+        headers: { Authorization: "Bearer " + token, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+        body:    JSON.stringify(body)
+      });
+      if (!r.ok){
+        const txt = await r.text();
+        throw new Error(path + " → HTTP " + r.status + " " + txt.slice(0,160));
+      }
+    }
+
+    function generateCommand(evKey){
+      const ev = currentEvent || {};
+      return [
+        "Read this file and follow its instructions exactly:",
+        "`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-event-summary\\SKILL.md`",
+        "",
+        "Files for this event have already been uploaded to the repo at:",
+        "  `docs/mbs/inputs/" + evKey + "/` (4 files + manifest.json)",
+        "",
+        "Skip the 'ask Lauren for the package' step in STEP 2 — go directly to",
+        "STEP 3 (parse the package) using those files. After the run completes,",
+        "delete the docs/mbs/inputs/" + evKey + "/ folder so it doesn't sit forever.",
+        "",
+        "Event details:",
+        "City: "       + (ev.city       || ""),
+        "State: "      + (ev.state      || ""),
+        "Start date: " + (ev.start_date || ""),
+        "End date: "   + (ev.end_date   || ""),
+        "Venue: "      + (ev.venue      || ""),
+        "Address: "    + (ev.address    || "")
+      ].join("\n");
+    }
+
+    async function submit(){
+      if (!currentEvent) return;
+      const token = getToken();
+      if (!token){
+        alert("חסר GitHub PAT. לחצי על ה-pill 🔑 בפינה ימנית-עליונה כדי להזין, ואז נסי שוב.");
+        return;
+      }
+      const evKey  = evKeyFor(currentEvent);
+      const dir    = "docs/mbs/inputs/" + evKey;
+      const prog   = document.getElementById("upload-progress");
+      const submitBtn = document.getElementById("upload-submit");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "⟳ מעלה…";
+      prog.hidden = false;
+      prog.className = "upload-progress";
+      prog.textContent = "מתחילה העלאה…";
+      try {
+        const manifest = {
+          uploaded_at: new Date().toISOString(),
+          event: {
+            city: currentEvent.city, state: currentEvent.state,
+            start_date: currentEvent.start_date, end_date: currentEvent.end_date,
+            venue: currentEvent.venue || null, address: currentEvent.address || null
+          },
+          files: {}
+        };
+        let n = 0;
+        for (const kind of KINDS){
+          n++;
+          const f = stagedFiles[kind];
+          const ext = (f.name.split(".").pop() || "bin").toLowerCase();
+          const fileName = kind + "." + ext;
+          prog.textContent = "מעלה קובץ " + n + "/4: " + fileName + " (" + Math.round(f.size/1024) + "KB)…";
+          const b64 = await fileToBase64(f);
+          await uploadOne(token, dir + "/" + fileName, b64, "mbs-inputs(" + evKey + "): " + kind);
+          manifest.files[kind] = fileName;
+        }
+        prog.textContent = "מעלה manifest.json…";
+        const manifestB64 = btoa(unescape(encodeURIComponent(JSON.stringify(manifest, null, 2))));
+        await uploadOne(token, dir + "/manifest.json", manifestB64, "mbs-inputs(" + evKey + "): manifest");
+
+        // Copy the Cowork command
+        const cmd = generateCommand(evKey);
+        try { await navigator.clipboard.writeText(cmd); } catch(e){}
+
+        prog.className = "upload-progress success";
+        prog.textContent = "✅ הועלו 4 קבצים + manifest. פקודת Cowork הועתקה ל-clipboard. הדביקי בסוכן והוא יתחיל.";
+        submitBtn.textContent = "✓ הושלם";
+        setTimeout(close, 3500);
+      } catch (e){
+        prog.className = "upload-progress error";
+        prog.textContent = "⚠ שגיאה: " + e.message;
+        submitBtn.disabled = false;
+        submitBtn.textContent = "🚀 נסי שוב";
+      }
+    }
+
+    function init(){
+      // Per-zone drag-drop + click handlers
+      document.querySelectorAll(".upload-zone").forEach(zone => {
+        const input = zone.querySelector("input[type=file]");
+        const kind  = zone.dataset.kind;
+        zone.addEventListener("click", (e) => {
+          if (e.target.tagName !== "INPUT") input.click();
+        });
+        input.addEventListener("change", (e) => {
+          if (e.target.files && e.target.files[0]) stageFile(kind, e.target.files[0]);
+        });
+        zone.addEventListener("dragover",  (e) => { e.preventDefault(); zone.classList.add("drag-over"); });
+        zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
+        zone.addEventListener("drop", (e) => {
+          e.preventDefault();
+          zone.classList.remove("drag-over");
+          if (e.dataTransfer.files && e.dataTransfer.files[0]) stageFile(kind, e.dataTransfer.files[0]);
+        });
+      });
+      document.querySelector(".upload-close").addEventListener("click", close);
+      document.getElementById("upload-cancel").addEventListener("click", close);
+      document.querySelector(".upload-backdrop").addEventListener("click", close);
+      document.getElementById("upload-submit").addEventListener("click", submit);
+      // Esc to close
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !document.getElementById("upload-modal").hidden) close();
+      });
+    }
+
+    return { open: open, close: close, init: init };
+  })();
+
+  // Wire the highlighted '📊 לסיכום!' buttons to open the upload modal
+  // instead of navigating to the old MBS form. The .done variant (already
+  // summarized) keeps its native href to the published event page.
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".btn-summary-row.needs-summary");
+    if (!btn) return;
+    e.preventDefault();
+    const url = new URL(btn.href, window.location.href);
+    const cityFull = url.searchParams.get("city") || "";
+    const cityParts = cityFull.split(",").map(s => s.trim());
+    MbsInputsUpload.open({
+      city:       cityParts[0] || "",
+      state:      cityParts[1] || "",
+      start_date: url.searchParams.get("start_date") || "",
+      end_date:   url.searchParams.get("end_date")   || "",
+      venue:      url.searchParams.get("venue")      || "",
+      address:    url.searchParams.get("address")    || ""
+    });
+  });
+
+  MbsInputsUpload.init();
 </script>
 
 </body>
