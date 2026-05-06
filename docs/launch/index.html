@@ -2358,7 +2358,11 @@ End date: </div>
     const REPO      = "lauren-agent-hub-data";
     const BRANCH    = "main";
     const TOKEN_KEY = "lauren_gh_token_v1";
-    const KINDS     = ["cash_report", "octopos", "meta", "tiktok", "quickbooks"];
+    // 4 mandatory file types + QB optional (Lauren prefers her Google Sheet
+    // for QB tags — the agent reads QB from there if no QB file uploaded).
+    const KINDS_REQUIRED = ["cash_report", "octopos", "meta", "tiktok"];
+    const KINDS_OPTIONAL = ["quickbooks"];
+    const KINDS          = KINDS_REQUIRED.concat(KINDS_OPTIONAL);
 
     let currentEvent = null;
     let stagedFiles  = {};   // { cash_report: File, octopos: File, ... }
@@ -2409,8 +2413,11 @@ End date: </div>
       const sizeKb = Math.round(file.size / 1024);
       zone.querySelector(".upload-zone-status").textContent =
         "✓ " + file.name + " (" + (sizeKb < 1024 ? sizeKb + "KB" : (sizeKb/1024).toFixed(1) + "MB") + ")";
-      const allStaged = KINDS.every(k => stagedFiles[k]);
-      document.getElementById("upload-submit").disabled = !allStaged;
+      // Submit enables when all REQUIRED files are staged. Optional ones
+      // (currently just quickbooks) can be skipped — Lauren reads QB from
+      // her Google Sheet instead.
+      const allRequired = KINDS_REQUIRED.every(k => stagedFiles[k]);
+      document.getElementById("upload-submit").disabled = !allRequired;
     }
 
     function fileToBase64(file){
@@ -2505,13 +2512,16 @@ End date: </div>
             notes: notesEl ? notesEl.value.trim() : ""
           }
         };
+        // Upload only kinds that were actually staged. Optional ones
+        // (e.g. quickbooks — Lauren reads from her Google Sheet) can be empty.
+        const toUpload = KINDS.filter(k => stagedFiles[k]);
         let n = 0;
-        for (const kind of KINDS){
+        for (const kind of toUpload){
           n++;
           const f = stagedFiles[kind];
           const ext = (f.name.split(".").pop() || "bin").toLowerCase();
           const fileName = kind + "." + ext;
-          prog.textContent = "מעלה קובץ " + n + "/4: " + fileName + " (" + Math.round(f.size/1024) + "KB)…";
+          prog.textContent = "מעלה קובץ " + n + "/" + toUpload.length + ": " + fileName + " (" + Math.round(f.size/1024) + "KB)…";
           const b64 = await fileToBase64(f);
           await uploadOne(token, dir + "/" + fileName, b64, "mbs-inputs(" + evKey + "): " + kind);
           manifest.files[kind] = fileName;
