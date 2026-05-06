@@ -179,6 +179,208 @@
   .agent-manager .run-btn { background: linear-gradient(180deg, #10b981, #059669); box-shadow: 0 1px 2px rgba(16, 185, 129, 0.3); }
   .agent-manager .run-btn:hover { background: linear-gradient(180deg, #059669, #047857); }
   .agent-manager .lastRun b { color: #059669; }
+
+  /* ================================================================== */
+  /* Weekly Tasks panel (teal) — manual checklist, resets every Sunday   */
+  /* ================================================================== */
+  .weekly-wrap { max-width: 900px; margin: 0 auto 24px auto; }
+  .weekly-card {
+    background: linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #0f766e 100%);
+    color: #fff; border-radius: 18px; padding: 26px 30px;
+    box-shadow: 0 8px 32px rgba(13, 148, 136, 0.25);
+    position: relative; overflow: hidden;
+  }
+  .weekly-card::before {
+    content: "WEEKLY"; position: absolute; top: 14px; left: 18px;
+    background: rgba(255,255,255,0.22); padding: 4px 12px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+  }
+  .weekly-card::after {
+    content: "📋"; position: absolute; right: 18px; bottom: -22px;
+    font-size: 140px; opacity: 0.12; line-height: 1; pointer-events: none;
+  }
+  .weekly-content { position: relative; z-index: 1; }
+  .weekly-name { font-size: 26px; font-weight: 800; margin: 18px 0 4px; letter-spacing: -0.3px; }
+  .weekly-tag { font-size: 13px; opacity: 0.95; margin-bottom: 12px; direction: rtl; text-align: right; line-height: 1.5; }
+  .weekly-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 10px; margin-bottom: 14px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.95;
+  }
+  .weekly-meta b { color: #fff; font-weight: 800; }
+  .weekly-progress {
+    height: 6px; background: rgba(255,255,255,0.22); border-radius: 999px;
+    overflow: hidden; margin-bottom: 16px;
+  }
+  .weekly-progress-bar { height: 100%; background: #fff; border-radius: 999px; transition: width 0.4s ease; width: 0%; }
+  .weekly-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 700px) { .weekly-list { grid-template-columns: 1fr; } }
+  .weekly-task {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    background: rgba(255,255,255,0.13); border-radius: 10px;
+    cursor: pointer; transition: all 0.15s ease; font-size: 13px; line-height: 1.4;
+    user-select: none; direction: rtl; text-align: right;
+  }
+  .weekly-task:hover { background: rgba(255,255,255,0.22); }
+  .weekly-task input[type=checkbox] {
+    appearance: none; -webkit-appearance: none; width: 18px; height: 18px; min-width: 18px;
+    border: 2px solid rgba(255,255,255,0.7); border-radius: 5px; background: transparent;
+    cursor: pointer; display: grid; place-content: center; transition: all 0.12s ease;
+    margin: 0;
+  }
+  .weekly-task input[type=checkbox]:checked { background: #fff; border-color: #fff; }
+  .weekly-task input[type=checkbox]:checked::after { content: "✓"; color: #0d9488; font-weight: 900; font-size: 13px; line-height: 1; }
+  .weekly-task .task-label { flex: 1; color: #fff; }
+  .weekly-task.done .task-label { text-decoration: line-through; opacity: 0.6; }
+  .weekly-task .task-link { color: #ccfbf1; text-decoration: underline; font-size: 11px; }
+  .weekly-task .task-link:hover { color: #fff; }
+  .weekly-task .task-pill {
+    font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 999px;
+    letter-spacing: 0.4px; white-space: nowrap;
+  }
+  .weekly-task .task-pill.has-agent { background: rgba(255,255,255,0.95); color: #0f766e; }
+  .weekly-task .task-pill.todo { background: rgba(255,255,255,0.22); color: #fff; }
+  .weekly-reset-btn {
+    background: rgba(255,255,255,0.22); color: #fff; border: none;
+    padding: 6px 14px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    cursor: pointer; letter-spacing: 0.4px;
+  }
+  .weekly-reset-btn:hover { background: rgba(255,255,255,0.36); }
+
+  /* ================================================================== */
+  /* Scheduled Tasks Monitor (indigo) — live status from JSON in repo   */
+  /* ================================================================== */
+  .sched-wrap { max-width: 900px; margin: 0 auto 28px auto; }
+  .sched-card {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%);
+    color: #fff; border-radius: 18px; padding: 26px 30px;
+    box-shadow: 0 8px 32px rgba(79, 70, 229, 0.25);
+    position: relative; overflow: hidden;
+  }
+  .sched-card::before {
+    content: "AUTOMATED"; position: absolute; top: 14px; left: 18px;
+    background: rgba(255,255,255,0.22); padding: 4px 12px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+  }
+  .sched-card::after {
+    content: "🤖"; position: absolute; right: 18px; bottom: -22px;
+    font-size: 140px; opacity: 0.12; line-height: 1; pointer-events: none;
+  }
+  .sched-content { position: relative; z-index: 1; }
+  .sched-name { font-size: 26px; font-weight: 800; margin: 18px 0 4px; letter-spacing: -0.3px; }
+  .sched-tag { font-size: 13px; opacity: 0.95; margin-bottom: 14px; direction: rtl; text-align: right; line-height: 1.5; }
+  .sched-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 700px) { .sched-list { grid-template-columns: 1fr; } }
+  .sched-task {
+    background: rgba(255,255,255,0.13); border-radius: 10px; padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 6px; transition: all 0.15s ease;
+  }
+  .sched-task:hover { background: rgba(255,255,255,0.22); }
+  .sched-task .task-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .sched-task .task-name { font-size: 14px; font-weight: 700; flex: 1; direction: rtl; text-align: right; }
+  .sched-task .task-status { font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; letter-spacing: 0.3px; }
+  .sched-task .task-status.ok    { background: #d1fae5; color: #065f46; }
+  .sched-task .task-status.late  { background: #fef3c7; color: #92400e; }
+  .sched-task .task-status.off   { background: rgba(255,255,255,0.18); color: #e0e7ff; }
+  .sched-task .task-status.never { background: rgba(255,255,255,0.18); color: #fff; }
+  .sched-task .task-meta { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; opacity: 0.9; direction: rtl; }
+  .sched-task .task-meta .freq { font-weight: 700; opacity: 1; }
+  .sched-task .task-meta .task-last { direction: ltr; opacity: 0.85; }
+  .sched-empty {
+    background: rgba(255,255,255,0.13); border-radius: 10px; padding: 14px;
+    text-align: center; font-size: 12px; opacity: 0.92; direction: rtl; grid-column: 1 / -1;
+  }
+
+  /* ================================================================== */
+  /* Agent Library (slate) — compact replacement for the big card grid  */
+  /* ================================================================== */
+  .library-wrap { max-width: 900px; margin: 0 auto 28px auto; }
+  .library-card {
+    background: linear-gradient(135deg, #475569 0%, #334155 50%, #1e293b 100%);
+    color: #f1f5f9; border-radius: 18px; padding: 26px 30px;
+    box-shadow: 0 8px 32px rgba(30, 41, 59, 0.3);
+    position: relative; overflow: hidden;
+  }
+  .library-card::before {
+    content: "LIBRARY"; position: absolute; top: 14px; left: 18px;
+    background: rgba(255,255,255,0.18); padding: 4px 12px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+  }
+  .library-card::after {
+    content: "📚"; position: absolute; right: 18px; bottom: -22px;
+    font-size: 140px; opacity: 0.08; line-height: 1; pointer-events: none;
+  }
+  .library-content { position: relative; z-index: 1; }
+  .library-name { font-size: 26px; font-weight: 800; margin: 18px 0 4px; letter-spacing: -0.3px; color: #fff; }
+  .library-tag { font-size: 13px; opacity: 0.85; margin-bottom: 16px; direction: rtl; text-align: right; line-height: 1.5; }
+  .library-section-title {
+    font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+    opacity: 0.6; margin: 14px 0 6px; padding-right: 4px; direction: rtl; text-align: right;
+  }
+  .library-section-title:first-of-type { margin-top: 0; }
+  .library-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 700px) { .library-list { grid-template-columns: 1fr; } }
+  .lib-agent {
+    background: rgba(255,255,255,0.08); border-radius: 10px; padding: 11px 14px;
+    display: flex; align-items: center; gap: 12px;
+    text-decoration: none; color: #f1f5f9;
+    transition: all 0.15s ease; border: 1px solid rgba(255,255,255,0.05);
+    cursor: pointer; min-height: 56px;
+  }
+  .lib-agent:hover { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.18); transform: translateY(-1px); }
+  .lib-agent .lib-icon { font-size: 22px; min-width: 28px; text-align: center; line-height: 1; }
+  .lib-agent .lib-body { flex: 1; min-width: 0; }
+  .lib-agent .lib-name { font-size: 13px; font-weight: 700; line-height: 1.3; color: #fff; }
+  .lib-agent .lib-last { font-size: 10.5px; opacity: 0.65; margin-top: 2px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lib-agent .lib-arrow { font-size: 14px; opacity: 0.5; transition: all 0.15s ease; }
+  .lib-agent:hover .lib-arrow { opacity: 1; transform: translateX(-3px); }
+  .lib-agent .lib-run-btn {
+    background: rgba(255,255,255,0.14); color: #fff; border: 1px solid rgba(255,255,255,0.22);
+    border-radius: 6px; padding: 5px 9px; font-size: 11px; font-weight: 700; cursor: pointer;
+    transition: all 0.12s ease; white-space: nowrap;
+  }
+  .lib-agent .lib-run-btn:hover { background: rgba(255,255,255,0.28); }
+  .lib-agent .lib-run-btn.copied { background: #10b981; border-color: #10b981; }
+  .lib-agent.lib-architect { background: linear-gradient(135deg, rgba(168, 85, 247, 0.32), rgba(124, 58, 237, 0.12)); border-color: rgba(168, 85, 247, 0.35); }
+  .lib-agent.lib-forecast  { background: linear-gradient(135deg, rgba(168, 85, 247, 0.28), rgba(124, 58, 237, 0.10)); border-color: rgba(168, 85, 247, 0.30); }
+  .lib-agent.lib-scout-row { background: linear-gradient(135deg, rgba(251, 146, 60, 0.30), rgba(234, 88, 12, 0.10)); border-color: rgba(251, 146, 60, 0.30); }
+
+  .lib-scout-form-wrap {
+    grid-column: 1 / -1; background: rgba(0,0,0,0.18);
+    border-radius: 10px; padding: 14px; margin-top: 4px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .lib-scout-form-wrap .scout-form { display: grid; grid-template-columns: 1.4fr 0.6fr 1fr; gap: 6px; margin-bottom: 10px; }
+  @media (max-width: 700px) { .lib-scout-form-wrap .scout-form { grid-template-columns: 1fr; } }
+  .lib-scout-form-wrap .scout-form input,
+  .lib-scout-form-wrap .scout-form select {
+    width: 100%; padding: 8px 10px; border: 1.5px solid rgba(255,255,255,0.2); border-radius: 8px;
+    font-family: inherit; font-size: 13px; color: #fff; background: rgba(255,255,255,0.08);
+    transition: all 0.2s ease;
+  }
+  .lib-scout-form-wrap .scout-form input::placeholder { color: rgba(255,255,255,0.5); }
+  .lib-scout-form-wrap .scout-form input:focus,
+  .lib-scout-form-wrap .scout-form select:focus { outline: none; border-color: #fb923c; box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.3); }
+  .lib-scout-form-wrap .scout-form select option { color: #1e293b; background: #fff; }
+  .lib-scout-form-wrap .run-btn {
+    display: block; width: 100%; padding: 10px 14px;
+    background: linear-gradient(180deg, #fb923c, #ea580c); color: #fff; border: none;
+    border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; letter-spacing: 0.3px;
+    box-shadow: 0 1px 2px rgba(251, 146, 60, 0.3); transition: all 0.15s;
+  }
+  .lib-scout-form-wrap .run-btn:hover { background: linear-gradient(180deg, #ea580c, #c2410c); }
+  .lib-scout-form-wrap .run-btn.copied { background: linear-gradient(180deg, #4ade80, #16a34a); }
+  .lib-scout-form-wrap .run-hint { font-size: 11px; color: rgba(255,255,255,0.7); margin-top: 6px; text-align: center; }
+  .lib-scout-form-wrap .scout-reports-list { margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.18); font-size: 12px; }
+  .lib-scout-form-wrap .scout-reports-list .scout-report-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; border-bottom: 1px dotted rgba(255,255,255,0.12);
+  }
+  .lib-scout-form-wrap .scout-reports-list .scout-report-item:last-child { border-bottom: none; }
+  .lib-scout-form-wrap .scout-reports-list a { color: #fdba74; text-decoration: none; font-weight: 600; }
+  .lib-scout-form-wrap .scout-reports-list a:hover { text-decoration: underline; color: #fff; }
+  .lib-scout-form-wrap .scout-reports-list .score { background: rgba(251, 146, 60, 0.25); color: #fed7aa; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .lib-scout-form-wrap .scout-reports-list .scout-reports-empty { color: rgba(255,255,255,0.55); font-size: 12px; font-style: italic; padding: 6px 0; }
 </style>
 </head>
 <body>
@@ -235,161 +437,339 @@ const SCOUT_REPORTS = [
   </a>
 </div>
 
-<div class="grid">
-
-  <div class="agent agent-architect">
-    <a href="architect/" style="text-decoration:none;color:inherit;display:block">
-      <div class="icon">🏛️</div>
-      <div class="name">Agent Architect</div>
-      <div class="desc">Senior manager over the entire agent system. Click to open the form page — fill Mode A (new agent) or Mode B (system-wide change) and get a pre-structured command ready to paste into Cowork.</div>
-      <div class="lastRun">Mode: <b id="architect-lastRun">—</b></div>
-    </a>
-    <a href="architect/" class="run-btn" style="text-align:center;text-decoration:none;color:#fff">🏛️ פתחי טופס</a>
-    <div class="run-hint">Opens the form — fill + copy command → paste in new Cowork task</div>
-  </div>
-
-  <div class="agent agent-scout" id="scout-card">
-    <div class="icon">🔍</div>
-    <div class="name">City Scout</div>
-    <div class="desc">מחקר עיר לפני נסיעת סקאוט — דמוגרפיה, top 5-10 מועמדי וונו (מלונות / convention centers / banquet halls — בלי מותגי פרמיום), צ'ק-ליסט חוזה להדפסה, ערים סמוכות באזור. דו"ח עברית RTL ב-URL לשיתוף.</div>
-    <div class="lastRun">Last run: <b id="scout-lastRun">—</b></div>
-
-    <div class="scout-form">
-      <input type="text" id="scout-city" placeholder="עיר (לדוגמה: Lancaster)" autocomplete="off">
-      <input type="text" id="scout-state" placeholder="ST" maxlength="2" style="text-transform:uppercase" autocomplete="off">
-      <select id="scout-month">
-        <option value="">חודש (אופציונלי)</option>
-        <option>Jan</option><option>Feb</option><option>Mar</option>
-        <option>Apr</option><option>May</option><option>Jun</option>
-        <option>Jul</option><option>Aug</option><option>Sep</option>
-        <option>Oct</option><option>Nov</option><option>Dec</option>
-      </select>
-    </div>
-
-    <button class="run-btn" id="scout-btn">🔍 העתיקי פקודת סקאוט</button>
-    <div class="run-hint">מלאי עיר + ST → לחצי לכפתור → הדביקי בשיחת Cowork חדשה. הסוכן יכין דו"ח 10-15 דקות.</div>
-
-    <div class="scout-reports-list" id="scout-reports-list">
-      <div class="scout-reports-empty">עדיין לא הורצו דוחות סקאוט. דו"ח ראשון יופיע כאן אחרי שהסוכן יסיים.</div>
+<!-- Weekly Tasks (teal) -->
+<div class="weekly-wrap">
+  <div class="weekly-card">
+    <div class="weekly-content">
+      <div class="weekly-name">📋 משימות שבועיות</div>
+      <div class="weekly-tag">צ׳ק־ליסט קבוע ידני שמתאפס בכל יום ראשון בבוקר. לכל משימה ניבנה בהמשך סוכן ייעודי שיריץ אותה אוטומטית.</div>
+      <div class="weekly-meta">
+        <span>השבוע מ־<b id="weekly-week-label">—</b></span>
+        <span>הושלמו: <b><span id="weekly-done-count">0</span> / <span id="weekly-total-count">10</span></b></span>
+        <button class="weekly-reset-btn" id="weekly-reset-btn" type="button">🔄 איפוס ידני</button>
+      </div>
+      <div class="weekly-progress"><div class="weekly-progress-bar" id="weekly-progress-bar"></div></div>
+      <div class="weekly-list" id="weekly-list"></div>
     </div>
   </div>
+</div>
 
-  <!-- Event Manager card removed (Lauren 2026-05-03 Mode B): functionality merged into the Event Launch Hero above (per-row buttons + 5 manual-task checkboxes synced via launch/notes.json) -->
+<script id="weekly-data">
+const WEEKLY_TASKS = [
+  { id: "site-update",     label: "עדכון \"האירועים הקרובים\" באתר Google Sites",
+    link: "https://sites.google.com/d/1sogzI0XV7dPvh8mqds4O4oaKQibw_dYy/p/1r2zyB4eInn-0hhQuxw4BLxtj1uPvp9xI/edit?pli=1", linkLabel: "↗ סייט" },
+  { id: "supplier-orders", label: "הזמנת סחורה חסרה מספקים לקראת סופ״ש הקרוב" },
+  { id: "octopos-update",  label: "עדכון מלאי ב-OCTOPOS אחרי קבלת הסחורה" },
+  { id: "campaigns-stop",  label: "וידוא שכל הקמפיינים של האירוע הקודם נעצרו (לא לבזבז כסף)" },
+  { id: "registration",    label: "עדכון דף ההרשמה השבועי לאירוע הבא" },
+  { id: "flights",         label: "הזמנת טיסות לאירוע הבא (יעד: ~חודש מראש)" },
+  { id: "hotels",          label: "הזמנת מלונות ללינת עובדים לאירוע הקרוב" },
+  { id: "supplier-pay",    label: "תשלום לספקים על חשבוניות פתוחות" },
+  { id: "event-summary",   label: "סיכום האירוע שהיה (Recap)", agent: "mbs-event-summary" },
+  { id: "sms-review",      label: "בדיקת טקסטים של Simple Texting לאירוע הבא", agent: "sms-campaigns" }
+];
 
-  <div class="agent">
-    <a href="contract/" style="text-decoration:none;color:inherit;display:block">
-      <div class="icon">📋</div>
-      <div class="name">Contract Review</div>
-      <div class="desc">First agent in event prep (T-60). Reviews hotel/venue contracts against your editable clauses checklist (free parking, Thursday setup, hours, etc). Reports ✓/❌/⚠ per clause + redline suggestions.</div>
-      <div class="lastRun">Last run: <b id="contract-lastRun">—</b></div>
-    </a>
-    <a href="contract/" class="run-btn" style="text-align:center;text-decoration:none;color:#fff;background:linear-gradient(180deg,#dc2626,#991b1b)">📋 פתחי דשבורד</a>
-    <div class="run-hint">Edit clauses, paste contract → copy command for Cowork chat</div>
+(function initWeekly() {
+  const STORAGE_KEY = "mbs.weekly.v1";
+  const list = document.getElementById("weekly-list");
+  const doneEl = document.getElementById("weekly-done-count");
+  const totalEl = document.getElementById("weekly-total-count");
+  const labelEl = document.getElementById("weekly-week-label");
+  const barEl = document.getElementById("weekly-progress-bar");
+  const resetBtn = document.getElementById("weekly-reset-btn");
+
+  function mostRecentSundayISO(d) {
+    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    x.setDate(x.getDate() - x.getDay());
+    const y = x.getFullYear();
+    const m = String(x.getMonth()+1).padStart(2,'0');
+    const day = String(x.getDate()).padStart(2,'0');
+    return y + "-" + m + "-" + day;
+  }
+  function fmtWeekLabel(iso) {
+    const parts = iso.split('-').map(Number);
+    const dt = new Date(parts[0], parts[1]-1, parts[2]);
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' (Sun)';
+  }
+  function loadState() {
+    const week = mostRecentSundayISO(new Date());
+    let st = null;
+    try { st = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (e) { st = null; }
+    if (!st || st.week !== week) st = { week: week, done: {} };
+    return st;
+  }
+  function saveState(st) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(st)); } catch (e) {}
+  }
+
+  let state = loadState();
+
+  function render() {
+    list.innerHTML = "";
+    let doneCount = 0;
+    WEEKLY_TASKS.forEach(function(t) {
+      const isDone = !!state.done[t.id];
+      if (isDone) doneCount++;
+      const row = document.createElement("label");
+      row.className = "weekly-task" + (isDone ? " done" : "");
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = isDone;
+      cb.addEventListener("change", function () {
+        if (cb.checked) state.done[t.id] = true; else delete state.done[t.id];
+        saveState(state); render();
+      });
+      const lbl = document.createElement("span");
+      lbl.className = "task-label";
+      lbl.textContent = t.label;
+      row.appendChild(cb);
+      row.appendChild(lbl);
+      if (t.link) {
+        const a = document.createElement("a");
+        a.className = "task-link"; a.href = t.link; a.target = "_blank"; a.rel = "noopener";
+        a.textContent = t.linkLabel || "&uarr;";
+        a.addEventListener("click", function (e) { e.stopPropagation(); });
+        row.appendChild(a);
+      }
+      const pill = document.createElement("span");
+      if (t.agent) {
+        pill.className = "task-pill has-agent"; pill.textContent = "AGENT";
+        pill.title = "Agent: " + t.agent;
+      } else {
+        pill.className = "task-pill todo"; pill.textContent = "TODO";
+        pill.title = "Agent not yet built";
+      }
+      row.appendChild(pill);
+      list.appendChild(row);
+    });
+    doneEl.textContent = doneCount;
+    totalEl.textContent = WEEKLY_TASKS.length;
+    barEl.style.width = WEEKLY_TASKS.length ? Math.round(100 * doneCount / WEEKLY_TASKS.length) + "%" : "0%";
+    labelEl.textContent = fmtWeekLabel(state.week);
+  }
+
+  resetBtn.addEventListener("click", function () {
+    if (!confirm("לאפס את כל הסימונים השבוע?")) return;
+    state.done = {}; saveState(state); render();
+  });
+
+  render();
+  setInterval(function () {
+    const fresh = loadState();
+    if (fresh.week !== state.week) { state = fresh; render(); }
+  }, 5 * 60 * 1000);
+})();
+</script>
+
+<!-- Scheduled Tasks Monitor (indigo) -->
+<div class="sched-wrap">
+  <div class="sched-card">
+    <div class="sched-content">
+      <div class="sched-name">⏱️ משימות אוטומטיות</div>
+      <div class="sched-tag">סוכנים שרצים אוטומטית בלוח זמנים — סטטוס חי מקובץ <code style="opacity:0.85">scheduled-runs.json</code> ב־Git. כל סוכן מעדכן בסיום ריצה.</div>
+      <div class="sched-list" id="sched-list">
+        <div class="sched-empty">טוען נתונים...</div>
+      </div>
+    </div>
   </div>
+</div>
 
-  <div class="agent">
-    <a href="meta/" style="text-decoration:none;color:inherit;display:block">
-      <div class="icon">📬</div>
-      <div class="name">Meta Inbox</div>
-      <div class="desc">Daily Messenger / Instagram / WhatsApp triage for Makeup Blowout Sale.</div>
-      <div class="lastRun">Last run: <b id="meta-lastRun">—</b></div>
-    </a>
-    <button class="run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\meta-inbox\\SKILL.md` — it is the orchestrator for @meta and tells you which other files to read (triage.md, dashboard.md, comms.md, inbox_knowledge_base.docx, reported_negatives.jsonl).">▶ Run scan now</button>
-    <div class="run-hint">Copies the command — paste (Ctrl+V) in Cowork chat</div>
+<script id="sched-data">
+(function initSched() {
+  const list = document.getElementById("sched-list");
+  const URL_ = "scheduled-runs.json?_=" + Date.now();
+  fetch(URL_)
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function (data) { render(data.tasks || []); })
+    .catch(function (err) {
+      list.innerHTML = '<div class="sched-empty">לא ניתן לטעון את הנתונים (' + err + ')</div>';
+    });
+
+  function timeAgo(iso) {
+    if (!iso) return "מעולם לא רץ";
+    const d = new Date(iso); if (isNaN(d)) return "—";
+    const diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 60) return "now";
+    if (diff < 3600) return Math.round(diff/60) + "m ago";
+    if (diff < 86400) return Math.round(diff/3600) + "h ago";
+    if (diff < 86400*7) return Math.round(diff/86400) + "d ago";
+    return d.toLocaleDateString('en-CA');
+  }
+
+  function statusFor(t) {
+    if (!t.enabled) return { cls: "off", txt: "OFF" };
+    if (!t.lastRunAt) return { cls: "never", txt: "—" };
+    const diffH = (Date.now() - new Date(t.lastRunAt).getTime()) / 3600000;
+    let limit = 25;
+    if (t.frequency === "hourly") limit = 1.2;
+    else if (t.frequency === "daily") limit = 25;
+    else if (t.frequency === "weekly") limit = 24*8;
+    if (diffH > limit) return { cls: "late", txt: "&#9888; LATE" };
+    return { cls: "ok", txt: "OK" };
+  }
+
+  function render(tasks) {
+    if (!tasks.length) {
+      list.innerHTML = '<div class="sched-empty">אין עדיין משימות מתוזמנות. נוסיף יחד דרך ה־API.</div>';
+      return;
+    }
+    list.innerHTML = "";
+    tasks.forEach(function (t) {
+      const s = statusFor(t);
+      const card = document.createElement("div");
+      card.className = "sched-task";
+      const safeName = String(t.label || t.id || "").replace(/[<>&"]/g, "");
+      const freq = String(t.scheduleHuman || t.frequency || "").replace(/[<>&"]/g, "");
+      card.innerHTML =
+        '<div class="task-row">' +
+          '<div class="task-name">' + safeName + '</div>' +
+          '<span class="task-status ' + s.cls + '">' + s.txt + '</span>' +
+        '</div>' +
+        '<div class="task-meta">' +
+          '<span class="freq">' + freq + '</span>' +
+          '<span class="task-last">last: ' + timeAgo(t.lastRunAt) + '</span>' +
+        '</div>';
+      list.appendChild(card);
+    });
+  }
+})();
+</script>
+
+<div class="library-wrap">
+  <div class="library-card">
+    <div class="library-content">
+      <div class="library-name">📚 ספריית הסוכנים</div>
+      <div class="library-tag">כל הסוכנים בעיצוב קומפקטי. לחיצה על שורה פותחת את הדשבורד; כפתור Run במקום שיש מעתיק פקודה ל־Cowork.</div>
+
+      <div class="library-section-title">בכירים</div>
+      <div class="library-list">
+        <a href="architect/" class="lib-agent lib-architect">
+          <span class="lib-icon">🏛️</span>
+          <div class="lib-body">
+            <div class="lib-name">Agent Architect</div>
+            <div class="lib-last">Mode: <span id="architect-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+        <a href="forecast/" class="lib-agent lib-forecast">
+          <span class="lib-icon">🔮</span>
+          <div class="lib-body">
+            <div class="lib-name">חוזה עתידות (Forecast)</div>
+            <div class="lib-last">Last run: <span id="forecast-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+      </div>
+
+      <div class="library-section-title">לפני האירוע</div>
+      <div class="library-list">
+        <a href="contract/" class="lib-agent">
+          <span class="lib-icon">📋</span>
+          <div class="lib-body">
+            <div class="lib-name">Contract Review</div>
+            <div class="lib-last">Last run: <span id="contract-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+        <a href="canva/" class="lib-agent">
+          <span class="lib-icon">🎨</span>
+          <div class="lib-body">
+            <div class="lib-name">Canva Event Images</div>
+            <div class="lib-last">Last run: <span id="canva-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+        <a href="canva-reel/" class="lib-agent">
+          <span class="lib-icon">🎬</span>
+          <div class="lib-body">
+            <div class="lib-name">Canva Reel</div>
+            <div class="lib-last">Last run: <span id="canva-reel-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+        <a href="campaigns/" class="lib-agent">
+          <span class="lib-icon">📲</span>
+          <div class="lib-body">
+            <div class="lib-name">SMS Campaigns</div>
+            <div class="lib-last">Last run: <span id="sms-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+        <a href="pr-organization/" class="lib-agent">
+          <span class="lib-icon">🤝</span>
+          <div class="lib-body">
+            <div class="lib-name">Local PR — Organization</div>
+            <div class="lib-last">Last run: <span id="pr-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+        <a href="pr-influencer/" class="lib-agent">
+          <span class="lib-icon">✨</span>
+          <div class="lib-body">
+            <div class="lib-name">Local PR — Influencer</div>
+            <div class="lib-last">Last run: <span id="pr-influencer-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+      </div>
+
+      <div class="library-section-title">סקאוט עיר (טופס מהיר)</div>
+      <div class="library-list" id="scout-card">
+        <div class="lib-agent lib-scout-row" style="cursor:default">
+          <span class="lib-icon">🔍</span>
+          <div class="lib-body">
+            <div class="lib-name">City Scout</div>
+            <div class="lib-last">Last run: <span id="scout-lastRun">—</span></div>
+          </div>
+        </div>
+        <div class="lib-scout-form-wrap">
+          <div class="scout-form">
+            <input type="text" id="scout-city" placeholder="עיר (לדוגמה: Lancaster)" autocomplete="off">
+            <input type="text" id="scout-state" placeholder="ST" maxlength="2" style="text-transform:uppercase" autocomplete="off">
+            <select id="scout-month">
+              <option value="">חודש (אופציונלי)</option>
+              <option>Jan</option><option>Feb</option><option>Mar</option>
+              <option>Apr</option><option>May</option><option>Jun</option>
+              <option>Jul</option><option>Aug</option><option>Sep</option>
+              <option>Oct</option><option>Nov</option><option>Dec</option>
+            </select>
+          </div>
+          <button class="run-btn" id="scout-btn">🔍 העתיקי פקודת סקאוט</button>
+          <div class="run-hint">מלאי עיר + ST &rarr; לחצי לכפתור &rarr; הדביקי בשיחת Cowork חדשה. הסוכן יכין דו"ח 10-15 דקות.</div>
+          <div class="scout-reports-list" id="scout-reports-list">
+            <div class="scout-reports-empty">עדיין לא הורצו דוחות סקאוט. דו"ח ראשון יופיע כאן אחרי שהסוכן יסיים.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="library-section-title">לאחר האירוע / רץ ברקע</div>
+      <div class="library-list">
+        <div class="lib-agent" style="cursor:default" onclick="document.getElementById('lib-meta-link').click()">
+          <span class="lib-icon">📬</span>
+          <div class="lib-body">
+            <div class="lib-name"><a id="lib-meta-link" href="meta/" style="color:inherit;text-decoration:none">Meta Inbox</a></div>
+            <div class="lib-last">Last run: <span id="meta-lastRun">—</span></div>
+          </div>
+          <button class="lib-run-btn run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\Users\laure\OneDrive\מסמכים\Claude\Scheduled\NEW\meta-inbox\SKILL.md` — it is the orchestrator for @meta and tells you which other files to read (triage.md, dashboard.md, comms.md, inbox_knowledge_base.docx, reported_negatives.jsonl).">&#9654; Run</button>
+        </div>
+        <div class="lib-agent" style="cursor:default" onclick="document.getElementById('lib-housing-link').click()">
+          <span class="lib-icon">🏡</span>
+          <div class="lib-body">
+            <div class="lib-name"><a id="lib-housing-link" href="housing/" style="color:inherit;text-decoration:none">West SFV Rentals</a></div>
+            <div class="lib-last">Last run: <span id="housing-lastRun">—</span></div>
+          </div>
+          <button class="lib-run-btn run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\Users\laure\OneDrive\מסמכים\Claude\Scheduled\NEW\la-rental-search\SKILL.md` — it is the orchestrator for @housing and tells you which other files to read (search.md, dashboard.md, comms.md).">&#9654; Run</button>
+        </div>
+        <div class="lib-agent" style="cursor:default" onclick="document.getElementById('lib-mbs-link').click()">
+          <span class="lib-icon">📊</span>
+          <div class="lib-body">
+            <div class="lib-name"><a id="lib-mbs-link" href="mbs/" style="color:inherit;text-decoration:none">MBS Event Summary</a></div>
+            <div class="lib-last">Last run: <span id="mbs-lastRun">—</span></div>
+          </div>
+          <button class="lib-run-btn run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\Users\laure\OneDrive\מסמכים\Claude\Scheduled\NEW\mbs-event-summary\SKILL.md` — it is the orchestrator for @mbs. Then ask me which event to summarize.">&#9654; Run</button>
+        </div>
+      </div>
+    </div>
   </div>
-
-  <div class="agent">
-    <a href="housing/" style="text-decoration:none;color:inherit;display:block">
-      <div class="icon">🏡</div>
-      <div class="name">West SFV Rentals</div>
-      <div class="desc">On-demand search for 5+ bedroom rental homes in the West San Fernando Valley.</div>
-      <div class="lastRun">Last run: <b id="housing-lastRun">—</b></div>
-    </a>
-    <button class="run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\la-rental-search\\SKILL.md` — it is the orchestrator for @housing and tells you which other files to read (search.md, dashboard.md, comms.md).">▶ Run search now</button>
-    <div class="run-hint">Copies the command — paste (Ctrl+V) in Cowork chat</div>
-  </div>
-
-  <div class="agent">
-    <a href="mbs/" style="text-decoration:none;color:inherit;display:block">
-      <div class="icon">📊</div>
-      <div class="name">MBS Event Summary</div>
-      <div class="desc">Post-event P&amp;L — QuickBooks + OCTOPOS + Meta/TikTok Ads → full summary, Excel, Dashboard + Hebrew Word doc.</div>
-      <div class="lastRun">Last run: <b id="mbs-lastRun">—</b></div>
-    </a>
-    <button class="run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-event-summary\\SKILL.md` — it is the orchestrator for @mbs. Then ask me which event to summarize.">▶ Run summary now</button>
-    <div class="run-hint">Copies the command — paste (Ctrl+V) in Cowork chat</div>
-  </div>
-
-
-
-  <div class="agent">
-    <a href="canva/" style="text-decoration:none;color:inherit;display:block">
-      <div class="icon">🎨</div>
-      <div class="name">Canva Event Images</div>
-      <div class="desc">On-demand — generates per-city event images (CITY ST YEAR.png) from the Canva master template. Ask, list cities + dates, get PNGs in seconds.</div>
-      <div class="lastRun">Last run: <b id="canva-lastRun">—</b></div>
-    </a>
-    <a href="canva/" class="run-btn" style="text-align:center;text-decoration:none;color:#fff">🎨 פתחי טופס</a>
-    <div class="run-hint">Opens the form — choose year, list cities + dates, copy command → paste in Cowork</div>
-  </div>
-
-  <div class="agent">
-    <a href="canva-reel/" style="text-decoration:none;color:inherit;display:block">
-      <div class="icon">🎬</div>
-      <div class="name">Canva Reel</div>
-      <div class="desc">On-demand — generates per-event reel MP4 from Canva master template. Phase 1: MP4 only (Bitly + auto-post in Phase 2).</div>
-      <div class="lastRun">Last run: <b id="canva-reel-lastRun">—</b></div>
-    </a>
-    <a href="canva-reel/" class="run-btn" style="text-align:center;text-decoration:none;color:#fff">🎬 פתחי טופס</a>
-    <div class="run-hint">Opens the form — fill city + dates, copy command → paste in NEW Cowork chat</div>
-  </div>
-
-  <!-- Event Launch moved to featured hero above (Lauren 2026-05-03) -->
-
-  <div class="agent">
-    <a href="campaigns/" style="text-decoration:none;color:inherit;display:block">
-      <div class="icon">📲</div>
-      <div class="name">SMS Campaigns</div>
-      <div class="desc">On-demand (formerly "Simple Texting") — runs AFTER Event Setup. Browser automation: creates 4–5 scheduled SMS campaign drafts + auto-responder + Web Sign-up Form per event. Templates editable here.</div>
-      <div class="lastRun">Last run: <b id="sms-lastRun">—</b></div>
-    </a>
-    <a href="campaigns/" class="run-btn" style="text-align:center;text-decoration:none;color:#fff">📲 פתחי דשבורד</a>
-    <div class="run-hint">Edit templates here, then trigger from Event Manager's "📲 Campaigns" per-row button</div>
-  </div>
-
-  <div class="agent">
-    <a href="pr-organization/" style="text-decoration:none;color:inherit;display:block">
-      <div class="icon">🤝</div>
-      <div class="name">Local PR — Organization</div>
-      <div class="desc">On-demand — חיפוש ארגוני נשים מקומיים לכל אירוע (Junior League, ארגוני נשים דתיים, מרכזי נשים אוניברסיטאיים, סורוריות, בתי ספר ליופי, מכללות לנשים, צוותי קריירליידינג, ארגוני נשים לטיניות / שחורות / אסיאתיות, רשתות אמהות, ועוד — 25 קטגוריות). יוצר טיוטות HTML מובייל-פרנדלי ב-pr@makeupblowoutsalegroup.com — את קוראת ושולחת.</div>
-      <div class="lastRun">Last run: <b id="pr-lastRun">—</b></div>
-    </a>
-    <a href="pr-organization/" class="run-btn" style="text-align:center;text-decoration:none;color:#fff">🤝 פתחי טופס</a>
-    <div class="run-hint">Opens the form — fill city + venue + dates + event URL, copy command → paste in Cowork</div>
-  </div>
-
-  <div class="agent">
-    <a href="pr-influencer/" style="text-decoration:none;color:inherit;display:block">
-      <div class="icon">🎬</div>
-      <div class="name">Local PR — Influencer</div>
-      <div class="desc">On-demand — חיפוש משפיעני סושייל מדיה מקומיים (Instagram + TikTok + YouTube + Facebook). מציע voucher של $200 בתמורה לפוסט-לפני + סטוריז-ביום + ריל-אחרי. Phase 1: אימייל מהביו → טיוטה ב-pr@. Phase 2: רק handle → רשימת DM ידני. Phase 3: Heepsy ($50/חודש — אופציונלי).</div>
-      <div class="lastRun">Last run: <b id="pr-influencer-lastRun">—</b></div>
-    </a>
-    <a href="pr-influencer/" class="run-btn" style="text-align:center;text-decoration:none;color:#fff">🎬 פתחי טופס</a>
-    <div class="run-hint">חדש 2026-05-02 — תשתית בנויה, רץ-ראשון בריצה הבאה</div>
-  </div>
-
-  <div class="agent agent-forecast" style="border:2px solid #7c3aed">
-    <a href="forecast/" style="text-decoration:none;color:inherit;display:block">
-      <div class="icon">🔮</div>
-      <div class="name">חוזה עתידות (Event Forecast)</div>
-      <div class="desc">On-demand — חוזה מכירות לאירוע הבא בעיר. מאחד היסטוריית P&L (mbs-event-summary) + אבחון אירועים חלשים (mbs-venue-research) + דמוגרפיה ברדיוס 15 מייל סביב כתובת המלון + עונתיות אונליין (Google Trends + מזג אוויר + אירועים מתחרים + לוח שנה לימודי) → טווח הכנסה (`$lo-$hi K`) + רמת ביטחון + 3 דגלי סיכון + 2 המלצות פעולה לפני האירוע. נקרא מהכרטיס הזה, מהכפתור ב-launch_dashboard, או דרך SMS @forecast.</div>
-      <div class="lastRun">Last run: <b id="forecast-lastRun">—</b></div>
-    </a>
-    <a href="forecast/" class="run-btn" style="text-align:center;text-decoration:none;color:#fff;background:linear-gradient(180deg,#7c3aed,#5b21b6)">🔮 פתחי טופס</a>
-    <div class="run-hint">חדש 2026-05-03 — מלאי עיר + מלון + תאריכים, העתיקי פקודה והדביקי בשיחת Cowork</div>
-  </div>
-
 </div>
 
 <script>
