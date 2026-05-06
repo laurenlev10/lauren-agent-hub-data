@@ -330,11 +330,17 @@
   .lib-agent:hover { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.18); transform: translateY(-1px); }
   .lib-agent .lib-icon { font-size: 22px; min-width: 28px; text-align: center; line-height: 1; }
   .lib-agent .lib-body { flex: 1; min-width: 0; }
-  .lib-agent .lib-name { font-size: 13px; font-weight: 700; line-height: 1.3; color: #fff; }
-  .lib-agent .lib-last { font-size: 10.5px; opacity: 0.65; margin-top: 2px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lib-agent .lib-name { font-size: 13px; font-weight: 700; line-height: 1.3; color: #fff; word-break: normal; overflow-wrap: anywhere; }
+  .lib-agent .lib-last {
+    font-size: 10.5px; opacity: 0.65; margin-top: 2px; line-height: 1.35;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; word-break: normal; overflow-wrap: anywhere;
+  }
   .lib-agent .lib-arrow { font-size: 14px; opacity: 0.5; transition: all 0.15s ease; }
   .lib-agent:hover .lib-arrow { opacity: 1; transform: translateX(-3px); }
   .lib-agent .lib-run-btn {
+    /* Override globals from .run-btn that would otherwise stretch us full-width below the body */
+    display: inline-flex; align-items: center; width: auto; margin: 0; flex: 0 0 auto;
     background: rgba(255,255,255,0.14); color: #fff; border: 1px solid rgba(255,255,255,0.22);
     border-radius: 6px; padding: 5px 9px; font-size: 11px; font-weight: 700; cursor: pointer;
     transition: all 0.12s ease; white-space: nowrap;
