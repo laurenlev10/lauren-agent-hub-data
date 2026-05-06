@@ -406,7 +406,8 @@ const HUB = {
   sms:       { lastRun: "Sunday, May 3 · 20:14 — Columbia, MO 2026 (cheat-sheet: form + AR + 4 campaigns w/ Mother's Day hook)" },
   pr_organization: { lastRun: "Saturday, May 2 · 16:30 — Columbia, MO (15 ready-to-send drafts in pr@, 4 form-only, 1 phone-only)" },
   pr_influencer: { lastRun: "On-demand · NEW 2026-05-02" },
-  forecast:  { lastRun: "Sun, May 3 · 10:01 PDT — Columbia, MO: $28K–$38K (low-medium confidence, Mother's Day collision)" }
+  forecast:  { lastRun: "Sun, May 3 · 10:01 PDT — Columbia, MO: $28K–$38K (low-medium confidence, Mother's Day collision)" },
+  landing:   { lastRun: "On-demand · v1 launched 2026-05-06" }
 };
 // Past city-scout reports (agent appends here after each successful scout)
 const SCOUT_REPORTS = [
@@ -716,6 +717,14 @@ const WEEKLY_TASKS = [
           </div>
           <span class="lib-arrow">&#8592;</span>
         </a>
+        <a href="landing/" class="lib-agent">
+          <span class="lib-icon">🪧</span>
+          <div class="lib-body">
+            <div class="lib-name">Landing Pages</div>
+            <div class="lib-last">Last run: <span id="landing-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
       </div>
 
       <div class="library-section-title">סקאוט עיר (טופס מהיר)</div>
@@ -866,6 +875,8 @@ const WEEKLY_TASKS = [
   if (prInfEl) prInfEl.textContent = (HUB.pr_influencer && HUB.pr_influencer.lastRun) || "—";
   const fcEl = document.getElementById("forecast-lastRun");
   if (fcEl) fcEl.textContent = (HUB.forecast && HUB.forecast.lastRun) || "—";
+  const ldEl = document.getElementById("landing-lastRun");
+  if (ldEl) ldEl.textContent = (HUB.landing && HUB.landing.lastRun) || "—";
 
   document.querySelectorAll(".run-btn").forEach(btn => {
     if (!btn.hasAttribute("data-cmd")) return;
