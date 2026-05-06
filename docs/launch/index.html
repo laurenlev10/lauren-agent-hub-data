@@ -2378,8 +2378,11 @@ End date: </div>
     function getToken(){ try { return localStorage.getItem(TOKEN_KEY) || ""; } catch(e){ return ""; } }
 
     function evKeyFor(ev){
-      const slug = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
-      return slug + "-" + (ev.start_date || "");
+      // Match the convention used elsewhere in the system:
+      // <city-slug>-<state-lowercase>-<start_date>  (e.g. nashville-tn-2026-05-01)
+      const citySlug  = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+      const stateSlug = (ev.state || "").toLowerCase();
+      return citySlug + (stateSlug ? "-" + stateSlug : "") + "-" + (ev.start_date || "");
     }
 
     function open(ev){
