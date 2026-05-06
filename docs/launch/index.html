@@ -289,7 +289,10 @@
   #upload-cancel:hover{border-color:#888;color:#000}
   .upload-progress{margin-top:16px;padding:12px;background:#f0f9ff;border-radius:10px;font-size:13px;color:#0c4a6e;font-weight:500;text-align:center}
   .upload-progress.error{background:#fef2f2;color:#991b1b}
-  .upload-progress.success{background:#f0fdf4;color:#166534}
+  .upload-progress.success{background:#f0fdf4;color:#166534;text-align:right}
+  .upload-progress textarea{display:block;width:100%;min-height:120px;margin-top:6px;padding:10px;font-family:Consolas,monospace;font-size:11px;direction:ltr;text-align:left;border:1px solid #16a34a;border-radius:6px;background:#fff;color:#111;resize:vertical}
+  .upload-progress button{margin-top:6px;padding:6px 14px;background:#16a34a;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer}
+  .upload-progress button:hover{filter:brightness(1.05)}
 
   /* Period-aware visibility (Lauren 2026-05-05).
      Future tab = focus on tasks: schedule-card + add-event form. MBS dashboard hidden.
@@ -2473,6 +2476,10 @@ End date: </div>
       updateSubmitState();
     }
 
+    function escapeForHtml(s){
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
     function fileToBase64(file){
       return new Promise((res, rej) => {
         const r = new FileReader();
@@ -2595,15 +2602,27 @@ End date: </div>
         // OR "all 4 ready — agent can run now"
         const haveCount = KINDS_REQUIRED.filter(k => manifest.files[k]).length;
         prog.className = "upload-progress success";
-        if (haveCount === KINDS_REQUIRED.length){
-          prog.textContent = "✅ כל 4 הקבצים נשמרו + manifest. פקודת Cowork הועתקה ל-clipboard.";
-          submitBtn.textContent = "✓ הושלם";
-          setTimeout(close, 3500);
-        } else {
-          prog.textContent = "💾 נשמרו " + haveCount + "/4 קבצים. תוכלי לחזור ולהשלים בכל זמן — הקבצים הקיימים לא יידרסו. (פקודת Cowork הועתקה — אבל אל תריצי עד שיהיו 4)";
-          submitBtn.textContent = "✓ נשמר";
-          setTimeout(close, 4500);
-        }
+        const headline = (haveCount === KINDS_REQUIRED.length)
+          ? "✅ כל 4 הקבצים נשמרו + manifest. הפקודה למטה — תוכלי להעתיק ולהדביק בקוורק:"
+          : "💾 נשמרו " + haveCount + "/4 קבצים. תוכלי לחזור ולהשלים. הפקודה למטה (אל תריצי עד שיהיו 4):";
+        prog.innerHTML =
+          '<div style="margin-bottom:8px">' + headline + '</div>' +
+          '<textarea id="upload-cmd-out" readonly>' + escapeForHtml(cmd) + '</textarea>' +
+          '<button id="upload-cmd-copy" type="button">📋 העתק פקודה</button>';
+        // Wire the copy button — fallback when navigator.clipboard.writeText fails silently
+        const copyBtn = document.getElementById("upload-cmd-copy");
+        copyBtn.addEventListener("click", () => {
+          const ta = document.getElementById("upload-cmd-out");
+          ta.select();
+          let ok = false;
+          try { ok = document.execCommand("copy"); } catch(e){}
+          if (!ok) {
+            try { navigator.clipboard.writeText(cmd); ok = true; } catch(e){}
+          }
+          copyBtn.textContent = ok ? "✓ הועתק" : "⚠ לא הצליח — סמני ידנית עם Ctrl+C";
+        });
+        submitBtn.textContent = (haveCount === KINDS_REQUIRED.length) ? "✓ הושלם" : "✓ נשמר";
+        // No auto-close — let Lauren copy the command at her own pace.
       } catch (e){
         prog.className = "upload-progress error";
         prog.textContent = "⚠ שגיאה: " + e.message;
