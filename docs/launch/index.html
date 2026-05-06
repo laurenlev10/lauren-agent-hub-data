@@ -192,6 +192,17 @@
   .btn-reel-row{background:linear-gradient(180deg,#4f46e5,#3730a3)}
   .btn-pr-influencer-row{background:linear-gradient(180deg,#d946ef,#a21caf)}
   .btn-summary-row{background:linear-gradient(180deg,#0891b2,#155e75)}
+  /* 'needs-summary' — past event without a published summary yet (call-to-action,
+     Lauren 2026-05-05: 'הפעילות הכי חשובה לעשות כשאירוע נגמר'). Pulsing
+     orange/red gradient grabs attention until the agent runs and the button
+     flips to .done (green). */
+  .btn-summary-row.needs-summary{background:linear-gradient(180deg,#f97316,#dc2626);box-shadow:0 0 0 0 rgba(249,115,22,.55);animation:pulseSummary 1.8s infinite;font-size:12px;padding:6px 12px}
+  .btn-summary-row.needs-summary:hover{filter:brightness(1.05);animation:none}
+  @keyframes pulseSummary{
+    0%   {box-shadow:0 0 0 0 rgba(249,115,22,.55)}
+    70%  {box-shadow:0 0 0 8px rgba(249,115,22,0)}
+    100% {box-shadow:0 0 0 0 rgba(249,115,22,0)}
+  }
   /* Manual checklist per event (Lauren 2026-05-03 PM redesign) — 2 tasks: SMS scheduling + reel v2/refresh campaign */
   .manual-tasks{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding:10px 14px;background:linear-gradient(180deg,#fefefe,#f8fafc);border-radius:10px;border:1px solid #e5e7eb;direction:rtl}
   .manual-tasks .mt-label{font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
@@ -1523,12 +1534,17 @@ End date: </div>
             rowBtn += '<a class="btn-forecast-row" href="../forecast/?' + params + '&autorun=1" target="_blank" rel="noopener" title="Open חוזה עתידות (Event Forecast) pre-filled with this event">🔮 חוזה עתידות</a>';
           }
 
-          // 📊 Post-event summary — appears for every signed/launched event; flips when summary HTML exists
-          const sm = (typeof SUMMARIES !== "undefined") ? SUMMARIES[evKey] : null;
-          if (sm) {
-            rowBtn += '<a class="btn-agent-row btn-summary-row done" href="' + sm.href + '" target="_blank" rel="noopener" title="Event summary · ' + fmtSigned(sm.profit) + ' (' + sm.profit_pct + '%) · ' + (sm.generated_at||"").slice(0,10) + '">📊 Event Summary</a>';
-          } else {
-            rowBtn += '<a class="btn-agent-row btn-summary-row" href="../mbs/?' + params + '" target="_blank" rel="noopener" title="Open MBS Event Summary pre-filled with this event (post-event)">📊 Event Summary</a>';
+          // 📊 Post-event summary — past events ONLY (Lauren 2026-05-05: can't summarize an event
+          // before it happens). When the event is done AND no summary exists yet, render a HIGHLIGHTED
+          // call-to-action ("📊 לסיכום!") since Lauren says this is the most important post-event task.
+          // When the summary is published, render as green/done linking to the GH Pages detail page.
+          if (eff === "done") {
+            const sm = (typeof SUMMARIES !== "undefined") ? SUMMARIES[evKey] : null;
+            if (sm) {
+              rowBtn += '<a class="btn-agent-row btn-summary-row done" href="' + sm.href + '" target="_blank" rel="noopener" title="Event summary · ' + fmtSigned(sm.profit) + ' (' + sm.profit_pct + '%) · ' + (sm.generated_at||"").slice(0,10) + '">📊 Event Summary</a>';
+            } else {
+              rowBtn += '<a class="btn-agent-row btn-summary-row needs-summary" href="../mbs/?' + params + '" target="_blank" rel="noopener" title="האירוע הסתיים — נדרש סיכום. לחיצה תפתח את MBS Event Summary עם פרטי האירוע מוכנים.">📊 לסיכום!</a>';
+            }
           }
         }
       }
