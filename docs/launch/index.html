@@ -2438,7 +2438,45 @@ End date: </div>
         setIf("upload-shipping",   m2.shipping_no_driver_usd);
         setIf("upload-notes",      m2.notes);
         updateSubmitState();
+        // If files were already uploaded previously, show the command
+        // immediately — no need to re-upload to see it.
+        if (Object.keys(existingFiles).length > 0){
+          renderCommandBlock(evKey, existingFiles, /*isFreshUpload=*/false);
+        }
       } catch(e){}   // silent — no prior manifest is the normal first-time case
+    }
+
+    function renderCommandBlock(evKey, filesMap, isFreshUpload){
+      const cmd = generateCommand(evKey);
+      const haveCount = KINDS_REQUIRED.filter(k => filesMap[k]).length;
+      const prog = document.getElementById("upload-progress");
+      prog.hidden = false;
+      prog.className = "upload-progress success";
+      let headline;
+      if (isFreshUpload && haveCount === KINDS_REQUIRED.length){
+        headline = "✅ כל 4 הקבצים נשמרו + manifest. הפקודה למטה — תוכלי להעתיק ולהדביק בקוורק:";
+      } else if (isFreshUpload){
+        headline = "💾 נשמרו " + haveCount + "/4 קבצים. הפקודה למטה (אל תריצי עד שיהיו 4):";
+      } else if (haveCount === KINDS_REQUIRED.length){
+        headline = "✓ כל 4 הקבצים כבר אצל הסוכן. הפקודה מוכנה להעתקה — אין צורך להעלות שוב:";
+      } else {
+        headline = "✓ " + haveCount + "/4 קבצים כבר אצל הסוכן. תוכלי להשלים או להעתיק את הפקודה למטה:";
+      }
+      prog.innerHTML =
+        '<div style="margin-bottom:8px">' + escapeForHtml(headline) + '</div>' +
+        '<textarea id="upload-cmd-out" readonly>' + escapeForHtml(cmd) + '</textarea>' +
+        '<button id="upload-cmd-copy" type="button">📋 העתק פקודה</button>';
+      const copyBtn = document.getElementById("upload-cmd-copy");
+      copyBtn.addEventListener("click", () => {
+        const ta = document.getElementById("upload-cmd-out");
+        ta.select();
+        let ok = false;
+        try { ok = document.execCommand("copy"); } catch(e){}
+        if (!ok) {
+          try { navigator.clipboard.writeText(cmd); ok = true; } catch(e){}
+        }
+        copyBtn.textContent = ok ? "✓ הועתק" : "⚠ לא הצליח — סמני ידנית עם Ctrl+C";
+      });
     }
 
     function updateSubmitState(){
@@ -2600,31 +2638,14 @@ End date: </div>
         const cmd = generateCommand(evKey);
         try { await navigator.clipboard.writeText(cmd); } catch(e){}
 
-        // Count what's now in the manifest (post-merge) — lets us tell
-        // Lauren "you have 2/4 saved, come back later for the rest"
-        // OR "all 4 ready — agent can run now"
+        // Render the command block (same UI used for "already-uploaded"
+        // case in loadExistingManifest — keeps the look consistent).
+        renderCommandBlock(evKey, manifest.files, /*isFreshUpload=*/true);
         const haveCount = KINDS_REQUIRED.filter(k => manifest.files[k]).length;
-        prog.className = "upload-progress success";
-        const headline = (haveCount === KINDS_REQUIRED.length)
-          ? "✅ כל 4 הקבצים נשמרו + manifest. הפקודה למטה — תוכלי להעתיק ולהדביק בקוורק:"
-          : "💾 נשמרו " + haveCount + "/4 קבצים. תוכלי לחזור ולהשלים. הפקודה למטה (אל תריצי עד שיהיו 4):";
-        prog.innerHTML =
-          '<div style="margin-bottom:8px">' + headline + '</div>' +
-          '<textarea id="upload-cmd-out" readonly>' + escapeForHtml(cmd) + '</textarea>' +
-          '<button id="upload-cmd-copy" type="button">📋 העתק פקודה</button>';
-        // Wire the copy button — fallback when navigator.clipboard.writeText fails silently
-        const copyBtn = document.getElementById("upload-cmd-copy");
-        copyBtn.addEventListener("click", () => {
-          const ta = document.getElementById("upload-cmd-out");
-          ta.select();
-          let ok = false;
-          try { ok = document.execCommand("copy"); } catch(e){}
-          if (!ok) {
-            try { navigator.clipboard.writeText(cmd); ok = true; } catch(e){}
-          }
-          copyBtn.textContent = ok ? "✓ הועתק" : "⚠ לא הצליח — סמני ידנית עם Ctrl+C";
-        });
         submitBtn.textContent = (haveCount === KINDS_REQUIRED.length) ? "✓ הושלם" : "✓ נשמר";
+        // After upload, also update existingFiles so subsequent staging+submit
+        // continues to merge correctly.
+        existingFiles = Object.assign({}, manifest.files);
         // No auto-close — let Lauren copy the command at her own pace.
       } catch (e){
         prog.className = "upload-progress error";
