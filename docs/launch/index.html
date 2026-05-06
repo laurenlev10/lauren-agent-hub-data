@@ -258,6 +258,11 @@
   .upload-zone:hover{border-color:#0891b2;background:#f0f9ff}
   .upload-zone.drag-over{border-color:#0891b2;background:#e0f2fe;border-style:solid}
   .upload-zone.filled{border-color:#16a34a;border-style:solid;background:#f0fdf4}
+  /* 'prev' = was uploaded in a previous modal session, no fresh file staged yet.
+     Visual: blue border + light blue tint (vs green for fresh). User can still
+     drop a new file to replace; if they don't, the existing one is kept. */
+  .upload-zone.prev{border-color:#0891b2;border-style:dashed;background:#f0f9ff}
+  .upload-zone.prev .upload-zone-status{color:#0c4a6e;font-weight:600;font-size:11px}
   .upload-zone-icon{font-size:32px;margin-bottom:8px}
   .upload-zone-title{font-weight:700;font-size:14px;color:#2d3436;margin-bottom:3px}
   .upload-zone-hint{font-size:11px;color:#888;margin-bottom:8px}
@@ -2363,8 +2368,9 @@ End date: </div>
     const KINDS_OPTIONAL = [];
     const KINDS          = KINDS_REQUIRED.concat(KINDS_OPTIONAL);
 
-    let currentEvent = null;
-    let stagedFiles  = {};   // { cash_report: File, octopos: File, ... }
+    let currentEvent  = null;
+    let stagedFiles   = {};   // { cash_report: File, ... } — staged in browser
+    let existingFiles = {};   // { cash_report: "cash_report.pdf", ... } — already in repo from prior modal session
 
     function getToken(){ try { return localStorage.getItem(TOKEN_KEY) || ""; } catch(e){ return ""; } }
 
@@ -2374,15 +2380,16 @@ End date: </div>
     }
 
     function open(ev){
-      currentEvent = ev;
-      stagedFiles  = {};
+      currentEvent  = ev;
+      stagedFiles   = {};
+      existingFiles = {};
       document.getElementById("upload-event-title").textContent =
         ev.city + " (" + (ev.start_date || "").slice(5) + " - " + (ev.end_date || "").slice(5) + ")";
       const modal = document.getElementById("upload-modal");
       modal.hidden = false;
       // Reset zones
       document.querySelectorAll(".upload-zone").forEach(z => {
-        z.classList.remove("filled","drag-over");
+        z.classList.remove("filled","drag-over","prev");
         z.querySelector(".upload-zone-status").textContent = "גררי קובץ או לחצי לבחירה";
         z.querySelector("input[type=file]").value = "";
       });
@@ -2390,12 +2397,62 @@ End date: </div>
       ["upload-inventory","upload-venue-rent","upload-gas-misc","upload-shipping","upload-notes"].forEach(id => {
         const el = document.getElementById(id); if (el) el.value = "";
       });
-      const submitBtn = document.getElementById("upload-submit");
-      submitBtn.disabled = true;
-      submitBtn.textContent = "🚀 העלי והתחילי";
+      updateSubmitState();
       const prog = document.getElementById("upload-progress");
       prog.hidden = true;
       prog.className = "upload-progress";
+      // Look for previously-saved files for this event (lets Lauren resume
+      // a partial upload from a prior modal session). Async — the modal
+      // is interactive while this runs.
+      loadExistingManifest(evKeyFor(ev));
+    }
+
+    async function loadExistingManifest(evKey){
+      const url = "https://raw.githubusercontent.com/" + OWNER + "/" + REPO +
+                  "/" + BRANCH + "/docs/mbs/inputs/" + evKey + "/manifest.json?t=" + Date.now();
+      try {
+        const r = await fetch(url, { cache: "no-store" });
+        if (!r.ok) return;          // 404 = nothing previously uploaded, totally fine
+        const m = await r.json();
+        existingFiles = m.files || {};
+        // Reflect existing files in zone UI
+        for (const kind of Object.keys(existingFiles)){
+          const zone = document.querySelector('.upload-zone[data-kind="' + kind + '"]');
+          if (!zone || stagedFiles[kind]) continue;   // don't overwrite a fresh stage
+          zone.classList.add("prev");
+          zone.querySelector(".upload-zone-status").textContent =
+            "✓ הועלה קודם: " + existingFiles[kind] + "  (גררי קובץ חדש כדי להחליף)";
+        }
+        // Pre-fill manual values too (so partial work is preserved across reloads)
+        const m2 = m.manual || {};
+        const setIf = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+        setIf("upload-inventory",  m2.inventory_shipped_usd);
+        setIf("upload-venue-rent", m2.venue_rent_usd);
+        setIf("upload-gas-misc",   m2.gas_misc_usd);
+        setIf("upload-shipping",   m2.shipping_no_driver_usd);
+        setIf("upload-notes",      m2.notes);
+        updateSubmitState();
+      } catch(e){}   // silent — no prior manifest is the normal first-time case
+    }
+
+    function updateSubmitState(){
+      // Submit is now allowed with ANY combination — Lauren can save
+      // partial progress (e.g. just the cash report tonight, the rest
+      // tomorrow). The merge happens server-side via existing manifest.
+      const stagedList   = KINDS_REQUIRED.filter(k => stagedFiles[k]);
+      const existingList = KINDS_REQUIRED.filter(k => existingFiles[k] && !stagedFiles[k]);
+      const totalReady   = stagedList.length + existingList.length;
+      const submitBtn = document.getElementById("upload-submit");
+      // Allow submit if there's at least 1 NEW file staged, OR if there are
+      // existing files but Lauren only changed manual values / notes.
+      submitBtn.disabled = (stagedList.length === 0 && existingList.length === 0);
+      if (totalReady === KINDS_REQUIRED.length){
+        submitBtn.textContent = "🚀 העלי והתחילי (כל 4 הקבצים מוכנים)";
+      } else if (totalReady > 0){
+        submitBtn.textContent = "💾 שמרי " + stagedList.length + " חדש (סה\"כ " + totalReady + "/4)";
+      } else {
+        submitBtn.textContent = "🚀 העלי והתחילי";
+      }
     }
 
     function close(){
@@ -2409,21 +2466,11 @@ End date: </div>
       stagedFiles[kind] = file;
       const zone = document.querySelector('.upload-zone[data-kind="' + kind + '"]');
       zone.classList.add("filled");
+      zone.classList.remove("prev");   // staged file shadows any existing one
       const sizeKb = Math.round(file.size / 1024);
       zone.querySelector(".upload-zone-status").textContent =
         "✓ " + file.name + " (" + (sizeKb < 1024 ? sizeKb + "KB" : (sizeKb/1024).toFixed(1) + "MB") + ")";
-      // Submit enables when all REQUIRED files are staged.
-      // Update the button label to show how many are missing — clearer
-      // than just a greyed-out button (Lauren feedback 2026-05-05).
-      const stagedCount = KINDS_REQUIRED.filter(k => stagedFiles[k]).length;
-      const missingCount = KINDS_REQUIRED.length - stagedCount;
-      const submitBtn = document.getElementById("upload-submit");
-      submitBtn.disabled = (missingCount > 0);
-      if (missingCount === 0) {
-        submitBtn.textContent = "🚀 העלי והתחילי";
-      } else {
-        submitBtn.textContent = "🚀 חסרים " + missingCount + " קבצים (" + stagedCount + "/4)";
-      }
+      updateSubmitState();
     }
 
     function fileToBase64(file){
@@ -2502,6 +2549,9 @@ End date: </div>
           return Number.isFinite(n) ? n : null;
         };
         const notesEl = document.getElementById("upload-notes");
+        // MERGE with existing manifest's `files` map so partial uploads
+        // accumulate across modal sessions — Lauren can drop 2 files
+        // tonight and the other 2 tomorrow without losing the first batch.
         const manifest = {
           uploaded_at: new Date().toISOString(),
           event: {
@@ -2509,7 +2559,7 @@ End date: </div>
             start_date: currentEvent.start_date, end_date: currentEvent.end_date,
             venue: currentEvent.venue || null, address: currentEvent.address || null
           },
-          files: {},
+          files: Object.assign({}, existingFiles),   // start from previous, add new below
           manual: {
             inventory_shipped_usd: num("upload-inventory"),
             venue_rent_usd:        num("upload-venue-rent"),
@@ -2540,10 +2590,20 @@ End date: </div>
         const cmd = generateCommand(evKey);
         try { await navigator.clipboard.writeText(cmd); } catch(e){}
 
+        // Count what's now in the manifest (post-merge) — lets us tell
+        // Lauren "you have 2/4 saved, come back later for the rest"
+        // OR "all 4 ready — agent can run now"
+        const haveCount = KINDS_REQUIRED.filter(k => manifest.files[k]).length;
         prog.className = "upload-progress success";
-        prog.textContent = "✅ הועלו 4 קבצים + manifest. פקודת Cowork הועתקה ל-clipboard. הדביקי בסוכן והוא יתחיל.";
-        submitBtn.textContent = "✓ הושלם";
-        setTimeout(close, 3500);
+        if (haveCount === KINDS_REQUIRED.length){
+          prog.textContent = "✅ כל 4 הקבצים נשמרו + manifest. פקודת Cowork הועתקה ל-clipboard.";
+          submitBtn.textContent = "✓ הושלם";
+          setTimeout(close, 3500);
+        } else {
+          prog.textContent = "💾 נשמרו " + haveCount + "/4 קבצים. תוכלי לחזור ולהשלים בכל זמן — הקבצים הקיימים לא יידרסו. (פקודת Cowork הועתקה — אבל אל תריצי עד שיהיו 4)";
+          submitBtn.textContent = "✓ נשמר";
+          setTimeout(close, 4500);
+        }
       } catch (e){
         prog.className = "upload-progress error";
         prog.textContent = "⚠ שגיאה: " + e.message;
