@@ -253,8 +253,7 @@
   .upload-close:hover{color:#000}
   .upload-body{padding:20px 22px}
   .upload-intro{margin:0 0 18px;font-size:13px;color:#636e72}
-  .upload-zones{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
-  @media(max-width:540px){.upload-zones{grid-template-columns:1fr}}
+  .upload-zones{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px}
   .upload-zone{border:2px dashed #d1d5db;border-radius:12px;padding:18px 14px;text-align:center;cursor:pointer;transition:all .15s;background:#fafafa}
   .upload-zone:hover{border-color:#0891b2;background:#f0f9ff}
   .upload-zone.drag-over{border-color:#0891b2;background:#e0f2fe;border-style:solid}
@@ -264,6 +263,17 @@
   .upload-zone-hint{font-size:11px;color:#888;margin-bottom:8px}
   .upload-zone-status{font-size:12px;color:#636e72;font-weight:500;word-break:break-word}
   .upload-zone.filled .upload-zone-status{color:#16a34a;font-weight:700}
+  .upload-extras{margin:6px 0 16px;border:1px solid #e5e7eb;border-radius:10px;padding:0;background:#fafafa}
+  .upload-extras > summary{padding:10px 14px;cursor:pointer;font-size:13px;font-weight:600;color:#475569;list-style:none}
+  .upload-extras > summary::-webkit-details-marker{display:none}
+  .upload-extras[open] > summary{border-bottom:1px solid #e5e7eb;background:#fff}
+  .upload-extras-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:12px 14px 6px}
+  .upload-extras-grid label{display:flex;flex-direction:column;font-size:11px;font-weight:600;color:#475569;gap:4px}
+  .upload-extras-grid input[type=number]{padding:7px 10px;font-size:13px;border:1px solid #d1d5db;border-radius:6px;font-weight:500}
+  .upload-extras-grid input[type=number]:focus{outline:none;border-color:#0891b2}
+  .upload-notes-label{display:flex;flex-direction:column;font-size:11px;font-weight:600;color:#475569;gap:4px;padding:0 14px 12px}
+  .upload-notes-label textarea{padding:8px 10px;font-size:13px;border:1px solid #d1d5db;border-radius:6px;resize:vertical;font-family:inherit;direction:rtl}
+  .upload-notes-label textarea:focus{outline:none;border-color:#0891b2}
   .upload-actions{display:flex;gap:10px;justify-content:flex-start;flex-direction:row-reverse}
   #upload-submit{padding:10px 22px;background:linear-gradient(180deg,#f97316,#dc2626);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(249,115,22,.4)}
   #upload-submit:hover:not(:disabled){filter:brightness(1.05);transform:translateY(-1px)}
@@ -1005,7 +1015,26 @@ End date: </div>
           <div class="upload-zone-status">גררי קובץ או לחצי לבחירה</div>
           <input type="file" accept=".xlsx,.csv,image/*" hidden>
         </div>
+        <div class="upload-zone" data-kind="quickbooks">
+          <div class="upload-zone-icon">🧾</div>
+          <div class="upload-zone-title">QuickBooks Export</div>
+          <div class="upload-zone-hint">CSV / XLSX (transactions לאירוע, מסונן לפי tag)</div>
+          <div class="upload-zone-status">גררי קובץ או לחצי לבחירה</div>
+          <input type="file" accept=".csv,.xlsx,image/*" hidden>
+        </div>
       </div>
+      <details class="upload-extras">
+        <summary>📝 ערכים ידניים (אופציונלי) — אם יש מספרים שאת זוכרת ולא בקבצים</summary>
+        <div class="upload-extras-grid">
+          <label>📦 מלאי שנשלח ($)<input type="number" id="upload-inventory" placeholder="לדוגמה 12917"></label>
+          <label>🏢 שכר אולם ($)<input type="number" id="upload-venue-rent" placeholder="לדוגמה 2500"></label>
+          <label>⛽ גז + Misc ($)<input type="number" id="upload-gas-misc" placeholder="לדוגמה 450"></label>
+          <label>📌 משלוח (ללא נהג) ($)<input type="number" id="upload-shipping" placeholder="לדוגמה 300"></label>
+        </div>
+        <label class="upload-notes-label">הערות חופשיות לסוכן (חריגות, הקשרים — כל מה שחשוב להוסיף):
+          <textarea id="upload-notes" rows="2" placeholder="לדוגמה: סופה ביום ראשון פגעה בהשתתפות; מלאי המשותף עם האירוע הקודם; etc."></textarea>
+        </label>
+      </details>
       <div class="upload-actions">
         <button id="upload-submit" type="button" disabled>🚀 העלי והתחילי</button>
         <button id="upload-cancel" type="button">ביטול</button>
@@ -2329,7 +2358,7 @@ End date: </div>
     const REPO      = "lauren-agent-hub-data";
     const BRANCH    = "main";
     const TOKEN_KEY = "lauren_gh_token_v1";
-    const KINDS     = ["cash_report", "octopos", "meta", "tiktok"];
+    const KINDS     = ["cash_report", "octopos", "meta", "tiktok", "quickbooks"];
 
     let currentEvent = null;
     let stagedFiles  = {};   // { cash_report: File, octopos: File, ... }
@@ -2353,6 +2382,10 @@ End date: </div>
         z.classList.remove("filled","drag-over");
         z.querySelector(".upload-zone-status").textContent = "גררי קובץ או לחצי לבחירה";
         z.querySelector("input[type=file]").value = "";
+      });
+      // Reset manual extras
+      ["upload-inventory","upload-venue-rent","upload-gas-misc","upload-shipping","upload-notes"].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = "";
       });
       const submitBtn = document.getElementById("upload-submit");
       submitBtn.disabled = true;
@@ -2450,6 +2483,12 @@ End date: </div>
       prog.className = "upload-progress";
       prog.textContent = "מתחילה העלאה…";
       try {
+        const num = (id) => {
+          const v = (document.getElementById(id) || {}).value;
+          const n = v ? parseFloat(v) : NaN;
+          return Number.isFinite(n) ? n : null;
+        };
+        const notesEl = document.getElementById("upload-notes");
         const manifest = {
           uploaded_at: new Date().toISOString(),
           event: {
@@ -2457,7 +2496,14 @@ End date: </div>
             start_date: currentEvent.start_date, end_date: currentEvent.end_date,
             venue: currentEvent.venue || null, address: currentEvent.address || null
           },
-          files: {}
+          files: {},
+          manual: {
+            inventory_shipped_usd: num("upload-inventory"),
+            venue_rent_usd:        num("upload-venue-rent"),
+            gas_misc_usd:          num("upload-gas-misc"),
+            shipping_no_driver_usd: num("upload-shipping"),
+            notes: notesEl ? notesEl.value.trim() : ""
+          }
         };
         let n = 0;
         for (const kind of KINDS){
