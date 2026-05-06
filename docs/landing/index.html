@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build Landing Page · Makeup Blowout</title>
+<style>
+  :root {
+    --pink: #ec4899;
+    --pink-dark: #db2777;
+    --bg: #fdf2f8;
+    --card: #ffffff;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --border: #f9a8d4;
+    --green: #10b981;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 24px; }
+  header h1 {
+    margin: 0 0 6px 0; font-size: 28px;
+    background: linear-gradient(90deg, var(--pink) 0%, #9333ea 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  header .sub { color: var(--muted); font-size: 14px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px; box-shadow: 0 4px 14px rgba(236,72,153,0.08);
+  }
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block; font-size: 12px; font-weight: 700;
+    color: var(--text); margin-bottom: 4px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .field label .req { color: var(--pink); }
+  .field input, .field textarea {
+    width: 100%; padding: 10px 12px;
+    border: 1.5px solid var(--border); border-radius: 8px;
+    font-family: inherit; font-size: 14px;
+    background: #fff; color: var(--text); direction: ltr; text-align: left;
+    transition: all 0.15s;
+  }
+  .field input:focus, .field textarea:focus {
+    outline: none; border-color: var(--pink);
+    box-shadow: 0 0 0 3px rgba(236,72,153,0.12);
+  }
+  .field input::placeholder, .field textarea::placeholder {
+    color: #d1d5db; font-style: italic;
+  }
+  .field .hint {
+    font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4;
+  }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+  .actions {
+    display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap;
+  }
+  .btn {
+    flex: 1; min-width: 140px;
+    padding: 14px 18px; border: none; border-radius: 10px;
+    font-family: inherit; font-size: 15px; font-weight: 700;
+    cursor: pointer; letter-spacing: 0.3px;
+    transition: all 0.15s ease;
+  }
+  .btn-primary {
+    background: linear-gradient(180deg, var(--pink), var(--pink-dark));
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(236,72,153,0.3);
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(236,72,153,0.4); }
+  .btn-primary.copied { background: var(--green); }
+  .btn-secondary {
+    background: #fff; border: 1.5px solid var(--border); color: var(--text);
+  }
+  .btn-secondary:hover { border-color: var(--pink); color: var(--pink); }
+  .preview {
+    margin-top: 18px; padding: 14px;
+    background: #1f2937; color: #f1f5f9;
+    border-radius: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px; line-height: 1.5;
+    white-space: pre-wrap; direction: ltr; text-align: left;
+    max-height: 240px; overflow: auto;
+  }
+  .auto-badge {
+    display: inline-block; font-size: 9px; font-weight: 800;
+    background: #dcfce7; color: #166534;
+    padding: 2px 7px; border-radius: 999px; letter-spacing: 0.4px;
+    vertical-align: middle; margin-right: 4px;
+  }
+  .placeholder-badge {
+    display: inline-block; font-size: 9px; font-weight: 800;
+    background: #fef3c7; color: #92400e;
+    padding: 2px 7px; border-radius: 999px; letter-spacing: 0.4px;
+    vertical-align: middle; margin-right: 4px;
+  }
+  .top-banner {
+    margin-bottom: 16px; padding: 12px 14px;
+    background: #fff; border: 1px dashed var(--pink); border-radius: 10px;
+    font-size: 13px; color: var(--text); line-height: 1.5;
+  }
+  .top-banner b { color: var(--pink-dark); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header>
+  <h1>🪧 Build Landing Page</h1>
+  <div class="sub">דף נחיתה אוטומטי לאירוע באתר events.themakeupblowout.com</div>
+</header>
+
+<div class="top-banner">
+  <b>איך זה עובד:</b> מלאי את הפרטים, לחצי "העתיקי פקודה", הדביקי בשיחת Cowork חדשה. הסוכן יבנה את הדף ויעלה אותו תוך כ-30 שניות. אם כבר נטענה ה-URL עם פרמטרים מ-launch dashboard — חלק מהשדות כבר ממולאים.
+</div>
+
+<div class="card">
+
+  <div class="field">
+    <label>Slug של האירוע <span class="req">*</span></label>
+    <input type="text" id="f-slug" placeholder="columbia-mo-2026" autocomplete="off">
+    <div class="hint">URL slug — אותיות קטנות, מקפים. מופיע ב-events.themakeupblowout.com/events/<b id="slug-preview">{slug}</b>/</div>
+  </div>
+
+  <div class="grid">
+    <div class="field">
+      <label>City <span class="req">*</span></label>
+      <input type="text" id="f-city" placeholder="Columbia" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>State <span class="req">*</span></label>
+      <input type="text" id="f-state" placeholder="MO" maxlength="2" style="text-transform:uppercase" autocomplete="off">
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="field">
+      <label>Start date <span class="req">*</span></label>
+      <input type="date" id="f-start">
+    </div>
+    <div class="field">
+      <label>End date <span class="req">*</span></label>
+      <input type="date" id="f-end">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Venue name <span class="req">*</span></label>
+    <input type="text" id="f-venue" placeholder="Courtyard by Marriott" autocomplete="off">
+  </div>
+
+  <div class="field">
+    <label>Venue address <span class="req">*</span></label>
+    <input type="text" id="f-address" placeholder="4150 Lavon Dr, Columbia, MO 65201" autocomplete="off">
+  </div>
+
+  <div class="field">
+    <label>FORM_ID (SimpleTexting webFormId) <span class="req">*</span></label>
+    <input type="text" id="f-formid" placeholder="68b7415a7a7ecf7a8976cd17" autocomplete="off">
+    <div class="hint">24-character hex string. מצאי ב-SimpleTexting → Web Forms → Edit → URL בסוף.</div>
+  </div>
+
+  <div class="field">
+    <label>Instagram reel URL <span class="req">*</span></label>
+    <input type="text" id="f-igurl" placeholder="https://www.instagram.com/reel/Cxxxxxxx/" autocomplete="off">
+    <div class="hint">הקישור לריל של האירוע — כפתור Share שולח אליו.</div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="copy-btn">📋 העתיקי פקודה לסוכן</button>
+    <button class="btn btn-secondary" id="preview-btn">👁️ תצוגה מקדימה</button>
+  </div>
+
+  <div class="preview" id="preview" style="display:none"></div>
+
+</div>
+
+</div>
+
+<script>
+(function () {
+  // --- Auto-fill from URL params (when opened from launch_dashboard) ---
+  const params = new URLSearchParams(window.location.search);
+  const setIf = (id, key) => { const v = params.get(key); if (v && document.getElementById(id)) document.getElementById(id).value = v; };
+  setIf("f-slug",    "slug");
+  setIf("f-city",    "city");
+  setIf("f-state",   "state");
+  setIf("f-start",   "start_date");
+  setIf("f-end",     "end_date");
+  setIf("f-venue",   "venue");
+  setIf("f-address", "address");
+  setIf("f-formid",  "form_id");
+  setIf("f-igurl",   "ig_url");
+
+  const slugEl = document.getElementById("f-slug");
+  const slugPreview = document.getElementById("slug-preview");
+  const updateSlugPreview = () => {
+    slugPreview.textContent = (slugEl.value || "{slug}").trim();
+  };
+  slugEl.addEventListener("input", updateSlugPreview);
+  updateSlugPreview();
+
+  // Auto-derive slug from city + state + year if slug is empty and they're filled
+  function autoSlugFromCity() {
+    if (slugEl.value.trim()) return;
+    const city = document.getElementById("f-city").value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const state = document.getElementById("f-state").value.trim().toLowerCase();
+    const start = document.getElementById("f-start").value;
+    const year = start ? start.split("-")[0] : "";
+    if (city && state && year) {
+      slugEl.value = `${city}-${state}-${year}`;
+      updateSlugPreview();
+    }
+  }
+  ["f-city","f-state","f-start"].forEach(id => document.getElementById(id).addEventListener("blur", autoSlugFromCity));
+
+  // --- Build the Cowork command ---
+  function buildCmd() {
+    const slug    = document.getElementById("f-slug").value.trim();
+    const city    = document.getElementById("f-city").value.trim();
+    const state   = document.getElementById("f-state").value.trim().toUpperCase();
+    const start   = document.getElementById("f-start").value;
+    const end     = document.getElementById("f-end").value;
+    const venue   = document.getElementById("f-venue").value.trim();
+    const address = document.getElementById("f-address").value.trim();
+    const formid  = document.getElementById("f-formid").value.trim();
+    const igurl   = document.getElementById("f-igurl").value.trim();
+
+    return `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\landing-page-builder\\SKILL.md\` — it is the orchestrator for the @landing agent. Build the landing page for the event below, push to themakeupblowout-events repo, wait for GitHub Pages build, and SMS me with the live URL.
+
+EVENT
+  Slug:     ${slug}
+  City:     ${city}, ${state}
+  Dates:    ${start} to ${end}
+  Venue:    ${venue}
+  Address:  ${address}
+  FORM_ID:  ${formid}
+  IG URL:   ${igurl}
+
+End: confirm the page is live at https://events.themakeupblowout.com/events/${slug}/ and Touchpoint 3 SMS sent under @landing.`;
+  }
+
+  function validate() {
+    const required = ["f-slug","f-city","f-state","f-start","f-end","f-venue","f-address","f-formid","f-igurl"];
+    const missing = required.filter(id => !document.getElementById(id).value.trim());
+    if (missing.length) {
+      alert("חסרים שדות: " + missing.map(id => id.replace("f-","")).join(", "));
+      return false;
+    }
+    const formid = document.getElementById("f-formid").value.trim();
+    if (!/^[a-f0-9]{20,30}$/.test(formid)) {
+      if (!confirm("ה-FORM_ID לא נראה כמו SimpleTexting webFormId רגיל (24 תווי hex). להמשיך בכל מקרה?")) return false;
+    }
+    return true;
+  }
+
+  // --- Buttons ---
+  const copyBtn = document.getElementById("copy-btn");
+  const previewBtn = document.getElementById("preview-btn");
+  const previewEl = document.getElementById("preview");
+
+  copyBtn.addEventListener("click", async () => {
+    if (!validate()) return;
+    const cmd = buildCmd();
+    let ok = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(cmd); ok = true;
+      }
+    } catch (e) {}
+    if (!ok) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = cmd; document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+      } catch (e) {}
+    }
+    if (ok) {
+      const original = copyBtn.textContent;
+      copyBtn.textContent = "✓ הועתק! הדביקי בשיחת Cowork";
+      copyBtn.classList.add("copied");
+      setTimeout(() => { copyBtn.textContent = original; copyBtn.classList.remove("copied"); }, 3000);
+    } else {
+      previewEl.style.display = "block";
+      previewEl.textContent = cmd;
+      alert("העתקה אוטומטית נחסמה. סמני את הטקסט למטה ידנית והעתיקי (Ctrl+A → Ctrl+C).");
+    }
+  });
+
+  previewBtn.addEventListener("click", () => {
+    const cmd = buildCmd();
+    if (previewEl.style.display === "block") {
+      previewEl.style.display = "none";
+    } else {
+      previewEl.style.display = "block";
+      previewEl.textContent = cmd;
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
