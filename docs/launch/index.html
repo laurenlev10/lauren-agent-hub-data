@@ -995,6 +995,10 @@ End date: </div>
       <button class="upload-close" aria-label="סגור" type="button">×</button>
     </header>
     <div class="upload-body">
+      <!-- Command block appears HERE at the top when files already exist —
+           Lauren shouldn't have to scroll to find the command after she
+           reopens a modal with prior uploads. -->
+      <div id="upload-progress-top" class="upload-progress" hidden></div>
       <p class="upload-intro">גררי את 4 הקבצים (או לחצי על אזור כדי לבחור). נתמכים: PDF · תמונות / screenshots · CSV · XLSX.</p>
       <div class="upload-zones">
         <div class="upload-zone" data-kind="cash_report">
@@ -2404,9 +2408,11 @@ End date: </div>
         const el = document.getElementById(id); if (el) el.value = "";
       });
       updateSubmitState();
-      const prog = document.getElementById("upload-progress");
-      prog.hidden = true;
-      prog.className = "upload-progress";
+      // Reset BOTH progress slots (top + bottom)
+      ["upload-progress", "upload-progress-top"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.hidden = true; el.className = "upload-progress"; el.innerHTML = ""; }
+      });
       // Look for previously-saved files for this event (lets Lauren resume
       // a partial upload from a prior modal session). Async — the modal
       // is interactive while this runs.
@@ -2449,7 +2455,14 @@ End date: </div>
     function renderCommandBlock(evKey, filesMap, isFreshUpload){
       const cmd = generateCommand(evKey);
       const haveCount = KINDS_REQUIRED.filter(k => filesMap[k]).length;
-      const prog = document.getElementById("upload-progress");
+      // For "files already exist on open" → render at TOP of modal so it's
+      // immediately visible. For fresh uploads → render at bottom (next to
+      // submit button) since that's where Lauren is looking after clicking.
+      const targetId = isFreshUpload ? "upload-progress" : "upload-progress-top";
+      const prog = document.getElementById(targetId);
+      // Hide the OTHER one to avoid duplicate command boxes
+      const other = document.getElementById(isFreshUpload ? "upload-progress-top" : "upload-progress");
+      if (other) { other.hidden = true; other.innerHTML = ""; }
       prog.hidden = false;
       prog.className = "upload-progress success";
       let headline;
