@@ -230,6 +230,15 @@
   .reset-btn:hover{border-color:var(--accent);color:var(--accent)}
   .upload-status{font-size:12px;color:var(--muted);flex:1;min-width:200px}
   .upload-status.loaded{color:var(--signed);font-weight:600}
+
+  /* Period-aware visibility (Lauren 2026-05-05).
+     Future tab = focus on tasks: schedule-card + add-event form. MBS dashboard hidden.
+     Past tab   = focus on insights: MBS dashboard. Tasks UI hidden.
+     Default state = future, so MBS dashboard starts hidden until JS toggles. */
+  .mbs-dashboard{display:none}
+  .wrap.period-past .mbs-dashboard{display:block}
+  .wrap.period-past #schedule-card,
+  .wrap.period-past #new-event-form-wrap{display:none}
 </style>
 </head>
 <body>
@@ -335,6 +344,18 @@ const MANUAL_TASK_DEFS = [
 
     <div style="margin-top:8px"><a class="back" href="../">← Back to Agent Hub</a></div>
   </header>
+
+
+  <div class="year-tabs" id="year-tabs">
+    <button class="year-tab active" data-year="2026">2026</button>
+    <button class="year-tab" data-year="2027">2027</button>
+    <button class="year-tab" data-year="2028">2028</button>
+  </div>
+
+  <div class="period-tabs" id="period-tabs">
+    <button class="period-tab active" data-period="future">📅 אירועים עתידיים <span class="count" id="period-count-future">0</span></button>
+    <button class="period-tab" data-period="past">🏁 אירועים בעבר <span class="count" id="period-count-past">0</span></button>
+  </div>
 
   <!-- ──────────────────────────────────────────────────────────────
        MBS V18 dashboard — INLINE (Lauren 2026-05-05). Replaces the
@@ -820,16 +841,6 @@ const MANUAL_TASK_DEFS = [
     </div>
   </div>
 
-  <div class="year-tabs" id="year-tabs">
-    <button class="year-tab active" data-year="2026">2026</button>
-    <button class="year-tab" data-year="2027">2027</button>
-    <button class="year-tab" data-year="2028">2028</button>
-  </div>
-
-  <div class="period-tabs" id="period-tabs">
-    <button class="period-tab active" data-period="future">📅 אירועים עתידיים <span class="count" id="period-count-future">0</span></button>
-    <button class="period-tab" data-period="past">🏁 אירועים בעבר <span class="count" id="period-count-past">0</span></button>
-  </div>
 
   <details class="collapsible-form" id="new-event-form-wrap">
     <summary>➕ הוסיפי אירוע חדש <span class="meta" style="font-weight:500;color:var(--muted);margin-right:auto;font-size:12px">— כאן את ממלאת את הטופס לאירוע שעדיין לא בלו"ז</span></summary>
@@ -881,7 +892,7 @@ End date: </div>
   </div>
   </details>
 
-  <div class="card">
+  <div class="card" id="schedule-card">
     <h2>
       <span><span id="schedule-year">2026</span> — All weekends</span>
       <!-- schedule-stats removed 2026-05-03 PM (Lauren feedback: redundant — period-tabs already show "Past N · Future M") -->
@@ -1600,11 +1611,19 @@ End date: </div>
   function setActivePeriod(p){
     activePeriod = p;
     document.querySelectorAll(".period-tab").forEach(t => t.classList.toggle("active", t.dataset.period === p));
+    // Lauren 2026-05-05: page splits cleanly between past/future.
+    //   future tab → schedule-card + add-event form visible, MBS dashboard hidden
+    //   past tab   → MBS dashboard visible, schedule-card + form hidden
+    const wrap = document.querySelector(".wrap");
+    wrap.classList.toggle("period-past", p === "past");
+    wrap.classList.toggle("period-future", p === "future");
     renderSchedule();
   }
   document.querySelectorAll(".period-tab").forEach(tab => {
     tab.addEventListener("click", () => setActivePeriod(tab.dataset.period));
   });
+  // Set initial period class on .wrap to match the default activePeriod.
+  document.querySelector(".wrap").classList.add("period-" + activePeriod);
 
   // ────────────────────────────────────────────────────────────
   // Copy button — copies command, also adds to local schedule overlay
