@@ -1,0 +1,48 @@
+name: Refresh Meta posts (IG reels + FB Page posts)
+
+# Refreshes docs/state/recent_meta_posts.json from the Meta Graph API every 6 hours.
+# Powers the reel picker in the landing-page-builder form (and any future agent
+# that needs recent IG/FB content).
+#
+# Required GitHub Secrets (Lauren must add these via repo Settings → Secrets):
+#   - META_PAGE_TOKEN       (never-expiring Page Access Token)
+#   - META_IG_BUSINESS_ID   (the IG Business Account ID linked to the Page)
+#   - META_FB_PAGE_ID       (the Facebook Page ID)
+#
+# To trigger manually: Actions tab → "Refresh Meta posts" → Run workflow.
+
+on:
+  schedule:
+    # Every 6 hours at :07 (offset to avoid contention with other crons)
+    - cron: "7 */6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch recent IG + FB content
+        env:
+          META_PAGE_TOKEN:     ${{ secrets.META_PAGE_TOKEN }}
+          META_IG_BUSINESS_ID: ${{ secrets.META_IG_BUSINESS_ID }}
+          META_FB_PAGE_ID:     ${{ secrets.META_FB_PAGE_ID }}
+        run: |
+          python3 scripts/lauren_meta.py combined --limit 30 \
+            --out docs/state/recent_meta_posts.json
+
+      - name: Commit + push if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name  "Lauren (via Actions)"
+          if ! git diff --quiet docs/state/recent_meta_posts.json; then
+            git add docs/state/recent_meta_posts.json
+            git commit -m "refresh-meta-posts: $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push origin main
+            echo "✓ pushed updates"
+          else
+            echo "no change"
+          fi
