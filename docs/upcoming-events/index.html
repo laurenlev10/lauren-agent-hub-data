@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Upcoming Events | Makeup Blowout Sale</title>
+<meta name="description" content="Upcoming Makeup Blowout Sale events — cities and dates.">
+<style>
+  :root {
+    --bg: transparent;     /* transparent so it blends into the host page (Google Sites) */
+    --card: #ffffff;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --pink: #ec4899;
+    --pink-dark: #db2777;
+    --hairline: #f3e8ec;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+  body { padding: 16px 12px; }
+  .events-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--hairline);
+    max-width: 1100px;
+    margin: 0 auto;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  @media (max-width: 900px) { .events-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px) { .events-grid { grid-template-columns: 1fr; } }
+  .event-card {
+    background: var(--card);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .event-image {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: #e5e7eb center/cover no-repeat;
+    background-image: var(--img);
+    display: block;
+  }
+  .event-meta {
+    padding: 18px 16px 8px;
+    text-align: center;
+  }
+  .event-city {
+    font-size: 16px; font-weight: 500; color: var(--text);
+    margin: 0 0 12px 0; line-height: 1.4;
+  }
+  .event-dates {
+    font-size: 14px; color: var(--text);
+    margin: 0 0 18px 0; line-height: 1.4;
+  }
+  .event-cta {
+    margin: 0 16px 18px 16px;
+    display: block; padding: 11px 14px;
+    background: var(--pink);
+    color: #fff !important;
+    text-decoration: none;
+    text-align: center;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.2px;
+    border-radius: 0;
+    transition: background 0.15s ease;
+  }
+  .event-cta:hover { background: var(--pink-dark); }
+  .events-empty {
+    padding: 40px 20px; text-align: center; color: var(--muted);
+    background: var(--card); border-radius: 6px;
+    grid-column: 1 / -1;
+  }
+  .events-error {
+    padding: 30px 20px; text-align: center;
+    background: #fef2f2; color: #991b1b;
+    border-radius: 6px; font-size: 14px;
+    grid-column: 1 / -1;
+  }
+  .events-skeleton {
+    background: linear-gradient(90deg, #f3f4f6, #ffffff, #f3f4f6);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  .events-footer {
+    text-align: center;
+    margin: 14px auto 6px;
+    font-size: 11px;
+    color: var(--muted);
+    max-width: 1100px;
+    opacity: 0.7;
+  }
+  .events-footer a { color: var(--muted); text-decoration: none; }
+  .events-footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="events-grid" id="events-grid">
+  <!-- skeleton placeholders while data loads -->
+  <div class="event-card"><div class="event-image events-skeleton"></div><div class="event-meta"><p class="event-city">&nbsp;</p><p class="event-dates">&nbsp;</p></div></div>
+  <div class="event-card"><div class="event-image events-skeleton"></div><div class="event-meta"><p class="event-city">&nbsp;</p><p class="event-dates">&nbsp;</p></div></div>
+  <div class="event-card"><div class="event-image events-skeleton"></div><div class="event-meta"><p class="event-city">&nbsp;</p><p class="event-dates">&nbsp;</p></div></div>
+  <div class="event-card"><div class="event-image events-skeleton"></div><div class="event-meta"><p class="event-city">&nbsp;</p><p class="event-dates">&nbsp;</p></div></div>
+</div>
+
+<div class="events-footer" id="events-footer">
+  <span id="events-updated">&nbsp;</span>
+</div>
+
+<script>
+(function () {
+  const grid = document.getElementById('events-grid');
+  const updatedEl = document.getElementById('events-updated');
+  // Fetch with cache-buster so Google-Sites-embedded version always sees the latest JSON
+  const URL_ = '../upcoming-events.json?_=' + Date.now();
+
+  function fmtDateRange(start, end) {
+    // Inputs are ISO YYYY-MM-DD. Output: "Apr 24th - 26th, 2026" (matches existing site style)
+    const s = parseISO(start), e = parseISO(end);
+    if (!s || !e) return '';
+    const month = s.toLocaleDateString('en-US', { month: 'short' });
+    const dayS = s.getDate(), dayE = e.getDate();
+    const year = e.getFullYear();
+    return month + ' ' + ord(dayS) + ' - ' + ord(dayE) + ', ' + year;
+  }
+  function parseISO(s) {
+    if (!s) return null;
+    const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    return new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
+  }
+  function ord(n) {
+    const s = ['th','st','nd','rd'], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+
+  function escapeHTML(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function safeURL(u) {
+    if (!u) return '#';
+    try { const url = new URL(u); if (url.protocol === 'http:' || url.protocol === 'https:') return u; }
+    catch (e) {}
+    return '#';
+  }
+
+  function render(events) {
+    if (!Array.isArray(events) || events.length === 0) {
+      grid.innerHTML = '<div class="events-empty">No upcoming events listed yet. Check back soon!</div>';
+      return;
+    }
+    grid.innerHTML = events.map(function (ev) {
+      const img = safeURL(ev.image_url);
+      const city = escapeHTML(ev.city || '');
+      const state = escapeHTML(ev.state || '');
+      const dates = escapeHTML(fmtDateRange(ev.start_date, ev.end_date));
+      const sub = safeURL(ev.subscribe_url);
+      const ctaLabel = escapeHTML(ev.cta_label || 'Subscribe');
+      const cityLine = city + (state ? ', ' + state : '');
+      return ''
+        + '<div class="event-card">'
+        +   '<div class="event-image" style="--img:url(' + JSON.stringify(img) + ')"></div>'
+        +   '<div class="event-meta">'
+        +     '<p class="event-city">' + cityLine + '</p>'
+        +     '<p class="event-dates">' + dates + '</p>'
+        +   '</div>'
+        +   (sub === '#' ? '' : '<a class="event-cta" href="' + sub + '" target="_blank" rel="noopener">' + ctaLabel + '</a>')
+        + '</div>';
+    }).join('');
+  }
+
+  function showUpdated(iso) {
+    if (!iso) { updatedEl.textContent = ''; return; }
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) { updatedEl.textContent = ''; return; }
+    updatedEl.textContent = 'Updated ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  fetch(URL_, { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function (data) {
+      render(data.events || []);
+      showUpdated(data._updated_at);
+    })
+    .catch(function (err) {
+      grid.innerHTML = '<div class="events-error">Could not load upcoming events (' + escapeHTML(String(err)) + '). Please refresh.</div>';
+    });
+})();
+</script>
+
+</body>
+</html>
