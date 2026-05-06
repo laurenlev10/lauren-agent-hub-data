@@ -583,6 +583,44 @@ End: confirm the page is live at https://events.themakeupblowout.com/events/${sl
       }
     });
   }
+
+  // ============================================================
+  // FORM_ID auto-fill from docs/state/event_form_ids.json
+  // (added 2026-05-06 — SimpleTexting has no list-webforms API endpoint, so we
+  //  maintain a state file. @campaigns agent updates it after creating a new
+  //  sign-up form. Manual entries are also fine.)
+  // ============================================================
+  function loadFormIds() {
+    return fetch("../state/event_form_ids.json", {cache: "no-store"})
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null);
+  }
+  function eventKey(slug, startDate) {
+    return slug && startDate ? `${slug}-${startDate}` : null;
+  }
+  loadFormIds().then(data => {
+    if (!data || !data.events) return;
+    const slug  = document.getElementById("f-slug").value.trim();
+    const start = document.getElementById("f-start").value;
+    const key   = eventKey(slug, start);
+    if (!key) return;
+    const ev = data.events[key];
+    if (!ev || !ev.form_id) return;
+    const fid = document.getElementById("f-formid");
+    if (!fid.value.trim()) {
+      fid.value = ev.form_id;
+      // Add a hint near the field that it was auto-filled
+      const wrap = fid.closest(".field");
+      if (wrap) {
+        const note = document.createElement("div");
+        note.className = "hint";
+        note.style.color = "#16a34a";
+        note.style.marginTop = "4px";
+        note.innerHTML = `✓ FORM_ID נמצא אוטומטית מ-event_form_ids.json. <a href="${ev.form_url || '#'}" target="_blank" style="color:#16a34a">פתחי ב-SimpleTexting</a>`;
+        wrap.appendChild(note);
+      }
+    }
+  });
 })();
 </script>
 
