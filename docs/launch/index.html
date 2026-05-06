@@ -2412,11 +2412,18 @@ End date: </div>
       const sizeKb = Math.round(file.size / 1024);
       zone.querySelector(".upload-zone-status").textContent =
         "✓ " + file.name + " (" + (sizeKb < 1024 ? sizeKb + "KB" : (sizeKb/1024).toFixed(1) + "MB") + ")";
-      // Submit enables when all REQUIRED files are staged. Optional ones
-      // (currently just quickbooks) can be skipped — Lauren reads QB from
-      // her Google Sheet instead.
-      const allRequired = KINDS_REQUIRED.every(k => stagedFiles[k]);
-      document.getElementById("upload-submit").disabled = !allRequired;
+      // Submit enables when all REQUIRED files are staged.
+      // Update the button label to show how many are missing — clearer
+      // than just a greyed-out button (Lauren feedback 2026-05-05).
+      const stagedCount = KINDS_REQUIRED.filter(k => stagedFiles[k]).length;
+      const missingCount = KINDS_REQUIRED.length - stagedCount;
+      const submitBtn = document.getElementById("upload-submit");
+      submitBtn.disabled = (missingCount > 0);
+      if (missingCount === 0) {
+        submitBtn.textContent = "🚀 העלי והתחילי";
+      } else {
+        submitBtn.textContent = "🚀 חסרים " + missingCount + " קבצים (" + stagedCount + "/4)";
+      }
     }
 
     function fileToBase64(file){
