@@ -81,18 +81,27 @@ def main():
         capture_rate = (sms / forms) if forms > 0 else 0
         anomalies = ev.get("anomalies") or []
 
+        eb_reg = ev.get("eventbrite_registered", 0)
+        eb_cap = ev.get("eventbrite_capacity", 250)
+        eb_rate = (eb_reg / eb_cap) if eb_cap > 0 else 0
+
         new_analytics[evkey] = {
-            "has_data": bool(total_views > 0 or sms > 0 or forms > 0),
+            "has_data": bool(total_views > 0 or sms > 0 or forms > 0 or eb_reg > 0),
             "total_views": int(total_views),
-            "sms_registered": int(sms),
+            "sms_subscribers": int(sms),       # SMS marketing reach (renamed for clarity)
             "forms_submitted": int(forms),
+            "eventbrite_registered": int(eb_reg),
+            "eventbrite_capacity": int(eb_cap),
+            "eventbrite_fill_rate": round(eb_rate, 4),
             "conv_rate": round(conv_rate, 4),
             "capture_rate": round(capture_rate, 4),
             "last_pulled": ev.get("last_pulled") or history.get("_updated_at"),
             "anomalies_count": len(anomalies),
             "forecast_status": forecast.get("status") if forecast else None,
+            "forecast_projected": forecast.get("projected_total") if forecast else None,
         }
-        print(f"  ✓ {evkey}: {total_views}v / {forms}f / {sms}s · has_data={new_analytics[evkey]['has_data']}")
+        fc = forecast.get("status") if forecast else "—"
+        print(f"  ✓ {evkey}: views={total_views} forms={forms} sms_reach={sms} eb_reg={eb_reg}/{eb_cap} forecast={fc}")
 
     # Read launch_dashboard.html, find EVENT_ANALYTICS line, splice in new value
     if not dashboard_path.exists():

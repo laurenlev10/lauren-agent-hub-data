@@ -42,7 +42,7 @@ jobs:
           python3 - <<'PY'
           import sys, json, urllib.request
           sys.path.insert(0, "scripts")
-          from lauren_stats import aggregate_with_funnel, detect_anomalies, extract_setups_from_launch_dashboard
+          from lauren_stats import aggregate_with_funnel, detect_anomalies, extract_setups_from_launch_dashboard, extract_eventbrite_stats_from_launch_dashboard
 
           # 1. Pull upcoming events list
           url = "https://events.themakeupblowout.com/upcoming-events.json"
@@ -60,12 +60,13 @@ jobs:
                   slugs.append(f"{city}-{state}-{year}")
           print(f"Pulling stats for {len(slugs)} events")
 
-          # 2. Parse SETUPS from launch_dashboard.html for SimpleTexting list_ids
+          # 2. Parse SETUPS + EVENTBRITE_STATS from launch_dashboard.html
           setups = extract_setups_from_launch_dashboard("docs/launch/index.html")
-          print(f"Loaded {len(setups)} SETUPS entries")
+          eb_stats = extract_eventbrite_stats_from_launch_dashboard("docs/launch/index.html")
+          print(f"Loaded {len(setups)} SETUPS entries, {len(eb_stats)} EVENTBRITE_STATS entries")
 
-          # 3. Aggregate everything (GA4 + Meta + TikTok + SimpleTexting + funnel + forecast)
-          data = aggregate_with_funnel(slugs, events, setups)
+          # 3. Aggregate everything (GA4 + Meta + TikTok + SimpleTexting + Eventbrite + funnel + forecast)
+          data = aggregate_with_funnel(slugs, events, setups, eventbrite_stats=eb_stats)
 
           # 4. Detect anomalies
           baselines = {"median_conv_rate_overall": 0.10}

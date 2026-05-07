@@ -408,6 +408,25 @@ def extract_setups_from_launch_dashboard(html_path) -> dict:
         return {}
 
 
+def extract_eventbrite_stats_from_launch_dashboard(html_path) -> dict:
+    """Parse EVENTBRITE_STATS = {...}; from launch_dashboard.html.
+
+    Returns: {<city-slug>-<start_date>: {eventId, registrations, capacity, weekly_delta, history, updated_at}}
+    """
+    import re
+    p = _Path(html_path)
+    if not p.exists():
+        return {}
+    text = p.read_text(encoding="utf-8")
+    m = re.search(r"const EVENTBRITE_STATS\s*=\s*(\{.*?\});", text, re.DOTALL)
+    if not m:
+        return {}
+    try:
+        return _json.loads(m.group(1))
+    except Exception as e:
+        print(f"  ⚠ EVENTBRITE_STATS parse failed: {e}")
+        return {}
+
 def map_setups_to_slugs(setups: dict, events: list) -> dict:
     """Build {slug: list_id} from SETUPS map + events list."""
     out = {}
@@ -426,12 +445,18 @@ def map_setups_to_slugs(setups: dict, events: list) -> dict:
     return out
 
 
-def compute_funnel(ev_data: dict, days_until_event=None, registration_target: int = 250) -> dict:
-    """Build {funnel, rates, forecast} block for one event."""
+def compute_funnel(ev_data: dict, days_until_event=None, registration_target: int = 250,
+                   eventbrite_history: list = None) -> dict:
+    """Build {funnel, rates, forecast} block for one event.
+
+    Forecast is calculated against Eventbrite registrations (commit-to-attend) — NOT against
+    SMS list size, since SMS lists accumulate marketing reach over many events.
+    """
     views_total = (ev_data.get("views") or {}).get("total", 0)
     conv_total = (ev_data.get("conversions") or {}).get("total", 0)
     sms_reg = ev_data.get("sms_registered", 0)
     eventbrite_reg = ev_data.get("eventbrite_registered", 0)
+    eventbrite_history = eventbrite_history or ev_data.get("eventbrite_history") or []
     impressions = (ev_data.get("impressions") or {}).get("total", 0) if isinstance(ev_data.get("impressions"), dict) else 0
 
     funnel = {
@@ -451,28 +476,50 @@ def compute_funnel(ev_data: dict, days_until_event=None, registration_target: in
     if conv_total > 0:
         rates["sms_capture"] = round(sms_reg / conv_total * 100, 2)
 
+    # Forecast: project Eventbrite registrations against capacity target
     forecast = None
-    if days_until_event is not None and days_until_event > 0 and sms_reg > 0:
-        days_so_far = max(1, 14 - days_until_event) if days_until_event < 30 else 14
-        daily_rate = sms_reg / days_so_far
-        projected_total = int(sms_reg + daily_rate * days_until_event)
+    if days_until_event is not None and days_until_event > 0 and eventbrite_reg >= 0:
+        # Use history to compute daily rate if available; else fallback to assumption
+        daily_rate = 0
+        if len(eventbrite_history) >= 2:
+            try:
+                latest = eventbrite_history[-1]
+                earlier = eventbrite_history[0]
+                lat_date = _dt.date.fromisoformat(latest["date"])
+                ear_date = _dt.date.fromisoformat(earlier["date"])
+                day_span = max(1, (lat_date - ear_date).days)
+                reg_delta = max(0, latest["registrations"] - earlier["registrations"])
+                daily_rate = reg_delta / day_span
+            except Exception:
+                daily_rate = 0
+        if daily_rate == 0 and eventbrite_reg > 0 and days_until_event < 365:
+            # Fallback: assume registrations accumulated over (event_window - days_until)
+            days_so_far = max(1, 30 - days_until_event) if days_until_event < 30 else 14
+            daily_rate = eventbrite_reg / days_so_far
+
+        projected_total = int(eventbrite_reg + daily_rate * days_until_event)
         forecast = {
+            "metric": "eventbrite_registered",
+            "current": eventbrite_reg,
+            "daily_rate": round(daily_rate, 2),
             "projected_total": projected_total,
             "target": registration_target,
             "days_remaining": days_until_event,
             "status": "on_track" if projected_total >= registration_target else "behind",
-            "gap": registration_target - projected_total if projected_total < registration_target else 0,
+            "gap": max(0, registration_target - projected_total),
         }
 
     return {"funnel": funnel, "rates": rates, "forecast": forecast}
 
 
 def aggregate_with_funnel(slugs: list, events: list, setups: dict,
+                          eventbrite_stats: dict = None,
                           start_date: str = None, end_date: str = None) -> dict:
     """Level 2 aggregator — combines all sources + SimpleTexting + funnel + forecast."""
     base = aggregate_for_events(slugs, start_date=start_date, end_date=end_date)
     slug_to_list = map_setups_to_slugs(setups, events)
     sms_data = fetch_simpletexting_list_sizes(slug_to_list)
+    eventbrite_stats = eventbrite_stats or {}
 
     today = _dt.date.today()
     ev_by_slug = {}
@@ -480,17 +527,29 @@ def aggregate_with_funnel(slugs: list, events: list, setups: dict,
         city = (ev.get("city") or "").lower().replace(" ", "-")
         state = (ev.get("state") or "").lower()
         year = (ev.get("start_date") or "")[:4]
+        start_date_full = ev.get("start_date") or ""
         ev_by_slug[f"{city}-{state}-{year}"] = ev
+        ev["_evkey"] = f"{city}-{start_date_full}"  # for eventbrite_stats lookup
 
     for slug, ev_out in base.get("events", {}).items():
         sms = sms_data.get(slug, {})
         ev_out["sms_registered"] = sms.get("list_size", 0)
+        ev_out["sms_total_count"] = sms.get("total_count", 0)
         ev_out["sms_list_id"] = sms.get("list_id")
 
         meta = ev_by_slug.get(slug, {})
-        eventbrite_reg = meta.get("registered_count", 0)
+        evkey = meta.get("_evkey")
+        ebs = eventbrite_stats.get(evkey, {}) if evkey else {}
+
+        # Eventbrite data — registrations is the actual funnel-end commit metric
+        eventbrite_reg = ebs.get("registrations", 0)
+        eventbrite_cap = ebs.get("capacity", 250)
+        eventbrite_history = ebs.get("history", [])
         ev_out["eventbrite_registered"] = eventbrite_reg
-        target = meta.get("registration_target", 250)
+        ev_out["eventbrite_capacity"] = eventbrite_cap
+        ev_out["eventbrite_history"] = eventbrite_history
+
+        target = eventbrite_cap or 250
         days_until = None
         if meta.get("start_date"):
             try:
@@ -499,8 +558,10 @@ def aggregate_with_funnel(slugs: list, events: list, setups: dict,
             except Exception:
                 pass
 
+        # Forecast uses Eventbrite registrations (not SMS list size!)
         funnel_data = compute_funnel(ev_out, days_until_event=days_until,
-                                     registration_target=target)
+                                     registration_target=target,
+                                     eventbrite_history=eventbrite_history)
         ev_out["funnel"] = funnel_data["funnel"]
         ev_out["rates"] = funnel_data["rates"]
         if funnel_data["forecast"]:
