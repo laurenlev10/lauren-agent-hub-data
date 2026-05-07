@@ -1082,11 +1082,19 @@ def _resolve_kb_path() -> Path:
     raise FileNotFoundError(f"meta_inbox_kb.docx not found in any of: {candidates}")
 
 
+def _now_iso() -> str:
+    return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def main():
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--send-sms", action="store_true",
                     help="Send Touchpoint 1 + Touchpoint 3 SMS to Lauren")
+    ap.add_argument("--reply-test", metavar="CONV_ID",
+                    help="Phase 2 supervised test: send the Bucket A reply for ONE specific Messenger conv_id (live)")
+    ap.add_argument("--reply-bucket-a", action="store_true",
+                    help="Phase 2 LIVE: actually send all Bucket A Messenger replies (dry_run=False). Use only after a successful --reply-test.")
     args = ap.parse_args()
 
     repo = Path(__file__).resolve().parent.parent
@@ -1226,6 +1234,82 @@ def main():
 
     print(f"Wrote {out_dir/'index.html'} ({(out_dir/'index.html').stat().st_size} bytes)")
     print(f"Wrote {out_dir/'data.json'}")
+
+    # === Phase 2 — supervised single-reply test ===
+    if args.reply_test:
+        target = args.reply_test
+        match = next((m for m in classified_messenger if m.get("conv_id") == target), None)
+        if not match:
+            print(f"  ❌ no Bucket A draft found for conv_id={target}")
+        elif match["cls"]["bucket"] != "A":
+            print(f"  ❌ conv_id={target} is in Bucket {match['cls']['bucket']} — only Bucket A items can be auto-replied")
+        elif not match["cls"].get("reply"):
+            print(f"  ❌ conv_id={target} has no reply text")
+        else:
+            from lauren_meta import reply_to_messenger
+            # Find the recipient PSID (the customer participant)
+            try:
+                page_id = get_fb_page_id()
+                # We need to fetch the conversation to get participant IDs
+                from lauren_meta import fetch_messenger_conversations
+                allc = fetch_messenger_conversations(limit=50, only_unread=False)
+                full = next((c for c in allc if c.get("id") == target), None)
+                psid = ""
+                if full:
+                    for pp in full.get("participants", {}).get("data", []):
+                        if pp.get("id") and pp.get("id") != page_id:
+                            psid = pp["id"]
+                            break
+                if not psid:
+                    print(f"  ❌ couldn't resolve recipient PSID for {target}")
+                else:
+                    print(f"  📤 sending live reply to {match['name']} (PSID={psid})...")
+                    print(f"      text: {match['cls']['reply']}")
+                    r = reply_to_messenger(psid, match["cls"]["reply"], dry_run=False)
+                    print(f"  ✓ sent: {r}")
+                    # Mark handled so the next run skips it
+                    handled[dedup_key("messenger", target)] = {
+                        "handled": True,
+                        "handledAt": _now_iso(),
+                        "method": "phase2-reply-test",
+                    }
+                    # Persist (best-effort — the workflow will commit via the deploy step)
+                    handled_path = Path(__file__).resolve().parent.parent / "docs/meta/handled.json"
+                    handled_path.write_text(_json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
+                    print(f"  ✓ marked handled in docs/meta/handled.json")
+            except Exception as e:
+                print(f"  ❌ reply failed: {e}")
+
+    # === Phase 2 — full Bucket A auto-reply (live) ===
+    if args.reply_bucket_a:
+        from lauren_meta import reply_to_messenger, fetch_messenger_conversations
+        sent = 0; failed = 0
+        page_id = get_fb_page_id()
+        allc = fetch_messenger_conversations(limit=50, only_unread=False)
+        psid_by_conv = {}
+        for c in allc:
+            for pp in c.get("participants", {}).get("data", []):
+                if pp.get("id") and pp.get("id") != page_id:
+                    psid_by_conv[c.get("id")] = pp["id"]
+                    break
+        for m in classified_messenger:
+            if m["cls"]["bucket"] != "A" or not m["cls"].get("reply"):
+                continue
+            psid = psid_by_conv.get(m["conv_id"])
+            if not psid:
+                failed += 1; continue
+            try:
+                reply_to_messenger(psid, m["cls"]["reply"], dry_run=False)
+                handled[dedup_key("messenger", m["conv_id"])] = {
+                    "handled": True, "handledAt": _now_iso(), "method": "phase2-auto",
+                }
+                sent += 1
+            except Exception as e:
+                print(f"  ❌ {m['name']}: {e}")
+                failed += 1
+        print(f"  Phase 2 auto-reply: sent={sent} failed={failed}")
+        handled_path = Path(__file__).resolve().parent.parent / "docs/meta/handled.json"
+        handled_path.write_text(_json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
 
     if args.send_sms:
         try:
