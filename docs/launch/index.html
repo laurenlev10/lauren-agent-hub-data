@@ -192,6 +192,37 @@
   .btn-landing-row{background:linear-gradient(180deg,#475569,#1e293b);color:#fff !important}
   .btn-landing-row:hover{background:linear-gradient(180deg,#334155,#0f172a);transform:translateY(-1px)}
   .btn-landing-row.done{background:#16a34a !important}
+  /* Landing-pages 3-language popup (added 2026-05-07) */
+  .landing-popup{position:fixed;inset:0;background:rgba(0,0,0,0.55);
+                 z-index:9999;display:none;align-items:flex-start;justify-content:center;
+                 padding:60px 16px;overflow:auto}
+  .landing-popup.open{display:flex}
+  .landing-popup-inner{background:#fff;color:#1f2937;border-radius:14px;
+                       padding:22px;max-width:520px;width:100%;
+                       box-shadow:0 18px 50px rgba(0,0,0,0.4)}
+  .landing-popup h3{margin:0 0 4px;font-size:18px;color:#16a34a}
+  .landing-popup .lp-sub{font-size:13px;color:#6b7280;margin:0 0 16px}
+  .landing-popup .lp-row{background:#f3f4f6;border-radius:10px;padding:12px;
+                         margin-bottom:10px}
+  .landing-popup .lp-row .lp-label{font-size:13px;font-weight:700;
+                                   color:#374151;display:flex;align-items:center;gap:6px;
+                                   margin-bottom:6px}
+  .landing-popup .lp-row .lp-url{display:block;background:#fff;border:1px solid #e5e7eb;
+                                 border-radius:6px;padding:6px 8px;font-size:12px;
+                                 color:#1f2937;font-family:ui-monospace,monospace;
+                                 overflow-x:auto;white-space:nowrap;direction:ltr;
+                                 margin-bottom:8px}
+  .landing-popup .lp-row .lp-actions{display:flex;gap:6px;flex-wrap:wrap}
+  .landing-popup .lp-row .lp-btn{flex:1 1 100px;min-width:90px;text-align:center;
+                                 padding:7px 10px;border-radius:6px;font-weight:700;
+                                 font-size:12px;text-decoration:none;cursor:pointer;
+                                 border:none;font-family:inherit}
+  .landing-popup .lp-row .lp-btn-copy{background:#16a34a;color:#fff}
+  .landing-popup .lp-row .lp-btn-copy.copied{background:#0f766e}
+  .landing-popup .lp-row .lp-btn-open{background:#2563eb;color:#fff}
+  .landing-popup .lp-close{background:transparent;color:#374151;border:1px solid #d1d5db;
+                           padding:7px 14px;border-radius:6px;cursor:pointer;
+                           margin-top:6px;width:100%;font-family:inherit}
   .btn-reel-row{background:linear-gradient(180deg,#4f46e5,#3730a3)}
   .btn-pr-influencer-row{background:linear-gradient(180deg,#d946ef,#a21caf)}
   .btn-summary-row{background:linear-gradient(180deg,#0891b2,#155e75)}
@@ -1659,11 +1690,21 @@ End date: </div>
           // Owner: landing-page-builder. Schema: LANDING_PAGES[evKey] = { url, generated_at, has_form_id, has_venue, has_ig_url }
           const lp = (typeof LANDING_PAGES !== "undefined") ? LANDING_PAGES[evKey] : null;
           if (lp) {
-            const lpTip = "Landing page live · " + (lp.generated_at||"").slice(0,10)
+            const lpTip = "Landing pages live · " + (lp.generated_at||"").slice(0,10)
               + (lp.has_form_id ? "" : " · ⚠ FORM_ID missing")
               + (lp.has_ig_url ? "" : " · ⚠ IG URL missing");
             const lpDone = (lp.has_form_id && lp.has_venue && lp.has_ig_url) ? "done" : "";
-            rowBtn += '<a class="btn-agent-row btn-landing-row ' + lpDone + '" href="' + lp.url + '" target="_blank" rel="noopener" title="' + escapeHtml(lpTip) + '">🪧 Landing ✓</a>';
+            // Build three URL variants — base URL stays as-is; ES + TT swap the suffix
+            const baseUrl = lp.url.replace(/\/$/, "/");  // ensure trailing slash
+            const enUrl = baseUrl;
+            const esUrl = baseUrl + "index-es.html";
+            const ttUrl = baseUrl + "tiktok.html";
+            rowBtn += '<button class="btn-agent-row btn-landing-row ' + lpDone + '" type="button" '
+                    + 'onclick="window.openLandingPopup(this)" '
+                    + 'data-en="' + escapeHtml(enUrl) + '" '
+                    + 'data-es="' + escapeHtml(esUrl) + '" '
+                    + 'data-tt="' + escapeHtml(ttUrl) + '" '
+                    + 'title="' + escapeHtml(lpTip) + '">🪧 Landing ✓ ▾</button>';
           } else {
             // Build landing-form-specific params (city + state separated; the form expects them split)
             const cityName = (ev.city || "").trim();
@@ -2755,5 +2796,69 @@ End date: </div>
   MbsInputsUpload.init();
 </script>
 
+
+<!-- Landing-pages 3-URL copy popup (added 2026-05-07) -->
+<div class="landing-popup" id="landing-popup" onclick="if(event.target===this)window.closeLandingPopup()">
+  <div class="landing-popup-inner">
+    <h3>🪧 Landing pages</h3>
+    <p class="lp-sub" id="lp-sub">Three flavors per event. Each campaign gets its own.</p>
+    <div class="lp-row">
+      <div class="lp-label">🇺🇸 English (with SMS form)</div>
+      <code class="lp-url" id="lp-url-en"></code>
+      <div class="lp-actions">
+        <button class="lp-btn lp-btn-copy" data-which="en" onclick="window.copyLanding(this)">📋 Copy</button>
+        <a class="lp-btn lp-btn-open" id="lp-open-en" target="_blank" rel="noopener">↗ Open</a>
+      </div>
+    </div>
+    <div class="lp-row">
+      <div class="lp-label">🇪🇸 Spanish (with SMS form)</div>
+      <code class="lp-url" id="lp-url-es"></code>
+      <div class="lp-actions">
+        <button class="lp-btn lp-btn-copy" data-which="es" onclick="window.copyLanding(this)">📋 Copy</button>
+        <a class="lp-btn lp-btn-open" id="lp-open-es" target="_blank" rel="noopener">↗ Open</a>
+      </div>
+    </div>
+    <div class="lp-row">
+      <div class="lp-label">🎵 TikTok (lead already captured — share-only)</div>
+      <code class="lp-url" id="lp-url-tt"></code>
+      <div class="lp-actions">
+        <button class="lp-btn lp-btn-copy" data-which="tt" onclick="window.copyLanding(this)">📋 Copy</button>
+        <a class="lp-btn lp-btn-open" id="lp-open-tt" target="_blank" rel="noopener">↗ Open</a>
+      </div>
+    </div>
+    <button class="lp-close" type="button" onclick="window.closeLandingPopup()">Close</button>
+  </div>
+</div>
+
+<script>
+window.openLandingPopup = function(btn) {
+  const en = btn.dataset.en, es = btn.dataset.es, tt = btn.dataset.tt;
+  document.getElementById("lp-url-en").textContent = en;
+  document.getElementById("lp-url-es").textContent = es;
+  document.getElementById("lp-url-tt").textContent = tt;
+  document.getElementById("lp-open-en").href = en;
+  document.getElementById("lp-open-es").href = es;
+  document.getElementById("lp-open-tt").href = tt;
+  document.querySelectorAll(".lp-btn-copy").forEach(b => {
+    b.classList.remove("copied"); b.textContent = "📋 Copy";
+  });
+  document.getElementById("landing-popup").classList.add("open");
+};
+window.closeLandingPopup = function() {
+  document.getElementById("landing-popup").classList.remove("open");
+};
+window.copyLanding = async function(btn) {
+  const which = btn.dataset.which;
+  const url = document.getElementById("lp-url-" + which).textContent;
+  try {
+    await navigator.clipboard.writeText(url);
+    btn.classList.add("copied");
+    btn.textContent = "✓ Copied";
+    setTimeout(() => { btn.classList.remove("copied"); btn.textContent = "📋 Copy"; }, 1800);
+  } catch (e) {
+    alert("Copy failed — long-press to copy manually: " + url);
+  }
+};
+</script>
 </body>
 </html>
