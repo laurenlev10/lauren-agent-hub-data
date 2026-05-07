@@ -430,6 +430,38 @@ h2{color:#f01070;font-size:20px;margin:24px 0 12px}
 .errors{background:#3a1010;color:#fca5a5;padding:12px;border-radius:6px;margin:20px 0}
 footer{margin-top:40px;color:#666;font-size:12px;text-align:center}
 
+/* === Mobile responsive === */
+@media (max-width: 600px) {
+  body { padding: 12px; font-size: 15px; }
+  h1 { font-size: 22px; }
+  h2 { font-size: 17px; margin: 18px 0 8px; }
+  .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat .num { font-size: 22px; }
+  .stat .lbl { font-size: 10px; }
+  .attention-block { padding: 14px 14px; }
+  .attention-block h2 { font-size: 18px; }
+  .attention-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 10px 12px;
+  }
+  .attention-row .who { font-size: 13px; }
+  .attention-row .what {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .attention-row .reply-btn { width: 100%; text-align: center; }
+  .item { padding: 12px; font-size: 14px; }
+  .item .meta { font-size: 11px; }
+  .item .msg { font-size: 13px; padding: 8px; }
+  .reply { padding: 8px; font-size: 13px; }
+  details summary { padding: 12px; font-size: 14px; }
+}
+
 /* Reply button */
 .reply-btn{display:inline-block;background:#f01070;color:#fff !important;
            padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:700;
@@ -450,6 +482,36 @@ footer{margin-top:40px;color:#666;font-size:12px;text-align:center}
 .attention-row .what{color:#eee;font-size:13px;flex:1 1 200px;min-width:0;
                      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .attention-row .reply-btn{margin-top:0;flex:0 0 auto}
+
+/* Collapsed Bucket A drafts section */
+details.drafts-section {
+  background: #1a2030;
+  border-radius: 8px;
+  margin: 24px 0;
+  padding: 0;
+  border: 1px solid #2a3040;
+}
+details.drafts-section summary {
+  padding: 14px 18px;
+  cursor: pointer;
+  font-weight: 700;
+  color: #aaa;
+  font-size: 15px;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+details.drafts-section summary::-webkit-details-marker { display: none; }
+details.drafts-section summary::after {
+  content: " ▼";
+  color: #555;
+  font-size: 12px;
+}
+details.drafts-section[open] summary::after { content: " ▲"; }
+details.drafts-section summary:hover { color: #fff; background: #1f2540; }
+details.drafts-section .drafts-body { padding: 0 18px 18px }
 </style>
 </head>
 <body>
@@ -526,8 +588,7 @@ def render_preview(snapshot: dict, classified_messenger: list,
             parts.append('</div>')
         parts.append('</div></div>')
 
-    parts.append('<div class="warning">⚠️ Phase 1 preview — keyword-based classifier, not Claude reasoning. '
-                 'Bucket A drafts are suggestions; Lauren still sends manually until Phase 2.</div>')
+    # (verbose warning removed for mobile cleanup)
 
     # Stats
     parts.append('<div class="stats">')
@@ -546,11 +607,16 @@ def render_preview(snapshot: dict, classified_messenger: list,
             parts.append(f'<li>{html.escape(e[:200])}</li>')
         parts.append('</ul></div>')
 
-    # Messenger DMs
-    parts.append(f'<h2>📬 Messenger Conversations ({len(classified_messenger)} unread)</h2>')
-    if not classified_messenger:
-        parts.append('<p class="sub">No unread Messenger DMs.</p>')
-    for c in classified_messenger:
+    # Per-channel sections — Bucket A only, collapsed by default (Bucket B already in attention block)
+    msg_a = [c for c in classified_messenger if c["cls"]["bucket"] == "A"]
+    fb_a  = [c for c in classified_fb_comments if c["cls"]["bucket"] == "A"]
+    ig_a  = [c for c in classified_ig_comments if c["cls"]["bucket"] == "A"]
+
+    if msg_a:
+        parts.append('<details class="drafts-section">')
+        parts.append(f'<summary>📬 {len(msg_a)} Messenger auto-drafts ready (tap to inspect)</summary>')
+        parts.append('<div class="drafts-body">')
+    for c in msg_a:
         cls = c["cls"]
         bucket = cls["bucket"]
         parts.append(f'<div class="item bucket-{bucket}">')
@@ -567,11 +633,15 @@ def render_preview(snapshot: dict, classified_messenger: list,
         if c.get("reply_url"):
             parts.append(f'<a class="reply-btn" href="{html.escape(c["reply_url"])}" target="_blank" rel="noopener">💬 Open in Messenger</a>')
         parts.append('</div>')
+    if msg_a:
+        parts.append('</div></details>')
 
-    # FB Comments
-    if classified_fb_comments:
-        parts.append(f'<h2>💬 Facebook Comments</h2>')
-        for c in classified_fb_comments:
+    # FB comment auto-drafts (collapsed)
+    if fb_a:
+        parts.append('<details class="drafts-section">')
+        parts.append(f'<summary>💬 {len(fb_a)} Facebook auto-drafts (tap to inspect)</summary>')
+        parts.append('<div class="drafts-body">')
+        for c in fb_a:
             cls = c["cls"]
             bucket = cls["bucket"]
             parts.append(f'<div class="item bucket-{bucket}">')
@@ -587,11 +657,14 @@ def render_preview(snapshot: dict, classified_messenger: list,
             if c.get("reply_url"):
                 parts.append(f'<a class="reply-btn" href="{html.escape(c["reply_url"])}" target="_blank" rel="noopener">💬 Open on Facebook</a>')
             parts.append('</div>')
+        parts.append('</div></details>')
 
-    # IG Comments
-    if classified_ig_comments:
-        parts.append(f'<h2>📷 Instagram Comments</h2>')
-        for c in classified_ig_comments:
+    # IG comment auto-drafts (collapsed)
+    if ig_a:
+        parts.append('<details class="drafts-section">')
+        parts.append(f'<summary>📷 {len(ig_a)} Instagram auto-drafts (tap to inspect)</summary>')
+        parts.append('<div class="drafts-body">')
+        for c in ig_a:
             cls = c["cls"]
             bucket = cls["bucket"]
             parts.append(f'<div class="item bucket-{bucket}">')
@@ -607,6 +680,7 @@ def render_preview(snapshot: dict, classified_messenger: list,
             if c.get("reply_url"):
                 parts.append(f'<a class="reply-btn" href="{html.escape(c["reply_url"])}" target="_blank" rel="noopener">💬 Open on Instagram</a>')
             parts.append('</div>')
+        parts.append('</div></details>')
 
     parts.append(PAGE_FOOT)
     return "\n".join(parts)
@@ -742,19 +816,23 @@ def main():
         try:
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             from lauren_sms import send_sms
-            n_a = sum(1 for c in classified_messenger if c["cls"]["bucket"] == "A")
-            n_b = sum(1 for c in classified_messenger if c["cls"]["bucket"] == "B")
-            n_neg = sum(1 for c in classified_messenger if c["cls"]["bucket"] == "NEG")
-            n_fb = len(classified_fb)
-            n_ig = len(classified_ig)
-            url = "https://laurenlev10.github.io/lauren-agent-hub-data/meta/inbox-api-preview/"
-            t3 = (
-                f"@meta ✓ סריקה יומית הסתיימה.\n"
-                f"{n_a} draft auto-replies מוכנים, {n_b} לאישורך"
-                + (f", {n_neg} שליליות" if n_neg else "")
-                + f".\nFB comments: {n_fb}, IG comments: {n_ig}.\n\n"
-                + f"לעיון: {url}"
+            need_lauren = (
+                sum(1 for c in classified_messenger if c["cls"]["bucket"] in ("B", "NEG")) +
+                sum(1 for c in classified_fb        if c["cls"]["bucket"] in ("B", "NEG")) +
+                sum(1 for c in classified_ig        if c["cls"]["bucket"] in ("B", "NEG"))
             )
+            has_neg = (
+                any(c["cls"]["bucket"] == "NEG" for c in classified_messenger) or
+                any(c["cls"]["bucket"] == "NEG" for c in classified_fb) or
+                any(c["cls"]["bucket"] == "NEG" for c in classified_ig)
+            )
+            url = "https://laurenlev10.github.io/lauren-agent-hub-data/meta/inbox-api-preview/"
+            if has_neg:
+                t3 = f"@meta ⚠ יש תגובה שלילית! {need_lauren} פריטים דורשים אותך.\n{url}"
+            elif need_lauren > 0:
+                t3 = f"@meta ✓ {need_lauren} פריטים דורשים אותך — לחיצה אחת לכל אחד.\n{url}"
+            else:
+                t3 = f"@meta ✓ הכל שקט. אין מה לטפל.\n{url}"
             phone = os.environ.get("LAUREN_PHONE", "4243547625")
             r = send_sms(phone, t3)
             print(f"  SMS sent: id={r.get('id')}")
