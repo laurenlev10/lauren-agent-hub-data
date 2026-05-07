@@ -135,6 +135,28 @@ CUSTOMER_ISSUE_PAT = re.compile(
     re.I,
 )
 
+# "Can I order online?" / "Available online?" — direct her to the website
+ONLINE_ORDER_PAT = re.compile(
+    r"\b(?:order|buy|purchase|shop|sell|sold|ship|delivery|delivered|"
+    r"available|get\s+it)\b.*\bonline\b|"
+    r"\bonline\b.*\b(?:order|buy|purchase|shop|sell|sold|ship|delivery|"
+    r"delivered|available)\b",
+    re.I,
+)
+
+_ONLINE_ORDER_TEMPLATES = [
+    "YES babe!! 💄 You can grab our Mystery Box online anytime: "
+    "https://www.themakeupblowout.com/ ✨💕",
+    "Babe YESSS!! 🛍️ Shop our online store right here: "
+    "https://www.themakeupblowout.com/ — same fabulous deals, delivered "
+    "to your door 📦✨",
+    "OMG yes girl! 💄 Mystery Box online: "
+    "https://www.themakeupblowout.com/ ✨ Same magic, delivered "
+    "straight to you 💕",
+    "Heck yes 🛍️ Online shop is right here babe: "
+    "https://www.themakeupblowout.com/ 💄 Bring the magic home anytime ✨",
+]
+
 CITY_PAT = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b")
 
 
@@ -374,6 +396,13 @@ def classify(text: str, kb: dict) -> dict:
         return {"bucket": "B",
                 "reason": "Customer issue / past purchase pattern — needs Lauren personally",
                 "reply": None}
+
+    # Online-order question — direct her to the website
+    if ONLINE_ORDER_PAT.search(t):
+        seed = kb.get("_seed", "") + "online"
+        return {"bucket": "A",
+                "reason": "Online order/availability question — point to website",
+                "reply": _seeded_pick(_ONLINE_ORDER_TEMPLATES, seed)}
 
     # FAQ keyword match (priority over city question — "are you free?" outranks "are you coming")
     for pattern, faq_q in FAQ_KEYWORDS:
