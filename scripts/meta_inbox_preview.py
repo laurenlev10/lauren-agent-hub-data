@@ -188,14 +188,17 @@ def _find_in_schedule(place: str, schedule: dict):
 def city_rotation_reply(place: str) -> str:
     """
     Lauren's preferred off-schedule reply (set 2026-05-06 PM):
-    Name the specific city, say we're not planning this year, promise next year.
+    Name the specific city, say not planning this year, promise next year.
+    Brand voice (per KB section 2): warm, casual, 'for the girls', emojis,
+    never corporate. Updated 2026-05-06 PM with extra babe energy 💕
     """
     p = _prettify_place(place) if place else "your area"
     return (
-        f"This year we're not planning a sale in {p} — we visit each city once "
-        f"every 1–2 years to keep things exciting! 🤩 We'll do our best to make "
-        f"it to {p} next year! Keep an eye on our Facebook page so you don't "
-        f"miss the announcement 👀💄✨"
+        f"Aww babe — {p} isn't on our 2026 stop list this year 💔 "
+        f"We rotate cities every 1–2 years to keep the magic alive ✨ "
+        f"But we're putting {p} on the radar HARD — gonna do our absolute "
+        f"BEST to make it happen next year 💄💕 Keep an eye on our "
+        f"Facebook page so you don't miss the announcement 👀✨"
     )
 
 
@@ -243,9 +246,10 @@ def classify(text: str, kb: dict) -> dict:
             city_title = city_key.split(",")[0].strip().title()
             return {"bucket": "A",
                     "reason": f"City question — '{place}' matches schedule entry '{city_key}'",
-                    "reply": f"Yes! 🎉 We're coming to {city_title} on {dates}! "
-                             f"Friday–Sunday, 10am–5pm. Free admission, free parking. "
-                             f"💄✨ Hope to see you there!"}
+                    "reply": f"YESSS babe!! 🎉 We're rolling into {city_title} {dates} — "
+                             f"Friday–Sunday, 10am–5pm! Free entry, free parking, "
+                             f"and a whole lotta beauty waiting for you 💄✨ "
+                             f"Can't wait to spoil you 💕"}
         # Strong city-question intent (CITY_QUESTION_PAT) but not on schedule → rotation policy
         if m_q:
             return {"bucket": "A",
