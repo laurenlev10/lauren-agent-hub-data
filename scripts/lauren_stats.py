@@ -427,6 +427,53 @@ def extract_eventbrite_stats_from_launch_dashboard(html_path) -> dict:
         print(f"  ⚠ EVENTBRITE_STATS parse failed: {e}")
         return {}
 
+def _extract_const_block(text: str, var_name: str) -> dict:
+    """Generic balanced-bracket extractor for `const VAR = {...};` in JS source."""
+    import re
+    m = re.search(rf"const {var_name}\s*=\s*", text)
+    if not m:
+        return {}
+    start = m.end()
+    depth, in_str, esc = 0, False, False
+    end = start
+    for i in range(start, len(text)):
+        c = text[i]
+        if esc: esc = False; continue
+        if c == "\\": esc = True; continue
+        if c == '"' and not esc: in_str = not in_str; continue
+        if in_str: continue
+        if c == "{": depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1; break
+    raw = text[start:end]
+    raw = re.sub(r",(\s*[\]}])", r"\1", raw)
+    try:
+        return _json.loads(raw)
+    except Exception:
+        return {}
+
+
+def extract_schedule_from_launch_dashboard(html_path) -> dict:
+    """Parse SCHEDULE = {year: [events]}; from launch_dashboard.html.
+
+    Returns dict by year. Each event has city, state, start_date, end_date, status, etc.
+    """
+    p = _Path(html_path)
+    if not p.exists():
+        return {}
+    return _extract_const_block(p.read_text(encoding="utf-8"), "SCHEDULE")
+
+
+def extract_list_stats_from_launch_dashboard(html_path) -> dict:
+    """Parse LIST_STATS = {evkey: {active, total, daily_delta, history}}; from launch_dashboard.html."""
+    p = _Path(html_path)
+    if not p.exists():
+        return {}
+    return _extract_const_block(p.read_text(encoding="utf-8"), "LIST_STATS")
+
+
 def map_setups_to_slugs(setups: dict, events: list) -> dict:
     """Build {slug: list_id} from SETUPS map + events list."""
     out = {}
@@ -721,7 +768,9 @@ def is_event_weekend(date, all_events: list) -> bool:
 
 def generate_per_event_insights(slug: str, ev: dict, averages: dict,
                                   prev_year_lists: list = None,
-                                  prev_snapshot: dict = None) -> dict:
+                                  prev_snapshot: dict = None,
+                                  is_live: bool = False,
+                                  days_remaining: int = None) -> dict:
     """Build narrative insight + recommendations for one event.
 
     prev_snapshot: the last @stats snapshot (ts, eb, sms) — used for delta-since-last-report.
@@ -732,7 +781,7 @@ def generate_per_event_insights(slug: str, ev: dict, averages: dict,
     eb_cap = ev.get("eventbrite_capacity", 250)
     sms_reg = ev.get("sms_registered", 0)
     forecast = ev.get("forecast", {})
-    days = forecast.get("days_remaining") if forecast else None
+    days = days_remaining if days_remaining is not None else (forecast.get("days_remaining") if forecast else None)
     avg_eb = averages.get("avg_eventbrite_upcoming", 0) or 1
     avg_sms = averages.get("avg_sms_list_size", 0) or 1
 
@@ -765,7 +814,10 @@ def generate_per_event_insights(slug: str, ev: dict, averages: dict,
     else:
         city_name = slug.replace("-", " ").title()
     days_str = f"{days}d לאירוע" if days is not None else ""
-    narrative = city_name + (f" ({days_str})" if days_str else "")
+    if is_live:
+        narrative = "🟢 LIVE — " + city_name + " (האירוע פעיל עכשיו!)"
+    else:
+        narrative = city_name + (f" ({days_str})" if days_str else "")
     # Delta since previous report
     eb_delta = None
     sms_delta = None
@@ -798,6 +850,7 @@ def generate_per_event_insights(slug: str, ev: dict, averages: dict,
         "sms_part": sms_part,
         "yoy_text": yoy_text,
         "recommendation": rec,
+        "is_live": is_live,
         "eb_reg": eb_reg,
         "eb_cap": eb_cap,
         "sms_reg": sms_reg,
@@ -880,6 +933,55 @@ def extract_event_financials_from_launch_dashboard(html_path) -> dict:
     except Exception as e:
         print(f"  ⚠ SUMMARIES parse failed: {e}")
         return {}
+
+def get_next_n_upcoming_events(schedule: dict, n: int = 4) -> list:
+    """Return list of next N upcoming events sorted by start_date.
+
+    Uses SCHEDULE constant (from launch_dashboard.html) which contains ALL events
+    (confirmed + tentative) for current/next year. Returns events that haven't ended yet.
+    """
+    today = _dt.date.today()
+    all_events = []
+    for year, year_events in (schedule or {}).items():
+        if not isinstance(year_events, list):
+            continue
+        for ev in year_events:
+            all_events.append(ev)
+
+    candidates = []
+    for ev in all_events:
+        sd_str = ev.get("start_date")
+        if not sd_str:
+            continue
+        try:
+            sd = _dt.date.fromisoformat(sd_str)
+            ed = _dt.date.fromisoformat(ev.get("end_date") or sd_str)
+        except Exception:
+            continue
+        if ed < today:
+            continue
+        city = (ev.get("city") or "").lower().replace(" ", "-")
+        state = (ev.get("state") or "").lower()
+        year = sd_str[:4]
+        if not (city and state and year):
+            continue
+        slug = f"{city}-{state}-{year}"
+        evkey = f"{city}-{sd_str}"
+        is_live = (sd <= today <= ed)
+        candidates.append({
+            "slug": slug,
+            "evkey": evkey,
+            "city": ev.get("city"),
+            "state": ev.get("state"),
+            "start_date": sd_str,
+            "end_date": ev.get("end_date") or sd_str,
+            "venue": ev.get("venue"),
+            "is_live": is_live,
+            "days_remaining": (sd - today).days,
+        })
+    candidates.sort(key=lambda x: x["start_date"])
+    return candidates[:n]
+
 
 # ---------------------------------------------------------------------------
 # Time-series snapshots (for delta-since-last-report)

@@ -114,17 +114,6 @@ jobs:
             git push origin main
           fi
 
-      - name: Commit local changes
-        run: |
-          git config user.email "lauren@noreply.github.com"
-          git config user.name "Lauren (via marketing-stats)"
-          git add docs/state/conversion_history.json docs/launch/index.html docs/state/event_timeseries.json
-          if ! git diff --cached --quiet; then
-            git commit -m "stats: refresh conversion_history.json + EVENT_ANALYTICS map"
-            git pull --rebase origin main || true
-            git push origin main
-          fi
-
       - name: Send insights digest SMS (9 AM/PM PT)
         if: env.SHOULD_SEND_SMS == 'true'
         env:
@@ -161,32 +150,65 @@ jobs:
           all_lists = fetch_all_simpletexting_lists()
           print(f"Loaded {len(all_lists)} SimpleTexting lists for YoY")
 
-          # Load previous time-series snapshots (for delta-since-last-report)
-          from lauren_stats import load_event_timeseries, get_previous_snapshot, append_event_snapshot, save_event_timeseries
+          # Load previous time-series snapshots + new SCHEDULE/LIST_STATS extractors
+          from lauren_stats import (load_event_timeseries, get_previous_snapshot,
+                                     append_event_snapshot, save_event_timeseries,
+                                     get_next_n_upcoming_events,
+                                     extract_schedule_from_launch_dashboard,
+                                     extract_list_stats_from_launch_dashboard,
+                                     fetch_simpletexting_list_sizes)
           timeseries = load_event_timeseries()
 
-          # Generate per-event insights (only events with data)
+          # SCHEDULE = ALL events (for next-4 selection); LIST_STATS = SMS data with delta
+          schedule = extract_schedule_from_launch_dashboard("docs/launch/index.html")
+          list_stats = extract_list_stats_from_launch_dashboard("docs/launch/index.html")
+          print(f"Loaded SCHEDULE: {sum(len(v) for v in schedule.values() if isinstance(v, list))} events; LIST_STATS: {len(list_stats)}")
+
+          # ALWAYS show next 4 upcoming events (even if zero data yet)
+          next_events = get_next_n_upcoming_events(schedule, n=4)
+          print(f"Top 4 upcoming: {[e['slug'] + ('🟢LIVE' if e['is_live'] else '') for e in next_events]}")
+
+          # Fetch fresh SMS list sizes for these specific 4 (in case some are new)
+          slug_to_list = {}
+          for em in next_events:
+              ls = list_stats.get(em["evkey"], {})
+              if ls.get("list_id"):
+                  slug_to_list[em["slug"]] = ls["list_id"]
+          fresh_sms = fetch_simpletexting_list_sizes(slug_to_list)
+
           insights = []
-          for slug, ev in history.get("events", {}).items():
-              if ev.get("eventbrite_registered", 0) == 0 and ev.get("sms_registered", 0) == 0:
-                  continue
-              parts = slug.rsplit("-", 2)
-              if len(parts) != 3: continue
-              city = parts[0].replace("-", " ").title()
-              state = parts[1].upper()
-              year = int(parts[2])
-              prev_lists = find_previous_year_lists(city, state, year, all_lists)
+          for evmeta in next_events:
+              slug = evmeta["slug"]
+              evkey = evmeta["evkey"]
+              # Build event data from launch_dashboard sources (preferred) or history fallback
+              ev = history.get("events", {}).get(slug, {}).copy()
+              ebs = eb_stats.get(evkey, {})
+              if ebs:
+                  ev["eventbrite_registered"] = ebs.get("registrations", 0)
+                  ev["eventbrite_capacity"] = ebs.get("capacity", 250)
+              ls = list_stats.get(evkey, {})
+              # Use fresh SMS data if available; else fall back to LIST_STATS
+              sm = fresh_sms.get(slug, {})
+              if sm:
+                  ev["sms_registered"] = sm.get("list_size", 0)
+                  ev["sms_list_name"] = sm.get("list_name")
+              elif ls:
+                  ev["sms_registered"] = ls.get("active", 0)
+                  ev["sms_list_name"] = ls.get("list_name")
+
+              prev_lists = find_previous_year_lists(evmeta["city"], evmeta["state"],
+                                                     int(evmeta["start_date"][:4]), all_lists)
               prev_snap = get_previous_snapshot(timeseries, slug)
               insight = generate_per_event_insights(slug, ev, averages,
                                                      prev_year_lists=prev_lists,
-                                                     prev_snapshot=prev_snap)
+                                                     prev_snapshot=prev_snap,
+                                                     is_live=evmeta["is_live"],
+                                                     days_remaining=evmeta["days_remaining"])
               insights.append(insight)
-              # Append current snapshot (for next run's delta)
               append_event_snapshot(timeseries, slug,
                                     ev.get("eventbrite_registered", 0),
                                     ev.get("sms_registered", 0))
 
-          # Save updated timeseries before sending SMS (so file is on disk)
           save_event_timeseries(timeseries)
 
           if not insights:
@@ -215,3 +237,15 @@ jobs:
               except Exception as e:
                   print(f"⚠ send to {name} failed: {e}")
           PY
+      - name: Commit local changes
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via marketing-stats)"
+          git add docs/state/conversion_history.json docs/launch/index.html
+          [ -f docs/state/event_timeseries.json ] && git add docs/state/event_timeseries.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "stats: refresh conversion_history.json + EVENT_ANALYTICS map"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
+
