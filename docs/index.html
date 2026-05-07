@@ -275,6 +275,16 @@
     font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.95;
   }
   .special-meta b { color: #fff; font-weight: 800; }
+  .special-sync-pill {
+    background: rgba(255,255,255,0.22); padding: 4px 10px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; cursor: pointer; letter-spacing: 0.4px;
+    border: none; color: #fff; transition: all 0.15s ease;
+  }
+  .special-sync-pill.synced { background: #d1fae5; color: #065f46; }
+  .special-sync-pill.syncing { background: #fef3c7; color: #92400e; }
+  .special-sync-pill.offline { background: rgba(255,255,255,0.18); color: #f3e8ff; }
+  .special-sync-pill.error   { background: #fecaca; color: #991b1b; }
+  .special-sync-pill:hover { transform: scale(1.05); }
   .special-list { display: grid; grid-template-columns: 1fr; gap: 8px; }
   .special-task {
     display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px;
@@ -531,13 +541,167 @@ const SCOUT_REPORTS = [
       <div class="special-tag">משימות חד-פעמיות שצריכות תשומת לב — סימון ✓ מסיר אותן לצמיתות. אין איפוס שבועי.</div>
       <div class="special-meta">
         <span>פתוחות: <b id="special-open-count">0</b></span>
-        <span style="opacity:0.8">לחצי על פקודה להעתקה ↓</span>
+        <button type="button" class="special-sync-pill offline" id="special-sync-pill">Sync: off</button>
       </div>
       <div class="special-list" id="special-list"></div>
       <button class="special-add-btn" id="special-add-btn" type="button">＋ הוסיפי משימה חדשה</button>
     </div>
   </div>
 </div>
+
+<script id="task-sync-shared">
+// Shared GitHub state sync — used by Special + Weekly task sections.
+// Token is shared across all dashboards via "lauren_gh_token_v1" localStorage key.
+const TaskStateSync = (function() {
+  const OWNER = "laurenlev10";
+  const REPO = "lauren-agent-hub-data";
+  const BRANCH = "main";
+  const TOKEN_KEY = "lauren_gh_token_v1";
+
+  function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; } }
+  function setToken(t) { try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+  function hasToken() { return !!getToken(); }
+  function b64encode(s) { return btoa(unescape(encodeURIComponent(s))); }
+  function b64decode(s) { return decodeURIComponent(escape(atob(s.replace(/\s/g, "")))); }
+
+  function promptForToken() {
+    const msg = "כדי שהסימונים יסונכרנו בין הדפדפנים והנייד, צריך להדביק כאן את ה-GitHub Personal Access Token שלך פעם אחת.\n\n" +
+                "אם עוד אין לך — צרי כאן (תקפיצי ל-tab חדש):\n" +
+                "https://github.com/settings/tokens/new?scopes=repo&description=Lauren+Dashboard+Sync\n\n" +
+                "הדביקי אותו כאן (מתחיל ב-ghp_):";
+    const t = prompt(msg, "");
+    if (t && t.trim().startsWith("ghp_")) {
+      setToken(t.trim());
+      return t.trim();
+    }
+    return "";
+  }
+
+  function setPillState(pillEl, state, label) {
+    if (!pillEl) return;
+    pillEl.classList.remove("synced", "syncing", "offline", "error");
+    pillEl.classList.add(state);
+    pillEl.textContent = label;
+  }
+
+  // Build a sync instance for a specific path
+  function create(opts) {
+    const PATH = opts.path;
+    const DEBOUNCE_MS = opts.debounceMs || 1500;
+    const pillEl = opts.pillEl;
+    let currentSha = null;
+    let saveTimer = null;
+    let saving = false;
+    let savePending = false;
+
+    async function apiGet() {
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${BRANCH}&_=${Date.now()}`;
+      const headers = { "Accept": "application/vnd.github+json" };
+      const t = getToken();
+      if (t) headers["Authorization"] = "Bearer " + t;
+      const res = await fetch(url, { headers, cache: "no-store" });
+      if (res.status === 404) return { data: null, sha: null };
+      if (!res.ok) throw new Error(`GET ${res.status}`);
+      const json = await res.json();
+      let data = null;
+      try { data = JSON.parse(b64decode(json.content)); } catch (e) { data = null; }
+      return { data, sha: json.sha };
+    }
+
+    async function apiPut(data, sha, message) {
+      const t = getToken();
+      if (!t) throw new Error("no token");
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`;
+      const body = {
+        message: message || `Update ${PATH} from agent-hub dashboard`,
+        content: b64encode(JSON.stringify(data, null, 2) + "\n"),
+        branch: BRANCH
+      };
+      if (sha) body.sha = sha;
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Accept": "application/vnd.github+json",
+          "Authorization": "Bearer " + t,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        const err = new Error(`PUT ${res.status}: ${txt.slice(0, 200)}`);
+        err.status = res.status;
+        throw err;
+      }
+      const json = await res.json();
+      return json.content && json.content.sha;
+    }
+
+    async function loadInitial(onLoaded) {
+      try {
+        const { data, sha } = await apiGet();
+        currentSha = sha;
+        if (data && onLoaded) onLoaded(data);
+        if (hasToken()) setPillState(pillEl, "synced", "Sync ✓"); else setPillState(pillEl, "offline", "Sync: off");
+      } catch (e) {
+        console.warn(`[TaskStateSync ${PATH}] initial load failed:`, e);
+        setPillState(pillEl, hasToken() ? "error" : "offline", hasToken() ? "Sync error" : "Sync: off");
+      }
+    }
+
+    async function doSave(getDataFn) {
+      if (!hasToken()) { setPillState(pillEl, "offline", "Sync: off"); return; }
+      if (saving) { savePending = true; return; }
+      saving = true;
+      setPillState(pillEl, "syncing", "Syncing…");
+      try {
+        const payload = getDataFn();
+        try {
+          currentSha = await apiPut(payload, currentSha);
+        } catch (e) {
+          if (e.status === 409 || e.status === 422) {
+            const fresh = await apiGet();
+            currentSha = await apiPut(payload, fresh.sha);
+          } else { throw e; }
+        }
+        setPillState(pillEl, "synced", "Sync ✓");
+      } catch (e) {
+        console.warn(`[TaskStateSync ${PATH}] save failed:`, e);
+        setPillState(pillEl, "error", "Sync error");
+      } finally {
+        saving = false;
+        if (savePending) { savePending = false; scheduleSave(getDataFn, 0); }
+      }
+    }
+
+    function scheduleSave(getDataFn, delay) {
+      if (delay === undefined) delay = DEBOUNCE_MS;
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(function() { doSave(getDataFn); }, delay);
+    }
+
+    function wireTokenPill(getDataFn) {
+      if (!pillEl) return;
+      pillEl.addEventListener("click", async function() {
+        const t = promptForToken();
+        if (t) {
+          setPillState(pillEl, "syncing", "Testing…");
+          try {
+            await doSave(getDataFn);
+            alert("✅ הטוקן עובד! מעכשיו הסימונים יסונכרנו בין כל הדפדפנים שלך.");
+          } catch (e) {
+            alert("❌ הטוקן לא עבד: " + e.message);
+          }
+        }
+      });
+    }
+
+    return { loadInitial, scheduleSave, wireTokenPill, hasToken };
+  }
+
+  return { create, getToken, setToken, hasToken };
+})();
+</script>
 
 <script id="special-data">
 const SPECIAL_TASKS_SEED = [
@@ -575,8 +739,9 @@ const SPECIAL_TASKS_SEED = [
   const list = document.getElementById("special-list");
   const openCountEl = document.getElementById("special-open-count");
   const addBtn = document.getElementById("special-add-btn");
+  const pillEl = document.getElementById("special-sync-pill");
 
-  function loadState() {
+  function loadLocalState() {
     let st = null;
     try { st = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (e) { st = null; }
     if (!st) st = { removed: {}, custom: [] };
@@ -584,11 +749,49 @@ const SPECIAL_TASKS_SEED = [
     if (!st.custom) st.custom = [];
     return st;
   }
-  function saveState(st) {
+  function saveLocalState(st) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(st)); } catch (e) {}
   }
 
-  let state = loadState();
+  let state = loadLocalState();
+
+  // Cross-device sync via GitHub
+  const sync = TaskStateSync.create({
+    path: "docs/state/special_tasks.json",
+    pillEl: pillEl
+  });
+
+  function getDataForSave() {
+    return {
+      removed: state.removed,
+      custom: state.custom,
+      _updated_at: new Date().toISOString()
+    };
+  }
+
+  function mergeRemoteState(remote) {
+    if (!remote || typeof remote !== "object") return;
+    // Merge removed (union — once removed anywhere, removed everywhere)
+    if (remote.removed) {
+      Object.keys(remote.removed).forEach(function(id) {
+        if (remote.removed[id]) state.removed[id] = true;
+      });
+    }
+    // Merge custom — by id, take remote if newer
+    if (Array.isArray(remote.custom)) {
+      const existingIds = new Set(state.custom.map(function(c) { return c.id; }));
+      remote.custom.forEach(function(c) {
+        if (!existingIds.has(c.id)) state.custom.push(c);
+      });
+    }
+    saveLocalState(state);
+  }
+
+  function saveState(st) {
+    state = st;
+    saveLocalState(state);
+    sync.scheduleSave(getDataForSave);
+  }
 
   function fmtDate(iso) {
     if (!iso) return null;
@@ -720,6 +923,13 @@ const SPECIAL_TASKS_SEED = [
   });
 
   render();
+
+  // Wire up sync: load remote state, then merge + re-render
+  sync.wireTokenPill(getDataForSave);
+  sync.loadInitial(function(remote) {
+    mergeRemoteState(remote);
+    render();
+  });
 })();
 </script>
 
@@ -732,6 +942,7 @@ const SPECIAL_TASKS_SEED = [
       <div class="weekly-meta">
         <span>השבוע מ־<b id="weekly-week-label">—</b></span>
         <span>הושלמו: <b><span id="weekly-done-count">0</span> / <span id="weekly-total-count">10</span></b></span>
+        <button type="button" class="special-sync-pill offline" id="weekly-sync-pill">Sync: off</button>
         <button class="weekly-reset-btn" id="weekly-reset-btn" type="button">🔄 איפוס ידני</button>
       </div>
       <div class="weekly-progress"><div class="weekly-progress-bar" id="weekly-progress-bar"></div></div>
@@ -763,6 +974,7 @@ const WEEKLY_TASKS = [
   const labelEl = document.getElementById("weekly-week-label");
   const barEl = document.getElementById("weekly-progress-bar");
   const resetBtn = document.getElementById("weekly-reset-btn");
+  const pillEl = document.getElementById("weekly-sync-pill");
 
   function mostRecentSundayISO(d) {
     const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -777,18 +989,50 @@ const WEEKLY_TASKS = [
     const dt = new Date(parts[0], parts[1]-1, parts[2]);
     return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' (Sun)';
   }
-  function loadState() {
+  function loadLocalState() {
     const week = mostRecentSundayISO(new Date());
     let st = null;
     try { st = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (e) { st = null; }
     if (!st || st.week !== week) st = { week: week, done: {} };
     return st;
   }
-  function saveState(st) {
+  function saveLocalState(st) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(st)); } catch (e) {}
   }
 
-  let state = loadState();
+  let state = loadLocalState();
+
+  // Cross-device sync via GitHub
+  const sync = TaskStateSync.create({
+    path: "docs/state/weekly_tasks.json",
+    pillEl: pillEl
+  });
+
+  function getDataForSave() {
+    return {
+      week: state.week,
+      done: state.done,
+      _updated_at: new Date().toISOString()
+    };
+  }
+
+  function mergeRemoteState(remote) {
+    if (!remote || typeof remote !== "object") return;
+    const currentWeek = mostRecentSundayISO(new Date());
+    // If remote is from current week, merge done states (union — last write wins per id)
+    if (remote.week === currentWeek && remote.done) {
+      Object.keys(remote.done).forEach(function(id) {
+        if (remote.done[id]) state.done[id] = true;
+      });
+    }
+    saveLocalState(state);
+  }
+
+  function saveState(st) {
+    state = st;
+    saveLocalState(state);
+    sync.scheduleSave(getDataForSave);
+  }
 
   function render() {
     list.innerHTML = "";
@@ -840,9 +1084,16 @@ const WEEKLY_TASKS = [
 
   render();
   setInterval(function () {
-    const fresh = loadState();
+    const fresh = loadLocalState();
     if (fresh.week !== state.week) { state = fresh; render(); }
   }, 5 * 60 * 1000);
+
+  // Wire up sync: load remote state, then merge + re-render
+  sync.wireTokenPill(getDataForSave);
+  sync.loadInitial(function(remote) {
+    mergeRemoteState(remote);
+    render();
+  });
 })();
 </script>
 
@@ -915,178 +1166,4 @@ const WEEKLY_TASKS = [
       }
       card.innerHTML =
         '<div class="task-row">' +
-          '<div class="task-name">' + safeName + '</div>' +
-          '<span class="task-status ' + s.cls + '">' + s.txt + '</span>' +
-        '</div>' +
-        '<div class="task-meta">' +
-          '<span class="freq">' + freq + '</span>' +
-          '<span class="task-last">last: ' + timeAgo(t.lastRunAt) + '</span>' +
-        '</div>';
-      list.appendChild(card);
-    });
-  }
-})();
-</script>
-
-<div class="library-wrap">
-  <div class="library-card">
-    <div class="library-content">
-      <div class="library-name">📚 ספריית הסוכנים</div>
-      <div class="library-tag">כל הסוכנים בעיצוב קומפקטי. לחיצה על שורה פותחת את הדשבורד; כפתור Run במקום שיש מעתיק פקודה ל־Cowork.</div>
-
-      <div class="library-section-title">בכירים</div>
-      <div class="library-list">
-        <a href="architect/" class="lib-agent lib-architect">
-          <span class="lib-icon">🏛️</span>
-          <div class="lib-body">
-            <div class="lib-name">Agent Architect</div>
-            <div class="lib-last">Mode: <span id="architect-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="forecast/" class="lib-agent lib-forecast">
-          <span class="lib-icon">🔮</span>
-          <div class="lib-body">
-            <div class="lib-name">חוזה עתידות (Forecast)</div>
-            <div class="lib-last">Last run: <span id="forecast-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-      </div>
-
-      <div class="library-section-title">לפני האירוע</div>
-      <div class="library-list">
-        <a href="contract/" class="lib-agent">
-          <span class="lib-icon">📋</span>
-          <div class="lib-body">
-            <div class="lib-name">Contract Review</div>
-            <div class="lib-last">Last run: <span id="contract-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="canva/" class="lib-agent">
-          <span class="lib-icon">🎨</span>
-          <div class="lib-body">
-            <div class="lib-name">Canva Event Images</div>
-            <div class="lib-last">Last run: <span id="canva-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="canva-reel/" class="lib-agent">
-          <span class="lib-icon">🎬</span>
-          <div class="lib-body">
-            <div class="lib-name">Canva Reel</div>
-            <div class="lib-last">Last run: <span id="canva-reel-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="campaigns/" class="lib-agent">
-          <span class="lib-icon">📲</span>
-          <div class="lib-body">
-            <div class="lib-name">SMS Campaigns</div>
-            <div class="lib-last">Last run: <span id="sms-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="pr-organization/" class="lib-agent">
-          <span class="lib-icon">🤝</span>
-          <div class="lib-body">
-            <div class="lib-name">Local PR — Organization</div>
-            <div class="lib-last">Last run: <span id="pr-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="pr-influencer/" class="lib-agent">
-          <span class="lib-icon">✨</span>
-          <div class="lib-body">
-            <div class="lib-name">Local PR — Influencer</div>
-            <div class="lib-last">Last run: <span id="pr-influencer-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="landing/" class="lib-agent">
-          <span class="lib-icon">🪧</span>
-          <div class="lib-body">
-            <div class="lib-name">Landing Pages</div>
-            <div class="lib-last">Last run: <span id="landing-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-      </div>
-
-      <div class="library-section-title">סקאוט עיר (טופס מהיר)</div>
-      <div class="library-list" id="scout-card">
-        <div class="lib-agent lib-scout-row" style="cursor:default">
-          <span class="lib-icon">🔍</span>
-          <div class="lib-body">
-            <div class="lib-name">City Scout</div>
-            <div class="lib-last">Last run: <span id="scout-lastRun">—</span></div>
-          </div>
-        </div>
-        <div class="lib-scout-form-wrap">
-          <div class="scout-form">
-            <input type="text" id="scout-city" placeholder="עיר (לדוגמה: Lancaster)" autocomplete="off">
-            <input type="text" id="scout-state" placeholder="ST" maxlength="2" style="text-transform:uppercase" autocomplete="off">
-            <select id="scout-month">
-              <option value="">חודש (אופציונלי)</option>
-              <option>Jan</option><option>Feb</option><option>Mar</option>
-              <option>Apr</option><option>May</option><option>Jun</option>
-              <option>Jul</option><option>Aug</option><option>Sep</option>
-              <option>Oct</option><option>Nov</option><option>Dec</option>
-            </select>
-          </div>
-          <button class="run-btn" id="scout-btn">🔍 העתיקי פקודת סקאוט</button>
-          <div class="run-hint">מלאי עיר + ST &rarr; לחצי לכפתור &rarr; הדביקי בשיחת Cowork חדשה. הסוכן יכין דו"ח 10-15 דקות.</div>
-          <div class="scout-reports-list" id="scout-reports-list">
-            <div class="scout-reports-empty">עדיין לא הורצו דוחות סקאוט. דו"ח ראשון יופיע כאן אחרי שהסוכן יסיים.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="library-section-title">לאחר האירוע / רץ ברקע</div>
-      <div class="library-list">
-        <div class="lib-agent" style="cursor:default" onclick="document.getElementById('lib-meta-link').click()">
-          <span class="lib-icon">📬</span>
-          <div class="lib-body">
-            <div class="lib-name"><a id="lib-meta-link" href="meta/" style="color:inherit;text-decoration:none">Meta Inbox</a></div>
-            <div class="lib-last">Last run: <span id="meta-lastRun">—</span></div>
-          </div>
-          <button class="lib-run-btn run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\Users\laure\OneDrive\מסמכים\Claude\Scheduled\NEW\meta-inbox\SKILL.md` — it is the orchestrator for @meta and tells you which other files to read (triage.md, dashboard.md, comms.md, inbox_knowledge_base.docx, reported_negatives.jsonl).">&#9654; Run</button>
-        </div>
-        <div class="lib-agent" style="cursor:default" onclick="document.getElementById('lib-housing-link').click()">
-          <span class="lib-icon">🏡</span>
-          <div class="lib-body">
-            <div class="lib-name"><a id="lib-housing-link" href="housing/" style="color:inherit;text-decoration:none">West SFV Rentals</a></div>
-            <div class="lib-last">Last run: <span id="housing-lastRun">—</span></div>
-          </div>
-          <button class="lib-run-btn run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\Users\laure\OneDrive\מסמכים\Claude\Scheduled\NEW\la-rental-search\SKILL.md` — it is the orchestrator for @housing and tells you which other files to read (search.md, dashboard.md, comms.md).">&#9654; Run</button>
-        </div>
-        <div class="lib-agent" style="cursor:default" onclick="document.getElementById('lib-mbs-link').click()">
-          <span class="lib-icon">📊</span>
-          <div class="lib-body">
-            <div class="lib-name"><a id="lib-mbs-link" href="mbs/" style="color:inherit;text-decoration:none">MBS Event Summary</a></div>
-            <div class="lib-last">Last run: <span id="mbs-lastRun">—</span></div>
-          </div>
-          <button class="lib-run-btn run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\Users\laure\OneDrive\מסמכים\Claude\Scheduled\NEW\mbs-event-summary\SKILL.md` — it is the orchestrator for @mbs. Then ask me which event to summarize.">&#9654; Run</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-  // Robust clipboard copy. Works around iframe/Cowork-widget contexts where
-  // navigator.clipboard.writeText is silently blocked. Falls back to a textarea
-  // + execCommand('copy'), then to a manual-copy modal as a last resort.
-  async function copyText(text) {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-        return true;
-      }
-    } catch (e) {}
-    try {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.setAttribute("readonly", "");
-      ta.style.cssText = "position:fixed;top:0;left:0;width:1px;he
+          '<div class="task-name">' + safeName + 
