@@ -1166,4 +1166,367 @@ const WEEKLY_TASKS = [
       }
       card.innerHTML =
         '<div class="task-row">' +
-          '<div class="task-name">' + safeName + 
+          '<div class="task-name">' + safeName + '</div>' +
+          '<span class="task-status ' + s.cls + '">' + s.txt + '</span>' +
+        '</div>' +
+        '<div class="task-meta">' +
+          '<span class="freq">' + freq + '</span>' +
+          '<span class="task-last">last: ' + timeAgo(t.lastRunAt) + '</span>' +
+        '</div>';
+      list.appendChild(card);
+    });
+  }
+})();
+</script>
+
+<div class="library-wrap">
+  <div class="library-card">
+    <div class="library-content">
+      <div class="library-name">📚 ספריית הסוכנים</div>
+      <div class="library-tag">כל הסוכנים בעיצוב קומפקטי. לחיצה על שורה פותחת את הדשבורד; כפתור Run במקום שיש מעתיק פקודה ל־Cowork.</div>
+
+      <div class="library-section-title">בכירים</div>
+      <div class="library-list">
+        <a href="architect/" class="lib-agent lib-architect">
+          <span class="lib-icon">🏛️</span>
+          <div class="lib-body">
+            <div class="lib-name">Agent Architect</div>
+            <div class="lib-last">Mode: <span id="architect-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+        <a href="forecast/" class="lib-agent lib-forecast">
+          <span class="lib-icon">🔮</span>
+          <div class="lib-body">
+            <div class="lib-name">חוזה עתידות (Forecast)</div>
+            <div class="lib-last">Last run: <span id="forecast-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+      </div>
+
+      <div class="library-section-title">לפני האירוע</div>
+      <div class="library-list">
+        <a href="contract/" class="lib-agent">
+          <span class="lib-icon">📋</span>
+          <div class="lib-body">
+            <div class="lib-name">Contract Review</div>
+            <div class="lib-last">Last run: <span id="contract-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+        <a href="canva/" class="lib-agent">
+          <span class="lib-icon">🎨</span>
+          <div class="lib-body">
+            <div class="lib-name">Canva Event Images</div>
+            <div class="lib-last">Last run: <span id="canva-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+        <a href="canva-reel/" class="lib-agent">
+          <span class="lib-icon">🎬</span>
+          <div class="lib-body">
+            <div class="lib-name">Canva Reel</div>
+            <div class="lib-last">Last run: <span id="canva-reel-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+        <a href="campaigns/" class="lib-agent">
+          <span class="lib-icon">📲</span>
+          <div class="lib-body">
+            <div class="lib-name">SMS Campaigns</div>
+            <div class="lib-last">Last run: <span id="sms-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+        <a href="pr-organization/" class="lib-agent">
+          <span class="lib-icon">🤝</span>
+          <div class="lib-body">
+            <div class="lib-name">Local PR — Organization</div>
+            <div class="lib-last">Last run: <span id="pr-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+        <a href="pr-influencer/" class="lib-agent">
+          <span class="lib-icon">✨</span>
+          <div class="lib-body">
+            <div class="lib-name">Local PR — Influencer</div>
+            <div class="lib-last">Last run: <span id="pr-influencer-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+        <a href="landing/" class="lib-agent">
+          <span class="lib-icon">🪧</span>
+          <div class="lib-body">
+            <div class="lib-name">Landing Pages</div>
+            <div class="lib-last">Last run: <span id="landing-lastRun">—</span></div>
+          </div>
+          <span class="lib-arrow">&#8592;</span>
+        </a>
+      </div>
+
+      <div class="library-section-title">סקאוט עיר (טופס מהיר)</div>
+      <div class="library-list" id="scout-card">
+        <div class="lib-agent lib-scout-row" style="cursor:default">
+          <span class="lib-icon">🔍</span>
+          <div class="lib-body">
+            <div class="lib-name">City Scout</div>
+            <div class="lib-last">Last run: <span id="scout-lastRun">—</span></div>
+          </div>
+        </div>
+        <div class="lib-scout-form-wrap">
+          <div class="scout-form">
+            <input type="text" id="scout-city" placeholder="עיר (לדוגמה: Lancaster)" autocomplete="off">
+            <input type="text" id="scout-state" placeholder="ST" maxlength="2" style="text-transform:uppercase" autocomplete="off">
+            <select id="scout-month">
+              <option value="">חודש (אופציונלי)</option>
+              <option>Jan</option><option>Feb</option><option>Mar</option>
+              <option>Apr</option><option>May</option><option>Jun</option>
+              <option>Jul</option><option>Aug</option><option>Sep</option>
+              <option>Oct</option><option>Nov</option><option>Dec</option>
+            </select>
+          </div>
+          <button class="run-btn" id="scout-btn">🔍 העתיקי פקודת סקאוט</button>
+          <div class="run-hint">מלאי עיר + ST &rarr; לחצי לכפתור &rarr; הדביקי בשיחת Cowork חדשה. הסוכן יכין דו"ח 10-15 דקות.</div>
+          <div class="scout-reports-list" id="scout-reports-list">
+            <div class="scout-reports-empty">עדיין לא הורצו דוחות סקאוט. דו"ח ראשון יופיע כאן אחרי שהסוכן יסיים.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="library-section-title">לאחר האירוע / רץ ברקע</div>
+      <div class="library-list">
+        <div class="lib-agent" style="cursor:default" onclick="document.getElementById('lib-meta-link').click()">
+          <span class="lib-icon">📬</span>
+          <div class="lib-body">
+            <div class="lib-name"><a id="lib-meta-link" href="meta/" style="color:inherit;text-decoration:none">Meta Inbox</a></div>
+            <div class="lib-last">Last run: <span id="meta-lastRun">—</span></div>
+          </div>
+          <button class="lib-run-btn run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\Users\laure\OneDrive\מסמכים\Claude\Scheduled\NEW\meta-inbox\SKILL.md` — it is the orchestrator for @meta and tells you which other files to read (triage.md, dashboard.md, comms.md, inbox_knowledge_base.docx, reported_negatives.jsonl).">&#9654; Run</button>
+        </div>
+        <div class="lib-agent" style="cursor:default" onclick="document.getElementById('lib-housing-link').click()">
+          <span class="lib-icon">🏡</span>
+          <div class="lib-body">
+            <div class="lib-name"><a id="lib-housing-link" href="housing/" style="color:inherit;text-decoration:none">West SFV Rentals</a></div>
+            <div class="lib-last">Last run: <span id="housing-lastRun">—</span></div>
+          </div>
+          <button class="lib-run-btn run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\Users\laure\OneDrive\מסמכים\Claude\Scheduled\NEW\la-rental-search\SKILL.md` — it is the orchestrator for @housing and tells you which other files to read (search.md, dashboard.md, comms.md).">&#9654; Run</button>
+        </div>
+        <div class="lib-agent" style="cursor:default" onclick="document.getElementById('lib-mbs-link').click()">
+          <span class="lib-icon">📊</span>
+          <div class="lib-body">
+            <div class="lib-name"><a id="lib-mbs-link" href="mbs/" style="color:inherit;text-decoration:none">MBS Event Summary</a></div>
+            <div class="lib-last">Last run: <span id="mbs-lastRun">—</span></div>
+          </div>
+          <button class="lib-run-btn run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\Users\laure\OneDrive\מסמכים\Claude\Scheduled\NEW\mbs-event-summary\SKILL.md` — it is the orchestrator for @mbs. Then ask me which event to summarize.">&#9654; Run</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Robust clipboard copy. Works around iframe/Cowork-widget contexts where
+  // navigator.clipboard.writeText is silently blocked. Falls back to a textarea
+  // + execCommand('copy'), then to a manual-copy modal as a last resort.
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) {}
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      if (ok) return true;
+    } catch (e) {}
+    return false;
+  }
+
+  function showManualCopyModal(text) {
+    const existing = document.getElementById("manual-copy-modal");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.id = "manual-copy-modal";
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.78);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;direction:rtl;font-family:inherit";
+    const box = document.createElement("div");
+    box.style.cssText = "background:#fff;color:#0f172a;border-radius:12px;max-width:640px;width:100%;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.4);max-height:90vh;display:flex;flex-direction:column;gap:10px";
+    box.innerHTML = '<div style="font-weight:700;font-size:15px">העתקה אוטומטית נחסמה ע״י הדפדפן</div><div style="font-size:13px;color:#475569">סמני את הטקסט (Ctrl+A) ואז העתיקי (Ctrl+C / Cmd+C). הדביקי בשיחת Cowork חדשה.</div>';
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.cssText = "width:100%;flex:1;min-height:240px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;text-align:left";
+    box.appendChild(ta);
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;justify-content:flex-end";
+    const tryAgain = document.createElement("button");
+    tryAgain.textContent = "נסי שוב להעתיק";
+    tryAgain.style.cssText = "padding:8px 14px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;font-size:13px";
+    tryAgain.onclick = async () => {
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      try {
+        if (document.execCommand("copy")) {
+          tryAgain.textContent = "✓ הועתק!";
+          setTimeout(() => overlay.remove(), 1200);
+          return;
+        }
+      } catch (e) {}
+      tryAgain.textContent = "סמני וקופי ידני (Ctrl+C)";
+    };
+    const close = document.createElement("button");
+    close.textContent = "סגרי";
+    close.style.cssText = "padding:8px 14px;border-radius:8px;border:none;background:#dc2626;color:#fff;cursor:pointer;font-size:13px";
+    close.onclick = () => overlay.remove();
+    row.appendChild(tryAgain);
+    row.appendChild(close);
+    box.appendChild(row);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    setTimeout(() => { ta.focus(); ta.select(); ta.setSelectionRange(0, text.length); }, 50);
+  }
+
+  document.getElementById("architect-lastRun").textContent = HUB.architect.lastRun || "—";
+  // manager-lastRun removed 2026-05-03 — Event Manager merged into Event Launch Hero
+  document.getElementById("contract-lastRun").textContent  = HUB.contract.lastRun  || "—";
+  document.getElementById("meta-lastRun").textContent      = HUB.meta.lastRun      || "—";
+  document.getElementById("housing-lastRun").textContent   = HUB.housing.lastRun   || "—";
+  document.getElementById("mbs-lastRun").textContent       = HUB.mbs.lastRun       || "—";
+  document.getElementById("scout-lastRun").textContent     = HUB.scout.lastRun     || "—";
+  document.getElementById("canva-lastRun").textContent     = HUB.canva.lastRun     || "—";
+  const reelEl = document.getElementById("canva-reel-lastRun");
+  if (reelEl) reelEl.textContent = (HUB.canva_reel && HUB.canva_reel.lastRun) || "—";
+  document.getElementById("launch-lastRun").textContent    = HUB.launch.lastRun    || "—";
+  document.getElementById("sms-lastRun").textContent       = HUB.sms.lastRun       || "—";
+  const prEl = document.getElementById("pr-lastRun");
+  if (prEl) prEl.textContent = (HUB.pr_organization && HUB.pr_organization.lastRun) || "—";
+  const prInfEl = document.getElementById("pr-influencer-lastRun");
+  if (prInfEl) prInfEl.textContent = (HUB.pr_influencer && HUB.pr_influencer.lastRun) || "—";
+  const fcEl = document.getElementById("forecast-lastRun");
+  if (fcEl) fcEl.textContent = (HUB.forecast && HUB.forecast.lastRun) || "—";
+  const ldEl = document.getElementById("landing-lastRun");
+  if (ldEl) ldEl.textContent = (HUB.landing && HUB.landing.lastRun) || "—";
+
+  document.querySelectorAll(".run-btn").forEach(btn => {
+    if (!btn.hasAttribute("data-cmd")) return;
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const cmd = btn.getAttribute("data-cmd");
+      const ok = await copyText(cmd);
+      if (ok) {
+        const original = btn.textContent;
+        btn.textContent = "✓ Copied — paste in Cowork";
+        btn.classList.add("copied");
+        setTimeout(() => { btn.textContent = original; btn.classList.remove("copied"); }, 2500);
+      } else {
+        showManualCopyModal(cmd);
+      }
+    });
+  });
+
+  // ===== CITY SCOUT FORM =====
+  const scoutBtn = document.getElementById("scout-btn");
+  scoutBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const city = document.getElementById("scout-city").value.trim();
+    const state = document.getElementById("scout-state").value.trim().toUpperCase();
+    const month = document.getElementById("scout-month").value;
+    if (!city || !state || state.length !== 2) {
+      const original = scoutBtn.textContent;
+      scoutBtn.textContent = "⚠ מלאי עיר + ST (2 אותיות)";
+      scoutBtn.style.background = "linear-gradient(180deg, #fca5a5, #dc2626)";
+      setTimeout(() => { scoutBtn.textContent = original; scoutBtn.style.background = ""; }, 2500);
+      return;
+    }
+    const slug = (city + "-" + state).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const monthLine = month ? `\n  Target month: ${month}` : "";
+    const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\` — it is the orchestrator for MBS City Scout. Run for the city below.
+
+CITY
+  Name:  ${city}, ${state}${monthLine}
+
+Look up if this city is already in EVENT_DATA.md Master List 2026:
+  • If YES (already a confirmed event) → recommend running mbs-venue-research instead.
+  • If NO → proceed with full city scout per skill STEPS 1-11.
+
+Run STEPS 0-12 from the skill IN FULL:
+  STEP 0   — read context (MEMORY, EVENT_DATA, AVERAGES, historical xlsx, comms.md, lauren-comms).
+  STEP 0.5 — 🚨 send Touchpoint 1 SMS via SimpleTexting BEFORE any web search ("@scout 🔍 מתחילה סקאוט ל-${city}, ${state}. אעדכן בסוף עם הציון והמועמדים הטובים.") per comms.md.
+  STEPS 1-7 — city profile + MBS match score (X/30) + top 3-5 neighborhoods + 5-10 venue candidates (mid-tier brands or convention/banquet/mall ONLY — AVOID Hilton full / Marriott full / Westin / Ritz / Sheraton Grand / Hyatt Regency, sqft ≥2,500) + printable contract checklist + 3-5 nearby cities + best-month recommendation.
+  STEP 8   — build Hebrew RTL HTML scoped to .mbs-scout.
+  STEP 9   — deploy via deploy-dashboard skill: docs/scout/${slug}/index.html on GH Pages.
+  STEP 10  — append to agent_hub.html SCOUT_REPORTS + HUB.scout.lastRun, redeploy hub.
+  STEP 10.5 — if ${city}, ${state} is in launch_dashboard.html SCHEDULE, upsert SCOUTS["${slug}-<start_date>"] = { score, top_count, href: "../scout/${slug}/", generated_at } so the row's 🔍 City Scout button flips to green "🔍 Scout: NN⭐". If not on schedule, skip.
+  STEP 11  — sanity check (script/body/html closing tags, node --check, browser preview, GH Pages 200).
+  STEP 12  — 🚨 send Touchpoint 3 end-summary SMS via SimpleTexting per comms.md (variant by score: ≥20=Strong / 12-19=Mixed / <12=Weak / on-schedule=City already in schedule). Always include https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/ on its own line.
+
+Mid-run rule: send SMS ONLY for blocker / judgment call / question for Lauren. No routine progress pings. If you ask Lauren anything in Cowork chat (AskUserQuestion), also fire "@scout ❓ שאלה בצ׳אט — תוכלי להגיע למחשב?" SMS at the same moment.
+
+End: confirm scout report URL https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/ is live, a new card appears under City Scout in the hub, and Touchpoints 1 + 3 SMS were both sent.`;
+
+    const ok = await copyText(cmd);
+    if (ok) {
+      const original = scoutBtn.textContent;
+      scoutBtn.textContent = "✓ הועתק! הדביקי בשיחת Cowork חדשה";
+      scoutBtn.classList.add("copied");
+      setTimeout(() => { scoutBtn.textContent = original; scoutBtn.classList.remove("copied"); }, 3500);
+    } else {
+      showManualCopyModal(cmd);
+    }
+  });
+
+  // Render past scout reports
+  const reportsList = document.getElementById("scout-reports-list");
+  if (SCOUT_REPORTS && SCOUT_REPORTS.length > 0) {
+    reportsList.innerHTML = SCOUT_REPORTS
+      .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+      .map(r => `
+        <div class="scout-report-item">
+          <a href="${r.url}" target="_blank">📄 ${r.city}, ${r.state}</a>
+          <span style="color:var(--muted);font-size:11px">${r.date || ""}${r.score ? " · score " + r.score : ""}</span>
+        </div>`)
+      .join("");
+  }
+
+  // Pre-fill the City Scout form from URL params (added 2026-05-03 for the per-row scout button on launch_dashboard).
+  // URL contract: ../?scout-city=Columbia&scout-state=MO&scout-month=May#scout-card
+  (function prefillScout(){
+    const p = new URLSearchParams(window.location.search);
+    if (!p.has("scout-city") && !p.has("city")) return;
+    const setIf = (id, key) => { const v = p.get(key); if (v && document.getElementById(id)) document.getElementById(id).value = v; };
+    setIf("scout-city",  "scout-city");
+    setIf("scout-state", "scout-state");
+    setIf("scout-month", "scout-month");
+    // Friendly fallback: also support generic ?city=Columbia,+MO so the same URL contract works
+    if (!p.get("scout-city") && p.get("city")) {
+      const m = (p.get("city") || "").match(/^(.+?),\s*([A-Z]{2})\s*$/);
+      if (m) {
+        document.getElementById("scout-city").value  = m[1].trim();
+        document.getElementById("scout-state").value = m[2];
+      }
+    }
+    // Derive month from start_date if provided
+    if (!p.get("scout-month") && p.get("start_date")) {
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const monthIdx = parseInt((p.get("start_date") || "").slice(5,7), 10) - 1;
+      if (monthIdx >= 0 && monthIdx < 12) {
+        document.getElementById("scout-month").value = months[monthIdx];
+      }
+    }
+    // Smooth-scroll to the card so Lauren lands directly on the form
+    const card = document.getElementById("scout-card");
+    if (card) setTimeout(() => card.scrollIntoView({behavior:"smooth", block:"start"}), 100);
+  })();
+</script>
+
+</body>
+</html>
