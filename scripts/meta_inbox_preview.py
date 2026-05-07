@@ -145,16 +145,18 @@ ONLINE_ORDER_PAT = re.compile(
 )
 
 _ONLINE_ORDER_TEMPLATES = [
-    "YES babe!! 💄 You can grab our Mystery Box online anytime: "
+    "YES girl!! 💄 You can grab our Mystery Box online anytime: "
     "https://www.themakeupblowout.com/ ✨💕",
-    "Babe YESSS!! 🛍️ Shop our online store right here: "
-    "https://www.themakeupblowout.com/ — same fabulous deals, delivered "
-    "to your door 📦✨",
-    "OMG yes girl! 💄 Mystery Box online: "
-    "https://www.themakeupblowout.com/ ✨ Same magic, delivered "
-    "straight to you 💕",
-    "Heck yes 🛍️ Online shop is right here babe: "
-    "https://www.themakeupblowout.com/ 💄 Bring the magic home anytime ✨",
+    "Heck yes 🛍️ Online shop right here: https://www.themakeupblowout.com/ — "
+    "same fabulous deals delivered to your door 📦✨",
+    "OMG yes queen! 💄 Mystery Box online: https://www.themakeupblowout.com/ "
+    "✨ Bring the magic home 💕",
+    "Lovely yes!! 💕 Online store: https://www.themakeupblowout.com/ — "
+    "delivered to your door 📦💄✨",
+    "Hey gorgeous 💄 Online shop's right here: https://www.themakeupblowout.com/ "
+    "✨ Same magic, delivered 💕",
+    "Babe YESSS!! 🛍️ https://www.themakeupblowout.com/ — same fabulous deals "
+    "delivered to your door 📦💄💕",
 ]
 
 CITY_PAT = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b")
@@ -267,56 +269,66 @@ def _is_past(date_str: str, today: dt.date = None) -> bool:
 import hashlib as _hashlib
 
 _ON_SCHEDULE_TEMPLATES = [
-    "YESSS babe!! 🎉 We're rolling into {C} {D} — Friday–Sunday, 10am–5pm! "
-    "Free entry, free parking, and a whole lotta beauty waiting for you 💄✨ "
-    "Can't wait to spoil you 💕",
-    "Babe YESSS!! 🎉 {C} sale is locked in for {D} — Fri–Sun 10am–5pm. "
-    "Free admission, free parking, just show up & shop till you drop 💄💥 "
-    "See you there gorgeous 💕",
-    "OMG YES!! 🎉 We're hitting {C} {D} — bring your bestie, your wallet, "
-    "and your wishlist 👯‍♀️💄 Friday–Sunday 10am–5pm. Free entry + parking ✨",
-    "Heck yes girl!! 🥳 {C} is on the books for {D} — Fri/Sat/Sun 10am–5pm. "
-    "Free entry, free parking, 75% off the brands you love 💄💥 "
-    "Mark that calendar 📌💕",
-    "Queen, YESSS 👑✨ We're swinging into {C} {D} — Fri–Sun 10am–5pm. "
-    "Show up, no ticket needed, just a love for makeup 💄 Treat yourself 💕",
-    "Babe stop everything 🛑 — {C} sale is happening {D}!! Fri–Sun 10am–5pm. "
-    "Free entry, free parking, and the biggest beauty deals you've ever seen ✨💄💥",
+    "YESSS girl!! 🎉 We're rolling into {C} {D} — Friday–Sunday, 10am–5pm. "
+    "Free entry, free parking, and a whole lotta beauty waiting for you 💄✨",
+    "OMG YES queen 👑 We're hitting {C} {D}! Bring your bestie, your wallet, "
+    "and your wishlist — Fri–Sun 10am–5pm, free entry + parking 💄💥",
+    "Heck yes mama!! 🥳 {C} is locked in for {D} — Fri/Sat/Sun 10am–5pm. "
+    "Free entry, free parking, 75% off your fave brands 💄💥 Mark that calendar 📌",
+    "Stop everything 🛑 {C} sale is happening {D}! Fri–Sun 10am–5pm. "
+    "Free entry, free parking, the biggest beauty deals you've ever seen 💄✨",
+    "Hey gorgeous 💄 {C} sale is on for {D}! Fri–Sun 10am–5pm, free entry. "
+    "Show up, no ticket needed, just a love for makeup ✨💕",
+    "Lovely yesss!! 💕 We're swinging into {C} {D} — Fri–Sun 10am–5pm. "
+    "Free admission, free parking, treat yourself 💄✨",
+    "Honey YES!! 🥳 {C} {D} — Fri–Sun 10am–5pm. Free entry + parking, "
+    "deals deeper than the ocean 💄💥",
+    "Aww babe!! 🎉 Locked in — {C} {D}, Fri–Sun 10am–5pm. Free entry, "
+    "free parking. Can't wait to spoil you 💕",
+    "Sis YESSS 💄 We're popping up in {C} {D}! Fri–Sun 10am–5pm. "
+    "Free admission, no ticket needed — just bring your love for beauty ✨",
+    "Doll, locked in!! 👑 {C} sale {D} — Fri–Sun 10am–5pm. Free entry, "
+    "free parking, brace yourself for the biggest deals 💄💕",
 ]
 
 _OFF_SCHEDULE_TEMPLATES = [
-    "Aww babe — {C} isn't on our 2026 stop list this year 💔 We rotate cities "
-    "every 1–2 years to keep the magic alive ✨ But we're putting {C} on the "
-    "radar HARD — gonna do our absolute BEST to make it happen next year 💄💕 "
-    "Keep an eye on our Facebook page so you don't miss the announcement 👀✨",
-    "Aww girl 💔 {C} didn't make our 2026 lineup this year — we visit each "
-    "city every 1–2 years to keep things juicy 🤩 But trust me, you're on our "
-    "radar! Gonna do our best to bring the sale to {C} in 2027 💄💕 Follow our "
-    "Facebook for the announcement 👀✨",
-    "Oof babe — no {C} on the 2026 schedule this year 😢 We rotate cities to "
-    "keep the excitement up (and the deals deeper 💄✨) — but {C} is officially "
-    "on our wishlist for next year 💕 Keep an eye on FB for updates 👀",
-    "Babe nooooo 💔 We're not making it to {C} in 2026 — we rotate cities every "
-    "1–2 years so we can give each one our ALL when we come ✨ But you've got "
-    "us on it for 2027 💄💕 Follow us on FB so you don't miss when we drop dates 👀",
-    "Aww {C} babe 💔 Not on our 2026 stop list this year — but we hear you loud "
-    "and clear! Adding to our 2027 wishlist now 📝💄 We rotate cities every 1–2 "
-    "years to keep things fresh ✨ Watch our Facebook for the announcement 👀💕",
+    "Aww girl 💔 {C} didn't make our 2026 lineup this year — we visit each city "
+    "every 1–2 years to keep things juicy 🤩 Adding {C} to our 2027 wishlist "
+    "now 📝💄💕 Follow our Facebook for the announcement 👀",
+    "Oof — no {C} on the 2026 schedule this year 😢 We rotate cities to keep "
+    "the excitement up (and the deals deeper 💄✨) — but {C} is officially "
+    "on our wishlist for 2027 💕 Keep an eye on FB for updates 👀",
+    "Sis, {C} isn't on our 2026 stop list this year 💔 We rotate cities every "
+    "1–2 years to keep the magic alive ✨ Putting {C} on the radar for 2027 💄💕",
+    "Hey love 💕 {C} isn't on the 2026 lineup — but stay close, we'll do our "
+    "BEST to come for 2027 💄✨ Watch our Facebook for the announcement 👀",
+    "Aww mama 💔 No {C} in 2026 — we rotate cities every 1–2 years to give "
+    "each one our ALL when we come ✨ Definitely on our radar for 2027 💄💕",
+    "Lovely girl 💕 {C}'s not on our 2026 lineup this year — but trust me, "
+    "you're heard. We'll do our best to bring the sale to {C} in 2027 💄✨ "
+    "Follow our Facebook for the drop 👀",
+    "Gorgeous, {C} didn't make 2026 this year 💔 We rotate cities to keep the "
+    "magic alive ✨ But we're putting {C} on the radar HARD for 2027 💄💕 "
+    "Keep an eye on FB so you don't miss the announcement 👀",
+    "Aww babe — {C} isn't on our 2026 stop list 💔 We visit each city every "
+    "1–2 years. {C} is officially on the 2027 wishlist now 📝💄✨ Follow our "
+    "Facebook for the announcement 👀",
 ]
 
 _PAST_SCHEDULE_TEMPLATES = [
-    "Aww babe, you JUST missed us!! 😭 We were in {C} {D} 💔 We won't be back "
-    "this year (we rotate cities every 1–2 years) but you're locked into our "
-    "2027 wishlist for sure 💄💕 Follow us on FB so you don't miss the next one ✨",
-    "Oof babe — we were just there!! {C} happened {D} 😩 We rotate cities every "
-    "1–2 years so we won't be back in 2026, but we'll do our BEST to come back in "
-    "2027 💄💕 Stay close on Facebook for the announcement 👀✨",
-    "Babe nooooo 💔 You missed us by THIS much — we wrapped up {C} on {D}! "
-    "Can't sneak in another visit this year (we rotate cities), but you're "
-    "officially on our 2027 list 💄✨ See you next time gorgeous 💕",
-    "Awww girl, we were just in {C} {D}! 😭💔 The sale already wrapped — "
-    "we rotate cities every 1–2 years, so {C} is on the radar for 2027. "
-    "Follow our Facebook so you catch the next announcement 👀💄💕",
+    "Aww girl, we were just in {C} {D}! 😭💔 We rotate cities every 1–2 years "
+    "so we won't be back in 2026, but you're locked into our 2027 wishlist 💄💕 "
+    "Follow our FB so you don't miss the next one ✨",
+    "Oof — you JUST missed us!! 😩 {C} happened {D}. We rotate cities so won't "
+    "be back this year, but {C}'s on the 2027 radar 💄✨ Stay close on Facebook 👀",
+    "Awww mama, we were in {C} {D}! 😭💔 The sale already wrapped — we'll do "
+    "our BEST to come back in 2027 💄💕 Watch our FB for the announcement 👀",
+    "Hey gorgeous 💕 We were in {C} {D} — already wrapped! We rotate cities, "
+    "so won't be back in 2026, but {C}'s officially on the 2027 list 💄✨",
+    "Sweetheart 💔 {C} just wrapped {D} — you're officially on our 2027 "
+    "wishlist 💄💕 Stay close on FB for the next announcement 👀",
+    "Aww babe, you JUST missed us!! 😭 We were in {C} {D} 💔 We rotate cities "
+    "every 1–2 years — but you're locked into our 2027 wishlist for sure 💄✨",
 ]
 
 
