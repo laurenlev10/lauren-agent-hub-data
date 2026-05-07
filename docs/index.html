@@ -1180,6 +1180,16 @@ const WEEKLY_TASKS = [
 </script>
 
 <div class="library-wrap">
+  <a href="library/" class="library-card" style="text-decoration:none;display:block">
+    <div class="library-content" style="text-align:center;padding:6px 0">
+      <div class="library-name" style="margin-bottom:6px">📚 ספריית הסוכנים →</div>
+      <div class="library-tag" style="margin-bottom:0;direction:rtl;font-size:14px;opacity:0.95">15 סוכנים, חיפוש, סינון לפי קטגוריה. לחצי לכניסה.</div>
+    </div>
+  </a>
+</div>
+
+<div style="display:none"><!-- LEGACY LIBRARY HIDDEN — moved to /library/ ---
+<div class="library-wrap-OLD">
   <div class="library-card">
     <div class="library-content">
       <div class="library-name">📚 ספריית הסוכנים</div>
@@ -1324,6 +1334,7 @@ const WEEKLY_TASKS = [
     </div>
   </div>
 </div>
+--></div>
 
 <script>
   // Robust clipboard copy. Works around iframe/Cowork-widget contexts where
@@ -1395,18 +1406,21 @@ const WEEKLY_TASKS = [
     setTimeout(() => { ta.focus(); ta.select(); ta.setSelectionRange(0, text.length); }, 50);
   }
 
-  document.getElementById("architect-lastRun").textContent = HUB.architect.lastRun || "—";
-  // manager-lastRun removed 2026-05-03 — Event Manager merged into Event Launch Hero
-  document.getElementById("contract-lastRun").textContent  = HUB.contract.lastRun  || "—";
-  document.getElementById("meta-lastRun").textContent      = HUB.meta.lastRun      || "—";
-  document.getElementById("housing-lastRun").textContent   = HUB.housing.lastRun   || "—";
-  document.getElementById("mbs-lastRun").textContent       = HUB.mbs.lastRun       || "—";
-  document.getElementById("scout-lastRun").textContent     = HUB.scout.lastRun     || "—";
-  document.getElementById("canva-lastRun").textContent     = HUB.canva.lastRun     || "—";
-  const reelEl = document.getElementById("canva-reel-lastRun");
-  if (reelEl) reelEl.textContent = (HUB.canva_reel && HUB.canva_reel.lastRun) || "—";
-  document.getElementById("launch-lastRun").textContent    = HUB.launch.lastRun    || "—";
-  document.getElementById("sms-lastRun").textContent       = HUB.sms.lastRun       || "—";
+  // Set lastRun text on any visible elements; null-safe since most live in /library/ now.
+  function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val || "—";
+  }
+  setText("architect-lastRun", HUB.architect.lastRun);
+  setText("contract-lastRun",  HUB.contract.lastRun);
+  setText("meta-lastRun",      HUB.meta.lastRun);
+  setText("housing-lastRun",   HUB.housing.lastRun);
+  setText("mbs-lastRun",       HUB.mbs.lastRun);
+  setText("scout-lastRun",     HUB.scout.lastRun);
+  setText("canva-lastRun",     HUB.canva.lastRun);
+  setText("canva-reel-lastRun", HUB.canva_reel && HUB.canva_reel.lastRun);
+  setText("launch-lastRun",    HUB.launch.lastRun);
+  setText("sms-lastRun",       HUB.sms.lastRun);
   const prEl = document.getElementById("pr-lastRun");
   if (prEl) prEl.textContent = (HUB.pr_organization && HUB.pr_organization.lastRun) || "—";
   const prInfEl = document.getElementById("pr-influencer-lastRun");
@@ -1519,14 +1533,4 @@ End: confirm scout report URL https://laurenlev10.github.io/lauren-agent-hub-dat
       const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
       const monthIdx = parseInt((p.get("start_date") || "").slice(5,7), 10) - 1;
       if (monthIdx >= 0 && monthIdx < 12) {
-        document.getElementById("scout-month").value = months[monthIdx];
-      }
-    }
-    // Smooth-scroll to the card so Lauren lands directly on the form
-    const card = document.getElementById("scout-card");
-    if (card) setTimeout(() => card.scrollIntoView({behavior:"smooth", block:"start"}), 100);
-  })();
-</script>
-
-</body>
-</html>
+        document.getElementById("scout-month").value = months[monthIdx]

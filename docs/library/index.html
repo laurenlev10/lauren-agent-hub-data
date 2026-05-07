@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📚 ספריית הסוכנים — Agent Hub</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --primary: #7c3aed;
+      --primary-dark: #5b21b6;
+      --shadow: 0 1px 3px rgba(15,23,42,.06), 0 4px 12px rgba(15,23,42,.05);
+      --shadow-lg: 0 10px 30px rgba(15,23,42,.08), 0 4px 12px rgba(15,23,42,.06);
+    }
+    html, body { background: var(--bg); color: var(--text); font-family: 'Heebo', system-ui, sans-serif; }
+    body { padding: 24px 16px; min-height: 100vh; line-height: 1.5; }
+
+    .wrap { max-width: 1100px; margin: 0 auto; }
+
+    /* ---- Header ---- */
+    .hdr { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+    .hdr a.back {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 600;
+      padding: 6px 12px; border-radius: 999px; transition: all 0.15s ease;
+    }
+    .hdr a.back:hover { background: var(--card); color: var(--text); }
+    h1 {
+      font-size: clamp(28px, 5vw, 36px); font-weight: 900;
+      background: linear-gradient(135deg, #7c3aed, #ec4899);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+    .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+
+    /* ---- Search + Filter Bar ---- */
+    .toolbar {
+      background: var(--card); border-radius: 16px; padding: 16px;
+      box-shadow: var(--shadow); margin-bottom: 20px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .search-box {
+      position: relative;
+    }
+    .search-box input {
+      width: 100%; padding: 12px 16px 12px 44px;
+      border: 2px solid var(--border); border-radius: 12px;
+      font-family: inherit; font-size: 15px; transition: all 0.15s ease;
+      background: #f8fafc; color: var(--text);
+    }
+    .search-box input:focus {
+      outline: none; border-color: var(--primary); background: #fff;
+      box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+    }
+    .search-box::before {
+      content: "🔎"; position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+      font-size: 18px; pointer-events: none;
+    }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+    .filter-pill {
+      background: #f1f5f9; color: var(--muted); border: 1px solid transparent;
+      padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: all 0.15s ease; font-family: inherit;
+    }
+    .filter-pill:hover { background: #e2e8f0; }
+    .filter-pill.active {
+      background: linear-gradient(135deg, #7c3aed, #5b21b6); color: #fff;
+      border-color: var(--primary-dark);
+      box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+    }
+    .filter-pill .count {
+      display: inline-block; margin-right: 6px; padding: 0 6px;
+      background: rgba(255,255,255,0.25); border-radius: 999px; font-size: 11px;
+    }
+    .filter-pill:not(.active) .count { background: rgba(15,23,42,0.08); }
+
+    /* ---- Section Headers ---- */
+    .cat-section { margin-bottom: 32px; }
+    .cat-header {
+      display: flex; align-items: baseline; gap: 12px;
+      margin-bottom: 14px; padding-right: 4px;
+    }
+    .cat-name {
+      font-size: 16px; font-weight: 800; color: var(--text);
+      letter-spacing: -0.3px;
+    }
+    .cat-count {
+      background: #f1f5f9; color: var(--muted); padding: 2px 10px;
+      border-radius: 999px; font-size: 11px; font-weight: 700;
+    }
+    .cat-line {
+      flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent);
+    }
+
+    /* ---- Agent Cards Grid ---- */
+    .agents-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 14px;
+    }
+    @media (max-width: 600px) {
+      .agents-grid { grid-template-columns: 1fr; }
+    }
+    .agent-card {
+      background: var(--card); border-radius: 14px; padding: 18px 18px 16px;
+      box-shadow: var(--shadow); border: 1px solid var(--border);
+      transition: all 0.18s ease; display: flex; flex-direction: column; gap: 10px;
+      position: relative; overflow: hidden;
+    }
+    .agent-card:hover {
+      transform: translateY(-2px); box-shadow: var(--shadow-lg);
+      border-color: rgba(124, 58, 237, 0.35);
+    }
+    .agent-card.tier-senior {
+      border-color: rgba(168, 85, 247, 0.4);
+      background: linear-gradient(135deg, #faf5ff 0%, #fff 60%);
+    }
+    .agent-card.tier-senior::before {
+      content: "BOSS"; position: absolute; top: 10px; left: 10px;
+      background: linear-gradient(135deg, #7c3aed, #ec4899); color: #fff;
+      padding: 2px 8px; border-radius: 999px; font-size: 9px; font-weight: 800;
+      letter-spacing: 1px;
+    }
+    .ag-top { display: flex; align-items: flex-start; gap: 12px; }
+    .ag-icon {
+      font-size: 28px; line-height: 1; min-width: 40px;
+      width: 40px; height: 40px; display: grid; place-content: center;
+      background: linear-gradient(135deg, #f1f5f9, #e2e8f0); border-radius: 10px;
+    }
+    .agent-card.tier-senior .ag-icon { background: linear-gradient(135deg, #ede9fe, #ddd6fe); }
+    .ag-title-block { flex: 1; min-width: 0; }
+    .ag-name { font-size: 16px; font-weight: 800; color: var(--text); letter-spacing: -0.2px; line-height: 1.3; }
+    .ag-cat { font-size: 11px; color: var(--muted); font-weight: 600; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .ag-desc { font-size: 13px; color: var(--muted); line-height: 1.6; flex: 1; }
+    .ag-lastrun {
+      font-size: 11px; color: var(--muted); padding: 8px 10px;
+      background: #f8fafc; border-radius: 8px; border: 1px solid var(--border);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .ag-lastrun .lr-icon { opacity: 0.6; }
+    .ag-lastrun .lr-text { flex: 1; line-height: 1.4; }
+    .ag-actions { display: flex; gap: 8px; margin-top: 4px; }
+    .ag-btn {
+      flex: 1; padding: 10px 12px; border-radius: 10px; font-size: 13px; font-weight: 700;
+      cursor: pointer; border: none; font-family: inherit;
+      transition: all 0.15s ease; text-align: center; text-decoration: none;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .ag-btn.primary {
+      background: linear-gradient(135deg, #7c3aed, #5b21b6); color: #fff;
+    }
+    .ag-btn.primary:hover { background: linear-gradient(135deg, #6d28d9, #4c1d95); transform: translateY(-1px); }
+    .ag-btn.secondary {
+      background: #f1f5f9; color: var(--text); border: 1px solid var(--border);
+    }
+    .ag-btn.secondary:hover { background: #e2e8f0; }
+    .ag-btn.run-active {
+      background: linear-gradient(180deg, #10b981, #059669); color: #fff;
+    }
+    .ag-btn.run-active:hover { background: linear-gradient(180deg, #059669, #047857); }
+    .ag-btn.copied { background: #10b981 !important; color: #fff !important; }
+
+    /* ---- Scout Card (expanded form embedded) ---- */
+    .agent-card.scout-special {
+      grid-column: 1 / -1;
+      background: linear-gradient(135deg, #fef3c7 0%, #fff 50%);
+      border-color: rgba(251, 146, 60, 0.4);
+    }
+    .agent-card.scout-special::before {
+      content: "FORM"; position: absolute; top: 10px; left: 10px;
+      background: linear-gradient(135deg, #fb923c, #ea580c); color: #fff;
+      padding: 2px 8px; border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: 1px;
+    }
+    .scout-form-row {
+      display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; margin-top: 4px;
+    }
+    @media (max-width: 600px) { .scout-form-row { grid-template-columns: 1fr; } }
+    .scout-form-row input, .scout-form-row select {
+      padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+      font-family: inherit; font-size: 13px; background: #fff; color: var(--text);
+    }
+    .scout-form-row input:focus, .scout-form-row select:focus {
+      outline: none; border-color: #ea580c; box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
+    }
+    .scout-reports-list { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+    .scout-report-item { display: flex; gap: 8px; align-items: center; padding: 6px 0; font-size: 12px; }
+    .scout-report-item a { color: var(--primary); text-decoration: none; font-weight: 600; }
+    .scout-report-item a:hover { text-decoration: underline; }
+    .scout-reports-empty { color: var(--muted); font-size: 12px; padding: 6px 0; }
+
+    /* ---- No Results ---- */
+    .no-results {
+      text-align: center; padding: 48px 16px; color: var(--muted);
+      background: var(--card); border-radius: 14px; box-shadow: var(--shadow);
+    }
+    .no-results .nr-icon { font-size: 36px; opacity: 0.5; margin-bottom: 8px; }
+    .no-results .nr-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+    .no-results .nr-sub { font-size: 13px; }
+
+    /* ---- Modal (manual copy) ---- */
+    #manual-copy-modal {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.78); z-index: 99999;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    #manual-copy-modal .box {
+      background: #fff; color: var(--text); border-radius: 14px; max-width: 640px; width: 100%;
+      padding: 18px 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, .4);
+      max-height: 90vh; display: flex; flex-direction: column; gap: 10px;
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hdr">
+    <a class="back" href="../">← Agent Hub</a>
+  </div>
+  <h1>📚 ספריית הסוכנים</h1>
+  <div class="subtitle">כל הסוכנים שיש לך — חיפוש מהיר, סינון לפי קטגוריה, פעולה ישירה.</div>
+
+  <div class="toolbar">
+    <div class="search-box">
+      <input type="text" id="search" placeholder="חיפוש לפי שם, תיאור או קטגוריה…" autocomplete="off">
+    </div>
+    <div class="filters" id="filters"></div>
+  </div>
+
+  <div id="library-container"></div>
+</div>
+
+<script id="hub-data">
+const HUB = {
+  architect: { lastRun: "On-demand · Senior role" },
+  manager:   { lastRun: "—" },
+  contract:  { lastRun: "Sunday, May 3 · 15:30 — Columbia MO · 9 items not in BEO (review + 2 email drafts ready)" },
+  meta:      { lastRun: "Thursday, April 23 · 12:50" },
+  housing:   { lastRun: "Tuesday, May 5 · 09:13" },
+  mbs:       { lastRun: "Wednesday, April 29 · 23:50 — Louisville KY (profit +$2,413, TikTok bug fixed)" },
+  scout:     { lastRun: "Monday, May 4 · 08:45 PDT — Columbia, MO (15/30 Mixed · top: Holiday Inn Executive Center · pair w/ Sedalia)" },
+  canva:     { lastRun: "Tuesday, April 28 · 09:17 — 6 images (locked-in 2026)" },
+  canva_reel:{ lastRun: "—" },
+  launch:    { lastRun: "Tuesday, April 28 · 12:26 — Santa Maria, CA (✓)" },
+  sms:       { lastRun: "Sunday, May 3 · 20:14 — Columbia, MO 2026 (cheat-sheet: form + AR + 4 campaigns w/ Mother's Day hook)" },
+  pr_organization: { lastRun: "Saturday, May 2 · 16:30 — Columbia, MO (15 ready-to-send drafts in pr@, 4 form-only, 1 phone-only)" },
+  pr_influencer: { lastRun: "On-demand · NEW 2026-05-02" },
+  forecast:  { lastRun: "Sun, May 3 · 10:01 PDT — Columbia, MO: $28K–$38K (low-medium confidence, Mother's Day collision)" },
+  landing:   { lastRun: "On-demand · v1 launched 2026-05-06" },
+  stats:     { lastRun: "Auto · every 6h" }
+};
+const SCOUT_REPORTS = [
+  { city: "Columbia", state: "MO", date: "2026-05-04", url: "../scout/columbia-mo/", score: 15 }
+];
+
+const CATEGORIES = [
+  { id: "all",    label: "הכל",                   icon: "📚" },
+  { id: "senior", label: "בכירים",                icon: "🏛️" },
+  { id: "before", label: "לפני האירוע",          icon: "📋" },
+  { id: "scout",  label: "סקאוט עיר",             icon: "🔍" },
+  { id: "after",  label: "לאחר האירוע / רץ ברקע", icon: "📬" }
+];
+
+const AGENTS = [
+  { id: "architect",     icon: "🏛️", name: "Agent Architect",      cat: "senior",
+    catLabel: "בכיר",
+    desc: "האדריכל הראשי. מתכנן/בונה/משדרג סוכנים אחרים. נכנסי כשרוצים לבנות סוכן חדש או לעדכן אחד קיים.",
+    href: "../architect/", lastKey: "architect", senior: true },
+
+  { id: "forecast",      icon: "🔮", name: "Forecast (חוזה עתידות)", cat: "senior",
+    catLabel: "בכיר",
+    desc: "תחזית ביצועים לאירוע: מנתח נתונים היסטוריים ומשתנים (חודש, יום השבוע, חופשות) ומעריך הכנסה צפויה.",
+    href: "../forecast/", lastKey: "forecast", senior: true },
+
+  { id: "contract",      icon: "📋", name: "Contract Review",       cat: "before",
+    catLabel: "לפני אירוע",
+    desc: "סקירת חוזים מול BEO + הכנת מיילים לתיקון פערים אם יש. בודק נקודות מרכזיות לפני האירוע.",
+    href: "../contract/", lastKey: "contract" },
+
+  { id: "canva",         icon: "🎨", name: "Canva Event Images",    cat: "before",
+    catLabel: "לפני אירוע",
+    desc: "מייצר תמונות לאירוע ב-Canva: poster, social tiles, banners — אוטומטי מהפרטים שיש לסוכן.",
+    href: "../canva/", lastKey: "canva" },
+
+  { id: "canva-reel",    icon: "🎬", name: "Canva Reel",            cat: "before",
+    catLabel: "לפני אירוע",
+    desc: "מכין רילים קצרים לאינסטגרם/טיקטוק עם מוסיקה ומעברים מתוזמנים.",
+    href: "../canva-reel/", lastKey: "canva_reel" },
+
+  { id: "campaigns",     icon: "📲", name: "SMS Campaigns",         cat: "before",
+    catLabel: "לפני אירוע",
+    desc: "מייצר 4-5 דרפטים של SMS לכל אירוע + Auto-responder + Sign-up form ב-SimpleTexting (לאישור ידני).",
+    href: "../campaigns/", lastKey: "sms" },
+
+  { id: "pr-organization", icon: "🤝", name: "Local PR — Organizations", cat: "before",
+    catLabel: "לפני אירוע",
+    desc: "מאתר ארגונים מקומיים בעיר היעד ומכין ל-15 דרפטים של מיילים לשיתוף פעולה (כל אחד מותאם אישית).",
+    href: "../pr-organization/", lastKey: "pr_organization" },
+
+  { id: "pr-influencer", icon: "✨", name: "Local PR — Influencers", cat: "before",
+    catLabel: "לפני אירוע",
+    desc: "מאתר אינפלואנסרים מקומיים (איפור, beauty, lifestyle) ומכין הצעות שיתוף פעולה.",
+    href: "../pr-influencer/", lastKey: "pr_influencer" },
+
+  { id: "landing",       icon: "🪧", name: "Landing Pages",         cat: "before",
+    catLabel: "לפני אירוע",
+    desc: "בונה עמוד נחיתה לכל אירוע (אנגלית/ספרדית/טיקטוק) עם פיקסלים מובנים ל-tracking ב-@stats.",
+    href: "../landing/", lastKey: "landing" },
+
+  { id: "scout",         icon: "🔍", name: "City Scout",            cat: "scout",
+    catLabel: "סקאוט",
+    desc: "סקירת עיר חדשה: ציון התאמה (X/30), 5-10 venues מומלצים, 3-5 ערים סמוכות, חודש מומלץ.",
+    href: "../scout/", lastKey: "scout", scoutForm: true },
+
+  { id: "meta",          icon: "📬", name: "Meta Inbox",            cat: "after",
+    catLabel: "לאחר אירוע / ברקע",
+    desc: "טריאז' אוטומטי של Messenger/IG/FB inbox — Bucket A (תשובה אוטו') + Bucket B (לאישור Lauren). רץ כל יום ב-20:00.",
+    href: "../meta/", lastKey: "meta",
+    runCmd: "Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\meta-inbox\\SKILL.md` — it is the orchestrator for @meta and tells you which other files to read (triage.md, dashboard.md, comms.md, inbox_knowledge_base.docx, reported_negatives.jsonl)." },
+
+  { id: "housing",       icon: "🏡", name: "West SFV Rentals",      cat: "after",
+    catLabel: "אישי / רץ ברקע",
+    desc: "סקירת השכרות יומיומית באזור West SFV (Zillow/Redfin) ושליחת SMS עם המעניינים.",
+    href: "../housing/", lastKey: "housing",
+    runCmd: "Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\la-rental-search\\SKILL.md` — it is the orchestrator for @housing and tells you which other files to read (search.md, dashboard.md, comms.md)." },
+
+  { id: "mbs",           icon: "📊", name: "MBS Event Summary",     cat: "after",
+    catLabel: "לאחר אירוע",
+    desc: "סיכום אירוע שעבר: הכנסות, הוצאות, רווח, תובנות, פערים — עם השוואה לחיזוי המקורי.",
+    href: "../mbs/", lastKey: "mbs",
+    runCmd: "Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-event-summary\\SKILL.md` — it is the orchestrator for @mbs. Then ask me which event to summarize." },
+
+  { id: "stats",         icon: "📊", name: "Marketing Stats",       cat: "after",
+    catLabel: "אנליטיקה / רץ ברקע",
+    desc: "אגרגציה של GA4 + Meta Pixel + TikTok Pixel לכל אירוע — מבקרים, conversions, ROAS, anomalies.",
+    href: "../stats/", lastKey: "stats" }
+];
+</script>
+
+<script>
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) {}
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0";
+    document.body.appendChild(ta);
+    ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    if (ok) return true;
+  } catch (e) {}
+  return false;
+}
+
+function showManualCopyModal(text) {
+  const existing = document.getElementById("manual-copy-modal");
+  if (existing) existing.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "manual-copy-modal";
+  const box = document.createElement("div");
+  box.className = "box";
+  box.innerHTML = '<div style="font-weight:800;font-size:15px">העתקה אוטומטית נחסמה</div><div style="font-size:13px;color:#475569">סמני את הטקסט (Ctrl+A) ואז העתיקי (Ctrl+C). הדביקי בשיחת Cowork חדשה.</div>';
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.cssText = "width:100%;flex:1;min-height:240px;font-family:ui-monospace,monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;text-align:left";
+  box.appendChild(ta);
+  const close = document.createElement("button");
+  close.textContent = "סגירה";
+  close.style.cssText = "padding:8px 14px;border-radius:8px;border:none;background:#7c3aed;color:#fff;cursor:pointer;font-size:13px;font-weight:700;align-self:flex-end";
+  close.onclick = () => overlay.remove();
+  box.appendChild(close);
+  overlay.appendChild(box);
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  document.body.appendChild(overlay);
+}
+
+(function init() {
+  const filtersEl = document.getElementById("filters");
+  const searchEl = document.getElementById("search");
+  const containerEl = document.getElementById("library-container");
+
+  let activeFilter = "all";
+  let searchQuery = "";
+
+  function buildFilters() {
+    filtersEl.innerHTML = "";
+    CATEGORIES.forEach(c => {
+      const count = c.id === "all" ? AGENTS.length : AGENTS.filter(a => a.cat === c.id).length;
+      const btn = document.createElement("button");
+      btn.className = "filter-pill" + (c.id === activeFilter ? " active" : "");
+      btn.innerHTML = `${c.icon} ${c.label} <span class="count">${count}</span>`;
+      btn.addEventListener("click", () => {
+        activeFilter = c.id;
+        buildFilters();
+        render();
+      });
+      filtersEl.appendChild(btn);
+    });
+  }
+
+  function fmtLastRun(text) {
+    if (!text || text === "—") return "טרם רץ";
+    return text;
+  }
+
+  function makeAgentCard(a) {
+    const card = document.createElement("div");
+    card.className = "agent-card" + (a.senior ? " tier-senior" : "") + (a.scoutForm ? " scout-special" : "");
+
+    const top = document.createElement("div");
+    top.className = "ag-top";
+    top.innerHTML = `
+      <div class="ag-icon">${a.icon}</div>
+      <div class="ag-title-block">
+        <div class="ag-name">${a.name}</div>
+        <div class="ag-cat">${a.catLabel || ""}</div>
+      </div>
+    `;
+    card.appendChild(top);
+
+    const desc = document.createElement("div");
+    desc.className = "ag-desc";
+    desc.textContent = a.desc;
+    card.appendChild(desc);
+
+    const lastrun = document.createElement("div");
+    lastrun.className = "ag-lastrun";
+    const lastVal = a.lastKey && HUB[a.lastKey] ? HUB[a.lastKey].lastRun : "—";
+    lastrun.innerHTML = `<span class="lr-icon">⏱️</span><span class="lr-text">${fmtLastRun(lastVal)}</span>`;
+    card.appendChild(lastrun);
+
+    if (a.scoutForm) {
+      const form = document.createElement("div");
+      form.className = "scout-form-row";
+      form.innerHTML = `
+        <input type="text" id="scout-city" placeholder="עיר (לדוגמה: Lancaster)" autocomplete="off">
+        <input type="text" id="scout-state" placeholder="ST" maxlength="2" style="text-transform:uppercase" autocomplete="off">
+        <select id="scout-month">
+          <option value="">חודש (אופציונלי)</option>
+          <option>Jan</option><option>Feb</option><option>Mar</option>
+          <option>Apr</option><option>May</option><option>Jun</option>
+          <option>Jul</option><option>Aug</option><option>Sep</option>
+          <option>Oct</option><option>Nov</option><option>Dec</option>
+        </select>
+      `;
+      card.appendChild(form);
+
+      const reportsList = document.createElement("div");
+      reportsList.className = "scout-reports-list";
+      if (SCOUT_REPORTS && SCOUT_REPORTS.length > 0) {
+        reportsList.innerHTML = SCOUT_REPORTS
+          .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+          .map(r => `<div class="scout-report-item"><a href="${r.url}" target="_blank">📄 ${r.city}, ${r.state}</a><span style="color:var(--muted);font-size:11px">${r.date || ""}${r.score ? " · score " + r.score : ""}</span></div>`)
+          .join("");
+      } else {
+        reportsList.innerHTML = '<div class="scout-reports-empty">עדיין לא הורצו דוחות סקאוט.</div>';
+      }
+      card.appendChild(reportsList);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "ag-actions";
+
+    if (a.href) {
+      const open = document.createElement("a");
+      open.className = "ag-btn primary";
+      open.href = a.href;
+      open.innerHTML = "📂 פתחי דשבורד";
+      actions.appendChild(open);
+    }
+
+    if (a.runCmd) {
+      const run = document.createElement("button");
+      run.className = "ag-btn run-active";
+      run.type = "button";
+      run.innerHTML = "▶ Run";
+      run.addEventListener("click", async () => {
+        const ok = await copyText(a.runCmd);
+        if (ok) {
+          run.classList.add("copied");
+          run.innerHTML = "✓ הועתק! הדביקי ב-Cowork";
+          setTimeout(() => {
+            run.classList.remove("copied");
+            run.innerHTML = "▶ Run";
+          }, 2500);
+        } else {
+          showManualCopyModal(a.runCmd);
+        }
+      });
+      actions.appendChild(run);
+    }
+
+    if (a.scoutForm) {
+      const scoutBtn = document.createElement("button");
+      scoutBtn.className = "ag-btn run-active";
+      scoutBtn.type = "button";
+      scoutBtn.innerHTML = "🔍 העתיקי פקודת סקאוט";
+      scoutBtn.addEventListener("click", async () => {
+        const city = document.getElementById("scout-city").value.trim();
+        const state = document.getElementById("scout-state").value.trim().toUpperCase();
+        const month = document.getElementById("scout-month").value;
+        if (!city || !state || state.length !== 2) {
+          scoutBtn.innerHTML = "⚠ מלאי עיר + ST";
+          setTimeout(() => { scoutBtn.innerHTML = "🔍 העתיקי פקודת סקאוט"; }, 2500);
+          return;
+        }
+        const slug = (city + "-" + state).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        const monthLine = month ? `\n  Target month: ${month}` : "";
+        const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\`\n\nCITY\n  Name:  ${city}, ${state}${monthLine}\n\nRun STEPS 0-12 from the skill IN FULL. Per skill STEP 10.5: if ${city}, ${state} is in launch_dashboard SCHEDULE, upsert SCOUTS["${slug}-<start_date>"]. Per skill STEP 12: send Touchpoint 3 SMS at end with https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/`;
+        const ok = await copyText(cmd);
+        if (ok) {
+          scoutBtn.classList.add("copied");
+          scoutBtn.innerHTML = "✓ הועתק!";
+          setTimeout(() => { scoutBtn.classList.remove("copied"); scoutBtn.innerHTML = "🔍 העתיקי פקודת סקאוט"; }, 2500);
+        } else {
+          showManualCopyModal(cmd);
+        }
+      });
+      actions.appendChild(scoutBtn);
+    }
+
+    card.appendChild(actions);
+    return card;
+  }
+
+  function render() {
+    containerEl.innerHTML = "";
+    const q = searchQuery.toLowerCase().trim();
+    const filtered = AGENTS.filter(a => {
+      if (activeFilter !== "all" && a.cat !== activeFilter) return false;
+      if (!q) return true;
+      return (
+        a.name.toLowerCase().includes(q) ||
+        (a.desc || "").toLowerCase().includes(q) ||
+        (a.catLabel || "").toLowerCase().includes(q) ||
+        (a.cat || "").toLowerCase().includes(q)
+      );
+    });
+
+    if (filtered.length === 0) {
+      containerEl.innerHTML = `
+        <div class="no-results">
+          <div class="nr-icon">🔍</div>
+          <div class="nr-title">לא נמצאו סוכנים</div>
+          <div class="nr-sub">נסי חיפוש אחר או בחרי קטגוריה אחרת.</div>
+        </div>
+      `;
+      return;
+    }
+
+    if (activeFilter !== "all" || q) {
+      // Flat grid view
+      const grid = document.createElement("div");
+      grid.className = "agents-grid";
+      filtered.forEach(a => grid.appendChild(makeAgentCard(a)));
+      containerEl.appendChild(grid);
+    } else {
+      // Sectioned view
+      const cats = ["senior", "before", "scout", "after"];
+      cats.forEach(catId => {
+        const inCat = filtered.filter(a => a.cat === catId);
+        if (inCat.length === 0) return;
+        const meta = CATEGORIES.find(c => c.id === catId);
+        const section = document.createElement("div");
+        section.className = "cat-section";
+        section.innerHTML = `
+          <div class="cat-header">
+            <div class="cat-name">${meta.icon} ${meta.label}</div>
+            <div class="cat-count">${inCat.length}</div>
+            <div class="cat-line"></div>
+          </div>
+        `;
+        const grid = document.createElement("div");
+        grid.className = "agents-grid";
+        inCat.forEach(a => grid.appendChild(makeAgentCard(a)));
+        section.appendChild(grid);
+        containerEl.appendChild(section);
+      });
+    }
+  }
+
+  searchEl.addEventListener("input", e => {
+    searchQuery = e.target.value;
+    render();
+  });
+
+  // Pre-fill scout form from URL params
+  setTimeout(() => {
+    const p = new URLSearchParams(window.location.search);
+    const cityIn = document.getElementById("scout-city");
+    const stateIn = document.getElementById("scout-state");
+    const monthIn = document.getElementById("scout-month");
+    if (cityIn && p.get("scout-city")) cityIn.value = p.get("scout-city");
+    if (stateIn && p.get("scout-state")) stateIn.value = p.get("scout-state");
+    if (monthIn && p.get("scout-month")) monthIn.value = p.get("scout-month");
+    if (p.get("city") && cityIn && !cityIn.value) {
+      const m = (p.get("city") || "").match(/^(.+?),\s*([A-Z]{2})\s*$/);
+      if (m) {
+        cityIn.value = m[1].trim();
+        stateIn.value = m[2];
+      }
+    }
+  }, 50);
+
+  buildFilters();
+  render();
+})();
+</script>
+
+</body>
+</html>
