@@ -142,18 +142,132 @@ def _prettify_place(raw: str) -> str:
     """
     p = raw.strip().rstrip("?,.!").strip()
     pl = p.lower()
-    # Only apply prefix-split if the input is a SINGLE lowercase concatenated
-    # word with no spaces — e.g. "sanbernardino". Multi-word inputs like
-    # "Northern California bay" get plain Title Case (no prefix manipulation).
     if " " not in pl and pl == p.lower():
         for prefix in _PLACE_PREFIXES:
             compact = prefix.replace(" ", "")
-            # Require the rest to be at least 4 chars to avoid splitting
-            # "northern" → "north" + "ern".
             if pl.startswith(compact) and len(pl) >= len(compact) + 4 and not pl.startswith(prefix):
                 rest = p[len(compact):]
                 return (prefix + rest).title()
     return p.title()
+
+
+# --- Date parsing for the schedule -------------------------------------------
+
+_MONTHS = {"jan":1,"january":1,"feb":2,"february":2,"mar":3,"march":3,
+           "apr":4,"april":4,"may":5,"jun":6,"june":6,"jul":7,"july":7,
+           "aug":8,"august":8,"sep":9,"sept":9,"september":9,"oct":10,"october":10,
+           "nov":11,"november":11,"dec":12,"december":12}
+
+def _parse_dates(date_str: str, year: int = 2026):
+    """
+    Parse a schedule string like 'May 1–3', 'March 13–15', 'Jul 31–Aug 2'
+    into (start_date, end_date, end_month_name).
+    Returns (None, None, None) if parsing fails.
+    """
+    if not date_str:
+        return None, None, None
+    # Normalize dashes
+    s = date_str.replace("–", "-").replace("—", "-").strip()
+    # Form A: "May 1-3"
+    m = re.match(r"^([A-Za-z]+)\s+(\d{1,2})\s*-\s*(\d{1,2})$", s)
+    if m:
+        mon = _MONTHS.get(m.group(1).lower())
+        if mon:
+            try:
+                d1 = dt.date(year, mon, int(m.group(2)))
+                d2 = dt.date(year, mon, int(m.group(3)))
+                return d1, d2, m.group(1).title()
+            except ValueError:
+                pass
+    # Form B: "Jul 31-Aug 2"
+    m = re.match(r"^([A-Za-z]+)\s+(\d{1,2})\s*-\s*([A-Za-z]+)\s+(\d{1,2})$", s)
+    if m:
+        mon1 = _MONTHS.get(m.group(1).lower())
+        mon2 = _MONTHS.get(m.group(3).lower())
+        if mon1 and mon2:
+            try:
+                d1 = dt.date(year, mon1, int(m.group(2)))
+                d2 = dt.date(year, mon2, int(m.group(4)))
+                return d1, d2, m.group(3).title()
+            except ValueError:
+                pass
+    return None, None, None
+
+
+def _is_past(date_str: str, today: dt.date = None) -> bool:
+    """True if the event end date is strictly before today."""
+    today = today or dt.date.today()
+    _, end, _ = _parse_dates(date_str)
+    if end is None:
+        return False
+    return end < today
+
+
+# --- Reply template pools (seeded by conv_id for consistency) ----------------
+
+import hashlib as _hashlib
+
+_ON_SCHEDULE_TEMPLATES = [
+    "YESSS babe!! 🎉 We're rolling into {C} {D} — Friday–Sunday, 10am–5pm! "
+    "Free entry, free parking, and a whole lotta beauty waiting for you 💄✨ "
+    "Can't wait to spoil you 💕",
+    "Babe YESSS!! 🎉 {C} sale is locked in for {D} — Fri–Sun 10am–5pm. "
+    "Free admission, free parking, just show up & shop till you drop 💄💥 "
+    "See you there gorgeous 💕",
+    "OMG YES!! 🎉 We're hitting {C} {D} — bring your bestie, your wallet, "
+    "and your wishlist 👯‍♀️💄 Friday–Sunday 10am–5pm. Free entry + parking ✨",
+    "Heck yes girl!! 🥳 {C} is on the books for {D} — Fri/Sat/Sun 10am–5pm. "
+    "Free entry, free parking, 75% off the brands you love 💄💥 "
+    "Mark that calendar 📌💕",
+    "Queen, YESSS 👑✨ We're swinging into {C} {D} — Fri–Sun 10am–5pm. "
+    "Show up, no ticket needed, just a love for makeup 💄 Treat yourself 💕",
+    "Babe stop everything 🛑 — {C} sale is happening {D}!! Fri–Sun 10am–5pm. "
+    "Free entry, free parking, and the biggest beauty deals you've ever seen ✨💄💥",
+]
+
+_OFF_SCHEDULE_TEMPLATES = [
+    "Aww babe — {C} isn't on our 2026 stop list this year 💔 We rotate cities "
+    "every 1–2 years to keep the magic alive ✨ But we're putting {C} on the "
+    "radar HARD — gonna do our absolute BEST to make it happen next year 💄💕 "
+    "Keep an eye on our Facebook page so you don't miss the announcement 👀✨",
+    "Aww girl 💔 {C} didn't make our 2026 lineup this year — we visit each "
+    "city every 1–2 years to keep things juicy 🤩 But trust me, you're on our "
+    "radar! Gonna do our best to bring the sale to {C} in 2027 💄💕 Follow our "
+    "Facebook for the announcement 👀✨",
+    "Oof babe — no {C} on the 2026 schedule this year 😢 We rotate cities to "
+    "keep the excitement up (and the deals deeper 💄✨) — but {C} is officially "
+    "on our wishlist for next year 💕 Keep an eye on FB for updates 👀",
+    "Babe nooooo 💔 We're not making it to {C} in 2026 — we rotate cities every "
+    "1–2 years so we can give each one our ALL when we come ✨ But you've got "
+    "us on it for 2027 💄💕 Follow us on FB so you don't miss when we drop dates 👀",
+    "Aww {C} babe 💔 Not on our 2026 stop list this year — but we hear you loud "
+    "and clear! Adding to our 2027 wishlist now 📝💄 We rotate cities every 1–2 "
+    "years to keep things fresh ✨ Watch our Facebook for the announcement 👀💕",
+]
+
+_PAST_SCHEDULE_TEMPLATES = [
+    "Aww babe, you JUST missed us!! 😭 We were in {C} {D} 💔 We won't be back "
+    "this year (we rotate cities every 1–2 years) but you're locked into our "
+    "2027 wishlist for sure 💄💕 Follow us on FB so you don't miss the next one ✨",
+    "Oof babe — we were just there!! {C} happened {D} 😩 We rotate cities every "
+    "1–2 years so we won't be back in 2026, but we'll do our BEST to come back in "
+    "2027 💄💕 Stay close on Facebook for the announcement 👀✨",
+    "Babe nooooo 💔 You missed us by THIS much — we wrapped up {C} on {D}! "
+    "Can't sneak in another visit this year (we rotate cities), but you're "
+    "officially on our 2027 list 💄✨ See you next time gorgeous 💕",
+    "Awww girl, we were just in {C} {D}! 😭💔 The sale already wrapped — "
+    "we rotate cities every 1–2 years, so {C} is on the radar for 2027. "
+    "Follow our Facebook so you catch the next announcement 👀💄💕",
+]
+
+
+def _seeded_pick(pool: list, seed_str: str) -> str:
+    """Pick a template deterministically from the conv/comment ID — same input
+    gets the same template every run, but different inputs spread across the pool."""
+    if not pool:
+        return ""
+    h = int(_hashlib.md5(seed_str.encode("utf-8")).hexdigest(), 16) if seed_str else 0
+    return pool[h % len(pool)]
 
 
 def _find_in_schedule(place: str, schedule: dict):
@@ -185,21 +299,26 @@ def _find_in_schedule(place: str, schedule: dict):
     return None
 
 
-def city_rotation_reply(place: str) -> str:
+def city_rotation_reply(place: str, *, seed: str = "") -> str:
     """
-    Lauren's preferred off-schedule reply (set 2026-05-06 PM):
-    Name the specific city, say not planning this year, promise next year.
-    Brand voice (per KB section 2): warm, casual, 'for the girls', emojis,
-    never corporate. Updated 2026-05-06 PM with extra babe energy 💕
+    Off-schedule reply, varied per conversation. Pulls from
+    _OFF_SCHEDULE_TEMPLATES, picked deterministically from `seed` (conv_id).
     """
     p = _prettify_place(place) if place else "your area"
-    return (
-        f"Aww babe — {p} isn't on our 2026 stop list this year 💔 "
-        f"We rotate cities every 1–2 years to keep the magic alive ✨ "
-        f"But we're putting {p} on the radar HARD — gonna do our absolute "
-        f"BEST to make it happen next year 💄💕 Keep an eye on our "
-        f"Facebook page so you don't miss the announcement 👀✨"
-    )
+    template = _seeded_pick(_OFF_SCHEDULE_TEMPLATES, seed or p)
+    return template.format(C=p)
+
+
+def city_past_reply(city_title: str, dates: str, *, seed: str = "") -> str:
+    """Past-event reply — 'we were just there {dates}'."""
+    template = _seeded_pick(_PAST_SCHEDULE_TEMPLATES, seed or city_title)
+    return template.format(C=city_title, D=dates)
+
+
+def city_on_schedule_reply(city_title: str, dates: str, *, seed: str = "") -> str:
+    """Future/upcoming on-schedule reply, varied per conversation."""
+    template = _seeded_pick(_ON_SCHEDULE_TEMPLATES, seed or city_title)
+    return template.format(C=city_title, D=dates)
 
 
 def classify(text: str, kb: dict) -> dict:
@@ -241,20 +360,22 @@ def classify(text: str, kb: dict) -> dict:
     if m_q or m_b:
         place = (m_q.group(2) if m_q else m_b.group(1)).strip()
         hit = _find_in_schedule(place, kb["schedule"])
+        seed = kb.get("_seed", "") + place  # conv-id + place for variation seed
         if hit:
             city_key, dates = hit
             city_title = city_key.split(",")[0].strip().title()
+            if _is_past(dates):
+                return {"bucket": "A",
+                        "reason": f"City question — '{place}' was on schedule but already happened ({dates})",
+                        "reply": city_past_reply(city_title, dates, seed=seed)}
             return {"bucket": "A",
-                    "reason": f"City question — '{place}' matches schedule entry '{city_key}'",
-                    "reply": f"YESSS babe!! 🎉 We're rolling into {city_title} {dates} — "
-                             f"Friday–Sunday, 10am–5pm! Free entry, free parking, "
-                             f"and a whole lotta beauty waiting for you 💄✨ "
-                             f"Can't wait to spoil you 💕"}
-        # Strong city-question intent (CITY_QUESTION_PAT) but not on schedule → rotation policy
+                    "reason": f"City question — '{place}' matches upcoming schedule entry '{city_key}'",
+                    "reply": city_on_schedule_reply(city_title, dates, seed=seed)}
+        # Strong city-question intent but not on schedule → off-schedule reply
         if m_q:
             return {"bucket": "A",
-                    "reason": f"City question — '{place}' NOT on 2026 schedule, applying city-specific 'next year' reply",
-                    "reply": city_rotation_reply(place)}
+                    "reason": f"City question — '{place}' NOT on 2026 schedule, off-schedule reply",
+                    "reply": city_rotation_reply(place, seed=seed)}
         # Bare-place pattern (no verb) and not on schedule = ambiguous — Lauren reviews
         return {"bucket": "B",
                 "reason": f"Bare-place pattern matched '{place}' but not on schedule — ambiguous, Lauren reviews",
@@ -446,13 +567,13 @@ def main():
         # Fetch the most recent message text
         try:
             messages = fetch_messenger_messages(conv_id, limit=3)
-            # Find the last message FROM the customer (not from the page)
             last_customer_msg = next((m for m in messages
                                       if m.get("from", {}).get("name") != "The Makeup Blowout Sale Group"),
                                      None)
             text = last_customer_msg.get("message", "") if last_customer_msg else ""
         except Exception as e:
             text = f"(error fetching: {e})"
+        kb["_seed"] = conv_id  # per-conversation seed for reply variation
         cls = classify(text, kb)
         classified_messenger.append({
             "conv_id": conv_id,
@@ -468,6 +589,7 @@ def main():
         post_msg = grp["post"].get("message", "")[:80]
         for cmt in grp["comments"]:
             txt = cmt.get("message", "")
+            kb["_seed"] = cmt.get("id", "")
             cls = classify(txt, kb)
             classified_fb.append({
                 "post_msg": post_msg,
@@ -482,6 +604,7 @@ def main():
         media_caption = (grp["media"].get("caption") or "").split("\n")[0][:80]
         for cmt in grp["comments"]:
             txt = cmt.get("text", "")
+            kb["_seed"] = cmt.get("id", "")
             cls = classify(txt, kb)
             classified_ig.append({
                 "media_caption": media_caption,
