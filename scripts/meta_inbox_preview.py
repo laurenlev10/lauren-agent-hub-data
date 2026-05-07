@@ -815,9 +815,18 @@ def main():
             text = f"(error fetching: {e})"
         kb["_seed"] = conv_id  # per-conversation seed for reply variation
         cls = classify(text, kb)
-        # Build a direct reply URL — Business Suite inbox is the most reliable
-        # entry point. Lauren clicks → opens Messenger thread.
-        reply_url = f"https://business.facebook.com/latest/inbox/all?asset_id={get_fb_page_id()}&thread_id={conv_id}"
+        # Build a direct reply URL using the customer's PSID (the participant
+        # who is NOT the Page). Format `https://www.facebook.com/messages/t/{psid}`
+        # is the only reliable deep-link that opens the specific Messenger thread.
+        # The conv_id (e.g. "t_10242117887745746") is NOT a usable URL component.
+        page_id = get_fb_page_id()
+        customer_psid = ""
+        for pp in (c.get("participants", {}).get("data", []) or []):
+            if pp.get("id") and pp.get("id") != page_id:
+                customer_psid = pp["id"]
+                break
+        reply_url = f"https://www.facebook.com/messages/t/{customer_psid}" if customer_psid else \
+                    f"https://business.facebook.com/latest/inbox/all?asset_id={page_id}"
         classified_messenger.append({
             "conv_id": conv_id,
             "dedup_key": dedup_key("messenger", conv_id),
