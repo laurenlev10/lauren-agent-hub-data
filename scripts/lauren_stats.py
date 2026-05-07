@@ -310,6 +310,13 @@ def detect_anomalies(event_data: dict, baselines: dict) -> list:
     """Compare event_data to rolling baselines, return list of anomalies."""
     out = []
     for slug, ev in event_data.get("events", {}).items():
+        # Funnel anomaly: spending money but no SMS registrations
+        f = ev.get("funnel") or {}
+        spend_total = (ev.get("ad_spend") or {}).get("meta", 0) + (ev.get("ad_spend") or {}).get("tiktok", 0)
+        if spend_total > 50 and f.get("sms_registered", 0) == 0 and f.get("page_views", 0) > 50:
+            out.append({"event": slug, "severity": "critical", "metric": "zero_sms_registrations",
+                        "observed": 0, "expected": ">5",
+                        "hypothesis": f"spending ${spend_total:.0f}, getting page views, but no SMS sign-ups — form broken?"})
         v = ev.get("views", {})
         c = ev.get("conversions", {})
         rate = (c.get("total", 0) / v.get("total", 1)) if v.get("total") else 0
@@ -324,3 +331,170 @@ def detect_anomalies(event_data: dict, baselines: dict) -> list:
                             "observed": roas, "expected": 3.0,
                             "hypothesis": f"cut spend on {src} creative"})
     return out
+
+
+# ---------------------------------------------------------------------------
+# Level 2: SimpleTexting funnel-end (sms registrations)
+# ---------------------------------------------------------------------------
+
+def fetch_simpletexting_list_sizes(slug_to_list_id: dict) -> dict:
+    """
+    Fetch SimpleTexting list size for each slug→list_id mapping.
+
+    Args:
+        slug_to_list_id: {"columbia-mo-2026": "691675e163f88543ee7b07c8", ...}
+
+    Returns:
+        {"columbia-mo-2026": {"list_size": 35, "list_id": "...", "fetched_at": "..."}}
+    """
+    token = _os.environ.get("SIMPLETEXTING_TOKEN")
+    if not token:
+        print("  ⚠ simpletexting: SIMPLETEXTING_TOKEN not set — skipping")
+        return {}
+
+    out = {}
+    fetched_at = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    for slug, list_id in slug_to_list_id.items():
+        if not list_id:
+            continue
+        url = f"https://app2.simpletexting.com/api/list/v2/contacts?listId={list_id}&size=1"
+        req = _urlreq.Request(url, headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+        })
+        try:
+            with _urlreq.urlopen(req, timeout=15) as resp:
+                data = _json.loads(resp.read().decode())
+            total = data.get("totalElements", data.get("totalCount", 0))
+            out[slug] = {"list_size": int(total), "list_id": list_id, "fetched_at": fetched_at}
+            print(f"  ✓ simpletexting [{slug}]: {total} contacts on list {list_id}")
+        except _urlerr.HTTPError as e:
+            err_body = ""
+            try: err_body = e.read().decode()[:200]
+            except Exception: pass
+            print(f"  ⚠ simpletexting [{slug}] failed ({e.code}): {err_body}")
+        except Exception as e:
+            print(f"  ⚠ simpletexting [{slug}] error: {e}")
+    return out
+
+
+def extract_setups_from_launch_dashboard(html_path) -> dict:
+    """Parse SETUPS = {...}; from launch_dashboard.html."""
+    import re
+    p = _Path(html_path)
+    if not p.exists():
+        print(f"  ⚠ launch dashboard not found at {html_path}")
+        return {}
+    text = p.read_text(encoding="utf-8")
+    m = re.search(r"const SETUPS\s*=\s*(\{.*?\});", text, re.DOTALL)
+    if not m:
+        print("  ⚠ SETUPS block not found in launch_dashboard.html")
+        return {}
+    try:
+        return _json.loads(m.group(1))
+    except Exception as e:
+        print(f"  ⚠ SETUPS parse failed: {e}")
+        return {}
+
+
+def map_setups_to_slugs(setups: dict, events: list) -> dict:
+    """Build {slug: list_id} from SETUPS map + events list."""
+    out = {}
+    for ev in events:
+        city = (ev.get("city") or "").lower().replace(" ", "-")
+        state = (ev.get("state") or "").lower()
+        start_date = ev.get("start_date") or ""
+        year = start_date[:4] if start_date else ""
+        if not (city and state and year):
+            continue
+        setup_key = f"{city}-{start_date}"
+        slug_key = f"{city}-{state}-{year}"
+        s = setups.get(setup_key, {})
+        list_id = (s.get("smslist") or {}).get("list_id") if s else None
+        out[slug_key] = list_id
+    return out
+
+
+def compute_funnel(ev_data: dict, days_until_event=None, registration_target: int = 250) -> dict:
+    """Build {funnel, rates, forecast} block for one event."""
+    views_total = (ev_data.get("views") or {}).get("total", 0)
+    conv_total = (ev_data.get("conversions") or {}).get("total", 0)
+    sms_reg = ev_data.get("sms_registered", 0)
+    eventbrite_reg = ev_data.get("eventbrite_registered", 0)
+    impressions = (ev_data.get("impressions") or {}).get("total", 0) if isinstance(ev_data.get("impressions"), dict) else 0
+
+    funnel = {
+        "impressions": int(impressions),
+        "page_views": int(views_total),
+        "form_submits": int(conv_total),
+        "sms_registered": int(sms_reg),
+        "eventbrite_registered": int(eventbrite_reg),
+    }
+
+    rates = {}
+    if impressions > 0:
+        rates["ctr"] = round(views_total / impressions * 100, 2)
+        rates["overall"] = round(sms_reg / impressions * 100, 3)
+    if views_total > 0:
+        rates["form_conversion"] = round(conv_total / views_total * 100, 2)
+    if conv_total > 0:
+        rates["sms_capture"] = round(sms_reg / conv_total * 100, 2)
+
+    forecast = None
+    if days_until_event is not None and days_until_event > 0 and sms_reg > 0:
+        days_so_far = max(1, 14 - days_until_event) if days_until_event < 30 else 14
+        daily_rate = sms_reg / days_so_far
+        projected_total = int(sms_reg + daily_rate * days_until_event)
+        forecast = {
+            "projected_total": projected_total,
+            "target": registration_target,
+            "days_remaining": days_until_event,
+            "status": "on_track" if projected_total >= registration_target else "behind",
+            "gap": registration_target - projected_total if projected_total < registration_target else 0,
+        }
+
+    return {"funnel": funnel, "rates": rates, "forecast": forecast}
+
+
+def aggregate_with_funnel(slugs: list, events: list, setups: dict,
+                          start_date: str = None, end_date: str = None) -> dict:
+    """Level 2 aggregator — combines all sources + SimpleTexting + funnel + forecast."""
+    base = aggregate_for_events(slugs, start_date=start_date, end_date=end_date)
+    slug_to_list = map_setups_to_slugs(setups, events)
+    sms_data = fetch_simpletexting_list_sizes(slug_to_list)
+
+    today = _dt.date.today()
+    ev_by_slug = {}
+    for ev in events:
+        city = (ev.get("city") or "").lower().replace(" ", "-")
+        state = (ev.get("state") or "").lower()
+        year = (ev.get("start_date") or "")[:4]
+        ev_by_slug[f"{city}-{state}-{year}"] = ev
+
+    for slug, ev_out in base.get("events", {}).items():
+        sms = sms_data.get(slug, {})
+        ev_out["sms_registered"] = sms.get("list_size", 0)
+        ev_out["sms_list_id"] = sms.get("list_id")
+
+        meta = ev_by_slug.get(slug, {})
+        eventbrite_reg = meta.get("registered_count", 0)
+        ev_out["eventbrite_registered"] = eventbrite_reg
+        target = meta.get("registration_target", 250)
+        days_until = None
+        if meta.get("start_date"):
+            try:
+                event_date = _dt.date.fromisoformat(meta["start_date"])
+                days_until = (event_date - today).days
+            except Exception:
+                pass
+
+        funnel_data = compute_funnel(ev_out, days_until_event=days_until,
+                                     registration_target=target)
+        ev_out["funnel"] = funnel_data["funnel"]
+        ev_out["rates"] = funnel_data["rates"]
+        if funnel_data["forecast"]:
+            ev_out["forecast"] = funnel_data["forecast"]
+
+    return base
+

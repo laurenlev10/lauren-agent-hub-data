@@ -1,19 +1,17 @@
-name: Marketing stats — pull from GA4 + Meta + TikTok
+name: Marketing stats — pull from GA4 + Meta + TikTok + SimpleTexting
 
-# Aggregates per-event traffic, conversion %, share clicks, and ROAS.
-# Updates two state files:
-#   - themakeupblowout-events: docs/state/event_analytics.json (per-event, used by stats.html)
-#   - lauren-agent-hub-data: docs/state/conversion_history.json (rolling, used by @forecast)
+# Aggregates per-event traffic, conversion %, share clicks, ROAS, and SMS funnel.
+# Updates three state files:
+#   - lauren-agent-hub-data: docs/state/conversion_history.json (rolling — used by @forecast)
+#   - themakeupblowout-events: docs/state/event_analytics.json (per-event — used by stats.html)
+#   - lauren-agent-hub-data: docs/launch/index.html (EVENT_ANALYTICS map — flips Stats button green)
 #
-# Required GitHub Secrets (Lauren must add):
+# Required GitHub Secrets:
 #   GA4_PROPERTY_ID, GA4_SERVICE_ACCOUNT_JSON
-#   META_PAGE_TOKEN (already exists), META_AD_ACCOUNT_ID
+#   META_PAGE_TOKEN, META_AD_ACCOUNT_ID
 #   TIKTOK_ACCESS_TOKEN, TIKTOK_ADVERTISER_ID
-#   GH_PAT_FOR_EVENTS_REPO (PAT with write access to themakeupblowout-events)
-#
-# Cadence:
-#   Every 6h during active campaigns (T-30 → T+7), daily otherwise.
-#   For now: run every 6h always. Adjust later when we have the campaign-window logic.
+#   SIMPLETEXTING_TOKEN  (for funnel-end SMS list size — Level 2)
+#   EVENTS_REPO_PAT      (PAT with write access to themakeupblowout-events)
 
 on:
   schedule:
@@ -31,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: python3 -m pip install --quiet cryptography
 
-      - name: Run @stats aggregator
+      - name: Run @stats Level 2 aggregator (with funnel)
         env:
           GA4_PROPERTY_ID:           ${{ secrets.GA4_PROPERTY_ID }}
           GA4_SERVICE_ACCOUNT_JSON:  ${{ secrets.GA4_SERVICE_ACCOUNT_JSON }}
@@ -39,24 +37,37 @@ jobs:
           META_AD_ACCOUNT_ID:        ${{ secrets.META_AD_ACCOUNT_ID }}
           TIKTOK_ACCESS_TOKEN:       ${{ secrets.TIKTOK_ACCESS_TOKEN }}
           TIKTOK_ADVERTISER_ID:      ${{ secrets.TIKTOK_ADVERTISER_ID }}
+          SIMPLETEXTING_TOKEN:       ${{ secrets.SIMPLETEXTING_TOKEN }}
         run: |
           python3 - <<'PY'
-          import sys, json, datetime, urllib.request
+          import sys, json, urllib.request
           sys.path.insert(0, "scripts")
-          from lauren_stats import aggregate_for_events, detect_anomalies
+          from lauren_stats import aggregate_with_funnel, detect_anomalies, extract_setups_from_launch_dashboard
 
-          # Pull list of slugs from upcoming-events.json (in the events repo)
+          # 1. Pull upcoming events list
           url = "https://events.themakeupblowout.com/upcoming-events.json"
           try:
               with urllib.request.urlopen(url, timeout=10) as r:
                   events = json.load(r).get("events", [])
           except Exception:
               events = []
-          slugs = [e.get("slug") for e in events if e.get("slug")]
+          slugs = []
+          for e in events:
+              city = (e.get("city") or "").lower().replace(" ", "-")
+              state = (e.get("state") or "").lower()
+              year = (e.get("start_date") or "")[:4]
+              if city and state and year:
+                  slugs.append(f"{city}-{state}-{year}")
           print(f"Pulling stats for {len(slugs)} events")
 
-          data = aggregate_for_events(slugs)
-          # Detect anomalies using simple defaults (until baselines are populated)
+          # 2. Parse SETUPS from launch_dashboard.html for SimpleTexting list_ids
+          setups = extract_setups_from_launch_dashboard("docs/launch/index.html")
+          print(f"Loaded {len(setups)} SETUPS entries")
+
+          # 3. Aggregate everything (GA4 + Meta + TikTok + SimpleTexting + funnel + forecast)
+          data = aggregate_with_funnel(slugs, events, setups)
+
+          # 4. Detect anomalies
           baselines = {"median_conv_rate_overall": 0.10}
           for slug, ev in data["events"].items():
               ev["anomalies"] = []
@@ -64,18 +75,23 @@ jobs:
           for a in ann:
               data["events"][a["event"]]["anomalies"].append(a)
 
-          # Write to local file (used for the GitHub Pages summary later)
+          # 5. Write conversion_history.json
+          import os
+          os.makedirs("docs/state", exist_ok=True)
           with open("docs/state/conversion_history.json", "w") as f:
               json.dump(data, f, indent=2, ensure_ascii=False)
-          print(f"Wrote conversion_history.json with {len(data['events'])} events")
+          print(f"Wrote conversion_history.json with {len(data['events'])} events, {len(ann)} anomalies")
           PY
+
+      - name: Upsert EVENT_ANALYTICS into launch_dashboard.html
+        run: python3 scripts/upsert_event_analytics.py
 
       - name: Push to themakeupblowout-events repo (event_analytics.json)
         env:
-          GH_PAT: ${{ secrets.GH_PAT_FOR_EVENTS_REPO }}
+          GH_PAT: ${{ secrets.EVENTS_REPO_PAT }}
         run: |
           if [ -z "$GH_PAT" ]; then
-            echo "⚠ GH_PAT_FOR_EVENTS_REPO not set — skipping cross-repo push"
+            echo "⚠ EVENTS_REPO_PAT not set — skipping cross-repo push"
             exit 0
           fi
           git clone https://x-access-token:${GH_PAT}@github.com/laurenlev10/themakeupblowout-events.git /tmp/events
@@ -85,18 +101,64 @@ jobs:
           git config user.name "Lauren (via marketing-stats)"
           git add docs/state/event_analytics.json
           if ! git diff --cached --quiet; then
-            git commit -m "stats: refresh event_analytics.json"
+            git commit -m "stats: refresh event_analytics.json (with funnel)"
             git pull --rebase origin main || true
             git push origin main
           fi
 
-      - name: Commit conversion history locally
+      - name: Commit local changes
         run: |
           git config user.email "lauren@noreply.github.com"
           git config user.name "Lauren (via marketing-stats)"
-          git add docs/state/conversion_history.json
+          git add docs/state/conversion_history.json docs/launch/index.html
           if ! git diff --cached --quiet; then
-            git commit -m "stats: refresh conversion_history.json"
+            git commit -m "stats: refresh conversion_history.json + EVENT_ANALYTICS map"
             git pull --rebase origin main || true
             git push origin main
           fi
+
+      - name: Anomaly SMS alert (if any critical)
+        if: success()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import sys, json, os
+          sys.path.insert(0, "scripts")
+
+          history = json.load(open("docs/state/conversion_history.json"))
+          critical = []
+          for slug, ev in history.get("events", {}).items():
+              for a in ev.get("anomalies", []):
+                  if a.get("severity") == "critical":
+                      critical.append({"slug": slug, **a})
+
+          if not critical:
+              print("· no critical anomalies — no SMS sent")
+              sys.exit(0)
+
+          # Compose short Hebrew SMS for first critical anomaly (cap to avoid SMS spam)
+          a = critical[0]
+          msg_lines = [
+              "🚨 @stats anomaly:",
+              a["slug"].replace("-", " ").title(),
+              a.get("hypothesis", ""),
+              "https://laurenlev10.github.io/lauren-agent-hub-data/stats/"
+          ]
+          if len(critical) > 1:
+              msg_lines.insert(2, f"+ {len(critical)-1} more anomalies")
+          msg = "\n".join(msg_lines)
+
+          token = os.environ.get("SIMPLETEXTING_TOKEN")
+          if not token:
+              print(f"would have sent SMS:\n{msg}")
+              sys.exit(0)
+
+          try:
+              from lauren_meta import send_sms
+              send_sms(msg)
+              print(f"✓ sent anomaly SMS to Lauren ({len(critical)} critical)")
+          except Exception as e:
+              print(f"⚠ SMS send failed: {e}")
+              print(f"would have sent:\n{msg}")
+          PY
