@@ -248,6 +248,85 @@
   .weekly-reset-btn:hover { background: rgba(255,255,255,0.36); }
 
   /* ================================================================== */
+  /* Special Tasks panel (purple) — one-off non-recurring; vanish on done */
+  /* ================================================================== */
+  .special-wrap { max-width: 900px; margin: 0 auto 24px auto; }
+  .special-card {
+    background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7e22ce 100%);
+    color: #fff; border-radius: 18px; padding: 26px 30px;
+    box-shadow: 0 8px 32px rgba(147, 51, 234, 0.28);
+    position: relative; overflow: hidden;
+  }
+  .special-card::before {
+    content: "SPECIAL"; position: absolute; top: 14px; left: 18px;
+    background: rgba(255,255,255,0.22); padding: 4px 12px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+  }
+  .special-card::after {
+    content: "⭐"; position: absolute; right: 18px; bottom: -22px;
+    font-size: 140px; opacity: 0.13; line-height: 1; pointer-events: none;
+  }
+  .special-content { position: relative; z-index: 1; }
+  .special-name { font-size: 26px; font-weight: 800; margin: 18px 0 4px; letter-spacing: -0.3px; }
+  .special-tag { font-size: 13px; opacity: 0.95; margin-bottom: 14px; direction: rtl; text-align: right; line-height: 1.5; }
+  .special-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 10px; margin-bottom: 14px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.95;
+  }
+  .special-meta b { color: #fff; font-weight: 800; }
+  .special-list { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .special-task {
+    display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px;
+    background: rgba(255,255,255,0.13); border-radius: 10px;
+    transition: all 0.25s ease; font-size: 13px; line-height: 1.5;
+    direction: rtl; text-align: right;
+  }
+  .special-task.fading { opacity: 0; transform: translateX(20px); height: 0; padding: 0; margin: 0; overflow: hidden; }
+  .special-task:hover { background: rgba(255,255,255,0.22); }
+  .special-task input[type=checkbox] {
+    appearance: none; -webkit-appearance: none; width: 20px; height: 20px; min-width: 20px;
+    border: 2px solid rgba(255,255,255,0.7); border-radius: 5px; background: transparent;
+    cursor: pointer; display: grid; place-content: center; transition: all 0.12s ease;
+    margin-top: 2px;
+  }
+  .special-task input[type=checkbox]:checked { background: #fff; border-color: #fff; }
+  .special-task input[type=checkbox]:checked::after { content: "✓"; color: #7e22ce; font-weight: 900; font-size: 14px; line-height: 1; }
+  .special-task .st-body { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .special-task .st-label { color: #fff; font-weight: 600; }
+  .special-task .st-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 11px; }
+  .special-task .st-date {
+    background: rgba(255,255,255,0.22); padding: 3px 9px; border-radius: 999px;
+    color: #fff; font-weight: 700; letter-spacing: 0.3px;
+  }
+  .special-task .st-date.due-today { background: #fde68a; color: #92400e; }
+  .special-task .st-date.due-soon { background: rgba(255,255,255,0.32); }
+  .special-task .st-link {
+    color: #f3e8ff; text-decoration: underline; font-weight: 600;
+  }
+  .special-task .st-link:hover { color: #fff; }
+  .special-task .st-cmd-btn {
+    background: rgba(255,255,255,0.95); color: #7e22ce;
+    border: none; padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; cursor: pointer;
+    letter-spacing: 0.3px; font-family: ui-monospace, monospace;
+  }
+  .special-task .st-cmd-btn:hover { background: #fff; }
+  .special-task .st-cmd-btn.copied { background: #d1fae5; color: #065f46; }
+  .special-add-btn {
+    background: rgba(255,255,255,0.22); color: #fff; border: 2px dashed rgba(255,255,255,0.45);
+    padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
+    cursor: pointer; width: 100%; margin-top: 8px;
+    direction: rtl; text-align: center;
+  }
+  .special-add-btn:hover { background: rgba(255,255,255,0.32); border-color: #fff; }
+  .special-empty {
+    background: rgba(255,255,255,0.13); border-radius: 10px; padding: 18px;
+    text-align: center; color: #fff; font-size: 13px; opacity: 0.85;
+    direction: rtl;
+  }
+
+  /* ================================================================== */
   /* Scheduled Tasks Monitor (indigo) — live status from JSON in repo   */
   /* ================================================================== */
   .sched-wrap { max-width: 900px; margin: 0 auto 28px auto; }
@@ -443,6 +522,206 @@ const SCOUT_REPORTS = [
     </div>
   </a>
 </div>
+
+<!-- Special Tasks (purple) — one-off, vanish when done -->
+<div class="special-wrap">
+  <div class="special-card">
+    <div class="special-content">
+      <div class="special-name">⭐ משימות מיוחדות</div>
+      <div class="special-tag">משימות חד-פעמיות שצריכות תשומת לב — סימון ✓ מסיר אותן לצמיתות. אין איפוס שבועי.</div>
+      <div class="special-meta">
+        <span>פתוחות: <b id="special-open-count">0</b></span>
+        <span style="opacity:0.8">לחצי על פקודה להעתקה ↓</span>
+      </div>
+      <div class="special-list" id="special-list"></div>
+      <button class="special-add-btn" id="special-add-btn" type="button">＋ הוסיפי משימה חדשה</button>
+    </div>
+  </div>
+</div>
+
+<script id="special-data">
+const SPECIAL_TASKS_SEED = [
+  {
+    id: "stats-24h-check",
+    label: "בדיקת 24 שעות של @stats — לוודא שפיקסלים אוספים נתונים",
+    date: "2026-05-08",
+    command: "Run @stats — show top performing campaigns this week",
+    link: "https://laurenlev10.github.io/lauren-agent-hub-data/stats/",
+    linkLabel: "↗ Stats Dashboard"
+  },
+  {
+    id: "stats-tiktok-approval",
+    label: "בדיקת אישור TikTok App + חיבור Access Token",
+    date: "2026-05-14",
+    command: "Run @stats — onboard TikTok access token, app is approved",
+    link: "https://business-api.tiktok.com/portal/apps",
+    linkLabel: "↗ TikTok Apps"
+  },
+  {
+    id: "stats-2week-report",
+    label: "דוח ביצועים שבועיים של @stats — סקירה ראשונה",
+    date: "2026-05-21",
+    command: "Run @stats — full HTML report for last 14 days"
+  },
+  {
+    id: "ga4-service-account-fix",
+    label: "תיקון GA4 Service Account — בדיקת הגדרות Workspace",
+    command: "Run @stats — try OAuth fallback for GA4 (instead of Service Account)"
+  }
+];
+
+(function initSpecial() {
+  const STORAGE_KEY = "mbs.special.v1";
+  const list = document.getElementById("special-list");
+  const openCountEl = document.getElementById("special-open-count");
+  const addBtn = document.getElementById("special-add-btn");
+
+  function loadState() {
+    let st = null;
+    try { st = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (e) { st = null; }
+    if (!st) st = { removed: {}, custom: [] };
+    if (!st.removed) st.removed = {};
+    if (!st.custom) st.custom = [];
+    return st;
+  }
+  function saveState(st) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(st)); } catch (e) {}
+  }
+
+  let state = loadState();
+
+  function fmtDate(iso) {
+    if (!iso) return null;
+    const parts = iso.split('-').map(Number);
+    const dt = new Date(parts[0], parts[1]-1, parts[2]);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const diff = Math.round((dt - today) / 86400000);
+    const lbl = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    let cls = "";
+    if (diff === 0) cls = "due-today";
+    else if (diff > 0 && diff <= 3) cls = "due-soon";
+    return { label: lbl, diff: diff, cls: cls };
+  }
+
+  function copyCmd(cmd, btn) {
+    navigator.clipboard.writeText(cmd).then(function() {
+      const orig = btn.textContent;
+      btn.textContent = "✓ הועתק";
+      btn.classList.add("copied");
+      setTimeout(function() {
+        btn.textContent = orig;
+        btn.classList.remove("copied");
+      }, 1800);
+    }).catch(function() {
+      alert("ההעתקה נכשלה — סמני ידנית והעתיקי:\n\n" + cmd);
+    });
+  }
+
+  function render() {
+    list.innerHTML = "";
+    const all = SPECIAL_TASKS_SEED.concat(state.custom);
+    const visible = all.filter(function(t) { return !state.removed[t.id]; });
+
+    visible.sort(function(a, b) {
+      if (a.date && b.date) return a.date.localeCompare(b.date);
+      if (a.date) return -1;
+      if (b.date) return 1;
+      return 0;
+    });
+
+    if (visible.length === 0) {
+      list.innerHTML = '<div class="special-empty">אין משימות מיוחדות פתוחות 🎉</div>';
+      openCountEl.textContent = "0";
+      return;
+    }
+
+    openCountEl.textContent = visible.length;
+
+    visible.forEach(function(t) {
+      const row = document.createElement("div");
+      row.className = "special-task";
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.addEventListener("change", function() {
+        if (cb.checked) {
+          row.classList.add("fading");
+          setTimeout(function() {
+            state.removed[t.id] = true;
+            saveState(state);
+            render();
+          }, 280);
+        }
+      });
+
+      const body = document.createElement("div");
+      body.className = "st-body";
+
+      const lbl = document.createElement("div");
+      lbl.className = "st-label";
+      lbl.textContent = t.label;
+      body.appendChild(lbl);
+
+      const meta = document.createElement("div");
+      meta.className = "st-row";
+
+      if (t.date) {
+        const d = fmtDate(t.date);
+        const dateSpan = document.createElement("span");
+        dateSpan.className = "st-date " + (d.cls || "");
+        let dateText = "📅 " + d.label;
+        if (d.diff === 0) dateText += " (היום!)";
+        else if (d.diff > 0) dateText += " (בעוד " + d.diff + " ימים)";
+        else dateText += " (לפני " + Math.abs(d.diff) + " ימים)";
+        dateSpan.textContent = dateText;
+        meta.appendChild(dateSpan);
+      }
+
+      if (t.link) {
+        const a = document.createElement("a");
+        a.className = "st-link";
+        a.href = t.link; a.target = "_blank"; a.rel = "noopener";
+        a.textContent = t.linkLabel || "↗ Open";
+        meta.appendChild(a);
+      }
+
+      if (t.command) {
+        const btn = document.createElement("button");
+        btn.className = "st-cmd-btn";
+        btn.type = "button";
+        btn.textContent = "📋 העתיקי פקודה";
+        btn.title = t.command;
+        btn.addEventListener("click", function() { copyCmd(t.command, btn); });
+        meta.appendChild(btn);
+      }
+
+      if (meta.children.length > 0) body.appendChild(meta);
+
+      row.appendChild(cb);
+      row.appendChild(body);
+      list.appendChild(row);
+    });
+  }
+
+  addBtn.addEventListener("click", function() {
+    const label = prompt("מה המשימה?");
+    if (!label || !label.trim()) return;
+    const date = prompt("תאריך (YYYY-MM-DD) — אופציונלי, ENTER לדלג:") || null;
+    const command = prompt("פקודת העתקה לסוכן — אופציונלי, ENTER לדלג:") || null;
+    const id = "custom-" + Date.now();
+    state.custom.push({
+      id: id,
+      label: label.trim(),
+      date: (date && /^\d{4}-\d{2}-\d{2}$/.test(date.trim())) ? date.trim() : null,
+      command: (command && command.trim()) ? command.trim() : null
+    });
+    saveState(state);
+    render();
+  });
+
+  render();
+})();
+</script>
 
 <!-- Weekly Tasks (teal) -->
 <div class="weekly-wrap">
@@ -810,193 +1089,4 @@ const WEEKLY_TASKS = [
       const ta = document.createElement("textarea");
       ta.value = text;
       ta.setAttribute("readonly", "");
-      ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0";
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      ta.setSelectionRange(0, text.length);
-      const ok = document.execCommand("copy");
-      document.body.removeChild(ta);
-      if (ok) return true;
-    } catch (e) {}
-    return false;
-  }
-
-  function showManualCopyModal(text) {
-    const existing = document.getElementById("manual-copy-modal");
-    if (existing) existing.remove();
-    const overlay = document.createElement("div");
-    overlay.id = "manual-copy-modal";
-    overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.78);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;direction:rtl;font-family:inherit";
-    const box = document.createElement("div");
-    box.style.cssText = "background:#fff;color:#0f172a;border-radius:12px;max-width:640px;width:100%;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.4);max-height:90vh;display:flex;flex-direction:column;gap:10px";
-    box.innerHTML = '<div style="font-weight:700;font-size:15px">העתקה אוטומטית נחסמה ע״י הדפדפן</div><div style="font-size:13px;color:#475569">סמני את הטקסט (Ctrl+A) ואז העתיקי (Ctrl+C / Cmd+C). הדביקי בשיחת Cowork חדשה.</div>';
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.cssText = "width:100%;flex:1;min-height:240px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;text-align:left";
-    box.appendChild(ta);
-    const row = document.createElement("div");
-    row.style.cssText = "display:flex;gap:8px;justify-content:flex-end";
-    const tryAgain = document.createElement("button");
-    tryAgain.textContent = "נסי שוב להעתיק";
-    tryAgain.style.cssText = "padding:8px 14px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;font-size:13px";
-    tryAgain.onclick = async () => {
-      ta.focus();
-      ta.select();
-      ta.setSelectionRange(0, text.length);
-      try {
-        if (document.execCommand("copy")) {
-          tryAgain.textContent = "✓ הועתק!";
-          setTimeout(() => overlay.remove(), 1200);
-          return;
-        }
-      } catch (e) {}
-      tryAgain.textContent = "סמני וקופי ידני (Ctrl+C)";
-    };
-    const close = document.createElement("button");
-    close.textContent = "סגרי";
-    close.style.cssText = "padding:8px 14px;border-radius:8px;border:none;background:#dc2626;color:#fff;cursor:pointer;font-size:13px";
-    close.onclick = () => overlay.remove();
-    row.appendChild(tryAgain);
-    row.appendChild(close);
-    box.appendChild(row);
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
-    setTimeout(() => { ta.focus(); ta.select(); ta.setSelectionRange(0, text.length); }, 50);
-  }
-
-  document.getElementById("architect-lastRun").textContent = HUB.architect.lastRun || "—";
-  // manager-lastRun removed 2026-05-03 — Event Manager merged into Event Launch Hero
-  document.getElementById("contract-lastRun").textContent  = HUB.contract.lastRun  || "—";
-  document.getElementById("meta-lastRun").textContent      = HUB.meta.lastRun      || "—";
-  document.getElementById("housing-lastRun").textContent   = HUB.housing.lastRun   || "—";
-  document.getElementById("mbs-lastRun").textContent       = HUB.mbs.lastRun       || "—";
-  document.getElementById("scout-lastRun").textContent     = HUB.scout.lastRun     || "—";
-  document.getElementById("canva-lastRun").textContent     = HUB.canva.lastRun     || "—";
-  const reelEl = document.getElementById("canva-reel-lastRun");
-  if (reelEl) reelEl.textContent = (HUB.canva_reel && HUB.canva_reel.lastRun) || "—";
-  document.getElementById("launch-lastRun").textContent    = HUB.launch.lastRun    || "—";
-  document.getElementById("sms-lastRun").textContent       = HUB.sms.lastRun       || "—";
-  const prEl = document.getElementById("pr-lastRun");
-  if (prEl) prEl.textContent = (HUB.pr_organization && HUB.pr_organization.lastRun) || "—";
-  const prInfEl = document.getElementById("pr-influencer-lastRun");
-  if (prInfEl) prInfEl.textContent = (HUB.pr_influencer && HUB.pr_influencer.lastRun) || "—";
-  const fcEl = document.getElementById("forecast-lastRun");
-  if (fcEl) fcEl.textContent = (HUB.forecast && HUB.forecast.lastRun) || "—";
-  const ldEl = document.getElementById("landing-lastRun");
-  if (ldEl) ldEl.textContent = (HUB.landing && HUB.landing.lastRun) || "—";
-
-  document.querySelectorAll(".run-btn").forEach(btn => {
-    if (!btn.hasAttribute("data-cmd")) return;
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const cmd = btn.getAttribute("data-cmd");
-      const ok = await copyText(cmd);
-      if (ok) {
-        const original = btn.textContent;
-        btn.textContent = "✓ Copied — paste in Cowork";
-        btn.classList.add("copied");
-        setTimeout(() => { btn.textContent = original; btn.classList.remove("copied"); }, 2500);
-      } else {
-        showManualCopyModal(cmd);
-      }
-    });
-  });
-
-  // ===== CITY SCOUT FORM =====
-  const scoutBtn = document.getElementById("scout-btn");
-  scoutBtn.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    const city = document.getElementById("scout-city").value.trim();
-    const state = document.getElementById("scout-state").value.trim().toUpperCase();
-    const month = document.getElementById("scout-month").value;
-    if (!city || !state || state.length !== 2) {
-      const original = scoutBtn.textContent;
-      scoutBtn.textContent = "⚠ מלאי עיר + ST (2 אותיות)";
-      scoutBtn.style.background = "linear-gradient(180deg, #fca5a5, #dc2626)";
-      setTimeout(() => { scoutBtn.textContent = original; scoutBtn.style.background = ""; }, 2500);
-      return;
-    }
-    const slug = (city + "-" + state).toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    const monthLine = month ? `\n  Target month: ${month}` : "";
-    const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\` — it is the orchestrator for MBS City Scout. Run for the city below.
-
-CITY
-  Name:  ${city}, ${state}${monthLine}
-
-Look up if this city is already in EVENT_DATA.md Master List 2026:
-  • If YES (already a confirmed event) → recommend running mbs-venue-research instead.
-  • If NO → proceed with full city scout per skill STEPS 1-11.
-
-Run STEPS 0-12 from the skill IN FULL:
-  STEP 0   — read context (MEMORY, EVENT_DATA, AVERAGES, historical xlsx, comms.md, lauren-comms).
-  STEP 0.5 — 🚨 send Touchpoint 1 SMS via SimpleTexting BEFORE any web search ("@scout 🔍 מתחילה סקאוט ל-${city}, ${state}. אעדכן בסוף עם הציון והמועמדים הטובים.") per comms.md.
-  STEPS 1-7 — city profile + MBS match score (X/30) + top 3-5 neighborhoods + 5-10 venue candidates (mid-tier brands or convention/banquet/mall ONLY — AVOID Hilton full / Marriott full / Westin / Ritz / Sheraton Grand / Hyatt Regency, sqft ≥2,500) + printable contract checklist + 3-5 nearby cities + best-month recommendation.
-  STEP 8   — build Hebrew RTL HTML scoped to .mbs-scout.
-  STEP 9   — deploy via deploy-dashboard skill: docs/scout/${slug}/index.html on GH Pages.
-  STEP 10  — append to agent_hub.html SCOUT_REPORTS + HUB.scout.lastRun, redeploy hub.
-  STEP 10.5 — if ${city}, ${state} is in launch_dashboard.html SCHEDULE, upsert SCOUTS["${slug}-<start_date>"] = { score, top_count, href: "../scout/${slug}/", generated_at } so the row's 🔍 City Scout button flips to green "🔍 Scout: NN⭐". If not on schedule, skip.
-  STEP 11  — sanity check (script/body/html closing tags, node --check, browser preview, GH Pages 200).
-  STEP 12  — 🚨 send Touchpoint 3 end-summary SMS via SimpleTexting per comms.md (variant by score: ≥20=Strong / 12-19=Mixed / <12=Weak / on-schedule=City already in schedule). Always include https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/ on its own line.
-
-Mid-run rule: send SMS ONLY for blocker / judgment call / question for Lauren. No routine progress pings. If you ask Lauren anything in Cowork chat (AskUserQuestion), also fire "@scout ❓ שאלה בצ׳אט — תוכלי להגיע למחשב?" SMS at the same moment.
-
-End: confirm scout report URL https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/ is live, a new card appears under City Scout in the hub, and Touchpoints 1 + 3 SMS were both sent.`;
-
-    const ok = await copyText(cmd);
-    if (ok) {
-      const original = scoutBtn.textContent;
-      scoutBtn.textContent = "✓ הועתק! הדביקי בשיחת Cowork חדשה";
-      scoutBtn.classList.add("copied");
-      setTimeout(() => { scoutBtn.textContent = original; scoutBtn.classList.remove("copied"); }, 3500);
-    } else {
-      showManualCopyModal(cmd);
-    }
-  });
-
-  // Render past scout reports
-  const reportsList = document.getElementById("scout-reports-list");
-  if (SCOUT_REPORTS && SCOUT_REPORTS.length > 0) {
-    reportsList.innerHTML = SCOUT_REPORTS
-      .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
-      .map(r => `
-        <div class="scout-report-item">
-          <a href="${r.url}" target="_blank">📄 ${r.city}, ${r.state}</a>
-          <span style="color:var(--muted);font-size:11px">${r.date || ""}${r.score ? " · score " + r.score : ""}</span>
-        </div>`)
-      .join("");
-  }
-
-  // Pre-fill the City Scout form from URL params (added 2026-05-03 for the per-row scout button on launch_dashboard).
-  // URL contract: ../?scout-city=Columbia&scout-state=MO&scout-month=May#scout-card
-  (function prefillScout(){
-    const p = new URLSearchParams(window.location.search);
-    if (!p.has("scout-city") && !p.has("city")) return;
-    const setIf = (id, key) => { const v = p.get(key); if (v && document.getElementById(id)) document.getElementById(id).value = v; };
-    setIf("scout-city",  "scout-city");
-    setIf("scout-state", "scout-state");
-    setIf("scout-month", "scout-month");
-    // Friendly fallback: also support generic ?city=Columbia,+MO so the same URL contract works
-    if (!p.get("scout-city") && p.get("city")) {
-      const m = (p.get("city") || "").match(/^(.+?),\s*([A-Z]{2})\s*$/);
-      if (m) {
-        document.getElementById("scout-city").value  = m[1].trim();
-        document.getElementById("scout-state").value = m[2];
-      }
-    }
-    // Derive month from start_date if provided
-    if (!p.get("scout-month") && p.get("start_date")) {
-      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-      const monthIdx = parseInt((p.get("start_date") || "").slice(5,7), 10) - 1;
-      if (monthIdx >= 0 && monthIdx < 12) {
-        document.getElementById("scout-month").value = months[monthIdx];
-      }
-    }
-    // Smooth-scroll to the card so Lauren lands directly on the form
-    const card = document.getElementById("scout-card");
-    if (card) setTimeout(() => card.scrollIntoView({behavior:"smooth", block:"start"}), 100);
-  })();
-</script>
-
-</body>
-</html>
+      ta.style.cssText = "position:fixed;top:0;left:0;width:1px;he
