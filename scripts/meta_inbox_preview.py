@@ -165,10 +165,15 @@ CITY_PAT = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b")
 CITY_QUESTION_PAT = re.compile(
     r"\b(when|are you|coming|visit|going|sale|event|come)\b.*"
     r"\b(?:to|in|at|near|around)\s+"
-    # Capture up to ?, end-of-line, or a clearly terminal word. Allows multi-word
-    # places like "Northern California bay area" or "San Bernardino county".
-    r"([A-Za-z][A-Za-z0-9\s.\-,/]{1,60}?)"
-    r"(?:\?|\.|!|$|\s+(?:please|thanks|tho|though|thx|ty)\b)",
+    # Capture up to ?, sentence boundary, or a clearly terminal word.
+    # Allows multi-word places like "Northern California bay area" or
+    # "San Bernardino county". Terminates at a new clause boundary
+    # (e.g. " I need" / " love your" / " thanks") so we don't swallow
+    # the rest of the message.
+    r"([A-Za-z][A-Za-z0-9\s.\-,/]{1,80}?)"
+    r"(?:\?|\.|!|$|"
+    r"\s+I[\s\u2019']|"     # "Palmdale / Lancaster I need..." / "I'm" / "I've"
+    r"\s+(?:love|need|want|hope|wish|please|thanks?|tho|though|thx|ty)\b)",
     re.IGNORECASE,
 )
 
