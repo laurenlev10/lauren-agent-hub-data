@@ -358,7 +358,7 @@ def fetch_simpletexting_list_sizes(slug_to_list_id: dict) -> dict:
     for slug, list_id in slug_to_list_id.items():
         if not list_id:
             continue
-        url = f"https://app2.simpletexting.com/api/list/v2/contacts?listId={list_id}&size=1"
+        url = f"https://app2.simpletexting.com/v2/api/contact-lists/{list_id}"
         req = _urlreq.Request(url, headers={
             "Authorization": f"Bearer {token}",
             "Accept": "application/json",
@@ -366,9 +366,19 @@ def fetch_simpletexting_list_sizes(slug_to_list_id: dict) -> dict:
         try:
             with _urlreq.urlopen(req, timeout=15) as resp:
                 data = _json.loads(resp.read().decode())
-            total = data.get("totalElements", data.get("totalCount", 0))
-            out[slug] = {"list_size": int(total), "list_id": list_id, "fetched_at": fetched_at}
-            print(f"  ✓ simpletexting [{slug}]: {total} contacts on list {list_id}")
+            active = data.get("activeContactsCount", 0)
+            total = data.get("totalContactsCount", 0)
+            unsub = data.get("unsubscribedContactsCount", 0)
+            out[slug] = {
+                "list_size": int(active),       # primary metric — active subscribers
+                "total_count": int(total),
+                "unsub_count": int(unsub),
+                "list_id": list_id,
+                "list_name": data.get("name"),
+                "fetched_at": fetched_at,
+            }
+            list_name = data.get("name", "?")
+            print(f"  ✓ simpletexting [{slug}]: {active} active / {total} total ({list_name})")
         except _urlerr.HTTPError as e:
             err_body = ""
             try: err_body = e.read().decode()[:200]
