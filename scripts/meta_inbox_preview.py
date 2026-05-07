@@ -75,7 +75,7 @@ FAQ_KEYWORDS = [
      "What are the hours?"),
     (re.compile(r"\b(brand|carry|sell|product line)s?\b", re.I),
      "What brands do you have?"),
-    (re.compile(r"\b(mystery|box|grab\s*bag)\b", re.I),
+    (re.compile(r"\b(what.*mystery\s*box|mystery\s*box.*what|how.*mystery\s*box|mystery\s*box\s*\?|grab\s*bag)\b", re.I),
      "What is the Mystery Box?"),
     (re.compile(r"\b(parking|lot)\b", re.I),
      None),  # FAQ may have "Is parking free?"; if not matched will be Bucket B
@@ -92,14 +92,80 @@ NEGATIVE_KEYWORDS = re.compile(
     re.I,
 )
 
+# Customer-issue patterns — past purchase / problem report. ALWAYS Bucket B.
+CUSTOMER_ISSUE_PAT = re.compile(
+    r"\b(i\s+(bought|purchased|got|paid|ordered)|"
+    r"problem|issue|complaint|didn'?t\s+(receive|get|work)|"
+    r"never\s+(received|got)|broken|damaged|wrong\s+item|"
+    r"refund|return|missing|disappointed|unhappy)\b",
+    re.I,
+)
+
 CITY_PAT = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b")
+
+
+# Pattern that detects "when are you coming to X / X event / sale in X"
+# style intent, regardless of capitalization.
+CITY_QUESTION_PAT = re.compile(
+    r"\b(when|are you|coming|visit|going|sale|event|come)\b.*"
+    r"\b(?:to|in|at|near|around)\s+([A-Za-z][\w\s.\-,/]{2,40}?)\b"
+    r"(?:\?|\s|$)",
+    re.IGNORECASE,
+)
+
+# Also catch the bare "X???" pattern — just a place name, no verb (common on mobile).
+# We only fire this fallback if no FAQ keyword matched AND the text is short.
+BARE_PLACE_PAT = re.compile(r"^\s*([A-Za-z][\w\s.\-,/]{2,40}?)\s*\?+\s*$", re.IGNORECASE)
+
+
+def _normalize_place(s: str) -> str:
+    """Lower, strip punctuation, collapse spaces. 'sanbernardino' stays as-is."""
+    return re.sub(r"[^a-z0-9 ]+", " ", s.lower()).strip()
+
+
+def _find_in_schedule(place: str, schedule: dict):
+    """
+    Try to find this place in the schedule with fuzzy matching:
+    - Exact lowercase match
+    - Substring match (e.g. 'columbia' matches 'columbia, mo')
+    - Word-by-word: 'sanbernardino' matches 'san bernardino, ca'
+    Returns (city_key, dates) tuple or None.
+    """
+    p = _normalize_place(place)
+    if not p:
+        return None
+    sched_keys = list(schedule.keys())
+    # Exact
+    for k in sched_keys:
+        if _normalize_place(k) == p:
+            return (k, schedule[k])
+    # Substring
+    for k in sched_keys:
+        nk = _normalize_place(k)
+        if p in nk or nk.split(",")[0].strip() in p:
+            return (k, schedule[k])
+    # Concatenated (sanbernardino → san bernardino)
+    p_compact = p.replace(" ", "")
+    for k in sched_keys:
+        if _normalize_place(k).replace(" ", "").startswith(p_compact[:8]):
+            return (k, schedule[k])
+    return None
+
+
+# City Rotation Policy reply (lifted from KB section 5)
+CITY_ROTATION_REPLY = (
+    "We visit each city once every 1–2 years to keep things exciting! 🤩 "
+    "Which city would YOU recommend we come to next? We'll do our best to "
+    "make it happen! 💄✨"
+)
 
 
 def classify(text: str, kb: dict) -> dict:
     """
-    Return {bucket: 'A'|'B', reason, suggested_reply} for a message.
+    Return {bucket: 'A'|'B'|'NEG', reason, suggested_reply} for a message.
     Bucket A = answerable from KB (auto-reply).
     Bucket B = needs Lauren (low confidence, complex, or no KB match).
+    NEG     = never auto-reply (negative/skeptical comment).
     """
     if not text or len(text.strip()) < 2:
         return {"bucket": "B", "reason": "empty/too short", "reply": None}
@@ -110,11 +176,16 @@ def classify(text: str, kb: dict) -> dict:
     if NEGATIVE_KEYWORDS.search(t):
         return {"bucket": "NEG", "reason": "negative keywords detected", "reply": None}
 
-    # FAQ keyword match
+    # Past-purchase or customer-issue — always Bucket B (Lauren handles personally)
+    if CUSTOMER_ISSUE_PAT.search(t):
+        return {"bucket": "B",
+                "reason": "Customer issue / past purchase pattern — needs Lauren personally",
+                "reply": None}
+
+    # FAQ keyword match (priority over city question — "are you free?" outranks "are you coming")
     for pattern, faq_q in FAQ_KEYWORDS:
         if pattern.search(t):
             if faq_q:
-                # Find the FAQ answer
                 for f in kb["faqs"]:
                     if f["q"].lower().startswith(faq_q.lower()[:20]):
                         return {"bucket": "A", "reason": f"FAQ match: {f['q']}",
@@ -122,20 +193,29 @@ def classify(text: str, kb: dict) -> dict:
             return {"bucket": "B", "reason": "keyword matched but no KB answer",
                     "reply": None}
 
-    # City question — does the message mention a city we visit?
-    cities_mentioned = []
-    for m in CITY_PAT.finditer(t):
-        candidate = m.group(1).lower()
-        if candidate in kb["schedule"]:
-            cities_mentioned.append(candidate)
-
-    if cities_mentioned:
-        c = cities_mentioned[0]
-        dates = kb["schedule"][c]
-        return {"bucket": "A", "reason": f"City on schedule: {c.title()}",
-                "reply": f"Yes! 🎉 We're coming to {c.title()} on {dates}! "
-                         f"Hours: Fri–Sun 10am–5pm. Free admission, free parking. "
-                         f"💄✨ Hope to see you there!"}
+    # City question intent — "when are you coming to X" / "sale in X"
+    m_q = CITY_QUESTION_PAT.search(t)
+    m_b = BARE_PLACE_PAT.match(t) if not m_q else None
+    if m_q or m_b:
+        place = (m_q.group(2) if m_q else m_b.group(1)).strip()
+        hit = _find_in_schedule(place, kb["schedule"])
+        if hit:
+            city_key, dates = hit
+            city_title = city_key.split(",")[0].strip().title()
+            return {"bucket": "A",
+                    "reason": f"City question — '{place}' matches schedule entry '{city_key}'",
+                    "reply": f"Yes! 🎉 We're coming to {city_title} on {dates}! "
+                             f"Friday–Sunday, 10am–5pm. Free admission, free parking. "
+                             f"💄✨ Hope to see you there!"}
+        # Strong city-question intent (CITY_QUESTION_PAT) but not on schedule → rotation policy
+        if m_q:
+            return {"bucket": "A",
+                    "reason": f"City question — '{place}' NOT on schedule, applying rotation policy",
+                    "reply": CITY_ROTATION_REPLY}
+        # Bare-place pattern (no verb) and not on schedule = ambiguous — Lauren reviews
+        return {"bucket": "B",
+                "reason": f"Bare-place pattern matched '{place}' but not on schedule — ambiguous, Lauren reviews",
+                "reply": None}
 
     # Generic fallback
     return {"bucket": "B", "reason": "no KB pattern matched",
