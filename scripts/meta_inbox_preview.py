@@ -71,7 +71,9 @@ def load_kb(docx_path: Path) -> dict:
 FAQ_KEYWORDS = [
     (re.compile(r"\b(free|admission|ticket|cost.*entry|enter)\b", re.I),
      "Is admission free?"),
-    (re.compile(r"\b(hour|when.*open|time|schedule|am|pm|10\s*-\s*5)\b", re.I),
+    (re.compile(r"\b(what\s+(time|hour)|when.*(open|close|hour)|"
+                r"(hours?|times?)\s+of\s+operation|"
+                r"\d{1,2}\s*(am|pm)|10\s*-\s*5)\b", re.I),
      "What are the hours?"),
     (re.compile(r"\b(brand|carry|sell|product line)s?\b", re.I),
      "What brands do you have?"),
@@ -108,8 +110,11 @@ CITY_PAT = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b")
 # style intent, regardless of capitalization.
 CITY_QUESTION_PAT = re.compile(
     r"\b(when|are you|coming|visit|going|sale|event|come)\b.*"
-    r"\b(?:to|in|at|near|around)\s+([A-Za-z][\w\s.\-,/]{2,40}?)\b"
-    r"(?:\?|\s|$)",
+    r"\b(?:to|in|at|near|around)\s+"
+    # Capture up to ?, end-of-line, or a clearly terminal word. Allows multi-word
+    # places like "Northern California bay area" or "San Bernardino county".
+    r"([A-Za-z][A-Za-z0-9\s.\-,/]{1,60}?)"
+    r"(?:\?|\.|!|$|\s+(?:please|thanks|tho|though|thx|ty)\b)",
     re.IGNORECASE,
 )
 
@@ -119,8 +124,36 @@ BARE_PLACE_PAT = re.compile(r"^\s*([A-Za-z][\w\s.\-,/]{2,40}?)\s*\?+\s*$", re.IG
 
 
 def _normalize_place(s: str) -> str:
-    """Lower, strip punctuation, collapse spaces. 'sanbernardino' stays as-is."""
+    """Lower, strip punctuation, collapse spaces."""
     return re.sub(r"[^a-z0-9 ]+", " ", s.lower()).strip()
+
+
+# Common US-place prefixes that often get concatenated in mobile typing.
+_PLACE_PREFIXES = ["san ", "los ", "las ", "el ", "new ", "north ", "south ",
+                   "east ", "west ", "fort ", "saint ", "st "]
+
+def _prettify_place(raw: str) -> str:
+    """
+    Turn user-typed place strings into a clean Title Case for the reply.
+    Examples:
+      'sanbernardino'           -> 'San Bernardino'
+      'Northern California bay' -> 'Northern California Bay'
+      'arizona'                 -> 'Arizona'
+    """
+    p = raw.strip().rstrip("?,.!").strip()
+    pl = p.lower()
+    # Only apply prefix-split if the input is a SINGLE lowercase concatenated
+    # word with no spaces — e.g. "sanbernardino". Multi-word inputs like
+    # "Northern California bay" get plain Title Case (no prefix manipulation).
+    if " " not in pl and pl == p.lower():
+        for prefix in _PLACE_PREFIXES:
+            compact = prefix.replace(" ", "")
+            # Require the rest to be at least 4 chars to avoid splitting
+            # "northern" → "north" + "ern".
+            if pl.startswith(compact) and len(pl) >= len(compact) + 4 and not pl.startswith(prefix):
+                rest = p[len(compact):]
+                return (prefix + rest).title()
+    return p.title()
 
 
 def _find_in_schedule(place: str, schedule: dict):
@@ -152,12 +185,18 @@ def _find_in_schedule(place: str, schedule: dict):
     return None
 
 
-# City Rotation Policy reply (lifted from KB section 5)
-CITY_ROTATION_REPLY = (
-    "We visit each city once every 1–2 years to keep things exciting! 🤩 "
-    "Which city would YOU recommend we come to next? We'll do our best to "
-    "make it happen! 💄✨"
-)
+def city_rotation_reply(place: str) -> str:
+    """
+    Lauren's preferred off-schedule reply (set 2026-05-06 PM):
+    Name the specific city, say we're not planning this year, promise next year.
+    """
+    p = _prettify_place(place) if place else "your area"
+    return (
+        f"This year we're not planning a sale in {p} — we visit each city once "
+        f"every 1–2 years to keep things exciting! 🤩 We'll do our best to make "
+        f"it to {p} next year! Keep an eye on our Facebook page so you don't "
+        f"miss the announcement 👀💄✨"
+    )
 
 
 def classify(text: str, kb: dict) -> dict:
@@ -210,8 +249,8 @@ def classify(text: str, kb: dict) -> dict:
         # Strong city-question intent (CITY_QUESTION_PAT) but not on schedule → rotation policy
         if m_q:
             return {"bucket": "A",
-                    "reason": f"City question — '{place}' NOT on schedule, applying rotation policy",
-                    "reply": CITY_ROTATION_REPLY}
+                    "reason": f"City question — '{place}' NOT on 2026 schedule, applying city-specific 'next year' reply",
+                    "reply": city_rotation_reply(place)}
         # Bare-place pattern (no verb) and not on schedule = ambiguous — Lauren reviews
         return {"bucket": "B",
                 "reason": f"Bare-place pattern matched '{place}' but not on schedule — ambiguous, Lauren reviews",
