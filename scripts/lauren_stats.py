@@ -934,7 +934,8 @@ def extract_event_financials_from_launch_dashboard(html_path) -> dict:
         print(f"  ⚠ SUMMARIES parse failed: {e}")
         return {}
 
-def get_next_n_upcoming_events(schedule: dict, n: int = 4) -> list:
+def get_next_n_upcoming_events(schedule: dict, n: int = 4,
+                                 list_stats: dict = None) -> list:
     """Return list of next N upcoming events sorted by start_date.
 
     Uses SCHEDULE constant (from launch_dashboard.html) which contains ALL events
@@ -949,6 +950,7 @@ def get_next_n_upcoming_events(schedule: dict, n: int = 4) -> list:
             all_events.append(ev)
 
     candidates = []
+    seen_evkeys = set()
     for ev in all_events:
         sd_str = ev.get("start_date")
         if not sd_str:
@@ -967,6 +969,7 @@ def get_next_n_upcoming_events(schedule: dict, n: int = 4) -> list:
             continue
         slug = f"{city}-{state}-{year}"
         evkey = f"{city}-{sd_str}"
+        seen_evkeys.add(evkey)
         is_live = (sd <= today <= ed)
         candidates.append({
             "slug": slug,
@@ -979,6 +982,49 @@ def get_next_n_upcoming_events(schedule: dict, n: int = 4) -> list:
             "is_live": is_live,
             "days_remaining": (sd - today).days,
         })
+
+    # Merge in events from list_stats that aren't yet in SCHEDULE (e.g., Roseville,
+    # Fort Collins added after schedule was baked). Derive state from list_name.
+    if list_stats:
+        import re
+        for evkey, ls in list_stats.items():
+            if evkey in seen_evkeys:
+                continue
+            # evkey shape: "city-slug-YYYY-MM-DD"
+            m = re.match(r"^(.+)-(\d{4}-\d{2}-\d{2})$", evkey)
+            if not m:
+                continue
+            city_slug, sd_str = m.group(1), m.group(2)
+            try:
+                sd = _dt.date.fromisoformat(sd_str)
+                ed = sd + _dt.timedelta(days=2)  # default 2-day events
+            except Exception:
+                continue
+            if ed < today:
+                continue
+            # Parse state from list_name like "Roseville, MN 2026"
+            list_name = ls.get("list_name") or ""
+            sm = re.search(r",\s*([A-Z]{2})\b", list_name)
+            if not sm:
+                continue
+            state = sm.group(1).lower()
+            year = sd_str[:4]
+            slug = f"{city_slug}-{state}-{year}"
+            is_live = (sd <= today <= ed)
+            # Reconstruct city display name from list_name (before comma)
+            display_city = list_name.split(",")[0].strip() if "," in list_name else city_slug.replace("-", " ").title()
+            candidates.append({
+                "slug": slug,
+                "evkey": evkey,
+                "city": display_city,
+                "state": state.upper(),
+                "start_date": sd_str,
+                "end_date": ed.isoformat(),
+                "venue": None,
+                "is_live": is_live,
+                "days_remaining": (sd - today).days,
+            })
+
     candidates.sort(key=lambda x: x["start_date"])
     return candidates[:n]
 
