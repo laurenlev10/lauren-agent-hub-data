@@ -68,6 +68,58 @@
   .run-now.copied { background: #059669; }
   .header-actions { display: flex; gap: 10px; align-items: center; }
   .stamp { color: var(--muted); font-size: 14px; }
+
+  /* === API-flow banner (added 2026-05-07 — Phase 1 active) === */
+  .api-banner {
+    background: linear-gradient(135deg, #ec4899, #f59e0b);
+    color: #fff;
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 22px;
+    box-shadow: 0 4px 16px rgba(236, 72, 153, 0.25);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 22px;
+    justify-content: space-between;
+  }
+  .api-banner .api-title {
+    font-size: 18px;
+    font-weight: 800;
+    margin: 0 0 4px;
+  }
+  .api-banner .api-sub {
+    font-size: 13px;
+    opacity: 0.9;
+    margin: 0;
+    line-height: 1.4;
+  }
+  .api-banner .api-stats {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin: 6px 0 0;
+  }
+  .api-banner .api-stat { font-size: 13px; opacity: 0.95; }
+  .api-banner .api-stat b { font-size: 16px; display: block; line-height: 1; margin-bottom: 2px; }
+  .api-banner .api-cta {
+    background: #fff;
+    color: #ec4899;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 14px;
+    text-decoration: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    white-space: nowrap;
+    transition: transform .1s, box-shadow .15s;
+  }
+  .api-banner .api-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+  @media (max-width: 600px) {
+    .api-banner { padding: 14px 16px; }
+    .api-banner .api-title { font-size: 16px; }
+    .api-banner .api-cta { width: 100%; text-align: center; }
+  }
   .session-tag {
     display: inline-block;
     padding: 2px 10px;
@@ -396,6 +448,41 @@ const SCAN = {
     <a class="back-hub" href="../">← Agent Hub</a>
   </div>
 </header>
+
+  <!-- ===== API-flow Phase 1 banner (added 2026-05-07) ===== -->
+  <div class="api-banner" id="api-banner">
+    <div>
+      <div class="api-title">📡 Daily Meta API scan — Phase 1 active</div>
+      <p class="api-sub" id="api-banner-sub">
+        The agent runs automatically <b>every day at 8 PM PDT</b> and shows you only what needs your attention.
+      </p>
+      <div class="api-stats" id="api-banner-stats">
+        <div class="api-stat"><b id="api-stat-attn">—</b>need you</div>
+        <div class="api-stat"><b id="api-stat-drafts">—</b>auto-drafts</div>
+        <div class="api-stat"><b id="api-stat-when">—</b>last run</div>
+      </div>
+    </div>
+    <a class="api-cta" href="inbox-api-preview/">👀 Open today's items →</a>
+  </div>
+
+  <script>
+    // Pull the latest preview's data.json and show summary stats in the banner
+    (async () => {
+      try {
+        const r = await fetch("inbox-api-preview/data.json", { cache: "no-store" });
+        if (!r.ok) return;
+        const d = await r.json();
+        const items = (d.messenger || []).concat(d.fb_comments || []).concat(d.ig_comments || []);
+        const attn = items.filter(i => i.cls && (i.cls.bucket === "B" || i.cls.bucket === "NEG")).length;
+        const drafts = items.filter(i => i.cls && i.cls.bucket === "A").length;
+        const when = d.fetched_at ? new Date(d.fetched_at) : null;
+        const whenText = when ? when.toLocaleString("en-US", {month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}) : "—";
+        document.getElementById("api-stat-attn").textContent = attn;
+        document.getElementById("api-stat-drafts").textContent = drafts;
+        document.getElementById("api-stat-when").textContent = whenText;
+      } catch (e) { /* silent */ }
+    })();
+  </script>
 
 <!-- Sync settings modal -->
 <div class="modal-overlay" id="syncModal">
