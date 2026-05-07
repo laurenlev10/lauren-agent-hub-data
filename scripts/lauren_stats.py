@@ -570,3 +570,310 @@ def aggregate_with_funnel(slugs: list, events: list, setups: dict,
 
     return base
 
+
+
+# ---------------------------------------------------------------------------
+# Insights generator (Level 2 ext)
+# ---------------------------------------------------------------------------
+
+def fetch_all_simpletexting_lists() -> list:
+    """Fetch all SimpleTexting contact lists (paginated). Returns flat list of dicts."""
+    token = _os.environ.get("SIMPLETEXTING_TOKEN")
+    if not token:
+        return []
+    out = []
+    page = 0
+    while True:
+        url = f"https://app2.simpletexting.com/v2/api/contact-lists?size=200&page={page}"
+        req = _urlreq.Request(url, headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+        })
+        try:
+            with _urlreq.urlopen(req, timeout=20) as resp:
+                data = _json.loads(resp.read().decode())
+            content = data.get("content", [])
+            if not content:
+                break
+            out.extend(content)
+            if len(content) < 200:
+                break
+            page += 1
+            if page > 5:  # cap at 6 pages = 1200 lists
+                break
+        except Exception as e:
+            print(f"  ⚠ fetch_all_simpletexting_lists page {page} failed: {e}")
+            break
+    return out
+
+
+def find_previous_year_lists(city: str, state: str, current_year: int, all_lists: list) -> list:
+    """Find prev-year SimpleTexting lists for a city.
+
+    Requires BOTH city + state to match — Roseville MN should NOT match Roseville CA.
+    Older lists that don't include state code at all are skipped to avoid false matches.
+
+    Matched name patterns (state required):
+      "Columbia, MO 2025"  /  "Columbia MO 2024"  /  "Columbia, MO Tradeshow 2023"
+    """
+    import re
+    city_lower = city.lower()
+    state_upper = state.upper()
+    out = []
+    for lst in all_lists:
+        name = (lst.get("name") or "").strip()
+        # Year extraction: 4-digit year somewhere in the name
+        ym = re.search(r"\b(20\d{2})\b", name)
+        if not ym:
+            continue
+        year = int(ym.group(1))
+        if year >= current_year:
+            continue
+        # Both city AND state must appear (case-insensitive for city, exact uppercase for state)
+        if city_lower not in name.lower():
+            continue
+        # State must be a separate token: " MO ", ", MO " or ", MO 2023"
+        if not re.search(rf"[\s,]+{re.escape(state_upper)}\b", name):
+            continue
+        out.append({
+            "list_id": lst.get("listId"),
+            "name": name,
+            "year": year,
+            "active": lst.get("activeContactsCount", 0),
+            "total": lst.get("totalContactsCount", 0),
+        })
+    out.sort(key=lambda x: x["year"], reverse=True)
+    return out
+
+
+def compute_real_averages(financials: dict, eventbrite_stats: dict, current_sms_data: dict) -> dict:
+    """Compute YTD real averages from EVENT_FINANCIALS + EVENTBRITE_STATS + active SMS data.
+
+    Args:
+        financials: dict of past 2026 events with profit/sales {evkey: {profit, profit_pct, sales}}
+        eventbrite_stats: dict of all events with {registrations, capacity, history}
+        current_sms_data: dict from fetch_simpletexting_list_sizes (for upcoming events)
+
+    Returns:
+        {
+          ytd_avg_sales, ytd_avg_profit, ytd_avg_profit_pct, ytd_event_count,
+          avg_eventbrite_at_today (across upcoming),
+          avg_sms_list_size (across upcoming)
+        }
+    """
+    out = {
+        "ytd_event_count": 0,
+        "ytd_avg_sales": 0,
+        "ytd_avg_profit": 0,
+        "ytd_avg_profit_pct": 0,
+        "avg_eventbrite_upcoming": 0,
+        "avg_sms_list_size": 0,
+    }
+    if financials:
+        ev_count = len(financials)
+        sales = [v.get("sales", 0) for v in financials.values()]
+        profits = [v.get("profit", 0) for v in financials.values()]
+        pcts = [v.get("profit_pct", 0) for v in financials.values()]
+        out["ytd_event_count"] = ev_count
+        out["ytd_avg_sales"] = round(sum(sales) / ev_count) if ev_count else 0
+        out["ytd_avg_profit"] = round(sum(profits) / ev_count) if ev_count else 0
+        out["ytd_avg_profit_pct"] = round(sum(pcts) / ev_count, 1) if ev_count else 0
+
+    # Upcoming events Eventbrite avg
+    if eventbrite_stats:
+        upcoming = [v.get("registrations", 0) for k, v in eventbrite_stats.items()
+                    if v.get("registrations", 0) > 0]
+        if upcoming:
+            out["avg_eventbrite_upcoming"] = round(sum(upcoming) / len(upcoming))
+
+    # SMS avg across active events
+    if current_sms_data:
+        actives = [v.get("list_size", 0) for v in current_sms_data.values() if v.get("list_size")]
+        if actives:
+            out["avg_sms_list_size"] = round(sum(actives) / len(actives))
+
+    return out
+
+
+def is_event_weekend(date, all_events: list) -> bool:
+    """Returns True if `date` falls on Fri/Sat/Sun OF any event (any city).
+
+    Used to exclude POS-driven SMS spikes from marketing growth rate.
+    """
+    if hasattr(date, "weekday"):
+        wday = date.weekday()
+    else:
+        wday = _dt.date.fromisoformat(str(date)).weekday()
+    if wday < 4:  # Mon-Thu
+        return False
+    for ev in all_events:
+        try:
+            sd = _dt.date.fromisoformat(ev.get("start_date") or "")
+            ed = _dt.date.fromisoformat(ev.get("end_date") or "")
+            if sd <= date <= ed:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def generate_per_event_insights(slug: str, ev: dict, averages: dict,
+                                  prev_year_lists: list = None) -> dict:
+    """Build narrative insight + recommendations for one event.
+
+    Returns dict with: bucket (critical/watch/strong), narrative, recommendation
+    """
+    eb_reg = ev.get("eventbrite_registered", 0)
+    eb_cap = ev.get("eventbrite_capacity", 250)
+    sms_reg = ev.get("sms_registered", 0)
+    forecast = ev.get("forecast", {})
+    days = forecast.get("days_remaining") if forecast else None
+    avg_eb = averages.get("avg_eventbrite_upcoming", 0) or 1
+    avg_sms = averages.get("avg_sms_list_size", 0) or 1
+
+    # Bucket logic
+    pct_of_avg_eb = round(eb_reg / avg_eb * 100) if avg_eb else 0
+    pct_of_avg_sms = round(sms_reg / avg_sms * 100) if avg_sms else 0
+
+    if days is not None and days <= 3 and pct_of_avg_eb < 70:
+        bucket = "critical"
+    elif pct_of_avg_eb < 80:
+        bucket = "watch"
+    else:
+        bucket = "strong"
+
+    # YoY comparison
+    yoy_text = ""
+    if prev_year_lists:
+        last = prev_year_lists[0]
+        delta_pct = round((sms_reg - last["active"]) / last["active"] * 100) if last["active"] else 0
+        sign = "+" if delta_pct >= 0 else ""
+        yoy_text = f"vs {last['year']}: {last['active']} ({sign}{delta_pct}% השנה)"
+
+    # Narrative — turn "columbia-mo-2026" into "Columbia, MO"
+    parts = slug.rsplit("-", 2)
+    if len(parts) == 3:
+        city_name = parts[0].replace("-", " ").title() + ", " + parts[1].upper()
+    else:
+        city_name = slug.replace("-", " ").title()
+    days_str = f"{days}d" if days is not None else "—"
+    narrative = f"{city_name} — RSVPs {eb_reg} ({pct_of_avg_eb}% מהממוצע)"
+    if days is not None:
+        narrative += f", {days_str} לאירוע"
+    if forecast and forecast.get("projected_total"):
+        narrative += f" → צפי {forecast['projected_total']}"
+
+    # Recommendation
+    rec = None
+    if bucket == "critical":
+        if sms_reg > 100:
+            rec = f"SMS דחוף ל-{sms_reg} ברשימה"
+        else:
+            rec = "תקציב מודעות + SMS ל-קהל הרחב"
+    elif bucket == "watch":
+        if forecast and forecast.get("daily_rate", 0) > 0:
+            need = max(0, forecast.get("gap", 0) // max(1, days or 1))
+            rec = f"קצב נוכחי {forecast['daily_rate']:.1f}/יום, צריך {need}/יום להגיע ליעד"
+
+    return {
+        "slug": slug,
+        "bucket": bucket,
+        "narrative": narrative,
+        "yoy_text": yoy_text,
+        "recommendation": rec,
+        "eb_reg": eb_reg,
+        "eb_cap": eb_cap,
+        "sms_reg": sms_reg,
+        "pct_of_avg_eb": pct_of_avg_eb,
+        "pct_of_avg_sms": pct_of_avg_sms,
+        "days_remaining": days,
+    }
+
+
+def format_insights_sms(insights: list, averages: dict, ts: str = None) -> str:
+    """Format the per-event insights into a Hebrew SMS digest."""
+    ts = ts or _dt.datetime.now().strftime("%b %d · %H:%M")
+    lines = [f"🧠 @stats Insights · {ts}", ""]
+
+    crits = [i for i in insights if i["bucket"] == "critical"]
+    watch = [i for i in insights if i["bucket"] == "watch"]
+    strong = [i for i in insights if i["bucket"] == "strong"]
+
+    if crits:
+        lines.append("🚨 Critical:")
+        for i in crits:
+            lines.append(f"• {i['narrative']}")
+            if i.get("yoy_text"):
+                lines.append(f"  📅 {i['yoy_text']}")
+            if i.get("recommendation"):
+                lines.append(f"  → {i['recommendation']}")
+        lines.append("")
+
+    if watch:
+        lines.append("⚠️ Watch:")
+        for i in watch:
+            lines.append(f"• {i['narrative']}")
+            if i.get("yoy_text"):
+                lines.append(f"  📅 {i['yoy_text']}")
+            if i.get("recommendation"):
+                lines.append(f"  → {i['recommendation']}")
+        lines.append("")
+
+    if strong:
+        lines.append("✅ Strong:")
+        for i in strong:
+            line = f"• {i['narrative']}"
+            if i.get("yoy_text"):
+                line += f" — {i['yoy_text']}"
+            lines.append(line)
+        lines.append("")
+
+    if averages.get("ytd_event_count"):
+        lines.append("📈 YTD Averages:")
+        lines.append(f"• {averages['ytd_event_count']} אירועים: ${averages['ytd_avg_sales']:,} ממוצע מכירות, {averages['ytd_avg_profit_pct']}% רווח")
+        if averages.get("avg_eventbrite_upcoming"):
+            lines.append(f"• ממוצע RSVPs באירועים הבאים: {averages['avg_eventbrite_upcoming']}")
+        if averages.get("avg_sms_list_size"):
+            lines.append(f"• ממוצע SMS list לעיר: {averages['avg_sms_list_size']:,}")
+        lines.append("")
+
+    lines.append("🔗 https://laurenlev10.github.io/lauren-agent-hub-data/launch/")
+    return "\n".join(lines)
+
+
+def extract_event_financials_from_launch_dashboard(html_path) -> dict:
+    """Parse SUMMARIES = {...}; from launch_dashboard.html (mbs-event-summary outputs).
+
+    Uses balanced-bracket walk because regex .*? fails on nested objects, and
+    strips trailing commas before json.loads since JS allows them but JSON doesn't.
+    """
+    import re
+    p = _Path(html_path)
+    if not p.exists():
+        return {}
+    text = p.read_text(encoding="utf-8")
+    m = re.search(r"const SUMMARIES\s*=\s*", text)
+    if not m:
+        return {}
+    start = m.end()
+    depth, in_str, esc = 0, False, False
+    end = start
+    for i in range(start, len(text)):
+        c = text[i]
+        if esc: esc = False; continue
+        if c == "\\": esc = True; continue
+        if c == '"' and not esc: in_str = not in_str; continue
+        if in_str: continue
+        if c == "{": depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1; break
+    raw = text[start:end]
+    # Strip trailing commas before } and ]
+    raw = re.sub(r",(\s*[\]}])", r"\1", raw)
+    try:
+        return _json.loads(raw)
+    except Exception as e:
+        print(f"  ⚠ SUMMARIES parse failed: {e}")
+        return {}

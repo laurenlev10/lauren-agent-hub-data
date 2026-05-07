@@ -1,21 +1,29 @@
 name: Marketing stats — pull from GA4 + Meta + TikTok + SimpleTexting
 
-# Aggregates per-event traffic, conversion %, share clicks, ROAS, and SMS funnel.
-# Updates three state files:
-#   - lauren-agent-hub-data: docs/state/conversion_history.json (rolling — used by @forecast)
-#   - themakeupblowout-events: docs/state/event_analytics.json (per-event — used by stats.html)
-#   - lauren-agent-hub-data: docs/launch/index.html (EVENT_ANALYTICS map — flips Stats button green)
+# Aggregates per-event traffic, conversion %, ROAS, SMS funnel + insights digest.
+#
+# State files updated:
+#   - lauren-agent-hub-data: docs/state/conversion_history.json
+#   - themakeupblowout-events: docs/state/event_analytics.json
+#   - lauren-agent-hub-data: docs/launch/index.html (EVENT_ANALYTICS map)
+#
+# Cron schedule:
+#   - "30 */6 * * *" → every 6 hours (data refresh only, no SMS)
+#   - "0 16 * * *"   → 9 AM PT daily (data refresh + SMS digest to Lauren + Eli)
+#   - "0 4  * * *"   → 9 PM PT daily (data refresh + SMS digest)
 #
 # Required GitHub Secrets:
 #   GA4_PROPERTY_ID, GA4_SERVICE_ACCOUNT_JSON
 #   META_PAGE_TOKEN, META_AD_ACCOUNT_ID
 #   TIKTOK_ACCESS_TOKEN, TIKTOK_ADVERTISER_ID
-#   SIMPLETEXTING_TOKEN  (for funnel-end SMS list size — Level 2)
-#   EVENTS_REPO_PAT      (PAT with write access to themakeupblowout-events)
+#   SIMPLETEXTING_TOKEN, EVENTS_REPO_PAT
+#   LAUREN_PHONE (optional, default 4243547625), ELI_PHONE
 
 on:
   schedule:
-    - cron: "30 */6 * * *"  # 00:30, 06:30, 12:30, 18:30 UTC daily
+    - cron: "30 */6 * * *"   # Data pull every 6h
+    - cron: "0 16 * * *"     # 9 AM PT — SMS digest
+    - cron: "0 4 * * *"      # 9 PM PT — SMS digest
   workflow_dispatch: {}
 
 jobs:
@@ -23,6 +31,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      SHOULD_SEND_SMS: ${{ github.event.schedule == '0 16 * * *' || github.event.schedule == '0 4 * * *' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,9 +52,12 @@ jobs:
           python3 - <<'PY'
           import sys, json, urllib.request
           sys.path.insert(0, "scripts")
-          from lauren_stats import aggregate_with_funnel, detect_anomalies, extract_setups_from_launch_dashboard, extract_eventbrite_stats_from_launch_dashboard
+          from lauren_stats import (
+              aggregate_with_funnel, detect_anomalies,
+              extract_setups_from_launch_dashboard,
+              extract_eventbrite_stats_from_launch_dashboard,
+          )
 
-          # 1. Pull upcoming events list
           url = "https://events.themakeupblowout.com/upcoming-events.json"
           try:
               with urllib.request.urlopen(url, timeout=10) as r:
@@ -56,19 +69,15 @@ jobs:
               city = (e.get("city") or "").lower().replace(" ", "-")
               state = (e.get("state") or "").lower()
               year = (e.get("start_date") or "")[:4]
-              if city and state and year:
-                  slugs.append(f"{city}-{state}-{year}")
+              if city and state and year: slugs.append(f"{city}-{state}-{year}")
           print(f"Pulling stats for {len(slugs)} events")
 
-          # 2. Parse SETUPS + EVENTBRITE_STATS from launch_dashboard.html
           setups = extract_setups_from_launch_dashboard("docs/launch/index.html")
           eb_stats = extract_eventbrite_stats_from_launch_dashboard("docs/launch/index.html")
-          print(f"Loaded {len(setups)} SETUPS entries, {len(eb_stats)} EVENTBRITE_STATS entries")
+          print(f"Loaded {len(setups)} SETUPS, {len(eb_stats)} EVENTBRITE_STATS")
 
-          # 3. Aggregate everything (GA4 + Meta + TikTok + SimpleTexting + Eventbrite + funnel + forecast)
           data = aggregate_with_funnel(slugs, events, setups, eventbrite_stats=eb_stats)
 
-          # 4. Detect anomalies
           baselines = {"median_conv_rate_overall": 0.10}
           for slug, ev in data["events"].items():
               ev["anomalies"] = []
@@ -76,12 +85,11 @@ jobs:
           for a in ann:
               data["events"][a["event"]]["anomalies"].append(a)
 
-          # 5. Write conversion_history.json
           import os
           os.makedirs("docs/state", exist_ok=True)
           with open("docs/state/conversion_history.json", "w") as f:
               json.dump(data, f, indent=2, ensure_ascii=False)
-          print(f"Wrote conversion_history.json with {len(data['events'])} events, {len(ann)} anomalies")
+          print(f"Wrote {len(data['events'])} events, {len(ann)} anomalies")
           PY
 
       - name: Upsert EVENT_ANALYTICS into launch_dashboard.html
@@ -92,8 +100,7 @@ jobs:
           GH_PAT: ${{ secrets.EVENTS_REPO_PAT }}
         run: |
           if [ -z "$GH_PAT" ]; then
-            echo "⚠ EVENTS_REPO_PAT not set — skipping cross-repo push"
-            exit 0
+            echo "⚠ EVENTS_REPO_PAT not set — skipping cross-repo push"; exit 0
           fi
           git clone https://x-access-token:${GH_PAT}@github.com/laurenlev10/themakeupblowout-events.git /tmp/events
           cp docs/state/conversion_history.json /tmp/events/docs/state/event_analytics.json
@@ -118,48 +125,79 @@ jobs:
             git push origin main
           fi
 
-      - name: Anomaly SMS alert (if any critical)
-        if: success()
+      - name: Send insights digest SMS (9 AM/PM PT)
+        if: env.SHOULD_SEND_SMS == 'true'
         env:
           SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          ELI_PHONE:           ${{ secrets.ELI_PHONE }}
         run: |
           python3 - <<'PY'
-          import sys, json, os
+          import sys, json, os, urllib.request
           sys.path.insert(0, "scripts")
+          from lauren_stats import (
+              extract_setups_from_launch_dashboard,
+              extract_eventbrite_stats_from_launch_dashboard,
+              extract_event_financials_from_launch_dashboard,
+              fetch_all_simpletexting_lists, find_previous_year_lists,
+              compute_real_averages, fetch_simpletexting_list_sizes,
+              map_setups_to_slugs, generate_per_event_insights, format_insights_sms,
+          )
+          from lauren_sms import send_sms
 
+          # Load events + parse data
+          with urllib.request.urlopen("https://events.themakeupblowout.com/upcoming-events.json", timeout=10) as r:
+              events = json.load(r).get("events", [])
+          setups = extract_setups_from_launch_dashboard("docs/launch/index.html")
+          eb_stats = extract_eventbrite_stats_from_launch_dashboard("docs/launch/index.html")
+          financials = extract_event_financials_from_launch_dashboard("docs/launch/index.html")
+
+          slug_to_list = map_setups_to_slugs(setups, events)
+          sms_data = fetch_simpletexting_list_sizes(slug_to_list)
+          averages = compute_real_averages(financials, eb_stats, sms_data)
+
+          # Read latest conversion_history.json (just written)
           history = json.load(open("docs/state/conversion_history.json"))
-          critical = []
+          all_lists = fetch_all_simpletexting_lists()
+          print(f"Loaded {len(all_lists)} SimpleTexting lists for YoY")
+
+          # Generate per-event insights (only events with data)
+          insights = []
           for slug, ev in history.get("events", {}).items():
-              for a in ev.get("anomalies", []):
-                  if a.get("severity") == "critical":
-                      critical.append({"slug": slug, **a})
+              if ev.get("eventbrite_registered", 0) == 0 and ev.get("sms_registered", 0) == 0:
+                  continue
+              parts = slug.rsplit("-", 2)
+              if len(parts) != 3: continue
+              city = parts[0].replace("-", " ").title()
+              state = parts[1].upper()
+              year = int(parts[2])
+              prev_lists = find_previous_year_lists(city, state, year, all_lists)
+              insight = generate_per_event_insights(slug, ev, averages, prev_year_lists=prev_lists)
+              insights.append(insight)
 
-          if not critical:
-              print("· no critical anomalies — no SMS sent")
+          if not insights:
+              print("· no events with data — no SMS to send")
               sys.exit(0)
 
-          # Compose short Hebrew SMS for first critical anomaly (cap to avoid SMS spam)
-          a = critical[0]
-          msg_lines = [
-              "🚨 @stats anomaly:",
-              a["slug"].replace("-", " ").title(),
-              a.get("hypothesis", ""),
-              "https://laurenlev10.github.io/lauren-agent-hub-data/stats/"
-          ]
-          if len(critical) > 1:
-              msg_lines.insert(2, f"+ {len(critical)-1} more anomalies")
-          msg = "\n".join(msg_lines)
+          msg = format_insights_sms(insights, averages)
+          print(f"\n=== SMS PREVIEW ({len(msg)} chars) ===")
+          print(msg)
+          print("="*40)
 
-          token = os.environ.get("SIMPLETEXTING_TOKEN")
-          if not token:
-              print(f"would have sent SMS:\n{msg}")
+          # Send to Lauren + Eli
+          recipients = []
+          lp = os.environ.get("LAUREN_PHONE")
+          ep = os.environ.get("ELI_PHONE")
+          if lp: recipients.append(("Lauren", lp))
+          if ep: recipients.append(("Eli", ep))
+          if not recipients:
+              print("⚠ no recipients configured (LAUREN_PHONE + ELI_PHONE both missing)")
               sys.exit(0)
 
-          try:
-              from lauren_meta import send_sms
-              send_sms(msg)
-              print(f"✓ sent anomaly SMS to Lauren ({len(critical)} critical)")
-          except Exception as e:
-              print(f"⚠ SMS send failed: {e}")
-              print(f"would have sent:\n{msg}")
+          for name, phone in recipients:
+              try:
+                  send_sms(phone, msg)
+                  print(f"✓ sent to {name} ({phone})")
+              except Exception as e:
+                  print(f"⚠ send to {name} failed: {e}")
           PY
