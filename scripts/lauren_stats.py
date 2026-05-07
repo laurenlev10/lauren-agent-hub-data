@@ -757,7 +757,7 @@ def generate_per_event_insights(slug: str, ev: dict, averages: dict,
     else:
         city_name = slug.replace("-", " ").title()
     days_str = f"{days}d" if days is not None else "—"
-    narrative = f"{city_name} — RSVPs {eb_reg} ({pct_of_avg_eb}% מהממוצע)"
+    narrative = f"{city_name} — Eventbrite {eb_reg} ({pct_of_avg_eb}% ממוצע)"
     if days is not None:
         narrative += f", {days_str} לאירוע"
     if forecast and forecast.get("projected_total"):
@@ -791,53 +791,57 @@ def generate_per_event_insights(slug: str, ev: dict, averages: dict,
 
 
 def format_insights_sms(insights: list, averages: dict, ts: str = None) -> str:
-    """Format the per-event insights into a Hebrew SMS digest."""
-    ts = ts or _dt.datetime.now().strftime("%b %d · %H:%M")
-    lines = [f"🧠 @stats Insights · {ts}", ""]
+    """Format per-event insights into a SHORT Hebrew SMS digest.
+
+    Goal: keep total < 320 chars to avoid MMS classification + carrier filtering.
+    Uses ultra-compact one-line-per-event format with emoji + arrow shorthand.
+    """
+    ts = ts or _dt.datetime.now().strftime("%b %d %H:%M")
+    lines = [f"🧠 @stats · {ts}"]
 
     crits = [i for i in insights if i["bucket"] == "critical"]
     watch = [i for i in insights if i["bucket"] == "watch"]
     strong = [i for i in insights if i["bucket"] == "strong"]
 
-    if crits:
-        lines.append("🚨 Critical:")
-        for i in crits:
-            lines.append(f"• {i['narrative']}")
-            if i.get("yoy_text"):
-                lines.append(f"  📅 {i['yoy_text']}")
-            if i.get("recommendation"):
-                lines.append(f"  → {i['recommendation']}")
-        lines.append("")
+    def short_city(slug):
+        # "columbia-mo-2026" → "Columbia MO"
+        parts = slug.rsplit("-", 2)
+        if len(parts) == 3:
+            return parts[0].replace("-", " ").title() + " " + parts[1].upper()
+        return slug
 
-    if watch:
-        lines.append("⚠️ Watch:")
-        for i in watch:
-            lines.append(f"• {i['narrative']}")
-            if i.get("yoy_text"):
-                lines.append(f"  📅 {i['yoy_text']}")
-            if i.get("recommendation"):
-                lines.append(f"  → {i['recommendation']}")
-        lines.append("")
+    for i in crits:
+        city = short_city(i["slug"])
+        days = i.get("days_remaining")
+        d_str = f"{days}d" if days is not None else ""
+        lines.append(f"🚨 {city}: Eventbrite {i['eb_reg']} ({i['pct_of_avg_eb']}% ממוצע, {d_str})")
+        if i.get("recommendation"):
+            lines.append(f"  → {i['recommendation']}")
 
-    if strong:
-        lines.append("✅ Strong:")
-        for i in strong:
-            line = f"• {i['narrative']}"
-            if i.get("yoy_text"):
-                line += f" — {i['yoy_text']}"
-            lines.append(line)
-        lines.append("")
+    for i in watch:
+        city = short_city(i["slug"])
+        days = i.get("days_remaining")
+        d_str = f"{days}d" if days is not None else ""
+        lines.append(f"⚠️ {city}: Eventbrite {i['eb_reg']} ({i['pct_of_avg_eb']}% ממוצע, {d_str})")
+
+    for i in strong:
+        city = short_city(i["slug"])
+        days = i.get("days_remaining")
+        d_str = f"{days}d" if days is not None else ""
+        yoy = ""
+        if i.get("yoy_text"):
+            # Compact: "vs 2024: 1012 (-22% השנה)" → "(vs '24 -22%)"
+            import re
+            ym = re.search(r"vs (\d{4}): \d+ \(([+-]?\d+%) השנה\)", i["yoy_text"])
+            if ym:
+                yr = ym.group(1)[2:]
+                yoy = f" (vs '{yr} {ym.group(2)})"
+        lines.append(f"✅ {city}: Eventbrite {i['eb_reg']} ({i['pct_of_avg_eb']}%){yoy}")
 
     if averages.get("ytd_event_count"):
-        lines.append("📈 YTD Averages:")
-        lines.append(f"• {averages['ytd_event_count']} אירועים: ${averages['ytd_avg_sales']:,} ממוצע מכירות, {averages['ytd_avg_profit_pct']}% רווח")
-        if averages.get("avg_eventbrite_upcoming"):
-            lines.append(f"• ממוצע RSVPs באירועים הבאים: {averages['avg_eventbrite_upcoming']}")
-        if averages.get("avg_sms_list_size"):
-            lines.append(f"• ממוצע SMS list לעיר: {averages['avg_sms_list_size']:,}")
-        lines.append("")
+        lines.append(f"📈 YTD: ${averages['ytd_avg_sales']/1000:.0f}K/אירוע ({averages['ytd_event_count']} אירועים)")
 
-    lines.append("🔗 https://laurenlev10.github.io/lauren-agent-hub-data/launch/")
+    lines.append("🔗 laurenlev10.github.io/lauren-agent-hub-data/launch/")
     return "\n".join(lines)
 
 
