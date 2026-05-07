@@ -685,12 +685,14 @@ def compute_real_averages(financials: dict, eventbrite_stats: dict, current_sms_
                     if v.get("registrations", 0) > 0]
         if upcoming:
             out["avg_eventbrite_upcoming"] = round(sum(upcoming) / len(upcoming))
+            out["_n_upcoming_eb"] = len(upcoming)
 
     # SMS avg across active events
     if current_sms_data:
         actives = [v.get("list_size", 0) for v in current_sms_data.values() if v.get("list_size")]
         if actives:
             out["avg_sms_list_size"] = round(sum(actives) / len(actives))
+            out["_n_active_sms"] = len(actives)
 
     return out
 
@@ -756,29 +758,33 @@ def generate_per_event_insights(slug: str, ev: dict, averages: dict,
         city_name = parts[0].replace("-", " ").title() + ", " + parts[1].upper()
     else:
         city_name = slug.replace("-", " ").title()
-    days_str = f"{days}d" if days is not None else "—"
-    narrative = f"{city_name} — Eventbrite {eb_reg} ({pct_of_avg_eb}% ממוצע)"
-    if days is not None:
-        narrative += f", {days_str} לאירוע"
+    days_str = f"{days}d לאירוע" if days is not None else ""
+    narrative = city_name + (f" ({days_str})" if days_str else "")
+    eb_part = f"🎟️ Eventbrite: {eb_reg} RSVPs ({pct_of_avg_eb}% מהממוצע)"
     if forecast and forecast.get("projected_total"):
-        narrative += f" → צפי {forecast['projected_total']}"
+        eb_part += f" → צפי {forecast['projected_total']}"
+    sms_list_name = ev.get("sms_list_name") or "רשימה שנתית"
+    sms_part = f"📲 SMS list ({sms_list_name}): {sms_reg:,} רשומות"
 
-    # Recommendation
+    # Recommendation — use full list name (e.g., "Columbia, MO 2026") for clarity
+    list_name = ev.get("sms_list_name") or city_name
     rec = None
     if bucket == "critical":
         if sms_reg > 100:
-            rec = f"SMS דחוף ל-{sms_reg} ברשימה"
+            rec = f"שלחי תזכורת SMS לכל {sms_reg} הנרשמות ב-{list_name}"
         else:
-            rec = "תקציב מודעות + SMS ל-קהל הרחב"
+            rec = "להגדיל תקציב מודעות + לשלוח תזכורת לרשימה הרחבה"
     elif bucket == "watch":
         if forecast and forecast.get("daily_rate", 0) > 0:
             need = max(0, forecast.get("gap", 0) // max(1, days or 1))
-            rec = f"קצב נוכחי {forecast['daily_rate']:.1f}/יום, צריך {need}/יום להגיע ליעד"
+            rec = f"קצב נוכחי {forecast['daily_rate']:.1f}/יום, צריך {need}/יום להגעה לממוצע"
 
     return {
         "slug": slug,
         "bucket": bucket,
         "narrative": narrative,
+        "eb_part": eb_part,
+        "sms_part": sms_part,
         "yoy_text": yoy_text,
         "recommendation": rec,
         "eb_reg": eb_reg,
@@ -791,57 +797,55 @@ def generate_per_event_insights(slug: str, ev: dict, averages: dict,
 
 
 def format_insights_sms(insights: list, averages: dict, ts: str = None) -> str:
-    """Format per-event insights into a SHORT Hebrew SMS digest.
+    """Format per-event insights into a Hebrew SMS digest.
 
-    Goal: keep total < 320 chars to avoid MMS classification + carrier filtering.
-    Uses ultra-compact one-line-per-event format with emoji + arrow shorthand.
+    Sections: 🚨 Critical / ⚠️ Watch / ✅ Strong / 📈 YTD averages.
+    Uses 'Eventbrite N' explicitly so source is unambiguous (vs SMS list reach).
     """
-    ts = ts or _dt.datetime.now().strftime("%b %d %H:%M")
-    lines = [f"🧠 @stats · {ts}"]
+    ts = ts or _dt.datetime.now().strftime("%b %d · %H:%M")
+    lines = [f"🧠 @stats Insights · {ts}"]
 
     crits = [i for i in insights if i["bucket"] == "critical"]
     watch = [i for i in insights if i["bucket"] == "watch"]
     strong = [i for i in insights if i["bucket"] == "strong"]
 
-    def short_city(slug):
-        # "columbia-mo-2026" → "Columbia MO"
-        parts = slug.rsplit("-", 2)
-        if len(parts) == 3:
-            return parts[0].replace("-", " ").title() + " " + parts[1].upper()
-        return slug
-
-    for i in crits:
-        city = short_city(i["slug"])
-        days = i.get("days_remaining")
-        d_str = f"{days}d" if days is not None else ""
-        lines.append(f"🚨 {city}: Eventbrite {i['eb_reg']} ({i['pct_of_avg_eb']}% ממוצע, {d_str})")
-        if i.get("recommendation"):
-            lines.append(f"  → {i['recommendation']}")
-
-    for i in watch:
-        city = short_city(i["slug"])
-        days = i.get("days_remaining")
-        d_str = f"{days}d" if days is not None else ""
-        lines.append(f"⚠️ {city}: Eventbrite {i['eb_reg']} ({i['pct_of_avg_eb']}% ממוצע, {d_str})")
-
-    for i in strong:
-        city = short_city(i["slug"])
-        days = i.get("days_remaining")
-        d_str = f"{days}d" if days is not None else ""
-        yoy = ""
+    def render_event(i):
+        out = [f"- {i['narrative']}"]
+        out.append(f"  {i['eb_part']}")
+        out.append(f"  {i['sms_part']}")
         if i.get("yoy_text"):
-            # Compact: "vs 2024: 1012 (-22% השנה)" → "(vs '24 -22%)"
-            import re
-            ym = re.search(r"vs (\d{4}): \d+ \(([+-]?\d+%) השנה\)", i["yoy_text"])
-            if ym:
-                yr = ym.group(1)[2:]
-                yoy = f" (vs '{yr} {ym.group(2)})"
-        lines.append(f"✅ {city}: Eventbrite {i['eb_reg']} ({i['pct_of_avg_eb']}%){yoy}")
+            out.append(f"  📅 {i['yoy_text']}")
+        if i.get("recommendation"):
+            out.append(f"  → {i['recommendation']}")
+        return out
+
+    if crits:
+        lines.append("🚨 Critical:")
+        for i in crits:
+            lines.extend(render_event(i))
+
+    if watch:
+        lines.append("⚠️ Watch:")
+        for i in watch:
+            lines.extend(render_event(i))
+
+    if strong:
+        lines.append("✅ Strong:")
+        for i in strong:
+            lines.extend(render_event(i))
 
     if averages.get("ytd_event_count"):
-        lines.append(f"📈 YTD: ${averages['ytd_avg_sales']/1000:.0f}K/אירוע ({averages['ytd_event_count']} אירועים)")
+        n_past = averages["ytd_event_count"]
+        n_upcoming_eb = averages.get("_n_upcoming_eb", 0)
+        n_active_sms = averages.get("_n_active_sms", 0)
+        lines.append("📊 ממוצעי השוואה:")
+        lines.append(f"- מכירות לאירוע ({n_past} אירועים שעברו השנה): ${averages['ytd_avg_sales']:,} ({averages['ytd_avg_profit_pct']}% רווח ממוצע)")
+        if averages.get("avg_eventbrite_upcoming"):
+            lines.append(f"- Eventbrite RSVPs נוכחי באירועים הבאים ({n_upcoming_eb} אירועים): {averages['avg_eventbrite_upcoming']} בממוצע")
+        if averages.get("avg_sms_list_size"):
+            lines.append(f"- רשימת SMS השנה ({n_active_sms} ערים פעילות): {averages['avg_sms_list_size']:,} רשומות לעיר")
 
-    lines.append("🔗 laurenlev10.github.io/lauren-agent-hub-data/launch/")
+    lines.append("🔗 https://laurenlev10.github.io/lauren-agent-hub-data/launch/")
     return "\n".join(lines)
 
 
