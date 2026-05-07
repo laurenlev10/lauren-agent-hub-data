@@ -29,6 +29,45 @@ from docx import Document
 
 # --- KB loader ---------------------------------------------------------------
 
+def load_venues() -> list:
+    """Parse scripts/data/venue_details.md into list of {dates, city, venue, address} dicts."""
+    candidates = [
+        Path(__file__).resolve().parent / "data" / "venue_details.md",
+        Path("/sessions/dreamy-compassionate-wozniak/mnt/Claude/Scheduled/NEW/meta-inbox/venue_details.md"),
+    ]
+    for c in candidates:
+        if not c.exists():
+            continue
+        out = []
+        for line in c.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line.startswith("|") or "---" in line or line.startswith("| Event") or line.startswith("| dates"):
+                continue
+            cells = [x.strip() for x in line.split("|")[1:-1]]
+            if len(cells) == 4 and cells[0]:
+                out.append({"dates": cells[0], "city": cells[1], "venue": cells[2], "address": cells[3]})
+        return out
+    return []
+
+
+def find_event_today(venues, today=None):
+    today = today or dt.date.today()
+    for v in venues:
+        start, end, _ = _parse_dates(v["dates"])
+        if start and end and start <= today <= end:
+            return v
+    return None
+
+
+def find_next_event(venues, today=None):
+    today = today or dt.date.today()
+    upcoming = [(_parse_dates(v["dates"])[0], v) for v in venues if _parse_dates(v["dates"])[0] and _parse_dates(v["dates"])[0] > today]
+    if not upcoming:
+        return None
+    upcoming.sort(key=lambda x: x[0])
+    return upcoming[0][1]
+
+
 def load_handled() -> dict:
     """
     Load docs/meta/handled.json — the per-item dedup memory.
@@ -212,6 +251,75 @@ _WHERE_UPCOMING_TEMPLATES = [
     "Heading to {city}, {state} — {dates}! 📍 {address} (at {venue}). "
     "Fri-Sun 10am-5pm 💄✨",
 ]
+OPEN_TODAY_PAT = re.compile(
+    r"\b(?:open\s+today|here\s+today|live\s+today|are\s+you\s+open|"
+    r"are\s+you\s+here|you\s+open\s+today|today\s+open)\b",
+    re.IGNORECASE,
+)
+PAYMENT_PAT = re.compile(
+    r"\b(?:cash\s+only|take\s+(?:credit|debit|cards?|cash|apple\s*pay|tap)|"
+    r"accept\s+(?:credit|debit|cards?|cash|apple\s*pay|tap)|"
+    r"do\s+you\s+(?:take|accept)\s+(?:credit|debit|cards?|cash|venmo|zelle)|"
+    r"payment\s+method|tap\s*to\s*pay|apple\s*pay)\b",
+    re.IGNORECASE,
+)
+PARKING_PAT = re.compile(r"\b(?:parking|where\s+(?:do|can)\s+i\s+park|valet)\b", re.IGNORECASE)
+HOURS_PAT = re.compile(
+    r"\b(?:what\s+time|what\s+(?:are\s+the\s+)?hours?|when\s+(?:do\s+you\s+)?(?:open|close)|"
+    r"hours?\s+of\s+operation|opening\s+hours?)\b",
+    re.IGNORECASE,
+)
+KIDS_PAT = re.compile(
+    r"\b(?:bring\s+(?:my\s+)?(?:kids?|children|baby|toddler|stroller)|"
+    r"kid[s]?\s+(?:ok|allowed|welcome|friendly)|kid[\s-]?friendly|"
+    r"family[\s-]?friendly|stroller)\b",
+    re.IGNORECASE,
+)
+ADDRESS_PAT = re.compile(
+    r"\b(?:what'?s?\s+the\s+(?:address|location|venue)|address(?:\s|\?|$)|"
+    r"location(?:\s|\?|$)|venue\s*\?|exact\s+(?:address|location)|"
+    r"where\s+exactly|directions\??)\b",
+    re.IGNORECASE,
+)
+
+
+_OPEN_TODAY_LIVE_TEMPLATES = [
+    "YES we're LIVE NOW!! 💄✨ Open till 5pm at {address} ({city}, {state}) — come thru gorgeous 💕",
+    "OPEN!! 🎉 We're at {address} ({city}, {state}) until 5pm tonight — bring your bestie 💄✨",
+    "Yes ma'am 💄 LIVE today at {address}, open till 5pm. See you soon 💕",
+    "🔥 Live + open!! {city}, {state} — 📍 {address}, until 5pm 💄✨",
+]
+_OPEN_TODAY_CLOSED_TEMPLATES = [
+    "Not today girl 💔 But coming up: {city}, {state} — {dates}!! 📍 {address}. See you there 💄✨",
+    "Aww not open today 😢 Next stop: {city}, {state} ({dates}) — 📍 {address}. Mark your calendar 📌💄",
+    "Closed today, but {city}, {state} is up next ({dates}) — 📍 {address} 💄✨",
+]
+_PAYMENT_TEMPLATES = [
+    "We take EVERYTHING — cash, cards, debit, tap-to-pay, Apple Pay 💳✨ However works for you 💄",
+    "All payment methods welcome! 💳 Cash, cards, tap-to-pay, Apple Pay — you name it 💄✨",
+    "Cash, cards, tap-to-pay — we accept it all 💳💄 Whatever's easiest 💕",
+    "Yes! 💳 Cash, credit, debit, tap-to-pay, Apple Pay — all good 💄✨",
+]
+_PARKING_TEMPLATES = [
+    "Yes!! 🚗 Free parking AND free entry — bring the whole gang 💄✨",
+    "Parking is FREE 🅿️ And so is admission — just show up & shop 💄💕",
+    "Free parking, free entry, free vibes 💄✨ See you there 💕",
+    "🅿️ Yep, parking is on the house — and admission too 💄✨",
+]
+_HOURS_TEMPLATES = [
+    "Friday, Saturday & Sunday — 10am to 5pm ⏰✨ See you there 💄",
+    "We're open Fri-Sun 10am-5pm 💄 Plenty of time to come browse 💕",
+    "10am-5pm Friday through Sunday ⏰💄 Free entry, no ticket needed ✨",
+    "Fri/Sat/Sun, 10am-5pm 💄✨ Drop by anytime in those hours 💕",
+]
+_KIDS_TEMPLATES = [
+    "Yes!! 👶 Kids are welcome — bring the whole crew 💄💕",
+    "Of course gorgeous 💄 The whole family is welcome, kids included 👶✨",
+    "All ages welcome 💕 Bring the kids, the bestie, your mama 💄✨",
+    "Kid-friendly all the way 👶💄 Strollers, the works — come on by ✨",
+]
+
+
 _WHERE_PAST_TEMPLATES = [
     "Aww we already wrapped {city} {dates} 😭💔 — but watch our FB for "
     "the next stop near you! 💄✨",
@@ -527,10 +635,58 @@ def classify(text: str, kb: dict) -> dict:
 
     # Online-order question — direct her to the website
     if ONLINE_ORDER_PAT.search(t):
-        seed = kb.get("_seed", "") + "online"
-        return {"bucket": "A",
-                "reason": "Online order/availability question — point to website",
-                "reply": _seeded_pick(_ONLINE_ORDER_TEMPLATES, seed)}
+        return {"bucket": "A", "reason": "Online order/availability question",
+                "reply": _seeded_pick(_ONLINE_ORDER_TEMPLATES, kb.get("_seed","")+"online")}
+
+    # Open today / are you here today
+    if OPEN_TODAY_PAT.search(t):
+        venues = kb.get("_venues", [])
+        live = find_event_today(venues)
+        seed = kb.get("_seed", "") + "today"
+        if live:
+            tmpl = _seeded_pick(_OPEN_TODAY_LIVE_TEMPLATES, seed)
+            cf = live["city"]
+            city = cf.split(",")[0].strip(); state = cf.split(",")[1].strip() if "," in cf else ""
+            return {"bucket": "A", "reason": f"Open today? — LIVE at {cf}",
+                    "reply": tmpl.format(city=city, state=state, address=live["address"], venue=live["venue"], dates=live["dates"])}
+        nxt = find_next_event(venues)
+        if nxt:
+            tmpl = _seeded_pick(_OPEN_TODAY_CLOSED_TEMPLATES, seed)
+            cf = nxt["city"]
+            city = cf.split(",")[0].strip(); state = cf.split(",")[1].strip() if "," in cf else ""
+            return {"bucket": "A", "reason": f"Open today? — closed; next is {cf}",
+                    "reply": tmpl.format(city=city, state=state, address=nxt["address"], venue=nxt["venue"], dates=nxt["dates"])}
+
+    if PAYMENT_PAT.search(t):
+        return {"bucket": "A", "reason": "Payment methods",
+                "reply": _seeded_pick(_PAYMENT_TEMPLATES, kb.get("_seed","")+"pay")}
+    if PARKING_PAT.search(t):
+        return {"bucket": "A", "reason": "Parking",
+                "reply": _seeded_pick(_PARKING_TEMPLATES, kb.get("_seed","")+"park")}
+    if HOURS_PAT.search(t):
+        return {"bucket": "A", "reason": "Hours",
+                "reply": _seeded_pick(_HOURS_TEMPLATES, kb.get("_seed","")+"hrs")}
+    if KIDS_PAT.search(t):
+        return {"bucket": "A", "reason": "Kids welcome",
+                "reply": _seeded_pick(_KIDS_TEMPLATES, kb.get("_seed","")+"kid")}
+
+    # Address question (only with post context)
+    post_ctx2 = kb.get("_post_context") if isinstance(kb, dict) else None
+    if post_ctx2 and ADDRESS_PAT.search(t):
+        info = summarize_event_from_caption(post_ctx2.get("caption", ""))
+        if info and info.get("address"):
+            seed = (kb.get("_seed","") or "") + "addr"
+            status = event_status(info.get("dates",""))
+            tmpl = None
+            if status == "live":          tmpl = _seeded_pick(_WHERE_LIVE_TEMPLATES, seed)
+            elif status == "upcoming-soon": tmpl = _seeded_pick(_WHERE_UPCOMING_SOON_TEMPLATES, seed)
+            elif status == "upcoming":      tmpl = _seeded_pick(_WHERE_UPCOMING_TEMPLATES, seed)
+            elif status == "past":          tmpl = _seeded_pick(_WHERE_PAST_TEMPLATES, seed)
+            if tmpl:
+                return {"bucket": "A", "reason": f"Address — status={status}",
+                        "reply": tmpl.format(city=info.get("city",""), state=info.get("state",""),
+                                             dates=info.get("dates",""), address=info["address"],
+                                             venue=info.get("venue") or "the venue")}
 
     # FAQ keyword match (priority over city question — "are you free?" outranks "are you coming")
     for pattern, faq_q in FAQ_KEYWORDS:
@@ -936,6 +1092,7 @@ def main():
     repo = Path(__file__).resolve().parent.parent
     kb_path = _resolve_kb_path()
     kb = load_kb(kb_path)
+    kb["_venues"] = load_venues()
     print(f"KB loaded: {len(kb['faqs'])} FAQs, {len(kb['schedule'])} cities, "
           f"{len(kb['negatives'])} negative situations")
 
