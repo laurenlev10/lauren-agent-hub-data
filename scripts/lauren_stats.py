@@ -802,7 +802,14 @@ def format_insights_sms(insights: list, averages: dict, ts: str = None) -> str:
     Sections: 🚨 Critical / ⚠️ Watch / ✅ Strong / 📈 YTD averages.
     Uses 'Eventbrite N' explicitly so source is unambiguous (vs SMS list reach).
     """
-    ts = ts or _dt.datetime.now().strftime("%b %d · %H:%M")
+    if ts is None:
+        try:
+            from zoneinfo import ZoneInfo
+            pt_now = _dt.datetime.now(ZoneInfo("America/Los_Angeles"))
+        except Exception:
+            # Fallback: hardcoded PDT (May = daylight savings, UTC-7)
+            pt_now = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=-7)))
+        ts = pt_now.strftime("%b %d · %H:%M PT")
     lines = [f"🧠 @stats Insights · {ts}"]
 
     crits = [i for i in insights if i["bucket"] == "critical"]
