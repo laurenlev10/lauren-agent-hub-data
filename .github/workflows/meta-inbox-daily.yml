@@ -1,0 +1,58 @@
+name: Daily @meta inbox triage (Phase 1 — preview only)
+
+# Runs every day at 8 PM Lauren-local (PDT) — 03:00 UTC.
+# In PST (Nov–Mar) this becomes 7 PM local — accept the seasonal shift.
+#
+# Phase 1 = preview only, no replies sent. Generates the static preview page
+# at /meta/inbox-api-preview/ and SMSes Lauren a summary so she can review on
+# her phone before drafting/replying manually.
+#
+# Required GitHub Secrets (Lauren must add manually via repo Settings):
+#   META_PAGE_TOKEN       — the never-expiring Page Access Token
+#   META_IG_BUSINESS_ID   — IG Business Account ID
+#   META_FB_PAGE_ID       — FB Page ID
+#   SIMPLETEXTING_TOKEN   — for the SMS touchpoints (already used by other workflows)
+#   LAUREN_PHONE          — 4243547625
+#
+# To trigger manually: Actions tab → "Daily @meta inbox triage" → Run workflow.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"   # 03:00 UTC = 8 PM PDT (May–Oct) / 7 PM PST (Nov–Mar)
+  workflow_dispatch: {}
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install python-docx
+        run: python3 -m pip install python-docx --quiet
+
+      - name: Run @meta inbox preview
+        env:
+          META_PAGE_TOKEN:     ${{ secrets.META_PAGE_TOKEN }}
+          META_IG_BUSINESS_ID: ${{ secrets.META_IG_BUSINESS_ID }}
+          META_FB_PAGE_ID:     ${{ secrets.META_FB_PAGE_ID }}
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE }}
+        run: |
+          python3 scripts/meta_inbox_preview.py --send-sms
+
+      - name: Commit + push if preview changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name  "Lauren (via Actions)"
+          if ! git diff --quiet docs/meta/inbox-api-preview/; then
+            git add docs/meta/inbox-api-preview/
+            git commit -m "@meta daily triage: $(date -u +%Y-%m-%dT%H:%MZ)"
+            # Pull --rebase to avoid conflicts with browser-written notes.json on launch
+            git pull --rebase origin main || true
+            git push origin main
+            echo "✓ pushed updates"
+          else
+            echo "no preview change"
+          fi

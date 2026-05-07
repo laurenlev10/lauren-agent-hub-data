@@ -22,7 +22,7 @@ from pathlib import Path
 
 # Add scripts/ to path so we can import lauren_meta
 sys.path.insert(0, str(Path(__file__).parent))
-from lauren_meta import fetch_recent_inbox, fetch_messenger_messages, get_token
+from lauren_meta import fetch_recent_inbox, fetch_messenger_messages, get_token, get_fb_page_id
 
 from docx import Document
 
@@ -429,6 +429,27 @@ h2{color:#f01070;font-size:20px;margin:24px 0 12px}
 .no-reply{color:#fca5a5;font-size:12px;margin-top:6px;font-style:italic}
 .errors{background:#3a1010;color:#fca5a5;padding:12px;border-radius:6px;margin:20px 0}
 footer{margin-top:40px;color:#666;font-size:12px;text-align:center}
+
+/* Reply button */
+.reply-btn{display:inline-block;background:#f01070;color:#fff !important;
+           padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:700;
+           font-size:13px;margin-top:6px;transition:transform .1s,filter .1s}
+.reply-btn:hover{transform:translateY(-1px);filter:brightness(1.1)}
+.reply-btn::before{content:"💬 "}
+
+/* "Needs your attention" hero block */
+.attention-block{background:linear-gradient(135deg,#7c2d12,#9a3412);
+                 border:2px solid #f01070;border-radius:12px;
+                 padding:18px 22px;margin:20px 0 30px}
+.attention-block h2{color:#fbbf24;margin:0 0 4px;font-size:22px}
+.attention-block p.intro{color:#fde68a;font-size:14px;margin:0 0 14px}
+.attention-list{display:grid;gap:8px}
+.attention-row{background:rgba(0,0,0,0.3);padding:10px 14px;border-radius:8px;
+               display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.attention-row .who{font-weight:700;color:#f5e45b;flex:0 0 auto}
+.attention-row .what{color:#eee;font-size:13px;flex:1 1 200px;min-width:0;
+                     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.attention-row .reply-btn{margin-top:0;flex:0 0 auto}
 </style>
 </head>
 <body>
@@ -452,15 +473,61 @@ def render_preview(snapshot: dict, classified_messenger: list,
     n_fb = len(classified_fb_comments)
     n_ig = len(classified_ig_comments)
 
+    # Collect every Bucket B item across all channels — the things needing Lauren
+    attention_items = []
+    for m in classified_messenger:
+        if m["cls"]["bucket"] in ("B", "NEG"):
+            attention_items.append({
+                "channel": "Messenger",
+                "who":     m.get("name", "?"),
+                "what":    m.get("msg", "(no text)") or "(empty)",
+                "url":     m.get("reply_url", ""),
+                "bucket":  m["cls"]["bucket"],
+            })
+    for c in classified_fb_comments:
+        if c["cls"]["bucket"] in ("B", "NEG"):
+            attention_items.append({
+                "channel": "FB comment",
+                "who":     c.get("from", "?"),
+                "what":    c.get("text", "(no text)"),
+                "url":     c.get("reply_url", ""),
+                "bucket":  c["cls"]["bucket"],
+            })
+    for c in classified_ig_comments:
+        if c["cls"]["bucket"] in ("B", "NEG"):
+            attention_items.append({
+                "channel": "IG comment",
+                "who":     "@" + c.get("username", "?"),
+                "what":    c.get("text", "(no text)"),
+                "url":     c.get("reply_url", ""),
+                "bucket":  c["cls"]["bucket"],
+            })
+
     parts = [PAGE_HEAD]
     parts.append(f"<h1>@meta — API Preview (Phase 1 dry-run)</h1>")
     parts.append(f'<div class="sub">'
                  f'Generated {snapshot["fetched_at"]} · '
                  f'Read-only — nothing was sent or hidden.</div>')
-    parts.append('<div class="warning">⚠️ This is a Phase 1 preview. The classifier here uses '
-                 'simple keyword matching, not Claude reasoning. Bucket assignments may differ '
-                 'from the final production agent. Review for false positives (Bucket A items '
-                 'that should be Bucket B) before approving the cutover.</div>')
+
+    # === Attention block: items needing Lauren — at the very top ===
+    if attention_items:
+        parts.append('<div class="attention-block">')
+        parts.append(f'<h2>👀 {len(attention_items)} items need your attention</h2>')
+        parts.append('<p class="intro">Click "💬 Reply" to open the thread on Meta and respond yourself.</p>')
+        parts.append('<div class="attention-list">')
+        for item in attention_items:
+            url_attr = html.escape(item["url"]) if item["url"] else "#"
+            label = "💬 Reply" if item["bucket"] == "B" else "💬 Open"
+            parts.append('<div class="attention-row">')
+            parts.append(f'<span class="who">[{item["channel"]}] {html.escape(item["who"])}</span>')
+            parts.append(f'<span class="what">{html.escape(item["what"][:120] or "(empty)")}</span>')
+            if item["url"]:
+                parts.append(f'<a class="reply-btn" href="{url_attr}" target="_blank" rel="noopener">{label}</a>')
+            parts.append('</div>')
+        parts.append('</div></div>')
+
+    parts.append('<div class="warning">⚠️ Phase 1 preview — keyword-based classifier, not Claude reasoning. '
+                 'Bucket A drafts are suggestions; Lauren still sends manually until Phase 2.</div>')
 
     # Stats
     parts.append('<div class="stats">')
@@ -497,6 +564,8 @@ def render_preview(snapshot: dict, classified_messenger: list,
             parts.append(f'<div class="reply">{html.escape(cls["reply"])}</div>')
         else:
             parts.append('<div class="no-reply">→ Lauren reviews / replies manually</div>')
+        if c.get("reply_url"):
+            parts.append(f'<a class="reply-btn" href="{html.escape(c["reply_url"])}" target="_blank" rel="noopener">💬 Open in Messenger</a>')
         parts.append('</div>')
 
     # FB Comments
@@ -515,6 +584,8 @@ def render_preview(snapshot: dict, classified_messenger: list,
                 parts.append(f'<div class="reply">{html.escape(cls["reply"])}</div>')
             else:
                 parts.append('<div class="no-reply">→ Lauren reviews / replies manually</div>')
+            if c.get("reply_url"):
+                parts.append(f'<a class="reply-btn" href="{html.escape(c["reply_url"])}" target="_blank" rel="noopener">💬 Open on Facebook</a>')
             parts.append('</div>')
 
     # IG Comments
@@ -533,6 +604,8 @@ def render_preview(snapshot: dict, classified_messenger: list,
                 parts.append(f'<div class="reply">{html.escape(cls["reply"])}</div>')
             else:
                 parts.append('<div class="no-reply">→ Lauren reviews / replies manually</div>')
+            if c.get("reply_url"):
+                parts.append(f'<a class="reply-btn" href="{html.escape(c["reply_url"])}" target="_blank" rel="noopener">💬 Open on Instagram</a>')
             parts.append('</div>')
 
     parts.append(PAGE_FOOT)
@@ -541,9 +614,27 @@ def render_preview(snapshot: dict, classified_messenger: list,
 
 # --- Main --------------------------------------------------------------------
 
+def _resolve_kb_path() -> Path:
+    """Find the KB docx — checked in to the repo, with Cowork fallback."""
+    candidates = [
+        Path(__file__).resolve().parent / "data" / "meta_inbox_kb.docx",
+        Path("/sessions/dreamy-compassionate-wozniak/mnt/Claude/Scheduled/NEW/meta-inbox/inbox_knowledge_base.docx"),
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    raise FileNotFoundError(f"meta_inbox_kb.docx not found in any of: {candidates}")
+
+
 def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--send-sms", action="store_true",
+                    help="Send Touchpoint 1 + Touchpoint 3 SMS to Lauren")
+    args = ap.parse_args()
+
     repo = Path(__file__).resolve().parent.parent
-    kb_path = Path("/sessions/dreamy-compassionate-wozniak/mnt/Claude/Scheduled/NEW/meta-inbox/inbox_knowledge_base.docx")
+    kb_path = _resolve_kb_path()
     kb = load_kb(kb_path)
     print(f"KB loaded: {len(kb['faqs'])} FAQs, {len(kb['schedule'])} cities, "
           f"{len(kb['negatives'])} negative situations")
@@ -575,11 +666,15 @@ def main():
             text = f"(error fetching: {e})"
         kb["_seed"] = conv_id  # per-conversation seed for reply variation
         cls = classify(text, kb)
+        # Build a direct reply URL — Business Suite inbox is the most reliable
+        # entry point. Lauren clicks → opens Messenger thread.
+        reply_url = f"https://business.facebook.com/latest/inbox/all?asset_id={get_fb_page_id()}&thread_id={conv_id}"
         classified_messenger.append({
             "conv_id": conv_id,
             "name": customer.get("name", "?"),
             "msg": text,
             "updated_time": c.get("updated_time", ""),
+            "reply_url": reply_url,
             "cls": cls,
         })
 
@@ -587,14 +682,18 @@ def main():
     classified_fb = []
     for grp in snap["fb_comments"]:
         post_msg = grp["post"].get("message", "")[:80]
+        post_permalink = grp["post"].get("permalink_url", "")
         for cmt in grp["comments"]:
             txt = cmt.get("message", "")
             kb["_seed"] = cmt.get("id", "")
             cls = classify(txt, kb)
+            # FB comment: prefer post permalink (the comment will be visible there;
+            # Meta doesn't always expose direct comment-permalinks for replies)
             classified_fb.append({
                 "post_msg": post_msg,
                 "from": cmt.get("from", {}).get("name", "?"),
                 "text": txt,
+                "reply_url": post_permalink or f"https://www.facebook.com/{cmt.get('id','')}",
                 "cls": cls,
             })
 
@@ -602,14 +701,17 @@ def main():
     classified_ig = []
     for grp in snap["ig_comments"]:
         media_caption = (grp["media"].get("caption") or "").split("\n")[0][:80]
+        media_permalink = grp["media"].get("permalink", "")
         for cmt in grp["comments"]:
             txt = cmt.get("text", "")
             kb["_seed"] = cmt.get("id", "")
             cls = classify(txt, kb)
+            # IG: tap the reel permalink — comment is visible inline on the reel
             classified_ig.append({
                 "media_caption": media_caption,
                 "username": cmt.get("username", "?"),
                 "text": txt,
+                "reply_url": media_permalink,
                 "cls": cls,
             })
 
@@ -635,6 +737,29 @@ def main():
 
     print(f"Wrote {out_dir/'index.html'} ({(out_dir/'index.html').stat().st_size} bytes)")
     print(f"Wrote {out_dir/'data.json'}")
+
+    if args.send_sms:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from lauren_sms import send_sms
+            n_a = sum(1 for c in classified_messenger if c["cls"]["bucket"] == "A")
+            n_b = sum(1 for c in classified_messenger if c["cls"]["bucket"] == "B")
+            n_neg = sum(1 for c in classified_messenger if c["cls"]["bucket"] == "NEG")
+            n_fb = len(classified_fb)
+            n_ig = len(classified_ig)
+            url = "https://laurenlev10.github.io/lauren-agent-hub-data/meta/inbox-api-preview/"
+            t3 = (
+                f"@meta ✓ סריקה יומית הסתיימה.\n"
+                f"{n_a} draft auto-replies מוכנים, {n_b} לאישורך"
+                + (f", {n_neg} שליליות" if n_neg else "")
+                + f".\nFB comments: {n_fb}, IG comments: {n_ig}.\n\n"
+                + f"לעיון: {url}"
+            )
+            phone = os.environ.get("LAUREN_PHONE", "4243547625")
+            r = send_sms(phone, t3)
+            print(f"  SMS sent: id={r.get('id')}")
+        except Exception as e:
+            print(f"  ⚠ SMS failed (non-fatal): {e}")
 
 
 if __name__ == "__main__":
