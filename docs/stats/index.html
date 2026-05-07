@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📊 Marketing Stats — All Events</title>
+  <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;700;800&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Josefin Sans',Helvetica,sans-serif;background:#0a0a14;color:#fff;
+         min-height:100vh;padding:30px 20px}
+    .wrap{max-width:1200px;margin:0 auto}
+    h1{font-size:clamp(28px,5vw,44px);color:#f5e45b;margin-bottom:6px}
+    .sub{color:#aaa;font-size:14px;margin-bottom:6px}
+    .pulled{color:#666;font-size:11px;margin-bottom:24px;font-family:ui-monospace,monospace}
+    .nodata{background:linear-gradient(135deg,#1a1a2a,#2a1a3a);border:1px solid #3a3a4a;
+            border-radius:14px;padding:34px 22px;text-align:center;margin:30px 0}
+    .nodata h2{color:#fbbf24;margin-bottom:8px;font-size:22px}
+    .nodata p{color:#aaa;font-size:14px}
+    .nodata code{background:#0a0a14;padding:2px 6px;border-radius:4px;color:#fbbf24}
+    h2{color:#f01070;font-size:22px;margin:30px 0 14px}
+    .events-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+    .event-card{background:#15151f;border-left:4px solid #7c3aed;border-radius:10px;
+                padding:18px 20px;text-decoration:none;color:inherit;display:block;
+                transition:transform .1s,border-left-color .1s}
+    .event-card:hover{transform:translateY(-2px);border-left-color:#f01070}
+    .event-card .city{font-size:18px;font-weight:800;color:#fff;margin-bottom:4px}
+    .event-card .when{color:#aaa;font-size:13px;margin-bottom:12px}
+    .event-card .row{display:flex;justify-content:space-between;font-size:13px;
+                     padding:4px 0;border-bottom:1px dashed #2a2a3a}
+    .event-card .row:last-of-type{border-bottom:none}
+    .event-card .row .lbl{color:#aaa}
+    .event-card .row .val{color:#f5e45b;font-weight:700}
+    .event-card .row .val.good{color:#22c55e}
+    .event-card .row .val.bad{color:#ef4444}
+    .event-card .anomaly{margin-top:10px;padding:8px;background:#2a1010;
+                          border:1px solid #d97706;border-radius:6px;color:#fde68a;
+                          font-size:11px}
+    a.back{color:#aaa;text-decoration:none;font-size:13px;margin-bottom:14px;display:inline-block}
+    a.back:hover{color:#fff}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../">&larr; Back to Agent Hub</a>
+  <h1>📊 Marketing Stats — All Events</h1>
+  <div class="sub">Aggregated from GA4 + Meta Pixel + TikTok Pixel by <code style="background:#15151f;padding:2px 6px;border-radius:4px">@stats</code> agent.</div>
+  <div class="pulled" id="pulled-at">loading…</div>
+
+  <div id="nodata" class="nodata" style="display:none;">
+    <h2>⏳ No data flowing yet</h2>
+    <p>Pixels are installed in <code>events.themakeupblowout.com</code>. To activate stats, Lauren needs to add 5 GitHub Secrets to <code>lauren-agent-hub-data</code>:</p>
+    <p style="text-align:left;display:inline-block;margin-top:14px;font-family:ui-monospace,monospace;color:#22c55e">
+      GA4_PROPERTY_ID<br>
+      GA4_SERVICE_ACCOUNT_JSON<br>
+      META_AD_ACCOUNT_ID<br>
+      TIKTOK_ACCESS_TOKEN<br>
+      TIKTOK_ADVERTISER_ID
+    </p>
+    <p style="margin-top:14px">Then trigger <code>marketing-stats.yml</code> from the Actions tab.</p>
+  </div>
+
+  <div id="content" style="display:none;">
+    <h2>Active events</h2>
+    <div class="events-grid" id="grid"></div>
+  </div>
+</div>
+
+<script>
+(async function(){
+  let data;
+  try {
+    const r = await fetch("/conversion_history.json", { cache: "no-store" })
+            .catch(_=>fetch("../state/conversion_history.json",{cache:"no-store"}))
+            .catch(_=>fetch("./conversion_history.json",{cache:"no-store"}));
+    data = r && r.ok ? await r.json() : null;
+    if (!data) {
+      const r2 = await fetch("/state/conversion_history.json", { cache: "no-store" });
+      data = r2.ok ? await r2.json() : null;
+    }
+  } catch (e) { data = null; }
+
+  const events = data && data.events && Object.keys(data.events).length > 0 ? data.events : null;
+  if (!events) {
+    document.getElementById("nodata").style.display = "block";
+    document.getElementById("pulled-at").textContent = "Last pull: not yet (no secrets / no first run)";
+    return;
+  }
+  document.getElementById("content").style.display = "block";
+  document.getElementById("pulled-at").textContent = "Last pulled: " + new Date(data._updated_at).toLocaleString();
+
+  const grid = document.getElementById("grid");
+  Object.entries(events).forEach(([slug, ev]) => {
+    const v = ev.views || {};
+    const c = ev.conversions || {};
+    const rate = v.total ? (c.total / v.total * 100) : 0;
+    const meta = ev.roas_by_source && ev.roas_by_source.meta || 0;
+    const tt = ev.roas_by_source && ev.roas_by_source.tiktok || 0;
+    const anomalies = ev.anomalies || [];
+
+    const card = document.createElement("a");
+    card.className = "event-card";
+    card.href = "https://events.themakeupblowout.com/events/" + slug + "/stats.html";
+    card.target = "_blank";
+    card.innerHTML = `
+      <div class="city">${slug.replace(/-/g," ").replace(/\b\w/g, l=>l.toUpperCase())}</div>
+      <div class="row"><span class="lbl">Views</span><span class="val">${(v.total||0).toLocaleString()}</span></div>
+      <div class="row"><span class="lbl">Conversions</span><span class="val">${(c.total||0).toLocaleString()}</span></div>
+      <div class="row"><span class="lbl">Conv rate</span><span class="val ${rate>10?'good':rate<5?'bad':''}">${rate.toFixed(1)}%</span></div>
+      <div class="row"><span class="lbl">Meta ROAS</span><span class="val ${meta>3?'good':meta<1.5?'bad':''}">${meta.toFixed(1)}x</span></div>
+      <div class="row"><span class="lbl">TikTok ROAS</span><span class="val ${tt>3?'good':tt<1.5?'bad':''}">${tt.toFixed(1)}x</span></div>
+      ${anomalies.length ? `<div class="anomaly">⚠ ${anomalies.length} anomalies</div>` : ''}
+    `;
+    grid.appendChild(card);
+  });
+})();
+</script>
+</body>
+</html>

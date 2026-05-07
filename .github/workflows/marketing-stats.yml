@@ -1,0 +1,102 @@
+name: Marketing stats — pull from GA4 + Meta + TikTok
+
+# Aggregates per-event traffic, conversion %, share clicks, and ROAS.
+# Updates two state files:
+#   - themakeupblowout-events: docs/state/event_analytics.json (per-event, used by stats.html)
+#   - lauren-agent-hub-data: docs/state/conversion_history.json (rolling, used by @forecast)
+#
+# Required GitHub Secrets (Lauren must add):
+#   GA4_PROPERTY_ID, GA4_SERVICE_ACCOUNT_JSON
+#   META_PAGE_TOKEN (already exists), META_AD_ACCOUNT_ID
+#   TIKTOK_ACCESS_TOKEN, TIKTOK_ADVERTISER_ID
+#   GH_PAT_FOR_EVENTS_REPO (PAT with write access to themakeupblowout-events)
+#
+# Cadence:
+#   Every 6h during active campaigns (T-30 → T+7), daily otherwise.
+#   For now: run every 6h always. Adjust later when we have the campaign-window logic.
+
+on:
+  schedule:
+    - cron: "30 */6 * * *"  # 00:30, 06:30, 12:30, 18:30 UTC daily
+  workflow_dispatch: {}
+
+jobs:
+  pull-and-render:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: python3 -m pip install --quiet cryptography
+
+      - name: Run @stats aggregator
+        env:
+          GA4_PROPERTY_ID:           ${{ secrets.GA4_PROPERTY_ID }}
+          GA4_SERVICE_ACCOUNT_JSON:  ${{ secrets.GA4_SERVICE_ACCOUNT_JSON }}
+          META_PAGE_TOKEN:           ${{ secrets.META_PAGE_TOKEN }}
+          META_AD_ACCOUNT_ID:        ${{ secrets.META_AD_ACCOUNT_ID }}
+          TIKTOK_ACCESS_TOKEN:       ${{ secrets.TIKTOK_ACCESS_TOKEN }}
+          TIKTOK_ADVERTISER_ID:      ${{ secrets.TIKTOK_ADVERTISER_ID }}
+        run: |
+          python3 - <<'PY'
+          import sys, json, datetime, urllib.request
+          sys.path.insert(0, "scripts")
+          from lauren_stats import aggregate_for_events, detect_anomalies
+
+          # Pull list of slugs from upcoming-events.json (in the events repo)
+          url = "https://events.themakeupblowout.com/upcoming-events.json"
+          try:
+              with urllib.request.urlopen(url, timeout=10) as r:
+                  events = json.load(r).get("events", [])
+          except Exception:
+              events = []
+          slugs = [e.get("slug") for e in events if e.get("slug")]
+          print(f"Pulling stats for {len(slugs)} events")
+
+          data = aggregate_for_events(slugs)
+          # Detect anomalies using simple defaults (until baselines are populated)
+          baselines = {"median_conv_rate_overall": 0.10}
+          for slug, ev in data["events"].items():
+              ev["anomalies"] = []
+          ann = detect_anomalies(data, baselines)
+          for a in ann:
+              data["events"][a["event"]]["anomalies"].append(a)
+
+          # Write to local file (used for the GitHub Pages summary later)
+          with open("docs/state/conversion_history.json", "w") as f:
+              json.dump(data, f, indent=2, ensure_ascii=False)
+          print(f"Wrote conversion_history.json with {len(data['events'])} events")
+          PY
+
+      - name: Push to themakeupblowout-events repo (event_analytics.json)
+        env:
+          GH_PAT: ${{ secrets.GH_PAT_FOR_EVENTS_REPO }}
+        run: |
+          if [ -z "$GH_PAT" ]; then
+            echo "⚠ GH_PAT_FOR_EVENTS_REPO not set — skipping cross-repo push"
+            exit 0
+          fi
+          git clone https://x-access-token:${GH_PAT}@github.com/laurenlev10/themakeupblowout-events.git /tmp/events
+          cp docs/state/conversion_history.json /tmp/events/docs/state/event_analytics.json
+          cd /tmp/events
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via marketing-stats)"
+          git add docs/state/event_analytics.json
+          if ! git diff --cached --quiet; then
+            git commit -m "stats: refresh event_analytics.json"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
+
+      - name: Commit conversion history locally
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via marketing-stats)"
+          git add docs/state/conversion_history.json
+          if ! git diff --cached --quiet; then
+            git commit -m "stats: refresh conversion_history.json"
+            git pull --rebase origin main || true
+            git push origin main
+          fi

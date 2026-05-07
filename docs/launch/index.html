@@ -192,6 +192,9 @@
   .btn-landing-row{background:linear-gradient(180deg,#475569,#1e293b);color:#fff !important}
   .btn-landing-row:hover{background:linear-gradient(180deg,#334155,#0f172a);transform:translateY(-1px)}
   .btn-landing-row.done{background:#16a34a !important}
+  .btn-stats-row{background:linear-gradient(180deg,#7c3aed,#5b21b6);color:#fff !important}
+  .btn-stats-row:hover{background:linear-gradient(180deg,#6d28d9,#4c1d95);transform:translateY(-1px)}
+  .btn-stats-row.done{background:linear-gradient(180deg,#16a34a,#15803d) !important}
   /* Landing-pages 3-language popup (added 2026-05-07) */
   .landing-popup{position:fixed;inset:0;background:rgba(0,0,0,0.55);
                  z-index:9999;display:none;align-items:flex-start;justify-content:center;
@@ -390,6 +393,9 @@ const SUMMARIES = {
 const CONTRACTS = {"columbia-2026-05-08":{"verdict":"✗","clauses_flagged":9,"href":"../contract/events/columbia-2026-05-08/","generated_at":"2026-05-03T15:30:00-07:00"}};
 // Owner: mbs-city-scout — entry: { score, top_count, href, generated_at }
 const SCOUTS = {"columbia-2026-05-08":{"score":15,"top_count":8,"href":"../scout/columbia-mo/","generated_at":"2026-05-04T08:45:00-07:00"}};
+// Owner: landing-page-builder — entry: { url, generated_at, has_form_id, has_venue, has_ig_url }
+// Owner: marketing-stats — entry: { last_pulled, has_data, total_views, total_conversions, conv_rate, top_source, anomalies_count }
+const EVENT_ANALYTICS = {};
 // Owner: landing-page-builder — entry: { url, generated_at, has_form_id, has_venue, has_ig_url }
 const LANDING_PAGES = {"columbia-2026-05-08":{"url":"https://events.themakeupblowout.com/events/columbia-mo-2026/","generated_at":"2026-05-06T14:06:39-07:00","has_form_id":true,"has_venue":true,"has_ig_url":true}};
 // Owner: canva-event-images — entry: { count, href, generated_at }
@@ -1686,6 +1692,27 @@ End date: </div>
             rowBtn += '<a class="btn-agent-row btn-pr-influencer-row" href="../pr-influencer/?' + params + '" target="_blank" rel="noopener" title="Open PR Influencer dashboard pre-filled with this event">✨ Influencers</a>';
           }
 
+          // Pre-compute event slug — used by Landing + Stats buttons
+          const _evCity = (ev.city || "").trim();
+          const _evState = (ev.state || "").trim();
+          const _evYear = (ev.start_date || "").slice(0,4);
+          const eventSlug = _evCity.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + _evState.toLowerCase() + "-" + _evYear;
+
+          // 📊 Stats button — appears after marketing-stats has its first data point
+          const stats = (typeof EVENT_ANALYTICS !== "undefined") ? EVENT_ANALYTICS[evKey] : null;
+          if (stats && stats.has_data) {
+            const statsLabel = "📊 " + (stats.total_views ? Math.round(stats.total_views/1000) + "K" : "Stats")
+                             + (stats.conv_rate ? " · " + (stats.conv_rate*100).toFixed(0) + "%" : "");
+            const statsTip = "Stats live · " + (stats.last_pulled || "").slice(0,16)
+                           + (stats.anomalies_count ? " · ⚠ " + stats.anomalies_count + " anomalies" : "");
+            const statsHref = "https://events.themakeupblowout.com/events/" + eventSlug + "/stats.html";
+            rowBtn += '<a class="btn-agent-row btn-stats-row done" href="' + statsHref + '" target="_blank" rel="noopener" title="' + escapeHtml(statsTip) + '">' + statsLabel + ' ✓</a>';
+          } else {
+            // No data yet — link to the (empty) per-event stats page anyway
+            const statsHref = "https://events.themakeupblowout.com/events/" + eventSlug + "/stats.html";
+            rowBtn += '<a class="btn-agent-row btn-stats-row" href="' + statsHref + '" target="_blank" rel="noopener" title="No data yet — pixels installed, waiting for first @stats run">📊 Stats</a>';
+          }
+
           // 🪧 Landing Pages — flips when landing-page-builder has produced a public landing page.
           // Owner: landing-page-builder. Schema: LANDING_PAGES[evKey] = { url, generated_at, has_form_id, has_venue, has_ig_url }
           const lp = (typeof LANDING_PAGES !== "undefined") ? LANDING_PAGES[evKey] : null;
@@ -1701,20 +1728,17 @@ End date: </div>
             const ttUrl = baseUrl + "tiktok.html";
             rowBtn += '<button class="btn-agent-row btn-landing-row ' + lpDone + '" type="button" '
                     + 'onclick="window.openLandingPopup(this)" '
+                    + 'data-slug="' + escapeHtml(eventSlug) + '" '
                     + 'data-en="' + escapeHtml(enUrl) + '" '
                     + 'data-es="' + escapeHtml(esUrl) + '" '
                     + 'data-tt="' + escapeHtml(ttUrl) + '" '
                     + 'title="' + escapeHtml(lpTip) + '">🪧 Landing ✓ ▾</button>';
           } else {
-            // Build landing-form-specific params (city + state separated; the form expects them split)
-            const cityName = (ev.city || "").trim();
-            const stateAbbr = (ev.state || "").trim();
-            const eventYear = (ev.start_date || "").slice(0,4);
-            const eventSlug = cityName.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + stateAbbr.toLowerCase() + "-" + eventYear;
+            // Build landing-form-specific params (eventSlug already computed above)
             const landingParams = new URLSearchParams({
               slug: eventSlug,
-              city: cityName,
-              state: stateAbbr,
+              city: _evCity,
+              state: _evState,
               start_date: ev.start_date,
               end_date: ev.end_date,
               venue: ev.venue || "",
@@ -2797,11 +2821,43 @@ End date: </div>
 </script>
 
 
-<!-- Landing-pages 3-URL copy popup (added 2026-05-07) -->
+<!-- Landing-pages 3-URL popup with UTM generator (extended 2026-05-07) -->
 <div class="landing-popup" id="landing-popup" onclick="if(event.target===this)window.closeLandingPopup()">
   <div class="landing-popup-inner">
     <h3>🪧 Landing pages</h3>
-    <p class="lp-sub" id="lp-sub">Three flavors per event. Each campaign gets its own.</p>
+    <p class="lp-sub" id="lp-sub">Three flavors per event. Set UTM tags per campaign — copy the URL with tags baked in.</p>
+
+    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px;color:#78350f;">
+      <strong>📊 UTM tags</strong> — fill these and the URLs below auto-update with proper attribution.
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:8px;">
+        <label style="font-size:11px;color:#92400e">Source<br>
+          <select id="utm-source" onchange="window.updateLandingUrls()" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-family:inherit;font-size:12px;">
+            <option value="">— none —</option>
+            <option value="meta">meta (FB+IG ads)</option>
+            <option value="instagram">instagram (organic)</option>
+            <option value="tiktok">tiktok (paid)</option>
+            <option value="tiktok_lead">tiktok_lead (lead form)</option>
+            <option value="email">email</option>
+            <option value="qr">qr (printed)</option>
+          </select>
+        </label>
+        <label style="font-size:11px;color:#92400e">Medium<br>
+          <select id="utm-medium" onchange="window.updateLandingUrls()" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-family:inherit;font-size:12px;">
+            <option value="">— none —</option>
+            <option value="paid" selected>paid</option>
+            <option value="organic">organic</option>
+            <option value="email">email</option>
+          </select>
+        </label>
+        <label style="font-size:11px;color:#92400e">Campaign<br>
+          <input id="utm-campaign" type="text" placeholder="round1" onkeyup="window.updateLandingUrls()" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-family:inherit;font-size:12px;">
+        </label>
+        <label style="font-size:11px;color:#92400e">Content<br>
+          <input id="utm-content" type="text" placeholder="video_a" onkeyup="window.updateLandingUrls()" style="width:100%;padding:5px;border:1px solid #d1d5db;border-radius:4px;font-family:inherit;font-size:12px;">
+        </label>
+      </div>
+    </div>
+
     <div class="lp-row">
       <div class="lp-label">🇺🇸 English (with SMS form)</div>
       <code class="lp-url" id="lp-url-en"></code>
@@ -2826,23 +2882,53 @@ End date: </div>
         <a class="lp-btn lp-btn-open" id="lp-open-tt" target="_blank" rel="noopener">↗ Open</a>
       </div>
     </div>
+    <div style="font-size:11px;color:#6b7280;margin-top:10px;">
+      📈 Stats for this event: <a id="lp-stats-link" href="#" target="_blank" rel="noopener" style="color:#7c3aed;font-weight:700">View live dashboard →</a>
+    </div>
     <button class="lp-close" type="button" onclick="window.closeLandingPopup()">Close</button>
   </div>
 </div>
 
 <script>
+window._lpBase = { en: "", es: "", tt: "", slug: "" };
 window.openLandingPopup = function(btn) {
-  const en = btn.dataset.en, es = btn.dataset.es, tt = btn.dataset.tt;
-  document.getElementById("lp-url-en").textContent = en;
-  document.getElementById("lp-url-es").textContent = es;
-  document.getElementById("lp-url-tt").textContent = tt;
-  document.getElementById("lp-open-en").href = en;
-  document.getElementById("lp-open-es").href = es;
-  document.getElementById("lp-open-tt").href = tt;
+  window._lpBase.en   = btn.dataset.en;
+  window._lpBase.es   = btn.dataset.es;
+  window._lpBase.tt   = btn.dataset.tt;
+  window._lpBase.slug = btn.dataset.slug || "";
+  // Default UTMs based on the click context
+  document.getElementById("utm-source").value = "";
+  document.getElementById("utm-medium").value = "paid";
+  document.getElementById("utm-campaign").value = "";
+  document.getElementById("utm-content").value = "";
+  window.updateLandingUrls();
+  // Stats link
+  const sl = document.getElementById("lp-stats-link");
+  if (sl && window._lpBase.slug) {
+    sl.href = "https://events.themakeupblowout.com/events/" + window._lpBase.slug + "/stats.html";
+  }
   document.querySelectorAll(".lp-btn-copy").forEach(b => {
     b.classList.remove("copied"); b.textContent = "📋 Copy";
   });
   document.getElementById("landing-popup").classList.add("open");
+};
+
+window.updateLandingUrls = function() {
+  const params = {};
+  ["source","medium","campaign","content"].forEach(k => {
+    const v = document.getElementById("utm-" + k).value.trim().toLowerCase().replace(/\s+/g, "_");
+    if (v) params["utm_" + k] = v;
+  });
+  // If campaign blank, derive from event slug
+  if (!params.utm_campaign && window._lpBase.slug) params.utm_campaign = window._lpBase.slug;
+  const qs = Object.keys(params).map(k => k + "=" + encodeURIComponent(params[k])).join("&");
+  ["en","es","tt"].forEach(which => {
+    const baseUrl = window._lpBase[which];
+    const sep = baseUrl.indexOf("?") === -1 ? "?" : "&";
+    const finalUrl = qs ? baseUrl + sep + qs : baseUrl;
+    document.getElementById("lp-url-" + which).textContent = finalUrl;
+    document.getElementById("lp-open-" + which).href = finalUrl;
+  });
 };
 window.closeLandingPopup = function() {
   document.getElementById("landing-popup").classList.remove("open");
