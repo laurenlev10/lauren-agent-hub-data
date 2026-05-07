@@ -720,8 +720,11 @@ def is_event_weekend(date, all_events: list) -> bool:
 
 
 def generate_per_event_insights(slug: str, ev: dict, averages: dict,
-                                  prev_year_lists: list = None) -> dict:
+                                  prev_year_lists: list = None,
+                                  prev_snapshot: dict = None) -> dict:
     """Build narrative insight + recommendations for one event.
+
+    prev_snapshot: the last @stats snapshot (ts, eb, sms) — used for delta-since-last-report.
 
     Returns dict with: bucket (critical/watch/strong), narrative, recommendation
     """
@@ -763,9 +766,26 @@ def generate_per_event_insights(slug: str, ev: dict, averages: dict,
         city_name = slug.replace("-", " ").title()
     days_str = f"{days}d לאירוע" if days is not None else ""
     narrative = city_name + (f" ({days_str})" if days_str else "")
-    eb_part = f"🎟️ Eventbrite: {eb_reg} RSVPs"
+    # Delta since previous report
+    eb_delta = None
+    sms_delta = None
+    if prev_snapshot:
+        prev_eb = prev_snapshot.get("eb")
+        prev_sms = prev_snapshot.get("sms")
+        if prev_eb is not None:
+            eb_delta = eb_reg - prev_eb
+        if prev_sms is not None:
+            sms_delta = sms_reg - prev_sms
+
+    def _fmt_delta(d):
+        if d is None: return ""
+        if d > 0:    return f" (+{d} מאז הפעם הקודמת)"
+        if d < 0:    return f" ({d} מאז הפעם הקודמת)"
+        return " (ללא שינוי)"
+
+    eb_part = f"🎟️ Eventbrite: {eb_reg} RSVPs{_fmt_delta(eb_delta)}"
     sms_list_name = ev.get("sms_list_name") or "רשימה שנתית"
-    sms_part = f"📲 SMS list ({sms_list_name}): {sms_reg:,} רשומות"
+    sms_part = f"📲 SMS list ({sms_list_name}): {sms_reg:,} רשומות{_fmt_delta(sms_delta)}"
 
     # No active recommendations — Lauren prefers raw data + benchmarks for self-judgment
     rec = None
@@ -860,3 +880,42 @@ def extract_event_financials_from_launch_dashboard(html_path) -> dict:
     except Exception as e:
         print(f"  ⚠ SUMMARIES parse failed: {e}")
         return {}
+
+# ---------------------------------------------------------------------------
+# Time-series snapshots (for delta-since-last-report)
+# ---------------------------------------------------------------------------
+
+def load_event_timeseries(path: str = "docs/state/event_timeseries.json") -> dict:
+    """Load event time-series snapshots. Shape: {events: {slug: {snapshots: [...]}}}."""
+    p = _Path(path)
+    if not p.exists():
+        return {"events": {}}
+    try:
+        return _json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {"events": {}}
+
+
+def get_previous_snapshot(timeseries: dict, slug: str) -> dict:
+    """Return the LAST snapshot for `slug` (the one taken just before now)."""
+    snaps = (timeseries.get("events", {}).get(slug) or {}).get("snapshots") or []
+    if not snaps:
+        return {}
+    return snaps[-1]
+
+
+def append_event_snapshot(timeseries: dict, slug: str, eb_reg: int, sms_reg: int) -> None:
+    """Mutate `timeseries` to append a new snapshot for `slug`."""
+    ts_iso = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    events = timeseries.setdefault("events", {})
+    ev = events.setdefault(slug, {"snapshots": []})
+    ev["snapshots"].append({"ts": ts_iso, "eb": int(eb_reg), "sms": int(sms_reg)})
+    # Keep only last 90 snapshots per event (~3 weeks at 4/day or 3 months at 1/day)
+    ev["snapshots"] = ev["snapshots"][-90:]
+
+
+def save_event_timeseries(timeseries: dict, path: str = "docs/state/event_timeseries.json") -> None:
+    timeseries["_updated_at"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _Path(path).parent.mkdir(parents=True, exist_ok=True)
+    _Path(path).write_text(_json.dumps(timeseries, indent=2, ensure_ascii=False), encoding="utf-8")
+
