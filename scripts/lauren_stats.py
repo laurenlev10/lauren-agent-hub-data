@@ -820,12 +820,6 @@ def format_insights_sms(insights: list, averages: dict, ts: str = None) -> str:
         lines.extend(render_event(i))
         lines.append("")  # blank line between events
 
-    if averages.get("ytd_event_count"):
-        n_past = averages["ytd_event_count"]
-        lines.append(f"📈 YTD: ${averages['ytd_avg_sales']:,} מכירות לאירוע ({n_past} אירועים שעברו)")
-        if averages.get("note_no_tnd_yet"):
-            lines.append("(ממוצע T-Nd יבנה אחרי 5+ אירועים במעקב)")
-
     lines.append("🔗 https://laurenlev10.github.io/lauren-agent-hub-data/launch/")
     return "\n".join(lines)
 
