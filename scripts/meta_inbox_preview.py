@@ -136,6 +136,90 @@ CUSTOMER_ISSUE_PAT = re.compile(
 )
 
 # "Can I order online?" / "Available online?" — direct her to the website
+# "Where?" comments on event-specific reels — answer with the venue from the post caption.
+WHERE_PAT = re.compile(
+    r"^\s*(?:at\s+)?where\??!?\s*\??!?\s*$|"        # "Where?" / "At where??"
+    r"^\s*where\s+(?:is|are|r|u|you|it|this|the\s+sale)\b",  # "where is it"
+    re.IGNORECASE,
+)
+
+# Patterns that pull event info out of Lauren's reel captions
+_CITY_STATE_FROM_CAP = re.compile(
+    r"sale\s+in\s+([^,!?\n]+?)\s*,\s*([A-Z]{2})", re.IGNORECASE
+)
+_WHEN_FROM_CAP = re.compile(r"when[:\s]+([^\n]+?)\s*\n", re.IGNORECASE)
+_WHERE_FROM_CAP = re.compile(r"where[:\s]+([^\n]+?)\s*\n", re.IGNORECASE)
+_AT_VENUE_FROM_CAP = re.compile(r"\bAt\s+([A-Z][^.\n]+?)(?:\.|\n|$)")
+
+
+def summarize_event_from_caption(caption: str):
+    """Pull (city, state, dates, address, venue) out of one of Lauren's
+    standard event reel captions. Returns None if we can't identify a city."""
+    if not caption:
+        return None
+    m = _CITY_STATE_FROM_CAP.search(caption)
+    if not m:
+        return None
+    city, state = m.group(1).strip(), m.group(2).strip().upper()
+    dates_m   = _WHEN_FROM_CAP.search(caption)
+    address_m = _WHERE_FROM_CAP.search(caption)
+    venue_m   = _AT_VENUE_FROM_CAP.search(caption)
+    return {
+        "city":    city,
+        "state":   state,
+        "dates":   dates_m.group(1).strip() if dates_m else None,
+        "address": address_m.group(1).strip() if address_m else None,
+        "venue":   venue_m.group(1).strip() if venue_m else None,
+    }
+
+
+def event_status(dates_str: str, today: dt.date = None) -> str:
+    """Returns 'live' / 'upcoming-soon' / 'upcoming' / 'past' / 'unknown'."""
+    today = today or dt.date.today()
+    start, end, _ = _parse_dates(dates_str or "")
+    if not start or not end:
+        return "unknown"
+    if today < start:
+        days = (start - today).days
+        return "upcoming-soon" if days <= 7 else "upcoming"
+    if today > end:
+        return "past"
+    return "live"  # today between start and end inclusive
+
+
+_WHERE_LIVE_TEMPLATES = [
+    "We're LIVE NOW in {city}, {state}!! 💄✨ 📍 {address} — open today "
+    "10am-5pm. Come thru gorgeous 💕",
+    "Happening RIGHT NOW 💄 {city}, {state} — 📍 {address}, open till 5pm. "
+    "Don't sleep on this 🛍️✨",
+    "Babe we're LIVE 🎉 {city}, {state} — 📍 {address} (at {venue}). "
+    "10am-5pm today, free entry + parking 💄💕",
+    "Today's the day!! 🥳 {city}, {state} — 📍 {address}. Open 10am-5pm 💄✨",
+]
+_WHERE_UPCOMING_SOON_TEMPLATES = [
+    "Coming up THIS weekend 🎉 {city}, {state} — 📍 {address}, Fri-Sun "
+    "10am-5pm 💄✨ Free entry + parking 💕",
+    "We're heading to {city}, {state} — {dates}!! 📍 {address}. "
+    "See you there gorgeous 💄✨",
+    "Locked in for {city}, {state} — {dates} 💄 📍 {address}. "
+    "Fri-Sun 10am-5pm, free admission 💕",
+]
+_WHERE_UPCOMING_TEMPLATES = [
+    "{city}, {state} — {dates} 💄 📍 {address}. Fri-Sun 10am-5pm. "
+    "Mark your calendar 📌💕",
+    "We're popping up in {city}, {state} for {dates} 🎉 📍 {address}. "
+    "Free entry, free parking 💄✨",
+    "Heading to {city}, {state} — {dates}! 📍 {address} (at {venue}). "
+    "Fri-Sun 10am-5pm 💄✨",
+]
+_WHERE_PAST_TEMPLATES = [
+    "Aww we already wrapped {city} {dates} 😭💔 — but watch our FB for "
+    "the next stop near you! 💄✨",
+    "{city} just wrapped {dates} 😭 — we rotate cities every 1–2 years, "
+    "but stay close on FB so you catch the next one 💄💕",
+]
+
+
 ONLINE_ORDER_PAT = re.compile(
     r"\b(?:order|buy|purchase|shop|sell|sold|ship|delivery|delivered|"
     r"available|get\s+it)\b.*\bonline\b|"
@@ -403,6 +487,33 @@ def classify(text: str, kb: dict) -> dict:
         return {"bucket": "B", "reason": "empty/too short", "reply": None}
 
     t = text.strip()
+
+    # "Where?" comments — only meaningful when we have the post context
+    post_ctx = kb.get("_post_context") if isinstance(kb, dict) else None
+    if post_ctx and WHERE_PAT.search(t):
+        info = summarize_event_from_caption(post_ctx.get("caption", ""))
+        if info:
+            seed = (kb.get("_seed", "") or "") + "where"
+            status = event_status(info.get("dates", ""))
+            address = info.get("address") or "(address tba)"
+            venue   = info.get("venue") or "the venue"
+            city, state = info.get("city",""), info.get("state","")
+            dates = info.get("dates","")
+            if status == "live":
+                tmpl = _seeded_pick(_WHERE_LIVE_TEMPLATES, seed)
+            elif status == "upcoming-soon":
+                tmpl = _seeded_pick(_WHERE_UPCOMING_SOON_TEMPLATES, seed)
+            elif status == "upcoming":
+                tmpl = _seeded_pick(_WHERE_UPCOMING_TEMPLATES, seed)
+            elif status == "past":
+                tmpl = _seeded_pick(_WHERE_PAST_TEMPLATES, seed)
+            else:
+                tmpl = None
+            if tmpl:
+                return {"bucket": "A",
+                        "reason": f"'Where?' on event reel — status={status}, city={city}",
+                        "reply": tmpl.format(city=city, state=state, dates=dates,
+                                             address=address, venue=venue)}
 
     # Negative — never auto-reply
     if NEGATIVE_KEYWORDS.search(t):
@@ -893,6 +1004,10 @@ def main():
                 continue
             txt = cmt.get("message", "")
             kb["_seed"] = cmt.get("id", "")
+            kb["_post_context"] = {
+                "caption": grp["post"].get("message", ""),
+                "date": grp["post"].get("created_time", ""),
+            }
             cls = classify(txt, kb)
             # FB comment: prefer post permalink (the comment will be visible there;
             # Meta doesn't always expose direct comment-permalinks for replies)
@@ -916,6 +1031,10 @@ def main():
                 continue
             txt = cmt.get("text", "")
             kb["_seed"] = cmt.get("id", "")
+            kb["_post_context"] = {
+                "caption": grp["media"].get("caption", ""),
+                "date": grp["media"].get("timestamp", ""),
+            }
             cls = classify(txt, kb)
             # IG: tap the reel permalink — comment is visible inline on the reel
             classified_ig.append({

@@ -622,10 +622,18 @@ const WEEKLY_TASKS = [
     list.innerHTML = "";
     tasks.forEach(function (t) {
       const s = statusFor(t);
-      const card = document.createElement("div");
-      card.className = "sched-task";
       const safeName = String(t.label || t.id || "").replace(/[<>&"]/g, "");
       const freq = String(t.scheduleHuman || t.frequency || "").replace(/[<>&"]/g, "");
+      const dashHref = String(t.dashboard || "").replace(/[<>"\\]/g, "");
+      // If a dashboard URL is set, the whole card becomes a link
+      const card = document.createElement(dashHref ? "a" : "div");
+      card.className = "sched-task";
+      if (dashHref) {
+        card.href = dashHref;
+        card.style.textDecoration = "none";
+        card.style.color = "inherit";
+        card.style.display = "block";
+      }
       card.innerHTML =
         '<div class="task-row">' +
           '<div class="task-name">' + safeName + '</div>' +
