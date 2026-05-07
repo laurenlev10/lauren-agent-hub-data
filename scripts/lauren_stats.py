@@ -536,6 +536,7 @@ def aggregate_with_funnel(slugs: list, events: list, setups: dict,
         ev_out["sms_registered"] = sms.get("list_size", 0)
         ev_out["sms_total_count"] = sms.get("total_count", 0)
         ev_out["sms_list_id"] = sms.get("list_id")
+        ev_out["sms_list_name"] = sms.get("list_name")
 
         meta = ev_by_slug.get(slug, {})
         evkey = meta.get("_evkey")
