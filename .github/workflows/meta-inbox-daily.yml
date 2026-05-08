@@ -19,7 +19,16 @@ name: Daily @meta inbox triage (Phase 2 — Bucket A auto-reply LIVE)
 on:
   schedule:
     - cron: "0 3 * * *"   # 03:00 UTC = 8 PM PDT (May–Oct) / 7 PM PST (Nov–Mar)
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force_send_replies:
+        description: 'Force LIVE auto-reply for Bucket A (default false = preview only)'
+        type: boolean
+        default: false
+      force_send_sms:
+        description: 'Force send SMS digest (default false)'
+        type: boolean
+        default: false
 
 jobs:
   triage:
@@ -40,13 +49,24 @@ jobs:
           SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
           LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE }}
         run: |
+          ARGS=""
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            echo "Daily cron — Phase 2 LIVE auto-reply for Bucket A + SMS"
-            python3 scripts/meta_inbox_preview.py --send-sms --reply-bucket-a
+            echo "Daily cron — LIVE Phase 2 auto-reply + SMS"
+            ARGS="--send-sms --reply-bucket-a"
           else
-            echo "Manual trigger — preview only (no SMS, no auto-reply)"
-            python3 scripts/meta_inbox_preview.py
+            if [ "${{ inputs.force_send_replies }}" = "true" ]; then
+              ARGS="$ARGS --reply-bucket-a"
+              echo "Manual trigger — LIVE Bucket A auto-reply enabled"
+            fi
+            if [ "${{ inputs.force_send_sms }}" = "true" ]; then
+              ARGS="$ARGS --send-sms"
+              echo "Manual trigger — SMS enabled"
+            fi
+            if [ -z "$ARGS" ]; then
+              echo "Manual trigger — preview only"
+            fi
           fi
+          python3 scripts/meta_inbox_preview.py $ARGS
 
       - name: Commit + push if preview changed
         run: |
