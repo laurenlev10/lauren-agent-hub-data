@@ -1041,7 +1041,7 @@ End date: </div>
            Lauren shouldn't have to scroll to find the command after she
            reopens a modal with prior uploads. -->
       <div id="upload-progress-top" class="upload-progress" hidden></div>
-      <p class="upload-intro">גררי את 4 הקבצים (או לחצי על אזור כדי לבחור). נתמכים: PDF · תמונות / screenshots · CSV · XLSX.</p>
+      <p class="upload-intro">גררי את הקבצים (4 חובה + 1 אופציונלי). נתמכים: PDF · תמונות / screenshots · CSV · XLSX.</p>
       <div class="upload-zones">
         <div class="upload-zone" data-kind="cash_report">
           <div class="upload-zone-icon">📄</div>
@@ -1070,6 +1070,13 @@ End date: </div>
           <div class="upload-zone-hint">XLSX / CSV / screenshot</div>
           <div class="upload-zone-status">גררי קובץ או לחצי לבחירה</div>
           <input type="file" accept=".xlsx,.csv,image/*" hidden>
+        </div>
+        <div class="upload-zone optional" data-kind="travel">
+          <div class="upload-zone-icon">✈️</div>
+          <div class="upload-zone-title">סיכום נסיעות (אופציונלי)</div>
+          <div class="upload-zone-hint">תמונה — סיכום מ-Grok של טיסות / רכבים / מלונות שאלי שולח</div>
+          <div class="upload-zone-status">גררי קובץ או לחצי לבחירה</div>
+          <input type="file" accept="image/*" hidden>
         </div>
       </div>
       <div class="upload-qb-note">
@@ -2469,7 +2476,9 @@ End date: </div>
     // transactions directly into her master P&L Sheet; the agent reads
     // them from there via scripts/lauren_pnl.py).
     const KINDS_REQUIRED = ["cash_report", "octopos", "meta", "tiktok"];
-    const KINDS_OPTIONAL = [];
+    // travel = optional image of flight/car/hotel bookings (Eli's Grok summary).
+    // Used by the agent for cross-check vs QB travel rows + fallback if QB row is missing.
+    const KINDS_OPTIONAL = ["travel"];
     const KINDS          = KINDS_REQUIRED.concat(KINDS_OPTIONAL);
 
     let currentEvent  = null;
@@ -2593,13 +2602,18 @@ End date: </div>
       // Submit is now allowed with ANY combination — Lauren can save
       // partial progress (e.g. just the cash report tonight, the rest
       // tomorrow). The merge happens server-side via existing manifest.
-      const stagedList   = KINDS_REQUIRED.filter(k => stagedFiles[k]);
-      const existingList = KINDS_REQUIRED.filter(k => existingFiles[k] && !stagedFiles[k]);
-      const totalReady   = stagedList.length + existingList.length;
+      // For "ready" counts we consider REQUIRED only (travel is bonus);
+      // for the submit-enabled check we consider ANY staged kind so Lauren
+      // can also save just the travel image to an event with prior uploads.
+      const stagedList     = KINDS_REQUIRED.filter(k => stagedFiles[k]);
+      const existingList   = KINDS_REQUIRED.filter(k => existingFiles[k] && !stagedFiles[k]);
+      const totalReady     = stagedList.length + existingList.length;
+      const anyStagedKind  = KINDS.some(k => stagedFiles[k]);
+      const anyExistingReq = KINDS_REQUIRED.some(k => existingFiles[k]);
       const submitBtn = document.getElementById("upload-submit");
-      // Allow submit if there's at least 1 NEW file staged, OR if there are
-      // existing files but Lauren only changed manual values / notes.
-      submitBtn.disabled = (stagedList.length === 0 && existingList.length === 0);
+      // Allow submit if there's at least 1 NEW file staged of ANY kind, OR
+      // if there are existing required files (manual-values-only re-save).
+      submitBtn.disabled = !anyStagedKind && !anyExistingReq;
       if (totalReady === KINDS_REQUIRED.length){
         submitBtn.textContent = "🚀 העלי והתחילי (כל 4 הקבצים מוכנים)";
       } else if (totalReady > 0){
