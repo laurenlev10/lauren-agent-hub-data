@@ -1550,7 +1550,7 @@ def main():
                                 "method": "bulk-mark-manual-cleanup"}
                 marked += 1
         handled_path = Path(__file__).resolve().parent.parent / "docs/meta/handled.json"
-        handled_path.write_text(_json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
+        handled_path.write_text(json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"  ✓ bulk-mark-handled: marked {marked} items as handled")
 
     if args.send_sms:
