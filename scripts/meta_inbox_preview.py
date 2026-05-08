@@ -738,7 +738,7 @@ PAGE_HEAD = '''<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>@meta inbox — API preview (Phase 1 dry-run)</title>
+<title>@meta — Live Inbox Triage</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
@@ -965,9 +965,23 @@ def render_preview(snapshot: dict, classified_messenger: list,
     n_fb = len(classified_fb_comments)
     n_ig = len(classified_ig_comments)
 
-    # Collect every Bucket B item across all channels — the things needing Lauren
+    # Collect every Bucket B item across all channels — the things needing Lauren.
+    # Server-side filter: skip items already marked handled (so count + visible items match).
+    try:
+        from pathlib import Path as _Path
+        import json as _json
+        _h = _Path("docs/meta/handled.json")
+        _handled = _json.loads(_h.read_text()) if _h.exists() else {}
+    except Exception:
+        _handled = {}
+    def _is_handled(dkey):
+        if not dkey: return False
+        return bool(_handled.get(dkey, {}).get("handled"))
+
     attention_items = []
     for m in classified_messenger:
+        if _is_handled(m.get("dedup_key", "")):
+            continue
         if m["cls"]["bucket"] in ("B", "NEG"):
             who = m.get("name", "?")
             attention_items.append({
@@ -982,6 +996,8 @@ def render_preview(snapshot: dict, classified_messenger: list,
                 "draft":    m["cls"].get("reply") or _make_draft_reply(who, m.get("msg", ""), "messenger"),
             })
     for c in classified_fb_comments:
+        if _is_handled(c.get("dedup_key", "")):
+            continue
         if c["cls"]["bucket"] in ("B", "NEG"):
             who_from = c.get("from", "?")
             attention_items.append({
@@ -996,6 +1012,8 @@ def render_preview(snapshot: dict, classified_messenger: list,
                 "draft":    c["cls"].get("reply") or _make_draft_reply(who_from, c.get("text", ""), "fb_comment"),
             })
     for c in classified_ig_comments:
+        if _is_handled(c.get("dedup_key", "")):
+            continue
         if c["cls"]["bucket"] in ("B", "NEG"):
             who_ig = "@" + c.get("username", "?")
             attention_items.append({
@@ -1011,16 +1029,16 @@ def render_preview(snapshot: dict, classified_messenger: list,
             })
 
     parts = [PAGE_HEAD]
-    parts.append(f"<h1>@meta — API Preview (Phase 1 dry-run)</h1>")
+    parts.append(f"<h1>📬 @meta — Live Inbox Triage</h1>")
     parts.append(f'<div class="sub">'
                  f'Generated {snapshot["fetched_at"]} · '
-                 f'Read-only — nothing was sent or hidden.</div>')
+                 f'Bucket A auto-replies are LIVE · Send Reply button on items below sends via Meta API.</div>')
 
     # === Attention block: items needing Lauren — at the very top ===
     if attention_items:
         parts.append('<div class="attention-block">')
         parts.append(f'<h2>👀 {len(attention_items)} items need your attention</h2>')
-        parts.append('<p class="intro">Click "💬 Reply" to open the thread on Meta and respond yourself.</p>')
+        parts.append('<p class="intro">📝 ערכי את הטיוטה אם צריך → 📤 Send Reply → התשובה נשלחת אוטומטית דרך Meta API.</p>')
         parts.append('<div class="attention-list">')
         for item in attention_items:
             url_attr = html.escape(item["url"]) if item["url"] else "#"
@@ -1047,6 +1065,15 @@ def render_preview(snapshot: dict, classified_messenger: list,
     # (verbose warning removed for mobile cleanup)
 
     # Stats
+    parts.append('''<div class="legend" style="background:#1a2030;border-radius:10px;padding:14px 18px;margin:14px 0;font-size:13px;line-height:1.7">
+<strong style="color:#fbbf24;font-size:14px">📊 מה כל מספר אומר?</strong>
+<div style="margin-top:8px;color:#aaa">
+🟢 <b style="color:#10b981">MESSENGER BUCKET A</b> = הודעות שהסוכן ענה עליהן <b>אוטומטית</b> (KB matched). את לא צריכה לעשות כלום.<br>
+🟡 <b style="color:#fbbf24">MESSENGER BUCKET B</b> = הודעות שהסוכן <b>לא בטוח</b> איך לענות — אלה רואות אותך למעלה ב-"items need your attention".<br>
+🔴 <b style="color:#ef4444">MESSENGER NEGATIVE</b> = הודעות שליליות שהסוכן <b>לא יענה לעולם</b> אוטומטית (תלונות חזקות).<br>
+💬 <b style="color:#9ca3af">FB COMMENTS / IG COMMENTS</b> = תגובות בפוסטים — מנותחות בנפרד.<br>
+📦 <b style="color:#9ca3af">auto-drafts (tap to inspect)</b> = טיוטות שהסוכן הכין; לחיצה תפתח כדי לראות מה נשלח.
+</div></div>''')
     parts.append('<div class="stats">')
     for label, num in [("Messenger Bucket A", n_a),
                        ("Messenger Bucket B", n_b),
