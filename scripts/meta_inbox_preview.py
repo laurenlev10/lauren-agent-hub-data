@@ -1267,6 +1267,8 @@ def main():
                     help="Phase 2 supervised test: send the Bucket A reply for ONE specific Messenger conv_id (live)")
     ap.add_argument("--reply-bucket-a", action="store_true",
                     help="Phase 2 LIVE: actually send all Bucket A Messenger replies (dry_run=False). Use only after a successful --reply-test.")
+    ap.add_argument("--bulk-mark-handled", action="store_true",
+                    help="Mark ALL classified items (A+B+NEG) as handled WITHOUT sending — for manual cleanup by Lauren.")
     args = ap.parse_args()
 
     repo = Path(__file__).resolve().parent.parent
@@ -1525,6 +1527,31 @@ def main():
         print(f"  Phase 2 auto-reply: sent={sent} failed={failed} skipped_24h={skipped_24h}")
         handled_path = Path(__file__).resolve().parent.parent / "docs/meta/handled.json"
         handled_path.write_text(_json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # === Bulk mark all classified items as handled (manual cleanup) ===
+    if args.bulk_mark_handled:
+        marked = 0
+        for m in classified_messenger:
+            key = dedup_key("messenger", m["conv_id"])
+            if not handled.get(key, {}).get("handled"):
+                handled[key] = {"handled": True, "handledAt": _now_iso(),
+                                "method": "bulk-mark-manual-cleanup"}
+                marked += 1
+        for c in classified_fb_comments:
+            key = c.get("dedup_key", "")
+            if key and not handled.get(key, {}).get("handled"):
+                handled[key] = {"handled": True, "handledAt": _now_iso(),
+                                "method": "bulk-mark-manual-cleanup"}
+                marked += 1
+        for c in classified_ig_comments:
+            key = c.get("dedup_key", "")
+            if key and not handled.get(key, {}).get("handled"):
+                handled[key] = {"handled": True, "handledAt": _now_iso(),
+                                "method": "bulk-mark-manual-cleanup"}
+                marked += 1
+        handled_path = Path(__file__).resolve().parent.parent / "docs/meta/handled.json"
+        handled_path.write_text(_json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"  ✓ bulk-mark-handled: marked {marked} items as handled")
 
     if args.send_sms:
         try:

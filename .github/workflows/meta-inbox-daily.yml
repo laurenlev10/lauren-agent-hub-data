@@ -29,6 +29,10 @@ on:
         description: 'Force send SMS digest (default false)'
         type: boolean
         default: false
+      bulk_mark_handled:
+        description: 'Mark ALL items as handled WITHOUT sending (manual cleanup)'
+        type: boolean
+        default: false
 
 jobs:
   triage:
@@ -61,6 +65,10 @@ jobs:
             if [ "${{ inputs.force_send_sms }}" = "true" ]; then
               ARGS="$ARGS --send-sms"
               echo "Manual trigger — SMS enabled"
+            fi
+            if [ "${{ inputs.bulk_mark_handled }}" = "true" ]; then
+              ARGS="$ARGS --bulk-mark-handled"
+              echo "Manual trigger — BULK MARK ALL HANDLED"
             fi
             if [ -z "$ARGS" ]; then
               echo "Manual trigger — preview only"
