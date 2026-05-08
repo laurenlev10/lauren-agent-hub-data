@@ -120,3 +120,73 @@ function promptForToken() {
     });
   } catch (e) { /* server-side filter is the source of truth */ }
 })();
+
+// ===== Inline reply sender (added 2026-05-08) =====
+// Sends repository_dispatch to GitHub which triggers meta-send-reply.yml workflow.
+// Workflow then calls Meta API to send the message and updates handled.json.
+
+async function sendReply(btn) {
+  const key  = btn.dataset.key;
+  const tid  = btn.dataset.tid;
+  const kind = btn.dataset.kind;  // "messenger" | "fb_comment" | "ig_comment"
+  const row  = btn.closest(".attention-row");
+  const ta   = row && row.querySelector("textarea.att-reply");
+  if (!ta) return;
+  const text = (ta.value || "").trim();
+  if (!text) {
+    alert("נא להזין טקסט תשובה");
+    return;
+  }
+  if (!tid || !kind) {
+    alert("חסר זיהוי target_id או reply_kind — לא יכול לשלוח");
+    return;
+  }
+
+  const token = (function() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; } })();
+  if (!token) {
+    promptForToken();
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "📤 Sending…";
+
+  try {
+    const res = await fetch("https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/dispatches", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + token,
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        event_type: "send-meta-reply",
+        client_payload: {
+          dedup_key: key,
+          target_id: tid,
+          reply_kind: kind,
+          reply_text: text
+        }
+      })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error("HTTP " + res.status + ": " + errText.slice(0, 200));
+    }
+
+    btn.textContent = "✓ Sent! (workflow running)";
+    btn.classList.add("sent");
+
+    // Mark as handled locally + remotely
+    try { await markHandledRemote(key); } catch(e) { console.warn("handled save failed:", e); }
+    setTimeout(() => fadeAndRemove(row), 1500);
+
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "📤 Send Reply";
+    alert("שליחה נכשלה: " + e);
+  }
+}
+
+window.sendReply = sendReply;

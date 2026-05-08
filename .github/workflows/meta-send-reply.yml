@@ -1,0 +1,90 @@
+name: Meta — send reply (on demand)
+
+# Triggered by repository_dispatch from the @meta dashboard's Send Reply button.
+# Receives client_payload {dedup_key, target_id, reply_kind, reply_text} and
+# calls the appropriate Meta Graph API endpoint to send the reply.
+#
+# reply_kind values:
+#   - "messenger"   → reply_to_messenger(target_id=PSID, reply_text)
+#   - "fb_comment"  → reply_to_comment(target_id=comment_id, reply_text)
+#   - "ig_comment"  → reply_to_comment(target_id=ig_comment_id, reply_text)
+
+on:
+  repository_dispatch:
+    types: [send-meta-reply]
+
+jobs:
+  send-reply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Send Meta reply
+        env:
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          PAYLOAD_JSON:    ${{ toJSON(github.event.client_payload) }}
+        run: |
+          python3 - <<'PY'
+          import os, sys, json, datetime
+          sys.path.insert(0, "scripts")
+          from lauren_meta import reply_to_messenger, reply_to_comment
+
+          payload = json.loads(os.environ.get("PAYLOAD_JSON") or "{}")
+          kind   = payload.get("reply_kind", "")
+          tid    = payload.get("target_id", "")
+          text   = payload.get("reply_text", "")
+          dkey   = payload.get("dedup_key", "")
+
+          print(f"Received dispatch: kind={kind} target_id={tid[:20]}... text_len={len(text)}")
+
+          if not (kind and tid and text):
+              print("⚠ Missing kind/target_id/text — skipping")
+              sys.exit(0)
+
+          try:
+              if kind == "messenger":
+                  resp = reply_to_messenger(tid, text)
+              elif kind in ("fb_comment", "ig_comment"):
+                  resp = reply_to_comment(tid, text)
+              else:
+                  print(f"⚠ Unknown reply_kind: {kind}")
+                  sys.exit(1)
+              print(f"✓ Reply sent: {resp}")
+          except Exception as e:
+              print(f"❌ Reply failed: {e}")
+              sys.exit(1)
+
+          # Mark as handled in handled.json (defensive — JS already marks but workflow ensures consistency)
+          if dkey:
+              import urllib.request, urllib.error, base64
+              path = "docs/meta/handled.json"
+              try:
+                  if os.path.exists(path):
+                      with open(path) as f:
+                          data = json.load(f)
+                  else:
+                      data = {}
+                  data[dkey] = {
+                      "handled": True,
+                      "handledAt": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                      "via": "inline-reply"
+                  }
+                  with open(path, "w") as f:
+                      json.dump(data, f, indent=2, ensure_ascii=False)
+                  print(f"✓ Marked {dkey} as handled in {path}")
+              except Exception as e:
+                  print(f"⚠ Failed to update handled.json: {e}")
+          PY
+
+      - name: Commit handled.json update
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via meta-send-reply)"
+          git add docs/meta/handled.json 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+              git commit -m "@meta: mark inline reply as handled"
+              git pull --rebase origin main || true
+              git push origin main
+          fi

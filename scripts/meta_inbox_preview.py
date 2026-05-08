@@ -850,6 +850,47 @@ footer{margin-top:40px;color:#666;font-size:12px;text-align:center}
                      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .attention-row .reply-btn{margin-top:0;flex:0 0 auto}
 
+
+
+/* Inline reply layout (added 2026-05-08) */
+.attention-row{flex-direction:column;align-items:stretch}
+.attention-row .att-meta{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.attention-row .att-message{
+  background:rgba(0,0,0,0.45);padding:10px 12px;border-radius:6px;
+  color:#fde68a;font-size:14px;line-height:1.5;
+  white-space:pre-wrap;word-wrap:break-word;
+  border-left:3px solid #fbbf24
+}
+.attention-row textarea.att-reply{
+  width:100%;min-height:80px;background:#1a1a2a;color:#eee;
+  border:1px solid #555;border-radius:6px;padding:10px 12px;
+  font-family:inherit;font-size:14px;line-height:1.5;
+  resize:vertical;direction:auto
+}
+.attention-row textarea.att-reply:focus{outline:none;border-color:#fbbf24;box-shadow:0 0 0 2px rgba(251,191,36,0.2)}
+.attention-row .att-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.send-btn{
+  background:linear-gradient(180deg,#10b981,#059669);color:#fff !important;
+  padding:9px 16px;border-radius:6px;text-decoration:none;font-weight:800;
+  font-size:14px;cursor:pointer;border:none;font-family:inherit;
+  transition:transform .1s,filter .1s
+}
+.send-btn:hover{transform:translateY(-1px);filter:brightness(1.1)}
+.send-btn[disabled]{opacity:.5;cursor:default;background:#065f46}
+.send-btn.sent{background:#16a34a}
+.reply-btn-secondary{
+  background:transparent;color:#9ca3af !important;
+  padding:8px 12px;border-radius:6px;text-decoration:underline;
+  font-size:12px;font-weight:600
+}
+.reply-btn-secondary:hover{color:#fff !important}
+
+@media (max-width: 600px) {
+  .attention-row .att-message{font-size:13px}
+  .attention-row textarea.att-reply{min-height:90px;font-size:14px}
+  .send-btn{width:100%;text-align:center}
+}
+
 /* Collapsed Bucket A drafts section */
 details.drafts-section {
   background: #1a2030;
@@ -911,33 +952,45 @@ def render_preview(snapshot: dict, classified_messenger: list,
     attention_items = []
     for m in classified_messenger:
         if m["cls"]["bucket"] in ("B", "NEG"):
+            who = m.get("name", "?")
             attention_items.append({
                 "channel": "Messenger",
-                "who":     m.get("name", "?"),
+                "who":     who,
                 "what":    m.get("msg", "(no text)") or "(empty)",
                 "url":     m.get("reply_url", ""),
                 "bucket":  m["cls"]["bucket"],
                 "dedup_key": m.get("dedup_key", ""),
+                "reply_kind": "messenger",
+                "target_id": m.get("customer_psid", ""),  # PSID for Send API
+                "draft":    m["cls"].get("reply") or _make_draft_reply(who, m.get("msg", ""), "messenger"),
             })
     for c in classified_fb_comments:
         if c["cls"]["bucket"] in ("B", "NEG"):
+            who_from = c.get("from", "?")
             attention_items.append({
                 "channel": "FB comment",
-                "who":     c.get("from", "?"),
+                "who":     who_from,
                 "what":    c.get("text", "(no text)"),
                 "url":     c.get("reply_url", ""),
                 "bucket":  c["cls"]["bucket"],
                 "dedup_key": c.get("dedup_key", ""),
+                "reply_kind": "fb_comment",
+                "target_id": c.get("comment_id") or c.get("id", ""),
+                "draft":    c["cls"].get("reply") or _make_draft_reply(who_from, c.get("text", ""), "fb_comment"),
             })
     for c in classified_ig_comments:
         if c["cls"]["bucket"] in ("B", "NEG"):
+            who_ig = "@" + c.get("username", "?")
             attention_items.append({
                 "channel": "IG comment",
-                "who":     "@" + c.get("username", "?"),
+                "who":     who_ig,
                 "what":    c.get("text", "(no text)"),
                 "url":     c.get("reply_url", ""),
                 "bucket":  c["cls"]["bucket"],
                 "dedup_key": c.get("dedup_key", ""),
+                "reply_kind": "ig_comment",
+                "target_id": c.get("id", ""),
+                "draft":    c["cls"].get("reply") or _make_draft_reply(who_ig, c.get("text", ""), "ig_comment"),
             })
 
     parts = [PAGE_HEAD]
@@ -954,17 +1007,24 @@ def render_preview(snapshot: dict, classified_messenger: list,
         parts.append('<div class="attention-list">')
         for item in attention_items:
             url_attr = html.escape(item["url"]) if item["url"] else "#"
-            label = "💬 Reply" if item["bucket"] == "B" else "💬 Open"
             dkey = html.escape(item.get("dedup_key", ""))
-            parts.append(f'<div class="attention-row" data-dedup-key="{dkey}">')
-            parts.append(f'<span class="who">[{item["channel"]}] {html.escape(item["who"])}</span>')
-            parts.append(f'<span class="what">{html.escape(item["what"][:120] or "(empty)")}</span>')
-            parts.append('<span style="display:flex;gap:6px;flex-wrap:wrap">')
+            tid  = html.escape(item.get("target_id", ""))
+            kind = html.escape(item.get("reply_kind", ""))
+            draft = html.escape(item.get("draft") or "")
+            parts.append(f'<div class="attention-row" data-dedup-key="{dkey}" data-target-id="{tid}" data-reply-kind="{kind}">')
+            parts.append(f'<div class="att-meta"><span class="who">[{item["channel"]}] {html.escape(item["who"])}</span></div>')
+            # Full message text (no truncation — let CSS handle wrap)
+            parts.append(f'<div class="att-message">💬 {html.escape(item["what"])}</div>')
+            # Inline reply textarea + Send button
+            parts.append(f'<textarea class="att-reply" data-key="{dkey}" placeholder="כתבי תשובה...">{draft}</textarea>')
+            parts.append('<div class="att-actions">')
+            if tid and kind:
+                parts.append(f'<button class="send-btn" data-key="{dkey}" data-tid="{tid}" data-kind="{kind}" onclick="sendReply(this)">📤 Send Reply</button>')
             if dkey:
-                parts.append(f'<button class="done-btn" data-key="{dkey}" onclick="markDone(this)">Done</button>')
+                parts.append(f'<button class="done-btn" data-key="{dkey}" onclick="markDone(this)">Skip / Done</button>')
             if item["url"]:
-                parts.append(f'<a class="reply-btn" href="{url_attr}" target="_blank" rel="noopener" onclick="markReplyClicked(this)" data-key="{dkey}">{label}</a>')
-            parts.append('</span></div>')
+                parts.append(f'<a class="reply-btn-secondary" href="{url_attr}" target="_blank" rel="noopener" onclick="markReplyClicked(this)" data-key="{dkey}">↗ Open in Meta</a>')
+            parts.append('</div></div>')
         parts.append('</div></div>')
 
     # (verbose warning removed for mobile cleanup)
@@ -1181,6 +1241,7 @@ def main():
             "msg": text,
             "updated_time": c.get("updated_time", ""),
             "reply_url": reply_url,
+            "customer_psid": customer_psid,
             "cls": cls,
         })
 
