@@ -938,6 +938,23 @@ __RUNTIME_JS__
 </html>'''
 
 
+def _make_draft_reply(name: str, customer_text: str, channel: str) -> str:
+    """Generate a friendly placeholder draft for Lauren to edit before sending."""
+    display_name = (name or "").lstrip("@")
+    first_word = display_name.split()[0].split("_")[0] if display_name else "girl"
+    first_word = first_word[:20].title() if first_word else "girl"
+
+    text_lower = (customer_text or "").lower()
+
+    if "?" in (customer_text or "") or any(w in text_lower for w in ["when","where","how","what","why","who","do you","can i","is it"]):
+        return f"Hey {first_word} 💜 Thanks for reaching out! Let me check on that and get back to you super soon ✨"
+    if any(w in text_lower for w in ["bad","terrible","wrong","broken","upset","angry","disappointed","scam","refund","return"]):
+        return f"Hi {first_word} — so sorry to hear that 💜 Can you share a bit more so we can make this right?"
+    if not (customer_text or "").strip() or any(emj in customer_text for emj in ["📸","🎁","❤️","🎬","🎤","📎"]):
+        return f"Hi {first_word} 💜 Thanks so much for the message! Anything we can help with?"
+    return f"Hi {first_word} 💜 Thanks for reaching out! Let me get back to you super soon ✨"
+
+
 def render_preview(snapshot: dict, classified_messenger: list,
                    classified_fb_comments: list,
                    classified_ig_comments: list) -> str:
