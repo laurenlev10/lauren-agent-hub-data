@@ -1490,12 +1490,29 @@ def main():
                 if pp.get("id") and pp.get("id") != page_id:
                     psid_by_conv[c.get("id")] = pp["id"]
                     break
+        skipped_24h = 0
+        from datetime import datetime, timezone, timedelta
+        now_utc = datetime.now(timezone.utc)
         for m in classified_messenger:
             if m["cls"]["bucket"] != "A" or not m["cls"].get("reply"):
                 continue
             psid = psid_by_conv.get(m["conv_id"])
             if not psid:
                 failed += 1; continue
+            # Check 24-hour window — Meta RESPONSE messages only allowed within 24h of customer's last message
+            updated_time = m.get("updated_time", "")
+            if updated_time:
+                try:
+                    msg_time = datetime.fromisoformat(updated_time.replace("Z", "+00:00"))
+                    age_hours = (now_utc - msg_time).total_seconds() / 3600
+                    if age_hours > 24:
+                        # Re-bucket as B (needs manual reply via Meta UI)
+                        m["cls"]["bucket"] = "B"
+                        m["cls"]["reason"] = f"older than 24h ({age_hours:.0f}h) — manual reply required"
+                        skipped_24h += 1
+                        continue
+                except Exception:
+                    pass
             try:
                 reply_to_messenger(psid, m["cls"]["reply"], dry_run=False)
                 handled[dedup_key("messenger", m["conv_id"])] = {
@@ -1505,7 +1522,7 @@ def main():
             except Exception as e:
                 print(f"  ❌ {m['name']}: {e}")
                 failed += 1
-        print(f"  Phase 2 auto-reply: sent={sent} failed={failed}")
+        print(f"  Phase 2 auto-reply: sent={sent} failed={failed} skipped_24h={skipped_24h}")
         handled_path = Path(__file__).resolve().parent.parent / "docs/meta/handled.json"
         handled_path.write_text(_json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
 
