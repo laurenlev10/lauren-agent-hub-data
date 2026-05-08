@@ -445,11 +445,13 @@ const STAFF_DEFAULTS = {"glendale-2026-01-09":{"team":"Mor Daniel Shai Dor Goni 
 // Value: any subset of the keys in MANUAL_TASK_DEFS below + updated_at + (optionally) team_override / image_override_url.
 let MANUAL_TASKS = {};   // mutable — populated from notes.json on load, written back on every checkbox toggle
 const MANUAL_TASK_DEFS = [
-  // Redesigned 2026-05-03 PM (Lauren feedback: previous 5 tasks were noise; only 2 manual gates matter day-to-day).
-  // Old keys (drafts_reviewed, drafts_scheduled, ready_to_open, venue_confirmed, webform_id_saved) still survive in
-  // notes.json for any event Lauren had ticked — they're just not surfaced anymore.
-  { key: "sms_scheduled", label: "תיזמון הודעות טקסט לאירוע",                                  timing: "T-5",  title: "סימון אחרי שכל הקמפיינים ב-SimpleTexting מתוזמנים מראש לאירוע (Schedule כל draft, ולא Send Now)." },
-  { key: "reel_v2_campaign", label: "עידכון ריל חדש ויצירת קמפיין חדש לריל בשבוע אחרון",         timing: "T-7",  title: "סימון אחרי החלפת הריל ל-v2 ויצירת קמפיין חדש שמכיל אותו לשבוע האחרון של הפרסום (refresh)." }
+  // Redesigned 2026-05-03 PM (2 tasks: sms_scheduled + reel_v2_campaign).
+  // 🔴 RETIRED 2026-05-08 PM (Lauren request: "תוריד את שתי המשימות האלו לגמרי. גם אין צורך בהם באירועים עתידיים").
+  // The 2 tasks are no longer rendered for ANY event (past or future). Old keys
+  // (sms_scheduled, reel_v2_campaign, drafts_reviewed, drafts_scheduled, ready_to_open, venue_confirmed,
+  // webform_id_saved) may still survive in notes.json for events Lauren previously ticked — they're
+  // just not surfaced anymore. The empty array suppresses the entire "📋 משימות ידניות" container per
+  // the guard added in the row-builder loop below.
 ];
 </script>
 
@@ -1800,7 +1802,9 @@ End date: </div>
       }
       // Manual-task checkboxes per event (redesigned 2026-05-03 PM — Hebrew, RTL, 2 tasks)
       let manualHtml = "";
-      if (ev) {
+      if (ev && MANUAL_TASK_DEFS.length > 0) {
+        // Guard added 2026-05-08: when MANUAL_TASK_DEFS is empty (Lauren retired the 2 manual tasks),
+        // skip the entire "📋 משימות ידניות" container to avoid an empty box on every row.
         const evKey2 = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
         const tasks = MANUAL_TASKS[evKey2] || {};
         const cells = MANUAL_TASK_DEFS.map(def => {
