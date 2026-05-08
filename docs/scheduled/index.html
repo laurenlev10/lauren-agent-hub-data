@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>⏱️ משימות אוטומטיות — Agent Hub</title>
+<style>
+  :root { --bg: #f6f7fb; --text: #1f2937; --muted: #6b7280; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Heebo", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    padding: 24px 20px 60px; min-height: 100vh;
+  }
+
+  .back-link {
+    display: inline-block; background: #fff; border: 1px solid #e5e7eb;
+    padding: 8px 14px; border-radius: 999px; text-decoration: none;
+    color: #374151; font-size: 13px; font-weight: 600;
+    margin-bottom: 20px; transition: all 0.15s ease;
+  }
+  .back-link:hover { border-color: #4f46e5; color: #4f46e5; }
+
+  .sched-wrap { max-width: 900px; margin: 0 auto; }
+  .sched-card {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%);
+    color: #fff; border-radius: 18px; padding: 26px 30px;
+    box-shadow: 0 8px 32px rgba(79, 70, 229, 0.25);
+    position: relative; overflow: hidden;
+  }
+  .sched-card::before {
+    content: "AUTOMATED"; position: absolute; top: 14px; left: 18px;
+    background: rgba(255,255,255,0.22); padding: 4px 12px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+  }
+  .sched-card::after {
+    content: "🤖"; position: absolute; right: 18px; bottom: -22px;
+    font-size: 140px; opacity: 0.12; line-height: 1; pointer-events: none;
+  }
+  .sched-content { position: relative; z-index: 1; }
+  .sched-name { font-size: 26px; font-weight: 800; margin: 18px 0 4px; letter-spacing: -0.3px; }
+  .sched-tag { font-size: 13px; opacity: 0.95; margin-bottom: 14px; direction: rtl; text-align: right; line-height: 1.5; }
+  .sched-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 700px) { .sched-list { grid-template-columns: 1fr; } }
+  .sched-task {
+    background: rgba(255,255,255,0.13); border-radius: 10px; padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 6px; transition: all 0.15s ease;
+  }
+  .sched-task:hover { background: rgba(255,255,255,0.22); }
+  .sched-task .task-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .sched-task .task-name { font-size: 14px; font-weight: 700; flex: 1; direction: rtl; text-align: right; }
+  .sched-task .task-status { font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; letter-spacing: 0.3px; }
+  .sched-task .task-status.ok    { background: #d1fae5; color: #065f46; }
+  .sched-task .task-status.late  { background: #fef3c7; color: #92400e; }
+  .sched-task .task-status.off   { background: rgba(255,255,255,0.18); color: #e0e7ff; }
+  .sched-task .task-status.never { background: rgba(255,255,255,0.18); color: #fff; }
+  .sched-task .task-meta { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; opacity: 0.9; direction: rtl; }
+  .sched-task .task-meta .freq { font-weight: 700; opacity: 1; }
+  .sched-task .task-meta .task-last { direction: ltr; opacity: 0.85; }
+  .sched-empty {
+    background: rgba(255,255,255,0.13); border-radius: 10px; padding: 14px;
+    text-align: center; font-size: 12px; opacity: 0.92; direction: rtl; grid-column: 1 / -1;
+  }
+</style>
+</head>
+<body>
+
+<a class="back-link" href="../">← חזרה לדף הראשי</a>
+
+<div class="sched-wrap">
+  <div class="sched-card">
+    <div class="sched-content">
+      <div class="sched-name">⏱️ משימות אוטומטיות</div>
+      <div class="sched-tag">סוכנים שרצים אוטומטית בלוח זמנים — סטטוס חי מקובץ <code style="opacity:0.85">scheduled-runs.json</code> ב־Git. כל סוכן מעדכן בסיום ריצה.</div>
+      <div class="sched-list" id="sched-list">
+        <div class="sched-empty">טוען נתונים...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script id="sched-data">
+(function initSched() {
+  const list = document.getElementById("sched-list");
+  const URL_ = "../scheduled-runs.json?_=" + Date.now();
+  fetch(URL_)
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function (data) { render(data.tasks || []); })
+    .catch(function (err) {
+      list.innerHTML = '<div class="sched-empty">לא ניתן לטעון את הנתונים (' + err + ')</div>';
+    });
+
+  function timeAgo(iso) {
+    if (!iso) return "מעולם לא רץ";
+    const d = new Date(iso); if (isNaN(d)) return "—";
+    const diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 60) return "now";
+    if (diff < 3600) return Math.round(diff/60) + "m ago";
+    if (diff < 86400) return Math.round(diff/3600) + "h ago";
+    if (diff < 86400*7) return Math.round(diff/86400) + "d ago";
+    return d.toLocaleDateString('en-CA');
+  }
+
+  function statusFor(t) {
+    if (!t.enabled) return { cls: "off", txt: "OFF" };
+    if (!t.lastRunAt) return { cls: "never", txt: "—" };
+    const diffH = (Date.now() - new Date(t.lastRunAt).getTime()) / 3600000;
+    let limit = 25;
+    if (t.frequency === "hourly") limit = 1.2;
+    else if (t.frequency === "daily") limit = 25;
+    else if (t.frequency === "weekly") limit = 24*8;
+    if (diffH > limit) return { cls: "late", txt: "⚠ LATE" };
+    return { cls: "ok", txt: "OK" };
+  }
+
+  function render(tasks) {
+    if (!tasks.length) {
+      list.innerHTML = '<div class="sched-empty">אין עדיין משימות מתוזמנות.</div>';
+      return;
+    }
+    list.innerHTML = "";
+    tasks.forEach(function (t) {
+      const s = statusFor(t);
+      const safeName = String(t.label || t.id || "").replace(/[<>&"]/g, "");
+      const freq = String(t.scheduleHuman || t.frequency || "").replace(/[<>&"]/g, "");
+      const dashHref = String(t.dashboard || "").replace(/[<>"\\]/g, "");
+      const card = document.createElement(dashHref ? "a" : "div");
+      card.className = "sched-task";
+      if (dashHref) {
+        card.href = "../" + dashHref;
+        card.style.textDecoration = "none";
+        card.style.color = "inherit";
+        card.style.display = "block";
+      }
+      card.innerHTML =
+        '<div class="task-row">' +
+          '<div class="task-name">' + safeName + '</div>' +
+          '<span class="task-status ' + s.cls + '">' + s.txt + '</span>' +
+        '</div>' +
+        '<div class="task-meta">' +
+          '<span class="freq">' + freq + '</span>' +
+          '<span class="task-last">last: ' + timeAgo(t.lastRunAt) + '</span>' +
+        '</div>';
+      list.appendChild(card);
+    });
+  }
+})();
+</script>
+
+</body>
+</html>

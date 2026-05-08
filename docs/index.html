@@ -1,1567 +1,193 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>Agent Hub</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🎯 Agent Hub — Lauren</title>
 <style>
-  :root {
-    --bg: #f6f7fb;
-    --card: #ffffff;
-    --border: #e5e7eb;
-    --text: #1f2937;
-    --muted: #6b7280;
-    --accent: #2563eb;
-  }
+  :root { --bg: #f6f7fb; --text: #1f2937; --muted: #6b7280; }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    padding: 32px 24px;
-    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Heebo", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    padding: 32px 20px 60px; min-height: 100vh;
   }
-  header {
-    text-align: center;
-    margin-bottom: 32px;
-  }
-  h1 { margin: 0 0 6px 0; font-size: 28px; }
-  .subtitle { color: var(--muted); font-size: 14px; }
+  header { text-align: center; margin-bottom: 36px; }
+  header h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -0.4px; }
+  header .subtitle { color: var(--muted); font-size: 14px; }
 
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 20px;
-    max-width: 900px;
-    margin: 0 auto;
+  .tile-grid {
+    max-width: 1080px; margin: 0 auto;
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px;
   }
-  .agent {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 22px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-    text-decoration: none;
-    color: var(--text);
-    display: block;
+  .tile { grid-column: span 2; }
+  .tile.row2-left  { grid-column: 2 / 4; }
+  .tile.row2-right { grid-column: 4 / 6; }
+  @media (max-width: 900px) {
+    .tile-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .tile, .tile.row2-left, .tile.row2-right { grid-column: span 1; }
+  }
+  @media (max-width: 540px) { .tile-grid { grid-template-columns: 1fr; } }
+
+  .tile {
+    border-radius: 16px; padding: 22px 22px 18px;
+    box-shadow: 0 6px 22px rgba(0,0,0,0.10); color: #fff;
+    text-decoration: none; display: flex; flex-direction: column; gap: 10px;
+    position: relative; overflow: hidden;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
+    min-height: 220px;
   }
-  .agent:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
-    border-color: var(--accent);
+  .tile:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.16); }
+  .tile .pill {
+    align-self: flex-start; background: rgba(255,255,255,0.22);
+    padding: 4px 11px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;
   }
-  .agent .icon { font-size: 36px; margin-bottom: 10px; }
-  .agent .name { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
-  .agent .desc { font-size: 13px; color: var(--muted); line-height: 1.4; margin-bottom: 14px; }
-  .agent .lastRun {
-    font-size: 11px; color: var(--muted); text-transform: uppercase;
-    letter-spacing: 0.5px; padding-top: 10px; border-top: 1px solid var(--border);
+  .tile .title { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; margin: 4px 0 2px; }
+  .tile .tag { font-size: 13px; line-height: 1.5; opacity: 0.95; flex: 1; }
+  .tile .status {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;
+    opacity: 0.88; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.18);
   }
-  .agent .lastRun b { color: var(--accent); font-weight: 600; }
-
-  .run-btn {
-    display: block; width: 100%; margin-top: 14px; padding: 10px 14px;
-    background: linear-gradient(180deg, #2563eb, #1d4ed8); color: #fff;
-    border: none; border-radius: 8px; font-size: 13px; font-weight: 700;
-    cursor: pointer; letter-spacing: 0.3px;
-    box-shadow: 0 1px 2px rgba(37,99,235,0.3); transition: all 0.15s;
+  .tile .status b { color: #fff; font-weight: 800; }
+  .tile .cta {
+    align-self: flex-end; font-size: 12px; font-weight: 700;
+    background: rgba(255,255,255,0.20); padding: 6px 12px; border-radius: 999px;
+    margin-top: 4px;
   }
-  .run-btn:hover { background: linear-gradient(180deg, #1d4ed8, #1e40af); transform: translateY(-1px); }
-  .run-btn.copied { background: #059669; }
-  .run-hint { font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center; }
-
-  /* Senior meta-agent (architect — purple) */
-  .agent-architect { border: 2px solid #7c3aed; background: linear-gradient(180deg, #faf5ff, #fff); position: relative; }
-  .agent-architect::before {
-    content: "SENIOR"; position: absolute; top: -10px; left: 16px;
-    background: linear-gradient(90deg, #7c3aed, #a855f7); color: white;
-    font-size: 10px; font-weight: 700; letter-spacing: 1px;
-    padding: 2px 10px; border-radius: 10px;
-  }
-  .agent-architect:hover { border-color: #6d28d9; box-shadow: 0 8px 24px rgba(124, 58, 237, 0.18); }
-  .agent-architect .run-btn { background: linear-gradient(180deg, #a855f7, #7c3aed); box-shadow: 0 1px 2px rgba(168, 85, 247, 0.3); }
-  .agent-architect .run-btn:hover { background: linear-gradient(180deg, #7c3aed, #6d28d9); }
-
-  /* Featured "🎪 Event Manager" — the navigator/orchestrator (Lauren 2026-05-03; renamed from "Event Launch" same day) */
-  .featured-wrap { max-width: 900px; margin: 0 auto 28px auto; }
-  .agent-launch-hero {
-    background: linear-gradient(135deg, #ec4899 0%, #db2777 50%, #9333ea 100%);
-    color: #fff;
-    border-radius: 18px;
-    padding: 28px 32px;
-    box-shadow: 0 8px 32px rgba(236, 72, 153, 0.28);
-    position: relative;
-    overflow: hidden;
-    text-decoration: none;
-    display: block;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-  }
-  .agent-launch-hero:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(236, 72, 153, 0.36); }
-  .agent-launch-hero::before {
-    content: "🧭 NAVIGATOR";
-    position: absolute; top: 14px; left: 18px;
-    background: rgba(255,255,255,0.22); color: #fff;
-    padding: 4px 12px; border-radius: 999px;
-    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
-    backdrop-filter: blur(4px);
-  }
-  .agent-launch-hero::after {
-    content: "🎪"; position: absolute; right: 18px; bottom: -22px;
-    font-size: 140px; opacity: 0.12; line-height: 1; pointer-events: none;
-  }
-  .agent-launch-hero .hero-content { position: relative; z-index: 1; max-width: 660px; }
-  .agent-launch-hero .hero-name {
-    font-size: 30px; font-weight: 800; margin: 18px 0 4px;
-    letter-spacing: -0.5px;
-  }
-  .agent-launch-hero .hero-tag {
-    font-size: 15px; opacity: 0.95; margin-bottom: 14px;
-    font-weight: 500;
-  }
-  .agent-launch-hero .hero-desc {
-    font-size: 13px; opacity: 0.92; line-height: 1.6; margin-bottom: 16px;
-  }
-  .agent-launch-hero .hero-features {
-    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px;
-  }
-  .agent-launch-hero .hero-feature {
-    background: rgba(255,255,255,0.18); padding: 4px 10px; border-radius: 8px;
-    font-size: 11px; font-weight: 600;
-  }
-  .agent-launch-hero .hero-lastrun {
-    font-size: 11px; opacity: 0.85; margin-bottom: 14px;
-    text-transform: uppercase; letter-spacing: 0.6px;
-  }
-  .agent-launch-hero .hero-lastrun b { color: #fff; font-weight: 800; }
-  .agent-launch-hero .hero-cta {
-    display: inline-block; background: #fff; color: #db2777;
-    padding: 12px 24px; border-radius: 10px; font-weight: 800;
-    font-size: 15px; text-decoration: none; box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-    transition: all 0.12s;
-  }
-  .agent-launch-hero .hero-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.18); }
-  .agent-architect .lastRun b { color: #7c3aed; }
-
-  /* City Scout (orange) */
-  .agent-scout { border: 2px solid #ea580c; background: linear-gradient(180deg, #fff7ed, #fff); }
-  .agent-scout:hover { border-color: #c2410c; box-shadow: 0 8px 24px rgba(234, 88, 12, 0.18); }
-  .agent-scout .run-btn { background: linear-gradient(180deg, #fb923c, #ea580c); box-shadow: 0 1px 2px rgba(251, 146, 60, 0.3); }
-  .agent-scout .run-btn:hover { background: linear-gradient(180deg, #ea580c, #c2410c); }
-  .agent-scout .run-btn.copied { background: linear-gradient(180deg, #4ade80, #16a34a); }
-  .agent-scout .lastRun b { color: #ea580c; }
-  .scout-form { display: grid; grid-template-columns: 1.4fr 0.6fr 1fr; gap: 6px; margin: 10px 0; }
-  .scout-form input, .scout-form select {
-    width: 100%; padding: 8px 10px; border: 1.5px solid #fed7aa; border-radius: 8px;
-    font-family: inherit; font-size: 13px; color: #2D3436; background: #fff; transition: all 0.2s ease;
-  }
-  .scout-form input:focus, .scout-form select:focus { outline: none; border-color: #ea580c; box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12); }
-  .scout-reports-list { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #fed7aa; font-size: 12px; }
-  .scout-reports-list .scout-report-item {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 6px 0; border-bottom: 1px dotted #fed7aa;
-  }
-  .scout-reports-list .scout-report-item:last-child { border-bottom: none; }
-  .scout-reports-list a { color: #ea580c; text-decoration: none; font-weight: 600; }
-  .scout-reports-list a:hover { text-decoration: underline; }
-  .scout-reports-list .score { background: #fff7ed; color: #c2410c; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
-  .scout-reports-empty { color: #999; font-size: 12px; font-style: italic; padding: 6px 0; }
-
-  /* Senior orchestrator (event-manager — emerald) */
-  .agent-manager { border: 2px solid #059669; background: linear-gradient(180deg, #ecfdf5, #fff); position: relative; }
-  .agent-manager::before {
-    content: "SENIOR"; position: absolute; top: -10px; left: 16px;
-    background: linear-gradient(90deg, #059669, #10b981); color: white;
-    font-size: 10px; font-weight: 700; letter-spacing: 1px;
-    padding: 2px 10px; border-radius: 10px;
-  }
-  .agent-manager:hover { border-color: #047857; box-shadow: 0 8px 24px rgba(5, 150, 105, 0.18); }
-  .agent-manager .run-btn { background: linear-gradient(180deg, #10b981, #059669); box-shadow: 0 1px 2px rgba(16, 185, 129, 0.3); }
-  .agent-manager .run-btn:hover { background: linear-gradient(180deg, #059669, #047857); }
-  .agent-manager .lastRun b { color: #059669; }
-
-  /* ================================================================== */
-  /* Weekly Tasks panel (teal) — manual checklist, resets every Sunday   */
-  /* ================================================================== */
-  .weekly-wrap { max-width: 900px; margin: 0 auto 24px auto; }
-  .weekly-card {
-    background: linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #0f766e 100%);
-    color: #fff; border-radius: 18px; padding: 26px 30px;
-    box-shadow: 0 8px 32px rgba(13, 148, 136, 0.25);
-    position: relative; overflow: hidden;
-  }
-  .weekly-card::before {
-    content: "WEEKLY"; position: absolute; top: 14px; left: 18px;
-    background: rgba(255,255,255,0.22); padding: 4px 12px; border-radius: 999px;
-    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
-  }
-  .weekly-card::after {
-    content: "📋"; position: absolute; right: 18px; bottom: -22px;
-    font-size: 140px; opacity: 0.12; line-height: 1; pointer-events: none;
-  }
-  .weekly-content { position: relative; z-index: 1; }
-  .weekly-name { font-size: 26px; font-weight: 800; margin: 18px 0 4px; letter-spacing: -0.3px; }
-  .weekly-tag { font-size: 13px; opacity: 0.95; margin-bottom: 12px; direction: rtl; text-align: right; line-height: 1.5; }
-  .weekly-meta {
-    display: flex; justify-content: space-between; align-items: center;
-    flex-wrap: wrap; gap: 10px; margin-bottom: 14px;
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.95;
-  }
-  .weekly-meta b { color: #fff; font-weight: 800; }
-  .weekly-progress {
-    height: 6px; background: rgba(255,255,255,0.22); border-radius: 999px;
-    overflow: hidden; margin-bottom: 16px;
-  }
-  .weekly-progress-bar { height: 100%; background: #fff; border-radius: 999px; transition: width 0.4s ease; width: 0%; }
-  .weekly-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  @media (max-width: 700px) { .weekly-list { grid-template-columns: 1fr; } }
-  .weekly-task {
-    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
-    background: rgba(255,255,255,0.13); border-radius: 10px;
-    cursor: pointer; transition: all 0.15s ease; font-size: 13px; line-height: 1.4;
-    user-select: none; direction: rtl; text-align: right;
-  }
-  .weekly-task:hover { background: rgba(255,255,255,0.22); }
-  .weekly-task input[type=checkbox] {
-    appearance: none; -webkit-appearance: none; width: 18px; height: 18px; min-width: 18px;
-    border: 2px solid rgba(255,255,255,0.7); border-radius: 5px; background: transparent;
-    cursor: pointer; display: grid; place-content: center; transition: all 0.12s ease;
-    margin: 0;
-  }
-  .weekly-task input[type=checkbox]:checked { background: #fff; border-color: #fff; }
-  .weekly-task input[type=checkbox]:checked::after { content: "✓"; color: #0d9488; font-weight: 900; font-size: 13px; line-height: 1; }
-  .weekly-task .task-label { flex: 1; color: #fff; }
-  .weekly-task.done .task-label { text-decoration: line-through; opacity: 0.6; }
-  .weekly-task .task-link { color: #ccfbf1; text-decoration: underline; font-size: 11px; }
-  .weekly-task .task-link:hover { color: #fff; }
-  .weekly-task .task-pill {
-    font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 999px;
-    letter-spacing: 0.4px; white-space: nowrap;
-  }
-  .weekly-task .task-pill.has-agent { background: rgba(255,255,255,0.95); color: #0f766e; }
-  .weekly-task .task-pill.todo { background: rgba(255,255,255,0.22); color: #fff; }
-  .weekly-reset-btn {
-    background: rgba(255,255,255,0.22); color: #fff; border: none;
-    padding: 6px 14px; border-radius: 999px; font-size: 11px; font-weight: 700;
-    cursor: pointer; letter-spacing: 0.4px;
-  }
-  .weekly-reset-btn:hover { background: rgba(255,255,255,0.36); }
-
-  /* ================================================================== */
-  /* Special Tasks panel (purple) — one-off non-recurring; vanish on done */
-  /* ================================================================== */
-  .special-wrap { max-width: 900px; margin: 0 auto 24px auto; }
-  .special-card {
-    background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7e22ce 100%);
-    color: #fff; border-radius: 18px; padding: 26px 30px;
-    box-shadow: 0 8px 32px rgba(147, 51, 234, 0.28);
-    position: relative; overflow: hidden;
-  }
-  .special-card::before {
-    content: "SPECIAL"; position: absolute; top: 14px; left: 18px;
-    background: rgba(255,255,255,0.22); padding: 4px 12px; border-radius: 999px;
-    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
-  }
-  .special-card::after {
-    content: "⭐"; position: absolute; right: 18px; bottom: -22px;
-    font-size: 140px; opacity: 0.13; line-height: 1; pointer-events: none;
-  }
-  .special-content { position: relative; z-index: 1; }
-  .special-name { font-size: 26px; font-weight: 800; margin: 18px 0 4px; letter-spacing: -0.3px; }
-  .special-tag { font-size: 13px; opacity: 0.95; margin-bottom: 14px; direction: rtl; text-align: right; line-height: 1.5; }
-  .special-meta {
-    display: flex; justify-content: space-between; align-items: center;
-    gap: 10px; margin-bottom: 14px;
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.95;
-  }
-  .special-meta b { color: #fff; font-weight: 800; }
-  .special-sync-pill {
-    background: rgba(255,255,255,0.22); padding: 4px 10px; border-radius: 999px;
-    font-size: 10px; font-weight: 800; cursor: pointer; letter-spacing: 0.4px;
-    border: none; color: #fff; transition: all 0.15s ease;
-  }
-  .special-sync-pill.synced { background: #d1fae5; color: #065f46; }
-  .special-sync-pill.syncing { background: #fef3c7; color: #92400e; }
-  .special-sync-pill.offline { background: rgba(255,255,255,0.18); color: #f3e8ff; }
-  .special-sync-pill.error   { background: #fecaca; color: #991b1b; }
-  .special-sync-pill:hover { transform: scale(1.05); }
-  .special-list { display: grid; grid-template-columns: 1fr; gap: 8px; }
-  .special-task {
-    display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px;
-    background: rgba(255,255,255,0.13); border-radius: 10px;
-    transition: all 0.25s ease; font-size: 13px; line-height: 1.5;
-    direction: rtl; text-align: right;
-  }
-  .special-task.fading { opacity: 0; transform: translateX(20px); height: 0; padding: 0; margin: 0; overflow: hidden; }
-  .special-task:hover { background: rgba(255,255,255,0.22); }
-  .special-task input[type=checkbox] {
-    appearance: none; -webkit-appearance: none; width: 20px; height: 20px; min-width: 20px;
-    border: 2px solid rgba(255,255,255,0.7); border-radius: 5px; background: transparent;
-    cursor: pointer; display: grid; place-content: center; transition: all 0.12s ease;
-    margin-top: 2px;
-  }
-  .special-task input[type=checkbox]:checked { background: #fff; border-color: #fff; }
-  .special-task input[type=checkbox]:checked::after { content: "✓"; color: #7e22ce; font-weight: 900; font-size: 14px; line-height: 1; }
-  .special-task .st-body { flex: 1; display: flex; flex-direction: column; gap: 6px; }
-  .special-task .st-label { color: #fff; font-weight: 600; }
-  .special-task .st-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 11px; }
-  .special-task .st-date {
-    background: rgba(255,255,255,0.22); padding: 3px 9px; border-radius: 999px;
-    color: #fff; font-weight: 700; letter-spacing: 0.3px;
-  }
-  .special-task .st-date.due-today { background: #fde68a; color: #92400e; }
-  .special-task .st-date.due-soon { background: rgba(255,255,255,0.32); }
-  .special-task .st-link {
-    color: #f3e8ff; text-decoration: underline; font-weight: 600;
-  }
-  .special-task .st-link:hover { color: #fff; }
-  .special-task .st-cmd-btn {
-    background: rgba(255,255,255,0.95); color: #7e22ce;
-    border: none; padding: 4px 10px; border-radius: 999px;
-    font-size: 11px; font-weight: 800; cursor: pointer;
-    letter-spacing: 0.3px; font-family: ui-monospace, monospace;
-  }
-  .special-task .st-cmd-btn:hover { background: #fff; }
-  .special-task .st-cmd-btn.copied { background: #d1fae5; color: #065f46; }
-  .special-add-btn {
-    background: rgba(255,255,255,0.22); color: #fff; border: 2px dashed rgba(255,255,255,0.45);
-    padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
-    cursor: pointer; width: 100%; margin-top: 8px;
-    direction: rtl; text-align: center;
-  }
-  .special-add-btn:hover { background: rgba(255,255,255,0.32); border-color: #fff; }
-  .special-empty {
-    background: rgba(255,255,255,0.13); border-radius: 10px; padding: 18px;
-    text-align: center; color: #fff; font-size: 13px; opacity: 0.85;
-    direction: rtl;
+  .tile .corner-emoji {
+    position: absolute; left: -10px; bottom: -28px;
+    font-size: 110px; opacity: 0.13; line-height: 1; pointer-events: none;
   }
 
-  /* ================================================================== */
-  /* Scheduled Tasks Monitor (indigo) — live status from JSON in repo   */
-  /* ================================================================== */
-  .sched-wrap { max-width: 900px; margin: 0 auto 28px auto; }
-  .sched-card {
-    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%);
-    color: #fff; border-radius: 18px; padding: 26px 30px;
-    box-shadow: 0 8px 32px rgba(79, 70, 229, 0.25);
-    position: relative; overflow: hidden;
-  }
-  .sched-card::before {
-    content: "AUTOMATED"; position: absolute; top: 14px; left: 18px;
-    background: rgba(255,255,255,0.22); padding: 4px 12px; border-radius: 999px;
-    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
-  }
-  .sched-card::after {
-    content: "🤖"; position: absolute; right: 18px; bottom: -22px;
-    font-size: 140px; opacity: 0.12; line-height: 1; pointer-events: none;
-  }
-  .sched-content { position: relative; z-index: 1; }
-  .sched-name { font-size: 26px; font-weight: 800; margin: 18px 0 4px; letter-spacing: -0.3px; }
-  .sched-tag { font-size: 13px; opacity: 0.95; margin-bottom: 14px; direction: rtl; text-align: right; line-height: 1.5; }
-  .sched-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  @media (max-width: 700px) { .sched-list { grid-template-columns: 1fr; } }
-  .sched-task {
-    background: rgba(255,255,255,0.13); border-radius: 10px; padding: 12px 14px;
-    display: flex; flex-direction: column; gap: 6px; transition: all 0.15s ease;
-  }
-  .sched-task:hover { background: rgba(255,255,255,0.22); }
-  .sched-task .task-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .sched-task .task-name { font-size: 14px; font-weight: 700; flex: 1; direction: rtl; text-align: right; }
-  .sched-task .task-status { font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; letter-spacing: 0.3px; }
-  .sched-task .task-status.ok    { background: #d1fae5; color: #065f46; }
-  .sched-task .task-status.late  { background: #fef3c7; color: #92400e; }
-  .sched-task .task-status.off   { background: rgba(255,255,255,0.18); color: #e0e7ff; }
-  .sched-task .task-status.never { background: rgba(255,255,255,0.18); color: #fff; }
-  .sched-task .task-meta { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; opacity: 0.9; direction: rtl; }
-  .sched-task .task-meta .freq { font-weight: 700; opacity: 1; }
-  .sched-task .task-meta .task-last { direction: ltr; opacity: 0.85; }
-  .sched-empty {
-    background: rgba(255,255,255,0.13); border-radius: 10px; padding: 14px;
-    text-align: center; font-size: 12px; opacity: 0.92; direction: rtl; grid-column: 1 / -1;
-  }
+  .tile-makeup    { background: linear-gradient(135deg, #ec4899 0%, #db2777 50%, #9333ea 100%); }
+  .tile-automated { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%); }
+  .tile-weekly    { background: linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #0f766e 100%); }
+  .tile-special   { background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7e22ce 100%); }
+  .tile-library   { background: linear-gradient(135deg, #475569 0%, #334155 50%, #1e293b 100%); }
 
-  /* ================================================================== */
-  /* Agent Library (slate) — compact replacement for the big card grid  */
-  /* ================================================================== */
-  .library-wrap { max-width: 900px; margin: 0 auto 28px auto; }
-  .library-card {
-    background: linear-gradient(135deg, #475569 0%, #334155 50%, #1e293b 100%);
-    color: #f1f5f9; border-radius: 18px; padding: 26px 30px;
-    box-shadow: 0 8px 32px rgba(30, 41, 59, 0.3);
-    position: relative; overflow: hidden;
+  .tile-makeup .logo-wrap {
+    align-self: center; background: #000;
+    padding: 10px 14px; border-radius: 10px;
+    margin: 4px 0 2px; box-shadow: 0 4px 14px rgba(0,0,0,0.25);
   }
-  .library-card::before {
-    content: "LIBRARY"; position: absolute; top: 14px; left: 18px;
-    background: rgba(255,255,255,0.18); padding: 4px 12px; border-radius: 999px;
-    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
-  }
-  .library-card::after {
-    content: "📚"; position: absolute; right: 18px; bottom: -22px;
-    font-size: 140px; opacity: 0.08; line-height: 1; pointer-events: none;
-  }
-  .library-content { position: relative; z-index: 1; }
-  .library-name { font-size: 26px; font-weight: 800; margin: 18px 0 4px; letter-spacing: -0.3px; color: #fff; }
-  .library-tag { font-size: 13px; opacity: 0.85; margin-bottom: 16px; direction: rtl; text-align: right; line-height: 1.5; }
-  .library-section-title {
-    font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
-    opacity: 0.6; margin: 14px 0 6px; padding-right: 4px; direction: rtl; text-align: right;
-  }
-  .library-section-title:first-of-type { margin-top: 0; }
-  .library-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  @media (max-width: 700px) { .library-list { grid-template-columns: 1fr; } }
-  .lib-agent {
-    background: rgba(255,255,255,0.08); border-radius: 10px; padding: 11px 14px;
-    display: flex; align-items: center; gap: 12px;
-    text-decoration: none; color: #f1f5f9;
-    transition: all 0.15s ease; border: 1px solid rgba(255,255,255,0.05);
-    cursor: pointer; min-height: 56px;
-  }
-  .lib-agent:hover { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.18); transform: translateY(-1px); }
-  .lib-agent .lib-icon { font-size: 22px; min-width: 28px; text-align: center; line-height: 1; }
-  .lib-agent .lib-body { flex: 1; min-width: 0; }
-  .lib-agent .lib-name { font-size: 13px; font-weight: 700; line-height: 1.3; color: #fff; word-break: normal; overflow-wrap: anywhere; }
-  .lib-agent .lib-last {
-    font-size: 10.5px; opacity: 0.65; margin-top: 2px; line-height: 1.35;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-    overflow: hidden; word-break: normal; overflow-wrap: anywhere;
-  }
-  .lib-agent .lib-arrow { font-size: 14px; opacity: 0.5; transition: all 0.15s ease; }
-  .lib-agent:hover .lib-arrow { opacity: 1; transform: translateX(-3px); }
-  .lib-agent .lib-run-btn {
-    /* Override globals from .run-btn that would otherwise stretch us full-width below the body */
-    display: inline-flex; align-items: center; width: auto; margin: 0; flex: 0 0 auto;
-    background: rgba(255,255,255,0.14); color: #fff; border: 1px solid rgba(255,255,255,0.22);
-    border-radius: 6px; padding: 5px 9px; font-size: 11px; font-weight: 700; cursor: pointer;
-    transition: all 0.12s ease; white-space: nowrap;
-  }
-  .lib-agent .lib-run-btn:hover { background: rgba(255,255,255,0.28); }
-  .lib-agent .lib-run-btn.copied { background: #10b981; border-color: #10b981; }
-  .lib-agent.lib-architect { background: linear-gradient(135deg, rgba(168, 85, 247, 0.32), rgba(124, 58, 237, 0.12)); border-color: rgba(168, 85, 247, 0.35); }
-  .lib-agent.lib-forecast  { background: linear-gradient(135deg, rgba(168, 85, 247, 0.28), rgba(124, 58, 237, 0.10)); border-color: rgba(168, 85, 247, 0.30); }
-  .lib-agent.lib-scout-row { background: linear-gradient(135deg, rgba(251, 146, 60, 0.30), rgba(234, 88, 12, 0.10)); border-color: rgba(251, 146, 60, 0.30); }
-
-  .lib-scout-form-wrap {
-    grid-column: 1 / -1; background: rgba(0,0,0,0.18);
-    border-radius: 10px; padding: 14px; margin-top: 4px;
-    border: 1px solid rgba(255,255,255,0.08);
-  }
-  .lib-scout-form-wrap .scout-form { display: grid; grid-template-columns: 1.4fr 0.6fr 1fr; gap: 6px; margin-bottom: 10px; }
-  @media (max-width: 700px) { .lib-scout-form-wrap .scout-form { grid-template-columns: 1fr; } }
-  .lib-scout-form-wrap .scout-form input,
-  .lib-scout-form-wrap .scout-form select {
-    width: 100%; padding: 8px 10px; border: 1.5px solid rgba(255,255,255,0.2); border-radius: 8px;
-    font-family: inherit; font-size: 13px; color: #fff; background: rgba(255,255,255,0.08);
-    transition: all 0.2s ease;
-  }
-  .lib-scout-form-wrap .scout-form input::placeholder { color: rgba(255,255,255,0.5); }
-  .lib-scout-form-wrap .scout-form input:focus,
-  .lib-scout-form-wrap .scout-form select:focus { outline: none; border-color: #fb923c; box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.3); }
-  .lib-scout-form-wrap .scout-form select option { color: #1e293b; background: #fff; }
-  .lib-scout-form-wrap .run-btn {
-    display: block; width: 100%; padding: 10px 14px;
-    background: linear-gradient(180deg, #fb923c, #ea580c); color: #fff; border: none;
-    border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; letter-spacing: 0.3px;
-    box-shadow: 0 1px 2px rgba(251, 146, 60, 0.3); transition: all 0.15s;
-  }
-  .lib-scout-form-wrap .run-btn:hover { background: linear-gradient(180deg, #ea580c, #c2410c); }
-  .lib-scout-form-wrap .run-btn.copied { background: linear-gradient(180deg, #4ade80, #16a34a); }
-  .lib-scout-form-wrap .run-hint { font-size: 11px; color: rgba(255,255,255,0.7); margin-top: 6px; text-align: center; }
-  .lib-scout-form-wrap .scout-reports-list { margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.18); font-size: 12px; }
-  .lib-scout-form-wrap .scout-reports-list .scout-report-item {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 6px 0; border-bottom: 1px dotted rgba(255,255,255,0.12);
-  }
-  .lib-scout-form-wrap .scout-reports-list .scout-report-item:last-child { border-bottom: none; }
-  .lib-scout-form-wrap .scout-reports-list a { color: #fdba74; text-decoration: none; font-weight: 600; }
-  .lib-scout-form-wrap .scout-reports-list a:hover { text-decoration: underline; color: #fff; }
-  .lib-scout-form-wrap .scout-reports-list .score { background: rgba(251, 146, 60, 0.25); color: #fed7aa; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
-  .lib-scout-form-wrap .scout-reports-list .scout-reports-empty { color: rgba(255,255,255,0.55); font-size: 12px; font-style: italic; padding: 6px 0; }
+  .tile-makeup .logo-wrap img { display: block; max-width: 100%; height: 60px; width: auto; }
 </style>
 </head>
 <body>
 
-<script id="hub-data">
-const HUB = {
-  architect: { lastRun: "On-demand · Senior role" },
-  manager:   { lastRun: "—" },
-  contract:  { lastRun: "Sunday, May 3 · 15:30 — Columbia MO · 9 items not in BEO (review + 2 email drafts ready)" },
-  meta:      { lastRun: "Thursday, April 23 · 12:50" },
-  housing:   { lastRun: "Tuesday, May 5 · 09:13" },
-  mbs:       { lastRun: "Wednesday, April 29 · 23:50 — Louisville KY (profit +$2,413, TikTok bug fixed)" },
-  scout:     { lastRun: "Monday, May 4 · 08:45 PDT — Columbia, MO (15/30 Mixed · top: Holiday Inn Executive Center · pair w/ Sedalia)" },
-  canva:     { lastRun: "Tuesday, April 28 · 09:17 — 6 images (locked-in 2026)" },
-  canva_reel:{ lastRun: "—" },
-  launch:    { lastRun: "Tuesday, April 28 · 12:26 — Santa Maria, CA (✓)" },
-  sms:       { lastRun: "Sunday, May 3 · 20:14 — Columbia, MO 2026 (cheat-sheet: form + AR + 4 campaigns w/ Mother's Day hook)" },
-  pr_organization: { lastRun: "Saturday, May 2 · 16:30 — Columbia, MO (15 ready-to-send drafts in pr@, 4 form-only, 1 phone-only)" },
-  pr_influencer: { lastRun: "On-demand · NEW 2026-05-02" },
-  forecast:  { lastRun: "Sun, May 3 · 10:01 PDT — Columbia, MO: $28K–$38K (low-medium confidence, Mother's Day collision)" },
-  landing:   { lastRun: "On-demand · v1 launched 2026-05-06" }
-};
-// Past city-scout reports (agent appends here after each successful scout)
-const SCOUT_REPORTS = [
-  { city: "Columbia", state: "MO", date: "2026-05-04", url: "scout/columbia-mo/", score: 15 }
-  // { city: "Lancaster", state: "CA", date: "2026-04-30", url: "scout/lancaster-ca/", score: 22 }
-];
-</script>
-
 <header>
   <h1>🎯 Agent Hub</h1>
-  <div class="subtitle">Quick links to Lauren's dashboards</div>
+  <div class="subtitle">לוח הבקרה הראשי</div>
 </header>
 
-<div class="featured-wrap">
-  <a href="launch/" class="agent-launch-hero">
-    <div class="hero-content">
-      <div class="hero-name">🎪 Event Manager</div>
-      <div class="hero-tag">המצפן שלך — מכאן את מנהלת כל אירוע, מההתחלה ועד הסוף</div>
-      <div class="hero-desc">לוח זמנים מלא של כל האירועים · עתידיים ובעבר · עם כל הסוכנים נגישים בלחיצה אחת בכל שורת אירוע: חוזה, מחקר עיר, תמונות, ריל, קמפיינים, PR, תחזית מכירות, וסיכום אירוע.</div>
-      <div class="hero-features">
-        <span class="hero-feature">📋 Contract</span>
-        <span class="hero-feature">🔍 City Scout</span>
-        <span class="hero-feature">🎨 Images</span>
-        <span class="hero-feature">🎬 Reel</span>
-        <span class="hero-feature">📲 Campaigns</span>
-        <span class="hero-feature">🤝 PR Org</span>
-        <span class="hero-feature">✨ Influencers</span>
-        <span class="hero-feature">🔮 Forecast</span>
-        <span class="hero-feature">📊 Summary</span>
-      </div>
-      <div class="hero-lastrun">Last run: <b id="launch-lastRun">—</b></div>
-      <span class="hero-cta">🎪 פתחי את לוח האירועים →</span>
+<div class="tile-grid">
+
+  <a class="tile tile-makeup" href="launch/">
+    <span class="pill">Navigator</span>
+    <div class="logo-wrap">
+      <img src="https://www.themakeupblowout.com/cdn/shop/t/17/assets/Logo_new.jpg?v=120273168975629565161664520687"
+           alt="The Makeup Blowout Sale Group">
     </div>
+    <div class="tag">כל מה שקשור לעסק של המייקאפ — לוח אירועים מלא, סוכנים בלחיצה, חוזה, מחקר עיר, תמונות, ריל, קמפיינים, PR, תחזית, סיכום.</div>
+    <div class="status" id="status-makeup">הסוכן הראשי לכל אירוע</div>
+    <span class="cta">פתחי את לוח האירועים →</span>
+    <span class="corner-emoji">🎪</span>
   </a>
-</div>
 
-<!-- Special Tasks (purple) — one-off, vanish when done -->
-<div class="special-wrap">
-  <div class="special-card">
-    <div class="special-content">
-      <div class="special-name">⭐ משימות מיוחדות</div>
-      <div class="special-tag">משימות חד-פעמיות שצריכות תשומת לב — סימון ✓ מסיר אותן לצמיתות. אין איפוס שבועי.</div>
-      <div class="special-meta">
-        <span>פתוחות: <b id="special-open-count">0</b></span>
-        <button type="button" class="special-sync-pill offline" id="special-sync-pill">Sync: off</button>
-      </div>
-      <div class="special-list" id="special-list"></div>
-      <button class="special-add-btn" id="special-add-btn" type="button">＋ הוסיפי משימה חדשה</button>
-    </div>
-  </div>
-</div>
-
-<script id="task-sync-shared">
-// Shared GitHub state sync — used by Special + Weekly task sections.
-// Token is shared across all dashboards via "lauren_gh_token_v1" localStorage key.
-const TaskStateSync = (function() {
-  const OWNER = "laurenlev10";
-  const REPO = "lauren-agent-hub-data";
-  const BRANCH = "main";
-  const TOKEN_KEY = "lauren_gh_token_v1";
-
-  function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; } }
-  function setToken(t) { try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
-  function hasToken() { return !!getToken(); }
-  function b64encode(s) { return btoa(unescape(encodeURIComponent(s))); }
-  function b64decode(s) { return decodeURIComponent(escape(atob(s.replace(/\s/g, "")))); }
-
-  function promptForToken() {
-    const msg = "כדי שהסימונים יסונכרנו בין הדפדפנים והנייד, צריך להדביק כאן את ה-GitHub Personal Access Token שלך פעם אחת.\n\n" +
-                "אם עוד אין לך — צרי כאן (תקפיצי ל-tab חדש):\n" +
-                "https://github.com/settings/tokens/new?scopes=repo&description=Lauren+Dashboard+Sync\n\n" +
-                "הדביקי אותו כאן (מתחיל ב-ghp_):";
-    const t = prompt(msg, "");
-    if (t && t.trim().startsWith("ghp_")) {
-      setToken(t.trim());
-      return t.trim();
-    }
-    return "";
-  }
-
-  function setPillState(pillEl, state, label) {
-    if (!pillEl) return;
-    pillEl.classList.remove("synced", "syncing", "offline", "error");
-    pillEl.classList.add(state);
-    pillEl.textContent = label;
-  }
-
-  // Build a sync instance for a specific path
-  function create(opts) {
-    const PATH = opts.path;
-    const DEBOUNCE_MS = opts.debounceMs || 1500;
-    const pillEl = opts.pillEl;
-    let currentSha = null;
-    let saveTimer = null;
-    let saving = false;
-    let savePending = false;
-
-    async function apiGet() {
-      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${BRANCH}&_=${Date.now()}`;
-      const headers = { "Accept": "application/vnd.github+json" };
-      const t = getToken();
-      if (t) headers["Authorization"] = "Bearer " + t;
-      const res = await fetch(url, { headers, cache: "no-store" });
-      if (res.status === 404) return { data: null, sha: null };
-      if (!res.ok) throw new Error(`GET ${res.status}`);
-      const json = await res.json();
-      let data = null;
-      try { data = JSON.parse(b64decode(json.content)); } catch (e) { data = null; }
-      return { data, sha: json.sha };
-    }
-
-    async function apiPut(data, sha, message) {
-      const t = getToken();
-      if (!t) throw new Error("no token");
-      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`;
-      const body = {
-        message: message || `Update ${PATH} from agent-hub dashboard`,
-        content: b64encode(JSON.stringify(data, null, 2) + "\n"),
-        branch: BRANCH
-      };
-      if (sha) body.sha = sha;
-      const res = await fetch(url, {
-        method: "PUT",
-        headers: {
-          "Accept": "application/vnd.github+json",
-          "Authorization": "Bearer " + t,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
-      });
-      if (!res.ok) {
-        const txt = await res.text();
-        const err = new Error(`PUT ${res.status}: ${txt.slice(0, 200)}`);
-        err.status = res.status;
-        throw err;
-      }
-      const json = await res.json();
-      return json.content && json.content.sha;
-    }
-
-    async function loadInitial(onLoaded) {
-      try {
-        const { data, sha } = await apiGet();
-        currentSha = sha;
-        if (data && onLoaded) onLoaded(data);
-        if (hasToken()) setPillState(pillEl, "synced", "Sync ✓"); else setPillState(pillEl, "offline", "Sync: off");
-      } catch (e) {
-        console.warn(`[TaskStateSync ${PATH}] initial load failed:`, e);
-        setPillState(pillEl, hasToken() ? "error" : "offline", hasToken() ? "Sync error" : "Sync: off");
-      }
-    }
-
-    async function doSave(getDataFn) {
-      if (!hasToken()) { setPillState(pillEl, "offline", "Sync: off"); return; }
-      if (saving) { savePending = true; return; }
-      saving = true;
-      setPillState(pillEl, "syncing", "Syncing…");
-      try {
-        const payload = getDataFn();
-        try {
-          currentSha = await apiPut(payload, currentSha);
-        } catch (e) {
-          if (e.status === 409 || e.status === 422) {
-            const fresh = await apiGet();
-            currentSha = await apiPut(payload, fresh.sha);
-          } else { throw e; }
-        }
-        setPillState(pillEl, "synced", "Sync ✓");
-      } catch (e) {
-        console.warn(`[TaskStateSync ${PATH}] save failed:`, e);
-        setPillState(pillEl, "error", "Sync error");
-      } finally {
-        saving = false;
-        if (savePending) { savePending = false; scheduleSave(getDataFn, 0); }
-      }
-    }
-
-    function scheduleSave(getDataFn, delay) {
-      if (delay === undefined) delay = DEBOUNCE_MS;
-      if (saveTimer) clearTimeout(saveTimer);
-      saveTimer = setTimeout(function() { doSave(getDataFn); }, delay);
-    }
-
-    function wireTokenPill(getDataFn) {
-      if (!pillEl) return;
-      pillEl.addEventListener("click", async function() {
-        const t = promptForToken();
-        if (t) {
-          setPillState(pillEl, "syncing", "Testing…");
-          try {
-            await doSave(getDataFn);
-            alert("✅ הטוקן עובד! מעכשיו הסימונים יסונכרנו בין כל הדפדפנים שלך.");
-          } catch (e) {
-            alert("❌ הטוקן לא עבד: " + e.message);
-          }
-        }
-      });
-    }
-
-    return { loadInitial, scheduleSave, wireTokenPill, hasToken };
-  }
-
-  return { create, getToken, setToken, hasToken };
-})();
-</script>
-
-<script id="special-data">
-const SPECIAL_TASKS_SEED = [
-  {
-    id: "stats-24h-check",
-    label: "בדיקת 24 שעות של @stats — לוודא שפיקסלים אוספים נתונים",
-    date: "2026-05-08",
-    command: "Run @stats — show top performing campaigns this week",
-    link: "https://laurenlev10.github.io/lauren-agent-hub-data/stats/",
-    linkLabel: "↗ Stats Dashboard"
-  },
-  {
-    id: "stats-tiktok-approval",
-    label: "בדיקת אישור TikTok App (הוגש מחדש 7.5 אחרי דחייה — email forwarding ל-info@themakeupblowout.com)",
-    date: "2026-05-14",
-    command: "Run @stats — onboard TikTok access token, app is approved",
-    link: "https://business-api.tiktok.com/portal/apps",
-    linkLabel: "↗ TikTok Apps"
-  },
-  {
-    id: "stats-2week-report",
-    label: "דוח ביצועים שבועיים של @stats — סקירה ראשונה",
-    date: "2026-05-21",
-    command: "Run @stats — full HTML report for last 14 days"
-  },
-  {
-    id: "ga4-service-account-fix",
-    label: "תיקון GA4 Service Account — בדיקת הגדרות Workspace",
-    command: "Run @stats — try OAuth fallback for GA4 (instead of Service Account)"
-  },
-  {
-    id: "rebake-schedule-with-recent-events",
-    label: "להוסיף ל-SCHEDULE: Roseville/Fort Collins/South Denver/Santa Fe/Santa Maria/San Jose (חסרים)",
-    command: "Update launch_dashboard SCHEDULE constant with the 6 events that exist in SETUPS but not in SCHEDULE (baked 2026-04-28)"
-  },
-  {
-    id: "stats-tnd-benchmark-ready",
-    label: "אחרי 5+ אירועים עם היסטוריה: לחשב T-Nd ממוצעים אמיתיים (יום לפני, שבוע לפני)",
-    date: "2026-06-30",
-    command: "Run @stats — implement T-Nd time-aligned averages now that we have 5+ events with full history"
-  },
-  {
-    id: "build-ads-optimizer",
-    label: "🚀 לבנות סוכן @ads-optimizer (קורא @stats, ממליץ/מבצע שינויי תקציב + יצירתיים)",
-    command: "Build @ads-optimizer agent — separate write-only agent that reads @stats and recommends/executes ad changes"
-  },
-  {
-    id: "update-marketing-stats-supporting-docs",
-    label: "לעדכן comms.md / dashboard.md / pixels.md / utm.md תחת marketing-stats לפורמט החדש",
-    command: "Update Scheduled/NEW/marketing-stats supporting docs to match Level 2 SKILL.md (comms.md format, dashboard.md schema, etc.)"
-  }
-];
-
-(function initSpecial() {
-  const STORAGE_KEY = "mbs.special.v1";
-  const list = document.getElementById("special-list");
-  const openCountEl = document.getElementById("special-open-count");
-  const addBtn = document.getElementById("special-add-btn");
-  const pillEl = document.getElementById("special-sync-pill");
-
-  function loadLocalState() {
-    let st = null;
-    try { st = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (e) { st = null; }
-    if (!st) st = { removed: {}, custom: [] };
-    if (!st.removed) st.removed = {};
-    if (!st.custom) st.custom = [];
-    return st;
-  }
-  function saveLocalState(st) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(st)); } catch (e) {}
-  }
-
-  let state = loadLocalState();
-
-  // Cross-device sync via GitHub
-  const sync = TaskStateSync.create({
-    path: "docs/state/special_tasks.json",
-    pillEl: pillEl
-  });
-
-  function getDataForSave() {
-    return {
-      removed: state.removed,
-      custom: state.custom,
-      _updated_at: new Date().toISOString()
-    };
-  }
-
-  function mergeRemoteState(remote) {
-    if (!remote || typeof remote !== "object") return;
-    // Merge removed (union — once removed anywhere, removed everywhere)
-    if (remote.removed) {
-      Object.keys(remote.removed).forEach(function(id) {
-        if (remote.removed[id]) state.removed[id] = true;
-      });
-    }
-    // Merge custom — by id, take remote if newer
-    if (Array.isArray(remote.custom)) {
-      const existingIds = new Set(state.custom.map(function(c) { return c.id; }));
-      remote.custom.forEach(function(c) {
-        if (!existingIds.has(c.id)) state.custom.push(c);
-      });
-    }
-    saveLocalState(state);
-  }
-
-  function saveState(st) {
-    state = st;
-    saveLocalState(state);
-    sync.scheduleSave(getDataForSave);
-  }
-
-  function fmtDate(iso) {
-    if (!iso) return null;
-    const parts = iso.split('-').map(Number);
-    const dt = new Date(parts[0], parts[1]-1, parts[2]);
-    const today = new Date(); today.setHours(0,0,0,0);
-    const diff = Math.round((dt - today) / 86400000);
-    const lbl = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    let cls = "";
-    if (diff === 0) cls = "due-today";
-    else if (diff > 0 && diff <= 3) cls = "due-soon";
-    return { label: lbl, diff: diff, cls: cls };
-  }
-
-  function copyCmd(cmd, btn) {
-    navigator.clipboard.writeText(cmd).then(function() {
-      const orig = btn.textContent;
-      btn.textContent = "✓ הועתק";
-      btn.classList.add("copied");
-      setTimeout(function() {
-        btn.textContent = orig;
-        btn.classList.remove("copied");
-      }, 1800);
-    }).catch(function() {
-      alert("ההעתקה נכשלה — סמני ידנית והעתיקי:\n\n" + cmd);
-    });
-  }
-
-  function render() {
-    list.innerHTML = "";
-    const all = SPECIAL_TASKS_SEED.concat(state.custom);
-    const visible = all.filter(function(t) { return !state.removed[t.id]; });
-
-    visible.sort(function(a, b) {
-      if (a.date && b.date) return a.date.localeCompare(b.date);
-      if (a.date) return -1;
-      if (b.date) return 1;
-      return 0;
-    });
-
-    if (visible.length === 0) {
-      list.innerHTML = '<div class="special-empty">אין משימות מיוחדות פתוחות 🎉</div>';
-      openCountEl.textContent = "0";
-      return;
-    }
-
-    openCountEl.textContent = visible.length;
-
-    visible.forEach(function(t) {
-      const row = document.createElement("div");
-      row.className = "special-task";
-
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.addEventListener("change", function() {
-        if (cb.checked) {
-          row.classList.add("fading");
-          setTimeout(function() {
-            state.removed[t.id] = true;
-            saveState(state);
-            render();
-          }, 280);
-        }
-      });
-
-      const body = document.createElement("div");
-      body.className = "st-body";
-
-      const lbl = document.createElement("div");
-      lbl.className = "st-label";
-      lbl.textContent = t.label;
-      body.appendChild(lbl);
-
-      const meta = document.createElement("div");
-      meta.className = "st-row";
-
-      if (t.date) {
-        const d = fmtDate(t.date);
-        const dateSpan = document.createElement("span");
-        dateSpan.className = "st-date " + (d.cls || "");
-        let dateText = "📅 " + d.label;
-        if (d.diff === 0) dateText += " (היום!)";
-        else if (d.diff > 0) dateText += " (בעוד " + d.diff + " ימים)";
-        else dateText += " (לפני " + Math.abs(d.diff) + " ימים)";
-        dateSpan.textContent = dateText;
-        meta.appendChild(dateSpan);
-      }
-
-      if (t.link) {
-        const a = document.createElement("a");
-        a.className = "st-link";
-        a.href = t.link; a.target = "_blank"; a.rel = "noopener";
-        a.textContent = t.linkLabel || "↗ Open";
-        meta.appendChild(a);
-      }
-
-      if (t.command) {
-        const btn = document.createElement("button");
-        btn.className = "st-cmd-btn";
-        btn.type = "button";
-        btn.textContent = "📋 העתיקי פקודה";
-        btn.title = t.command;
-        btn.addEventListener("click", function() { copyCmd(t.command, btn); });
-        meta.appendChild(btn);
-      }
-
-      if (meta.children.length > 0) body.appendChild(meta);
-
-      row.appendChild(cb);
-      row.appendChild(body);
-      list.appendChild(row);
-    });
-  }
-
-  addBtn.addEventListener("click", function() {
-    const label = prompt("מה המשימה?");
-    if (!label || !label.trim()) return;
-    const date = prompt("תאריך (YYYY-MM-DD) — אופציונלי, ENTER לדלג:") || null;
-    const command = prompt("פקודת העתקה לסוכן — אופציונלי, ENTER לדלג:") || null;
-    const id = "custom-" + Date.now();
-    state.custom.push({
-      id: id,
-      label: label.trim(),
-      date: (date && /^\d{4}-\d{2}-\d{2}$/.test(date.trim())) ? date.trim() : null,
-      command: (command && command.trim()) ? command.trim() : null
-    });
-    saveState(state);
-    render();
-  });
-
-  render();
-
-  // Wire up sync: load remote state, then merge + re-render
-  sync.wireTokenPill(getDataForSave);
-  sync.loadInitial(function(remote) {
-    mergeRemoteState(remote);
-    render();
-  });
-})();
-</script>
-
-<!-- Weekly Tasks (teal) -->
-<div class="weekly-wrap">
-  <div class="weekly-card">
-    <div class="weekly-content">
-      <div class="weekly-name">📋 משימות שבועיות</div>
-      <div class="weekly-tag">צ׳ק־ליסט קבוע ידני שמתאפס בכל יום ראשון בבוקר. לכל משימה ניבנה בהמשך סוכן ייעודי שיריץ אותה אוטומטית.</div>
-      <div class="weekly-meta">
-        <span>השבוע מ־<b id="weekly-week-label">—</b></span>
-        <span>הושלמו: <b><span id="weekly-done-count">0</span> / <span id="weekly-total-count">11</span></b></span>
-        <button type="button" class="special-sync-pill offline" id="weekly-sync-pill">Sync: off</button>
-        <button class="weekly-reset-btn" id="weekly-reset-btn" type="button">🔄 איפוס ידני</button>
-      </div>
-      <div class="weekly-progress"><div class="weekly-progress-bar" id="weekly-progress-bar"></div></div>
-      <div class="weekly-list" id="weekly-list"></div>
-    </div>
-  </div>
-</div>
-
-<script id="weekly-data">
-const WEEKLY_TASKS = [
-  { id: "site-update",     label: "עדכון \"האירועים הקרובים\" באתר Google Sites",
-    link: "https://sites.google.com/d/1sogzI0XV7dPvh8mqds4O4oaKQibw_dYy/p/1r2zyB4eInn-0hhQuxw4BLxtj1uPvp9xI/edit?pli=1", linkLabel: "↗ סייט" },
-  { id: "supplier-orders", label: "הזמנת סחורה חסרה מספקים לקראת סופ״ש הקרוב" },
-  { id: "octopos-update",  label: "עדכון מלאי ב-OCTOPOS אחרי קבלת הסחורה" },
-  { id: "campaigns-stop",  label: "וידוא שכל הקמפיינים של האירוע הקודם נעצרו (לא לבזבז כסף)" },
-  { id: "registration",    label: "עדכון דף ההרשמה השבועי לאירוע הבא" },
-  { id: "flights",         label: "הזמנת טיסות לאירוע הבא (יעד: ~חודש מראש)" },
-  { id: "hotels",          label: "הזמנת מלונות ללינת עובדים לאירוע הקרוב" },
-  { id: "supplier-pay",    label: "תשלום לספקים על חשבוניות פתוחות" },
-  { id: "event-summary",   label: "סיכום האירוע שהיה (Recap)", agent: "mbs-event-summary" },
-  { id: "sms-review",      label: "בדיקת טקסטים של Simple Texting לאירוע הבא", agent: "sms-campaigns" },
-  { id: "reel-campaign",   label: "עדכון ריל חדש ויצירת קמפיין חדש לריל בשבוע האחרון" }
-];
-
-(function initWeekly() {
-  const STORAGE_KEY = "mbs.weekly.v1";
-  const list = document.getElementById("weekly-list");
-  const doneEl = document.getElementById("weekly-done-count");
-  const totalEl = document.getElementById("weekly-total-count");
-  const labelEl = document.getElementById("weekly-week-label");
-  const barEl = document.getElementById("weekly-progress-bar");
-  const resetBtn = document.getElementById("weekly-reset-btn");
-  const pillEl = document.getElementById("weekly-sync-pill");
-
-  function mostRecentSundayISO(d) {
-    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    x.setDate(x.getDate() - x.getDay());
-    const y = x.getFullYear();
-    const m = String(x.getMonth()+1).padStart(2,'0');
-    const day = String(x.getDate()).padStart(2,'0');
-    return y + "-" + m + "-" + day;
-  }
-  function fmtWeekLabel(iso) {
-    const parts = iso.split('-').map(Number);
-    const dt = new Date(parts[0], parts[1]-1, parts[2]);
-    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' (Sun)';
-  }
-  function loadLocalState() {
-    const week = mostRecentSundayISO(new Date());
-    let st = null;
-    try { st = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (e) { st = null; }
-    if (!st || st.week !== week) st = { week: week, done: {} };
-    return st;
-  }
-  function saveLocalState(st) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(st)); } catch (e) {}
-  }
-
-  let state = loadLocalState();
-
-  // Cross-device sync via GitHub
-  const sync = TaskStateSync.create({
-    path: "docs/state/weekly_tasks.json",
-    pillEl: pillEl
-  });
-
-  function getDataForSave() {
-    return {
-      week: state.week,
-      done: state.done,
-      _updated_at: new Date().toISOString()
-    };
-  }
-
-  function mergeRemoteState(remote) {
-    if (!remote || typeof remote !== "object") return;
-    const currentWeek = mostRecentSundayISO(new Date());
-    // If remote is from current week, merge done states (union — last write wins per id)
-    if (remote.week === currentWeek && remote.done) {
-      Object.keys(remote.done).forEach(function(id) {
-        if (remote.done[id]) state.done[id] = true;
-      });
-    }
-    saveLocalState(state);
-  }
-
-  function saveState(st) {
-    state = st;
-    saveLocalState(state);
-    sync.scheduleSave(getDataForSave);
-  }
-
-  function render() {
-    list.innerHTML = "";
-    let doneCount = 0;
-    WEEKLY_TASKS.forEach(function(t) {
-      const isDone = !!state.done[t.id];
-      if (isDone) doneCount++;
-      const row = document.createElement("label");
-      row.className = "weekly-task" + (isDone ? " done" : "");
-      const cb = document.createElement("input");
-      cb.type = "checkbox"; cb.checked = isDone;
-      cb.addEventListener("change", function () {
-        if (cb.checked) state.done[t.id] = true; else delete state.done[t.id];
-        saveState(state); render();
-      });
-      const lbl = document.createElement("span");
-      lbl.className = "task-label";
-      lbl.textContent = t.label;
-      row.appendChild(cb);
-      row.appendChild(lbl);
-      if (t.link) {
-        const a = document.createElement("a");
-        a.className = "task-link"; a.href = t.link; a.target = "_blank"; a.rel = "noopener";
-        a.textContent = t.linkLabel || "&uarr;";
-        a.addEventListener("click", function (e) { e.stopPropagation(); });
-        row.appendChild(a);
-      }
-      const pill = document.createElement("span");
-      if (t.agent) {
-        pill.className = "task-pill has-agent"; pill.textContent = "AGENT";
-        pill.title = "Agent: " + t.agent;
-      } else {
-        pill.className = "task-pill todo"; pill.textContent = "TODO";
-        pill.title = "Agent not yet built";
-      }
-      row.appendChild(pill);
-      list.appendChild(row);
-    });
-    doneEl.textContent = doneCount;
-    totalEl.textContent = WEEKLY_TASKS.length;
-    barEl.style.width = WEEKLY_TASKS.length ? Math.round(100 * doneCount / WEEKLY_TASKS.length) + "%" : "0%";
-    labelEl.textContent = fmtWeekLabel(state.week);
-  }
-
-  resetBtn.addEventListener("click", function () {
-    if (!confirm("לאפס את כל הסימונים השבוע?")) return;
-    state.done = {}; saveState(state); render();
-  });
-
-  render();
-  setInterval(function () {
-    const fresh = loadLocalState();
-    if (fresh.week !== state.week) { state = fresh; render(); }
-  }, 5 * 60 * 1000);
-
-  // Wire up sync: load remote state, then merge + re-render
-  sync.wireTokenPill(getDataForSave);
-  sync.loadInitial(function(remote) {
-    mergeRemoteState(remote);
-    render();
-  });
-})();
-</script>
-
-<!-- Scheduled Tasks Monitor (indigo) -->
-<div class="sched-wrap">
-  <div class="sched-card">
-    <div class="sched-content">
-      <div class="sched-name">⏱️ משימות אוטומטיות</div>
-      <div class="sched-tag">סוכנים שרצים אוטומטית בלוח זמנים — סטטוס חי מקובץ <code style="opacity:0.85">scheduled-runs.json</code> ב־Git. כל סוכן מעדכן בסיום ריצה.</div>
-      <div class="sched-list" id="sched-list">
-        <div class="sched-empty">טוען נתונים...</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script id="sched-data">
-(function initSched() {
-  const list = document.getElementById("sched-list");
-  const URL_ = "scheduled-runs.json?_=" + Date.now();
-  fetch(URL_)
-    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
-    .then(function (data) { render(data.tasks || []); })
-    .catch(function (err) {
-      list.innerHTML = '<div class="sched-empty">לא ניתן לטעון את הנתונים (' + err + ')</div>';
-    });
-
-  function timeAgo(iso) {
-    if (!iso) return "מעולם לא רץ";
-    const d = new Date(iso); if (isNaN(d)) return "—";
-    const diff = (Date.now() - d.getTime()) / 1000;
-    if (diff < 60) return "now";
-    if (diff < 3600) return Math.round(diff/60) + "m ago";
-    if (diff < 86400) return Math.round(diff/3600) + "h ago";
-    if (diff < 86400*7) return Math.round(diff/86400) + "d ago";
-    return d.toLocaleDateString('en-CA');
-  }
-
-  function statusFor(t) {
-    if (!t.enabled) return { cls: "off", txt: "OFF" };
-    if (!t.lastRunAt) return { cls: "never", txt: "—" };
-    const diffH = (Date.now() - new Date(t.lastRunAt).getTime()) / 3600000;
-    let limit = 25;
-    if (t.frequency === "hourly") limit = 1.2;
-    else if (t.frequency === "daily") limit = 25;
-    else if (t.frequency === "weekly") limit = 24*8;
-    if (diffH > limit) return { cls: "late", txt: "&#9888; LATE" };
-    return { cls: "ok", txt: "OK" };
-  }
-
-  function render(tasks) {
-    if (!tasks.length) {
-      list.innerHTML = '<div class="sched-empty">אין עדיין משימות מתוזמנות. נוסיף יחד דרך ה־API.</div>';
-      return;
-    }
-    list.innerHTML = "";
-    tasks.forEach(function (t) {
-      const s = statusFor(t);
-      const safeName = String(t.label || t.id || "").replace(/[<>&"]/g, "");
-      const freq = String(t.scheduleHuman || t.frequency || "").replace(/[<>&"]/g, "");
-      const dashHref = String(t.dashboard || "").replace(/[<>"\\]/g, "");
-      // If a dashboard URL is set, the whole card becomes a link
-      const card = document.createElement(dashHref ? "a" : "div");
-      card.className = "sched-task";
-      if (dashHref) {
-        card.href = dashHref;
-        card.style.textDecoration = "none";
-        card.style.color = "inherit";
-        card.style.display = "block";
-      }
-      card.innerHTML =
-        '<div class="task-row">' +
-          '<div class="task-name">' + safeName + '</div>' +
-          '<span class="task-status ' + s.cls + '">' + s.txt + '</span>' +
-        '</div>' +
-        '<div class="task-meta">' +
-          '<span class="freq">' + freq + '</span>' +
-          '<span class="task-last">last: ' + timeAgo(t.lastRunAt) + '</span>' +
-        '</div>';
-      list.appendChild(card);
-    });
-  }
-})();
-</script>
-
-<div class="library-wrap">
-  <a href="library/" class="library-card" style="text-decoration:none;display:block">
-    <div class="library-content" style="text-align:center;padding:6px 0">
-      <div class="library-name" style="margin-bottom:6px">📚 ספריית הסוכנים →</div>
-      <div class="library-tag" style="margin-bottom:0;direction:rtl;font-size:14px;opacity:0.95">15 סוכנים, חיפוש, סינון לפי קטגוריה. לחצי לכניסה.</div>
-    </div>
+  <a class="tile tile-automated" href="scheduled/">
+    <span class="pill">Automated</span>
+    <div class="title">⏱️ משימות אוטומטיות</div>
+    <div class="tag">סוכנים שרצים אוטומטית בלוח זמנים — סטטוס חי מקובץ <code style="opacity:0.85;font-size:11px">scheduled-runs.json</code>.</div>
+    <div class="status" id="status-automated">טוען...</div>
+    <span class="cta">פתחי את לוח המשימות האוטומטיות →</span>
+    <span class="corner-emoji">🤖</span>
   </a>
+
+  <a class="tile tile-weekly" href="weekly/">
+    <span class="pill">Weekly</span>
+    <div class="title">📋 משימות שבועיות</div>
+    <div class="tag">צ׳ק־ליסט שמתאפס בכל יום ראשון בבוקר. אפשר להוסיף, לערוך ולמחוק משימות משלך.</div>
+    <div class="status" id="status-weekly">טוען...</div>
+    <span class="cta">פתחי את המשימות השבועיות →</span>
+    <span class="corner-emoji">📋</span>
+  </a>
+
+  <a class="tile tile-special row2-left" href="special/">
+    <span class="pill">Special</span>
+    <div class="title">⭐ משימות מיוחדות</div>
+    <div class="tag">משימות חד-פעמיות שצריכות תשומת לב — סימון ✓ מסיר אותן לצמיתות. אין איפוס שבועי.</div>
+    <div class="status" id="status-special">טוען...</div>
+    <span class="cta">פתחי את המשימות המיוחדות →</span>
+    <span class="corner-emoji">⭐</span>
+  </a>
+
+  <a class="tile tile-library row2-right" href="library/">
+    <span class="pill">Library</span>
+    <div class="title">📚 ספריית הסוכנים</div>
+    <div class="tag">15+ סוכנים, חיפוש, סינון לפי קטגוריה, הפעלה מהירה. ספרייה מלאה של כל מה שיש לך.</div>
+    <div class="status" id="status-library">15+ סוכנים זמינים</div>
+    <span class="cta">פתחי את הספרייה →</span>
+    <span class="corner-emoji">📚</span>
+  </a>
+
 </div>
-
-<div style="display:none"><!-- LEGACY LIBRARY HIDDEN — moved to /library/ ---
-<div class="library-wrap-OLD">
-  <div class="library-card">
-    <div class="library-content">
-      <div class="library-name">📚 ספריית הסוכנים</div>
-      <div class="library-tag">כל הסוכנים בעיצוב קומפקטי. לחיצה על שורה פותחת את הדשבורד; כפתור Run במקום שיש מעתיק פקודה ל־Cowork.</div>
-
-      <div class="library-section-title">בכירים</div>
-      <div class="library-list">
-        <a href="architect/" class="lib-agent lib-architect">
-          <span class="lib-icon">🏛️</span>
-          <div class="lib-body">
-            <div class="lib-name">Agent Architect</div>
-            <div class="lib-last">Mode: <span id="architect-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="forecast/" class="lib-agent lib-forecast">
-          <span class="lib-icon">🔮</span>
-          <div class="lib-body">
-            <div class="lib-name">חוזה עתידות (Forecast)</div>
-            <div class="lib-last">Last run: <span id="forecast-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-      </div>
-
-      <div class="library-section-title">לפני האירוע</div>
-      <div class="library-list">
-        <a href="contract/" class="lib-agent">
-          <span class="lib-icon">📋</span>
-          <div class="lib-body">
-            <div class="lib-name">Contract Review</div>
-            <div class="lib-last">Last run: <span id="contract-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="canva/" class="lib-agent">
-          <span class="lib-icon">🎨</span>
-          <div class="lib-body">
-            <div class="lib-name">Canva Event Images</div>
-            <div class="lib-last">Last run: <span id="canva-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="canva-reel/" class="lib-agent">
-          <span class="lib-icon">🎬</span>
-          <div class="lib-body">
-            <div class="lib-name">Canva Reel</div>
-            <div class="lib-last">Last run: <span id="canva-reel-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="campaigns/" class="lib-agent">
-          <span class="lib-icon">📲</span>
-          <div class="lib-body">
-            <div class="lib-name">SMS Campaigns</div>
-            <div class="lib-last">Last run: <span id="sms-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="pr-organization/" class="lib-agent">
-          <span class="lib-icon">🤝</span>
-          <div class="lib-body">
-            <div class="lib-name">Local PR — Organization</div>
-            <div class="lib-last">Last run: <span id="pr-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="pr-influencer/" class="lib-agent">
-          <span class="lib-icon">✨</span>
-          <div class="lib-body">
-            <div class="lib-name">Local PR — Influencer</div>
-            <div class="lib-last">Last run: <span id="pr-influencer-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-        <a href="landing/" class="lib-agent">
-          <span class="lib-icon">🪧</span>
-          <div class="lib-body">
-            <div class="lib-name">Landing Pages</div>
-            <div class="lib-last">Last run: <span id="landing-lastRun">—</span></div>
-          </div>
-          <span class="lib-arrow">&#8592;</span>
-        </a>
-      </div>
-
-      <div class="library-section-title">סקאוט עיר (טופס מהיר)</div>
-      <div class="library-list" id="scout-card">
-        <div class="lib-agent lib-scout-row" style="cursor:default">
-          <span class="lib-icon">🔍</span>
-          <div class="lib-body">
-            <div class="lib-name">City Scout</div>
-            <div class="lib-last">Last run: <span id="scout-lastRun">—</span></div>
-          </div>
-        </div>
-        <div class="lib-scout-form-wrap">
-          <div class="scout-form">
-            <input type="text" id="scout-city" placeholder="עיר (לדוגמה: Lancaster)" autocomplete="off">
-            <input type="text" id="scout-state" placeholder="ST" maxlength="2" style="text-transform:uppercase" autocomplete="off">
-            <select id="scout-month">
-              <option value="">חודש (אופציונלי)</option>
-              <option>Jan</option><option>Feb</option><option>Mar</option>
-              <option>Apr</option><option>May</option><option>Jun</option>
-              <option>Jul</option><option>Aug</option><option>Sep</option>
-              <option>Oct</option><option>Nov</option><option>Dec</option>
-            </select>
-          </div>
-          <button class="run-btn" id="scout-btn">🔍 העתיקי פקודת סקאוט</button>
-          <div class="run-hint">מלאי עיר + ST &rarr; לחצי לכפתור &rarr; הדביקי בשיחת Cowork חדשה. הסוכן יכין דו"ח 10-15 דקות.</div>
-          <div class="scout-reports-list" id="scout-reports-list">
-            <div class="scout-reports-empty">עדיין לא הורצו דוחות סקאוט. דו"ח ראשון יופיע כאן אחרי שהסוכן יסיים.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="library-section-title">לאחר האירוע / רץ ברקע</div>
-      <div class="library-list">
-        <div class="lib-agent" style="cursor:default" onclick="document.getElementById('lib-meta-link').click()">
-          <span class="lib-icon">📬</span>
-          <div class="lib-body">
-            <div class="lib-name"><a id="lib-meta-link" href="meta/" style="color:inherit;text-decoration:none">Meta Inbox</a></div>
-            <div class="lib-last">Last run: <span id="meta-lastRun">—</span></div>
-          </div>
-          <button class="lib-run-btn run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\Users\laure\OneDrive\מסמכים\Claude\Scheduled\NEW\meta-inbox\SKILL.md` — it is the orchestrator for @meta and tells you which other files to read (triage.md, dashboard.md, comms.md, inbox_knowledge_base.docx, reported_negatives.jsonl).">&#9654; Run</button>
-        </div>
-        <div class="lib-agent" style="cursor:default" onclick="document.getElementById('lib-housing-link').click()">
-          <span class="lib-icon">🏡</span>
-          <div class="lib-body">
-            <div class="lib-name"><a id="lib-housing-link" href="housing/" style="color:inherit;text-decoration:none">West SFV Rentals</a></div>
-            <div class="lib-last">Last run: <span id="housing-lastRun">—</span></div>
-          </div>
-          <button class="lib-run-btn run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\Users\laure\OneDrive\מסמכים\Claude\Scheduled\NEW\la-rental-search\SKILL.md` — it is the orchestrator for @housing and tells you which other files to read (search.md, dashboard.md, comms.md).">&#9654; Run</button>
-        </div>
-        <div class="lib-agent" style="cursor:default" onclick="document.getElementById('lib-mbs-link').click()">
-          <span class="lib-icon">📊</span>
-          <div class="lib-body">
-            <div class="lib-name"><a id="lib-mbs-link" href="mbs/" style="color:inherit;text-decoration:none">MBS Event Summary</a></div>
-            <div class="lib-last">Last run: <span id="mbs-lastRun">—</span></div>
-          </div>
-          <button class="lib-run-btn run-btn" data-cmd="Read this file and follow its instructions exactly: `C:\Users\laure\OneDrive\מסמכים\Claude\Scheduled\NEW\mbs-event-summary\SKILL.md` — it is the orchestrator for @mbs. Then ask me which event to summarize.">&#9654; Run</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
---></div>
 
 <script>
-  // Robust clipboard copy. Works around iframe/Cowork-widget contexts where
-  // navigator.clipboard.writeText is silently blocked. Falls back to a textarea
-  // + execCommand('copy'), then to a manual-copy modal as a last resort.
-  async function copyText(text) {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-        return true;
-      }
-    } catch (e) {}
-    try {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.setAttribute("readonly", "");
-      ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0";
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      ta.setSelectionRange(0, text.length);
-      const ok = document.execCommand("copy");
-      document.body.removeChild(ta);
-      if (ok) return true;
-    } catch (e) {}
-    return false;
-  }
+(function loadStatuses() {
+  const bust = "?_=" + Date.now();
 
-  function showManualCopyModal(text) {
-    const existing = document.getElementById("manual-copy-modal");
-    if (existing) existing.remove();
-    const overlay = document.createElement("div");
-    overlay.id = "manual-copy-modal";
-    overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.78);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;direction:rtl;font-family:inherit";
-    const box = document.createElement("div");
-    box.style.cssText = "background:#fff;color:#0f172a;border-radius:12px;max-width:640px;width:100%;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.4);max-height:90vh;display:flex;flex-direction:column;gap:10px";
-    box.innerHTML = '<div style="font-weight:700;font-size:15px">העתקה אוטומטית נחסמה ע״י הדפדפן</div><div style="font-size:13px;color:#475569">סמני את הטקסט (Ctrl+A) ואז העתיקי (Ctrl+C / Cmd+C). הדביקי בשיחת Cowork חדשה.</div>';
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.cssText = "width:100%;flex:1;min-height:240px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;direction:ltr;text-align:left";
-    box.appendChild(ta);
-    const row = document.createElement("div");
-    row.style.cssText = "display:flex;gap:8px;justify-content:flex-end";
-    const tryAgain = document.createElement("button");
-    tryAgain.textContent = "נסי שוב להעתיק";
-    tryAgain.style.cssText = "padding:8px 14px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;font-size:13px";
-    tryAgain.onclick = async () => {
-      ta.focus();
-      ta.select();
-      ta.setSelectionRange(0, text.length);
-      try {
-        if (document.execCommand("copy")) {
-          tryAgain.textContent = "✓ הועתק!";
-          setTimeout(() => overlay.remove(), 1200);
-          return;
+  fetch("scheduled-runs.json" + bust, { cache: "no-store" })
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(data => {
+      const tasks = data.tasks || [];
+      let on = 0, off = 0, late = 0;
+      const now = Date.now();
+      tasks.forEach(t => {
+        if (!t.enabled) { off++; return; }
+        on++;
+        if (t.lastRunAt) {
+          const last = new Date(t.lastRunAt).getTime();
+          if (t.frequency === "daily" && (now - last) > 30 * 3600 * 1000) late++;
         }
-      } catch (e) {}
-      tryAgain.textContent = "סמני וקופי ידני (Ctrl+C)";
-    };
-    const close = document.createElement("button");
-    close.textContent = "סגרי";
-    close.style.cssText = "padding:8px 14px;border-radius:8px;border:none;background:#dc2626;color:#fff;cursor:pointer;font-size:13px";
-    close.onclick = () => overlay.remove();
-    row.appendChild(tryAgain);
-    row.appendChild(close);
-    box.appendChild(row);
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
-    setTimeout(() => { ta.focus(); ta.select(); ta.setSelectionRange(0, text.length); }, 50);
-  }
+      });
+      const lateBadge = late > 0 ? ` · <b>${late} LATE</b>` : "";
+      const offBadge  = off > 0  ? ` · ${off} כבויות` : "";
+      document.getElementById("status-automated").innerHTML = `<b>${on}</b> פעילות${lateBadge}${offBadge}`;
+    })
+    .catch(() => { document.getElementById("status-automated").innerHTML = `0 פעילות`; });
 
-  // Set lastRun text on any visible elements; null-safe since most live in /library/ now.
-  function setText(id, val) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val || "—";
-  }
-  setText("architect-lastRun", HUB.architect.lastRun);
-  setText("contract-lastRun",  HUB.contract.lastRun);
-  setText("meta-lastRun",      HUB.meta.lastRun);
-  setText("housing-lastRun",   HUB.housing.lastRun);
-  setText("mbs-lastRun",       HUB.mbs.lastRun);
-  setText("scout-lastRun",     HUB.scout.lastRun);
-  setText("canva-lastRun",     HUB.canva.lastRun);
-  setText("canva-reel-lastRun", HUB.canva_reel && HUB.canva_reel.lastRun);
-  setText("launch-lastRun",    HUB.launch.lastRun);
-  setText("sms-lastRun",       HUB.sms.lastRun);
-  const prEl = document.getElementById("pr-lastRun");
-  if (prEl) prEl.textContent = (HUB.pr_organization && HUB.pr_organization.lastRun) || "—";
-  const prInfEl = document.getElementById("pr-influencer-lastRun");
-  if (prInfEl) prInfEl.textContent = (HUB.pr_influencer && HUB.pr_influencer.lastRun) || "—";
-  const fcEl = document.getElementById("forecast-lastRun");
-  if (fcEl) fcEl.textContent = (HUB.forecast && HUB.forecast.lastRun) || "—";
-  const ldEl = document.getElementById("landing-lastRun");
-  if (ldEl) ldEl.textContent = (HUB.landing && HUB.landing.lastRun) || "—";
-
-  document.querySelectorAll(".run-btn").forEach(btn => {
-    if (!btn.hasAttribute("data-cmd")) return;
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const cmd = btn.getAttribute("data-cmd");
-      const ok = await copyText(cmd);
-      if (ok) {
-        const original = btn.textContent;
-        btn.textContent = "✓ Copied — paste in Cowork";
-        btn.classList.add("copied");
-        setTimeout(() => { btn.textContent = original; btn.classList.remove("copied"); }, 2500);
-      } else {
-        showManualCopyModal(cmd);
+  fetch("state/weekly_tasks.json" + bust, { cache: "no-store" })
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(data => {
+      function mostRecentSundayISO(d) {
+        const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        x.setDate(x.getDate() - x.getDay());
+        return x.getFullYear() + "-" + String(x.getMonth()+1).padStart(2,'0') + "-" + String(x.getDate()).padStart(2,'0');
       }
-    });
-  });
+      const week = mostRecentSundayISO(new Date());
+      const allTasks = (data.tasks || []).concat(data.custom || []);
+      const total = allTasks.length;
+      const done = (data.week === week) ? Object.keys(data.done || {}).length : 0;
+      document.getElementById("status-weekly").innerHTML = `הושלמו <b>${done} / ${total}</b> השבוע`;
+    })
+    .catch(() => { document.getElementById("status-weekly").innerHTML = "טעינה נכשלה"; });
 
-  // ===== CITY SCOUT FORM =====
-  const scoutBtn = document.getElementById("scout-btn");
-  scoutBtn.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    const city = document.getElementById("scout-city").value.trim();
-    const state = document.getElementById("scout-state").value.trim().toUpperCase();
-    const month = document.getElementById("scout-month").value;
-    if (!city || !state || state.length !== 2) {
-      const original = scoutBtn.textContent;
-      scoutBtn.textContent = "⚠ מלאי עיר + ST (2 אותיות)";
-      scoutBtn.style.background = "linear-gradient(180deg, #fca5a5, #dc2626)";
-      setTimeout(() => { scoutBtn.textContent = original; scoutBtn.style.background = ""; }, 2500);
-      return;
-    }
-    const slug = (city + "-" + state).toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    const monthLine = month ? `\n  Target month: ${month}` : "";
-    const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\` — it is the orchestrator for MBS City Scout. Run for the city below.
-
-CITY
-  Name:  ${city}, ${state}${monthLine}
-
-Look up if this city is already in EVENT_DATA.md Master List 2026:
-  • If YES (already a confirmed event) → recommend running mbs-venue-research instead.
-  • If NO → proceed with full city scout per skill STEPS 1-11.
-
-Run STEPS 0-12 from the skill IN FULL:
-  STEP 0   — read context (MEMORY, EVENT_DATA, AVERAGES, historical xlsx, comms.md, lauren-comms).
-  STEP 0.5 — 🚨 send Touchpoint 1 SMS via SimpleTexting BEFORE any web search ("@scout 🔍 מתחילה סקאוט ל-${city}, ${state}. אעדכן בסוף עם הציון והמועמדים הטובים.") per comms.md.
-  STEPS 1-7 — city profile + MBS match score (X/30) + top 3-5 neighborhoods + 5-10 venue candidates (mid-tier brands or convention/banquet/mall ONLY — AVOID Hilton full / Marriott full / Westin / Ritz / Sheraton Grand / Hyatt Regency, sqft ≥2,500) + printable contract checklist + 3-5 nearby cities + best-month recommendation.
-  STEP 8   — build Hebrew RTL HTML scoped to .mbs-scout.
-  STEP 9   — deploy via deploy-dashboard skill: docs/scout/${slug}/index.html on GH Pages.
-  STEP 10  — append to agent_hub.html SCOUT_REPORTS + HUB.scout.lastRun, redeploy hub.
-  STEP 10.5 — if ${city}, ${state} is in launch_dashboard.html SCHEDULE, upsert SCOUTS["${slug}-<start_date>"] = { score, top_count, href: "../scout/${slug}/", generated_at } so the row's 🔍 City Scout button flips to green "🔍 Scout: NN⭐". If not on schedule, skip.
-  STEP 11  — sanity check (script/body/html closing tags, node --check, browser preview, GH Pages 200).
-  STEP 12  — 🚨 send Touchpoint 3 end-summary SMS via SimpleTexting per comms.md (variant by score: ≥20=Strong / 12-19=Mixed / <12=Weak / on-schedule=City already in schedule). Always include https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/ on its own line.
-
-Mid-run rule: send SMS ONLY for blocker / judgment call / question for Lauren. No routine progress pings. If you ask Lauren anything in Cowork chat (AskUserQuestion), also fire "@scout ❓ שאלה בצ׳אט — תוכלי להגיע למחשב?" SMS at the same moment.
-
-End: confirm scout report URL https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/ is live, a new card appears under City Scout in the hub, and Touchpoints 1 + 3 SMS were both sent.`;
-
-    const ok = await copyText(cmd);
-    if (ok) {
-      const original = scoutBtn.textContent;
-      scoutBtn.textContent = "✓ הועתק! הדביקי בשיחת Cowork חדשה";
-      scoutBtn.classList.add("copied");
-      setTimeout(() => { scoutBtn.textContent = original; scoutBtn.classList.remove("copied"); }, 3500);
-    } else {
-      showManualCopyModal(cmd);
-    }
-  });
-
-  // Render past scout reports
-  const reportsList = document.getElementById("scout-reports-list");
-  if (SCOUT_REPORTS && SCOUT_REPORTS.length > 0) {
-    reportsList.innerHTML = SCOUT_REPORTS
-      .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
-      .map(r => `
-        <div class="scout-report-item">
-          <a href="${r.url}" target="_blank">📄 ${r.city}, ${r.state}</a>
-          <span style="color:var(--muted);font-size:11px">${r.date || ""}${r.score ? " · score " + r.score : ""}</span>
-        </div>`)
-      .join("");
-  }
-
-  // Pre-fill the City Scout form from URL params (added 2026-05-03 for the per-row scout button on launch_dashboard).
-  // URL contract: ../?scout-city=Columbia&scout-state=MO&scout-month=May#scout-card
-  (function prefillScout(){
-    const p = new URLSearchParams(window.location.search);
-    if (!p.has("scout-city") && !p.has("city")) return;
-    const setIf = (id, key) => { const v = p.get(key); if (v && document.getElementById(id)) document.getElementById(id).value = v; };
-    setIf("scout-city",  "scout-city");
-    setIf("scout-state", "scout-state");
-    setIf("scout-month", "scout-month");
-    // Friendly fallback: also support generic ?city=Columbia,+MO so the same URL contract works
-    if (!p.get("scout-city") && p.get("city")) {
-      const m = (p.get("city") || "").match(/^(.+?),\s*([A-Z]{2})\s*$/);
-      if (m) {
-        document.getElementById("scout-city").value  = m[1].trim();
-        document.getElementById("scout-state").value = m[2];
-      }
-    }
-    // Derive month from start_date if provided
-    if (!p.get("scout-month") && p.get("start_date")) {
-      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-      const monthIdx = parseInt((p.get("start_date") || "").slice(5,7), 10) - 1;
-      if (monthIdx >= 0 && monthIdx < 12) {
-        document.getElementById("scout-month").value = months[monthIdx];
-      }
-    }
-    // Smooth-scroll to the card so Lauren lands directly on the form
-    const card = document.getElementById("scout-card");
-    if (card) setTimeout(() => card.scrollIntoView({behavior:"smooth", block:"start"}), 100);
-  })();
+  fetch("state/special_tasks.json" + bust, { cache: "no-store" })
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(data => {
+      const removed = data.removed || {};
+      const builtinIds = ["stats-24h-check","stats-tiktok-approval","stats-2week-report","ga4-service-account-fix","rebake-schedule-with-recent-events","stats-tnd-benchmark-ready","build-ads-optimizer","update-marketing-stats-supporting-docs"];
+      const builtinOpen = builtinIds.filter(id => !removed[id]).length;
+      const customOpen = (data.custom || []).filter(t => !removed[t.id]).length;
+      const open = builtinOpen + customOpen;
+      document.getElementById("status-special").innerHTML = open === 0
+        ? "אין משימות פתוחות 🎉"
+        : `<b>${open}</b> משימות פתוחות`;
+    })
+    .catch(() => { document.getElementById("status-special").innerHTML = "טעינה נכשלה"; });
+})();
 </script>
 
 </body>

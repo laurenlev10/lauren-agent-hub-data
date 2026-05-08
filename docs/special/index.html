@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>⭐ משימות מיוחדות — Agent Hub</title>
+<style>
+  :root { --bg: #f6f7fb; --text: #1f2937; --muted: #6b7280; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Heebo", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    padding: 24px 20px 60px; min-height: 100vh;
+  }
+  .back-link {
+    display: inline-block; background: #fff; border: 1px solid #e5e7eb;
+    padding: 8px 14px; border-radius: 999px; text-decoration: none;
+    color: #374151; font-size: 13px; font-weight: 600;
+    margin-bottom: 20px; transition: all 0.15s ease;
+  }
+  .back-link:hover { border-color: #9333ea; color: #9333ea; }
+
+  .special-wrap { max-width: 900px; margin: 0 auto; }
+  .special-card {
+    background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7e22ce 100%);
+    color: #fff; border-radius: 18px; padding: 26px 30px;
+    box-shadow: 0 8px 32px rgba(147, 51, 234, 0.28);
+    position: relative; overflow: hidden;
+  }
+  .special-card::before {
+    content: "SPECIAL"; position: absolute; top: 14px; left: 18px;
+    background: rgba(255,255,255,0.22); padding: 4px 12px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+  }
+  .special-card::after {
+    content: "⭐"; position: absolute; right: 18px; bottom: -22px;
+    font-size: 140px; opacity: 0.13; line-height: 1; pointer-events: none;
+  }
+  .special-content { position: relative; z-index: 1; }
+  .special-name { font-size: 26px; font-weight: 800; margin: 18px 0 4px; letter-spacing: -0.3px; }
+  .special-tag { font-size: 13px; opacity: 0.95; margin-bottom: 14px; direction: rtl; text-align: right; line-height: 1.5; }
+  .special-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.95; }
+  .special-meta b { color: #fff; font-weight: 800; }
+  .special-sync-pill {
+    background: rgba(255,255,255,0.22); padding: 4px 10px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; cursor: pointer; letter-spacing: 0.4px;
+    border: none; color: #fff; transition: all 0.15s ease;
+  }
+  .special-sync-pill.synced  { background: #d1fae5; color: #065f46; }
+  .special-sync-pill.syncing { background: #fef3c7; color: #92400e; }
+  .special-sync-pill.offline { background: rgba(255,255,255,0.18); color: #f3e8ff; }
+  .special-sync-pill.error   { background: #fecaca; color: #991b1b; }
+  .special-sync-pill:hover { transform: scale(1.05); }
+  .special-list { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .special-task {
+    display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px;
+    background: rgba(255,255,255,0.13); border-radius: 10px;
+    transition: all 0.25s ease; font-size: 13px; line-height: 1.5;
+    direction: rtl; text-align: right;
+  }
+  .special-task.fading { opacity: 0; transform: translateX(20px); height: 0; padding: 0; margin: 0; overflow: hidden; }
+  .special-task:hover { background: rgba(255,255,255,0.22); }
+  .special-task input[type=checkbox] {
+    appearance: none; -webkit-appearance: none; width: 20px; height: 20px; min-width: 20px;
+    border: 2px solid rgba(255,255,255,0.7); border-radius: 5px; background: transparent;
+    cursor: pointer; display: grid; place-content: center; transition: all 0.12s ease;
+    margin-top: 2px;
+  }
+  .special-task input[type=checkbox]:checked { background: #fff; border-color: #fff; }
+  .special-task input[type=checkbox]:checked::after { content: "✓"; color: #7e22ce; font-weight: 900; font-size: 14px; line-height: 1; }
+  .special-task .st-body { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .special-task .st-label { color: #fff; font-weight: 600; }
+  .special-task .st-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 11px; }
+  .special-task .st-date {
+    background: rgba(255,255,255,0.22); padding: 3px 9px; border-radius: 999px;
+    color: #fff; font-weight: 700; letter-spacing: 0.3px;
+  }
+  .special-task .st-date.due-today { background: #fde68a; color: #92400e; }
+  .special-task .st-date.due-soon  { background: rgba(255,255,255,0.32); }
+  .special-task .st-link { color: #f3e8ff; text-decoration: underline; font-weight: 600; }
+  .special-task .st-link:hover { color: #fff; }
+  .special-task .st-cmd-btn {
+    background: rgba(255,255,255,0.95); color: #7e22ce;
+    border: none; padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; cursor: pointer;
+    letter-spacing: 0.3px; font-family: ui-monospace, monospace;
+  }
+  .special-task .st-cmd-btn:hover { background: #fff; }
+  .special-task .st-cmd-btn.copied { background: #d1fae5; color: #065f46; }
+  .special-add-btn {
+    background: rgba(255,255,255,0.22); color: #fff; border: 2px dashed rgba(255,255,255,0.45);
+    padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
+    cursor: pointer; width: 100%; margin-top: 8px;
+    direction: rtl; text-align: center;
+  }
+  .special-add-btn:hover { background: rgba(255,255,255,0.32); border-color: #fff; }
+  .special-empty {
+    background: rgba(255,255,255,0.13); border-radius: 10px; padding: 18px;
+    text-align: center; color: #fff; font-size: 13px; opacity: 0.85;
+    direction: rtl;
+  }
+</style>
+</head>
+<body>
+
+<a class="back-link" href="../">← חזרה לדף הראשי</a>
+
+<div class="special-wrap">
+  <div class="special-card">
+    <div class="special-content">
+      <div class="special-name">⭐ משימות מיוחדות</div>
+      <div class="special-tag">משימות חד-פעמיות שצריכות תשומת לב — סימון ✓ מסיר אותן לצמיתות. אין איפוס שבועי.</div>
+      <div class="special-meta">
+        <span>פתוחות: <b id="special-open-count">0</b></span>
+        <button type="button" class="special-sync-pill offline" id="special-sync-pill">Sync: off</button>
+      </div>
+      <div class="special-list" id="special-list"></div>
+      <button class="special-add-btn" id="special-add-btn" type="button">＋ הוסיפי משימה חדשה</button>
+    </div>
+  </div>
+</div>
+
+<script id="task-sync-shared">
+const TaskStateSync = (function() {
+  const OWNER = "laurenlev10";
+  const REPO = "lauren-agent-hub-data";
+  const BRANCH = "main";
+  const TOKEN_KEY = "lauren_gh_token_v1";
+  function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; } }
+  function setToken(t) { try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+  function hasToken() { return !!getToken(); }
+  function b64encode(s) { return btoa(unescape(encodeURIComponent(s))); }
+  function b64decode(s) { return decodeURIComponent(escape(atob(s.replace(/\s/g, "")))); }
+  function promptForToken() {
+    const msg = "כדי שהסימונים יסונכרנו בין הדפדפנים והנייד, צריך להדביק כאן את ה-GitHub Personal Access Token שלך פעם אחת.\n\n" +
+                "אם עוד אין לך — צרי כאן (יקפיץ ל-tab חדש):\nhttps://github.com/settings/tokens/new?scopes=repo&description=Lauren+Dashboard+Sync\n\n" +
+                "הדביקי אותו כאן (מתחיל ב-ghp_):";
+    const t = prompt(msg, "");
+    if (t && t.trim().startsWith("ghp_")) { setToken(t.trim()); return t.trim(); }
+    return "";
+  }
+  function setPillState(pillEl, state, label) {
+    if (!pillEl) return;
+    pillEl.classList.remove("synced", "syncing", "offline", "error");
+    pillEl.classList.add(state);
+    pillEl.textContent = label;
+  }
+  function create(opts) {
+    const PATH = opts.path;
+    const DEBOUNCE_MS = opts.debounceMs || 1500;
+    const pillEl = opts.pillEl;
+    let currentSha = null, saveTimer = null, saving = false, savePending = false;
+    async function apiGet() {
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${BRANCH}&_=${Date.now()}`;
+      const headers = { "Accept": "application/vnd.github+json" };
+      const t = getToken();
+      if (t) headers["Authorization"] = "Bearer " + t;
+      const res = await fetch(url, { headers, cache: "no-store" });
+      if (res.status === 404) return { data: null, sha: null };
+      if (!res.ok) throw new Error(`GET ${res.status}`);
+      const json = await res.json();
+      let data = null;
+      try { data = JSON.parse(b64decode(json.content)); } catch (e) { data = null; }
+      return { data, sha: json.sha };
+    }
+    async function apiPut(data, sha, message) {
+      const t = getToken();
+      if (!t) throw new Error("no token");
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`;
+      const body = { message: message || `Update ${PATH} from dashboard`, content: b64encode(JSON.stringify(data, null, 2) + "\n"), branch: BRANCH };
+      if (sha) body.sha = sha;
+      const res = await fetch(url, { method: "PUT", headers: { "Accept": "application/vnd.github+json", "Authorization": "Bearer " + t, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) { const txt = await res.text(); const err = new Error(`PUT ${res.status}: ${txt.slice(0, 200)}`); err.status = res.status; throw err; }
+      const json = await res.json();
+      return json.content && json.content.sha;
+    }
+    async function loadInitial(onLoaded) {
+      try {
+        const { data, sha } = await apiGet();
+        currentSha = sha;
+        if (data && onLoaded) onLoaded(data);
+        setPillState(pillEl, hasToken() ? "synced" : "offline", hasToken() ? "Sync ✓" : "Sync: off");
+      } catch (e) {
+        console.warn(`[TaskStateSync ${PATH}] initial load failed:`, e);
+        setPillState(pillEl, hasToken() ? "error" : "offline", hasToken() ? "Sync error" : "Sync: off");
+      }
+    }
+    async function doSave(getDataFn) {
+      if (!hasToken()) { setPillState(pillEl, "offline", "Sync: off"); return; }
+      if (saving) { savePending = true; return; }
+      saving = true; setPillState(pillEl, "syncing", "Syncing…");
+      try {
+        const payload = getDataFn();
+        try { currentSha = await apiPut(payload, currentSha); }
+        catch (e) {
+          if (e.status === 409 || e.status === 422) {
+            const fresh = await apiGet(); currentSha = await apiPut(payload, fresh.sha);
+          } else { throw e; }
+        }
+        setPillState(pillEl, "synced", "Sync ✓");
+      } catch (e) {
+        console.warn(`[TaskStateSync ${PATH}] save failed:`, e);
+        setPillState(pillEl, "error", "Sync error");
+      } finally {
+        saving = false;
+        if (savePending) { savePending = false; scheduleSave(getDataFn, 0); }
+      }
+    }
+    function scheduleSave(getDataFn, delay) {
+      if (delay === undefined) delay = DEBOUNCE_MS;
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(function() { doSave(getDataFn); }, delay);
+    }
+    function wireTokenPill(getDataFn) {
+      if (!pillEl) return;
+      pillEl.addEventListener("click", async function() {
+        const t = promptForToken();
+        if (t) {
+          setPillState(pillEl, "syncing", "Testing…");
+          try { await doSave(getDataFn); alert("✅ הטוקן עובד! מעכשיו הסימונים יסונכרנו בין כל הדפדפנים שלך."); }
+          catch (e) { alert("❌ הטוקן לא עבד: " + e.message); }
+        }
+      });
+    }
+    return { loadInitial, scheduleSave, wireTokenPill, hasToken };
+  }
+  return { create, getToken, setToken, hasToken };
+})();
+</script>
+
+<script id="special-data">
+const SPECIAL_TASKS_SEED = [
+  { id: "stats-24h-check", label: "בדיקת 24 שעות של @stats — לוודא שפיקסלים אוספים נתונים",
+    date: "2026-05-08", command: "Run @stats — show top performing campaigns this week",
+    link: "https://laurenlev10.github.io/lauren-agent-hub-data/stats/", linkLabel: "↗ Stats Dashboard" },
+  { id: "stats-tiktok-approval", label: "בדיקת אישור TikTok App (הוגש מחדש 7.5 אחרי דחייה — email forwarding ל-info@themakeupblowout.com)",
+    date: "2026-05-14", command: "Run @stats — onboard TikTok access token, app is approved",
+    link: "https://business-api.tiktok.com/portal/apps", linkLabel: "↗ TikTok Apps" },
+  { id: "stats-2week-report", label: "דוח ביצועים שבועיים של @stats — סקירה ראשונה",
+    date: "2026-05-21", command: "Run @stats — full HTML report for last 14 days" },
+  { id: "ga4-service-account-fix", label: "תיקון GA4 Service Account — בדיקת הגדרות Workspace",
+    command: "Run @stats — try OAuth fallback for GA4 (instead of Service Account)" },
+  { id: "rebake-schedule-with-recent-events", label: "להוסיף ל-SCHEDULE: Roseville/Fort Collins/South Denver/Santa Fe/Santa Maria/San Jose (חסרים)",
+    command: "Update launch_dashboard SCHEDULE constant with the 6 events that exist in SETUPS but not in SCHEDULE" },
+  { id: "stats-tnd-benchmark-ready", label: "אחרי 5+ אירועים עם היסטוריה: לחשב T-Nd ממוצעים אמיתיים (יום לפני, שבוע לפני)",
+    date: "2026-06-30", command: "Run @stats — implement T-Nd time-aligned averages now that we have 5+ events with full history" },
+  { id: "build-ads-optimizer", label: "🚀 לבנות סוכן @ads-optimizer (קורא @stats, ממליץ/מבצע שינויי תקציב + יצירתיים)",
+    command: "Build @ads-optimizer agent — separate write-only agent that reads @stats and recommends/executes ad changes" },
+  { id: "update-marketing-stats-supporting-docs", label: "לעדכן comms.md / dashboard.md / pixels.md / utm.md תחת marketing-stats לפורמט החדש",
+    command: "Update Scheduled/NEW/marketing-stats supporting docs to match Level 2 SKILL.md" }
+];
+
+(function initSpecial() {
+  const STORAGE_KEY = "mbs.special.v1";
+  const list = document.getElementById("special-list");
+  const openCountEl = document.getElementById("special-open-count");
+  const addBtn = document.getElementById("special-add-btn");
+  const pillEl = document.getElementById("special-sync-pill");
+
+  function loadLocalState() {
+    let st = null;
+    try { st = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (e) { st = null; }
+    if (!st) st = { removed: {}, custom: [] };
+    if (!st.removed) st.removed = {};
+    if (!st.custom) st.custom = [];
+    return st;
+  }
+  function saveLocalState(st) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(st)); } catch (e) {} }
+
+  let state = loadLocalState();
+  const sync = TaskStateSync.create({ path: "docs/state/special_tasks.json", pillEl: pillEl });
+
+  function getDataForSave() { return { removed: state.removed, custom: state.custom, _updated_at: new Date().toISOString() }; }
+  function mergeRemoteState(remote) {
+    if (!remote || typeof remote !== "object") return;
+    if (remote.removed) Object.keys(remote.removed).forEach(function(id) { if (remote.removed[id]) state.removed[id] = true; });
+    if (Array.isArray(remote.custom)) {
+      const existingIds = new Set(state.custom.map(function(c) { return c.id; }));
+      remote.custom.forEach(function(c) { if (!existingIds.has(c.id)) state.custom.push(c); });
+    }
+    saveLocalState(state);
+  }
+  function saveState(st) { state = st; saveLocalState(state); sync.scheduleSave(getDataForSave); }
+
+  function fmtDate(iso) {
+    if (!iso) return null;
+    const parts = iso.split('-').map(Number);
+    const dt = new Date(parts[0], parts[1]-1, parts[2]);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const diff = Math.round((dt - today) / 86400000);
+    const lbl = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    let cls = "";
+    if (diff === 0) cls = "due-today";
+    else if (diff > 0 && diff <= 3) cls = "due-soon";
+    return { label: lbl, diff: diff, cls: cls };
+  }
+  function copyCmd(cmd, btn) {
+    navigator.clipboard.writeText(cmd).then(function() {
+      const orig = btn.textContent;
+      btn.textContent = "✓ הועתק"; btn.classList.add("copied");
+      setTimeout(function() { btn.textContent = orig; btn.classList.remove("copied"); }, 1800);
+    }).catch(function() { alert("ההעתקה נכשלה — סמני ידנית והעתיקי:\n\n" + cmd); });
+  }
+
+  function render() {
+    list.innerHTML = "";
+    const all = SPECIAL_TASKS_SEED.concat(state.custom);
+    const visible = all.filter(function(t) { return !state.removed[t.id]; });
+    visible.sort(function(a, b) {
+      if (a.date && b.date) return a.date.localeCompare(b.date);
+      if (a.date) return -1;
+      if (b.date) return 1;
+      return 0;
+    });
+    if (visible.length === 0) {
+      list.innerHTML = '<div class="special-empty">אין משימות מיוחדות פתוחות 🎉</div>';
+      openCountEl.textContent = "0";
+      return;
+    }
+    openCountEl.textContent = visible.length;
+    visible.forEach(function(t) {
+      const row = document.createElement("div");
+      row.className = "special-task";
+      const cb = document.createElement("input"); cb.type = "checkbox";
+      cb.addEventListener("change", function() {
+        if (cb.checked) {
+          row.classList.add("fading");
+          setTimeout(function() { state.removed[t.id] = true; saveState(state); render(); }, 280);
+        }
+      });
+      const body = document.createElement("div"); body.className = "st-body";
+      const lbl = document.createElement("div"); lbl.className = "st-label"; lbl.textContent = t.label; body.appendChild(lbl);
+      const meta = document.createElement("div"); meta.className = "st-row";
+      if (t.date) {
+        const d = fmtDate(t.date);
+        const dateSpan = document.createElement("span");
+        dateSpan.className = "st-date " + (d.cls || "");
+        let dateText = "📅 " + d.label;
+        if (d.diff === 0) dateText += " (היום!)";
+        else if (d.diff > 0) dateText += " (בעוד " + d.diff + " ימים)";
+        else dateText += " (לפני " + Math.abs(d.diff) + " ימים)";
+        dateSpan.textContent = dateText;
+        meta.appendChild(dateSpan);
+      }
+      if (t.link) {
+        const a = document.createElement("a");
+        a.className = "st-link"; a.href = t.link; a.target = "_blank"; a.rel = "noopener";
+        a.textContent = t.linkLabel || "↗ Open";
+        meta.appendChild(a);
+      }
+      if (t.command) {
+        const btn = document.createElement("button");
+        btn.className = "st-cmd-btn"; btn.type = "button"; btn.textContent = "📋 העתיקי פקודה"; btn.title = t.command;
+        btn.addEventListener("click", function() { copyCmd(t.command, btn); });
+        meta.appendChild(btn);
+      }
+      if (meta.children.length > 0) body.appendChild(meta);
+      row.appendChild(cb); row.appendChild(body); list.appendChild(row);
+    });
+  }
+
+  addBtn.addEventListener("click", function() {
+    const label = prompt("מה המשימה?");
+    if (!label || !label.trim()) return;
+    const date = prompt("תאריך (YYYY-MM-DD) — אופציונלי, ENTER לדלג:") || null;
+    const command = prompt("פקודת העתקה לסוכן — אופציונלי, ENTER לדלג:") || null;
+    const id = "custom-" + Date.now();
+    state.custom.push({
+      id: id, label: label.trim(),
+      date: (date && /^\d{4}-\d{2}-\d{2}$/.test(date.trim())) ? date.trim() : null,
+      command: (command && command.trim()) ? command.trim() : null
+    });
+    saveState(state); render();
+  });
+
+  render();
+  sync.wireTokenPill(getDataForSave);
+  sync.loadInitial(function(remote) { mergeRemoteState(remote); render(); });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📋 משימות שבועיות — Agent Hub</title>
+<style>
+  :root { --bg: #f6f7fb; --text: #1f2937; --muted: #6b7280; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Heebo", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    padding: 24px 20px 60px; min-height: 100vh;
+  }
+  .back-link {
+    display: inline-block; background: #fff; border: 1px solid #e5e7eb;
+    padding: 8px 14px; border-radius: 999px; text-decoration: none;
+    color: #374151; font-size: 13px; font-weight: 600;
+    margin-bottom: 20px; transition: all 0.15s ease;
+  }
+  .back-link:hover { border-color: #0d9488; color: #0d9488; }
+
+  .weekly-wrap { max-width: 900px; margin: 0 auto; }
+  .weekly-card {
+    background: linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #0f766e 100%);
+    color: #fff; border-radius: 18px; padding: 26px 30px;
+    box-shadow: 0 8px 32px rgba(13, 148, 136, 0.25);
+    position: relative; overflow: hidden;
+  }
+  .weekly-card::before {
+    content: "WEEKLY"; position: absolute; top: 14px; left: 18px;
+    background: rgba(255,255,255,0.22); padding: 4px 12px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+  }
+  .weekly-card::after {
+    content: "📋"; position: absolute; right: 18px; bottom: -22px;
+    font-size: 140px; opacity: 0.13; line-height: 1; pointer-events: none;
+  }
+  .weekly-content { position: relative; z-index: 1; }
+  .weekly-name { font-size: 26px; font-weight: 800; margin: 18px 0 4px; letter-spacing: -0.3px; }
+  .weekly-tag { font-size: 13px; opacity: 0.95; margin-bottom: 14px; direction: rtl; text-align: right; line-height: 1.5; }
+  .weekly-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.95;
+  }
+  .weekly-meta b { color: #fff; font-weight: 800; }
+  .weekly-sync-pill, .weekly-reset-btn {
+    background: rgba(255,255,255,0.22); padding: 4px 10px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; cursor: pointer; letter-spacing: 0.4px;
+    border: none; color: #fff; transition: all 0.15s ease;
+  }
+  .weekly-sync-pill.synced  { background: #d1fae5; color: #065f46; }
+  .weekly-sync-pill.syncing { background: #fef3c7; color: #92400e; }
+  .weekly-sync-pill.offline { background: rgba(255,255,255,0.18); color: #ccfbf1; }
+  .weekly-sync-pill.error   { background: #fecaca; color: #991b1b; }
+  .weekly-sync-pill:hover, .weekly-reset-btn:hover { transform: scale(1.05); }
+  .weekly-reset-btn:hover { background: rgba(255,255,255,0.36); }
+
+  .weekly-progress { height: 6px; background: rgba(255,255,255,0.22); border-radius: 999px; overflow: hidden; margin-bottom: 14px; }
+  .weekly-progress-bar { height: 100%; background: #fff; border-radius: 999px; transition: width 0.4s ease; width: 0%; }
+
+  .weekly-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 700px) { .weekly-list { grid-template-columns: 1fr; } }
+  .weekly-task {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    background: rgba(255,255,255,0.13); border-radius: 10px;
+    transition: all 0.15s ease; font-size: 13px; line-height: 1.4;
+    direction: rtl; text-align: right;
+  }
+  .weekly-task:hover { background: rgba(255,255,255,0.22); }
+  .weekly-task input[type=checkbox] {
+    appearance: none; -webkit-appearance: none; width: 18px; height: 18px; min-width: 18px;
+    border: 2px solid rgba(255,255,255,0.7); border-radius: 4px; background: transparent;
+    cursor: pointer; display: grid; place-content: center; transition: all 0.12s ease;
+  }
+  .weekly-task input[type=checkbox]:checked { background: #fff; border-color: #fff; }
+  .weekly-task input[type=checkbox]:checked::after { content: "✓"; color: #0d9488; font-weight: 900; font-size: 13px; line-height: 1; }
+  .weekly-task .task-label { flex: 1; color: #fff; }
+  .weekly-task.done .task-label { text-decoration: line-through; opacity: 0.6; }
+  .weekly-task .task-link { color: #ccfbf1; text-decoration: underline; font-size: 11px; white-space: nowrap; }
+  .weekly-task .task-link:hover { color: #fff; }
+  .weekly-task .task-pill {
+    background: rgba(255,255,255,0.22); color: #fff; padding: 3px 8px; border-radius: 999px;
+    font-size: 9px; font-weight: 800; letter-spacing: 0.5px;
+  }
+  .weekly-task .task-pill.has-agent { background: rgba(255,255,255,0.95); color: #0f766e; }
+  .weekly-task .task-pill.todo { background: rgba(255,255,255,0.22); color: #fff; }
+  .weekly-task .task-icon-btn {
+    background: transparent; border: none; color: rgba(255,255,255,0.7);
+    cursor: pointer; padding: 2px 6px; font-size: 14px; transition: all 0.15s ease;
+    border-radius: 6px;
+  }
+  .weekly-task .task-icon-btn:hover { color: #fff; background: rgba(255,255,255,0.18); }
+
+  .weekly-add-btn {
+    background: rgba(255,255,255,0.22); color: #fff; border: 2px dashed rgba(255,255,255,0.45);
+    padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
+    cursor: pointer; width: 100%; margin-top: 12px;
+    direction: rtl; text-align: center;
+    transition: all 0.15s ease;
+  }
+  .weekly-add-btn:hover { background: rgba(255,255,255,0.32); border-color: #fff; }
+  .weekly-empty {
+    background: rgba(255,255,255,0.13); border-radius: 10px; padding: 18px;
+    text-align: center; color: #fff; font-size: 13px; opacity: 0.85;
+    direction: rtl; grid-column: 1 / -1;
+  }
+</style>
+</head>
+<body>
+
+<a class="back-link" href="../">← חזרה לדף הראשי</a>
+
+<div class="weekly-wrap">
+  <div class="weekly-card">
+    <div class="weekly-content">
+      <div class="weekly-name">📋 משימות שבועיות</div>
+      <div class="weekly-tag">צ׳ק־ליסט קבוע ידני שמתאפס בכל יום ראשון בבוקר. אפשר להוסיף, לערוך ולמחוק משימות. הסימונים מסונכרנים בין כל המכשירים.</div>
+
+      <div class="weekly-meta">
+        <span>השבוע מ־<b id="weekly-week-label">—</b></span>
+        <span>הושלמו: <b><span id="weekly-done-count">0</span> / <span id="weekly-total-count">0</span></b></span>
+        <button type="button" class="weekly-sync-pill offline" id="weekly-sync-pill">Sync: off</button>
+        <button class="weekly-reset-btn" id="weekly-reset-btn" type="button">🔄 איפוס</button>
+      </div>
+
+      <div class="weekly-progress"><div class="weekly-progress-bar" id="weekly-progress-bar"></div></div>
+
+      <div class="weekly-list" id="weekly-list">
+        <div class="weekly-empty">טוען...</div>
+      </div>
+
+      <button class="weekly-add-btn" id="weekly-add-btn" type="button">＋ הוסיפי משימה שבועית חדשה</button>
+    </div>
+  </div>
+</div>
+
+<script id="task-sync-shared">
+const TaskStateSync = (function() {
+  const OWNER = "laurenlev10";
+  const REPO = "lauren-agent-hub-data";
+  const BRANCH = "main";
+  const TOKEN_KEY = "lauren_gh_token_v1";
+  function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; } }
+  function setToken(t) { try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+  function hasToken() { return !!getToken(); }
+  function b64encode(s) { return btoa(unescape(encodeURIComponent(s))); }
+  function b64decode(s) { return decodeURIComponent(escape(atob(s.replace(/\s/g, "")))); }
+  function promptForToken() {
+    const msg = "כדי שהסימונים יסונכרנו בין הדפדפנים והנייד, צריך להדביק כאן את ה-GitHub Personal Access Token שלך פעם אחת.\n\n" +
+                "אם עוד אין לך — צרי כאן (יקפיץ ל-tab חדש):\nhttps://github.com/settings/tokens/new?scopes=repo&description=Lauren+Dashboard+Sync\n\n" +
+                "הדביקי אותו כאן (מתחיל ב-ghp_):";
+    const t = prompt(msg, "");
+    if (t && t.trim().startsWith("ghp_")) { setToken(t.trim()); return t.trim(); }
+    return "";
+  }
+  function setPillState(pillEl, state, label) {
+    if (!pillEl) return;
+    pillEl.classList.remove("synced", "syncing", "offline", "error");
+    pillEl.classList.add(state);
+    pillEl.textContent = label;
+  }
+  function create(opts) {
+    const PATH = opts.path;
+    const DEBOUNCE_MS = opts.debounceMs || 1500;
+    const pillEl = opts.pillEl;
+    let currentSha = null, saveTimer = null, saving = false, savePending = false;
+    async function apiGet() {
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${BRANCH}&_=${Date.now()}`;
+      const headers = { "Accept": "application/vnd.github+json" };
+      const t = getToken();
+      if (t) headers["Authorization"] = "Bearer " + t;
+      const res = await fetch(url, { headers, cache: "no-store" });
+      if (res.status === 404) return { data: null, sha: null };
+      if (!res.ok) throw new Error(`GET ${res.status}`);
+      const json = await res.json();
+      let data = null;
+      try { data = JSON.parse(b64decode(json.content)); } catch (e) { data = null; }
+      return { data, sha: json.sha };
+    }
+    async function apiPut(data, sha, message) {
+      const t = getToken();
+      if (!t) throw new Error("no token");
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`;
+      const body = { message: message || `Update ${PATH} from dashboard`, content: b64encode(JSON.stringify(data, null, 2) + "\n"), branch: BRANCH };
+      if (sha) body.sha = sha;
+      const res = await fetch(url, { method: "PUT", headers: { "Accept": "application/vnd.github+json", "Authorization": "Bearer " + t, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) { const txt = await res.text(); const err = new Error(`PUT ${res.status}: ${txt.slice(0, 200)}`); err.status = res.status; throw err; }
+      const json = await res.json();
+      return json.content && json.content.sha;
+    }
+    async function loadInitial(onLoaded) {
+      try {
+        const { data, sha } = await apiGet();
+        currentSha = sha;
+        if (data && onLoaded) onLoaded(data);
+        setPillState(pillEl, hasToken() ? "synced" : "offline", hasToken() ? "Sync ✓" : "Sync: off");
+      } catch (e) {
+        console.warn(`[TaskStateSync ${PATH}] initial load failed:`, e);
+        setPillState(pillEl, hasToken() ? "error" : "offline", hasToken() ? "Sync error" : "Sync: off");
+      }
+    }
+    async function doSave(getDataFn) {
+      if (!hasToken()) { setPillState(pillEl, "offline", "Sync: off"); return; }
+      if (saving) { savePending = true; return; }
+      saving = true; setPillState(pillEl, "syncing", "Syncing…");
+      try {
+        const payload = getDataFn();
+        try { currentSha = await apiPut(payload, currentSha); }
+        catch (e) {
+          if (e.status === 409 || e.status === 422) {
+            const fresh = await apiGet(); currentSha = await apiPut(payload, fresh.sha);
+          } else { throw e; }
+        }
+        setPillState(pillEl, "synced", "Sync ✓");
+      } catch (e) {
+        console.warn(`[TaskStateSync ${PATH}] save failed:`, e);
+        setPillState(pillEl, "error", "Sync error");
+      } finally {
+        saving = false;
+        if (savePending) { savePending = false; scheduleSave(getDataFn, 0); }
+      }
+    }
+    function scheduleSave(getDataFn, delay) {
+      if (delay === undefined) delay = DEBOUNCE_MS;
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(function() { doSave(getDataFn); }, delay);
+    }
+    function wireTokenPill(getDataFn) {
+      if (!pillEl) return;
+      pillEl.addEventListener("click", async function() {
+        const t = promptForToken();
+        if (t) {
+          setPillState(pillEl, "syncing", "Testing…");
+          try { await doSave(getDataFn); alert("✅ הטוקן עובד! מעכשיו הסימונים יסונכרנו בין כל הדפדפנים שלך."); }
+          catch (e) { alert("❌ הטוקן לא עבד: " + e.message); }
+        }
+      });
+    }
+    return { loadInitial, scheduleSave, wireTokenPill, hasToken };
+  }
+  return { create, getToken, setToken, hasToken };
+})();
+</script>
+
+<script id="weekly-data">
+(function initWeekly() {
+  const STORAGE_KEY = "mbs.weekly.v2";
+  const list = document.getElementById("weekly-list");
+  const doneEl = document.getElementById("weekly-done-count");
+  const totalEl = document.getElementById("weekly-total-count");
+  const labelEl = document.getElementById("weekly-week-label");
+  const barEl = document.getElementById("weekly-progress-bar");
+  const resetBtn = document.getElementById("weekly-reset-btn");
+  const addBtn = document.getElementById("weekly-add-btn");
+  const pillEl = document.getElementById("weekly-sync-pill");
+
+  function mostRecentSundayISO(d) {
+    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    x.setDate(x.getDate() - x.getDay());
+    return x.getFullYear() + "-" + String(x.getMonth()+1).padStart(2,'0') + "-" + String(x.getDate()).padStart(2,'0');
+  }
+  function fmtWeekLabel(iso) {
+    const parts = iso.split('-').map(Number);
+    const dt = new Date(parts[0], parts[1]-1, parts[2]);
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' (Sun)';
+  }
+
+  function loadLocalState() {
+    let st = null;
+    try { st = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (e) { st = null; }
+    const week = mostRecentSundayISO(new Date());
+    if (!st) st = { week: week, done: {}, tasks: [], custom: [] };
+    if (!st.tasks) st.tasks = [];
+    if (!st.custom) st.custom = [];
+    if (!st.done) st.done = {};
+    if (st.week !== week) { st.week = week; st.done = {}; }
+    return st;
+  }
+  function saveLocalState(st) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(st)); } catch (e) {} }
+
+  let state = loadLocalState();
+  const sync = TaskStateSync.create({ path: "docs/state/weekly_tasks.json", pillEl: pillEl });
+
+  function getDataForSave() {
+    return {
+      week: state.week, done: state.done,
+      tasks: state.tasks, custom: state.custom,
+      _doc: "Weekly task list + completion state. tasks=ordered list of weekly recurring tasks. week=current Sunday ISO. done=map of taskId→true (auto-resets on Sunday). custom=user-added tasks (from /weekly/ UI).",
+      _schema_version: 2,
+      _updated_at: new Date().toISOString()
+    };
+  }
+  function mergeRemoteState(remote) {
+    if (!remote || typeof remote !== "object") return;
+    if (Array.isArray(remote.tasks)) state.tasks = remote.tasks;
+    if (Array.isArray(remote.custom)) state.custom = remote.custom;
+    const week = mostRecentSundayISO(new Date());
+    if (remote.week === week && remote.done && typeof remote.done === "object") {
+      Object.keys(remote.done).forEach(function(id) { if (remote.done[id]) state.done[id] = true; });
+    }
+    saveLocalState(state);
+  }
+  function saveState() { saveLocalState(state); sync.scheduleSave(getDataForSave); }
+  function allTasks() { return (state.tasks || []).concat(state.custom || []); }
+
+  function render() {
+    list.innerHTML = "";
+    const tasks = allTasks();
+    if (!tasks.length) {
+      list.innerHTML = '<div class="weekly-empty">אין עוד משימות. הוסיפי את הראשונה למטה ↓</div>';
+      doneEl.textContent = "0"; totalEl.textContent = "0";
+      barEl.style.width = "0%";
+      labelEl.textContent = fmtWeekLabel(state.week);
+      return;
+    }
+    let doneCount = 0;
+    tasks.forEach(function(t) {
+      const isDone = !!state.done[t.id];
+      if (isDone) doneCount++;
+      const row = document.createElement("label");
+      row.className = "weekly-task" + (isDone ? " done" : "");
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = isDone;
+      cb.addEventListener("change", function() {
+        if (cb.checked) state.done[t.id] = true; else delete state.done[t.id];
+        saveState(); render();
+      });
+
+      const lbl = document.createElement("span");
+      lbl.className = "task-label";
+      lbl.textContent = t.label;
+
+      row.appendChild(cb);
+      row.appendChild(lbl);
+
+      if (t.link) {
+        const a = document.createElement("a");
+        a.className = "task-link"; a.href = t.link; a.target = "_blank"; a.rel = "noopener";
+        a.textContent = t.linkLabel || "↗";
+        a.addEventListener("click", function(e) { e.stopPropagation(); });
+        row.appendChild(a);
+      }
+
+      const pill = document.createElement("span");
+      if (t.agent) {
+        pill.className = "task-pill has-agent"; pill.textContent = "AGENT"; pill.title = "Agent: " + t.agent;
+      } else {
+        pill.className = "task-pill todo"; pill.textContent = "TODO"; pill.title = "אין סוכן ייעודי";
+      }
+      row.appendChild(pill);
+
+      const editBtn = document.createElement("button");
+      editBtn.className = "task-icon-btn";
+      editBtn.type = "button"; editBtn.textContent = "✏️"; editBtn.title = "ערכי משימה";
+      editBtn.addEventListener("click", function(e) {
+        e.preventDefault(); e.stopPropagation();
+        const newLabel = prompt("טקסט המשימה:", t.label);
+        if (newLabel === null) return;
+        if (!newLabel.trim()) { alert("הטקסט לא יכול להיות ריק"); return; }
+        const newLink = prompt("קישור (אופציונלי, ENTER לדלג):", t.link || "");
+        const newLinkLabel = (newLink && newLink.trim()) ? (prompt("טקסט הקישור (e.g. ↗ סייט):", t.linkLabel || "↗") || "↗") : null;
+        const newAgent = prompt("שם סוכן (אופציונלי, ENTER לדלג):", t.agent || "");
+        t.label = newLabel.trim();
+        t.link = (newLink && newLink.trim()) ? newLink.trim() : undefined;
+        t.linkLabel = (newLink && newLink.trim()) ? newLinkLabel : undefined;
+        t.agent = (newAgent && newAgent.trim()) ? newAgent.trim() : undefined;
+        Object.keys(t).forEach(k => t[k] === undefined && delete t[k]);
+        saveState(); render();
+      });
+      row.appendChild(editBtn);
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "task-icon-btn";
+      delBtn.type = "button"; delBtn.textContent = "🗑️"; delBtn.title = "מחקי משימה";
+      delBtn.addEventListener("click", function(e) {
+        e.preventDefault(); e.stopPropagation();
+        if (!confirm("למחוק את המשימה \"" + t.label + "\"?")) return;
+        const idxT = state.tasks.indexOf(t);
+        if (idxT >= 0) state.tasks.splice(idxT, 1);
+        const idxC = state.custom.indexOf(t);
+        if (idxC >= 0) state.custom.splice(idxC, 1);
+        delete state.done[t.id];
+        saveState(); render();
+      });
+      row.appendChild(delBtn);
+
+      list.appendChild(row);
+    });
+    doneEl.textContent = doneCount;
+    totalEl.textContent = tasks.length;
+    barEl.style.width = tasks.length ? Math.round(100 * doneCount / tasks.length) + "%" : "0%";
+    labelEl.textContent = fmtWeekLabel(state.week);
+  }
+
+  resetBtn.addEventListener("click", function() {
+    if (!confirm("לאפס את כל הסימונים השבוע?")) return;
+    state.done = {}; saveState(); render();
+  });
+
+  addBtn.addEventListener("click", function() {
+    const label = prompt("טקסט המשימה השבועית:");
+    if (!label || !label.trim()) return;
+    const link = prompt("קישור (אופציונלי, ENTER לדלג):", "") || "";
+    const linkLabel = link.trim() ? (prompt("טקסט הקישור (e.g. ↗ סייט):", "↗") || "↗") : null;
+    const agent = prompt("שם סוכן ייעודי (אופציונלי, ENTER לדלג):", "") || "";
+    const id = "custom-" + Date.now();
+    const newTask = { id: id, label: label.trim() };
+    if (link.trim()) { newTask.link = link.trim(); newTask.linkLabel = linkLabel; }
+    if (agent.trim()) newTask.agent = agent.trim();
+    state.custom.push(newTask);
+    saveState(); render();
+  });
+
+  render();
+  sync.wireTokenPill(getDataForSave);
+  sync.loadInitial(function(remote) { mergeRemoteState(remote); render(); });
+
+  setInterval(function() {
+    const week = mostRecentSundayISO(new Date());
+    if (state.week !== week) { state.week = week; state.done = {}; saveState(); render(); }
+  }, 5 * 60 * 1000);
+})();
+</script>
+
+</body>
+</html>
