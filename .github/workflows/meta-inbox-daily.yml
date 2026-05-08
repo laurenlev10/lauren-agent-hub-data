@@ -40,7 +40,12 @@ jobs:
           SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
           LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE }}
         run: |
-          python3 scripts/meta_inbox_preview.py --send-sms
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            python3 scripts/meta_inbox_preview.py --send-sms
+          else
+            echo "Manual trigger — running WITHOUT --send-sms (no SMS sent)"
+            python3 scripts/meta_inbox_preview.py
+          fi
 
       - name: Commit + push if preview changed
         run: |
