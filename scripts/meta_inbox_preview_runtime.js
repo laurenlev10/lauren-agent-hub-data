@@ -54,7 +54,21 @@ async function markHandledRemote(dedupKey) {
 function fadeAndRemove(row) {
   if (!row) return;
   row.classList.add("handled-fade");
-  setTimeout(() => row.remove(), 450);
+  setTimeout(() => {
+    row.remove();
+    // After removal: update the count + hide whole block if empty
+    const block = document.querySelector(".attention-block");
+    if (block) {
+      const remaining = block.querySelectorAll(".attention-row").length;
+      const h2 = block.querySelector("h2");
+      if (h2) h2.innerHTML = "👀 " + remaining + " items need your attention";
+      if (remaining === 0) {
+        block.style.transition = "opacity 0.3s";
+        block.style.opacity = "0";
+        setTimeout(() => block.remove(), 350);
+      }
+    }
+  }, 450);
 }
 
 async function markDone(btn) {
