@@ -938,6 +938,31 @@ __RUNTIME_JS__
 </html>'''
 
 
+
+def _format_la_time(iso_str: str) -> str:
+    """Convert ISO UTC string to LA-time formatted display.
+    
+    Input:  '2026-05-08T16:44:25Z' or '2026-05-08T16:44:25.123Z'
+    Output: 'May 8, 2026 · 9:44 AM PDT' (or PST in winter)
+    """
+    import datetime as _dt
+    try:
+        s = iso_str.rstrip("Z").split(".")[0]
+        utc_dt = _dt.datetime.fromisoformat(s).replace(tzinfo=_dt.timezone.utc)
+        try:
+            from zoneinfo import ZoneInfo
+            la_dt = utc_dt.astimezone(ZoneInfo("America/Los_Angeles"))
+        except Exception:
+            la_dt = utc_dt.astimezone(_dt.timezone(_dt.timedelta(hours=-7)))  # fallback PDT
+        # Format like "May 8, 2026 · 9:44 AM PDT"
+        try:
+            tz_name = la_dt.tzname() or "PT"
+        except Exception:
+            tz_name = "PT"
+        return la_dt.strftime("%b %d, %Y · %-I:%M %p ") + tz_name
+    except Exception:
+        return iso_str  # fallback to raw
+
 def _make_draft_reply(name: str, customer_text: str, channel: str) -> str:
     """Generate a friendly placeholder draft for Lauren to edit before sending."""
     display_name = (name or "").lstrip("@")
@@ -1031,7 +1056,7 @@ def render_preview(snapshot: dict, classified_messenger: list,
     parts = [PAGE_HEAD]
     parts.append(f"<h1>📬 @meta — Live Inbox Triage</h1>")
     parts.append(f'<div class="sub">'
-                 f'Generated {snapshot["fetched_at"]} · '
+                 f'🕘 סריקה אחרונה: {_format_la_time(snapshot["fetched_at"])} · '
                  f'Bucket A auto-replies are LIVE · Send Reply button on items below sends via Meta API.</div>')
 
     # === Attention block: items needing Lauren — at the very top ===
