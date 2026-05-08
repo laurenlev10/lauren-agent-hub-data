@@ -962,7 +962,7 @@ const SPECIAL_TASKS_SEED = [
       <div class="weekly-tag">צ׳ק־ליסט קבוע ידני שמתאפס בכל יום ראשון בבוקר. לכל משימה ניבנה בהמשך סוכן ייעודי שיריץ אותה אוטומטית.</div>
       <div class="weekly-meta">
         <span>השבוע מ־<b id="weekly-week-label">—</b></span>
-        <span>הושלמו: <b><span id="weekly-done-count">0</span> / <span id="weekly-total-count">10</span></b></span>
+        <span>הושלמו: <b><span id="weekly-done-count">0</span> / <span id="weekly-total-count">11</span></b></span>
         <button type="button" class="special-sync-pill offline" id="weekly-sync-pill">Sync: off</button>
         <button class="weekly-reset-btn" id="weekly-reset-btn" type="button">🔄 איפוס ידני</button>
       </div>
@@ -984,7 +984,8 @@ const WEEKLY_TASKS = [
   { id: "hotels",          label: "הזמנת מלונות ללינת עובדים לאירוע הקרוב" },
   { id: "supplier-pay",    label: "תשלום לספקים על חשבוניות פתוחות" },
   { id: "event-summary",   label: "סיכום האירוע שהיה (Recap)", agent: "mbs-event-summary" },
-  { id: "sms-review",      label: "בדיקת טקסטים של Simple Texting לאירוע הבא", agent: "sms-campaigns" }
+  { id: "sms-review",      label: "בדיקת טקסטים של Simple Texting לאירוע הבא", agent: "sms-campaigns" },
+  { id: "reel-campaign",   label: "עדכון ריל חדש ויצירת קמפיין חדש לריל בשבוע האחרון" }
 ];
 
 (function initWeekly() {
@@ -1551,4 +1552,17 @@ End: confirm scout report URL https://laurenlev10.github.io/lauren-agent-hub-dat
     }
     // Derive month from start_date if provided
     if (!p.get("scout-month") && p.get("start_date")) {
-      const months = ["Ja
+      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const monthIdx = parseInt((p.get("start_date") || "").slice(5,7), 10) - 1;
+      if (monthIdx >= 0 && monthIdx < 12) {
+        document.getElementById("scout-month").value = months[monthIdx];
+      }
+    }
+    // Smooth-scroll to the card so Lauren lands directly on the form
+    const card = document.getElementById("scout-card");
+    if (card) setTimeout(() => card.scrollIntoView({behavior:"smooth", block:"start"}), 100);
+  })();
+</script>
+
+</body>
+</html>
