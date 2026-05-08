@@ -237,11 +237,30 @@ jobs:
               except Exception as e:
                   print(f"⚠ send to {name} failed: {e}")
           PY
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "marketing-stats-digest":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          print(f"updated lastRunAt = {now}")
+          PY
+
       - name: Commit local changes
         run: |
           git config user.email "lauren@noreply.github.com"
           git config user.name "Lauren (via marketing-stats)"
-          git add docs/state/conversion_history.json docs/launch/index.html
+          git add docs/state/conversion_history.json docs/launch/index.html docs/scheduled-runs.json
           [ -f docs/state/event_timeseries.json ] && git add docs/state/event_timeseries.json || true
           if ! git diff --cached --quiet; then
             git commit -m "stats: refresh conversion_history.json + EVENT_ANALYTICS map"
