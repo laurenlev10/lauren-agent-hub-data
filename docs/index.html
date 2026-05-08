@@ -17,16 +17,27 @@
   header h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -0.4px; }
   header .subtitle { color: var(--muted); font-size: 14px; }
 
-  /* 3 × 2 grid (6 tiles, two equal rows of 3) */
-  .tile-grid {
-    max-width: 1080px; margin: 0 auto;
+  /* 3-row groups: Projects · Tasks · Agents */
+  .grid-section {
+    max-width: 1080px; margin: 0 auto 24px;
+  }
+  .section-label {
+    font-size: 11px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--muted); margin: 0 4px 10px; padding-right: 4px;
+  }
+  .tile-row {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
   }
+  /* Row 3 has only the library — same tile width, centered */
+  .tile-row.row-agents { grid-template-columns: repeat(3, 1fr); }
+  .tile-row.row-agents > .tile { grid-column: 2 / 3; }
+
   @media (max-width: 900px) {
-    .tile-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .tile-row, .tile-row.row-agents { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .tile-row.row-agents > .tile { grid-column: span 1; }
   }
   @media (max-width: 540px) {
-    .tile-grid { grid-template-columns: 1fr; }
+    .tile-row, .tile-row.row-agents { grid-template-columns: 1fr; }
   }
 
   .tile {
@@ -60,15 +71,16 @@
     font-size: 110px; opacity: 0.13; line-height: 1; pointer-events: none;
   }
 
-  /* Tile color themes */
+  /* Color themes */
   .tile-makeup    { background: linear-gradient(135deg, #ec4899 0%, #db2777 50%, #9333ea 100%); }
   .tile-protask   { background: linear-gradient(135deg, #f97316 0%, #c2410c 45%, #6b21a8 100%); }
+  .tile-trading   { background: linear-gradient(135deg, #1a6ed4 0%, #1254b0 50%, #0c3d80 100%); }
   .tile-automated { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%); }
   .tile-weekly    { background: linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #0f766e 100%); }
   .tile-special   { background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7e22ce 100%); }
   .tile-library   { background: linear-gradient(135deg, #475569 0%, #334155 50%, #1e293b 100%); }
 
-  /* Logo panel — used by the two business-identity tiles */
+  /* Logo panel — used by tiles whose identity is a logo */
   .tile .logo-wrap {
     align-self: center;
     padding: 8px 12px;
@@ -76,16 +88,8 @@
     margin: 4px 0 2px;
     box-shadow: 0 4px 14px rgba(0,0,0,0.25);
   }
-  .tile .logo-wrap img {
-    display: block;
-    max-width: 100%;
-    height: 60px;
-    width: auto;
-  }
+  .tile .logo-wrap img { display: block; max-width: 100%; height: 60px; width: auto; }
   .tile-makeup  .logo-wrap { background: #000; }
-  /* Pro Task Runner: same dimensions as the makeup logo (height: 60px from
-     the default rule above). White panel bg because the logo image's own
-     background is white. */
   .tile-protask .logo-wrap { background: #fff; }
 </style>
 </head>
@@ -96,71 +100,96 @@
   <div class="subtitle">לוח הבקרה הראשי</div>
 </header>
 
-<div class="tile-grid">
+<!-- ════════════ Row 1: Projects ════════════ -->
+<div class="grid-section">
+  <div class="section-label">פרויקטים</div>
+  <div class="tile-row row-projects">
 
-  <!-- Row 1: business identities + automated -->
+    <a class="tile tile-makeup" href="launch/">
+      <span class="pill">Navigator</span>
+      <div class="logo-wrap">
+        <img src="https://www.themakeupblowout.com/cdn/shop/t/17/assets/Logo_new.jpg?v=120273168975629565161664520687"
+             alt="The Makeup Blowout Sale Group">
+      </div>
+      <div class="tag">כל מה שקשור לעסק של המייקאפ — לוח אירועים מלא, סוכנים בלחיצה, חוזה, מחקר עיר, תמונות, ריל, קמפיינים, PR, תחזית, סיכום.</div>
+      <div class="status" id="status-makeup">הסוכן הראשי לכל אירוע</div>
+      <span class="cta">פתחי את לוח האירועים →</span>
+      <span class="corner-emoji">🎪</span>
+    </a>
 
-  <a class="tile tile-makeup" href="launch/">
-    <span class="pill">Navigator</span>
-    <div class="logo-wrap">
-      <img src="https://www.themakeupblowout.com/cdn/shop/t/17/assets/Logo_new.jpg?v=120273168975629565161664520687"
-           alt="The Makeup Blowout Sale Group">
-    </div>
-    <div class="tag">כל מה שקשור לעסק של המייקאפ — לוח אירועים מלא, סוכנים בלחיצה, חוזה, מחקר עיר, תמונות, ריל, קמפיינים, PR, תחזית, סיכום.</div>
-    <div class="status" id="status-makeup">הסוכן הראשי לכל אירוע</div>
-    <span class="cta">פתחי את לוח האירועים →</span>
-    <span class="corner-emoji">🎪</span>
-  </a>
+    <a class="tile tile-protask" href="protask/">
+      <span class="pill">New Project</span>
+      <div class="logo-wrap">
+        <img src="_assets/protask-logo.png" alt="Pro Task Runner Services">
+      </div>
+      <div class="tag">פרויקט חדש שאני בונה — אתר protaskrunner.com מחובר לדומיין כסקיצה ראשונית. עוד לפני פיתוח, אבל יש לו ריבוע משלו.</div>
+      <div class="status" id="status-protask"><b>בפיתוח ראשוני</b> · sketch live</div>
+      <span class="cta">פתחי את הפרויקט →</span>
+      <span class="corner-emoji">🦺</span>
+    </a>
 
-  <a class="tile tile-protask" href="protask/">
-    <span class="pill">New Project</span>
-    <div class="logo-wrap">
-      <img src="_assets/protask-logo.png" alt="Pro Task Runner Services">
-    </div>
-    <div class="tag">פרויקט חדש שאני בונה — אתר protaskrunner.com מחובר לדומיין כסקיצה ראשונית. עוד לפני פיתוח, אבל יש לו ריבוע משלו.</div>
-    <div class="status" id="status-protask"><b>בפיתוח ראשוני</b> · sketch live</div>
-    <span class="cta">פתחי את הפרויקט →</span>
-    <span class="corner-emoji">🦺</span>
-  </a>
+    <a class="tile tile-trading" href="trading/">
+      <span class="pill">Trading</span>
+      <div class="title">📈 Trading Dashboard</div>
+      <div class="tag">מסחר יומי בשוק ההון — מעקב חשבונות מרובים: BluSky, Apex Legacy PA, LucidFlex Funded. P&L, Consistency, Drawdown — הכל במקום אחד.</div>
+      <div class="status" id="status-trading"><b>9 חשבונות</b> · BluSky 4 · Apex 4 · Lucid 1</div>
+      <span class="cta">פתחי את הדשבורד →</span>
+      <span class="corner-emoji">📈</span>
+    </a>
 
-  <a class="tile tile-automated" href="scheduled/">
-    <span class="pill">Automated</span>
-    <div class="title">⏱️ משימות אוטומטיות</div>
-    <div class="tag">סוכנים שרצים אוטומטית בלוח זמנים — סטטוס חי מקובץ <code style="opacity:0.85;font-size:11px">scheduled-runs.json</code>.</div>
-    <div class="status" id="status-automated">טוען...</div>
-    <span class="cta">פתחי את לוח המשימות האוטומטיות →</span>
-    <span class="corner-emoji">🤖</span>
-  </a>
+  </div>
+</div>
 
-  <!-- Row 2: tasks + library -->
+<!-- ════════════ Row 2: Tasks ════════════ -->
+<div class="grid-section">
+  <div class="section-label">משימות</div>
+  <div class="tile-row row-tasks">
 
-  <a class="tile tile-weekly" href="weekly/">
-    <span class="pill">Weekly</span>
-    <div class="title">📋 משימות שבועיות</div>
-    <div class="tag">צ׳ק־ליסט שמתאפס בכל יום ראשון בבוקר. אפשר להוסיף, לערוך ולמחוק משימות משלך.</div>
-    <div class="status" id="status-weekly">טוען...</div>
-    <span class="cta">פתחי את המשימות השבועיות →</span>
-    <span class="corner-emoji">📋</span>
-  </a>
+    <a class="tile tile-automated" href="scheduled/">
+      <span class="pill">Automated</span>
+      <div class="title">⏱️ משימות אוטומטיות</div>
+      <div class="tag">סוכנים שרצים אוטומטית בלוח זמנים — סטטוס חי מקובץ <code style="opacity:0.85;font-size:11px">scheduled-runs.json</code>.</div>
+      <div class="status" id="status-automated">טוען...</div>
+      <span class="cta">פתחי את לוח המשימות האוטומטיות →</span>
+      <span class="corner-emoji">🤖</span>
+    </a>
 
-  <a class="tile tile-special" href="special/">
-    <span class="pill">Special</span>
-    <div class="title">⭐ משימות מיוחדות</div>
-    <div class="tag">משימות חד-פעמיות שצריכות תשומת לב — סימון ✓ מסיר אותן לצמיתות. אין איפוס שבועי.</div>
-    <div class="status" id="status-special">טוען...</div>
-    <span class="cta">פתחי את המשימות המיוחדות →</span>
-    <span class="corner-emoji">⭐</span>
-  </a>
+    <a class="tile tile-weekly" href="weekly/">
+      <span class="pill">Weekly</span>
+      <div class="title">📋 משימות שבועיות</div>
+      <div class="tag">צ׳ק־ליסט שמתאפס בכל יום ראשון בבוקר. אפשר להוסיף, לערוך ולמחוק משימות משלך.</div>
+      <div class="status" id="status-weekly">טוען...</div>
+      <span class="cta">פתחי את המשימות השבועיות →</span>
+      <span class="corner-emoji">📋</span>
+    </a>
 
-  <a class="tile tile-library" href="library/">
-    <span class="pill">Library</span>
-    <div class="title">📚 ספריית הסוכנים</div>
-    <div class="tag">15+ סוכנים, חיפוש, סינון לפי קטגוריה, הפעלה מהירה. ספרייה מלאה של כל מה שיש לך.</div>
-    <div class="status" id="status-library">15+ סוכנים זמינים</div>
-    <span class="cta">פתחי את הספרייה →</span>
-    <span class="corner-emoji">📚</span>
-  </a>
+    <a class="tile tile-special" href="special/">
+      <span class="pill">Special</span>
+      <div class="title">⭐ משימות מיוחדות</div>
+      <div class="tag">משימות חד-פעמיות שצריכות תשומת לב — סימון ✓ מסיר אותן לצמיתות. אין איפוס שבועי.</div>
+      <div class="status" id="status-special">טוען...</div>
+      <span class="cta">פתחי את המשימות המיוחדות →</span>
+      <span class="corner-emoji">⭐</span>
+    </a>
 
+  </div>
+</div>
+
+<!-- ════════════ Row 3: Agents ════════════ -->
+<div class="grid-section">
+  <div class="section-label">סוכנים</div>
+  <div class="tile-row row-agents">
+
+    <a class="tile tile-library" href="library/">
+      <span class="pill">Library</span>
+      <div class="title">📚 ספריית הסוכנים</div>
+      <div class="tag">15+ סוכנים, חיפוש, סינון לפי קטגוריה, הפעלה מהירה. ספרייה מלאה של כל מה שיש לך.</div>
+      <div class="status" id="status-library">15+ סוכנים זמינים</div>
+      <span class="cta">פתחי את הספרייה →</span>
+      <span class="corner-emoji">📚</span>
+    </a>
+
+  </div>
 </div>
 
 <script>
