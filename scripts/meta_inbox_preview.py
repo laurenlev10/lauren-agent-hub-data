@@ -1537,13 +1537,13 @@ def main():
                 handled[key] = {"handled": True, "handledAt": _now_iso(),
                                 "method": "bulk-mark-manual-cleanup"}
                 marked += 1
-        for c in classified_fb_comments:
+        for c in classified_fb:
             key = c.get("dedup_key", "")
             if key and not handled.get(key, {}).get("handled"):
                 handled[key] = {"handled": True, "handledAt": _now_iso(),
                                 "method": "bulk-mark-manual-cleanup"}
                 marked += 1
-        for c in classified_ig_comments:
+        for c in classified_ig:
             key = c.get("dedup_key", "")
             if key and not handled.get(key, {}).get("handled"):
                 handled[key] = {"handled": True, "handledAt": _now_iso(),
