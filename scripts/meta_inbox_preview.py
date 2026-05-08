@@ -584,15 +584,56 @@ def city_on_schedule_reply(city_title: str, dates: str, *, seed: str = "") -> st
     return template.format(C=city_title, D=dates)
 
 
+# Tag-only pattern: 2-5 proper-cased names separated by spaces, nothing else
+# (matches "Marilyn Rodriguez Sandy Rodriguez" / "John Smith" — friend tags on FB)
+import re as _re_classify
+TAG_ONLY_PAT = _re_classify.compile(r"^[A-ZA-Za-zÀ-ÿ\u00C0-\u017F]+(\s+[A-ZA-Za-zÀ-ÿ\u00C0-\u017F]+){1,5}\s*$")
+
+
+def _is_tag_only(text: str) -> bool:
+    """True if text appears to be JUST friend-tag names with no real content.
+
+    Heuristics:
+    - Total length < 60 chars (longer = probably real text)
+    - All words are 1+ capital letter starts (proper-name style)
+    - No punctuation except periods/apostrophes
+    - No question words, lowercase verbs, or sentence-like patterns
+    """
+    if not text:
+        return False
+    t = text.strip()
+    if len(t) > 60:
+        return False
+    # Reject if there's a question mark, exclamation, or common lowercase words
+    if any(p in t for p in ["?", "!", "$", "@"]):
+        return False
+    lower_only_words = ["the","is","are","you","i","when","where","how","what","why","do","can","will","please","thanks","thank","need","want","got"]
+    words_lower = t.lower().split()
+    if any(w in lower_only_words for w in words_lower):
+        return False
+    # Each word should start with uppercase (allows accented characters)
+    words = t.split()
+    if len(words) < 2 or len(words) > 6:
+        return False
+    if not all(w[0].isupper() for w in words if w):
+        return False
+    return True
+
+
 def classify(text: str, kb: dict) -> dict:
     """
-    Return {bucket: 'A'|'B'|'NEG', reason, suggested_reply} for a message.
+    Return {bucket: 'A'|'B'|'NEG'|'SKIP', reason, suggested_reply} for a message.
     Bucket A = answerable from KB (auto-reply).
     Bucket B = needs Lauren (low confidence, complex, or no KB match).
     NEG     = never auto-reply (negative/skeptical comment).
+    SKIP    = no action needed (tag-only friend mentions, etc.) — never auto-reply, never shown to Lauren.
     """
     if not text or len(text.strip()) < 2:
         return {"bucket": "B", "reason": "empty/too short", "reply": None}
+
+    # Tag-only friend mentions (e.g. "Marilyn Rodriguez Sandy Rodriguez")
+    if _is_tag_only(text):
+        return {"bucket": "SKIP", "reason": "tag-only-friends (no question)", "reply": None}
 
     t = text.strip()
 
@@ -987,6 +1028,7 @@ def render_preview(snapshot: dict, classified_messenger: list,
     n_a = sum(1 for c in classified_messenger if c["cls"]["bucket"] == "A")
     n_b = sum(1 for c in classified_messenger if c["cls"]["bucket"] == "B")
     n_neg = sum(1 for c in classified_messenger if c["cls"]["bucket"] == "NEG")
+    n_skip = sum(1 for c in classified_messenger if c["cls"]["bucket"] == "SKIP")
     n_fb = len(classified_fb_comments)
     n_ig = len(classified_ig_comments)
 
