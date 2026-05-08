@@ -290,7 +290,7 @@ def fetch_messenger_messages(conversation_id: str, limit: int = 25, *,
                              token: _Optional[str] = None) -> list:
     """Get messages within a single Messenger conversation."""
     tok = token or get_token()
-    fields = "id,created_time,from,to,message"
+    fields = "id,created_time,from,to,message,attachments{mime_type,name,file_url,type},sticker"
     params = {"fields": fields, "limit": limit, "access_token": tok}
     data = _get(f"/{conversation_id}", {"fields": f"messages.limit({limit}){{{fields}}}",
                                          "access_token": tok})

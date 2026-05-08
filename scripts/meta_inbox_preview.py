@@ -1132,7 +1132,32 @@ def main():
             last_customer_msg = next((m for m in messages
                                       if m.get("from", {}).get("name") != "The Makeup Blowout Sale Group"),
                                      None)
-            text = last_customer_msg.get("message", "") if last_customer_msg else ""
+            if last_customer_msg:
+                text = last_customer_msg.get("message", "") or ""
+                # If text is empty, derive a label from attachments/stickers
+                if not text.strip():
+                    if last_customer_msg.get("sticker"):
+                        text = "🎁 (sticker)"
+                    else:
+                        atts = (last_customer_msg.get("attachments") or {}).get("data") or []
+                        if atts:
+                            att = atts[0]
+                            mime = (att.get("mime_type") or "").lower()
+                            atype = (att.get("type") or "").lower()
+                            if "image" in mime or atype == "image":
+                                text = "📸 (image attachment)"
+                            elif "video" in mime or atype == "video":
+                                text = "🎬 (video attachment)"
+                            elif atype == "audio":
+                                text = "🎤 (audio message)"
+                            elif atype == "file":
+                                text = "📎 (file attachment)"
+                            else:
+                                text = f"📎 ({atype or mime or 'attachment'})"
+                        else:
+                            text = "❤️ (reaction or empty message)"
+            else:
+                text = ""
         except Exception as e:
             text = f"(error fetching: {e})"
         kb["_seed"] = conv_id  # per-conversation seed for reply variation
