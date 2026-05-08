@@ -1041,7 +1041,7 @@ End date: </div>
            Lauren shouldn't have to scroll to find the command after she
            reopens a modal with prior uploads. -->
       <div id="upload-progress-top" class="upload-progress" hidden></div>
-      <p class="upload-intro">גררי את הקבצים (4 חובה + 1 אופציונלי). נתמכים: PDF · תמונות / screenshots · CSV · XLSX.</p>
+      <p class="upload-intro">גררי את הקבצים (3 חובה + 2 אופציונליים — Meta נמשך אוטומטית). נתמכים: PDF · תמונות / screenshots · CSV · XLSX.</p>
       <div class="upload-zones">
         <div class="upload-zone" data-kind="cash_report">
           <div class="upload-zone-icon">📄</div>
@@ -1057,10 +1057,10 @@ End date: </div>
           <div class="upload-zone-status">גררי קובץ או לחצי לבחירה</div>
           <input type="file" accept=".xlsx,.csv,image/*" hidden>
         </div>
-        <div class="upload-zone" data-kind="meta">
+        <div class="upload-zone optional" data-kind="meta">
           <div class="upload-zone-icon">📘</div>
-          <div class="upload-zone-title">Meta Ads Export</div>
-          <div class="upload-zone-hint">CSV / screenshot</div>
+          <div class="upload-zone-title">Meta Ads (אופציונלי)</div>
+          <div class="upload-zone-hint">הסוכן מושך אוטומטית דרך ה-API. העלי רק לגיבוי.</div>
           <div class="upload-zone-status">גררי קובץ או לחצי לבחירה</div>
           <input type="file" accept=".csv,image/*" hidden>
         </div>
@@ -2462,10 +2462,12 @@ End date: </div>
   });
 
   // ────────────────────────────────────────────────────────────
-  // 📊 Event Summary upload — drag-drop modal that pushes 4 files
-  // (cash report, OctoPos, Meta, TikTok) to docs/mbs/inputs/<evKey>/
-  // via GitHub Contents API, then copies a Cowork command to clipboard.
-  // Lauren 2026-05-05.
+  // 📊 Event Summary upload — drag-drop modal that pushes files
+  // (3 required: cash report, OctoPos, TikTok • 2 optional: meta, travel)
+  // to docs/mbs/inputs/<evKey>/ via GitHub Contents API, then copies a
+  // Cowork command to clipboard. Meta moved to optional 2026-05-08
+  // because the agent now fetches Meta Ads via Marketing API directly.
+  // Travel = Eli's Grok-summary image of flight/car/hotel bookings.
   // ────────────────────────────────────────────────────────────
   const MbsInputsUpload = (function(){
     const OWNER     = "laurenlev10";
@@ -2475,10 +2477,15 @@ End date: </div>
     // 4 file types — all mandatory. QB is NOT here (Lauren pastes QB
     // transactions directly into her master P&L Sheet; the agent reads
     // them from there via scripts/lauren_pnl.py).
-    const KINDS_REQUIRED = ["cash_report", "octopos", "meta", "tiktok"];
-    // travel = optional image of flight/car/hotel bookings (Eli's Grok summary).
-    // Used by the agent for cross-check vs QB travel rows + fallback if QB row is missing.
-    const KINDS_OPTIONAL = ["travel"];
+    const KINDS_REQUIRED = ["cash_report", "octopos", "tiktok"];
+    // Optional kinds:
+    //   meta   — the agent now fetches Meta Ads via Marketing API (long-lived
+    //            token in /.claude/secrets). Upload only as fallback if API fails.
+    //            (Lauren 2026-05-08.)
+    //   travel — optional image of flight/car/hotel bookings (Eli's Grok summary).
+    //            Used by the agent for cross-check vs QB travel rows + fallback
+    //            if QB row is missing. (Lauren 2026-05-08.)
+    const KINDS_OPTIONAL = ["meta", "travel"];
     const KINDS          = KINDS_REQUIRED.concat(KINDS_OPTIONAL);
 
     let currentEvent  = null;
@@ -2573,13 +2580,13 @@ End date: </div>
       prog.className = "upload-progress success";
       let headline;
       if (isFreshUpload && haveCount === KINDS_REQUIRED.length){
-        headline = "✅ כל 4 הקבצים נשמרו + manifest. הפקודה למטה — תוכלי להעתיק ולהדביק בקוורק:";
+        headline = "✅ כל 3 קבצי החובה נשמרו + manifest. הפקודה למטה — תוכלי להעתיק ולהדביק בקוורק:";
       } else if (isFreshUpload){
-        headline = "💾 נשמרו " + haveCount + "/4 קבצים. הפקודה למטה (אל תריצי עד שיהיו 4):";
+        headline = "💾 נשמרו " + haveCount + "/3 קבצי חובה. הפקודה למטה (אל תריצי עד שיהיו 3):";
       } else if (haveCount === KINDS_REQUIRED.length){
-        headline = "✓ כל 4 הקבצים כבר אצל הסוכן. הפקודה מוכנה להעתקה — אין צורך להעלות שוב:";
+        headline = "✓ כל 3 קבצי החובה כבר אצל הסוכן. הפקודה מוכנה להעתקה — אין צורך להעלות שוב:";
       } else {
-        headline = "✓ " + haveCount + "/4 קבצים כבר אצל הסוכן. תוכלי להשלים או להעתיק את הפקודה למטה:";
+        headline = "✓ " + haveCount + "/3 קבצי חובה כבר אצל הסוכן. תוכלי להשלים או להעתיק את הפקודה למטה:";
       }
       prog.innerHTML =
         '<div style="margin-bottom:8px">' + escapeForHtml(headline) + '</div>' +
@@ -2615,9 +2622,9 @@ End date: </div>
       // if there are existing required files (manual-values-only re-save).
       submitBtn.disabled = !anyStagedKind && !anyExistingReq;
       if (totalReady === KINDS_REQUIRED.length){
-        submitBtn.textContent = "🚀 העלי והתחילי (כל 4 הקבצים מוכנים)";
+        submitBtn.textContent = "🚀 העלי והתחילי (כל 3 קבצי החובה מוכנים)";
       } else if (totalReady > 0){
-        submitBtn.textContent = "💾 שמרי " + stagedList.length + " חדש (סה\"כ " + totalReady + "/4)";
+        submitBtn.textContent = "💾 שמרי " + stagedList.length + " חדש (סה\"כ " + totalReady + "/3 חובה)";
       } else {
         submitBtn.textContent = "🚀 העלי והתחילי";
       }
@@ -2682,7 +2689,7 @@ End date: </div>
         "`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-event-summary\\SKILL.md`",
         "",
         "Files for this event have already been uploaded to the repo at:",
-        "  `docs/mbs/inputs/" + evKey + "/` (4 files + manifest.json)",
+        "  `docs/mbs/inputs/" + evKey + "/` (3 required + 0-2 optional files + manifest.json — Meta is fetched via API)",
         "",
         "Skip the 'ask Lauren for the package' step in STEP 2 — go directly to",
         "STEP 3 (parse the package) using those files. After the run completes,",
