@@ -115,6 +115,47 @@ footer{margin-top:40px;color:#666;font-size:12px;text-align:center}
                      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .attention-row .reply-btn{margin-top:0;flex:0 0 auto}
 
+
+
+/* Inline reply layout (added 2026-05-08) */
+.attention-row{flex-direction:column;align-items:stretch}
+.attention-row .att-meta{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.attention-row .att-message{
+  background:rgba(0,0,0,0.45);padding:10px 12px;border-radius:6px;
+  color:#fde68a;font-size:14px;line-height:1.5;
+  white-space:pre-wrap;word-wrap:break-word;
+  border-left:3px solid #fbbf24
+}
+.attention-row textarea.att-reply{
+  width:100%;min-height:80px;background:#1a1a2a;color:#eee;
+  border:1px solid #555;border-radius:6px;padding:10px 12px;
+  font-family:inherit;font-size:14px;line-height:1.5;
+  resize:vertical;direction:auto
+}
+.attention-row textarea.att-reply:focus{outline:none;border-color:#fbbf24;box-shadow:0 0 0 2px rgba(251,191,36,0.2)}
+.attention-row .att-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.send-btn{
+  background:linear-gradient(180deg,#10b981,#059669);color:#fff !important;
+  padding:9px 16px;border-radius:6px;text-decoration:none;font-weight:800;
+  font-size:14px;cursor:pointer;border:none;font-family:inherit;
+  transition:transform .1s,filter .1s
+}
+.send-btn:hover{transform:translateY(-1px);filter:brightness(1.1)}
+.send-btn[disabled]{opacity:.5;cursor:default;background:#065f46}
+.send-btn.sent{background:#16a34a}
+.reply-btn-secondary{
+  background:transparent;color:#9ca3af !important;
+  padding:8px 12px;border-radius:6px;text-decoration:underline;
+  font-size:12px;font-weight:600
+}
+.reply-btn-secondary:hover{color:#fff !important}
+
+@media (max-width: 600px) {
+  .attention-row .att-message{font-size:13px}
+  .attention-row textarea.att-reply{min-height:90px;font-size:14px}
+  .send-btn{width:100%;text-align:center}
+}
+
 /* Collapsed Bucket A drafts section */
 details.drafts-section {
   background: #1a2030;
@@ -149,29 +190,24 @@ details.drafts-section .drafts-body { padding: 0 18px 18px }
 <body>
 
 <h1>@meta — API Preview (Phase 1 dry-run)</h1>
-<div class="sub">Generated 2026-05-08T16:26:22Z · Read-only — nothing was sent or hidden.</div>
+<div class="sub">Generated 2026-05-08T16:37:43Z · Read-only — nothing was sent or hidden.</div>
 <div class="attention-block">
-<h2>👀 2 items need your attention</h2>
+<h2>👀 1 items need your attention</h2>
 <p class="intro">Click "💬 Reply" to open the thread on Meta and respond yourself.</p>
 <div class="attention-list">
-<div class="attention-row" data-dedup-key="messenger:t_26420221524344081">
-<span class="who">[Messenger] Nabhu Sangha</span>
-<span class="what">❤️ (reaction or empty message)</span>
-<span style="display:flex;gap:6px;flex-wrap:wrap">
-<button class="done-btn" data-key="messenger:t_26420221524344081" onclick="markDone(this)">Done</button>
-<a class="reply-btn" href="https://www.facebook.com/messages/t/26686513600958818" target="_blank" rel="noopener" onclick="markReplyClicked(this)" data-key="messenger:t_26420221524344081">💬 Reply</a>
-</span></div>
-<div class="attention-row" data-dedup-key="fb-comment:1409949131167260_968353189279076">
-<span class="who">[FB comment] ?</span>
-<span class="what">Marilyn Rodriguez  Sandy Rodriguez</span>
-<span style="display:flex;gap:6px;flex-wrap:wrap">
-<button class="done-btn" data-key="fb-comment:1409949131167260_968353189279076" onclick="markDone(this)">Done</button>
-<a class="reply-btn" href="https://www.facebook.com/reel/2245982816143690/" target="_blank" rel="noopener" onclick="markReplyClicked(this)" data-key="fb-comment:1409949131167260_968353189279076">💬 Reply</a>
-</span></div>
+<div class="attention-row" data-dedup-key="fb-comment:1409949131167260_968353189279076" data-target-id="1409949131167260_968353189279076" data-reply-kind="fb_comment">
+<div class="att-meta"><span class="who">[FB comment] ?</span></div>
+<div class="att-message">💬 Marilyn Rodriguez  Sandy Rodriguez</div>
+<textarea class="att-reply" data-key="fb-comment:1409949131167260_968353189279076" placeholder="כתבי תשובה...">Hi ? 💜 Thanks for reaching out! Let me get back to you super soon ✨</textarea>
+<div class="att-actions">
+<button class="send-btn" data-key="fb-comment:1409949131167260_968353189279076" data-tid="1409949131167260_968353189279076" data-kind="fb_comment" onclick="sendReply(this)">📤 Send Reply</button>
+<button class="done-btn" data-key="fb-comment:1409949131167260_968353189279076" onclick="markDone(this)">Skip / Done</button>
+<a class="reply-btn-secondary" href="https://www.facebook.com/reel/2245982816143690/" target="_blank" rel="noopener" onclick="markReplyClicked(this)" data-key="fb-comment:1409949131167260_968353189279076">↗ Open in Meta</a>
+</div></div>
 </div></div>
 <div class="stats">
 <div class="stat"><div class="num">7</div><div class="lbl">Messenger Bucket A</div></div>
-<div class="stat"><div class="num">1</div><div class="lbl">Messenger Bucket B</div></div>
+<div class="stat"><div class="num">0</div><div class="lbl">Messenger Bucket B</div></div>
 <div class="stat"><div class="num">0</div><div class="lbl">Messenger Negative</div></div>
 <div class="stat"><div class="num">5</div><div class="lbl">FB Comments</div></div>
 <div class="stat"><div class="num">1</div><div class="lbl">IG Comments</div></div>
@@ -425,6 +461,76 @@ function promptForToken() {
     });
   } catch (e) { /* server-side filter is the source of truth */ }
 })();
+
+// ===== Inline reply sender (added 2026-05-08) =====
+// Sends repository_dispatch to GitHub which triggers meta-send-reply.yml workflow.
+// Workflow then calls Meta API to send the message and updates handled.json.
+
+async function sendReply(btn) {
+  const key  = btn.dataset.key;
+  const tid  = btn.dataset.tid;
+  const kind = btn.dataset.kind;  // "messenger" | "fb_comment" | "ig_comment"
+  const row  = btn.closest(".attention-row");
+  const ta   = row && row.querySelector("textarea.att-reply");
+  if (!ta) return;
+  const text = (ta.value || "").trim();
+  if (!text) {
+    alert("נא להזין טקסט תשובה");
+    return;
+  }
+  if (!tid || !kind) {
+    alert("חסר זיהוי target_id או reply_kind — לא יכול לשלוח");
+    return;
+  }
+
+  const token = (function() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; } })();
+  if (!token) {
+    promptForToken();
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "📤 Sending…";
+
+  try {
+    const res = await fetch("https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/dispatches", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + token,
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        event_type: "send-meta-reply",
+        client_payload: {
+          dedup_key: key,
+          target_id: tid,
+          reply_kind: kind,
+          reply_text: text
+        }
+      })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error("HTTP " + res.status + ": " + errText.slice(0, 200));
+    }
+
+    btn.textContent = "✓ Sent! (workflow running)";
+    btn.classList.add("sent");
+
+    // Mark as handled locally + remotely
+    try { await markHandledRemote(key); } catch(e) { console.warn("handled save failed:", e); }
+    setTimeout(() => fadeAndRemove(row), 1500);
+
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "📤 Send Reply";
+    alert("שליחה נכשלה: " + e);
+  }
+}
+
+window.sendReply = sendReply;
 
 </script>
 
