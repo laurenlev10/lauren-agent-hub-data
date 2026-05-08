@@ -1054,6 +1054,7 @@ def render_preview(snapshot: dict, classified_messenger: list,
             })
 
     parts = [PAGE_HEAD]
+    parts.append('''<a href="https://laurenlev10.github.io/lauren-agent-hub-data/" style="display:inline-block;background:rgba(255,255,255,0.1);color:#aaa;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:13px;margin-bottom:10px;font-weight:600">← חזרה ל-Agent Hub</a>''')
     parts.append(f"<h1>📬 @meta — Live Inbox Triage</h1>")
     parts.append(f'<div class="sub">'
                  f'🕘 סריקה אחרונה: {_format_la_time(snapshot["fetched_at"])} · '

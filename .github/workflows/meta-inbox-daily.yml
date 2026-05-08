@@ -1,9 +1,9 @@
-name: Daily @meta inbox triage (Phase 1 — preview only)
+name: Daily @meta inbox triage (Phase 2 — Bucket A auto-reply LIVE)
 
 # Runs every day at 8 PM Lauren-local (PDT) — 03:00 UTC.
 # In PST (Nov–Mar) this becomes 7 PM local — accept the seasonal shift.
 #
-# Phase 1 = preview only, no replies sent. Generates the static preview page
+# Phase 2 (since 2026-05-08) = AUTO-REPLY for Bucket A + preview Bucket B for Lauren. Generates the static preview page
 # at /meta/inbox-api-preview/ and SMSes Lauren a summary so she can review on
 # her phone before drafting/replying manually.
 #
@@ -41,9 +41,10 @@ jobs:
           LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE }}
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            python3 scripts/meta_inbox_preview.py --send-sms
+            echo "Daily cron — Phase 2 LIVE auto-reply for Bucket A + SMS"
+            python3 scripts/meta_inbox_preview.py --send-sms --reply-bucket-a
           else
-            echo "Manual trigger — running WITHOUT --send-sms (no SMS sent)"
+            echo "Manual trigger — preview only (no SMS, no auto-reply)"
             python3 scripts/meta_inbox_preview.py
           fi
 
