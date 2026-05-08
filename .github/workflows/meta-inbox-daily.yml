@@ -76,17 +76,16 @@ jobs:
           fi
           python3 scripts/meta_inbox_preview.py $ARGS
 
-      - name: Commit + push if preview changed
+      - name: Commit + push if preview or handled.json changed
         run: |
           git config user.email "lauren@noreply.github.com"
           git config user.name  "Lauren (via Actions)"
-          if ! git diff --quiet docs/meta/inbox-api-preview/; then
-            git add docs/meta/inbox-api-preview/
+          git add docs/meta/inbox-api-preview/ docs/meta/handled.json 2>/dev/null || true
+          if ! git diff --cached --quiet; then
             git commit -m "@meta daily triage: $(date -u +%Y-%m-%dT%H:%MZ)"
-            # Pull --rebase to avoid conflicts with browser-written notes.json on launch
             git pull --rebase origin main || true
             git push origin main
             echo "✓ pushed updates"
           else
-            echo "no preview change"
+            echo "no changes to commit"
           fi
