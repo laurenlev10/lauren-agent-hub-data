@@ -190,7 +190,7 @@ details.drafts-section .drafts-body { padding: 0 18px 18px }
 <body>
 
 <h1>📬 @meta — Live Inbox Triage</h1>
-<div class="sub">Generated 2026-05-08T16:48:41Z · Bucket A auto-replies are LIVE · Send Reply button on items below sends via Meta API.</div>
+<div class="sub">Generated 2026-05-08T16:50:29Z · Bucket A auto-replies are LIVE · Send Reply button on items below sends via Meta API.</div>
 <div class="legend" style="background:#1a2030;border-radius:10px;padding:14px 18px;margin:14px 0;font-size:13px;line-height:1.7">
 <strong style="color:#fbbf24;font-size:14px">📊 מה כל מספר אומר?</strong>
 <div style="margin-top:8px;color:#aaa">
@@ -390,7 +390,21 @@ async function markHandledRemote(dedupKey) {
 function fadeAndRemove(row) {
   if (!row) return;
   row.classList.add("handled-fade");
-  setTimeout(() => row.remove(), 450);
+  setTimeout(() => {
+    row.remove();
+    // After removal: update the count + hide whole block if empty
+    const block = document.querySelector(".attention-block");
+    if (block) {
+      const remaining = block.querySelectorAll(".attention-row").length;
+      const h2 = block.querySelector("h2");
+      if (h2) h2.innerHTML = "👀 " + remaining + " items need your attention";
+      if (remaining === 0) {
+        block.style.transition = "opacity 0.3s";
+        block.style.opacity = "0";
+        setTimeout(() => block.remove(), 350);
+      }
+    }
+  }, 450);
 }
 
 async function markDone(btn) {
