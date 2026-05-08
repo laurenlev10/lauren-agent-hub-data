@@ -17,18 +17,17 @@
   header h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -0.4px; }
   header .subtitle { color: var(--muted); font-size: 14px; }
 
+  /* 3 × 2 grid (6 tiles, two equal rows of 3) */
   .tile-grid {
     max-width: 1080px; margin: 0 auto;
-    display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
   }
-  .tile { grid-column: span 2; }
-  .tile.row2-left  { grid-column: 2 / 4; }
-  .tile.row2-right { grid-column: 4 / 6; }
   @media (max-width: 900px) {
     .tile-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
-    .tile, .tile.row2-left, .tile.row2-right { grid-column: span 1; }
   }
-  @media (max-width: 540px) { .tile-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 540px) {
+    .tile-grid { grid-template-columns: 1fr; }
+  }
 
   .tile {
     border-radius: 16px; padding: 22px 22px 18px;
@@ -61,18 +60,30 @@
     font-size: 110px; opacity: 0.13; line-height: 1; pointer-events: none;
   }
 
+  /* Tile color themes */
   .tile-makeup    { background: linear-gradient(135deg, #ec4899 0%, #db2777 50%, #9333ea 100%); }
+  .tile-protask   { background: linear-gradient(135deg, #f97316 0%, #c2410c 45%, #6b21a8 100%); }
   .tile-automated { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%); }
   .tile-weekly    { background: linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #0f766e 100%); }
   .tile-special   { background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7e22ce 100%); }
   .tile-library   { background: linear-gradient(135deg, #475569 0%, #334155 50%, #1e293b 100%); }
 
-  .tile-makeup .logo-wrap {
-    align-self: center; background: #000;
-    padding: 10px 14px; border-radius: 10px;
-    margin: 4px 0 2px; box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  /* Logo panel — used by the two business-identity tiles */
+  .tile .logo-wrap {
+    align-self: center;
+    padding: 8px 12px;
+    border-radius: 10px;
+    margin: 4px 0 2px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
   }
-  .tile-makeup .logo-wrap img { display: block; max-width: 100%; height: 60px; width: auto; }
+  .tile .logo-wrap img {
+    display: block;
+    max-width: 100%;
+    height: 60px;
+    width: auto;
+  }
+  .tile-makeup  .logo-wrap { background: #000; }
+  .tile-protask .logo-wrap { background: #fff; }
 </style>
 </head>
 <body>
@@ -83,6 +94,8 @@
 </header>
 
 <div class="tile-grid">
+
+  <!-- Row 1: business identities + automated -->
 
   <a class="tile tile-makeup" href="launch/">
     <span class="pill">Navigator</span>
@@ -96,6 +109,17 @@
     <span class="corner-emoji">🎪</span>
   </a>
 
+  <a class="tile tile-protask" href="protask/">
+    <span class="pill">New Project</span>
+    <div class="logo-wrap">
+      <img src="_assets/protask-logo.jpg" alt="Pro Task Runner Services">
+    </div>
+    <div class="tag">פרויקט חדש שאני בונה — אתר protaskrunner.com מחובר לדומיין כסקיצה ראשונית. עוד לפני פיתוח, אבל יש לו ריבוע משלו.</div>
+    <div class="status" id="status-protask"><b>בפיתוח ראשוני</b> · sketch live</div>
+    <span class="cta">פתחי את הפרויקט →</span>
+    <span class="corner-emoji">🦺</span>
+  </a>
+
   <a class="tile tile-automated" href="scheduled/">
     <span class="pill">Automated</span>
     <div class="title">⏱️ משימות אוטומטיות</div>
@@ -104,6 +128,8 @@
     <span class="cta">פתחי את לוח המשימות האוטומטיות →</span>
     <span class="corner-emoji">🤖</span>
   </a>
+
+  <!-- Row 2: tasks + library -->
 
   <a class="tile tile-weekly" href="weekly/">
     <span class="pill">Weekly</span>
@@ -114,7 +140,7 @@
     <span class="corner-emoji">📋</span>
   </a>
 
-  <a class="tile tile-special row2-left" href="special/">
+  <a class="tile tile-special" href="special/">
     <span class="pill">Special</span>
     <div class="title">⭐ משימות מיוחדות</div>
     <div class="tag">משימות חד-פעמיות שצריכות תשומת לב — סימון ✓ מסיר אותן לצמיתות. אין איפוס שבועי.</div>
@@ -123,7 +149,7 @@
     <span class="corner-emoji">⭐</span>
   </a>
 
-  <a class="tile tile-library row2-right" href="library/">
+  <a class="tile tile-library" href="library/">
     <span class="pill">Library</span>
     <div class="title">📚 ספריית הסוכנים</div>
     <div class="tag">15+ סוכנים, חיפוש, סינון לפי קטגוריה, הפעלה מהירה. ספרייה מלאה של כל מה שיש לך.</div>
