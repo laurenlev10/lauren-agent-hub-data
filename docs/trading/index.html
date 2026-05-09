@@ -1541,17 +1541,28 @@ function buildFirmAccBlock(firmKey,i){
     const cycleNum = taken.length + 1;
     const totalPaid = taken.reduce((s,t)=>s+(t.amount||0), 0);
     const totalNetToPocket = taken.reduce((s,t)=>s+(t.net||t.amount*SPLIT||0), 0);
-    const totalPotentialNet = caps.reduce((s,c)=>s+c, 0) * SPLIT;
+    const cappedSum = caps.filter(c => c !== null).reduce((s,c)=>s+c, 0);
+    const totalPotentialNet = cappedSum * SPLIT;
+    const hasUnlimited = caps.some(c => c === null);
     const completedAll = taken.length >= TOTAL_PAYOUTS;
 
     const rows = caps.map((c, idx)=>{
       const n = idx + 1;
+      const isUnlimited = c === null;
       const isDone = idx < taken.length;
       const isCur = n === cycleNum && !completedAll;
       const taking = taken[idx];
       const amount = taking ? taking.amount : c;
-      const net = taking ? (taking.net || amount*SPLIT) : Math.round(c*SPLIT);
+      const net = taking ? Math.round(taking.net || (amount||0)*SPLIT) : (c ? Math.round(c*SPLIT) : null);
       const dateStr = taking && taking.date ? ' · ' + taking.date : '';
+      if(isUnlimited){
+        return `<div class="pl-row ${isCur?'curr':isDone?'done':''}" style="background:linear-gradient(135deg, rgba(22,163,74,0.10), rgba(22,163,74,0.02));border-right:3px solid var(--grn);">
+          <span class="pl-num">#${n}+</span>
+          <span class="pl-cap" style="color:var(--grn);font-weight:900;">100% Split — ללא תקרה</span>
+          <span class="pl-net" style="color:var(--grn);">90% לכיס לכל משיכה</span>
+          <span class="pl-status ${isCur?'curr':isDone?'done':''}" style="color:var(--grn);">${isDone?'✓ פעיל':isCur?'← פתוח':'🎉 ' + n + ' ואילך'}</span>
+        </div>`;
+      }
       const lastLabel = cfg.afterLastLabel || ('→ ' + (cfg.transitionLabel || 'הבא 🎉'));
       return `<div class="pl-row ${isCur?'curr':isDone?'done':''}">
         <span class="pl-num ${isCur?'curr':isDone?'done':''}">#${n}</span>
@@ -1574,9 +1585,11 @@ function buildFirmAccBlock(firmKey,i){
       const daysOk = daysGap === 0;
       const allOk = balOk && daysOk;
       const cycleNote = cfg.lastPayoutDate ? ' · מאז ' + cfg.lastPayoutDate : '';
-      const totalPotentialGross = caps.reduce((s,c)=>s+c, 0);
+      const totalPotentialGross = caps.filter(c => c !== null).reduce((s,c)=>s+c, 0);
       const totalPotentialPocket = Math.round(totalPotentialGross * SPLIT);
-      const nextCap = caps[Math.min(taken.length, caps.length-1)];
+      const nextCapRaw = caps[Math.min(taken.length, caps.length-1)];
+      const isNextUnlimited = nextCapRaw === null;
+      const nextCap = isNextUnlimited ? '∞ (100%)' : f0(nextCapRaw);
       nextPanel = `<div style="background:${allOk?'#dcfce7':'#fff7ed'};border:1.5px solid ${allOk?'#86efac':'#fdba74'};border-radius:10px;padding:12px 14px;margin-bottom:12px;direction:rtl;text-align:right;">
         <div style="font-size:13px;font-weight:900;color:var(--txt);margin-bottom:10px;">
           ${allOk ? '🎉 כל הדרישות עומדות — אפשר למשוך משיכה #'+cycleNum : '⏳ עד משיכה #'+cycleNum+' חסר:'}
@@ -1598,9 +1611,11 @@ function buildFirmAccBlock(firmKey,i){
         <!-- Strategy strip: per-cycle action + total-plan target -->
         <div style="margin-top:10px;padding:10px 12px;background:rgba(0,0,0,0.04);border-radius:8px;font-size:12px;color:var(--txt2);line-height:1.7;">
           <div style="font-weight:800;margin-bottom:4px;">📐 אסטרטגיית buffer (בטוח, לא מסכן את החשבון)</div>
-          <div>• בכל מחזור: balance מגיע ל-<b>$${f0(targetBal)}</b> → משיכה <b>$${f0(nextCap)}</b> → balance חוזר ל-<b>$${f0(targetBal-nextCap)}</b> (עדיין <b>$${f0(targetBal-nextCap-(cfg.computeMllForBuffer?cfg.computeMllForBuffer():(targetBal-2*nextCap)))}</b> מעל ה-MLL) → סבב חדש</div>
-          <div>• <b>היעד הכולל:</b> ${TOTAL_PAYOUTS} משיכות = <b style="color:var(--grn)">$${f0(totalPotentialGross)} ברוטו</b> = <b style="color:var(--grn)">$${f0(totalPotentialPocket)} לכיס</b>${cfg.transitionLabel?' → '+cfg.transitionLabel:''}</div>
-          <div style="margin-top:4px;font-size:11px;color:var(--txt4);">💡 המינימום הטכני נמוך יותר ($${f0(targetBal-nextCap)}) אבל אחרי משיכה ה-balance נשאר בדיוק על ה-MLL — סיכון מקסימלי. עדיף לצבור buffer.</div>
+          ${isNextUnlimited
+            ? `<div>• עברת את כל המשיכות עם תקרה — מעכשיו <b style="color:var(--grn)">100% Split ללא תקרה</b>. משכי כל פעם כמה שצברת מעל ה-buffer.</div>`
+            : `<div>• בכל מחזור: balance מגיע ל-<b>$${f0(targetBal)}</b> → משיכה <b>$${nextCap}</b> → balance חוזר ל-<b>$${f0(targetBal-nextCapRaw)}</b> → סבב חדש</div>`}
+          <div>• <b>היעד הכולל:</b> ${caps.filter(c=>c!==null).length} משיכות עם תקרה = <b style="color:var(--grn)">$${f0(totalPotentialGross)} ברוטו</b> = <b style="color:var(--grn)">$${f0(totalPotentialPocket)} לכיס</b>${hasUnlimited?' + <b style="color:var(--grn)">100% Split ללא תקרה אחר כך</b>':''}${cfg.transitionLabel && !hasUnlimited?' → '+cfg.transitionLabel:''}</div>
+          ${!isNextUnlimited?`<div style="margin-top:4px;font-size:11px;color:var(--txt4);">💡 המינימום הטכני נמוך יותר ($${f0(targetBal-nextCapRaw)}) אבל אחרי משיכה ה-balance נשאר בדיוק על ה-MLL — סיכון מקסימלי. עדיף לצבור buffer.</div>`:''}
         </div>
       </div>`;
     }
@@ -1685,9 +1700,12 @@ function buildFirmAccBlock(firmKey,i){
     // Apex caps:
     //   Legacy: first 5 × $2,000, then 100% (we show 5 + a "100%" placeholder slot)
     //   4.0: $1,500 / $1,500 / $2,000 / $2,500 / $2,500 / $3,000, then 100%
+    // Apex Legacy: 5 capped × $2,000 then 100% split (UNLIMITED — no cap, no count limit).
+    // Apex 4.0:    6 capped (1.5/1.5/2/2.5/2.5/3K) then 100% split (UNLIMITED).
+    // null cap = "100% Split" tier (renderer shows green highlighted row).
     const caps = isLegacy
-      ? [2000, 2000, 2000, 2000, 2000, 3000 /* placeholder for "100%" — actually unlimited */]
-      : [1500, 1500, 2000, 2500, 2500, 3000];
+      ? [2000, 2000, 2000, 2000, 2000, null]
+      : [1500, 1500, 2000, 2500, 2500, 3000, null];
     apexPayoutLadder = buildPayoutPlanHTML({
       title: isLegacy ? 'תוכנית משיכות Apex Legacy PA' : 'תוכנית משיכות Apex PA 4.0',
       caps: caps,
