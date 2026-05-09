@@ -84,12 +84,18 @@ body{font-family:'Heebo',sans-serif;background:#f6f7fb;color:#1f2937;direction:r
 .cal-cell .m-target{font-size:.72rem;color:#7c3aed;font-weight:700;margin-top:4px;}
 
 /* Checklist */
-.daily-check{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;margin-bottom:6px;cursor:pointer;}
+.daily-check{display:flex;align-items:flex-start;gap:12px;padding:14px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:8px;cursor:pointer;}
 .daily-check:hover{background:#dbeafe;border-color:#1d4ed8;}
 .daily-check.checked{background:#dcfce7;border-color:#86efac;}
-.daily-check input{width:20px;height:20px;cursor:pointer;}
-.daily-check .lbl{flex:1;font-size:.92rem;font-weight:600;color:#1f2937;}
-.daily-check .streak{font-size:.7rem;color:#7c3aed;font-weight:700;background:#ede9fe;padding:3px 8px;border-radius:999px;}
+.daily-check input{width:22px;height:22px;cursor:pointer;flex-shrink:0;margin-top:2px;}
+.daily-check .dc-icon{font-size:1.5rem;flex-shrink:0;line-height:1;}
+.daily-check .dc-text{flex:1;display:flex;flex-direction:column;gap:4px;}
+.daily-check .dc-title{font-size:.95rem;font-weight:800;color:#1f2937;line-height:1.4;}
+.daily-check .dc-sub{font-size:.78rem;font-weight:500;color:#6b7280;line-height:1.5;}
+.daily-check .dc-sub b{color:#1f2937;font-weight:700;}
+.daily-check .streak{font-size:.7rem;color:#7c3aed;font-weight:700;background:#ede9fe;padding:3px 8px;border-radius:999px;flex-shrink:0;align-self:flex-start;margin-top:2px;}
+.checklist-intro{background:#fef3c7;border:1.5px solid #fcd34d;border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:.85rem;color:#78350f;line-height:1.6;}
+.checklist-intro b{color:#451a03;}
 
 /* Iron rules sticky */
 .iron-rules{background:#fef2f2;border:1.5px solid #dc2626;border-radius:10px;padding:14px 18px;margin-top:18px;}
@@ -411,21 +417,48 @@ function renderCalendar(){
 
 function renderChecklist(){
   const items = [
-    {id:'buffer_above_1k', label:'DD Buffer ≥ $1,000 בכל חשבון'},
-    {id:'no_red_buffer_trade', label:'לא סחרתי כשbuffer באדום (<$500)'},
-    {id:'max_safe_daily', label:'לא חרגתי מיעד יומי בטוח (max-safe-daily)'},
-    {id:'lucid_target_progress', label:'התקדמות לכיוון יעד $54,100 ב-Lucid Funded'},
+    {
+      id:'buffer_above_1k',
+      icon:'🛡️',
+      title:'שמרתי על buffer של לפחות <b>$1,000</b> בכל חשבון',
+      sub:'ה-buffer = כמה רחוקה את מ-ה-MLL (קו השריפה). דוגמה: Apex Legacy MLL נעול ב-$50,100 → balance צריך להישאר מעל <b>$51,100</b>.'
+    },
+    {
+      id:'no_red_buffer_trade',
+      icon:'🚫',
+      title:'לא סחרתי בחשבון שה-buffer שלו ירד לאדום',
+      sub:'אדום = פחות מ-$500 מעל ה-MLL. במצב הזה <b>יום מסחר אחד גרוע יכול לשרוף את החשבון</b> — עדיף לעצור עד שתחזרי לירוק.'
+    },
+    {
+      id:'max_safe_daily',
+      icon:'📐',
+      title:'לא חרגתי מהיעד היומי הבטוח באף חשבון',
+      sub:'יעד בטוח = <b>consistency × יעד שלב</b>. ב-Eval של LAUNCH 50K זה <b>50% × $3,000 = $1,500/יום</b>. ב-Premium / BluLive זה <b>30% × $900 = $270/יום</b>. חריגה = יותר ימי מסחר עד מעבר שלב.'
+    },
+    {
+      id:'lucid_target_progress',
+      icon:'💰',
+      title:'Lucid: ה-balance מתקדם ל-<b>$54,100</b>',
+      sub:'יעד ה-buffer למשיכה הבאה. <b>$54,100 = MLL נעול $50,100 + 2× cap של $2,000</b>. אחרי משיכה, balance חוזר ל-$52,100 — עדיין $2,000 buffer מעל ה-MLL. עדיף לחכות מאשר למשוך ב-$52,100 ולהישאר על קו האש.'
+    },
   ];
   const today = TODAY.toISOString().split('T')[0];
   const checklist = window.PLAN.checklist_streak || {};
-  const html = items.map(item=>{
+  const introHTML = `<div class="checklist-intro">
+    💡 <b>איך זה עובד:</b> בסוף כל יום מסחר תחזרי לכאן ותסמני וי על כל פרט שעמדת בו היום. אם סימנת בכל הימים ברצף — מופיע <b>🔥 streak</b>. אלה <b>4 חוקי הברזל</b> שמגנים על החשבונות לטווח הארוך.
+  </div>`;
+  const html = introHTML + items.map(item=>{
     const dates = checklist[item.id] || [];
     const isCheckedToday = dates.includes(today);
     const streak = computeStreak(dates);
     return `<div class="daily-check ${isCheckedToday?'checked':''}" onclick="toggleCheck('${item.id}')">
       <input type="checkbox" ${isCheckedToday?'checked':''} onclick="event.stopPropagation();toggleCheck('${item.id}');return false;">
-      <div class="lbl">${item.label}</div>
-      ${streak > 0 ? `<div class="streak">🔥 ${streak} ימים ברצף</div>` : ''}
+      <span class="dc-icon">${item.icon}</span>
+      <div class="dc-text">
+        <div class="dc-title">${item.title}</div>
+        <div class="dc-sub">${item.sub}</div>
+      </div>
+      ${streak > 0 ? `<div class="streak">🔥 ${streak}</div>` : ''}
     </div>`;
   }).join('');
   document.getElementById('checklist-zone').innerHTML = html;
