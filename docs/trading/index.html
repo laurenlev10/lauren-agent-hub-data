@@ -375,8 +375,15 @@ select option{background:#fff;}
       <input type="file" id="csv-file" accept=".csv,text/csv" style="width:100%;padding:8px;border:1.5px dashed var(--bdr);border-radius:10px;font-family:var(--f);font-size:14px;background:var(--s2);" />
     </div>
     <div>
-      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">עמלה לעסקה ($) — ברירת מחדל $2.20:</label>
-      <input type="number" id="csv-fee" value="2.20" step="0.10" style="width:140px;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--f);font-size:15px;font-weight:700;background:var(--s2);" />
+      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">עמלה — בחרי מודל לפי הפלטפורמה:</label>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <select id="csv-fee-mode" style="padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--f);font-size:14px;font-weight:700;background:var(--s2);">
+          <option value="per_trade" selected>$X לעסקה (BluSky / Apex)</option>
+          <option value="per_contract">$X לחוזה (Lucid)</option>
+        </select>
+        <input type="number" id="csv-fee" value="2.20" step="0.10" style="width:110px;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--f);font-size:15px;font-weight:700;background:var(--s2);" />
+        <span style="font-size:11px;color:var(--txt4);">BluSky/Apex: $2.20/trade · Lucid: $1.00/contract</span>
+      </div>
     </div>
     <div id="csv-preview" style="background:var(--s2);border-radius:10px;padding:14px;font-size:13px;color:var(--txt3);min-height:60px;direction:rtl;">העלי קובץ CSV כדי לראות תצוגה מקדימה</div>
   </div>
@@ -1868,6 +1875,21 @@ function seedFromScreenshots(){
 let csvParsedDays = null;       // last parsed days array
 let csvSelectedAcc = null;      // which account it's for: {bucket:'accs'|'apexAccs'|'lucidAccs', idx:0..3}
 
+function applyFeeDefaults(){
+  const sel = document.getElementById('csv-account');
+  const modeEl = document.getElementById('csv-fee-mode');
+  const feeEl = document.getElementById('csv-fee');
+  if(!sel || !modeEl || !feeEl) return;
+  const v = sel.value || '';   // 'accs:0', 'apexAccs:0', 'lucidAccs:0'
+  if(v.startsWith('lucidAccs:')){
+    modeEl.value = 'per_contract';
+    feeEl.value = '1.00';
+  } else {
+    modeEl.value = 'per_trade';
+    feeEl.value = '2.20';
+  }
+}
+
 function csvAccountOptions(){
   const opts = [];
   // BluSky (S.accs) — uses ACCS metadata for names
@@ -1896,8 +1918,11 @@ function openCsvModal(){
     opt.value = o.val; opt.textContent = o.label;
     sel.appendChild(opt);
   });
+  // Re-apply fee defaults whenever the user picks a different account
+  sel.onchange = applyFeeDefaults;
   document.getElementById('csv-file').value = '';
-  document.getElementById('csv-fee').value = '2.20';
+  // auto-default fee model based on which account is initially selected
+  applyFeeDefaults();
   document.getElementById('csv-preview').textContent = 'העלי קובץ CSV כדי לראות תצוגה מקדימה';
   document.getElementById('csv-apply').disabled = true;
   document.getElementById('csv-apply').style.opacity = '0.5';
@@ -1910,8 +1935,9 @@ function closeCsvModal(){
   document.getElementById('csv-modal').style.display = 'none';
 }
 
-function parseCsv(text, fee){
-  // Tradovate CSV: symbol,_priceFormat,...,qty,buyPrice,sellPrice,pnl,boughtTimestamp,soldTimestamp,duration
+function parseCsv(text, fee, feeMode){
+  // Tradovate CSV: symbol,...,qty,buyPrice,sellPrice,pnl,boughtTimestamp,soldTimestamp,duration
+  // feeMode: 'per_trade' (BluSky/Apex flat $2.20/trade) | 'per_contract' (Lucid $1.00/contract)
   const lines = text.split(/\r?\n/).filter(function(x){ return x.trim(); });
   if(lines.length < 2) throw new Error('הקובץ ריק או לא תקין');
   const header = lines[0].split(',').map(function(h){ return h.trim(); });
@@ -1921,29 +1947,31 @@ function parseCsv(text, fee){
     qty: header.indexOf('qty')
   };
   if(idx.pnl<0 || idx.sold<0) throw new Error('חסרות עמודות pnl/soldTimestamp — האם זה Performance.csv מ-Tradovate?');
+  if(feeMode === 'per_contract' && idx.qty < 0) throw new Error('חסרה עמודת qty — נחוצה למודל עמלה לפי חוזה');
 
   const byDate = {};
   for(let i=1; i<lines.length; i++){
-    // CSV row may have commas inside quoted strings, but Tradovate's format is simple — split on `,`
     const cells = lines[i].split(',');
     const pnlS = (cells[idx.pnl] || '').replace(/[$,\s]/g, '');
     const neg = pnlS.indexOf('(') >= 0;
     const num = parseFloat(pnlS.replace(/[()]/g,'')) || 0;
     const pnl = neg ? -num : num;
+    const qty = parseInt(cells[idx.qty] || '0', 10) || 0;
     const sold = cells[idx.sold] || '';
     const m = sold.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     if(!m) continue;
     const date = m[3] + '-' + m[1].padStart(2,'0') + '-' + m[2].padStart(2,'0');
-    if(!byDate[date]) byDate[date] = {gross:0, count:0};
+    if(!byDate[date]) byDate[date] = {gross:0, count:0, qty:0};
     byDate[date].gross += pnl;
     byDate[date].count += 1;
+    byDate[date].qty += qty;
   }
   const days = [];
   Object.keys(byDate).sort().forEach(function(date){
     const d = byDate[date];
-    const fees = d.count * fee;
+    const fees = (feeMode === 'per_contract') ? (d.qty * fee) : (d.count * fee);
     const net = +(d.gross - fees).toFixed(2);
-    days.push({date:date, pnl:net, _trades:d.count, _gross:+d.gross.toFixed(2), _fees:+fees.toFixed(2)});
+    days.push({date:date, pnl:net, _trades:d.count, _qty:d.qty, _gross:+d.gross.toFixed(2), _fees:+fees.toFixed(2)});
   });
   return days;
 }
@@ -1966,22 +1994,24 @@ document.addEventListener('change', function(e){
     const f = e.target.files[0]; if(!f) return;
     console.log('[CSV] file selected:', f.name, f.size, 'bytes');
     const fee = parseFloat(document.getElementById('csv-fee').value) || 2.20;
+    const feeMode = document.getElementById('csv-fee-mode').value || 'per_trade';
     const reader = new FileReader();
     reader.onerror = function(){
       document.getElementById('csv-preview').innerHTML = '<span style="color:var(--red);font-weight:700">⚠ קריאת הקובץ נכשלה</span>';
     };
     reader.onload = function(ev){
       try{
-        const days = parseCsv(ev.target.result, fee);
+        const days = parseCsv(ev.target.result, fee, feeMode);
         csvParsedDays = days;
         const total = days.reduce(function(s,d){return s+d.pnl;},0);
         let html = '<div style="font-weight:800;color:var(--txt);margin-bottom:8px;">תצוגה מקדימה: '+days.length+' ימים, סה"כ Net <span style="color:'+(total>=0?'var(--grn)':'var(--red)')+';">$'+total.toFixed(2)+'</span></div>';
         html += '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--bdr);border-radius:6px;background:#fff;">';
         html += '<table style="width:100%;font-size:12px;border-collapse:collapse;">';
-        html += '<thead style="background:var(--s3);"><tr><th style="padding:6px 8px;text-align:right">תאריך</th><th style="padding:6px 8px;text-align:right">עסקאות</th><th style="padding:6px 8px;text-align:right">Gross</th><th style="padding:6px 8px;text-align:right">Fees</th><th style="padding:6px 8px;text-align:right">Net</th></tr></thead><tbody>';
+        html += '<thead style="background:var(--s3);"><tr><th style="padding:6px 8px;text-align:right">תאריך</th><th style="padding:6px 8px;text-align:right">עסקאות</th><th style="padding:6px 8px;text-align:right">חוזים</th><th style="padding:6px 8px;text-align:right">Gross</th><th style="padding:6px 8px;text-align:right">Fees</th><th style="padding:6px 8px;text-align:right">Net</th></tr></thead><tbody>';
         days.forEach(function(d){
           html += '<tr style="border-top:1px solid var(--bdr2)"><td style="padding:5px 8px;font-weight:700">'+d.date+'</td>';
           html += '<td style="padding:5px 8px">'+d._trades+'</td>';
+          html += '<td style="padding:5px 8px;color:var(--txt4)">'+(d._qty||'?')+'</td>';
           html += '<td style="padding:5px 8px;color:'+(d._gross>=0?'var(--grn)':'var(--red)')+'">$'+d._gross.toFixed(2)+'</td>';
           html += '<td style="padding:5px 8px;color:var(--txt4)">$'+d._fees.toFixed(2)+'</td>';
           html += '<td style="padding:5px 8px;font-weight:800;color:'+(d.pnl>=0?'var(--grn)':'var(--red)')+'">$'+d.pnl.toFixed(2)+'</td></tr>';
