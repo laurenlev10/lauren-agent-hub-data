@@ -589,6 +589,44 @@ const FIRMS = {
 
 let ACTIVE_FIRM = 'blusky';
 
+function updateFirmCapBanner(firmKey){
+  const el = document.getElementById('firm-cap-text');
+  const badge = document.getElementById('firm-cap-badge');
+  if(!el || !badge) return;
+  const accCount = (firmKey==='blusky') ? (S.accs||[]).length
+                 : (firmKey==='apex')   ? (S.apexAccs||[]).length
+                 : (S.lucidAccs||[]).length;
+  if(!window.RULES){
+    el.textContent = accCount + ' חשבונות פעילים בחברה הזו';
+    badge.textContent = '—';
+    return;
+  }
+  const firmInfo = window.RULES.firms[firmKey] || {};
+  const cap = firmInfo.maxAccounts || {};
+  const max = cap.totalSimultaneous;
+  const exceeded = max && accCount > max;
+  let msg = '<b>' + (firmInfo.name||firmKey) + '</b> · ' + accCount + ' חשבונות פעילים';
+  if(max){
+    msg += ' · מקס׳ <b>' + max + '</b>';
+    if(cap.note) msg += ' (' + cap.note + ')';
+  }
+  el.innerHTML = msg;
+  if(exceeded){
+    badge.textContent = '⚠ חרגת ב-' + (accCount-max);
+    badge.style.background = '#fee2e2';
+    badge.style.color = '#991b1b';
+  } else if(max){
+    const remaining = max - accCount;
+    badge.textContent = remaining > 0 ? '✓ עוד ' + remaining + ' פנויים' : '✓ במגבלה';
+    badge.style.background = '#dcfce7';
+    badge.style.color = '#065f46';
+  } else {
+    badge.textContent = 'ללא מגבלה';
+    badge.style.background = 'var(--s2)';
+    badge.style.color = 'var(--txt3)';
+  }
+}
+
 function switchFirm(firmKey){
   ACTIVE_FIRM = firmKey;
   const f = FIRMS[firmKey];
@@ -884,6 +922,8 @@ function pc(n){ return n>0?'var(--grn)':n<0?'var(--red)':'var(--txt3)'; }
 
 // ════════════ RENDER ════════════
 function renderAll(){
+  try{ updateFirmCapBanner(ACTIVE_FIRM || 'blusky'); }catch(e){}
+  
   const grid = document.getElementById('accounts-grid');
 
   if(ACTIVE_FIRM !== 'blusky'){
