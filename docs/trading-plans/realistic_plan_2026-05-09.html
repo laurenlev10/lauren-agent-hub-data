@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>תוכנית מסחר ריאלית — Lauren · 2026-05-09</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Heebo','Segoe UI',Arial,sans-serif;background:#f0f4f8;color:#1f2328;direction:rtl;text-align:right;line-height:1.7;padding:28px 18px;max-width:1100px;margin:0 auto;}
+  .hero{background:linear-gradient(135deg,#dcfce7,#dbeafe);border:1px solid #bfdbfe;border-radius:14px;padding:36px 32px;text-align:center;margin-bottom:28px;}
+  .hero h1{font-size:1.8rem;color:#15803d;margin-bottom:8px;}
+  .hero .sub{color:#4b5563;font-size:0.95rem;margin-bottom:14px;}
+  .hero .badges{margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+  .badge{background:#fff;border:1px solid #bfdbfe;color:#15803d;padding:5px 14px;border-radius:20px;font-size:0.82rem;font-weight:700;}
+  .section{background:#fff;border:1px solid #d0d7de;border-radius:12px;padding:24px 28px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.07);}
+  .section h2{font-size:1.2rem;color:#15803d;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #e5e7eb;}
+  .section h3{font-size:1.0rem;color:#1d4ed8;margin:18px 0 10px;}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0;}
+  @media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr);}}
+  .card{background:#f8fafc;border:1px solid #d0d7de;border-radius:10px;padding:14px 12px;text-align:center;}
+  .card .v{font-size:1.4rem;font-weight:800;color:#1d4ed8;}
+  .card .l{font-size:0.72rem;color:#6b7280;margin-top:4px;}
+  .card.green .v{color:#15803d;}
+  .card.amber .v{color:#b45309;}
+  .card.red .v{color:#dc2626;}
+  table{width:100%;border-collapse:collapse;font-size:0.88rem;margin:10px 0;}
+  thead tr{background:#eff6ff;}
+  thead th{padding:10px 13px;color:#1d4ed8;font-weight:700;border-bottom:2px solid #bfdbfe;text-align:right;}
+  tbody tr{border-bottom:1px solid #e5e7eb;}
+  tbody tr:nth-child(even){background:#f8fafc;}
+  tbody td{padding:10px 13px;}
+  .g{color:#15803d;font-weight:700;}
+  .b{color:#1d4ed8;font-weight:700;}
+  .y{color:#b45309;}
+  .r{color:#dc2626;font-weight:700;}
+  code{background:#eff6ff;padding:2px 6px;border-radius:4px;font-size:0.82rem;color:#1d4ed8;border:1px solid #bfdbfe;}
+  .hl{border-right:4px solid #16a34a;background:#f0fdf4;border-radius:6px;padding:12px 16px;margin:12px 0;color:#15803d;font-size:.9rem;}
+  .hl.blue{border-right-color:#1d4ed8;background:#eff6ff;color:#1e40af;}
+  .hl.amber{border-right-color:#b45309;background:#fffbeb;color:#92400e;}
+  .hl.red{border-right-color:#dc2626;background:#fef2f2;color:#991b1b;}
+  .recommend{background:linear-gradient(135deg,#dcfce7,#fff);border:2px solid #16a34a;border-radius:10px;padding:14px 18px;margin:10px 0;}
+  .avoid{background:linear-gradient(135deg,#fef2f2,#fff);border:2px solid #dc2626;border-radius:10px;padding:14px 18px;margin:10px 0;}
+  .neutral{background:linear-gradient(135deg,#fffbeb,#fff);border:2px solid #b45309;border-radius:10px;padding:14px 18px;margin:10px 0;}
+  .phase{display:flex;flex-direction:row-reverse;gap:0;margin-bottom:12px;}
+  .phase-line{display:flex;flex-direction:column;align-items:center;width:40px;flex-shrink:0;}
+  .phase-dot{width:18px;height:18px;border-radius:50%;background:#15803d;border:3px solid #f0f4f8;margin-top:4px;}
+  .phase-connector{width:2px;background:#d0d7de;flex:1;min-height:30px;}
+  .phase:last-child .phase-connector{display:none;}
+  .phase-body{flex:1;background:#f8fafc;border:1px solid #d0d7de;border-radius:10px;padding:16px 20px;margin-bottom:12px;}
+  .phase-tag{font-size:.72rem;color:#15803d;font-weight:700;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;}
+  .phase-title{font-weight:800;color:#1f2328;margin-bottom:8px;font-size:1.05rem;}
+  .phase-body ul{padding-right:18px;color:#4b5563;font-size:.9rem;}
+  .phase-body ul li{margin-bottom:4px;}
+  .phase-totals{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;}
+  .ptotal{display:inline-block;background:#fff;border:1px solid #d0d7de;border-radius:20px;padding:5px 14px;font-size:.82rem;font-weight:700;}
+  .ptotal.acc{color:#1d4ed8;}
+  .ptotal.cost{color:#dc2626;}
+  .ptotal.income{color:#15803d;}
+  footer{text-align:center;color:#6b7280;font-size:.82rem;margin-top:30px;padding:20px;}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>📊 תוכנית מסחר ריאלית — Lauren</h1>
+  <div class="sub">מבוססת על נתוני CSV אמיתיים שלך (8 חשבונות, 251 עסקאות, 6 ימים) + ההעדפות שלך (long-term, buffer, גידול הדרגתי)</div>
+  <div class="badges">
+    <span class="badge">3 חברות בלבד</span>
+    <span class="badge">25 חשבונות תוך 12 חודשים</span>
+    <span class="badge">~$50K/חודש נטו ביציבות</span>
+    <span class="badge">בלי בוט אוטומטי</span>
+  </div>
+</div>
+
+<!-- ═══ 1. הנתונים שלך ═══ -->
+<div class="section">
+  <h2>📈 הסטיל שלך — מה הנתונים מראים</h2>
+  <div class="grid">
+    <div class="card"><div class="v">55%</div><div class="l">Win rate</div></div>
+    <div class="card green"><div class="v">$+23</div><div class="l">ממוצע לעסקה</div></div>
+    <div class="card amber"><div class="v">+$766</div><div class="l">יום הכי טוב</div></div>
+    <div class="card red"><div class="v">-$515</div><div class="l">יום הכי גרוע</div></div>
+    <div class="card"><div class="v">qty 1-2</div><div class="l">לעסקה (קבוע)</div></div>
+    <div class="card amber"><div class="v">60-71%</div><div class="l">יום גדול ÷ סה"כ</div></div>
+    <div class="card green"><div class="v">67%</div><div class="l">ימים חיוביים</div></div>
+    <div class="card"><div class="v">~$1K</div><div class="l">רווח שבועי per acc</div></div>
+  </div>
+
+  <div class="hl amber">
+    <strong>תובנה קריטית:</strong> הסטיל שלך = <strong>"ימים גדולים דומיננטיים"</strong>.
+    יום הכי טוב שלך הוא 60-71% מסך הרווח השבועי. <strong>זה מכשיל אותך בכל חוק consistency של 30%</strong>
+    (ואפילו 50% במקרה הקיצון). לכן התוכנית מעדיפה מוצרים בלי consistency rule.
+  </div>
+</div>
+
+<!-- ═══ 2. אנליזה לפי חברה ═══ -->
+<div class="section">
+  <h2>🏛️ אנליזה לכל חברה — מה לקנות, מה להימנע</h2>
+
+  <h3>🏦 BluSky — 5 מוצרים, 3 מומלצים</h3>
+  <div class="recommend">
+    <strong>✅ LAUNCH 50K</strong> — <code>$59/mo + $99 launch fee</code> · EOD trailing $2K · <strong>50% consistency (סלחני)</strong> · 1 day min
+    <br><em>למה כן: עמלה זולה, חוק consistency הכי סלחני שיש ב־BluSky, eval מהיר. מתאים לסטיל שלך.</em>
+  </div>
+  <div class="recommend">
+    <strong>✅ Static Growth+ 200K</strong> — <code>~$235/mo</code> · <strong>Static $2K (MLL נעול ב-$198K, לא נע)</strong> · 30% consistency · target $6K
+    <br><em>למה כן: MLL סטטי = הכי בטוח לטווח ארוך. גם כשתעלי, ה-MLL לא רודף. מתאים מושלם לפילוסופיית הbuffer שלך.</em>
+  </div>
+  <div class="neutral">
+    <strong>⚠ PROPEL Premium 50K</strong> — <code>$160/mo</code> · EOD trailing $2K · <strong>30% consistency (קשה!)</strong>
+    <br><em>זה מה שיש לך כבר ×2. <strong>לא להוסיף יותר</strong> — 30% consistency לא שורד את הסטיל שלך לטווח ארוך.</em>
+  </div>
+  <div class="avoid">
+    <strong>❌ Static Growth+ 300K</strong> — 21% consistency · target $7,500
+    <br><em>21% = יום גדול שלך חייב להיות 1/5 מהסך. עם הנתונים שלך זה כמעט בלתי אפשרי. אל תיגע.</em>
+  </div>
+  <div class="avoid">
+    <strong>❌ Instant / Direct 2 Funded</strong>
+    <br><em>יקר, מקבלים פחות מעריכים בתעשייה, מיותר אם את יכולה לעבור eval רגיל.</em>
+  </div>
+
+  <h3>⚡ Apex — 1 מוצר חדש זמין (4.0)</h3>
+  <div class="hl blue">
+    <strong>📌 חשוב:</strong> Apex Legacy לא ניתן יותר לרכישה (נסגר 2026-03-01). 4 ה־Legacy שלך = המקסימום שלך לעולם.
+    כל הוספה חדשה חייבת להיות <strong>Apex 4.0</strong>.
+  </div>
+  <div class="recommend">
+    <strong>✅ Apex 4.0 EOD 50K</strong> — <code>$167/mo + $99 PA fee</code> · EOD trailing $2K · DLL $1K · <strong>NO eval consistency!</strong> · 50% PA consistency
+    <br><em>למה כן: Eval ללא consistency = מעבר קל. יום הגרוע שלך -$515 < DLL $1K (בטוח). חוקים מתונים בהשוואה ל-Legacy (ללא 5:1 RR, ללא MAE, ללא one-direction).</em>
+  </div>
+  <div class="neutral">
+    <strong>⚠ Apex 4.0 Intraday 50K</strong> — אותו דבר אבל Intraday Trailing Drawdown
+    <br><em>Intraday = MLL רודף את ה-unrealized peak בזמן עסקה. מסוכן יותר. עדיף EOD.</em>
+  </div>
+  <div class="hl">
+    <strong>גודל מומלץ:</strong> 50K (eval מהיר). 100K אם רוצה payout cap גבוה יותר ($2,500 vs $1,500 בקאפ הראשון).
+    מקסימום: 16 חשבונות 4.0 (סה"כ עם Legacy = 20, ה-cap של החברה).
+  </div>
+
+  <h3>💎 Lucid — 1 מוצר עיקרי</h3>
+  <div class="recommend" style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);border-color:#15803d;">
+    <strong>✅ LucidFlex 50K — המוצר הכי טוב לסטיל שלך</strong> · EOD trailing → Static $50,100 אחרי payout · <strong>NO consistency on Funded</strong> · 5 payouts → LucidLive
+    <br><em>למה כן: זה היחיד שלא חוסם אותך עם consistency אחרי שעוברת eval. מתאים מושלם ל"ימים גדולים דומיננטיים" שלך. כן, eval דורש 50% (קצת אתגר), אבל ברגע שעוברת — חופש מוחלט.</em>
+  </div>
+  <div class="neutral">
+    <strong>⚠ LucidFlex 100K</strong> — payout cap גדול יותר ($3K לעומת $2K)
+    <br><em>שווה 1-2 חשבונות אחרי שמילאת את ה־5 funded sub-cap על 50K.</em>
+  </div>
+  <div class="hl">
+    <strong>גודל מומלץ:</strong> 50K (max funded sub-cap = 5 ב־household). אופציונלי 1-2 × 100K אחרי.
+  </div>
+</div>
+
+<!-- ═══ 3. סוג Drawdown — מה נכון לך? ═══ -->
+<div class="section">
+  <h2>🛡️ Static או Trailing? — תשובה ברורה לפי הסטיל שלך</h2>
+  <table>
+    <thead><tr><th>סוג</th><th>איך זה עובד</th><th>סיכון לסטיל שלך</th><th>המלצה</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="g">Static MLL</td>
+        <td>קבוע לעולם — לא נע למעלה גם כשמרוויחים</td>
+        <td class="g">⭐⭐⭐ הכי נמוך — את מקבלת buffer קבוע</td>
+        <td class="g"><strong>הכי מומלץ לחשבון אחד גדול</strong> (200K Static) כעוגן לטווח ארוך</td>
+      </tr>
+      <tr>
+        <td class="b">EOD Trailing</td>
+        <td>נמדד בסוף יום (6PM ET). מטפס עם הרווח, לא יורד עם הפסד</td>
+        <td class="b">⭐⭐ סביר — יום אחד לא חוסם, אבל אחרי week רווחי MLL יקפוץ גבוה</td>
+        <td class="b">סטנדרט — רוב החשבונות שלך</td>
+      </tr>
+      <tr>
+        <td class="r">Intraday Trailing</td>
+        <td>נמדד בזמן אמת — רודף את ה-unrealized peak שלך תוך עסקה!</td>
+        <td class="r">⭐ סיכון גבוה — עסקה תנודתית יכולה לסגור פתיחה לפני שאת רואה</td>
+        <td class="r"><strong>להימנע</strong> אם אפשר. אצלך זה ב-4 Apex Legacy שלך — אי אפשר לשנות, אבל בחשבונות חדשים העדיפי EOD.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="hl">
+    <strong>השורה התחתונה:</strong> את הbase שלך תבני על EOD Trailing (זול, מהיר eval). את ה־anchor הגדול שלך לטווח ארוך → על Static. <strong>לא לפתוח חדש Intraday.</strong>
+  </div>
+</div>
+
+<!-- ═══ 4. מיקס גודל החשבון ═══ -->
+<div class="section">
+  <h2>📏 מיקס גודלי חשבון — אסטרטגיה אופטימלית</h2>
+  <div class="hl blue">
+    <strong>תזכורת:</strong> את סוחרת qty=1-2 קבוע. <strong>הרווח לעסקה זהה ב-50K וב-200K.</strong>
+    מה שמשתנה: cushion גדול יותר, payout cap גבוה יותר, eval ארוך יותר, monthly fee יותר יקר.
+  </div>
+  <table>
+    <thead>
+      <tr><th>גודל</th><th>היתרון</th><th>החיסרון</th><th>כמה לקנות</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>50K</strong> (העיקר)</td>
+        <td class="g">eval מהיר ($3K target = ~3 שבועות), זול ($60-$170/mo), מאפשר ריבוי חשבונות במקביל</td>
+        <td>cushion $2K בלבד, payout cap נמוך</td>
+        <td class="g"><strong>15-20 חשבונות</strong> — הליבה</td>
+      </tr>
+      <tr>
+        <td><strong>100K</strong> (משלים)</td>
+        <td>cushion $3K, payout cap $3K (Lucid) / $2.5K (Apex)</td>
+        <td>eval ארוך יותר ($6K target = ~6 שבועות), יקר יותר</td>
+        <td class="b"><strong>2-3 חשבונות</strong> — לאחר מילוי ה-50K</td>
+      </tr>
+      <tr>
+        <td><strong>200K Static</strong> (עוגן)</td>
+        <td class="g">MLL נעול לעולם — הכי בטוח לטווח ארוך</td>
+        <td>monthly fee גבוה ($235/mo est), eval ארוך מאוד ($12K target)</td>
+        <td class="b"><strong>1 חשבון</strong> — anchor אחד יספיק. יש לך כבר 1 (200K PROPEL)</td>
+      </tr>
+      <tr>
+        <td>300K+ Static</td>
+        <td>cushion ענק</td>
+        <td class="r">21% consistency = בלתי אפשרי לסטיל שלך</td>
+        <td class="r"><strong>0</strong> — להימנע</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══ 5. תוכנית 12 חודשים — בהדרגה ═══ -->
+<div class="section">
+  <h2>🗓️ תוכנית 12 חודשים — הדרגתי, בלי לסכן את כל התיק</h2>
+  <div class="hl">
+    <strong>עקרון יסוד:</strong> לעולם לא לקנות יותר מ-1-2 evals חדשים בשבוע. כל eval חדש = ריצה של 2-4 שבועות לפני שיודעים שעבר. גידול הדרגתי = אם יש יום רע, רק 1-2 חשבונות נופלים, לא 10.
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:0;margin-top:20px;">
+
+    <div class="phase">
+      <div class="phase-line"><div class="phase-dot"></div><div class="phase-connector"></div></div>
+      <div class="phase-body">
+        <div class="phase-tag">חודש 1</div>
+        <div class="phase-title">לחזק את הקיים — לא להוסיף יותר מ-1 חדש</div>
+        <ul>
+          <li>סיימי את ה-eval של 50K LAUNCH II ($1K עוד)</li>
+          <li>תוסיפי <strong>1 LucidFlex 50K eval</strong> (לבחון את הסטיל מול 50% consistency)</li>
+          <li>4 Apex Legacy ממשיכים לבנות לעבר Safety Net $52,600</li>
+          <li>50K PROPEL החדש (BluLive) ממשיך לבנות buffer</li>
+        </ul>
+        <div class="phase-totals">
+          <span class="ptotal acc">9 → 10 חשבונות</span>
+          <span class="ptotal cost">~$1,200/mo</span>
+          <span class="ptotal income">~$5K-$10K נטו</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-line"><div class="phase-dot"></div><div class="phase-connector"></div></div>
+      <div class="phase-body">
+        <div class="phase-tag">חודש 2</div>
+        <div class="phase-title">Lucid scale-up + Apex 4.0 trial</div>
+        <ul>
+          <li>אם Lucid #2 עבר eval → תוסיפי <strong>1 LucidFlex 50K</strong> נוסף</li>
+          <li>תוסיפי <strong>1 Apex 4.0 EOD 50K</strong> כניסיון (ללא DLL זה $1K, יום הגרוע שלך -$515 = בטוח)</li>
+          <li>אל תוסיפי כלום אם 1 מ-2 שמיים eval לא הצליחו — תבחני קודם</li>
+        </ul>
+        <div class="phase-totals">
+          <span class="ptotal acc">10 → 12 חשבונות</span>
+          <span class="ptotal cost">~$1,500/mo</span>
+          <span class="ptotal income">~$8K-$15K נטו</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-line"><div class="phase-dot"></div><div class="phase-connector"></div></div>
+      <div class="phase-body">
+        <div class="phase-tag">חודש 3-4</div>
+        <div class="phase-title">Lucid למקסימום + BluSky LAUNCH</div>
+        <ul>
+          <li>הוסיפי <strong>2 LucidFlex 50K evals</strong> (במרווח של 2 שבועות) → היעד: 4-5 Lucid funded</li>
+          <li>הוסיפי <strong>1 BluSky LAUNCH 50K</strong> (50% consistency, $59/mo — סלחני וזול)</li>
+          <li>אם Apex 4.0 הניסיוני עבר → הוסיפי <strong>2 Apex 4.0 EOD 50K</strong> נוספים בהדרגה</li>
+        </ul>
+        <div class="phase-totals">
+          <span class="ptotal acc">12 → 17 חשבונות</span>
+          <span class="ptotal cost">~$2,200/mo</span>
+          <span class="ptotal income">~$15K-$25K נטו</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-line"><div class="phase-dot"></div><div class="phase-connector"></div></div>
+      <div class="phase-body">
+        <div class="phase-tag">חודש 5-6</div>
+        <div class="phase-title">סיום ליבת ה-50K + 1 חשבון 100K כניסיון</div>
+        <ul>
+          <li>סיימי 5 Lucid funded (max household sub-cap)</li>
+          <li>הוסיפי <strong>2-3 BluSky LAUNCH 50K</strong> נוספים → 4 LAUNCH סה"כ</li>
+          <li>תוסיפי <strong>1 Apex 4.0 EOD 100K</strong> כניסיון לcap גבוה יותר ($2.5K לפי payout)</li>
+          <li>תוסיפי <strong>1 LucidFlex 100K eval</strong> (cap $3K)</li>
+        </ul>
+        <div class="phase-totals">
+          <span class="ptotal acc">17 → 22 חשבונות</span>
+          <span class="ptotal cost">~$3,000/mo</span>
+          <span class="ptotal income">~$25K-$40K נטו</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-line"><div class="phase-dot" style="background:#1d4ed8;"></div><div class="phase-connector"></div></div>
+      <div class="phase-body" style="background:#eff6ff;border-color:#1d4ed8;">
+        <div class="phase-tag" style="color:#1d4ed8;">חודש 7-9</div>
+        <div class="phase-title">יציבות — מילוי Apex 4.0 + BluSky 200K Static השני</div>
+        <ul>
+          <li>הוסיפי <strong>3-5 Apex 4.0 EOD 50K</strong> נוספים → ~10 4.0 + 4 Legacy = 14 Apex</li>
+          <li>הוסיפי <strong>1 BluSky Static Growth+ 200K</strong> נוסף → 2 anchor accounts</li>
+          <li>בשלב הזה: לוודא שלכל החשבונות יש buffer בריא לפני המשך</li>
+        </ul>
+        <div class="phase-totals">
+          <span class="ptotal acc">22 → 25-27 חשבונות</span>
+          <span class="ptotal cost">~$4,500/mo</span>
+          <span class="ptotal income">~$40K-$60K נטו</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-line"><div class="phase-dot" style="background:#16a34a;"></div></div>
+      <div class="phase-body" style="background:#f0fdf4;border-color:#86efac;">
+        <div class="phase-tag" style="color:#15803d;">חודש 10-12 — יציבות</div>
+        <div class="phase-title">~25-30 חשבונות פעילים. מקסימום ריאלי לסטיל שלך</div>
+        <ul>
+          <li>BluSky: 7-8 (4 קיימים + 4 LAUNCH + 1 Static 200K נוסף)</li>
+          <li>Apex: 10-14 (4 Legacy + 6-10 4.0 EOD)</li>
+          <li>Lucid: 5-7 (5 funded sub-cap + 2 evals/100K)</li>
+          <li>תחזוקה שוטפת: replacement של Apex (lifecycle 6 payouts) ו-Lucid (5 payouts)</li>
+        </ul>
+        <div class="phase-totals">
+          <span class="ptotal acc"><strong>25-30 חשבונות יציבים</strong></span>
+          <span class="ptotal cost">~$5K/mo</span>
+          <span class="ptotal income"><strong>~$50K-$70K נטו/חודש יציב</strong></span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ 6. הערכת הכנסה ריאלית ═══ -->
+<div class="section">
+  <h2>💰 הערכת הכנסה ריאלית</h2>
+  <table>
+    <thead>
+      <tr><th>חודש</th><th>חשבונות</th><th>הוצאות חודשיות</th><th>הכנסה ברוטו צפויה</th><th>נטו (אחרי חלוקה + תקלות)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>היום</td><td class="b">9</td><td>~$1,000</td><td>~$25K</td><td class="g">~$15K</td></tr>
+      <tr><td>חודש 1-2</td><td class="b">12</td><td>~$1,500</td><td>~$35K</td><td class="g">~$20K</td></tr>
+      <tr><td>חודש 3-4</td><td class="b">17</td><td>~$2,200</td><td>~$50K</td><td class="g">~$28K</td></tr>
+      <tr><td>חודש 5-6</td><td class="b">22</td><td>~$3,000</td><td>~$65K</td><td class="g">~$38K</td></tr>
+      <tr><td>חודש 7-9</td><td class="b">25</td><td>~$4,500</td><td>~$80K</td><td class="g">~$50K</td></tr>
+      <tr style="background:#f0fdf4;"><td class="g"><strong>חודש 10-12 (יציבות)</strong></td><td class="b" style="font-size:1.1rem;"><strong>25-30</strong></td><td>~$5K</td><td>~$90K</td><td class="g" style="font-size:1.1rem;"><strong>~$50K-$70K/חודש</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="hl">
+    <strong>הנחות בחישוב:</strong> 70% מהevals עוברים (לא 100%) · $700/שבוע ממוצע per PA (לא $1,000) · 15-20% מהPAs נשרפים בכל חודש · חוק consistency חוסם 30-40% מנסיונות משיכה ב-Apex/BluSky non-Lucid · Lucid funded זורם ללא חסימות.
+  </div>
+  <div class="hl amber">
+    <strong>תחזית שנתית:</strong> ~$500K-$840K נטו לשנה (במקום $2.5M שהתוכנית של 56 PAs הציגה — אבל זה <em>אמיתי וקיים</em>).
+  </div>
+</div>
+
+<!-- ═══ 7. כללי ברזל לניהול סיכון ═══ -->
+<div class="section">
+  <h2>🛡️ כללי ברזל — ניהול סיכון</h2>
+  <table>
+    <thead><tr><th>כלל</th><th>למה זה חשוב</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>לא יותר מ-2 evals חדשים בשבוע</strong></td>
+        <td>אם יש יום רע, רק 1-2 חשבונות יקרסו, לא 10. עיכוב שכלל מאפשר לך לבחון אם הסטיל עובד על החשבון הספציפי.</td>
+      </tr>
+      <tr>
+        <td><strong>BUFFER over MIN בכל משיכה</strong></td>
+        <td>למשוך רק כשbalance ≥ MLL + 2× cap. אחרת אחרי המשיכה את על MLL בדיוק = אחד יום רע = blowout.</td>
+      </tr>
+      <tr>
+        <td><strong>היעד הכולל לחודש 12: 25-30 חשבונות בלבד</strong></td>
+        <td>מעבר לזה = מנגנון ניהול נכשל. אי אפשר לעקוב אחרי 56 חשבונות במקביל בעיון. עדיף 25 חשבונות שאת מנהלת מצוין מ-56 שאת מאבדת בהם שליטה.</td>
+      </tr>
+      <tr>
+        <td><strong>Lucid עדיפות עליונה</strong></td>
+        <td>הוא היחיד שלא חוסם אותך עם consistency. עדיפות לסיים את ה-5 funded לפני התרחבות.</td>
+      </tr>
+      <tr>
+        <td><strong>אסור Apex Legacy חדש</strong> (ולא ניתן בכלל)</td>
+        <td>נמכר עד 2026-03-01 בלבד. 4 שיש לך = המקסימום שלך לעולם. כל הוספה = 4.0.</td>
+      </tr>
+      <tr>
+        <td><strong>אל תיגעי ב-Static 300K או Premium 50K נוספים</strong></td>
+        <td>21% / 30% consistency = הסטיל שלך לא יעבור. בזבוז כסף + תסכול.</td>
+      </tr>
+      <tr>
+        <td><strong>שמרי קרן חירום של $5K-$8K</strong></td>
+        <td>החזקה ב-monthly fees + reset/replacement של חשבונות + יכולת לפתוח evals נוספים אחרי שריפה.</td>
+      </tr>
+      <tr>
+        <td><strong>בדיקה חודשית של trading.json</strong></td>
+        <td>וודאי שהbalances תואמים את הברוקרים. אם יש פער = או fee model שגוי, או חשבון שלא עודכן.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══ 8. סיכום ═══ -->
+<div class="section" style="background:#f0fdf4;border-color:#16a34a;">
+  <h2>🎯 סיכום החלטות אסטרטגיות</h2>
+  <div class="grid">
+    <div class="card green"><div class="v">3</div><div class="l">חברות (BluSky/Apex/Lucid)</div></div>
+    <div class="card green"><div class="v">25-30</div><div class="l">חשבונות יציבים בחודש 12</div></div>
+    <div class="card green"><div class="v">50K</div><div class="l">גודל ראשי (15-20 מהם)</div></div>
+    <div class="card green"><div class="v">+1 Static</div><div class="l">200K כעוגן ארוך טווח</div></div>
+    <div class="card green"><div class="v">~$50K-$70K</div><div class="l">נטו חודשי ביציבות</div></div>
+    <div class="card green"><div class="v">12 חודשים</div><div class="l">לפיתוח מלא</div></div>
+    <div class="card green"><div class="v">Lucid First</div><div class="l">העדיפות הראשית</div></div>
+    <div class="card green"><div class="v">Buffer over Min</div><div class="l">בכל החלטה</div></div>
+  </div>
+  <div class="hl">
+    <strong>המסר העיקרי:</strong> 25-30 חשבונות מנוהלים מצוין > 56 חשבונות שאת מאבדת בהם שליטה.
+    <strong>$50K-$70K/חודש נטו ביציבות</strong> זה $600K-$840K לשנה — מעולה לעסק לטווח ארוך,
+    בלי לסכן את הכל ביום אחד.
+  </div>
+</div>
+
+<footer>
+  <p>נבנה ב-2026-05-09 על בסיס 251 עסקאות מ-8 ה-CSVs שלך + ההעדפות שציינת (long-term, buffer, gradual)</p>
+  <p style="margin-top:4px;">ביצועי עבר לא מבטיחים תוצאות עתידיות. מסחר בפיוצ׳רס כרוך בסיכון.</p>
+</footer>
+
+</body>
+</html>
