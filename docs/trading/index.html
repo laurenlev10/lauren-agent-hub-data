@@ -238,6 +238,18 @@ select option{background:#fff;}
 .mll-track{height:12px;background:var(--s2);border-radius:6px;overflow:hidden;border:1px solid var(--bdr);}
 .mll-fill{height:100%;border-radius:6px;transition:width .5s ease;}
 .mll-labels{display:flex;justify-content:space-between;margin-top:6px;font-size:12px;color:var(--txt4);font-weight:600;}
+/* QTY mode zone (position sizing — Lauren's leverage-reduction rule, 2026-05-09) */
+.qty-zone{background:var(--surface);border-left:1.5px solid var(--bdr2);border-right:1.5px solid var(--bdr2);border-top:1.5px solid var(--bdr2);padding:14px 22px;}
+.qty-card{border-radius:14px;padding:12px 16px;border:1.5px solid;display:flex;align-items:center;gap:14px;}
+.qty-card.ok{background:#ecfdf5;border-color:#86efac;}
+.qty-card.reduce{background:#fef3c7;border-color:#fcd34d;}
+.qty-icon{font-size:30px;line-height:1;}
+.qty-text{flex:1;}
+.qty-mode-line{font-size:15px;font-weight:900;color:var(--txt);margin-bottom:4px;}
+.qty-mode-line .qty-num{font-size:22px;color:#0369a1;}
+.qty-mode-line.reduce .qty-num{color:#b45309;}
+.qty-detail{font-size:12px;font-weight:700;color:var(--txt3);direction:rtl;text-align:right;line-height:1.5;}
+.qty-anchor{font-family:var(--m);font-weight:800;color:var(--txt);}
 
 /* ── PAYOUT LADDER ── */
 .payout-ladder{padding:14px 22px;background:var(--surface);border-left:1.5px solid var(--bdr2);border-right:1.5px solid var(--bdr2);border-top:1px dashed var(--bdr);}
@@ -931,6 +943,39 @@ function maxSafeBestDay(ai){
   return tg * cp;
 }
 function cumSim(ai){ return pnl(ai)+(S.accs[ai].tw||0); }
+
+// ════ POSITION SIZING (2026-05-09) ════
+// Lauren's leverage-reduction rule: 2 contracts default, 1 when bal < phaseStart.
+// phaseStartBal is recorded by applyTransition(); fallback = ACCS[i].startBal.
+// For Apex/Lucid, falls back to meta.startBal (no transition modal yet there).
+function phaseStartBal(ai){
+  return (S.accs[ai] && S.accs[ai].phaseStartBal) || ACCS[ai].startBal;
+}
+function qtyMode(ai){
+  // Returns {qty, mode, anchor, deltaFromAnchor, isReduced}
+  const anchor = phaseStartBal(ai);
+  const cur = bal(ai);
+  const delta = cur - anchor;
+  const isReduced = cur < anchor;
+  return {
+    qty: isReduced ? 1 : 2,
+    mode: isReduced ? 'reduced' : 'default',
+    anchor: anchor,
+    delta: delta,
+    isReduced: isReduced
+  };
+}
+// Same logic for Apex/Lucid — accsArr[i].meta.startBal as anchor unless phaseStartBal is set
+function qtyModeFirm(accsArr, i){
+  const aS = accsArr[i];
+  const meta = aS.meta || {};
+  const anchor = aS.phaseStartBal || meta.startBal || 50000;
+  const dList = (aS.days||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const cur = dList.length ? dList[dList.length-1].balance : anchor;
+  const delta = cur - anchor;
+  const isReduced = cur < anchor;
+  return { qty: isReduced ? 1 : 2, mode: isReduced ? 'reduced' : 'default', anchor, delta, isReduced };
+}
 function phL(k){ return PH.find(p=>p.k===k)?.l||k; }
 function phS(k){ return PH.find(p=>p.k===k)?.s||k; }
 // Account number — prefer per-state meta.num override (set when Lauren transitions
@@ -1364,6 +1409,32 @@ function buildAccBlock(i){
     <div class="mll-labels"><span>שרוף ← MLL ${f0(th)} ${acc.isStatic?'(סטטי 🔒)':'(Trailing)'}</span><span>Balance ${f(b)} →</span></div>
   </div>`;
 
+  // ── QTY MODE (2026-05-09) ──
+  // Lauren's rule: 2 contracts default, 1 when balance < phase-start.
+  // Tradeable phases only (eval/blulive/simfunded). Skip for live/brokreview.
+  let qtyPanel = '';
+  if(ph==='eval1' || ph==='blulive' || ph==='simfunded'){
+    const qm = qtyMode(i);
+    const reducedClass = qm.isReduced ? 'reduce' : 'ok';
+    const icon = qm.isReduced ? '📉' : '🟢';
+    const modeText = qm.isReduced
+      ? `מצב מופחת — <span class="qty-num">1</span> חוזה`
+      : `מצב רגיל — <span class="qty-num">2</span> חוזים`;
+    const detailText = qm.isReduced
+      ? `Balance ${f(b)} <b style="color:#b45309;">מתחת</b> ל-Phase Start <span class="qty-anchor">${f(qm.anchor)}</span> (פער ${f(qm.delta,true)}). הבוט צריך להיות מוגדר ל-1 חוזה עד יציאה מהדראודאון.`
+      : `Balance ${f(b)} <b style="color:#15803d;">מעל</b> Phase Start <span class="qty-anchor">${f(qm.anchor)}</span> (פער ${f(qm.delta,true)}). הבוט יכול לרוץ ב-2 חוזים.`;
+    qtyPanel = `
+    <div class="qty-zone">
+      <div class="qty-card ${reducedClass}">
+        <span class="qty-icon">${icon}</span>
+        <div class="qty-text">
+          <div class="qty-mode-line ${reducedClass}">${modeText}</div>
+          <div class="qty-detail">${detailText}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
   // ── PAYOUT LADDER (BluLive → Sim Funded) ──
   let payoutLadder='';
   if(ph==='blulive'||ph==='simfunded'){
@@ -1423,6 +1494,7 @@ function buildAccBlock(i){
 
     ${heroStrip}
     ${mllMeter}
+    ${qtyPanel}
     ${dailyTargetPanel}
 
     <div class="acc-status ${stClass}">
@@ -1814,6 +1886,34 @@ function buildFirmAccBlock(firmKey,i){
   const apexEvalBanner=isApex&&ph==='eval1'?`<div style="background:#fff3e0;border:1.5px solid #f4a460;border-top:none;padding:10px 18px;font-size:14px;font-weight:700;color:#b45309">🤖 ✅ בוט מותר ב-Evaluation · ⏱️ 30 יום לעבור · ללא Consistency</div>`:'';
   const apexPABanner=isApex&&ph==='pa'&&!meta.isLegacy?`<div style="background:var(--red-bg);border:1.5px solid var(--red-mid);border-top:none;padding:10px 18px;font-size:14px;font-weight:700;color:var(--red)">🤖 ❌ בוט אסור ב-PA! | Safety Net: ${safetyReached?'✅':f0(safetyNet-b)+' נותר'} | ${payoutCount}/6 Payouts</div>`:isApex&&ph==='pa'&&meta.isLegacy?`<div style="background:#fef3c7;border:1.5px solid #fcd34d;border-top:none;padding:10px 18px;font-size:14px;font-weight:700;color:#92400e">⚡ LEGACY PA · Intraday Trailing · Consistency 30% · 8 ימים לפני Payout | Safety Net: ${safetyReached?'✅':f0(safetyNet-b)+' נותר'}</div>`:'';;
   const lucidNote=firmKey==='lucid'&&!cp?`<div style="background:var(--grn-bg);border:1.5px solid var(--grn-mid);border-top:none;padding:10px 18px;font-size:14px;font-weight:700;color:var(--grn)">✅ LucidFlex Funded — ללא Consistency</div>`:'';
+
+  // ── QTY MODE FIRM (2026-05-09, position-sizing rule) ──
+  // Lauren: 2 contracts default, 1 when balance < phaseStart. Applies to tradeable phases.
+  // For Apex/Lucid we don't have a transition modal yet — fallback anchor = meta.startBal.
+  let qtyPanelFirm = '';
+  const _tradeable = (ph==='eval1'||ph==='blulive'||ph==='funded'||ph==='pa'||ph==='simfunded'||ph==='lucidlive');
+  if(_tradeable){
+    const qmf = qtyModeFirm(accsArr, i);
+    const reducedClass = qmf.isReduced ? 'reduce' : 'ok';
+    const icon = qmf.isReduced ? '📉' : '🟢';
+    const modeText = qmf.isReduced
+      ? `מצב מופחת — <span class="qty-num">1</span> חוזה`
+      : `מצב רגיל — <span class="qty-num">2</span> חוזים`;
+    const detailText = qmf.isReduced
+      ? `Balance ${f(b)} <b style="color:#b45309;">מתחת</b> ל-Phase Start <span class="qty-anchor">${f(qmf.anchor)}</span> (פער ${f(qmf.delta,true)}). הבוט צריך להיות מוגדר ל-1 חוזה עד יציאה מהדראודאון.`
+      : `Balance ${f(b)} <b style="color:#15803d;">מעל</b> Phase Start <span class="qty-anchor">${f(qmf.anchor)}</span> (פער ${f(qmf.delta,true)}). הבוט יכול לרוץ ב-2 חוזים.`;
+    qtyPanelFirm = `
+    <div class="qty-zone">
+      <div class="qty-card ${reducedClass}">
+        <span class="qty-icon">${icon}</span>
+        <div class="qty-text">
+          <div class="qty-mode-line ${reducedClass}">${modeText}</div>
+          <div class="qty-detail">${detailText}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
   return `
   <div class="acc-block">
     <div class="acc-header-card">
@@ -1835,6 +1935,7 @@ function buildFirmAccBlock(firmKey,i){
     </div>
     <div class="acc-status ${stClass}"><span class="si">${stIcon}</span><div class="acc-status-txt"><div class="acc-status-title">${stTitle}</div><div class="acc-status-body">${stBody}</div></div></div>
     ${apexEvalBanner}${apexPABanner}${lucidNote}
+    ${qtyPanelFirm}
     <div class="prog-zone">
       ${ph==='eval1'?`<div class="prog-item"><div class="prog-top"><span class="prog-lbl">🎯 רווח → יעד ${f0(tg)}</span><span class="prog-num" style="color:${p>=tg?'var(--grn)':'#e05a00'}">${f(p,true)}</span></div><div class="prog-track"><div class="prog-fill" style="width:${evalPct}%;background:${p>=tg?'#16a34a':'#e05a00'}"></div></div><div class="prog-hint">${Math.round(evalPct)}% | מקס' ${maxContracts||'—'} חוזים | DLL: ${f0(dll)}</div></div>`:
       isApex?`<div class="prog-item"><div class="prog-top"><span class="prog-lbl">🏆 Safety Net ${safetyReached?'✅':''}</span><span class="prog-num" style="color:${safetyReached?'var(--grn)':'#e05a00'}">${f(b)} / ${f0(safetyNet)}</span></div><div class="prog-track"><div class="prog-fill" style="width:${snPct}%;background:${safetyReached?'#16a34a':'#e05a00'}"></div></div><div class="prog-hint">${safetyReached?`✅ Safety Net — ${maxContracts} חוזים מלאים!`:`עוד ${f0(safetyNet-b)} | ${Math.floor((maxContracts||4)/2)} חוזים עד Safety Net`}</div></div>`:''}
@@ -2683,6 +2784,11 @@ function applyTransition(){
   aS.days = [];
   aS.tw = 0;
   aS.adj = 0;
+  // 2026-05-09: Record phase-start balance for position-sizing (Lauren's rule:
+  // 2 contracts default, 1 contract when bal < phaseStartBal). New phase starts
+  // at the user-entered start balance (or falls back to acc.startBal).
+  aS.phaseStartBal = +newStartBal.toFixed(2);
+  aS.phaseStartedAt = new Date().toISOString().split('T')[0];
   if(newNumRaw){
     aS.meta = aS.meta || {};
     aS.meta.num = newNumRaw;

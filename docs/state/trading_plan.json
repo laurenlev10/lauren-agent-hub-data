@@ -1,8 +1,8 @@
 {
   "_doc": "Lauren's active 12-month trading plan tracker. Schedule of milestones + progress + daily checklist state.",
-  "_schema_version": 1,
+  "_schema_version": 2,
   "_created_at": "2026-05-09T00:00:00Z",
-  "_updated_at": "2026-05-09T21:09:52.000Z",
+  "_updated_at": "2026-05-09T21:44:01.000Z",
   "plan_id": "realistic_2026-05-09",
   "start_date": "2026-05-09",
   "target_accounts": "25-30",
@@ -274,10 +274,38 @@
     "Maintain $5-8K emergency fund"
   ],
   "daily_limits": {
-    "profit_target": 1000,
-    "loss_limit": -500,
-    "stop_when_hit": true,
-    "_note": "Daily portfolio-wide P&L targets. When crossed in either direction, dashboard shows STOP banner. Lauren can override per-account in future. Computed from sum of today's P&L in trading.json across all accs+apexAccs+lucidAccs.",
+    "_doc": "PROFIT-ONLY daily caps. Lauren operates an external bot with its own target settings. Dashboard recommends optimal caps per-account based on phase + consistency rule. Lauren copies these into her bot config — bot stops autonomously when hit.",
+    "stop_only_on_profit": true,
+    "loss_limit_disabled": true,
+    "_loss_limit_note": "Lauren 2026-05-09: 'לא אכפת לי לשרוף את התיק... אני לא רוצה להפריע לסטטיסטיקה'. Bot strategy intentionally accepts drawdown — drawdown failures are accepted cost. Only firm-imposed DLL/MLL applies.",
+    "per_account_recommended": {
+      "blusky_0_eval1": 1800,
+      "blusky_0_blulive": 900,
+      "blusky_1_eval1": 900,
+      "blusky_1_blulive": 900,
+      "blusky_2_eval1": 1500,
+      "blusky_2_blulive": 900,
+      "blusky_3_eval1": 1500,
+      "blusky_3_blulive": 900,
+      "apex_legacy_pa": 600,
+      "apex_4_eod_pa": 1000,
+      "apex_4_eod_eval": 1500,
+      "lucid_eval": 1500,
+      "lucid_funded": 450
+    },
+    "per_account_set": {},
     "stopped_dates": []
+  },
+  "position_sizing": {
+    "_doc": "Lauren's leverage-reduction rule. Default 2 contracts per trade. When account drops below phase_start_balance (start of current phase: eval/blulive/funded), reduce to 1 contract. Bot enforces autonomously per-account. This is RULE-BASED risk management (fractional Kelly), NOT psychological intervention.",
+    "default_qty": 2,
+    "reduced_qty": 1,
+    "trigger_condition": "balance < phase_start_balance",
+    "_phase_start_definition": "Balance at start of CURRENT phase. For eval = balance when bought eval; for blulive = balance when transitioned from eval1; for simfunded = balance when transitioned from blulive. Recorded automatically by applyTransition(). For pre-existing accounts, dashboard falls back to acc.startBal (e.g., $50K, $100K, $200K).",
+    "lauren_quote_2026_05_09": "בחשבונות האלו המקסימום שאני יכולה להפסיד זה 100 דולר אז זה הגיוני... כל חשבון מתחיל עם 2 חוזים בהתחלה שלו אבל אם הוא נכנס לדראו דאון מתחת לנקודת הפתיחה יורדים לחוזה אחד",
+    "rationale": "Drawdown-adjusted position sizing. When account is in a winning state (bal >= phase_start), full leverage. When drawing down (bal < phase_start), halve leverage to slow burn. Bot strategy stats remain coherent — same strategy, just scaled by 0.5x in the loss-recovery zone.",
+    "per_account_overrides": {
+      "_note": "If a specific account needs different qty values (e.g., 100K Apex 4.0 might use 4/2 instead of 2/1), override here. Empty by default — fall back to default_qty/reduced_qty."
+    }
   }
 }
