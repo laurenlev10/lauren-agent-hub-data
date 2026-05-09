@@ -272,6 +272,15 @@ select option{background:#fff;}
 .firm-btn.blusky.active{background:var(--sky);}
 .firm-btn.apex.active  {background:#e05a00;}
 .firm-btn.lucid.active {background:#7c3aed;}
+
+/* ── CLOUD SYNC PILL (added 2026-05-08) ────────────────────────────────────── */
+.cloud-pill{font-family:var(--f);font-size:14px;font-weight:800;border:1.5px solid var(--bdr);border-radius:12px;padding:10px 14px;cursor:pointer;transition:all .15s;background:var(--surface);color:var(--txt3);}
+.cloud-pill:hover{transform:translateY(-1px);box-shadow:var(--sh);}
+.cloud-pill.synced  {background:#dcfce7;color:#166534;border-color:#86efac;}
+.cloud-pill.syncing {background:#fef3c7;color:#92400e;border-color:#fcd34d;}
+.cloud-pill.offline {background:#f4f6f9;color:#4b5563;border-color:#d2daea;}
+.cloud-pill.error   {background:#fee2e2;color:#991b1b;border-color:#fca5a5;}
+
 </style>
 </head>
 <body>
@@ -297,8 +306,10 @@ select option{background:#fff;}
       <button class="firm-btn lucid"         onclick="switchFirm('lucid')">💎 Lucid</button>
     </div>
     <div class="clock" id="clock">...</div>
+    <button class="cloud-pill offline" id="cloud-pill" type="button" title="לחצי לסנכרן עם GitHub" onclick="cloudPillClick()">☁ Cloud: …</button>
     <button class="btn-secondary" onclick="generateAll()">🔄 נתח מחדש</button>
     <button onclick="seedFromScreenshots()" style="background:none;color:var(--txt3);border:1.5px solid var(--bdr);border-radius:12px;padding:10px 16px;font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='var(--sky)'" onmouseout="this.style.borderColor='var(--bdr)'">↩ איפוס</button>
+    <button class="btn-secondary" onclick="openCsvModal()" style="border-color:var(--pur);color:var(--pur);">📂 ייבוא CSV</button>
     <button class="btn-primary" onclick="openModal()">+ עדכון יומי</button>
   </div>
 </div>
@@ -321,6 +332,34 @@ select option{background:#fff;}
 </div>
 
 </div><!-- /page -->
+
+<!-- ═══ CSV IMPORT MODAL ═══ -->
+<div id="csv-modal-overlay" onclick="closeCsvModal()" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:90;"></div>
+<div id="csv-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border-radius:16px;padding:28px;width:min(720px,92vw);max-height:85vh;overflow-y:auto;box-shadow:var(--sh2);z-index:91;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid var(--bdr2);">
+    <div style="font-size:22px;font-weight:900;color:var(--pur);">📂 ייבוא CSV מ-Tradovate</div>
+    <button onclick="closeCsvModal()" style="background:none;border:none;font-size:22px;color:var(--txt3);cursor:pointer;line-height:1;">✕</button>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:14px;">
+    <div>
+      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">בחרי חשבון:</label>
+      <select id="csv-account" style="width:100%;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--f);font-size:15px;font-weight:700;background:var(--s2);"></select>
+    </div>
+    <div>
+      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">קובץ CSV מ-Tradovate (Performance.csv):</label>
+      <input type="file" id="csv-file" accept=".csv,text/csv" style="width:100%;padding:8px;border:1.5px dashed var(--bdr);border-radius:10px;font-family:var(--f);font-size:14px;background:var(--s2);" />
+    </div>
+    <div>
+      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">עמלה לעסקה ($) — ברירת מחדל $2.20:</label>
+      <input type="number" id="csv-fee" value="2.20" step="0.10" style="width:140px;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--f);font-size:15px;font-weight:700;background:var(--s2);" />
+    </div>
+    <div id="csv-preview" style="background:var(--s2);border-radius:10px;padding:14px;font-size:13px;color:var(--txt3);min-height:60px;direction:rtl;">העלי קובץ CSV כדי לראות תצוגה מקדימה</div>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:18px;padding-top:14px;border-top:2px solid var(--bdr2);">
+    <button class="btn-cancel" onclick="closeCsvModal()" style="background:none;border:1.5px solid var(--bdr);border-radius:12px;padding:11px 20px;font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;color:var(--txt3);">ביטול</button>
+    <button id="csv-apply" onclick="applyCsv()" disabled style="flex:1;background:var(--pur);color:#fff;border:none;border-radius:12px;padding:12px 24px;font-family:var(--f);font-size:16px;font-weight:800;cursor:pointer;opacity:0.5;">💾 החל על החשבון</button>
+  </div>
+</div>
 
 <!-- ═══ MODAL ═══ -->
 <div id="modal-overlay" onclick="closeModal()"></div>
@@ -502,12 +541,111 @@ function mkState() {
   insights:null, insDate:null };
 }
 let S = mkState();
-function save(){ try{localStorage.setItem('bst24',JSON.stringify(S));}catch(e){} }
+function save(){
+  try{localStorage.setItem('bst24',JSON.stringify(S));}catch(e){}
+  try{ if(window.TradingCloudSync) window.TradingCloudSync.scheduleSave(); }catch(e){}
+}
 function load(){
   try{ const d=localStorage.getItem('bst24');
     if(d){ const p=JSON.parse(d); S={...mkState(),...p};
       if(!S.accs||S.accs.length<4) S.accs=mkState().accs; }
   }catch(e){}
+}
+
+// ════════════ CLOUD SYNC (added 2026-05-08) ════════════
+// Saves S → docs/state/trading.json via GitHub Contents API on every change
+// (debounced). Token shared with all other dashboards via lauren_gh_token_v1.
+window.TradingCloudSync = (function(){
+  const OWNER='laurenlev10', REPO='lauren-agent-hub-data', BRANCH='main';
+  const PATH='docs/state/trading.json', TOKEN_KEY='lauren_gh_token_v1';
+  const DEBOUNCE_MS=2000;
+  let currentSha=null, saveTimer=null, saving=false, savePending=false;
+
+  function getToken(){ try{return localStorage.getItem(TOKEN_KEY)||'';}catch(e){return '';} }
+  function setToken(t){ try{ if(t) localStorage.setItem(TOKEN_KEY,t); else localStorage.removeItem(TOKEN_KEY);}catch(e){} }
+  function hasToken(){ return !!getToken(); }
+  function b64encode(s){ return btoa(unescape(encodeURIComponent(s))); }
+  function b64decode(s){ return decodeURIComponent(escape(atob((s||'').replace(/\s/g,'')))); }
+
+  function setPill(state, label){
+    const el=document.getElementById('cloud-pill');
+    if(!el) return;
+    el.classList.remove('synced','syncing','offline','error');
+    el.classList.add(state);
+    el.textContent=label;
+  }
+
+  async function apiGet(){
+    const url='https://api.github.com/repos/'+OWNER+'/'+REPO+'/contents/'+PATH+'?ref='+BRANCH+'&_='+Date.now();
+    const headers={'Accept':'application/vnd.github+json'};
+    const t=getToken(); if(t) headers['Authorization']='Bearer '+t;
+    const res=await fetch(url,{headers,cache:'no-store'});
+    if(res.status===404) return {data:null,sha:null};
+    if(!res.ok) throw new Error('GET '+res.status);
+    const j=await res.json();
+    let data=null; try{data=JSON.parse(b64decode(j.content));}catch(e){}
+    return {data, sha:j.sha};
+  }
+
+  async function apiPut(data, sha, msg){
+    const t=getToken(); if(!t) throw new Error('no token');
+    const url='https://api.github.com/repos/'+OWNER+'/'+REPO+'/contents/'+PATH;
+    const body={message:msg||'Update trading.json from dashboard',
+                content:b64encode(JSON.stringify(data,null,2)+'\n'),branch:BRANCH};
+    if(sha) body.sha=sha;
+    const res=await fetch(url,{method:'PUT',headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+t,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!res.ok){ const txt=await res.text(); const e=new Error('PUT '+res.status+': '+txt.slice(0,200)); e.status=res.status; throw e; }
+    const j=await res.json(); return j.content && j.content.sha;
+  }
+
+  function getDataForSave(){
+    return {
+      _doc: 'Trading dashboard state (cloud-synced via /trading/ UI).',
+      _schema_version: 1,
+      _updated_at: new Date().toISOString(),
+      accs: S.accs, apexAccs: S.apexAccs||[], lucidAccs: S.lucidAccs||[],
+      insights: S.insights||null, insDate: S.insDate||null
+    };
+  }
+
+  async function doSave(){
+    if(!hasToken()){ setPill('offline','☁ Sync: off'); return; }
+    if(saving){ savePending=true; return; }
+    saving=true; setPill('syncing','☁ Syncing…');
+    try{
+      const payload=getDataForSave();
+      try{ currentSha=await apiPut(payload,currentSha); }
+      catch(e){ if(e.status===409||e.status===422){ const fresh=await apiGet(); currentSha=await apiPut(payload,fresh.sha); } else { throw e; } }
+      setPill('synced','☁ Synced');
+    }catch(e){ console.warn('[TradingCloudSync] save:', e); setPill('error','☁ Error'); }
+    finally{ saving=false; if(savePending){ savePending=false; setTimeout(doSave,0); } }
+  }
+
+  function scheduleSave(){
+    if(saveTimer) clearTimeout(saveTimer);
+    saveTimer=setTimeout(doSave, DEBOUNCE_MS);
+  }
+
+  function promptForToken(){
+    const m='כדי לסנכרן בין כל המכשירים, נדרש GitHub Token (פעם אחת בלבד).\n\nאם אין לך — צרי כאן:\nhttps://github.com/settings/tokens/new?scopes=repo&description=Lauren+Trading+Sync\n\nהדביקי כאן (מתחיל ב-ghp_):';
+    const t=prompt(m,''); if(t && t.trim().startsWith('ghp_')){ setToken(t.trim()); return t.trim(); } return '';
+  }
+
+  // Init: fetch current sha so PUT is well-formed
+  apiGet().then(function(r){ currentSha=r.sha; setPill(hasToken()?'synced':'offline', hasToken()?'☁ Synced':'☁ Sync: off'); })
+          .catch(function(){ setPill('offline','☁ Offline'); });
+
+  return { scheduleSave, promptForToken, setToken, getToken, hasToken };
+})();
+
+// Wire the cloud-pill click — prompt for token if missing, otherwise force a sync now.
+function cloudPillClick(){
+  if(!window.TradingCloudSync.hasToken()){
+    const t=window.TradingCloudSync.promptForToken();
+    if(t){ window.TradingCloudSync.scheduleSave(); }
+  } else {
+    window.TradingCloudSync.scheduleSave();
+  }
 }
 
 // ════════════ COMPUTED ════════════
@@ -1475,9 +1613,192 @@ function seedFromScreenshots(){
   alert('✅ נתוני קלנדר אפריל 2026 נטענו!\n\n200K PROPEL: 11 ימים | Balance $'+b0.toFixed(2)+'\n50K PROPEL: 10 ימים | Balance $'+b1.toFixed(2)+'\n50K LAUNCH: 4 ימים | Balance $'+b2.toFixed(2));
 }
 
+// ════════════ CSV IMPORT (added 2026-05-08) ════════════
+let csvParsedDays = null;       // last parsed days array
+let csvSelectedAcc = null;      // which account it's for: {bucket:'accs'|'apexAccs'|'lucidAccs', idx:0..3}
+
+function csvAccountOptions(){
+  const opts = [];
+  // BluSky (S.accs) — uses ACCS metadata for names
+  ACCS.forEach(function(a, i){
+    opts.push({val:'accs:'+i, label:'🏦 '+a.name+' — '+a.num, bucket:'accs', idx:i});
+  });
+  // Apex (S.apexAccs) — meta on each entry
+  (S.apexAccs||[]).forEach(function(a, i){
+    const m = a.meta || {};
+    opts.push({val:'apexAccs:'+i, label:'⚡ '+(m.name||'Apex '+(i+1))+' — '+(m.num||''), bucket:'apexAccs', idx:i});
+  });
+  // Lucid (S.lucidAccs)
+  (S.lucidAccs||[]).forEach(function(a, i){
+    const m = a.meta || {};
+    opts.push({val:'lucidAccs:'+i, label:'💎 '+(m.name||'Lucid '+(i+1))+' — '+(m.num||''), bucket:'lucidAccs', idx:i});
+  });
+  return opts;
+}
+
+function openCsvModal(){
+  // Populate account dropdown freshly each open
+  const sel = document.getElementById('csv-account');
+  sel.innerHTML = '';
+  csvAccountOptions().forEach(function(o){
+    const opt = document.createElement('option');
+    opt.value = o.val; opt.textContent = o.label;
+    sel.appendChild(opt);
+  });
+  document.getElementById('csv-file').value = '';
+  document.getElementById('csv-fee').value = '2.20';
+  document.getElementById('csv-preview').textContent = 'העלי קובץ CSV כדי לראות תצוגה מקדימה';
+  document.getElementById('csv-apply').disabled = true;
+  document.getElementById('csv-apply').style.opacity = '0.5';
+  csvParsedDays = null;
+  document.getElementById('csv-modal-overlay').style.display = 'block';
+  document.getElementById('csv-modal').style.display = 'block';
+}
+function closeCsvModal(){
+  document.getElementById('csv-modal-overlay').style.display = 'none';
+  document.getElementById('csv-modal').style.display = 'none';
+}
+
+function parseCsv(text, fee){
+  // Tradovate CSV: symbol,_priceFormat,...,qty,buyPrice,sellPrice,pnl,boughtTimestamp,soldTimestamp,duration
+  const lines = text.split(/\r?\n/).filter(function(x){ return x.trim(); });
+  if(lines.length < 2) throw new Error('הקובץ ריק או לא תקין');
+  const header = lines[0].split(',').map(function(h){ return h.trim(); });
+  const idx = {
+    pnl: header.indexOf('pnl'),
+    sold: header.indexOf('soldTimestamp'),
+    qty: header.indexOf('qty')
+  };
+  if(idx.pnl<0 || idx.sold<0) throw new Error('חסרות עמודות pnl/soldTimestamp — האם זה Performance.csv מ-Tradovate?');
+
+  const byDate = {};
+  for(let i=1; i<lines.length; i++){
+    // CSV row may have commas inside quoted strings, but Tradovate's format is simple — split on `,`
+    const cells = lines[i].split(',');
+    const pnlS = (cells[idx.pnl] || '').replace(/[$,\s]/g, '');
+    const neg = pnlS.indexOf('(') >= 0;
+    const num = parseFloat(pnlS.replace(/[()]/g,'')) || 0;
+    const pnl = neg ? -num : num;
+    const sold = cells[idx.sold] || '';
+    const m = sold.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if(!m) continue;
+    const date = m[3] + '-' + m[1].padStart(2,'0') + '-' + m[2].padStart(2,'0');
+    if(!byDate[date]) byDate[date] = {gross:0, count:0};
+    byDate[date].gross += pnl;
+    byDate[date].count += 1;
+  }
+  const days = [];
+  Object.keys(byDate).sort().forEach(function(date){
+    const d = byDate[date];
+    const fees = d.count * fee;
+    const net = +(d.gross - fees).toFixed(2);
+    days.push({date:date, pnl:net, _trades:d.count, _gross:+d.gross.toFixed(2), _fees:+fees.toFixed(2)});
+  });
+  return days;
+}
+
+function recomputeBalances(existingDays, newDays, startBal){
+  // Replace any existing date that exists in newDays; keep the rest
+  const newDates = new Set(newDays.map(function(d){ return d.date; }));
+  const kept = (existingDays||[]).filter(function(d){ return !newDates.has(d.date); });
+  const merged = kept.concat(newDays.map(function(d){ return {date:d.date, pnl:d.pnl}; }))
+                     .sort(function(a,b){ return a.date.localeCompare(b.date); });
+  let bal = startBal;
+  return merged.map(function(d){
+    bal = +(bal + d.pnl).toFixed(2);
+    return {date:d.date, pnl:d.pnl, balance:bal};
+  });
+}
+
+document.addEventListener('change', function(e){
+  if(e.target && e.target.id === 'csv-file'){
+    const f = e.target.files[0]; if(!f) return;
+    const fee = parseFloat(document.getElementById('csv-fee').value) || 2.20;
+    const reader = new FileReader();
+    reader.onload = function(ev){
+      try{
+        const days = parseCsv(ev.target.result, fee);
+        csvParsedDays = days;
+        const total = days.reduce(function(s,d){return s+d.pnl;},0);
+        let html = '<div style="font-weight:800;color:var(--txt);margin-bottom:8px;">תצוגה מקדימה: '+days.length+' ימים, סה"כ Net <span style="color:'+(total>=0?'var(--grn)':'var(--red)')+';">$'+total.toFixed(2)+'</span></div>';
+        html += '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--bdr);border-radius:6px;background:#fff;">';
+        html += '<table style="width:100%;font-size:12px;border-collapse:collapse;">';
+        html += '<thead style="background:var(--s3);"><tr><th style="padding:6px 8px;text-align:right">תאריך</th><th style="padding:6px 8px;text-align:right">עסקאות</th><th style="padding:6px 8px;text-align:right">Gross</th><th style="padding:6px 8px;text-align:right">Fees</th><th style="padding:6px 8px;text-align:right">Net</th></tr></thead><tbody>';
+        days.forEach(function(d){
+          html += '<tr style="border-top:1px solid var(--bdr2)"><td style="padding:5px 8px;font-weight:700">'+d.date+'</td>';
+          html += '<td style="padding:5px 8px">'+d._trades+'</td>';
+          html += '<td style="padding:5px 8px;color:'+(d._gross>=0?'var(--grn)':'var(--red)')+'">$'+d._gross.toFixed(2)+'</td>';
+          html += '<td style="padding:5px 8px;color:var(--txt4)">$'+d._fees.toFixed(2)+'</td>';
+          html += '<td style="padding:5px 8px;font-weight:800;color:'+(d.pnl>=0?'var(--grn)':'var(--red)')+'">$'+d.pnl.toFixed(2)+'</td></tr>';
+        });
+        html += '</tbody></table></div>';
+        document.getElementById('csv-preview').innerHTML = html;
+        document.getElementById('csv-apply').disabled = false;
+        document.getElementById('csv-apply').style.opacity = '1';
+      }catch(err){
+        document.getElementById('csv-preview').innerHTML = '<span style="color:var(--red);font-weight:700">⚠ '+err.message+'</span>';
+        csvParsedDays = null;
+        document.getElementById('csv-apply').disabled = true;
+        document.getElementById('csv-apply').style.opacity = '0.5';
+      }
+    };
+    reader.readAsText(f, 'utf-8');
+  }
+});
+
+function applyCsv(){
+  if(!csvParsedDays || !csvParsedDays.length){ alert('אין נתונים לייבוא'); return; }
+  const sel = document.getElementById('csv-account').value;  // 'accs:2', 'apexAccs:0', etc.
+  const m = sel.split(':');
+  const bucket = m[0], idx = parseInt(m[1],10);
+  const acc = (S[bucket]||[])[idx];
+  if(!acc){ alert('חשבון לא נמצא'); return; }
+
+  let startBal;
+  if(bucket === 'accs') startBal = ACCS[idx].startBal;
+  else if(acc.meta && acc.meta.startBal) startBal = acc.meta.startBal;
+  else startBal = 50000;
+
+  const newDays = recomputeBalances(acc.days, csvParsedDays, startBal);
+  acc.days = newDays;
+  save();             // writes localStorage + schedules cloud sync
+  closeCsvModal();
+  try{ renderAll(); }catch(e){}
+  const accLbl = (bucket==='accs') ? ACCS[idx].name : (acc.meta && acc.meta.name) || sel;
+  alert('✅ עודכן '+accLbl+'\n\n'+csvParsedDays.length+' ימים נכנסו לחשבון.\nSync לענן יקרה תוך 2 שניות.');
+}
+
 // ════════════ INIT ════════════
-load();
-// If no data yet → seed from screenshots automatically
+load();  // localStorage cache (fast, sync)
+
+// 🌐 CLOUD STATE — JSON wins (Lauren 2026-05-08: 'הכל חייב להיות בגיט האב')
+// Fetches docs/state/trading.json on every page load; overrides localStorage
+// if successful. Falls back silently to localStorage/seed if offline/404.
+(function loadFromCloud(){
+  const url = '../state/trading.json?_=' + Date.now();
+  fetch(url, {cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(remote){
+      if(!remote || !Array.isArray(remote.accs)) return;
+      // Clone the remote into S, preserving any keys mkState expects
+      S.accs      = remote.accs;
+      S.apexAccs  = remote.apexAccs  || [];
+      S.lucidAccs = remote.lucidAccs || [];
+      if(remote.insights) S.insights = remote.insights;
+      if(remote.insDate)  S.insDate  = remote.insDate;
+      save();                       // cache locally
+      try { renderAll(); } catch(e){} // re-render with cloud data
+      const pill = document.getElementById('cloud-pill');
+      if(pill){ pill.className='cloud-pill synced'; pill.textContent='☁ Synced'; }
+    })
+    .catch(function(err){
+      console.warn('[trading] cloud load failed:', err.message);
+      const pill = document.getElementById('cloud-pill');
+      if(pill){ pill.className='cloud-pill offline'; pill.textContent='☁ Offline'; }
+    });
+})();
+
+// If no localStorage data yet → auto-seed from screenshots (fallback for very first load)
 if(!S.accs[0].days?.length && !S.accs[1].days?.length && !S.accs[2].days?.length){
   // auto-seed — מנתוני קלנדר BluSky אפריל 2026
   // 200K PROPEL Phase 1 — נתוני CSV מדויקים (Performance__12_.csv)
