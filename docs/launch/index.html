@@ -1439,7 +1439,10 @@ End date: </div>
                    +  ' style="background:linear-gradient(180deg,#0ea5e9,#0369a1);font-family:monospace">📲 …' + fidShort + '</a>';
           } else {
             // Pull-this-one button — copies a Cowork command to scrape just this event's form_id
-            const pullPayload = JSON.stringify({mode:"form-id-pull-one", city:_evCity, state:_evState, year:_evYear, start:ev.start_date, end:ev.end_date, evKey: evKey}).replace(/"/g, "&quot;");
+            const _city = (ev.city || "").trim();
+            const _state = (ev.state || "").trim();
+            const _year = (ev.start_date || "").slice(0, 4);
+            const pullPayload = JSON.stringify({mode:"form-id-pull-one", city:_city, state:_state, year:_year, start:ev.start_date, end:ev.end_date, evKey: evKey}).replace(/"/g, "&quot;");
             rowBtn += '<button class="btn-add-chip" data-partial="' + pullPayload + '" title="Copy a Cowork command to scrape this event\'s SimpleTexting webFormId">📲 + Pull form_id</button>';
           }
 
