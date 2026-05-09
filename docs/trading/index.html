@@ -617,7 +617,10 @@ function mkState() {
 }
 let S = mkState();
 function save(){
-  try{localStorage.setItem('bst24',JSON.stringify(S));}catch(e){}
+  try{
+    S._localUpdatedAt = new Date().toISOString();   // stamp for race-condition guard
+    localStorage.setItem('bst24', JSON.stringify(S));
+  }catch(e){}
   try{ if(window.TradingCloudSync) window.TradingCloudSync.scheduleSave(); }catch(e){}
 }
 function load(){
@@ -2180,7 +2183,28 @@ load();  // localStorage cache (fast, sync)
     .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
     .then(function(remote){
       if(!remote || !Array.isArray(remote.accs)) return;
-      // Clone the remote into S, preserving any keys mkState expects
+      // Race-condition fix (2026-05-09): if localStorage was updated AFTER the
+      // cloud snapshot was written, prefer localStorage. This protects fresh
+      // CSV uploads / manual edits from being overwritten by a stale cloud
+      // copy when the user refreshes before the 2-second debounced cloud
+      // save has fired.
+      try{
+        const localStr = localStorage.getItem('bst24');
+        if(localStr){
+          const local = JSON.parse(localStr);
+          const remoteTs = remote._updated_at ? new Date(remote._updated_at).getTime() : 0;
+          const localTs  = local._localUpdatedAt ? new Date(local._localUpdatedAt).getTime() : 0;
+          if(localTs > remoteTs && local.accs && local.accs.length === 4){
+            console.log('[trading] localStorage is newer than cloud — keeping local');
+            const pill = document.getElementById('cloud-pill');
+            if(pill){ pill.className='cloud-pill syncing'; pill.textContent='☁ Pending push'; }
+            // Trigger a cloud save so they converge soon
+            try{ if(window.TradingCloudSync) window.TradingCloudSync.scheduleSave(); }catch(e){}
+            return;
+          }
+        }
+      }catch(e){}
+      // Cloud is the winner — clone into S
       S.accs      = remote.accs;
       S.apexAccs  = remote.apexAccs  || [];
       S.lucidAccs = remote.lucidAccs || [];
