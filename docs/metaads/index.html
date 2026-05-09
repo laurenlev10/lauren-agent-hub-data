@@ -43,11 +43,11 @@
 
   <div class="card">
     <h2>הרצה לאירוע</h2>
-    <label>עיר</label><input id="f-city" placeholder="Burbank">
     <div class="row">
-      <div><label>כתובת אירוע</label><input id="f-address" placeholder="2500 N Hollywood Way, Burbank, CA 91505"></div>
+      <div><label>עיר</label><input id="f-city" placeholder="Burbank"></div>
       <div><label>ST</label><input id="f-state" placeholder="CA" maxlength="2" style="text-transform:uppercase"></div>
     </div>
+    <label>כתובת אירוע</label><input id="f-address" placeholder="2500 N Hollywood Way, Burbank, CA 91505">
     <label>שם המלון / venue</label><input id="f-venue" placeholder="Marriott Burbank Airport">
     <div class="row3">
       <div><label>תאריך התחלה (יום שישי)</label><input id="f-start" type="date"></div>
@@ -86,59 +86,90 @@ const RECENT = []; // appended by the agent after each run
 
 <script>
 (function(){
-  // URL pre-fill
+  // URL pre-fill — handle launch_dashboard's combined "City, ST" convention
   const params = new URLSearchParams(location.search);
-  const set = (id,k)=>{ const v=params.get(k); if(v!=null) document.getElementById(id).value=v; };
-  set("f-city","city"); set("f-state","state"); set("f-start","start_date"); set("f-end","end_date");
-  set("f-venue","venue"); set("f-address","address"); set("f-radius","radius_miles");
+  const get = (k) => params.get(k);
+
+  // launch_dashboard.html sends `city=<City>, <ST>` (combined). If that's the case,
+  // split on a trailing 2-letter state token and put each piece in its own input.
+  // Otherwise, fall back to separate `city` + `state` params (which our own form's
+  // Copy-command also produces, so re-runs are clean).
+  const rawCity = get("city");
+  const rawState = get("state");
+  if (rawCity != null) {
+    const m = rawCity.match(/^(.*?)[,\s]+([A-Za-z]{2})\s*$/);
+    if (m && !rawState) {
+      document.getElementById("f-city").value = m[1].trim();
+      document.getElementById("f-state").value = m[2].toUpperCase();
+    } else {
+      document.getElementById("f-city").value = rawCity.trim();
+      if (rawState != null) document.getElementById("f-state").value = rawState.toUpperCase();
+    }
+  } else if (rawState != null) {
+    document.getElementById("f-state").value = rawState.toUpperCase();
+  }
+
+  const setIf = (id, k) => { const v = get(k); if (v != null) document.getElementById(id).value = v; };
+  setIf("f-start", "start_date"); setIf("f-end", "end_date");
+  setIf("f-venue", "venue"); setIf("f-address", "address"); setIf("f-radius", "radius_miles");
 
   // Templates from localStorage
   const LSK = "lauren_metaads_templates_v1";
-  try{
-    const t = JSON.parse(localStorage.getItem(LSK)||"{}");
-    if(t.en_a) document.getElementById("t-en-a").value=t.en_a;
-    if(t.en_b) document.getElementById("t-en-b").value=t.en_b;
-    if(t.es)   document.getElementById("t-es").value=t.es;
-  }catch(e){}
-  function saveTemplates(){
+  try {
+    const t = JSON.parse(localStorage.getItem(LSK) || "{}");
+    if (t.en_a) document.getElementById("t-en-a").value = t.en_a;
+    if (t.en_b) document.getElementById("t-en-b").value = t.en_b;
+    if (t.es)   document.getElementById("t-es").value = t.es;
+  } catch (e) {}
+  function saveTemplates() {
     localStorage.setItem(LSK, JSON.stringify({
       en_a: document.getElementById("t-en-a").value.trim(),
       en_b: document.getElementById("t-en-b").value.trim(),
       es:   document.getElementById("t-es").value.trim()
     }));
   }
-  ["t-en-a","t-en-b","t-es"].forEach(id=>document.getElementById(id).addEventListener("input", saveTemplates));
+  ["t-en-a", "t-en-b", "t-es"].forEach(id => document.getElementById(id).addEventListener("input", saveTemplates));
 
   // Build command
-  function buildCmd(){
-    const city=document.getElementById("f-city").value.trim();
-    const state=document.getElementById("f-state").value.trim().toUpperCase();
-    const venue=document.getElementById("f-venue").value.trim();
-    const address=document.getElementById("f-address").value.trim();
-    const start=document.getElementById("f-start").value;
-    const end=document.getElementById("f-end").value;
-    const radius=document.getElementById("f-radius").value || "10";
-    return "Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\meta-campaigns\\SKILL.md` — orchestrator for @metaads.\n\nEvent inputs:\n- city: "+city+"\n- state: "+state+"\n- venue: "+venue+"\n- address: "+address+"\n- start_date: "+start+"\n- end_date: "+end+"\n- radius_miles: "+radius;
+  function buildCmd() {
+    const city = document.getElementById("f-city").value.trim();
+    const state = document.getElementById("f-state").value.trim().toUpperCase();
+    const venue = document.getElementById("f-venue").value.trim();
+    const address = document.getElementById("f-address").value.trim();
+    const start = document.getElementById("f-start").value;
+    const end = document.getElementById("f-end").value;
+    const radius = document.getElementById("f-radius").value || "10";
+    return "Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\meta-campaigns\\SKILL.md` — orchestrator for @metaads.\n\nEvent inputs:\n- city: " + city + "\n- state: " + state + "\n- venue: " + venue + "\n- address: " + address + "\n- start_date: " + start + "\n- end_date: " + end + "\n- radius_miles: " + radius;
   }
-  function refreshPreview(){ document.getElementById("preview").textContent = buildCmd(); }
-  ["f-city","f-state","f-venue","f-address","f-start","f-end","f-radius"].forEach(id=>document.getElementById(id).addEventListener("input", refreshPreview));
+  function refreshPreview() { document.getElementById("preview").textContent = buildCmd(); }
+  ["f-city", "f-state", "f-venue", "f-address", "f-start", "f-end", "f-radius"].forEach(id => document.getElementById(id).addEventListener("input", refreshPreview));
   refreshPreview();
 
   // Copy
   const btn = document.getElementById("copy-btn");
-  btn.addEventListener("click", async ()=>{
+  btn.addEventListener("click", async () => {
     const cmd = buildCmd();
-    try{ await navigator.clipboard.writeText(cmd); btn.textContent="✓ הועתק — הדביקי ב-Cowork"; btn.classList.add("copied"); setTimeout(()=>{ btn.textContent="📋 העתיקי פקודה ל-Cowork"; btn.classList.remove("copied"); },2500); }
-    catch(e){ const ta=document.createElement("textarea"); ta.value=cmd; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); btn.textContent="✓ הועתק (fallback)"; setTimeout(()=>{ btn.textContent="📋 העתיקי פקודה ל-Cowork"; },2500); }
+    try {
+      await navigator.clipboard.writeText(cmd);
+      btn.textContent = "✓ הועתק — הדביקי ב-Cowork";
+      btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = "📋 העתיקי פקודה ל-Cowork"; btn.classList.remove("copied"); }, 2500);
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = cmd;
+      document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+      btn.textContent = "✓ הועתק (fallback)";
+      setTimeout(() => { btn.textContent = "📋 העתיקי פקודה ל-Cowork"; }, 2500);
+    }
   });
 
   // Recent runs render
-  const tbody=document.getElementById("recent-body");
-  if(RECENT && RECENT.length){
-    tbody.innerHTML = RECENT.slice().reverse().map(r=>{
-      const links = (r.urls||[]).map(u=>'<a href="'+u.url+'" target="_blank" rel="noopener">'+u.label+'</a>').join(" · ");
-      const pill = r.status==="ok" ? '<span class="pill ok">✓</span>' : (r.status==="skip" ? '<span class="pill skip">⏭</span>' : '<span class="pill err">⚠</span>');
-      return "<tr><td>"+(r.date||"—")+"</td><td>"+(r.event||"—")+"</td><td>"+pill+"</td><td>"+(links||"—")+"</td></tr>";
+  const tbody = document.getElementById("recent-body");
+  if (RECENT && RECENT.length) {
+    tbody.innerHTML = RECENT.slice().reverse().map(r => {
+      const links = (r.urls || []).map(u => '<a href="' + u.url + '" target="_blank" rel="noopener">' + u.label + '</a>').join(" · ");
+      const pill = r.status === "ok" ? '<span class="pill ok">✓</span>' : (r.status === "skip" ? '<span class="pill skip">⏭</span>' : '<span class="pill err">⚠</span>');
+      return "<tr><td>" + (r.date || "—") + "</td><td>" + (r.event || "—") + "</td><td>" + pill + "</td><td>" + (links || "—") + "</td></tr>";
     }).join("");
   }
 })();
