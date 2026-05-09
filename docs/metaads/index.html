@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>📘 META CAMPAIGNS · Lauren Agent Hub</title>
+<style>
+  :root{--bg:#f6f7fb;--card:#fff;--border:#e5e7eb;--text:#1f2937;--muted:#6b7280;--meta:#1f2937;--meta-accent:#1877f2;--ok:#16a34a;--warn:#b45309;--err:#dc2626}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.55}
+  .wrap{max-width:760px;margin:0 auto;padding:24px 18px 80px}
+  .top{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  .top a{color:var(--muted);text-decoration:none;font-size:13px}
+  h1{font-size:24px;margin:0 0 6px;display:flex;align-items:center;gap:8px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .card h2{margin:0 0 12px;font-size:16px;display:flex;align-items:center;gap:6px}
+  label{display:block;font-size:13px;color:var(--muted);margin:8px 0 4px}
+  input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:#fff}
+  .row{display:grid;grid-template-columns:1fr 100px;gap:8px}
+  .row3{display:grid;grid-template-columns:1fr 80px 100px;gap:8px}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;background:linear-gradient(180deg,var(--meta),#0f172a);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:all .12s}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(31,41,55,.25)}
+  .btn.copied{background:var(--ok)}
+  .hint{color:var(--muted);font-size:12px;margin-top:6px}
+  .recent{font-size:13px}
+  .recent table{width:100%;border-collapse:collapse}
+  .recent th,.recent td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:right}
+  .recent th{font-weight:600;color:var(--muted);font-size:12px}
+  .pill{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700}
+  .pill.ok{background:#d1fae5;color:#065f46}
+  .pill.skip{background:#fef3c7;color:#92400e}
+  .pill.err{background:#fee2e2;color:#991b1b}
+  .anti{background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:12px;color:#713f12}
+  .anti strong{color:#854d0e}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><a href="../">&larr; חזרה ל-Agent Hub</a></div>
+  <h1>📘 META CAMPAIGNS</h1>
+  <div class="sub">משכפל את 3 הקמפיינים שלך בדראפט (2 EN + 1 ES), מעדכן שם / תאריכים / מיקום / רדיוס / טקסט (XXXXX) — ומשאיר Draft. את מאשרת ידנית.</div>
+
+  <div class="card">
+    <h2>הרצה לאירוע</h2>
+    <label>עיר</label><input id="f-city" placeholder="Burbank">
+    <div class="row">
+      <div><label>כתובת אירוע</label><input id="f-address" placeholder="2500 N Hollywood Way, Burbank, CA 91505"></div>
+      <div><label>ST</label><input id="f-state" placeholder="CA" maxlength="2" style="text-transform:uppercase"></div>
+    </div>
+    <label>שם המלון / venue</label><input id="f-venue" placeholder="Marriott Burbank Airport">
+    <div class="row3">
+      <div><label>תאריך התחלה (יום שישי)</label><input id="f-start" type="date"></div>
+      <div><label>סיום (א׳)</label><input id="f-end" type="date"></div>
+      <div><label>רדיוס (מייל)</label><input id="f-radius" type="number" value="10" min="1" max="50"></div>
+    </div>
+    <div class="hint">תאריך התחלת הקמפיינים יחושב אוטומטית: יום שישי 4 שבועות לפני תאריך ההתחלה. סיום: יום ראשון של האירוע ב-12:00 שעון מקומי.</div>
+    <div style="margin-top:14px"><button class="btn" id="copy-btn">📋 העתיקי פקודה ל-Cowork</button></div>
+    <div class="hint" id="preview" style="margin-top:10px;font-family:ui-monospace,Menlo,monospace;font-size:11px;direction:ltr;text-align:left;white-space:pre-wrap;background:#f3f4f6;padding:8px;border-radius:6px;max-height:120px;overflow:auto"></div>
+  </div>
+
+  <div class="card">
+    <h2>שמות קמפייני המקור (Source drafts)</h2>
+    <label>EN A</label><input id="t-en-a" value="MBS — TEMPLATE EN A">
+    <label>EN B</label><input id="t-en-b" value="MBS — TEMPLATE EN B">
+    <label>ES</label><input id="t-es" value="MBS — TEMPLATE ES">
+    <div class="hint">השמות נשמרים מקומית (localStorage). לסוכן יש Fallback לערכים האלה אם אין שמירה מקומית.</div>
+  </div>
+
+  <div class="card recent">
+    <h2>ריצות אחרונות</h2>
+    <table id="recent">
+      <thead><tr><th>תאריך</th><th>אירוע</th><th>סטטוס</th><th>קישורים</th></tr></thead>
+      <tbody id="recent-body"><tr><td colspan="4" style="color:var(--muted)">עדיין אין ריצות. אחרי הריצה הראשונה, יופיעו כאן השורות.</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="anti">
+    <strong>חוקי ברזל:</strong> תמיד Draft (לעולם לא Publish), אותם סרטונים כמו במקור, רק התאריכים/מיקום/רדיוס/XXXXX משתנים. שאר ההגדרות (Objective/Budget/Bidding/Audience demographics) נשמרות בדיוק כמו במקור. הקהל של ES נשאר ספרדית, של EN נשאר אנגלית.
+  </div>
+</div>
+
+<script id="dashboard-data">
+const RECENT = []; // appended by the agent after each run
+</script>
+
+<script>
+(function(){
+  // URL pre-fill
+  const params = new URLSearchParams(location.search);
+  const set = (id,k)=>{ const v=params.get(k); if(v!=null) document.getElementById(id).value=v; };
+  set("f-city","city"); set("f-state","state"); set("f-start","start_date"); set("f-end","end_date");
+  set("f-venue","venue"); set("f-address","address"); set("f-radius","radius_miles");
+
+  // Templates from localStorage
+  const LSK = "lauren_metaads_templates_v1";
+  try{
+    const t = JSON.parse(localStorage.getItem(LSK)||"{}");
+    if(t.en_a) document.getElementById("t-en-a").value=t.en_a;
+    if(t.en_b) document.getElementById("t-en-b").value=t.en_b;
+    if(t.es)   document.getElementById("t-es").value=t.es;
+  }catch(e){}
+  function saveTemplates(){
+    localStorage.setItem(LSK, JSON.stringify({
+      en_a: document.getElementById("t-en-a").value.trim(),
+      en_b: document.getElementById("t-en-b").value.trim(),
+      es:   document.getElementById("t-es").value.trim()
+    }));
+  }
+  ["t-en-a","t-en-b","t-es"].forEach(id=>document.getElementById(id).addEventListener("input", saveTemplates));
+
+  // Build command
+  function buildCmd(){
+    const city=document.getElementById("f-city").value.trim();
+    const state=document.getElementById("f-state").value.trim().toUpperCase();
+    const venue=document.getElementById("f-venue").value.trim();
+    const address=document.getElementById("f-address").value.trim();
+    const start=document.getElementById("f-start").value;
+    const end=document.getElementById("f-end").value;
+    const radius=document.getElementById("f-radius").value || "10";
+    return "Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\meta-campaigns\\SKILL.md` — orchestrator for @metaads.\n\nEvent inputs:\n- city: "+city+"\n- state: "+state+"\n- venue: "+venue+"\n- address: "+address+"\n- start_date: "+start+"\n- end_date: "+end+"\n- radius_miles: "+radius;
+  }
+  function refreshPreview(){ document.getElementById("preview").textContent = buildCmd(); }
+  ["f-city","f-state","f-venue","f-address","f-start","f-end","f-radius"].forEach(id=>document.getElementById(id).addEventListener("input", refreshPreview));
+  refreshPreview();
+
+  // Copy
+  const btn = document.getElementById("copy-btn");
+  btn.addEventListener("click", async ()=>{
+    const cmd = buildCmd();
+    try{ await navigator.clipboard.writeText(cmd); btn.textContent="✓ הועתק — הדביקי ב-Cowork"; btn.classList.add("copied"); setTimeout(()=>{ btn.textContent="📋 העתיקי פקודה ל-Cowork"; btn.classList.remove("copied"); },2500); }
+    catch(e){ const ta=document.createElement("textarea"); ta.value=cmd; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); btn.textContent="✓ הועתק (fallback)"; setTimeout(()=>{ btn.textContent="📋 העתיקי פקודה ל-Cowork"; },2500); }
+  });
+
+  // Recent runs render
+  const tbody=document.getElementById("recent-body");
+  if(RECENT && RECENT.length){
+    tbody.innerHTML = RECENT.slice().reverse().map(r=>{
+      const links = (r.urls||[]).map(u=>'<a href="'+u.url+'" target="_blank" rel="noopener">'+u.label+'</a>').join(" · ");
+      const pill = r.status==="ok" ? '<span class="pill ok">✓</span>' : (r.status==="skip" ? '<span class="pill skip">⏭</span>' : '<span class="pill err">⚠</span>');
+      return "<tr><td>"+(r.date||"—")+"</td><td>"+(r.event||"—")+"</td><td>"+pill+"</td><td>"+(links||"—")+"</td></tr>";
+    }).join("");
+  }
+})();
+</script>
+</body>
+</html>

@@ -151,6 +151,7 @@
   .btn-agent-row:not(.done):not(.warned),
   .btn-campaigns-row:not(.done):not(.warned),
   .btn-pr-row:not(.done):not(.warned),
+  .btn-metaads-row:not(.done):not(.warned),
   .btn-forecast-row:not(.done):not(.warned),
   .btn-add-chip:not(.done):not(.copied){
     background: linear-gradient(180deg, #1f2937, #0f172a) !important;
@@ -161,6 +162,7 @@
   .btn-agent-row:not(.done):not(.warned):hover,
   .btn-campaigns-row:not(.done):not(.warned):hover,
   .btn-pr-row:not(.done):not(.warned):hover,
+  .btn-metaads-row:not(.done):not(.warned):hover,
   .btn-forecast-row:not(.done):not(.warned):hover,
   .btn-add-chip:not(.done):not(.copied):hover{
     background: linear-gradient(180deg, #0f172a, #020617) !important;
@@ -229,6 +231,7 @@
   .btn-reel-row{background:linear-gradient(180deg,#4f46e5,#3730a3)}
   .btn-pr-influencer-row{background:linear-gradient(180deg,#d946ef,#a21caf)}
   .btn-summary-row{background:linear-gradient(180deg,#0891b2,#155e75)}
+  .btn-metaads-row{background:linear-gradient(180deg,#1f2937,#0f172a)} /* black per Lauren's spec — flips green via .done */
   /* 'needs-summary' — past event without a published summary yet (call-to-action,
      Lauren 2026-05-05: 'הפעילות הכי חשובה לעשות כשאירוע נגמר'). Pulsing
      orange/red gradient grabs attention until the agent runs and the button
@@ -429,6 +432,8 @@ const PR_ORGS = {};
 const PR_INFLUENCERS = {};
 // Owner: sms-campaigns — entry: { mode: "cheat-sheet"|"draft"|"schedule", drafts_count, autoresponder_set, signup_form_set, href, generated_at }
 const CAMPAIGNS_RESULTS = {"columbia-2026-05-08":{"mode":"cheat-sheet","drafts_count":4,"autoresponder_set":true,"signup_form_set":true,"href":"../campaigns/cheat-sheet/columbia-mo-2026-05-08/","generated_at":"2026-05-03T20:14:00-07:00"}};
+// Owner: meta-campaigns — entry: { en_a_url, en_b_url, es_url, campaign_start, campaign_end_local, radius_miles, href, generated_at }   (added 2026-05-09)
+const META_CAMPAIGNS = {};
 
 // Owner: eventbrite-setup — entry: { eventbrite: {url, eventId, generated_at} | null, smslist: {list_id, list_name, generated_at} | null }
 // Both fields can populate independently — the agent reports per-service result.
@@ -1411,6 +1416,15 @@ End date: </div>
             rowBtn += '<a class="btn-campaigns-row done" href="' + cmp.href + '" target="_blank" rel="noopener" title="' + cmpTitle + '">' + cmpLabel + '</a>';
           } else {
             rowBtn += '<a class="btn-campaigns-row" href="../campaigns/?' + params + '" target="_blank" rel="noopener" title="Open SMS Campaigns dashboard pre-filled with this event">📲 Campaigns</a>';
+          }
+
+          // 📘 META CAMPAIGNS — black until run, flips green via .done (added 2026-05-09)
+          const mc = (typeof META_CAMPAIGNS !== "undefined") ? META_CAMPAIGNS[evKey] : null;
+          if (mc) {
+            const mcTitle = '3 drafts ready · radius ' + (mc.radius_miles || 10) + 'mi · ' + (mc.generated_at || '').slice(0, 10);
+            rowBtn += '<a class="btn-agent-row btn-metaads-row done" href="' + mc.href + '" target="_blank" rel="noopener" title="' + mcTitle + '">📘 META CAMPAIGNS ✓</a>';
+          } else {
+            rowBtn += '<a class="btn-agent-row btn-metaads-row" href="../metaads/?' + params + '" target="_blank" rel="noopener" title="Open META CAMPAIGNS pre-filled with this event">📘 META CAMPAIGNS</a>';
           }
 
           // 🤝 PR Organization
