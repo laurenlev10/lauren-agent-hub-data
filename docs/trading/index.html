@@ -1572,21 +1572,32 @@ function buildFirmAccBlock(firmKey,i){
       const daysOk = daysGap === 0;
       const allOk = balOk && daysOk;
       const cycleNote = cfg.lastPayoutDate ? ' · מאז ' + cfg.lastPayoutDate : '';
+      const totalPotentialGross = caps.reduce((s,c)=>s+c, 0);
+      const totalPotentialPocket = Math.round(totalPotentialGross * SPLIT);
+      const nextCap = caps[Math.min(taken.length, caps.length-1)];
       nextPanel = `<div style="background:${allOk?'#dcfce7':'#fff7ed'};border:1.5px solid ${allOk?'#86efac':'#fdba74'};border-radius:10px;padding:12px 14px;margin-bottom:12px;direction:rtl;text-align:right;">
-        <div style="font-size:13px;font-weight:900;color:var(--txt);margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:900;color:var(--txt);margin-bottom:10px;">
           ${allOk ? '🎉 כל הדרישות עומדות — אפשר למשוך משיכה #'+cycleNum : '⏳ עד משיכה #'+cycleNum+' חסר:'}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div style="background:${balOk?'rgba(255,255,255,0.6)':'#fff'};border-radius:8px;padding:8px 10px;">
-            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:2px;">${balOk?'✅':'⏳'} Balance</div>
-            <div style="font-size:14px;font-weight:900;color:${balOk?'var(--grn)':'var(--amb)'};">${balOk ? '$'+cfg.balance.toFixed(2)+' ✓' : 'עוד $'+balGap.toFixed(2)}</div>
-            <div style="font-size:11px;color:var(--txt4);margin-top:2px;">יעד: $${f0(targetBal)}${cfg.balanceTargetNote?' ('+cfg.balanceTargetNote+')':''}</div>
+          <div style="background:${balOk?'rgba(255,255,255,0.6)':'#fff'};border-radius:8px;padding:10px 12px;">
+            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:2px;">${balOk?'✅':'⏳'} Balance — יעד למחזור</div>
+            <div style="font-size:18px;font-weight:900;color:${balOk?'var(--grn)':'var(--amb)'};">$${f0(targetBal)}</div>
+            <div style="font-size:11px;color:var(--txt4);margin-top:2px;">${balOk ? '🎉 הגעת! זמן למשוך $'+f0(nextCap)+' ↗' : 'עוד <b style=\"color:var(--txt2)\">$'+balGap.toFixed(2)+'</b> מ-$'+cfg.balance.toFixed(2)}</div>
+            ${cfg.balanceTargetNote?'<div style="font-size:10px;color:var(--txt4);margin-top:3px;font-style:italic;">'+cfg.balanceTargetNote+'</div>':''}
           </div>
-          <div style="background:${daysOk?'rgba(255,255,255,0.6)':'#fff'};border-radius:8px;padding:8px 10px;">
+          <div style="background:${daysOk?'rgba(255,255,255,0.6)':'#fff'};border-radius:8px;padding:10px 12px;">
             <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:2px;">${daysOk?'✅':'⏳'} ימים כשירים בסבב</div>
-            <div style="font-size:14px;font-weight:900;color:${daysOk?'var(--grn)':'var(--amb)'};">${cycleQual} / ${cfg.qualDaysNeeded}${daysOk?' ✓':''}</div>
+            <div style="font-size:18px;font-weight:900;color:${daysOk?'var(--grn)':'var(--amb)'};">${cycleQual} / ${cfg.qualDaysNeeded}${daysOk?' ✓':''}</div>
             <div style="font-size:11px;color:var(--txt4);margin-top:2px;">יום כשיר = ≥$${cfg.minQualDay} P&L${cycleNote}</div>
           </div>
+        </div>
+
+        <!-- Strategy strip: per-cycle action + total-plan target -->
+        <div style="margin-top:10px;padding:10px 12px;background:rgba(0,0,0,0.04);border-radius:8px;font-size:12px;color:var(--txt2);line-height:1.7;">
+          <div style="font-weight:800;margin-bottom:4px;">📐 אסטרטגיית מקסימום משיכות</div>
+          <div>• בכל מחזור: balance מגיע ל-<b>$${f0(targetBal)}</b> → משיכה <b>$${f0(nextCap)}</b> → balance חוזר ל-MLL → סבב חדש</div>
+          <div>• <b>היעד הכולל:</b> ${TOTAL_PAYOUTS} משיכות = <b style="color:var(--grn)">$${f0(totalPotentialGross)} ברוטו</b> = <b style="color:var(--grn)">$${f0(totalPotentialPocket)} לכיס</b>${cfg.transitionLabel?' → '+cfg.transitionLabel:''}</div>
         </div>
       </div>`;
     }
