@@ -422,6 +422,20 @@ select option{background:#fff;}
   </div>
 </div>
 
+<!-- ═══ RULES MODAL (added 2026-05-08) ═══ -->
+<div id="rules-modal-overlay" onclick="closeRulesModal()" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:90;"></div>
+<div id="rules-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border-radius:16px;padding:28px;width:min(720px,92vw);max-height:85vh;overflow-y:auto;box-shadow:var(--sh2);z-index:91;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid var(--bdr2);">
+    <div style="font-size:22px;font-weight:900;color:var(--sky);">📖 חוקי החשבון — <span id="rules-acc-name">—</span></div>
+    <button onclick="closeRulesModal()" style="background:none;border:none;font-size:22px;color:var(--txt3);cursor:pointer;">✕</button>
+  </div>
+  <div id="rules-body" style="font-size:14px;direction:rtl;line-height:1.7;"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:2px solid var(--bdr2);">
+    <a id="rules-source-link" target="_blank" rel="noopener" style="font-size:12px;color:var(--sky);text-decoration:underline;">↗ מקור רשמי</a>
+    <button onclick="closeRulesModal()" style="background:none;border:1.5px solid var(--bdr);border-radius:12px;padding:11px 20px;font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;color:var(--txt3);">סגור</button>
+  </div>
+</div>
+
 <!-- ═══ MODAL ═══ -->
 <div id="modal-overlay" onclick="closeModal()"></div>
 <div id="modal">
@@ -611,6 +625,70 @@ function load(){
     if(d){ const p=JSON.parse(d); S={...mkState(),...p};
       if(!S.accs||S.accs.length<4) S.accs=mkState().accs; }
   }catch(e){}
+}
+
+// ════════════ PROP FIRM RULES LOADER (added 2026-05-08) ════════════
+// Single source of truth for every plan's rule set. Loaded async on init.
+// Per-account → (firm, plan) lookup so the rules modal can show what applies.
+window.RULES = null;
+window.RULES_PLAN_MAP = {
+  // ACCS[0] = 200K PROPEL (Static Premium)
+  'a0': { firm: 'blusky', plan: 'PROPEL_200K' },
+  // ACCS[1] = 50K PROPEL (Premium)
+  'a1': { firm: 'blusky', plan: 'PROPEL_50K' },
+  // ACCS[2] = 50K LAUNCH (Launch)
+  'a2': { firm: 'blusky', plan: 'LAUNCH_50K' },
+  // ACCS[3] = 50K LAUNCH II (Launch)
+  'a3': { firm: 'blusky', plan: 'LAUNCH_50K' }
+};
+// Apex/Lucid maps lookup their plan from meta — see resolveAccPlan().
+
+(function loadRules(){
+  const url = '../state/prop_firm_rules.json?_=' + Date.now();
+  fetch(url, {cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(j){
+      window.RULES = j;
+      console.log('[RULES] loaded:', Object.keys(j.firms||{}));
+      // Validate ACCS hardcoded values against the rules — log any mismatches
+      validateACCSAgainstRules();
+    })
+    .catch(function(e){ console.warn('[RULES] load failed:', e.message); });
+})();
+
+function validateACCSAgainstRules(){
+  if(!window.RULES) return;
+  ACCS.forEach(function(acc, i){
+    const m = window.RULES_PLAN_MAP['a'+i];
+    if(!m) return;
+    const plan = window.RULES.firms[m.firm].plans[m.plan];
+    if(!plan){ console.warn('[RULES] no plan rules for', m); return; }
+    if(plan.accountSize !== acc.startBal) console.warn('[RULES] mismatch — '+acc.name+' startBal: ACCS='+acc.startBal+' RULES='+plan.accountSize);
+    // Check current phase fields if applicable
+    const ph = (S.accs[i] && S.accs[i].ph) || 'eval1';
+    const phRules = plan.phases && plan.phases[ph];
+    if(phRules){
+      if(phRules.trailDD != null && phRules.trailDD !== acc.trailDD) console.warn('[RULES] trailDD mismatch — '+acc.name+' '+ph+': ACCS='+acc.trailDD+' RULES='+phRules.trailDD);
+      if(phRules.profitTarget != null){
+        const expected = ph==='eval1'?acc.p1T:acc.p2T;
+        if(phRules.profitTarget !== expected) console.warn('[RULES] profitTarget mismatch — '+acc.name+' '+ph+': ACCS='+expected+' RULES='+phRules.profitTarget);
+      }
+    }
+  });
+}
+
+// Resolve which (firm, plan) a given ACCS index belongs to. For Apex/Lucid
+// (which live in apexAccs/lucidAccs not S.accs), call this with a meta object.
+function resolveAccPlan(opts){
+  // opts.bucket: 'accs'|'apexAccs'|'lucidAccs'; opts.idx: number; opts.meta: meta object (apex/lucid)
+  if(opts.bucket === 'accs') return window.RULES_PLAN_MAP['a'+opts.idx];
+  // For apex/lucid, infer from meta.size or meta.plan
+  if(opts.bucket === 'apexAccs'){
+    if(opts.meta && opts.meta.isLegacy) return { firm: 'apex', plan: 'LEGACY_PA_50K' };
+    return { firm: 'apex', plan: 'PA_4_0_EOD_50K' };
+  }
+  if(opts.bucket === 'lucidAccs') return { firm: 'lucid', plan: 'FLEX_50K' };
+  return null;
 }
 
 // ════════════ CLOUD SYNC (added 2026-05-08) ════════════
@@ -1150,6 +1228,7 @@ function buildAccBlock(i){
         <div class="acc-num">${accNum(i)}</div>
         <div class="acc-actions">
           <button class="acc-action-btn" type="button" onclick="openTransitionModal(${i})" title="כשתעברי שלב — לחצי כאן">🎯 דווחי על מעבר שלב</button>
+          <button class="acc-action-btn" type="button" onclick="openRulesModal('accs', ${i})" title="הצגת חוקים מלאים לחשבון">📖 חוקי החשבון</button>
           ${(aS.history && aS.history.length) ? `<button class="acc-action-btn" type="button" onclick="openHistoryModal(${i})" title="ראי שלבים קודמים">↻ היסטוריה (${aS.history.length})</button>` : ''}
         </div>
         <div style="font-size:13px;font-weight:700;color:var(--sky);margin-bottom:8px;">${lastUpdated(days(i))}</div>
@@ -1834,6 +1913,146 @@ function applyCsv(){
   try{ renderAll(); }catch(e){}
   const accLbl = (bucket==='accs') ? ACCS[idx].name : (acc.meta && acc.meta.name) || sel;
   alert('✅ עודכן '+accLbl+'\n\n'+csvParsedDays.length+' ימים נכנסו לחשבון.\nSync לענן יקרה תוך 2 שניות.');
+}
+
+// ════════════ RULES MODAL (added 2026-05-08) ════════════
+function openRulesModal(bucket, idx){
+  if(!window.RULES){
+    alert('עדיין טוען חוקים מהשרת… נסי שוב בעוד שנייה.');
+    return;
+  }
+  let acc, accName, m;
+  if(bucket === 'accs'){
+    acc = ACCS[idx];
+    accName = acc.name;
+    m = window.RULES_PLAN_MAP['a'+idx];
+  } else if(bucket === 'apexAccs'){
+    const aS = S.apexAccs[idx];
+    acc = (aS && aS.meta) || {};
+    accName = acc.name || 'Apex '+(idx+1);
+    m = resolveAccPlan({bucket:'apexAccs', idx:idx, meta:acc});
+  } else if(bucket === 'lucidAccs'){
+    const aS = S.lucidAccs[idx];
+    acc = (aS && aS.meta) || {};
+    accName = acc.name || 'Lucid '+(idx+1);
+    m = resolveAccPlan({bucket:'lucidAccs', idx:idx, meta:acc});
+  }
+  if(!m){ alert('לא נמצאו חוקים לחשבון הזה'); return; }
+  const firm = window.RULES.firms[m.firm];
+  const plan = firm && firm.plans[m.plan];
+  if(!plan){ alert('לא נמצאו חוקים לתוכנית '+m.plan); return; }
+
+  document.getElementById('rules-acc-name').textContent = accName + ' (' + plan.label + ')';
+
+  // Build the body — firm-level info, current phase summary, then expandable per-phase
+  const aS = (bucket === 'accs') ? S.accs[idx] : (bucket === 'apexAccs' ? S.apexAccs[idx] : S.lucidAccs[idx]);
+  const curPh = (aS && aS.ph) || (Object.keys(plan.phases||{})[0]);
+  let html = '';
+
+  // Firm header
+  html += '<div style="background:var(--s2);border-radius:10px;padding:14px;margin-bottom:14px;">';
+  html += '<div style="font-size:13px;color:var(--txt4);margin-bottom:4px;">חברה</div>';
+  html += '<div style="font-weight:800;font-size:16px;color:var(--txt);">'+firm.name+'</div>';
+  if(firm.consistencyFormula) html += '<div style="font-size:12px;color:var(--txt3);margin-top:6px;">נוסחת Consistency: <code style="background:var(--s3);padding:2px 6px;border-radius:4px;">'+firm.consistencyFormula+'</code></div>';
+  if(firm.positionCutoffET) html += '<div style="font-size:12px;color:var(--txt3);margin-top:4px;">סגירת פוזיציות: '+firm.positionCutoffET+' ET</div>';
+  html += '</div>';
+
+  // Plan-level overview
+  html += '<div style="background:var(--s2);border-radius:10px;padding:14px;margin-bottom:14px;">';
+  html += '<div style="font-size:13px;color:var(--txt4);margin-bottom:6px;">תוכנית</div>';
+  html += '<div style="font-weight:800;font-size:16px;color:var(--txt);margin-bottom:8px;">'+plan.label+'</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">';
+  if(plan.accountSize) html += '<div><b>גודל חשבון:</b> $'+plan.accountSize.toLocaleString()+'</div>';
+  if(plan.monthlyFee != null) html += '<div><b>דמי חודשי:</b> $'+plan.monthlyFee+'</div>';
+  if(plan.activationFee != null) html += '<div><b>דמי הפעלה:</b> $'+plan.activationFee+'</div>';
+  if(plan.resetFee != null) html += '<div><b>איפוס:</b> $'+plan.resetFee+'</div>';
+  html += '</div>';
+  html += '</div>';
+
+  // Phases — current phase open, others collapsed
+  Object.keys(plan.phases || {}).forEach(function(ph){
+    const phData = plan.phases[ph];
+    const isOpen = (ph === curPh);
+    const accent = isOpen ? 'var(--sky)' : 'var(--bdr)';
+    const bg = isOpen ? '#dbeafe' : 'var(--s2)';
+    html += '<details '+(isOpen?'open':'')+' style="background:'+bg+';border-radius:10px;border-right:4px solid '+accent+';margin-bottom:10px;">';
+    html += '<summary style="cursor:pointer;padding:12px 16px;font-weight:800;font-size:15px;color:var(--txt);">' + (isOpen ? '⭐ ' : '') + (phData.label || ph) + (isOpen ? ' (השלב הנוכחי)' : '') + '</summary>';
+    html += '<div style="padding:0 16px 14px;font-size:13px;">';
+    const fields = [
+      ['profitTarget', 'יעד רווח', function(v){return '$'+v.toLocaleString();}],
+      ['drawdownType', 'סוג Drawdown', function(v){return v.replace(/_/g,' ');}],
+      ['trailDD', 'גודל Drawdown', function(v){return '$'+v.toLocaleString();}],
+      ['burnStart', 'MLL התחלתי', function(v){return '$'+v.toLocaleString();}],
+      ['safetyNet', 'Safety Net', function(v){return '$'+v.toLocaleString();}],
+      ['initialTrailBalance', 'Initial Trail Balance', function(v){return '$'+v.toLocaleString();}],
+      ['lockedMLL', 'Locked MLL', function(v){return '$'+v.toLocaleString();}],
+      ['dailyLossLimit', 'מגבלת הפסד יומי', function(v){return v ? '$'+v.toLocaleString() : 'אין';}],
+      ['consistencyPct', 'Consistency', function(v){return v ? Math.round(v*100)+'%' : 'אין';}],
+      ['minDays', 'ימי מינימום', function(v){return v == null ? '—' : v;}],
+      ['minDaysOfQualifying', 'ימים כשירים לPayout', function(v){return v;}],
+      ['minProfitPerQualifyingDay', 'מינ. רווח ליום כשיר', function(v){return '$'+v;}],
+      ['minPayout', 'Payout מינימלי', function(v){return '$'+v;}],
+      ['perPayoutCap', 'תקרת Payout', function(v){return '$'+v.toLocaleString();}],
+      ['perPayout7DayCap', 'תקרת Payout 7-יום', function(v){return '$'+v.toLocaleString();}],
+      ['profitSplit', 'חלוקת רווחים', function(v){return Math.round(v*100)+'/'+Math.round((1-v)*100);}],
+      ['maxContracts', 'מקסימום חוזים', function(v){return v;}],
+      ['botsAllowed', 'בוטים', function(v){return v ? '✅ מותר' : '❌ אסור';}],
+      ['passCriteria', 'קריטריון מעבר', function(v){return v;}],
+    ];
+    fields.forEach(function(f){
+      const k = f[0], lbl = f[1], fmt = f[2];
+      if(phData[k] !== undefined){
+        html += '<div style="margin:6px 0;"><b style="color:var(--txt);">'+lbl+':</b> '+fmt(phData[k])+'</div>';
+        // Add note if present
+        const noteKey = '_'+k+'Note';
+        if(phData[noteKey]) html += '<div style="margin:0 0 6px 14px;font-size:11px;color:var(--txt4);font-style:italic;">'+phData[noteKey]+'</div>';
+      }
+    });
+    if(phData.payoutLadder){
+      html += '<div style="margin:6px 0;"><b>Payout Ladder:</b> '+phData.payoutLadder.map(function(p){return '$'+p.toLocaleString();}).join(' → ')+'</div>';
+    }
+    if(phData.scalingPlan){
+      html += '<div style="margin:8px 0 4px;"><b>Scaling Plan:</b></div>';
+      phData.scalingPlan.forEach(function(s){
+        html += '<div style="margin:2px 14px;font-size:12px;">'+s.profitRange+' → '+s.maxContracts+' חוזים</div>';
+      });
+    }
+    if(phData.otherRules){
+      html += '<div style="margin:8px 0 4px;"><b>חוקים נוספים:</b></div>';
+      phData.otherRules.forEach(function(r){ html += '<div style="margin:2px 14px;font-size:12px;">• '+r+'</div>'; });
+    }
+    html += '</div></details>';
+  });
+
+  // Show flags if any apply to this firm
+  if((window.RULES._flags||[]).length){
+    const relevantFlags = window.RULES._flags.filter(function(fl){ return fl.toLowerCase().indexOf(firm.name.toLowerCase()) >= 0 || fl.toLowerCase().indexOf(m.firm) >= 0; });
+    if(relevantFlags.length){
+      html += '<div style="background:#fef3c7;border:1.5px solid #fcd34d;border-radius:10px;padding:12px 14px;margin-top:14px;font-size:12px;color:#92400e;">';
+      html += '<div style="font-weight:800;margin-bottom:6px;">⚠ תיוגים לבדיקה:</div>';
+      relevantFlags.forEach(function(f){ html += '<div style="margin:4px 0;">• '+f+'</div>'; });
+      html += '</div>';
+    }
+  }
+
+  document.getElementById('rules-body').innerHTML = html;
+
+  // Set source link
+  const sources = (window.RULES._sources||{})[m.firm];
+  const sourceLink = document.getElementById('rules-source-link');
+  if(sources && sources[0]){
+    sourceLink.href = sources[0];
+    sourceLink.style.display = 'inline';
+  } else {
+    sourceLink.style.display = 'none';
+  }
+
+  document.getElementById('rules-modal-overlay').style.display='block';
+  document.getElementById('rules-modal').style.display='block';
+}
+function closeRulesModal(){
+  document.getElementById('rules-modal-overlay').style.display='none';
+  document.getElementById('rules-modal').style.display='none';
 }
 
 // ════════════ PHASE TRANSITION + HISTORY (added 2026-05-08) ════════════
