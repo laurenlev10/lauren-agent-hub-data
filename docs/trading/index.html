@@ -777,7 +777,11 @@ window.TradingCloudSync = (function(){
   apiGet().then(function(r){ currentSha=r.sha; setPill(hasToken()?'synced':'offline', hasToken()?'☁ Synced':'☁ Sync: off'); })
           .catch(function(){ setPill('offline','☁ Offline'); });
 
-  return { scheduleSave, promptForToken, setToken, getToken, hasToken };
+  async function doSaveImmediate(){
+    if(saveTimer){ clearTimeout(saveTimer); saveTimer=null; }
+    await doSave();
+  }
+  return { scheduleSave, doSaveImmediate, promptForToken, setToken, getToken, hasToken };
 })();
 
 // Wire the cloud-pill click — prompt for token if missing, otherwise force a sync now.
@@ -1863,8 +1867,12 @@ function recomputeBalances(existingDays, newDays, startBal){
 document.addEventListener('change', function(e){
   if(e.target && e.target.id === 'csv-file'){
     const f = e.target.files[0]; if(!f) return;
+    console.log('[CSV] file selected:', f.name, f.size, 'bytes');
     const fee = parseFloat(document.getElementById('csv-fee').value) || 2.20;
     const reader = new FileReader();
+    reader.onerror = function(){
+      document.getElementById('csv-preview').innerHTML = '<span style="color:var(--red);font-weight:700">⚠ קריאת הקובץ נכשלה</span>';
+    };
     reader.onload = function(ev){
       try{
         const days = parseCsv(ev.target.result, fee);
@@ -1896,26 +1904,50 @@ document.addEventListener('change', function(e){
   }
 });
 
-function applyCsv(){
-  if(!csvParsedDays || !csvParsedDays.length){ alert('אין נתונים לייבוא'); return; }
-  const sel = document.getElementById('csv-account').value;  // 'accs:2', 'apexAccs:0', etc.
-  const m = sel.split(':');
-  const bucket = m[0], idx = parseInt(m[1],10);
-  const acc = (S[bucket]||[])[idx];
-  if(!acc){ alert('חשבון לא נמצא'); return; }
+async function applyCsv(){
+  const btn = document.getElementById('csv-apply');
+  const preview = document.getElementById('csv-preview');
+  function setStatus(msg, color){
+    preview.innerHTML = '<div style="background:'+(color||'#dbeafe')+';border-radius:10px;padding:14px;font-weight:800;text-align:center;font-size:14px;color:var(--txt);">'+msg+'</div>';
+  }
+  if(!csvParsedDays || !csvParsedDays.length){
+    setStatus('❌ אין נתונים — בחרי קובץ CSV קודם', '#fee2e2');
+    return;
+  }
+  btn.disabled = true; btn.style.opacity = '0.5'; btn.textContent = '⏳ שומר...';
+  try{
+    const sel = document.getElementById('csv-account').value;
+    const m = sel.split(':');
+    const bucket = m[0], idx = parseInt(m[1],10);
+    const acc = (S[bucket]||[])[idx];
+    if(!acc) throw new Error('חשבון לא נמצא: '+sel);
 
-  let startBal;
-  if(bucket === 'accs') startBal = ACCS[idx].startBal;
-  else if(acc.meta && acc.meta.startBal) startBal = acc.meta.startBal;
-  else startBal = 50000;
+    let startBal;
+    if(bucket === 'accs') startBal = ACCS[idx].startBal;
+    else if(acc.meta && acc.meta.startBal) startBal = acc.meta.startBal;
+    else startBal = 50000;
+    const accLbl = (bucket==='accs') ? ACCS[idx].name : (acc.meta && acc.meta.name) || sel;
 
-  const newDays = recomputeBalances(acc.days, csvParsedDays, startBal);
-  acc.days = newDays;
-  save();             // writes localStorage + schedules cloud sync
-  closeCsvModal();
-  try{ renderAll(); }catch(e){}
-  const accLbl = (bucket==='accs') ? ACCS[idx].name : (acc.meta && acc.meta.name) || sel;
-  alert('✅ עודכן '+accLbl+'\n\n'+csvParsedDays.length+' ימים נכנסו לחשבון.\nSync לענן יקרה תוך 2 שניות.');
+    const newDays = recomputeBalances(acc.days, csvParsedDays, startBal);
+    acc.days = newDays;
+
+    setStatus('💾 שמירה מקומית...', '#fef3c7');
+    save();
+
+    if(window.TradingCloudSync && window.TradingCloudSync.hasToken()){
+      setStatus('☁ דחיפה לענן...', '#fef3c7');
+      await window.TradingCloudSync.doSaveImmediate();
+      setStatus('✅ '+accLbl+' עודכן: '+csvParsedDays.length+' ימים · נשמר בענן ✓', '#dcfce7');
+    } else {
+      setStatus('⚠ '+accLbl+' עודכן מקומית — אבל אין token לענן. לחצי על "☁" למעלה לחיבור.', '#fef3c7');
+    }
+    try{ renderAll(); }catch(e){ console.error(e); }
+    setTimeout(closeCsvModal, 3000);
+  }catch(err){
+    console.error('[CSV apply] failed:', err);
+    setStatus('❌ שגיאה: '+err.message, '#fee2e2');
+    btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '💾 החל על החשבון';
+  }
 }
 
 // ════════════ RULES MODAL (added 2026-05-08) ════════════
