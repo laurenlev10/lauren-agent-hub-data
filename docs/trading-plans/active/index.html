@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📅 תוכנית פעילה — Lauren</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Heebo',sans-serif;background:#f6f7fb;color:#1f2937;direction:rtl;text-align:right;line-height:1.6;padding:24px 20px 60px;max-width:1100px;margin:0 auto;}
+.back-link{display:inline-block;background:#fff;border:1px solid #e5e7eb;padding:8px 14px;border-radius:999px;text-decoration:none;color:#374151;font-size:13px;font-weight:600;margin-bottom:20px;transition:all .15s;}
+.back-link:hover{border-color:#1d4ed8;color:#1d4ed8;}
+
+/* Hero */
+.hero{background:linear-gradient(135deg,#dcfce7,#dbeafe);border:1px solid #bfdbfe;border-radius:14px;padding:24px 28px;margin-bottom:20px;}
+.hero h1{font-size:1.6rem;color:#15803d;margin-bottom:6px;}
+.hero .sub{color:#4b5563;font-size:.92rem;}
+.hero-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px;}
+@media(max-width:700px){.hero-stats{grid-template-columns:repeat(2,1fr);}}
+.hero-stat{background:#fff;border-radius:10px;padding:10px 12px;text-align:center;}
+.hero-stat .v{font-size:1.4rem;font-weight:900;color:#15803d;}
+.hero-stat .l{font-size:.7rem;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-top:2px;}
+.hero-stat.blue .v{color:#1d4ed8;}
+.hero-stat.amber .v{color:#b45309;}
+
+/* Section */
+.section{background:#fff;border:1px solid #d0d7de;border-radius:12px;padding:22px 24px;margin-bottom:18px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.section h2{font-size:1.1rem;color:#1d4ed8;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+
+/* Today */
+.today-action{background:linear-gradient(135deg,#fff7ed,#ffedd5);border:2px solid #f97316;border-radius:12px;padding:18px 22px;margin-bottom:14px;}
+.today-action.done{background:linear-gradient(135deg,#dcfce7,#bbf7d0);border-color:#16a34a;}
+.today-action.empty{background:#f3f4f6;border-color:#d1d5db;border-style:dashed;}
+.today-action .label{font-size:11px;color:#9a3412;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.today-action.done .label{color:#15803d;}
+.today-action.empty .label{color:#6b7280;}
+.today-action .title{font-size:1.05rem;font-weight:800;color:#1f2937;margin-bottom:4px;}
+.today-action .desc{font-size:.88rem;color:#4b5563;margin-bottom:10px;}
+.today-action .meta{display:flex;gap:8px;flex-wrap:wrap;font-size:.78rem;color:#92400e;font-weight:700;}
+.today-action .meta span{background:rgba(255,255,255,.65);padding:3px 10px;border-radius:999px;}
+.today-action button{background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;margin-top:6px;}
+.today-action button:hover{background:#15803d;}
+
+/* Week list */
+.week-item{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;margin-bottom:8px;cursor:pointer;}
+.week-item:hover{background:#eff6ff;border-color:#1d4ed8;}
+.week-item.done{background:#dcfce7;border-color:#86efac;opacity:.85;}
+.week-item .check{width:24px;height:24px;border:2px solid #d1d5db;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#fff;cursor:pointer;}
+.week-item.done .check{background:#16a34a;border-color:#16a34a;color:#fff;}
+.week-item .body{flex:1;}
+.week-item .body .ttl{font-weight:800;color:#1f2937;font-size:.92rem;margin-bottom:2px;}
+.week-item .body .dsc{font-size:.78rem;color:#6b7280;}
+.week-item .due{font-size:.7rem;color:#1d4ed8;font-weight:700;background:#eff6ff;padding:3px 8px;border-radius:4px;flex-shrink:0;}
+.week-item .firm-tag{font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:4px;flex-shrink:0;}
+.firm-tag.lucid{background:#ede9fe;color:#7c3aed;}
+.firm-tag.apex{background:#fed7aa;color:#9a3412;}
+.firm-tag.blusky{background:#dbeafe;color:#1d4ed8;}
+.firm-tag.all{background:#f3f4f6;color:#374151;}
+
+/* Progress bars */
+.progress-section{margin-top:6px;}
+.progress-row{margin-bottom:14px;}
+.progress-row .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:.88rem;}
+.progress-row .top .lbl{font-weight:700;color:#1f2937;}
+.progress-row .top .num{font-weight:900;color:#1d4ed8;font-size:.9rem;}
+.bar{height:14px;background:#e5e7eb;border-radius:7px;overflow:hidden;}
+.bar-fill{height:100%;background:linear-gradient(90deg,#1d4ed8,#3b82f6);transition:width .4s;display:flex;align-items:center;justify-content:flex-end;padding-left:6px;font-size:.65rem;font-weight:800;color:#fff;}
+.bar-fill.lucid{background:linear-gradient(90deg,#7c3aed,#a855f7);}
+.bar-fill.apex{background:linear-gradient(90deg,#ea580c,#f97316);}
+.bar-fill.blusky{background:linear-gradient(90deg,#1d4ed8,#3b82f6);}
+.bar-fill.total{background:linear-gradient(90deg,#15803d,#22c55e);}
+
+/* Calendar */
+.cal-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px;}
+@media(max-width:700px){.cal-grid{grid-template-columns:repeat(2,1fr);}}
+.cal-cell{background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:10px;padding:10px 12px;min-height:90px;cursor:pointer;transition:all .15s;}
+.cal-cell:hover{border-color:#1d4ed8;background:#eff6ff;}
+.cal-cell.current{border-color:#16a34a;background:#f0fdf4;border-width:2px;}
+.cal-cell.past{opacity:.5;}
+.cal-cell .m-label{font-size:.7rem;color:#6b7280;font-weight:800;text-transform:uppercase;letter-spacing:.5px;}
+.cal-cell .m-num{font-size:1.4rem;font-weight:900;color:#1d4ed8;line-height:1;margin:2px 0;}
+.cal-cell.current .m-num{color:#15803d;}
+.cal-cell .m-actions{font-size:.72rem;color:#4b5563;margin-top:4px;line-height:1.4;}
+.cal-cell .m-target{font-size:.72rem;color:#7c3aed;font-weight:700;margin-top:4px;}
+
+/* Checklist */
+.daily-check{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;margin-bottom:6px;cursor:pointer;}
+.daily-check:hover{background:#dbeafe;border-color:#1d4ed8;}
+.daily-check.checked{background:#dcfce7;border-color:#86efac;}
+.daily-check input{width:20px;height:20px;cursor:pointer;}
+.daily-check .lbl{flex:1;font-size:.92rem;font-weight:600;color:#1f2937;}
+.daily-check .streak{font-size:.7rem;color:#7c3aed;font-weight:700;background:#ede9fe;padding:3px 8px;border-radius:999px;}
+
+/* Iron rules sticky */
+.iron-rules{background:#fef2f2;border:1.5px solid #dc2626;border-radius:10px;padding:14px 18px;margin-top:18px;}
+.iron-rules h3{color:#991b1b;font-size:.9rem;margin-bottom:8px;font-weight:800;}
+.iron-rules ul{padding-right:18px;color:#991b1b;font-size:.82rem;line-height:1.7;}
+
+/* Cloud sync pill */
+.cloud-pill{font-size:11px;font-weight:800;border:1.5px solid #d1d5db;border-radius:999px;padding:5px 12px;cursor:pointer;background:#fff;color:#6b7280;}
+.cloud-pill.synced{background:#dcfce7;color:#15803d;border-color:#86efac;}
+.cloud-pill.syncing{background:#fef3c7;color:#92400e;border-color:#fcd34d;}
+.cloud-pill.offline{background:#f3f4f6;color:#6b7280;}
+.cloud-pill.error{background:#fee2e2;color:#991b1b;border-color:#fca5a5;}
+
+footer{text-align:center;color:#6b7280;font-size:.78rem;margin-top:30px;padding:14px;}
+</style>
+</head>
+<body>
+
+<a class="back-link" href="../../trading/">← חזרה לדשבורד מסחר</a>
+
+<div class="hero">
+  <h1>📅 תוכנית מסחר פעילה</h1>
+  <div class="sub" id="hero-sub">טוען...</div>
+  <div class="hero-stats">
+    <div class="hero-stat blue"><div class="v" id="stat-month">—</div><div class="l">חודש נוכחי</div></div>
+    <div class="hero-stat"><div class="v" id="stat-accounts">—</div><div class="l">חשבונות פעילים</div></div>
+    <div class="hero-stat amber"><div class="v" id="stat-progress">—</div><div class="l">התקדמות בתוכנית</div></div>
+    <div class="hero-stat blue"><div class="v" id="stat-pending">—</div><div class="l">משימות פתוחות</div></div>
+  </div>
+</div>
+
+<!-- Today's action -->
+<div class="section">
+  <h2>🎯 היום / השבוע — מה לעשות עכשיו <button id="cloud-pill" class="cloud-pill offline" type="button">☁ Cloud: …</button></h2>
+  <div id="today-zone"></div>
+  <h3 style="font-size:.95rem;color:#6b7280;margin:14px 0 8px;font-weight:700;">📌 השבוע (7 ימים קדימה)</h3>
+  <div id="week-list"></div>
+</div>
+
+<!-- Progress -->
+<div class="section">
+  <h2>📊 התקדמות בתוכנית — היעד 25-30 חשבונות בחודש 12</h2>
+  <div class="progress-section" id="progress-section"></div>
+</div>
+
+<!-- Daily checklist -->
+<div class="section">
+  <h2>✅ צ׳ק־ליסט יומי — כללי הברזל בפעולה</h2>
+  <div id="checklist-zone"></div>
+  <div style="font-size:.78rem;color:#6b7280;margin-top:10px;text-align:center;">סימון יומי מסונכרן לענן. הצג streak גם בדפדפן אחר.</div>
+</div>
+
+<!-- 12-month calendar -->
+<div class="section">
+  <h2>🗓️ Calendar — 12 חודשים</h2>
+  <div class="cal-grid" id="cal-grid"></div>
+</div>
+
+<!-- Iron rules sticky -->
+<div class="iron-rules">
+  <h3>🛡️ כללי ברזל — תמיד תקפים</h3>
+  <ul id="iron-rules-list"></ul>
+</div>
+
+<footer>
+  <div>נבנה 2026-05-09 על בסיס תוכנית ריאלית מ־<a href="../realistic_plan_2026-05-09.html" style="color:#1d4ed8;">המסמך האסטרטגי</a></div>
+  <div style="margin-top:6px;">סטטוס וצ׳ק־לים מסונכרנים ל־<code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;">docs/state/trading_plan.json</code></div>
+</footer>
+
+<script>
+// ════════════ TaskStateSync (cloud sync) ════════════
+const TaskSync = (function(){
+  const OWNER = (location.host || '').toLowerCase().endsWith('.github.io')
+    ? location.host.replace('.github.io','') : 'laurenlev10';
+  const REPO = location.pathname.split('/').filter(s=>s).shift() || 'lauren-agent-hub-data';
+  const BRANCH = 'main';
+  const PATH = 'docs/state/trading_plan.json';
+  const TOKEN_KEY = 'lauren_gh_token_v1';
+  let currentSha = null, saveTimer = null, saving = false, savePending = false;
+  function getToken(){ try{return localStorage.getItem(TOKEN_KEY)||'';}catch(e){return '';} }
+  function setToken(t){ try{ if(t) localStorage.setItem(TOKEN_KEY,t); else localStorage.removeItem(TOKEN_KEY);}catch(e){} }
+  function hasToken(){ return !!getToken(); }
+  function b64encode(s){return btoa(unescape(encodeURIComponent(s)));}
+  function b64decode(s){return decodeURIComponent(escape(atob((s||'').replace(/\s/g,''))));}
+  function setPill(state,label){
+    const el=document.getElementById('cloud-pill'); if(!el)return;
+    el.classList.remove('synced','syncing','offline','error');
+    el.classList.add(state); el.textContent=label;
+  }
+  async function apiGet(){
+    const url='https://api.github.com/repos/'+OWNER+'/'+REPO+'/contents/'+PATH+'?ref='+BRANCH+'&_='+Date.now();
+    const headers={'Accept':'application/vnd.github+json'};
+    const t=getToken(); if(t) headers['Authorization']='Bearer '+t;
+    const res=await fetch(url,{headers,cache:'no-store'});
+    if(res.status===404) return {data:null,sha:null};
+    if(!res.ok) throw new Error('GET '+res.status);
+    const j=await res.json();
+    let data=null; try{data=JSON.parse(b64decode(j.content));}catch(e){}
+    return {data, sha:j.sha};
+  }
+  async function apiPut(data){
+    const t=getToken(); if(!t) throw new Error('no token');
+    const url='https://api.github.com/repos/'+OWNER+'/'+REPO+'/contents/'+PATH;
+    const body={message:'Update trading_plan.json from active tracker',
+                content:b64encode(JSON.stringify(data,null,2)+'\n'),branch:BRANCH};
+    if(currentSha) body.sha=currentSha;
+    const res=await fetch(url,{method:'PUT',headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+t,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!res.ok){ const txt=await res.text(); throw new Error('PUT '+res.status+': '+txt.slice(0,200)); }
+    const j=await res.json(); currentSha = j.content && j.content.sha;
+  }
+  function getDataForSave(){
+    return Object.assign({}, window.PLAN, {_updated_at: new Date().toISOString()});
+  }
+  async function doSave(){
+    if(!hasToken()){ setPill('offline','☁ Sync: off'); return; }
+    if(saving){ savePending=true; return; }
+    saving=true; setPill('syncing','☁ Syncing…');
+    try{ await apiPut(getDataForSave()); setPill('synced','☁ Synced'); }
+    catch(e){ console.warn('save failed:',e); setPill('error','☁ Error'); }
+    finally{ saving=false; if(savePending){savePending=false;setTimeout(doSave,0);} }
+  }
+  function scheduleSave(){
+    if(saveTimer) clearTimeout(saveTimer);
+    saveTimer=setTimeout(doSave, 2000);
+  }
+  async function loadInitial(cb){
+    try{
+      const r=await apiGet();
+      currentSha = r.sha;
+      if(r.data) cb(r.data);
+      setPill(hasToken()?'synced':'offline', hasToken()?'☁ Synced':'☁ Sync: off');
+    }catch(e){
+      console.warn('load failed:',e);
+      setPill(hasToken()?'error':'offline', hasToken()?'☁ Error':'☁ Offline');
+    }
+  }
+  function promptForToken(){
+    const m='לסנכרון בין כל המכשירים, נדרש GitHub Token (פעם אחת).\n\nאם אין לך — צרי כאן:\nhttps://github.com/settings/tokens/new?scopes=repo&description=Trading+Plan+Sync\n\nהדביקי כאן (ghp_...):';
+    const t=prompt(m,''); if(t && t.trim().startsWith('ghp_')){ setToken(t.trim()); return t.trim(); } return '';
+  }
+  document.getElementById('cloud-pill').addEventListener('click', async ()=>{
+    if(!hasToken()){
+      const t=promptForToken();
+      if(t){ try{await doSave(); alert('✅ הסנכרון פועל!');}catch(e){alert('❌ '+e.message);} }
+    } else { doSave(); }
+  });
+  return { scheduleSave, loadInitial, hasToken };
+})();
+
+// ════════════ Plan logic ════════════
+window.PLAN = null;
+const TODAY = new Date(); TODAY.setHours(0,0,0,0);
+
+function dateDiff(target){
+  const t = new Date(target+'T00:00:00');
+  return Math.round((t.getTime() - TODAY.getTime()) / 86400000);
+}
+
+function fmtDate(iso){
+  const parts = iso.split('-').map(Number);
+  const d = new Date(parts[0], parts[1]-1, parts[2]);
+  return d.toLocaleDateString('he-IL',{day:'numeric',month:'numeric'});
+}
+
+function firmName(f){return {'lucid':'💎 Lucid','apex':'⚡ Apex','blusky':'🏦 BluSky','all':'🌐 All'}[f]||f;}
+
+function renderHero(){
+  const startDate = new Date(window.PLAN.start_date+'T00:00:00');
+  const daysSinceStart = Math.round((TODAY - startDate)/86400000);
+  const monthIdx = Math.min(12, Math.max(1, Math.ceil(daysSinceStart/30)));
+  document.getElementById('stat-month').textContent = monthIdx + ' / 12';
+  document.getElementById('hero-sub').textContent = 'תוכנית 12 חודשים. גידול הדרגתי, לא לסכן את כל התיק ביום אחד.';
+}
+
+function renderTodayAndWeek(){
+  const status = window.PLAN.milestone_status || {};
+  const milestones = window.PLAN.milestones;
+
+  // Active = pending or due in past
+  const open = milestones.filter(m => (status[m.id]||'pending') === 'pending');
+
+  // Today/very-soon: due within ±2 days, OR overdue, OR earliest pending
+  const todayItems = open.filter(m => {
+    const d = dateDiff(m.due);
+    return d <= 2 && d >= -7;
+  });
+
+  const todayZone = document.getElementById('today-zone');
+  if(todayItems.length === 0){
+    const next = open[0];
+    if(next){
+      const d = dateDiff(next.due);
+      todayZone.innerHTML = `<div class="today-action empty">
+        <div class="label">המשימה הבאה</div>
+        <div class="title">${next.title}</div>
+        <div class="desc">${next.desc}</div>
+        <div class="meta">
+          <span>${firmName(next.firm)}</span>
+          <span>${next.product || ''}</span>
+          <span>בעוד ${d} ימים</span>
+          ${next.cost ? `<span>$${next.cost}</span>` : ''}
+        </div>
+      </div>`;
+    } else {
+      todayZone.innerHTML = '<div class="today-action empty"><div class="label">😎</div><div class="title">היום אין משימות פתוחות</div><div class="desc">המשך לסחור על פי הכללים. הוסף משימה רק כשבטוחה שכל החשבונות בריאים.</div></div>';
+    }
+  } else {
+    todayZone.innerHTML = todayItems.map(m=>{
+      const d = dateDiff(m.due);
+      const urgency = d < 0 ? `${Math.abs(d)} ימים באיחור` : d === 0 ? 'היום!' : `בעוד ${d} ימים`;
+      return `<div class="today-action">
+        <div class="label">🎯 ${urgency}</div>
+        <div class="title">${m.title}</div>
+        <div class="desc">${m.desc}</div>
+        <div class="meta">
+          <span>${firmName(m.firm)}</span>
+          ${m.product?`<span>${m.product}</span>`:''}
+          ${m.cost?`<span>$${m.cost}/mo${m.activation?` + $${m.activation} activation`:''}</span>`:''}
+        </div>
+        <button onclick="markMilestone('${m.id}','done')">✓ בוצע</button>
+        <button onclick="markMilestone('${m.id}','skipped')" style="background:#9ca3af;margin-right:6px;">דלג</button>
+      </div>`;
+    }).join('');
+  }
+
+  // This week list (next 7 days from today, excluding today's items)
+  const weekItems = open.filter(m => {
+    const d = dateDiff(m.due);
+    return d > 2 && d <= 14;
+  });
+  const weekList = document.getElementById('week-list');
+  if(weekItems.length === 0){
+    weekList.innerHTML = '<div style="text-align:center;color:#9ca3af;padding:14px;font-size:.88rem;">השבועיים הבאים נקיים — מסחר רגיל בלבד</div>';
+  } else {
+    weekList.innerHTML = weekItems.map(m => `
+      <div class="week-item" onclick="markMilestone('${m.id}','done')">
+        <div class="check">${(status[m.id]==='done')?'✓':''}</div>
+        <div class="body">
+          <div class="ttl">${m.title}</div>
+          <div class="dsc">${m.desc}</div>
+        </div>
+        <div class="firm-tag ${m.firm}">${firmName(m.firm)}</div>
+        <div class="due">${fmtDate(m.due)}</div>
+      </div>
+    `).join('');
+  }
+}
+
+function renderProgress(){
+  // Try to fetch trading.json from the cloud to count actual accounts
+  const tradingUrl = '../../state/trading.json?_='+Date.now();
+  fetch(tradingUrl,{cache:'no-store'}).then(r=>r.ok?r.json():null).then(td=>{
+    const blusky_count = (td && td.accs) ? td.accs.filter(a=>a&&(a.days||a.ph||(a.meta&&a.meta.num))).length : 4;
+    const apex_count = (td && td.apexAccs) ? td.apexAccs.length : 4;
+    const lucid_count = (td && td.lucidAccs) ? td.lucidAccs.length : 1;
+    const total = blusky_count + apex_count + lucid_count;
+    const goal_blusky = 8, goal_apex = 14, goal_lucid = 7, goal_total = 25;
+    const html = `
+      <div class="progress-row">
+        <div class="top"><span class="lbl">סה"כ חשבונות פעילים</span><span class="num">${total} / ${goal_total}</span></div>
+        <div class="bar"><div class="bar-fill total" style="width:${Math.min(100,total/goal_total*100)}%">${Math.round(total/goal_total*100)}%</div></div>
+      </div>
+      <div class="progress-row">
+        <div class="top"><span class="lbl">🏦 BluSky <small style="color:#6b7280;font-weight:400;">(max 8 — 5 evals + 3 SFAs)</small></span><span class="num">${blusky_count} / ${goal_blusky}</span></div>
+        <div class="bar"><div class="bar-fill blusky" style="width:${Math.min(100,blusky_count/goal_blusky*100)}%">${blusky_count}</div></div>
+      </div>
+      <div class="progress-row">
+        <div class="top"><span class="lbl">⚡ Apex <small style="color:#6b7280;font-weight:400;">(max 20 — household-wide)</small></span><span class="num">${apex_count} / ${goal_apex}</span></div>
+        <div class="bar"><div class="bar-fill apex" style="width:${Math.min(100,apex_count/goal_apex*100)}%">${apex_count}</div></div>
+      </div>
+      <div class="progress-row">
+        <div class="top"><span class="lbl">💎 Lucid <small style="color:#6b7280;font-weight:400;">(max 10 — 5 funded sub-cap)</small></span><span class="num">${lucid_count} / ${goal_lucid}</span></div>
+        <div class="bar"><div class="bar-fill lucid" style="width:${Math.min(100,lucid_count/goal_lucid*100)}%">${lucid_count}</div></div>
+      </div>
+    `;
+    document.getElementById('progress-section').innerHTML = html;
+    document.getElementById('stat-accounts').textContent = total;
+    document.getElementById('stat-progress').textContent = Math.round(total/goal_total*100)+'%';
+
+    const status = window.PLAN.milestone_status || {};
+    const pending = window.PLAN.milestones.filter(m => (status[m.id]||'pending') === 'pending').length;
+    document.getElementById('stat-pending').textContent = pending;
+  }).catch(e=>console.warn(e));
+}
+
+function renderCalendar(){
+  const months = [];
+  const startDate = new Date(window.PLAN.start_date+'T00:00:00');
+  const monthLabels = ['חודש 1','חודש 2','חודש 3','חודש 4','חודש 5','חודש 6','חודש 7','חודש 8','חודש 9','חודש 10','חודש 11','חודש 12'];
+  const targets = [10,12,15,17,20,22,23,24,25,26,27,30];
+  const monthMilestones = {};
+  window.PLAN.milestones.forEach(m=>{
+    monthMilestones[m.month] = (monthMilestones[m.month]||0) + 1;
+  });
+  const status = window.PLAN.milestone_status || {};
+  const daysSinceStart = Math.round((TODAY - startDate)/86400000);
+  const currentMonth = Math.min(12, Math.max(1, Math.ceil(daysSinceStart/30) || 1));
+
+  const html = monthLabels.map((lbl,i)=>{
+    const monthNum = i+1;
+    const isPast = monthNum < currentMonth;
+    const isCurrent = monthNum === currentMonth;
+    const ms = window.PLAN.milestones.filter(m=>m.month===monthNum);
+    const doneInMonth = ms.filter(m=>status[m.id]==='done').length;
+    const totalInMonth = ms.length;
+    const summary = ms.length === 0 ? 'יציב' : ms.map(m => {
+      return `${firmName(m.firm)}: ${m.product||m.title.slice(0,20)+(m.title.length>20?'…':'')}`;
+    }).slice(0,2).join(' · ');
+    return `<div class="cal-cell ${isCurrent?'current':''} ${isPast?'past':''}" title="${ms.map(m=>m.title).join('\n')}">
+      <div class="m-label">${isCurrent?'⭐ נוכחי':isPast?'עבר':''}</div>
+      <div class="m-num">${lbl}</div>
+      <div class="m-target">יעד: ${targets[i]} חשבונות</div>
+      <div class="m-actions">${totalInMonth ? `${doneInMonth}/${totalInMonth} משימות` : 'אין משימות חדשות'}</div>
+      ${summary && totalInMonth ? `<div style="font-size:.7rem;color:#6b7280;margin-top:4px;line-height:1.4;">${summary}</div>` : ''}
+    </div>`;
+  }).join('');
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+function renderChecklist(){
+  const items = [
+    {id:'buffer_above_1k', label:'DD Buffer ≥ $1,000 בכל חשבון'},
+    {id:'no_red_buffer_trade', label:'לא סחרתי כשbuffer באדום (<$500)'},
+    {id:'max_safe_daily', label:'לא חרגתי מיעד יומי בטוח (max-safe-daily)'},
+    {id:'lucid_target_progress', label:'התקדמות לכיוון יעד $54,100 ב-Lucid Funded'},
+  ];
+  const today = TODAY.toISOString().split('T')[0];
+  const checklist = window.PLAN.checklist_streak || {};
+  const html = items.map(item=>{
+    const dates = checklist[item.id] || [];
+    const isCheckedToday = dates.includes(today);
+    const streak = computeStreak(dates);
+    return `<div class="daily-check ${isCheckedToday?'checked':''}" onclick="toggleCheck('${item.id}')">
+      <input type="checkbox" ${isCheckedToday?'checked':''} onclick="event.stopPropagation();toggleCheck('${item.id}');return false;">
+      <div class="lbl">${item.label}</div>
+      ${streak > 0 ? `<div class="streak">🔥 ${streak} ימים ברצף</div>` : ''}
+    </div>`;
+  }).join('');
+  document.getElementById('checklist-zone').innerHTML = html;
+}
+
+function computeStreak(dates){
+  if(!dates.length) return 0;
+  const sorted = dates.slice().sort().reverse();
+  let streak = 0;
+  let current = new Date(TODAY);
+  for(let i=0; i<sorted.length; i++){
+    const d = new Date(sorted[i]+'T00:00:00');
+    const diff = Math.round((current - d) / 86400000);
+    if(diff === 0 || (i === 0 && diff === 1)){
+      streak++;
+      current = new Date(d);
+      current.setDate(current.getDate()-1);
+    } else if(diff === 1){
+      streak++;
+      current = new Date(d);
+      current.setDate(current.getDate()-1);
+    } else { break; }
+  }
+  return streak;
+}
+
+window.markMilestone = function(id, status){
+  if(!window.PLAN.milestone_status) window.PLAN.milestone_status = {};
+  window.PLAN.milestone_status[id] = status;
+  TaskSync.scheduleSave();
+  renderTodayAndWeek();
+  renderCalendar();
+  renderProgress();
+};
+
+window.toggleCheck = function(id){
+  const today = TODAY.toISOString().split('T')[0];
+  if(!window.PLAN.checklist_streak) window.PLAN.checklist_streak = {};
+  if(!window.PLAN.checklist_streak[id]) window.PLAN.checklist_streak[id] = [];
+  const arr = window.PLAN.checklist_streak[id];
+  const idx = arr.indexOf(today);
+  if(idx >= 0) arr.splice(idx,1); else arr.push(today);
+  TaskSync.scheduleSave();
+  renderChecklist();
+};
+
+function renderIronRules(){
+  const list = document.getElementById('iron-rules-list');
+  list.innerHTML = (window.PLAN._iron_rules_summary||[]).map(r=>`<li>${r}</li>`).join('');
+}
+
+// ════════════ INIT ════════════
+TaskSync.loadInitial(remote => {
+  window.PLAN = remote;
+  renderHero();
+  renderTodayAndWeek();
+  renderProgress();
+  renderCalendar();
+  renderChecklist();
+  renderIronRules();
+});
+</script>
+
+</body>
+</html>
