@@ -1,0 +1,536 @@
+{
+  "_doc": "Prop firm rules reference — comprehensive source of truth for the trading dashboard. Each plan tracks ALL phases with full rule sets. Cross-machine via GitHub. Per-firm citations + research-pass FLAGs preserved in 'sources' / 'flags'. Updated when firms change rules.",
+  "_schema_version": 1,
+  "_research_date": "2026-05-09",
+  "_updated_at": "2026-05-09T03:53:00.000Z",
+  "firms": {
+    "blusky": {
+      "name": "BluSky Trading",
+      "url": "https://blusky.pro",
+      "helpUrl": "https://help.blusky.pro",
+      "platforms": [
+        "Tradovate",
+        "Rithmic",
+        "Quantower",
+        "Sierra",
+        "Bookmap"
+      ],
+      "feePerContractRoundtrip": 2.2,
+      "consistencyFormula": "highestDay / totalPnL",
+      "consistencyFailMode": "addToTarget",
+      "_consistencyFailModeNote": "Excess no longer fails the account; system raises profit target so best-day = limit% of new target.",
+      "trailingDrawdown": "EOD",
+      "_trailingNote": "Calculated from highest EOD balance starting 6PM ET. Increases with profits, never decreases with losses. Static plans = floor never moves.",
+      "positionCutoffET": "16:45",
+      "_positionCutoffNote": "Auto-liquidation attempt ~15min before market close. Not guaranteed.",
+      "phases": [
+        "eval1",
+        "blulive",
+        "simfunded",
+        "brokreview",
+        "live"
+      ],
+      "phaseLabels": {
+        "eval1": "Phase 1 — Evaluation",
+        "blulive": "Phase 2 — BluLive (Buffer)",
+        "simfunded": "Sim Funded",
+        "brokreview": "Brokerage Review",
+        "live": "Live Brokerage"
+      },
+      "plans": {
+        "PROPEL_50K": {
+          "label": "PROPEL 50K (Premium)",
+          "family": "premium",
+          "accountSize": 50000,
+          "monthlyFee": 160,
+          "activationFee": 0,
+          "resetFee": 85,
+          "_resetFeeNote": "Free on subscription renewal.",
+          "phases": {
+            "eval1": {
+              "label": "Phase 1 — Evaluation",
+              "profitTarget": 3000,
+              "drawdownType": "EOD_Trailing",
+              "trailDD": 2000,
+              "burnStart": 48000,
+              "dailyLossLimit": 1000,
+              "_dailyLossLimitNote": "Soft DLL — pauses the day, doesn't fail.",
+              "consistencyPct": 0.3,
+              "_consistencyNote": "PTV / 3rd-party = 30%. Help center current text reads 34%. Lauren's dashboard shows 30%.",
+              "minDays": 8,
+              "maxContracts": "10 mini / 100 micro",
+              "botsAllowed": true,
+              "passCriteria": "Hit $3,000 target with consistency ≤ 30% AND stay above EOD MLL"
+            },
+            "blulive": {
+              "label": "Phase 2 — BluLive (Buffer)",
+              "profitTarget": 3000,
+              "_profitTargetNote": "Buffer goal — when reached, trailing drawdown converts to static.",
+              "drawdownType": "EOD_Trailing_to_Static",
+              "trailDD": 2000,
+              "burnStart": 48000,
+              "dailyLossLimit": null,
+              "consistencyPct": 0.3,
+              "minDays": null,
+              "maxContracts": "5 mini / 50 micro (Sim Funded scaling)",
+              "botsAllowed": true,
+              "setupFee": 0,
+              "passCriteria": "Reach buffer target → trailing drawdown locks → advance to Sim Funded"
+            },
+            "simfunded": {
+              "label": "Sim Funded",
+              "profitSplit": 0.9,
+              "minPayout": 250,
+              "perPayout7DayCap": 2500,
+              "stopDay": 5000,
+              "stopWeek": 10000,
+              "minProfitBetweenPayouts": 250,
+              "_payoutNote": "Payouts daily M–F. Before 11AM ET = same-day, after = next.",
+              "consistencyPct": 0.3,
+              "drawdownType": "Static",
+              "brokQualifierTotal": 10000,
+              "maxSFAsPerTrader": 3,
+              "maxTransferToBrokerage": 30000
+            },
+            "brokreview": {
+              "label": "Brokerage Review",
+              "tradeAllowed": false,
+              "_note": "Account is in review pending live conversion. Trading = account voided. Open support ticket only."
+            },
+            "live": {
+              "label": "Live Brokerage",
+              "profitSplit": 0.9,
+              "_note": "Real-money account. Same drawdown discipline as Sim Funded."
+            }
+          }
+        },
+        "PROPEL_200K": {
+          "label": "PROPEL 200K (Static Growth+)",
+          "family": "static_premium",
+          "accountSize": 200000,
+          "monthlyFee": 235,
+          "_monthlyFeeNote": "Estimated — verify against current pricing page.",
+          "activationFee": 0,
+          "resetFee": 85,
+          "isStatic": true,
+          "phases": {
+            "eval1": {
+              "label": "Phase 1 — Evaluation",
+              "profitTarget": 6000,
+              "drawdownType": "Static",
+              "trailDD": 2000,
+              "burnStart": 198000,
+              "_burnStartNote": "Static MLL = startBal − trailDD = $198,000. Never moves.",
+              "dailyLossLimit": 1000,
+              "consistencyPct": 0.3,
+              "_consistencyNote": "Same 30% (3rd-party) / 34% (help text) ambiguity.",
+              "minDays": 8,
+              "maxContracts": "10 mini / 100 micro",
+              "botsAllowed": true,
+              "passCriteria": "Hit $6,000 with consistency ≤ 30%"
+            },
+            "blulive": {
+              "label": "Phase 2 — BluLive (Buffer)",
+              "profitTarget": 3000,
+              "_profitTargetNote": "Static Growth+ 200K buffer = $3,000.",
+              "drawdownType": "Static",
+              "trailDD": 2000,
+              "burnStart": 198000,
+              "dailyLossLimit": null,
+              "consistencyPct": 0.3,
+              "maxContracts": "4 mini / 40 micro (Sim Funded scaling)",
+              "botsAllowed": true,
+              "setupFee": 0
+            },
+            "simfunded": {
+              "label": "Sim Funded",
+              "profitSplit": 0.9,
+              "minPayout": 250,
+              "perPayout7DayCap": 2500,
+              "consistencyPct": 0.3,
+              "drawdownType": "Static",
+              "stopDay": 5000,
+              "stopWeek": 10000
+            },
+            "brokreview": {
+              "label": "Brokerage Review",
+              "tradeAllowed": false
+            },
+            "live": {
+              "label": "Live Brokerage",
+              "profitSplit": 0.9
+            }
+          }
+        },
+        "LAUNCH_50K": {
+          "label": "LAUNCH 50K",
+          "family": "launch",
+          "accountSize": 50000,
+          "monthlyFee": 59,
+          "activationFee": 0,
+          "launchFee": 99,
+          "_launchFeeNote": "$99 one-time, paid when entering BluLive.",
+          "resetFee": 85,
+          "phases": {
+            "eval1": {
+              "label": "Phase 1 — Evaluation",
+              "profitTarget": 3000,
+              "drawdownType": "EOD_Trailing",
+              "trailDD": 2000,
+              "burnStart": 48000,
+              "dailyLossLimit": null,
+              "consistencyPct": 0.5,
+              "_consistencyNote": "Launch eval = 50% (vs 30% Premium).",
+              "minDays": 1,
+              "maxContracts": "5 mini / 50 micro",
+              "botsAllowed": true,
+              "passCriteria": "Hit $3,000 with consistency ≤ 50%"
+            },
+            "blulive": {
+              "label": "Phase 2 — BluLive (Buffer)",
+              "profitTarget": 3000,
+              "drawdownType": "EOD_Trailing_to_Static",
+              "trailDD": 2000,
+              "burnStart": 48000,
+              "consistencyPct": 0.3,
+              "_consistencyNote": "BluLive = 30% across all plans (incl. Launch).",
+              "setupFee": 99,
+              "_setupFeeNote": "Launch plan only — $99 paid on entering BluLive."
+            },
+            "simfunded": {
+              "label": "Sim Funded",
+              "profitSplit": 0.9,
+              "minPayout": 250,
+              "perPayout7DayCap": 2500,
+              "consistencyPct": 0.3,
+              "drawdownType": "Static"
+            },
+            "brokreview": {
+              "label": "Brokerage Review",
+              "tradeAllowed": false
+            },
+            "live": {
+              "label": "Live Brokerage",
+              "profitSplit": 0.9
+            }
+          }
+        }
+      },
+      "_feeNote": "BluSky charges $2.20 flat per round-trip trade (Tradovate fee model). Verified across 50K LAUNCH and 50K LAUNCH II CSVs.",
+      "maxAccounts": {
+        "evalsAndBluLive": 5,
+        "simFunded": 3,
+        "instantFunded": 3,
+        "totalSimultaneous": 8,
+        "note": "Up to 5 evals/BluLive + 3 SFAs simultaneously. Live accounts not counted.",
+        "source": "https://help.blusky.pro/en/articles/12433943-multiple-accounts-copy-trading"
+      }
+    },
+    "apex": {
+      "name": "Apex Trader Funding",
+      "url": "https://apextraderfunding.com",
+      "helpUrl": "https://support.apextraderfunding.com",
+      "platforms": [
+        "Tradovate",
+        "NinjaTrader",
+        "Rithmic"
+      ],
+      "feePerContractRoundtrip": 3.45,
+      "positionCutoffET": "16:59",
+      "phases": [
+        "eval1",
+        "pa",
+        "live"
+      ],
+      "phaseLabels": {
+        "eval1": "Evaluation (one-step)",
+        "pa": "Performance Account (PA)",
+        "live": "Live"
+      },
+      "_metalsHaltedSince": "2026-03-14",
+      "_metalsHaltedNote": "All metals (GC, SI, QI, QO, MGC, HG, PL, PA) suspended indefinitely.",
+      "plans": {
+        "LEGACY_PA_50K": {
+          "label": "Legacy PA $50K (purchased < 2026-03-01)",
+          "family": "legacy_pa",
+          "accountSize": 50000,
+          "isLegacy": true,
+          "_legacyNote": "Cannot purchase new — only accounts dated before 2026-03-01. NO migration path to 4.0.",
+          "phases": {
+            "eval1": {
+              "label": "Evaluation",
+              "profitTarget": 3000,
+              "drawdownType": "Intraday_Trailing",
+              "_drawdownNote": "Intraday — MLL rises real-time on unrealized P&L during a trade. Tradovate quirk: trailing does NOT stop in eval; Rithmic stops when threshold hits target.",
+              "trailDD": 2500,
+              "burnStart": 47500,
+              "dailyLossLimit": null,
+              "_dailyLossLimitNote": "No DLL on Legacy. DLL is 4.0 only.",
+              "consistencyPct": null,
+              "_consistencyEvalNote": "No consistency in eval phase. Consistency only checked at payout time on PA.",
+              "minDays": 0,
+              "_minDaysNote": "Pass on day 1 if math works.",
+              "maxContracts": 10,
+              "_maxContractsNote": "10 minis (or micro equivalent within same exposure).",
+              "botsAllowed": false,
+              "_botsNote": "FLAG: Eval rules don't explicitly list bots, but Compliance sweeps 'all account types' — treat as banned to be safe.",
+              "passCriteria": "Hit $3,000 with no breach of trailing drawdown."
+            },
+            "pa": {
+              "label": "Performance Account (PA)",
+              "drawdownType": "Intraday_Trailing",
+              "trailDD": 2500,
+              "burnStart": 47500,
+              "_burnStartNote": "Trails until peak hits Safety Net $52,600, then locks at $50,100.",
+              "safetyNet": 52600,
+              "_safetyNetFormula": "startBal + trailDD + $100 = 50,000 + 2,500 + 100",
+              "lockedMLL": 50100,
+              "_lockedMLLNote": "Locks at $50,100 (= startBal + $100) once Safety Net is reached.",
+              "consistencyPct": 0.3,
+              "_consistencyNote": "Legacy = 30% (vs 4.0 = 50%). Payout-time only.",
+              "_consistencyExempt": "Drops at 6th approved payout OR move to Live Prop.",
+              "_consistencyFormula": "Highest Profit Day ÷ 0.30 = Min Total Profit Required.",
+              "_consistencyReset": "Resets after each approved payout.",
+              "MAE_pct": 0.3,
+              "_MAENote": "30% of start-of-day profit balance. Loosens to 50% once EOD profit >= 2× Safety Net ($5,200 profit on $50K).",
+              "fiveToOneRR": true,
+              "_fiveToOneNote": "Stop loss must be ≤ 5× profit target. Removed in 4.0 but ACTIVE on Legacy.",
+              "oneDirection": true,
+              "_oneDirectionNote": "Long OR short, never both, no bracket pairs.",
+              "noHedging": true,
+              "_noHedgingNote": "No offsetting on same/correlated instruments — even across micros vs minis.",
+              "newsTradingAllowed": true,
+              "minDaysForPayout": 8,
+              "minDaysOfQualifying": 5,
+              "minProfitPerQualifyingDay": 50,
+              "minPayout": 500,
+              "minBalanceForPayout": 52600,
+              "perPayoutCap_first5": 2000,
+              "_perPayoutCapNote": "First 5 payouts capped at $2,000. From 6th onward: NO cap.",
+              "_safetyNetForPayoutsNote": "First 3 payouts: balance must exceed Safety Net by (requested - $500). After 4th payout: drops.",
+              "minDaysBetweenPayouts": 8,
+              "profitSplit_first25k": 1.0,
+              "profitSplit_after": 0.9,
+              "_profitSplitNote": "100% of first $25,000 per account, then 90/10. 100% direct payouts begin at the 6th approved payout.",
+              "maxContracts": 10,
+              "halfSizeUntil": 52600,
+              "_halfSizeNote": "Half-size = 5 contracts on $50K until balance > Safety Net. After: full 10 unlocks next session and stays.",
+              "_halfSizeViolation": "Penalty: profits removed + 8 additional compliant trading days before next payout.",
+              "botsAllowed": false,
+              "_botsAllowedNote": "STRICTLY PROHIBITED on PA. AI, bots, HFT, fully automated systems all banned.",
+              "thirdPartyCopyAllowed": false,
+              "_thirdPartyCopyNote": "PA must be traded by listed individual only.",
+              "metalsHalted": true,
+              "_metalsHaltedNote": "All metals (GC/SI/MGC/HG/PL/PA/QI/QO) halted since 2026-03-14, no return date. Applies to Legacy too.",
+              "positionCloseET": "16:59",
+              "tradovateFeePerTrade": 3.45,
+              "_tradovateFeeNote": "Verified 2026-05-09: PA-APEX-158140-09 actual NL $49,228.09 vs computed with $3.45/trade $49,228.17 — gap $0.08 rounding."
+            }
+          },
+          "resetPolicy": {
+            "evalReset_rithmic_wc": 80,
+            "evalReset_tradovate": 100,
+            "paResettable": false,
+            "_note": "PA accounts cannot be reset. Once breached, gone. Eval can be reset; non-refundable."
+          },
+          "tradingDayDef": "6:00 PM ET → 4:59 PM ET next calendar day. Sunday counts as Monday's day."
+        },
+        "PA_4_0_EOD_50K": {
+          "label": "Apex 4.0 EOD PA $50K (post-2026-03-01)",
+          "family": "new_pa_eod",
+          "accountSize": 50000,
+          "_familyNote": "Default rule set since Apex 4.0 launch (Mar 1, 2026).",
+          "phases": {
+            "eval1": {
+              "label": "Evaluation",
+              "profitTarget": 3000,
+              "drawdownType": "EOD_Trailing",
+              "trailDD": 2000,
+              "burnStart": 48000,
+              "dailyLossLimit": 1000,
+              "_dailyLossLimitNote": "EOD only — pauses day, doesn't fail.",
+              "consistencyPct": null,
+              "_consistencyEvalNote": "No consistency check during eval (4.0).",
+              "minDays": 0,
+              "maxContracts": 6,
+              "botsAllowed": true
+            },
+            "pa": {
+              "label": "Performance Account (PA)",
+              "drawdownType": "EOD_Trailing",
+              "trailDD": 2000,
+              "burnStart": 48000,
+              "safetyNet": 52100,
+              "_safetyNetFormula": "startBal + trailDD + $100",
+              "consistencyPct": 0.5,
+              "_consistencyNote": "4.0 = 50% (vs Legacy = 30%). Payout-time only.",
+              "minDaysOfQualifying": 5,
+              "minProfitPerQualifyingDay": 250,
+              "minPayout": 500,
+              "minBalanceForPayout": 52600,
+              "payoutLadder": [
+                1500,
+                1500,
+                2000,
+                2500,
+                2500,
+                3000
+              ],
+              "_payoutLadderNote": "Payouts 1→6: $1,500 / $1,500 / $2,000 / $2,500 / $2,500 / $3,000. 100% after 6.",
+              "profitSplit_first25k": 1.0,
+              "profitSplit_after": 0.9,
+              "activationFee": 99,
+              "_activationFeeNote": "$99 within 7 calendar days of passing eval. Not discounted.",
+              "maxContracts": 4,
+              "botsAllowed": false
+            }
+          }
+        }
+      },
+      "_feeNote": "Apex Legacy charges \\$3.45 per round-trip trade on Tradovate. Verified 2026-05-09 against account PA-APEX-158140-09 actual Net Liquidity \\$49,228.09 (computed \\$49,228.17, gap \\$0.08 rounding). Different from BluSky \\$2.20 and Lucid \\$1.00/contract.",
+      "maxAccounts": {
+        "evals": null,
+        "pa": 20,
+        "totalSimultaneous": 20,
+        "note": "Hard cap 20 active PA accounts shared across household/family/LLCs. No explicit eval cap. Exceeding = forfeiture.",
+        "source": "https://support.apextraderfunding.com/hc/en-us/articles/4406804554779-How-Many-Paid-Funded-Accounts-Am-I-Allowed-to-Have"
+      }
+    },
+    "lucid": {
+      "name": "Lucid Trading",
+      "url": "https://lucidtrading.com",
+      "helpUrl": "https://support.lucidtrading.com",
+      "platforms": [
+        "Tradovate",
+        "NinjaTrader",
+        "Rithmic"
+      ],
+      "feePerContractRoundtrip": 1.0,
+      "positionCutoffET": "16:45",
+      "_positionCutoffNote": "OFFICIAL Lucid time. Lauren's earlier 15:00 spec didn't match — she likely meant 16:45 = '15:00 PT' or had outdated info.",
+      "phases": [
+        "eval",
+        "funded",
+        "lucidlive"
+      ],
+      "phaseLabels": {
+        "eval": "Evaluation",
+        "funded": "LucidFlex Funded",
+        "lucidlive": "LucidLive (real money)"
+      },
+      "plans": {
+        "FLEX_50K": {
+          "label": "LucidFlex 50K",
+          "family": "flex",
+          "accountSize": 50000,
+          "monthlyFee": null,
+          "_monthlyFeeNote": "One-time fee, no monthly rebill.",
+          "activationFee": 0,
+          "phases": {
+            "eval": {
+              "label": "Evaluation",
+              "profitTarget": 3000,
+              "drawdownType": "EOD_Trailing",
+              "trailDD": 2000,
+              "burnStart": 48000,
+              "_burnStartNote": "Initial Trail Balance $52,100 — locks once exceeded.",
+              "dailyLossLimit": null,
+              "consistencyPct": 0.5,
+              "_consistencyNote": "Largest day / Total profit ≤ 50%. Built-in cushion ~$1,560 best day on $3,000 target.",
+              "minDays": 2,
+              "maxContracts": "4 mini / 40 micro",
+              "_maxContractsNote": "Full size from trade #1 — no half-size scaling.",
+              "botsAllowed": true,
+              "_botsNote": "Discretionary OR systematic (non-HFT). HFT, ultra-short scalping (<2 min, <10 ticks), reverse-trading PROHIBITED."
+            },
+            "funded": {
+              "label": "LucidFlex Funded",
+              "drawdownType": "EOD_Trailing_to_Static",
+              "trailDD": 2000,
+              "_trailingNote": "Locks at Initial Trail Balance $52,100. After 1st payout, MLL drops to Locked $50,100. Subsequent payouts don't reduce MLL.",
+              "initialTrailBalance": 52100,
+              "lockedMLL": 50100,
+              "dailyLossLimit": null,
+              "consistencyPct": null,
+              "_consistencyFundedNote": "NO consistency on funded. 100% of profit can be from one day.",
+              "profitSplit": 0.9,
+              "minPayout": 500,
+              "minProfitPerQualifyingDay": 150,
+              "minDaysOfQualifying": 5,
+              "perPayoutCap": 2000,
+              "_perPayoutCapNote": "50% of balance up to $2,000 cap on 50K.",
+              "minPositiveNetInCycle": 1,
+              "maxPayoutsBeforeLucidLive": 5,
+              "lucidLiveStartingProfitTransfer": 5000,
+              "scalingPlan": [
+                {
+                  "profitRange": "$0–$999",
+                  "maxContracts": 2
+                },
+                {
+                  "profitRange": "$1,000–$1,999",
+                  "maxContracts": 3
+                },
+                {
+                  "profitRange": "$2,000+",
+                  "maxContracts": 4
+                }
+              ],
+              "_scalingNote": "End-of-session updates. One accidental oversize won't violate."
+            },
+            "lucidlive": {
+              "label": "LucidLive (real money)",
+              "profitSplit": 0.9,
+              "_note": "Auto-transition after 5 Flex payouts. Real-money account."
+            }
+          }
+        }
+      },
+      "_feeNote": "Lucid charges per-contract not per-trade. Confirmed 2026-05-09 via Performance (35).csv: 39 trades / 66 contracts produced $66 fees, matching Lucid's broker-side balance exactly. (BluSky and Apex use a flat $2.20/round-trip-trade model.)",
+      "maxAccounts": {
+        "totalSimultaneous": 10,
+        "funded": 5,
+        "note": "Max 10 active accounts total (eval + funded combined). Funded sub-cap = 5 per household.",
+        "source": "https://support.lucidtrading.com/en/articles/11404617-maximum-number-of-accounts"
+      }
+    }
+  },
+  "_flags": [
+    "BluSky Premium Eval consistency: help-center text shows 34%, 3rd-party reviews say 30%. Lauren's dashboard uses 30% — kept that as authoritative until support ticket clarifies.",
+    "BluSky bot policy: not directly stated in help center ToS; funded.now indicates allowed. Low-confidence.",
+    "BluSky trailing-to-static conversion at profit target on Premium: claimed by PTV review but not in help-center articles directly. Confirmed for BluLive but verify for Premium eval.",
+    "LucidFlex initial-trail / locked-MLL numbers ($52,100 / $50,100) come from official Lucid help. Lauren's earlier $49,046 / $954 / 15:00 ET specs match a different product (LucidPro or LucidBlack legacy) — needs her dashboard screenshot for confirmation.",
+    "Apex 4.0 payout ladder ($1,500 / $1,500 / $2,000 / $2,500 / $2,500 / $3,000) sourced from PTV; verify against Apex help-center EOD Payouts article for canonical numbers."
+  ],
+  "_sources": {
+    "blusky": [
+      "https://help.blusky.pro/en/articles/12434059-evaluation-rules",
+      "https://help.blusky.pro/en/articles/14462222-understanding-the-consistency-rule",
+      "https://help.blusky.pro/en/articles/12434458-blulive-buffer-stage",
+      "https://help.blusky.pro/en/articles/12433986-static-growth-plan",
+      "https://help.blusky.pro/en/articles/11490300-sim-funded-accounts-rules",
+      "https://funded.now/propfirm/blusky/launch-50000",
+      "https://proptradingvibes.com/prop-firms/blusky"
+    ],
+    "apex": [
+      "https://support.apextraderfunding.com/hc/en-us/articles/40463003786267-Legacy-Performance-Account-PA-Trading-Rules",
+      "https://support.apextraderfunding.com/hc/en-us/articles/40507212951451-Legacy-PA-Payout-Parameters",
+      "https://proptradingvibes.com/blog/apex-trader-funding-rules-overview",
+      "https://proptradingvibes.com/blog/apex-trader-funding-contract-limits",
+      "https://apextraderfunding.com/help-center/performance-accounts-pa/legacy-performance-account-pa-trading-rules/",
+      "https://apextraderfunding.com/help-center/legacy-payouts/legacy-pa-payout-parameters/",
+      "https://apextraderfunding.com/help-center/performance-accounts-pa/legacy-performance-account-pa-compliance/",
+      "https://apextraderfunding.com/help-center/evaluation-accounts-ea/legacy-evaluation-rules/",
+      "https://apextraderfunding.com/help-center/everything-billing-subscriptions-cancellations-resets/legacy-reset-options/",
+      "https://apextraderfunding.com/help-center/helpful-items/trading-halt-metals-contracts/"
+    ],
+    "lucid": [
+      "https://support.lucidtrading.com/en/articles/11404729-allowed-trading-times",
+      "https://support.lucidtrading.com/en/articles/12945790-lucidflex-evaluation-account",
+      "https://support.lucidtrading.com/en/articles/12945815-lucidflex-drawdown",
+      "https://support.lucidtrading.com/en/articles/12945805-lucidflex-consistency-percentage",
+      "https://support.lucidtrading.com/en/articles/12945796-lucidflex-payouts",
+      "https://proptradingvibes.com/blog/lucid-trading-lucidflex-account"
+    ]
+  }
+}

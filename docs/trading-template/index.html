@@ -1,0 +1,2974 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BluSky — Daily Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #eef2f7;
+  --surface:  #ffffff;
+  --s2:       #f4f7fb;
+  --s3:       #e8eef6;
+  --bdr:      #d2daea;
+  --bdr2:     #e4eaf3;
+
+  --sky:      #1a6ed4;
+  --sky2:     #1254b0;
+  --sky-bg:   #ddeeff;
+  --sky-mid:  #93c5fd;
+
+  --grn:      #166534;
+  --grn-bg:   #dcfce7;
+  --grn-mid:  #86efac;
+
+  --red:      #b91c1c;
+  --red-bg:   #fee2e2;
+  --red-mid:  #fca5a5;
+
+  --amb:      #b45309;
+  --amb-bg:   #fef3c7;
+  --amb-mid:  #fcd34d;
+
+  --pur:      #6d28d9;
+  --pur-bg:   #ede9fe;
+  --pur-mid:  #c4b5fd;
+
+  --txt:      #0a0f1e;
+  --txt2:     #111827;
+  --txt3:     #1f2937;
+  --txt4:     #4b5563;
+
+  --f:   'Heebo', sans-serif;
+  --m:   'Heebo', sans-serif;
+  --r:   14px;
+  --rl:  20px;
+  --sh:  0 1px 4px rgba(0,0,0,.07), 0 2px 8px rgba(0,0,0,.04);
+  --sh2: 0 6px 20px rgba(0,0,0,.1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--txt);font-family:var(--f);font-size:18px;min-height:100vh;}
+.page{max-width:1200px;margin:0 0 0 auto;padding:24px 24px 80px;}
+
+/* ── TOPBAR ── */
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:26px;gap:16px;}
+.brand-lbl{font-size:15px;font-weight:700;color:var(--sky);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;}
+.brand-ttl{font-size:34px;font-weight:900;color:var(--txt);letter-spacing:-.02em;}
+.brand-ttl span{color:var(--sky);}
+.brand-sub{font-size:17px;color:var(--txt3);margin-top:3px;font-weight:600;}
+.top-right{display:flex;align-items:center;gap:10px;}
+.clock{font-size:16px;font-weight:700;color:var(--txt3);background:var(--surface);border:1.5px solid var(--bdr);border-radius:10px;padding:10px 18px;box-shadow:var(--sh);}
+.btn-primary{background:var(--sky);color:#fff;border:none;border-radius:12px;padding:12px 24px;font-family:var(--f);font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 3px 10px rgba(26,110,212,.3);transition:all .15s;}
+.btn-primary:hover{background:var(--sky2);transform:translateY(-1px);}
+.btn-secondary{background:none;color:var(--sky);border:2px solid var(--sky);border-radius:12px;padding:11px 20px;font-family:var(--f);font-size:16px;font-weight:700;cursor:pointer;transition:all .15s;}
+.btn-secondary:hover{background:var(--sky-bg);}
+
+/* ── ACCOUNT CARDS GRID ── */
+.accounts-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;}
+/* responsive: 4 cols on big screens, 2 cols on tablets, 1 col on phones (added 2026-05-08 to stop horizontal scroll) */
+@media (max-width: 1100px) { .accounts-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 700px)  { .accounts-grid { grid-template-columns: 1fr; } }
+/* prevent any sub-element from forcing horizontal overflow on the page */
+html, body { overflow-x: hidden; }
+.page { padding-left: 16px; padding-right: 16px; }
+@media (max-width: 700px) { .page { padding-left: 12px; padding-right: 12px; } }
+
+/* ── ACCOUNT BLOCK ── */
+.acc-block{}
+
+/* ── ACCOUNT HEADER CARD ── */
+.acc-header-card{border-radius:var(--rl) var(--rl) 0 0;padding:0;overflow:hidden;box-shadow:var(--sh);border:1.5px solid var(--bdr2);border-bottom:none;}
+.acc-color-bar{height:7px;}
+.acc-header-body{background:var(--surface);padding:20px 22px 17px;}
+.acc-name{font-size:22px;font-weight:900;color:var(--txt);margin-bottom:3px;}
+.acc-num{font-size:15px;color:var(--txt3);margin-bottom:10px;font-weight:600;}
+.acc-phase-row{display:flex;justify-content:space-between;align-items:center;}
+.phase-pill{font-size:15px;font-weight:800;padding:5px 14px;border-radius:20px;border:1.5px solid;}
+.bal-line{font-size:17px;font-weight:700;color:var(--txt2);}
+
+/* ── METRICS STRIP ── */
+.metrics-strip{background:var(--surface);border-left:1.5px solid var(--bdr2);border-right:1.5px solid var(--bdr2);padding:18px 22px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;border-top:1.5px solid var(--bdr2);}
+.metric{text-align:center;}
+.metric-lbl{font-size:15px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+.metric-val{font-size:28px;font-weight:900;line-height:1;}
+.metric-sub{font-size:15px;color:var(--txt3);margin-top:4px;font-weight:600;}
+
+/* ── STATUS BOX ── */
+.acc-status{border-left:1.5px solid var(--bdr2);border-right:1.5px solid var(--bdr2);padding:14px 20px;font-size:15px;font-weight:700;display:flex;gap:12px;align-items:flex-start;border-top:1px solid var(--bdr2);}
+.acc-status .si{font-size:22px;flex-shrink:0;margin-top:1px;}
+.acc-status-txt{}
+.acc-status-title{font-weight:900;font-size:17px;margin-bottom:4px;}
+.acc-status-body{font-size:15px;font-weight:600;line-height:1.65;}
+.st-green{background:var(--grn-bg);color:var(--grn);border-color:var(--grn-mid)!important;}
+.st-amber{background:var(--amb-bg);color:var(--amb);border-color:var(--amb-mid)!important;}
+.st-red  {background:var(--red-bg);color:var(--red);border-color:var(--red-mid)!important;}
+.st-sky  {background:var(--sky-bg);color:var(--sky);border-color:var(--sky-mid)!important;}
+
+/* ── PROGRESS BARS ── */
+.prog-zone{background:var(--surface);border:1.5px solid var(--bdr2);border-top:none;padding:18px 22px;}
+.prog-item{margin-bottom:16px;}
+.prog-item:last-child{margin-bottom:0;}
+.prog-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;}
+.prog-lbl{font-size:16px;font-weight:700;color:var(--txt2);}
+.prog-num{font-size:16px;font-weight:900;}
+.prog-track{height:13px;background:var(--s2);border-radius:7px;overflow:hidden;border:1px solid var(--bdr);}
+.prog-fill{height:100%;border-radius:7px;transition:width .6s cubic-bezier(.4,0,.2,1);}
+.prog-hint{font-size:15px;color:var(--txt3);margin-top:5px;font-weight:600;}
+
+/* ── AI INSIGHT CARD ── */
+.ai-insight{border-radius:0 0 var(--rl) var(--rl);border:1.5px solid var(--bdr2);border-top:none;overflow:hidden;box-shadow:var(--sh);}
+.ai-insight-header{display:flex;justify-content:space-between;align-items:center;padding:11px 20px;background:var(--s2);border-top:1px dashed var(--bdr);}
+.ai-header-lbl{font-size:15px;font-weight:800;color:var(--txt2);text-transform:uppercase;letter-spacing:.06em;}
+.ai-badge{font-size:14px;font-weight:800;color:var(--sky);background:var(--sky-bg);border:1px solid var(--sky-mid);padding:3px 11px;border-radius:20px;}
+.ai-insight-body{background:var(--surface);padding:16px 20px;}
+.ai-empty{font-size:16px;color:var(--txt3);text-align:center;padding:14px 0;line-height:1.7;font-weight:700;}
+.ai-card{border-radius:12px;padding:16px 18px;border:1.5px solid;}
+.ai-card.good   {background:var(--grn-bg);border-color:var(--grn-mid);color:var(--grn);}
+.ai-card.warn   {background:var(--amb-bg);border-color:var(--amb-mid);color:var(--amb);}
+.ai-card.alert  {background:var(--red-bg);border-color:var(--red-mid);color:var(--red);}
+.ai-card.info   {background:var(--sky-bg);border-color:var(--sky-mid);color:var(--sky);}
+.ai-card.neutral{background:var(--s2);border-color:var(--bdr);color:var(--txt);}
+.ai-headline{font-size:18px;font-weight:900;margin-bottom:7px;line-height:1.4;}
+.ai-detail{font-size:16px;font-weight:600;line-height:1.75;}
+.ai-loading{text-align:center;padding:18px;font-size:16px;color:var(--sky);font-weight:700;}
+.spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--sky-bg);border-top-color:var(--sky);border-radius:50%;animation:spin .7s linear infinite;margin-left:6px;vertical-align:middle;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── OVERALL INSIGHT ── */
+.overall-insight{background:var(--surface);border:1.5px solid var(--bdr2);border-radius:var(--rl);padding:20px 24px;margin-top:16px;box-shadow:var(--sh);display:flex;gap:16px;align-items:flex-start;}
+.overall-icon{font-size:30px;flex-shrink:0;}
+.overall-title{font-size:20px;font-weight:900;color:var(--txt);margin-bottom:6px;}
+.overall-body{font-size:17px;font-weight:700;color:var(--txt);line-height:1.75;}
+
+/* ── GENERATE BUTTON ── */
+.gen-btn-row{margin-top:16px;display:flex;gap:10px;align-items:center;}
+.btn-gen{flex:1;background:linear-gradient(135deg,#1a6ed4,#1254b0);color:#fff;border:none;border-radius:14px;padding:18px;font-family:var(--f);font-size:19px;font-weight:900;cursor:pointer;box-shadow:0 3px 12px rgba(26,110,212,.3);transition:all .15s;}
+.btn-gen:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(26,110,212,.4);}
+.btn-gen:disabled{background:#9ca3af;box-shadow:none;cursor:not-allowed;transform:none;}
+
+/* ── EXPAND DETAIL ── */
+.expand-toggle{text-align:center;padding:12px;background:var(--s2);border:1.5px solid var(--bdr2);border-top:none;font-size:16px;font-weight:800;color:var(--txt2);cursor:pointer;transition:all .15s;}
+.expand-toggle:hover{background:var(--s3);color:var(--sky);}
+.detail-panel{display:none;background:var(--surface);border:1.5px solid var(--bdr2);border-top:none;border-radius:0;padding:20px 22px;}
+.detail-panel.open{display:block;}
+
+/* ── DETAIL INSIDE PANEL ── */
+.cons-table{border:1.5px solid var(--bdr2);border-radius:var(--r);overflow:hidden;margin-bottom:16px;}
+.cons-row{display:flex;justify-content:space-between;align-items:center;padding:14px 17px;border-bottom:1px solid var(--bdr2);font-size:17px;}
+.cons-row:last-child{border-bottom:none;}
+.cons-key{color:var(--txt2);font-weight:700;}
+.cons-val{font-weight:900;font-size:18px;}
+.ladder{margin-bottom:16px;}
+.lr{display:flex;align-items:center;gap:10px;padding:12px 15px;border-radius:12px;margin-bottom:6px;border:1.5px solid var(--bdr2);background:var(--s2);}
+.lr.curr{background:var(--sky-bg);border-color:var(--sky-mid);}
+.lr.done{background:var(--grn-bg);border-color:var(--grn-mid);opacity:.75;}
+.lr-n{font-size:16px;font-weight:900;min-width:26px;color:var(--txt3);}
+.lr-n.c{color:var(--sky);}.lr-n.d{color:var(--grn);}
+.lr-name{font-size:16px;font-weight:800;color:var(--txt);flex:1;}
+.lr-det{font-size:15px;color:var(--txt3);font-weight:600;}
+.lr-b{font-size:15px;font-weight:700;padding:4px 12px;border-radius:20px;border:1.5px solid;white-space:nowrap;}
+.lb-c{background:var(--sky-bg);color:var(--sky);border-color:var(--sky-mid);}
+.lb-d{background:var(--grn-bg);color:var(--grn);border-color:var(--grn-mid);}
+.lb-f{background:var(--s2);color:var(--txt3);border-color:var(--bdr);}
+.lb-live{background:var(--pur-bg);color:var(--pur);border-color:var(--pur-mid);}
+.log-tbl{font-size:16px;}
+.log-r{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--bdr2);}
+.log-r:last-child{border-bottom:none;}
+.log-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.dot-g{background:#16a34a;}.dot-r{background:#dc2626;}.dot-0{background:var(--txt3);}
+.log-date{font-weight:700;min-width:145px;color:var(--txt);}
+.log-pnl{font-weight:900;min-width:100px;font-size:17px;}
+.log-bal{color:var(--txt2);flex:1;font-size:16px;font-weight:600;}
+.log-del{background:none;border:none;color:var(--txt3);cursor:pointer;font-size:18px;padding:0 4px;}
+.log-del:hover{color:var(--red);}
+.log-footer{display:flex;justify-content:space-between;align-items:center;margin-top:11px;padding-top:11px;border-top:1px solid var(--bdr2);}
+.log-stats{font-size:15px;color:var(--txt2);font-weight:700;}
+.log-stats strong{color:var(--txt);font-weight:900;}
+.btn-sm{background:none;border:1.5px solid var(--bdr);border-radius:8px;padding:8px 17px;font-size:15px;font-weight:800;color:var(--txt2);cursor:pointer;font-family:var(--f);transition:all .15s;}
+.btn-sm:hover{border-color:var(--red);color:var(--red);}
+
+/* ── UPDATE FORM in detail ── */
+.form-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px;}
+.form-g{display:flex;flex-direction:column;gap:6px;}
+.form-lbl{font-size:15px;font-weight:800;color:var(--txt2);text-transform:uppercase;letter-spacing:.06em;}
+input[type="date"],input[type="number"],select{background:var(--s2);border:1.5px solid var(--bdr);border-radius:11px;padding:13px 15px;color:var(--txt);font-family:var(--f);font-size:17px;font-weight:600;width:100%;outline:none;transition:border-color .15s;}
+input:focus,select:focus{border-color:var(--sky);background:#fff;box-shadow:0 0 0 3px rgba(26,110,212,.1);}
+select option{background:#fff;}
+.btn-add{background:var(--sky);color:#fff;border:none;border-radius:11px;padding:15px;font-family:var(--f);font-size:18px;font-weight:800;cursor:pointer;width:100%;transition:all .15s;box-shadow:0 2px 8px rgba(26,110,212,.25);}
+.btn-add:hover{background:var(--sky2);}
+.form-hint{font-size:15px;color:var(--txt3);font-weight:700;line-height:1.65;background:var(--s2);border-radius:10px;padding:11px 14px;border:1px solid var(--bdr2);margin-top:10px;}
+.div-sm{display:flex;align-items:center;gap:8px;margin:16px 0 11px;color:var(--txt3);font-size:15px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;}
+.div-sm::before,.div-sm::after{content:'';flex:1;height:1.5px;background:var(--bdr2);}
+
+/* ── MODAL ── */
+#modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:999;backdrop-filter:blur(4px);}
+#modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1000;background:#fff;border-radius:24px;padding:30px 34px;width:min(660px,95vw);box-shadow:0 24px 64px rgba(0,0,0,.22);max-height:92vh;overflow-y:auto;}
+.modal-title{font-size:24px;font-weight:900;color:var(--txt);margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid var(--bdr2);}
+.modal-acc{margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--bdr2);}
+.modal-acc:last-child{margin-bottom:0;border-bottom:none;}
+.modal-acc-name{font-size:20px;font-weight:800;margin-bottom:12px;}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+.modal-footer{margin-top:22px;display:flex;gap:10px;}
+.btn-cancel{background:none;border:1.5px solid var(--bdr);border-radius:12px;padding:15px 28px;font-family:var(--f);font-size:17px;font-weight:700;color:var(--txt2);cursor:pointer;flex:0 0 auto;}
+
+/* ── DAY CHIPS ── */
+.day-chips-row{display:flex;gap:8px;margin-top:16px;}
+.day-chip{flex:1;height:52px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;font-weight:700;border:2px solid var(--bdr2);background:var(--s2);color:var(--txt4);gap:2px;transition:all .2s;}
+.day-chip.done{background:var(--grn-bg);border-color:var(--grn-mid);color:var(--grn);}
+.day-chip-num{font-size:16px;}
+.day-chip-lbl{font-size:11px;font-weight:700;}
+
+/* ── HERO METRIC CARDS ── */
+.hero-strip{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:12px;margin-bottom:0;border-left:1.5px solid var(--bdr2);border-right:1.5px solid var(--bdr2);}
+.hero-metric{padding:16px 18px;background:var(--surface);}
+.hero-metric.dark{background:var(--txt);color:#fff;}
+.hero-metric-lbl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--txt4);margin-bottom:8px;}
+.hero-metric.dark .hero-metric-lbl{color:#8b9cbd;}
+.hero-metric-val{font-size:30px;font-weight:900;line-height:1;margin-bottom:4px;}
+.hero-metric.dark .hero-metric-val{color:#fff;}
+.hero-metric-sub{font-size:13px;font-weight:600;color:var(--txt4);}
+.hero-metric.dark .hero-metric-sub{color:#8b9cbd;}
+
+/* ── MLL METER ── */
+.mll-meter-zone{background:var(--surface);border-left:1.5px solid var(--bdr2);border-right:1.5px solid var(--bdr2);border-top:1.5px solid var(--bdr2);padding:14px 22px;}
+.mll-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.mll-title{font-size:15px;font-weight:800;color:var(--txt2);}
+.mll-nums{font-size:14px;font-weight:700;color:var(--txt3);}
+.mll-track{height:12px;background:var(--s2);border-radius:6px;overflow:hidden;border:1px solid var(--bdr);}
+.mll-fill{height:100%;border-radius:6px;transition:width .5s ease;}
+.mll-labels{display:flex;justify-content:space-between;margin-top:6px;font-size:12px;color:var(--txt4);font-weight:600;}
+
+/* ── PAYOUT LADDER ── */
+.payout-ladder{padding:14px 22px;background:var(--surface);border-left:1.5px solid var(--bdr2);border-right:1.5px solid var(--bdr2);border-top:1px dashed var(--bdr);}
+.payout-ladder-title{font-size:14px;font-weight:800;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;}
+.pl-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;margin-bottom:5px;border:1.5px solid var(--bdr2);background:var(--s2);font-size:14px;}
+.pl-row:last-child{margin-bottom:0;}
+.pl-row.curr{background:var(--sky-bg);border-color:var(--sky-mid);}
+.pl-row.done{background:var(--grn-bg);border-color:var(--grn-mid);opacity:.75;}
+.pl-num{font-weight:900;min-width:24px;color:var(--txt4);}
+.pl-row.curr .pl-num{color:var(--sky);}
+.pl-row.done .pl-num{color:var(--grn);}
+.pl-cap{color:var(--txt3);font-weight:600;flex:1;}
+.pl-net{font-weight:900;color:var(--sky);min-width:90px;}
+.pl-row.done .pl-net{color:var(--grn);}
+.pl-status{font-size:12px;font-weight:700;color:var(--txt4);min-width:70px;text-align:left;}
+.pl-row.curr .pl-status{color:var(--amb);}
+.pl-row.done .pl-status{color:var(--grn);}
+
+/* utility */
+.divider{display:flex;align-items:center;gap:8px;margin:18px 0 13px;color:var(--txt3);font-size:15px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;}
+.divider::before,.divider::after{content:'';flex:1;height:1.5px;background:var(--bdr2);}
+
+/* ── SIMPLE SUMMARY CARD ── */
+.simple-card{background:var(--surface);border-left:2px solid var(--bdr2);border-right:2px solid var(--bdr2);border-bottom:none;padding:18px 22px;}
+.simple-inner{background:#fffdf4;border:2px dashed #e9c94a;border-radius:16px;padding:18px 20px;}
+.firm-selector{display:flex;gap:6px;align-items:center;}
+.firm-btn{padding:8px 16px;border-radius:20px;border:2px solid;font-family:var(--f);font-size:15px;font-weight:800;cursor:pointer;transition:all .15s;background:none;}
+.firm-btn.active{color:#fff;border-color:transparent;}
+.firm-btn.blusky {color:var(--sky);  border-color:var(--sky-mid);}
+.firm-btn.apex   {color:#e05a00;     border-color:#f4a460;}
+.firm-btn.lucid  {color:#7c3aed;     border-color:#c4b5fd;}
+.firm-btn.blusky.active{background:var(--sky);}
+.firm-btn.apex.active  {background:#e05a00;}
+.firm-btn.lucid.active {background:#7c3aed;}
+
+/* ── CLOUD SYNC PILL (added 2026-05-08) ────────────────────────────────────── */
+.cloud-pill{font-family:var(--f);font-size:14px;font-weight:800;border:1.5px solid var(--bdr);border-radius:12px;padding:10px 14px;cursor:pointer;transition:all .15s;background:var(--surface);color:var(--txt3);}
+.cloud-pill:hover{transform:translateY(-1px);box-shadow:var(--sh);}
+.cloud-pill.synced  {background:#dcfce7;color:#166534;border-color:#86efac;}
+.cloud-pill.syncing {background:#fef3c7;color:#92400e;border-color:#fcd34d;}
+.cloud-pill.offline {background:#f4f6f9;color:#4b5563;border-color:#d2daea;}
+.cloud-pill.error   {background:#fee2e2;color:#991b1b;border-color:#fca5a5;}
+
+
+/* ── PHASE TRANSITION + HISTORY (added 2026-05-08) ─────────────────────────── */
+.acc-actions{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+.acc-action-btn{font-family:var(--f);font-size:11px;font-weight:800;border:1.5px solid var(--bdr);border-radius:8px;padding:5px 10px;background:var(--surface);color:var(--txt3);cursor:pointer;transition:all .15s;letter-spacing:.2px;}
+.acc-action-btn:hover{border-color:var(--sky);color:var(--sky);transform:translateY(-1px);}
+.acc-action-btn.primary{background:var(--sky-bg);border-color:var(--sky-mid);color:var(--sky2);}
+.acc-action-btn.primary:hover{background:var(--sky);color:#fff;border-color:var(--sky);}
+
+
+/* ── DAILY TARGET PANEL (added 2026-05-09) ─────────────────────────────── */
+.daily-target-zone{margin:10px 0;padding:0 18px;}
+.daily-target-card{background:#dcfce7;border:1.5px solid #86efac;border-radius:14px;padding:14px 18px;}
+.daily-target-card.over{background:#fef3c7;border-color:#fcd34d;}
+.daily-target-card.funded{background:#ddeeff;border-color:#93c5fd;}
+.daily-target-card .dt-header{font-size:14px;font-weight:800;color:var(--txt);margin-bottom:10px;direction:rtl;text-align:right;letter-spacing:-.2px;}
+.daily-target-card .dt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px;}
+@media (max-width:480px){.daily-target-card .dt-grid{grid-template-columns:1fr;}}
+.daily-target-card .dt-metric{background:rgba(255,255,255,0.65);border-radius:8px;padding:8px 10px;text-align:center;}
+.daily-target-card .dt-lbl{font-size:10px;font-weight:700;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;}
+.daily-target-card .dt-val{font-size:19px;font-weight:900;color:var(--txt);line-height:1.1;}
+.daily-target-card .dt-val.safe{color:var(--grn);}
+.daily-target-card .dt-val.over{color:var(--amb);}
+.daily-target-card .dt-sub{font-size:10px;font-weight:600;color:var(--txt4);margin-top:2px;}
+.daily-target-card .dt-tip{font-size:12px;font-weight:700;color:var(--txt2);background:rgba(255,255,255,0.55);border-radius:6px;padding:8px 10px;direction:rtl;text-align:right;line-height:1.5;}
+
+</style>
+</head>
+<body>
+<div style="background:#f4f6f9;border-bottom:1px solid #d2daea;padding:10px 24px;">
+  <a href="../" style="color:#1a6ed4;font-weight:700;text-decoration:none;font-size:15px;font-family:'Heebo',sans-serif;">
+    ← חזרה לדף הראשי
+  </a>
+</div>
+
+<div class="page">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div>
+    <div class="brand-lbl" id="brand-lbl">◈ BluSky Trading</div>
+    <div class="brand-ttl" id="brand-ttl">BluSky <span id="brand-span">Daily Tracker</span></div>
+    <div class="brand-sub" id="brand-sub">MNQ · 1 חוזה · EOD Trailing Drawdown</div>
+  </div>
+  <div class="top-right">
+    <div class="firm-selector">
+      <button class="firm-btn blusky active" onclick="switchFirm('blusky')">🏦 BluSky</button>
+      <button class="firm-btn apex"          onclick="switchFirm('apex')">⚡ Apex</button>
+      <button class="firm-btn lucid"         onclick="switchFirm('lucid')">💎 Lucid</button>
+    </div>
+    <div class="clock" id="clock">...</div>
+    <button class="cloud-pill offline" id="cloud-pill" type="button" title="לחצי לסנכרן עם GitHub" onclick="cloudPillClick()">☁ Cloud: …</button>
+    <button class="btn-secondary" onclick="generateAll()">🔄 נתח מחדש</button>
+    <button onclick="seedFromScreenshots()" style="background:none;color:var(--txt3);border:1.5px solid var(--bdr);border-radius:12px;padding:10px 16px;font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='var(--sky)'" onmouseout="this.style.borderColor='var(--bdr)'">↩ איפוס</button>
+    <button class="btn-secondary" onclick="openCsvModal()" style="border-color:var(--pur);color:var(--pur);">📂 ייבוא CSV</button>
+    <button class="btn-primary" onclick="openModal()">+ עדכון יומי</button>
+  </div>
+</div>
+
+<!-- 3-COLUMN ACCOUNTS GRID -->
+<div class="accounts-grid" id="accounts-grid"></div>
+
+<!-- OVERALL INSIGHT -->
+<div class="overall-insight" id="overall-insight" style="display:none">
+  <div class="overall-icon">🧠</div>
+  <div>
+    <div class="overall-title">סיכום תיק — כל החשבונות</div>
+    <div class="overall-body" id="overall-body">—</div>
+  </div>
+</div>
+
+</div><!-- /page -->
+
+<!-- ═══ CSV IMPORT MODAL ═══ -->
+<div id="csv-modal-overlay" onclick="closeCsvModal()" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:90;"></div>
+<div id="csv-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border-radius:16px;padding:28px;width:min(720px,92vw);max-height:85vh;overflow-y:auto;box-shadow:var(--sh2);z-index:91;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid var(--bdr2);">
+    <div style="font-size:22px;font-weight:900;color:var(--pur);">📂 ייבוא CSV מ-Tradovate</div>
+    <button onclick="closeCsvModal()" style="background:none;border:none;font-size:22px;color:var(--txt3);cursor:pointer;line-height:1;">✕</button>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:14px;">
+    <div>
+      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">בחרי חשבון:</label>
+      <select id="csv-account" style="width:100%;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--f);font-size:15px;font-weight:700;background:var(--s2);"></select>
+    </div>
+    <div>
+      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">קובץ CSV מ-Tradovate (Performance.csv):</label>
+      <input type="file" id="csv-file" accept=".csv,text/csv" style="width:100%;padding:8px;border:1.5px dashed var(--bdr);border-radius:10px;font-family:var(--f);font-size:14px;background:var(--s2);" />
+    </div>
+    <div>
+      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">עמלה — בחרי מודל לפי הפלטפורמה:</label>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <select id="csv-fee-mode" style="padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--f);font-size:14px;font-weight:700;background:var(--s2);">
+          <option value="per_trade" selected>$X לעסקה (BluSky / Apex)</option>
+          <option value="per_contract">$X לחוזה (Lucid)</option>
+        </select>
+        <input type="number" id="csv-fee" value="2.20" step="0.10" style="width:110px;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--f);font-size:15px;font-weight:700;background:var(--s2);" />
+        <span style="font-size:11px;color:var(--txt4);">BluSky: $2.20/trade · Apex Legacy: $3.45/trade · Lucid: $1.00/contract</span>
+      </div>
+    </div>
+    <div id="csv-preview" style="background:var(--s2);border-radius:10px;padding:14px;font-size:13px;color:var(--txt3);min-height:60px;direction:rtl;">העלי קובץ CSV כדי לראות תצוגה מקדימה</div>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:18px;padding-top:14px;border-top:2px solid var(--bdr2);">
+    <button class="btn-cancel" onclick="closeCsvModal()" style="background:none;border:1.5px solid var(--bdr);border-radius:12px;padding:11px 20px;font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;color:var(--txt3);">ביטול</button>
+    <button id="csv-apply" onclick="applyCsv()" disabled style="flex:1;background:var(--pur);color:#fff;border:none;border-radius:12px;padding:12px 24px;font-family:var(--f);font-size:16px;font-weight:800;cursor:pointer;opacity:0.5;">💾 החל על החשבון</button>
+  </div>
+</div>
+
+<!-- ═══ PHASE TRANSITION MODAL ═══ -->
+<div id="trans-modal-overlay" onclick="closeTransitionModal()" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:90;"></div>
+<div id="trans-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border-radius:16px;padding:28px;width:min(560px,92vw);max-height:85vh;overflow-y:auto;box-shadow:var(--sh2);z-index:91;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid var(--bdr2);">
+    <div style="font-size:22px;font-weight:900;color:var(--sky);">🎯 דיווח מעבר שלב — <span id="trans-acc-name">—</span></div>
+    <button onclick="closeTransitionModal()" style="background:none;border:none;font-size:22px;color:var(--txt3);cursor:pointer;">✕</button>
+  </div>
+  <div style="background:var(--s2);border-radius:10px;padding:14px;margin-bottom:14px;font-size:13px;line-height:1.6;color:var(--txt3);direction:rtl;">
+    <div style="font-weight:700;color:var(--txt);margin-bottom:6px;">⚠ זה ידחוס את השלב הנוכחי להיסטוריה</div>
+    <div>הנתונים הנוכחיים (<span id="trans-cur-days">—</span> ימים, balance <span id="trans-cur-bal">—</span>) <b>נשמרים</b> כפי שהם תחת היסטוריה — לא נמחקים.<br>
+    החשבון יתאפס: יומן ריק, balance חוזר ל-startBal, השלב והמספר מתעדכנים לפי מה שתבחרי.</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:14px;">
+    <div>
+      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">שלב חדש:</label>
+      <select id="trans-phase" style="width:100%;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--f);font-size:15px;font-weight:700;background:var(--s2);">
+        <option value="eval1">Phase 1 — Evaluation</option>
+        <option value="blulive" selected>Phase 2 — BluLive</option>
+        <option value="simfunded">Sim Funded</option>
+        <option value="brokreview">Brokerage Review</option>
+        <option value="live">Live Brokerage 🎉</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">מספר חשבון חדש (אם BluSky הנפיקו לך אחד חדש):</label>
+      <input type="text" id="trans-num" placeholder="BSKE..." style="width:100%;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--m);font-size:14px;background:var(--s2);" />
+      <div style="font-size:11px;color:var(--txt4);margin-top:4px;">השאירי ריק אם המספר נשאר זהה</div>
+    </div>
+    <div>
+      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">Starting balance (אופציונלי):</label>
+      <input type="number" id="trans-startbal" placeholder="50000" style="width:200px;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--f);font-size:15px;background:var(--s2);" />
+      <div style="font-size:11px;color:var(--txt4);margin-top:4px;">השאירי ריק לערך ברירת המחדל של החשבון</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:18px;padding-top:14px;border-top:2px solid var(--bdr2);">
+    <button onclick="closeTransitionModal()" style="background:none;border:1.5px solid var(--bdr);border-radius:12px;padding:11px 20px;font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;color:var(--txt3);">ביטול</button>
+    <button onclick="applyTransition()" style="flex:1;background:var(--sky);color:#fff;border:none;border-radius:12px;padding:12px 24px;font-family:var(--f);font-size:16px;font-weight:800;cursor:pointer;">💾 בצעי מעבר</button>
+  </div>
+</div>
+
+<!-- ═══ HISTORY MODAL ═══ -->
+<div id="hist-modal-overlay" onclick="closeHistoryModal()" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:90;"></div>
+<div id="hist-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border-radius:16px;padding:28px;width:min(720px,92vw);max-height:85vh;overflow-y:auto;box-shadow:var(--sh2);z-index:91;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid var(--bdr2);">
+    <div style="font-size:22px;font-weight:900;color:var(--pur);">↻ היסטוריית שלבים — <span id="hist-acc-name">—</span></div>
+    <button onclick="closeHistoryModal()" style="background:none;border:none;font-size:22px;color:var(--txt3);cursor:pointer;">✕</button>
+  </div>
+  <div id="hist-body" style="font-size:14px;direction:rtl;"></div>
+  <div style="display:flex;justify-content:flex-start;margin-top:18px;padding-top:14px;border-top:2px solid var(--bdr2);">
+    <button onclick="closeHistoryModal()" style="background:none;border:1.5px solid var(--bdr);border-radius:12px;padding:11px 20px;font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;color:var(--txt3);">סגור</button>
+  </div>
+</div>
+
+<!-- ═══ RULES MODAL (added 2026-05-08) ═══ -->
+<div id="rules-modal-overlay" onclick="closeRulesModal()" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:90;"></div>
+<div id="rules-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border-radius:16px;padding:28px;width:min(720px,92vw);max-height:85vh;overflow-y:auto;box-shadow:var(--sh2);z-index:91;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid var(--bdr2);">
+    <div style="font-size:22px;font-weight:900;color:var(--sky);">📖 חוקי החשבון — <span id="rules-acc-name">—</span></div>
+    <button onclick="closeRulesModal()" style="background:none;border:none;font-size:22px;color:var(--txt3);cursor:pointer;">✕</button>
+  </div>
+  <div id="rules-body" style="font-size:14px;direction:rtl;line-height:1.7;"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:2px solid var(--bdr2);">
+    <a id="rules-source-link" target="_blank" rel="noopener" style="font-size:12px;color:var(--sky);text-decoration:underline;">↗ מקור רשמי</a>
+    <button onclick="closeRulesModal()" style="background:none;border:1.5px solid var(--bdr);border-radius:12px;padding:11px 20px;font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;color:var(--txt3);">סגור</button>
+  </div>
+</div>
+
+<!-- ═══ MODAL ═══ -->
+<div id="modal-overlay" onclick="closeModal()"></div>
+<div id="modal">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid var(--bdr2);">
+    <div class="modal-title" style="margin:0;border:none;padding:0;">עדכון יומי — כל החשבונות</div>
+    <button onclick="closeModal()" style="background:none;border:none;font-size:22px;color:var(--txt3);cursor:pointer;line-height:1;">✕</button>
+  </div>
+  <div id="modal-body"></div>
+  <div class="modal-footer">
+    <button class="btn-cancel" onclick="closeModal()">ביטול</button>
+    <button class="btn-add" style="flex:1" onclick="saveModal()">💾 שמור + נתח</button>
+  </div>
+</div>
+
+<script>
+// ════════════ FIRM CONFIGURATIONS ════════════
+const FIRMS = {
+  blusky: {
+    name: 'BluSky Trading',
+    sub:  'MNQ · 1 חוזה · EOD Trailing Drawdown',
+    lbl:  '◈ BluSky Trading',
+    color: '#1a6ed4',
+    // Consistency: bestDay / totalPnl ≤ limit%
+    // Drawdown: EOD trailing only
+    // Phases: Eval → BluLive → Sim Funded → Brokerage
+    consistNote: 'יום הגדול ÷ סה"כ רווח',
+    phases: [
+      {k:'eval1',    l:'Phase 1 — Evaluation', s:'Eval'},
+      {k:'blulive',  l:'Phase 2 — BluLive',    s:'BluLive'},
+      {k:'simfunded',l:'Sim Funded',            s:'Sim'},
+      {k:'brokreview',l:'Brokerage Review',     s:'Review'},
+      {k:'live',     l:'Live Brokerage 🎉',     s:'LIVE'},
+    ],
+    getConsistPct:(acc,ph)=>{
+      if(ph==='blulive') return 0.34;
+      if(acc.plan&&acc.plan.includes('LAUNCH')) return 0.50;
+      return 0.30;
+    },
+    getTarget:(acc,ph,adj)=>{
+      const base = ph==='eval1'?acc.p1T:acc.p2T;
+      return base+(adj||0);
+    },
+    drawdownType: 'eod',
+    payout: { minProfit:250, cycleCap:10000, simCap:2500 },
+    noConsistPhases: ['simfunded','brokreview','live'],
+    closeTime: '4:45 PM ET',
+  },
+  apex: {
+    name: 'Apex Trader Funding',
+    sub:  'MNQ · Intraday Trailing Drawdown · Legacy PA',
+    lbl:  '◈ Apex Trader Funding',
+    color: '#e05a00',
+    consistNote: 'יום הגדול ÷ סה"כ רווח מאז ה-Payout האחרון',
+    phases: [
+      {k:'eval1', l:'Evaluation', s:'Eval'},
+      {k:'pa',    l:'Performance Account (PA)', s:'PA'},
+    ],
+    // Account specs by size (post March 2026)
+    accountSpecs: {
+      '25K':  {startBal:25000,  trailDD:1000, p1T:1500, dll:500,  maxContractsEval:4,  maxContractsPA:2,  safetyNet:26100},
+      '50K':  {startBal:50000,  trailDD:2500, p1T:3000, dll:1000, maxContractsEval:6,  maxContractsPA:4,  safetyNet:52600},
+      '100K': {startBal:100000, trailDD:3000, p1T:6000, dll:1500, maxContractsEval:8,  maxContractsPA:6,  safetyNet:103100},
+      '150K': {startBal:150000, trailDD:4000, p1T:9000, dll:2000, maxContractsEval:12, maxContractsPA:9,  safetyNet:154100},
+    // Legacy PA — Intraday trailing, 30% consistency, 8/10 qualifying days
+    '50K_LEGACY': {startBal:50000, trailDD:2500, p1T:3000, dll:0, maxContractsEval:0, maxContractsPA:5, safetyNet:52600, isLegacy:true, consistPct:0.30, minDaysFirst:10, minDaysSubseq:8},
+    },
+    getConsistPct:(acc,ph)=>ph==='eval1'?null:(acc.isLegacy?0.30:0.50), // Legacy=30%, New=50%
+    getTarget:(acc,ph,adj)=>{
+      const spec = FIRMS.apex.accountSpecs[acc.size||'50K'];
+      return ph==='eval1'?(spec?.p1T||3000):(spec?.p1T||3000); // PA: no target, just payout
+    },
+    drawdownType: 'eod',
+    payout: {
+      minDays:5,      // 5 qualifying days (≥$100 profit each)
+      minDayProfit:100,
+      split:1.00,     // 100% payout!
+      maxPayouts:6,   // max 6 payouts per PA lifecycle
+      // Payout ladder $50K EOD: $500/$500/$1000/$1500/$2000/$2500 (approx)
+    },
+    closeTime: '4:59 PM ET',
+    notes: [
+      '🤖 ⚠️ בוטים אסורים ב-PA — מותר רק ב-Evaluation!',
+      '📉 EOD Trailing: Drawdown מתעדכן EOD בלבד — גמיש תוך יום',
+      '💸 100% Payout — ללא חלוקה!',
+      '✅ ללא Consistency ב-Evaluation',
+      '✅ 50% Consistency ב-PA בלבד',
+      '🔒 Safety Net: מגביל חוזים עד שמגיעים ל-Balance התחלתי + DD + $100',
+      '⏱️ 30 ימי גישה ל-Evaluation — ללא הארכות!',
+      '🔁 מקסימום 6 Payouts לכל PA, אחר כך נסגר',
+    ],
+  },
+  lucid: {
+    name: 'Lucid Trading',
+    sub:  'MNQ · EOD Drawdown · ללא Overnight',
+    lbl:  '◈ Lucid Trading',
+    color: '#7c3aed',
+    consistNote: 'יום הגדול ÷ סה"כ רווח במחזור הנוכחי',
+    phases: [
+      {k:'eval1',   l:'LucidPro Evaluation', s:'Eval'},
+      {k:'funded',  l:'LucidPro Funded',     s:'Funded'},
+      {k:'live',    l:'LucidLive 🎉',        s:'LIVE'},
+    ],
+    getConsistPct:(acc,ph)=>{
+      const plan=acc.plan||'';
+      if(plan.includes('Flex')&&ph==='funded') return null; // LucidFlex Funded: ללא!
+      if(plan.includes('Direct')) return 0.20;
+      if(ph==='funded') return 0.35;
+      return 0.50;
+    },
+    getTarget:(acc,ph,adj)=>{
+      return ph==='eval1'?acc.p1T:acc.p2T;
+    },
+    getMLL:(acc)=>acc.burnStart||acc.startBal-acc.trailDD,
+    drawdownType: 'eod',
+    payout: { minDays:5, split:0.90, minProfit:500 },
+    noConsistPhases: [],
+    closeTime: '4:45 PM ET',
+    notes: [
+      '✅ EOD Drawdown בלבד — גמיש מאוד',
+      '✅ News trading מותר (NFP, FOMC, CPI)',
+      '✅ Scalping מותר',
+      '✅ LucidFlex Funded: ללא Consistency כלל!',
+      '⚠️ LucidDirect: Consistency 20% — מחמיר מאוד',
+    ],
+  },
+};
+
+let ACTIVE_FIRM = 'blusky';
+
+function updateFirmCapBanner(firmKey){
+  const el = document.getElementById('firm-cap-text');
+  const badge = document.getElementById('firm-cap-badge');
+  if(!el || !badge) return;
+  const accCount = (firmKey==='blusky') ? (S.accs||[]).length
+                 : (firmKey==='apex')   ? (S.apexAccs||[]).length
+                 : (S.lucidAccs||[]).length;
+  if(!window.RULES){
+    el.textContent = accCount + ' חשבונות פעילים בחברה הזו';
+    badge.textContent = '—';
+    return;
+  }
+  const firmInfo = window.RULES.firms[firmKey] || {};
+  const cap = firmInfo.maxAccounts || {};
+  const max = cap.totalSimultaneous;
+  const exceeded = max && accCount > max;
+  let msg = '<b>' + (firmInfo.name||firmKey) + '</b> · ' + accCount + ' חשבונות פעילים';
+  if(max){
+    msg += ' · מקס׳ <b>' + max + '</b>';
+    if(cap.note) msg += ' (' + cap.note + ')';
+  }
+  el.innerHTML = msg;
+  if(exceeded){
+    badge.textContent = '⚠ חרגת ב-' + (accCount-max);
+    badge.style.background = '#fee2e2';
+    badge.style.color = '#991b1b';
+  } else if(max){
+    const remaining = max - accCount;
+    badge.textContent = remaining > 0 ? '✓ עוד ' + remaining + ' פנויים' : '✓ במגבלה';
+    badge.style.background = '#dcfce7';
+    badge.style.color = '#065f46';
+  } else {
+    badge.textContent = 'ללא מגבלה';
+    badge.style.background = 'var(--s2)';
+    badge.style.color = 'var(--txt3)';
+  }
+}
+
+function switchFirm(firmKey){
+  ACTIVE_FIRM = firmKey;
+  const f = FIRMS[firmKey];
+  // Update branding
+  document.getElementById('brand-lbl').textContent = f.lbl;
+  document.getElementById('brand-span').textContent = 'Daily Tracker';
+  document.getElementById('brand-ttl').childNodes[0].textContent = f.name.split(' ')[0]+' ';
+  document.getElementById('brand-sub').textContent = f.sub;
+  // Update button states
+  document.querySelectorAll('.firm-btn').forEach(b=>{
+    b.classList.toggle('active', b.classList.contains(firmKey));
+  });
+  // Re-render accounts
+  renderAll();
+}
+
+// ════════════ ACCOUNTS ════════════
+const ACCS = [
+  { id:'a0', name:'200K PROPEL', short:'200K', num:'BSKEFUTSTAELI91678', plan:'PROPEL 200K',
+    startBal:200000, trailDD:2000, burnStart:198000, p1T:6000, p2T:3000, p1Trig:1800, p2Trig:900,
+    color:'#1a6ed4', colorBg:'#ddeeff', colorMid:'#93c5fd', isStatic:true },
+  { id:'a1', name:'50K PROPEL', short:'50K P', num:'BSKEPROPELELI61627', plan:'PROPEL 50K',
+    startBal:50000, trailDD:2000, burnStart:48000, p1T:3000, p2T:3000, p1Trig:1500, p2Trig:900,
+    color:'#166534', colorBg:'#dcfce7', colorMid:'#86efac' },
+  { id:'a2', name:'50K LAUNCH', short:'50K L', num:'BSKELAUNCHELI99671', plan:'LAUNCH 50K',
+    startBal:50000, trailDD:2000, burnStart:48000, p1T:3000, p2T:3000, p1Trig:1500, p2Trig:900,
+    color:'#6d28d9', colorBg:'#ede9fe', colorMid:'#c4b5fd' },
+  { id:'a3', name:'50K LAUNCH II', short:'50K L2', num:'BSKELAUNCHELI36013', plan:'LAUNCH 50K',
+    startBal:50000, trailDD:2000, burnStart:48000, p1T:3000, p2T:3000, p1Trig:1500, p2Trig:900,
+    color:'#0891b2', colorBg:'#e0f2fe', colorMid:'#7dd3fc', isLaunch:true },
+];
+const PH = [
+  { k:'eval1',     l:'Phase 1 — Evaluation', s:'Eval' },
+  { k:'blulive',   l:'Phase 2 — BluLive',    s:'BluLive' },
+  { k:'simfunded', l:'Sim Funded',            s:'Sim' },
+  { k:'brokreview',l:'Brokerage Review',      s:'Review' },
+  { k:'live',      l:'Live Brokerage 🎉',     s:'LIVE' },
+];
+
+// ════════════ STATE ════════════
+function mkState() {
+  return { accs:[
+    {ph:'eval1',  days:[],tw:0,adj:0},
+    {ph:'eval1',  days:[],tw:0,adj:0},
+    {ph:'blulive',days:[],tw:0,adj:0},
+    {ph:'eval1',  days:[],tw:0,adj:0},
+  ],
+  apexAccs:[], lucidAccs:[],
+  insights:null, insDate:null };
+}
+let S = mkState();
+function save(){
+  try{
+    S._localUpdatedAt = new Date().toISOString();   // stamp for race-condition guard
+    localStorage.setItem('bst24', JSON.stringify(S));
+  }catch(e){}
+  try{ if(window.TradingCloudSync) window.TradingCloudSync.scheduleSave(); }catch(e){}
+}
+function load(){
+  try{ const d=localStorage.getItem('bst24');
+    if(d){ const p=JSON.parse(d); S={...mkState(),...p};
+      if(!S.accs||S.accs.length<4) S.accs=mkState().accs; }
+  }catch(e){}
+}
+
+// ════════════ PROP FIRM RULES LOADER (added 2026-05-08) ════════════
+// Single source of truth for every plan's rule set. Loaded async on init.
+// Per-account → (firm, plan) lookup so the rules modal can show what applies.
+window.RULES = null;
+window.RULES_PLAN_MAP = {
+  // ACCS[0] = 200K PROPEL (Static Premium)
+  'a0': { firm: 'blusky', plan: 'PROPEL_200K' },
+  // ACCS[1] = 50K PROPEL (Premium)
+  'a1': { firm: 'blusky', plan: 'PROPEL_50K' },
+  // ACCS[2] = 50K LAUNCH (Launch)
+  'a2': { firm: 'blusky', plan: 'LAUNCH_50K' },
+  // ACCS[3] = 50K LAUNCH II (Launch)
+  'a3': { firm: 'blusky', plan: 'LAUNCH_50K' }
+};
+// Apex/Lucid maps lookup their plan from meta — see resolveAccPlan().
+
+(function loadRules(){
+  const url = '../state/prop_firm_rules.json?_=' + Date.now();
+  fetch(url, {cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(j){
+      window.RULES = j;
+      console.log('[RULES] loaded:', Object.keys(j.firms||{}));
+      // Validate ACCS hardcoded values against the rules — log any mismatches
+      validateACCSAgainstRules();
+    })
+    .catch(function(e){ console.warn('[RULES] load failed:', e.message); });
+})();
+
+function validateACCSAgainstRules(){
+  if(!window.RULES) return;
+  ACCS.forEach(function(acc, i){
+    const m = window.RULES_PLAN_MAP['a'+i];
+    if(!m) return;
+    const plan = window.RULES.firms[m.firm].plans[m.plan];
+    if(!plan){ console.warn('[RULES] no plan rules for', m); return; }
+    if(plan.accountSize !== acc.startBal) console.warn('[RULES] mismatch — '+acc.name+' startBal: ACCS='+acc.startBal+' RULES='+plan.accountSize);
+    // Check current phase fields if applicable
+    const ph = (S.accs[i] && S.accs[i].ph) || 'eval1';
+    const phRules = plan.phases && plan.phases[ph];
+    if(phRules){
+      if(phRules.trailDD != null && phRules.trailDD !== acc.trailDD) console.warn('[RULES] trailDD mismatch — '+acc.name+' '+ph+': ACCS='+acc.trailDD+' RULES='+phRules.trailDD);
+      if(phRules.profitTarget != null){
+        const expected = ph==='eval1'?acc.p1T:acc.p2T;
+        if(phRules.profitTarget !== expected) console.warn('[RULES] profitTarget mismatch — '+acc.name+' '+ph+': ACCS='+expected+' RULES='+phRules.profitTarget);
+      }
+    }
+  });
+}
+
+// Resolve which (firm, plan) a given ACCS index belongs to. For Apex/Lucid
+// (which live in apexAccs/lucidAccs not S.accs), call this with a meta object.
+function resolveAccPlan(opts){
+  // opts.bucket: 'accs'|'apexAccs'|'lucidAccs'; opts.idx: number; opts.meta: meta object (apex/lucid)
+  if(opts.bucket === 'accs') return window.RULES_PLAN_MAP['a'+opts.idx];
+  // For apex/lucid, infer from meta.size or meta.plan
+  if(opts.bucket === 'apexAccs'){
+    if(opts.meta && opts.meta.isLegacy) return { firm: 'apex', plan: 'LEGACY_PA_50K' };
+    return { firm: 'apex', plan: 'PA_4_0_EOD_50K' };
+  }
+  if(opts.bucket === 'lucidAccs') return { firm: 'lucid', plan: 'FLEX_50K' };
+  return null;
+}
+
+// ════════════ CLOUD SYNC (added 2026-05-08) ════════════
+// Saves S → docs/state/trading.json via GitHub Contents API on every change
+// (debounced). Token shared with all other dashboards via lauren_gh_token_v1.
+window.TradingCloudSync = (function(){
+  // Auto-detect GitHub owner + repo from URL — works for any forked template.
+  const _host = (location.host || '').toLowerCase();
+  const _path = location.pathname || '/';
+  const OWNER = _host.endsWith('.github.io')
+    ? _host.replace('.github.io', '')
+    : 'laurenlev10';
+  const REPO = _path.split('/').filter(s => s).shift() || 'trading-dashboard';
+  const BRANCH = 'main';
+  const PATH='docs/state/trading.json', TOKEN_KEY='lauren_gh_token_v1';
+  const DEBOUNCE_MS=2000;
+  let currentSha=null, saveTimer=null, saving=false, savePending=false;
+
+  function getToken(){ try{return localStorage.getItem(TOKEN_KEY)||'';}catch(e){return '';} }
+  function setToken(t){ try{ if(t) localStorage.setItem(TOKEN_KEY,t); else localStorage.removeItem(TOKEN_KEY);}catch(e){} }
+  function hasToken(){ return !!getToken(); }
+  function b64encode(s){ return btoa(unescape(encodeURIComponent(s))); }
+  function b64decode(s){ return decodeURIComponent(escape(atob((s||'').replace(/\s/g,'')))); }
+
+  function setPill(state, label){
+    const el=document.getElementById('cloud-pill');
+    if(!el) return;
+    el.classList.remove('synced','syncing','offline','error');
+    el.classList.add(state);
+    el.textContent=label;
+  }
+
+  async function apiGet(){
+    const url='https://api.github.com/repos/'+OWNER+'/'+REPO+'/contents/'+PATH+'?ref='+BRANCH+'&_='+Date.now();
+    const headers={'Accept':'application/vnd.github+json'};
+    const t=getToken(); if(t) headers['Authorization']='Bearer '+t;
+    const res=await fetch(url,{headers,cache:'no-store'});
+    if(res.status===404) return {data:null,sha:null};
+    if(!res.ok) throw new Error('GET '+res.status);
+    const j=await res.json();
+    let data=null; try{data=JSON.parse(b64decode(j.content));}catch(e){}
+    return {data, sha:j.sha};
+  }
+
+  async function apiPut(data, sha, msg){
+    const t=getToken(); if(!t) throw new Error('no token');
+    const url='https://api.github.com/repos/'+OWNER+'/'+REPO+'/contents/'+PATH;
+    const body={message:msg||'Update trading.json from dashboard',
+                content:b64encode(JSON.stringify(data,null,2)+'\n'),branch:BRANCH};
+    if(sha) body.sha=sha;
+    const res=await fetch(url,{method:'PUT',headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+t,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!res.ok){ const txt=await res.text(); const e=new Error('PUT '+res.status+': '+txt.slice(0,200)); e.status=res.status; throw e; }
+    const j=await res.json(); return j.content && j.content.sha;
+  }
+
+  function getDataForSave(){
+    return {
+      _doc: 'Trading dashboard state (cloud-synced via /trading/ UI).',
+      _schema_version: 1,
+      _updated_at: new Date().toISOString(),
+      accs: S.accs, apexAccs: S.apexAccs||[], lucidAccs: S.lucidAccs||[],
+      insights: S.insights||null, insDate: S.insDate||null
+    };
+  }
+
+  async function doSave(){
+    if(!hasToken()){ setPill('offline','☁ Sync: off'); return; }
+    if(saving){ savePending=true; return; }
+    saving=true; setPill('syncing','☁ Syncing…');
+    try{
+      const payload=getDataForSave();
+      try{ currentSha=await apiPut(payload,currentSha); }
+      catch(e){ if(e.status===409||e.status===422){ const fresh=await apiGet(); currentSha=await apiPut(payload,fresh.sha); } else { throw e; } }
+      setPill('synced','☁ Synced');
+    }catch(e){ console.warn('[TradingCloudSync] save:', e); setPill('error','☁ Error'); }
+    finally{ saving=false; if(savePending){ savePending=false; setTimeout(doSave,0); } }
+  }
+
+  function scheduleSave(){
+    if(saveTimer) clearTimeout(saveTimer);
+    saveTimer=setTimeout(doSave, DEBOUNCE_MS);
+  }
+
+  function promptForToken(){
+    const m='כדי לסנכרן בין כל המכשירים, נדרש GitHub Token (פעם אחת בלבד).\n\nאם אין לך — צרי כאן:\nhttps://github.com/settings/tokens/new?scopes=repo&description=Lauren+Trading+Sync\n\nהדביקי כאן (מתחיל ב-ghp_):';
+    const t=prompt(m,''); if(t && t.trim().startsWith('ghp_')){ setToken(t.trim()); return t.trim(); } return '';
+  }
+
+  // Init: fetch current sha so PUT is well-formed
+  apiGet().then(function(r){ currentSha=r.sha; setPill(hasToken()?'synced':'offline', hasToken()?'☁ Synced':'☁ Sync: off'); })
+          .catch(function(){ setPill('offline','☁ Offline'); });
+
+  async function doSaveImmediate(){
+    if(saveTimer){ clearTimeout(saveTimer); saveTimer=null; }
+    await doSave();
+  }
+  function _cancelPending(){
+    if(saveTimer){ clearTimeout(saveTimer); saveTimer=null; savePending=false; }
+  }
+  return { scheduleSave, doSaveImmediate, _cancelPending, promptForToken, setToken, getToken, hasToken };
+})();
+
+// Wire the cloud-pill click — prompt for token if missing, otherwise force a sync now.
+function cloudPillClick(){
+  if(!window.TradingCloudSync.hasToken()){
+    const t=window.TradingCloudSync.promptForToken();
+    if(t){ window.TradingCloudSync.scheduleSave(); }
+  } else {
+    window.TradingCloudSync.scheduleSave();
+  }
+}
+
+// ════════════ COMPUTED ════════════
+function days(ai){ return (S.accs[ai].days||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)); }
+function bal(ai) { const d=days(ai); return d.length?d[d.length-1].balance:ACCS[ai].startBal; }
+function thresh(ai){
+  const a=ACCS[ai];
+  if(a.isStatic) return a.startBal-a.trailDD; // Static: MLL קבוע תמיד
+  const mxE=Math.max(a.startBal,...(S.accs[ai].days||[]).map(d=>d.balance));
+  return Math.max(a.burnStart, mxE-a.trailDD); // EOD Trailing
+}
+function buf(ai) { return bal(ai)-thresh(ai); }
+function pnl(ai) { return days(ai).reduce((s,d)=>s+d.pnl,0); }
+function bday(ai){ const d=days(ai); return d.length?Math.max(...d.map(x=>x.pnl)):0; }
+function cPct(ai){
+  const ph=S.accs[ai].ph;
+  if(ph==='blulive') return 0.30;          // BluLive: כל הסוגים 30%
+  if(ACCS[ai].isLaunch&&ph==='eval1') return 0.50; // Launch Eval = 50%
+  return 0.30;                              // Premium/Static Eval = 30%
+}
+// ══ נוסחה רשמית: יום הגדול ÷ סך הרווח הכולל ══
+// מקור: help.blusky.pro/en/articles/14462222
+// cThresh = כמה רווח כולל נדרש כדי שיום הגדול יהיה בתוך הסף
+function cThresh(ai){
+  const b=bday(ai), cp=cPct(ai);
+  return b>0 ? b/cp : 0;  // bestDay / limit% = minimum total pnl needed
+}
+// האחוז הנוכחי: יום הגדול ÷ סך הרווח
+function cCurPct(ai){ const p=pnl(ai),b=bday(ai); return p>0?b/p:0; }
+// עמידה: האחוז הנוכחי ≤ הסף
+function cOk(ai){ return pnl(ai)<=0 || cCurPct(ai)<=cPct(ai); }
+// כמה עוד צריך להרוויח כדי לעמוד בכלל
+function cNeedMore(ai){ return Math.max(0, cThresh(ai)-pnl(ai)); }
+function target(ai){
+  const a=S.accs[ai]; return (a.ph==='eval1'?ACCS[ai].p1T:ACCS[ai].p2T)+(a.adj||0);
+}
+// Max-safe best day = consistencyPct × target. ONLY meaningful for eval/blulive
+// phases where there's a binding profit target. In simfunded/funded phases,
+// the goal is to MAXIMIZE each payout up to the cap, not to balance days.
+function maxSafeBestDay(ai){
+  const ph=S.accs[ai].ph;
+  if(ph!=='eval1' && ph!=='blulive') return null;
+  const tg=target(ai), cp=cPct(ai);
+  if(!tg || !cp) return null;
+  return tg * cp;
+}
+function cumSim(ai){ return pnl(ai)+(S.accs[ai].tw||0); }
+function phL(k){ return PH.find(p=>p.k===k)?.l||k; }
+function phS(k){ return PH.find(p=>p.k===k)?.s||k; }
+// Account number — prefer per-state meta.num override (set when Lauren transitions
+// phases and BluSky issues a new account number) over the static ACCS[i].num.
+function accNum(i){ return (S.accs[i]?.meta?.num) || ACCS[i].num; }
+function phI(k){ return PH.findIndex(p=>p.k===k); }
+
+// ════════════ FORMAT ════════════
+function f(n,plus=false){
+  const a=Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(plus&&n>0)return'+$'+a; return(n<0?'-$':'$')+a;
+}
+function f0(n){
+  return(n<0?'-$':'$')+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
+}
+const HE=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+function fd(s){ const d=new Date(s+'T00:00:00'); return`${HE[d.getDay()]} ${d.toLocaleDateString('he-IL',{day:'numeric',month:'numeric'})}`; }
+function pc(n){ return n>0?'var(--grn)':n<0?'var(--red)':'var(--txt3)'; }
+
+// ════════════ RENDER ════════════
+function renderAll(){
+  try{ updateFirmCapBanner(ACTIVE_FIRM || 'blusky'); }catch(e){}
+  
+  const grid = document.getElementById('accounts-grid');
+
+  if(ACTIVE_FIRM !== 'blusky'){
+    const firm = FIRMS[ACTIVE_FIRM];
+    const accsArr = ACTIVE_FIRM==='apex' ? (S.apexAccs||[]) : (S.lucidAccs||[]);
+    if(accsArr.length===0){
+      grid.innerHTML = buildEmptyFirmState(ACTIVE_FIRM);
+    } else {
+      grid.innerHTML = accsArr.map((_,i)=>buildFirmAccBlock(ACTIVE_FIRM,i)).join('');
+    }
+    document.getElementById('overall-insight').style.display='none';
+    return;
+  }
+
+  grid.innerHTML = ACCS.map((acc,i) => buildAccBlock(i)).join('');
+  if(S.insights) applyInsights(S.insights);
+  ACCS.forEach((_,i) => {
+    if(openPanels[i]) {
+      const p=document.getElementById(`dp-${i}`);
+      if(p) p.classList.add('open');
+    }
+  });
+}
+
+let openPanels = [false,false,false];
+
+function toggleDetail(i){
+  openPanels[i] = !openPanels[i];
+  renderAll();
+  if(openPanels[i]){
+    setTimeout(()=>{
+      const el=document.getElementById(`dd-${i}`);
+      if(el) el.scrollIntoView({behavior:'smooth',block:'nearest'});
+    },50);
+  }
+}
+
+
+function lastUpdated(days){
+  if(!days||!days.length) return 'אין נתונים';
+  const sorted=[...days].sort((a,b)=>b.date.localeCompare(a.date));
+  const d=new Date(sorted[0].date+'T00:00:00');
+  const he=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  return 'עודכן: יום '+he[d.getDay()]+' '+d.toLocaleDateString('he-IL',{day:'numeric',month:'numeric',year:'2-digit'});
+}
+
+function buildAccBlock(i){
+  const acc=ACCS[i], aS=S.accs[i];
+  const ph=aS.ph, p=pnl(i), b=bal(i), bf=buf(i), th=thresh(i);
+  const tg=target(i), bd=bday(i), ct=cThresh(i), cok=cOk(i);
+  const cpPct=cPct(i), cLabel=Math.round(cpPct*100)+'%';
+  const evalPct=tg?Math.min(100,Math.max(0,(p/tg)*100)):0;
+  const bufPct=Math.min(100,(bf/acc.trailDD)*100);
+  const cBarPct=bd>0?Math.min(100,(bd/ct)*100):0;
+  const tw=aS.tw||0, cs=ph==='simfunded'?cumSim(i):0;
+  const trig=ph==='eval1'?acc.p1Trig:acc.p2Trig;
+
+  // 🎯 DAILY TARGET PANEL (added 2026-05-09) — bind consistency to target.
+  // For eval/blulive: max-safe daily = consistencyPct × target. If exceeded,
+  // emphasize the TIME-COST (more trading days), not just rule failure.
+  // For simfunded: emphasize maxing each payout up to the 7-day cap.
+  let dailyTargetPanel = '';
+  const _maxSafe = maxSafeBestDay(i);
+  if(_maxSafe != null && (ph==='eval1' || ph==='blulive')){
+    const tg = target(i);
+    const exceeded = bd > _maxSafe;
+    const headerLabel = ph==='eval1'
+      ? 'יעד יומי בטוח · להגיע ל-' + f0(tg) + ' ולעבור Phase 1'
+      : 'יעד יומי בטוח · להגיע ל-' + f0(tg) + ' ולעבור ל-Sim Funded';
+    const projectedTotal = bd > 0 ? Math.max(tg, bd / cpPct) : tg;
+    const extraDaysNote = exceeded
+      ? '⚠ חרגת מ-$' + f0(_maxSafe) + ' ביום הגדול. כדי לעבור — צריך להגיע ל-' + f0(projectedTotal) + ' (לא ' + f0(tg) + '). יותר ימי מסחר.'
+      : '✅ השאירי את יום המסחר מתחת ל-' + f0(_maxSafe) + ' — תסיימי בדיוק ב-' + f0(tg) + ' ללא ימי מסחר נוספים.';
+    dailyTargetPanel = `
+    <div class="daily-target-zone">
+      <div class="daily-target-card ${exceeded?'over':''}">
+        <div class="dt-header">🎯 ${headerLabel}</div>
+        <div class="dt-grid">
+          <div class="dt-metric">
+            <div class="dt-lbl">מקס׳ ליום</div>
+            <div class="dt-val safe">${f0(_maxSafe)}</div>
+            <div class="dt-sub">${Math.round(cpPct*100)}% × ${f0(tg)}</div>
+          </div>
+          <div class="dt-metric">
+            <div class="dt-lbl">יום הגדול עד כה</div>
+            <div class="dt-val ${exceeded?'over':'safe'}">${bd>0?f0(bd):'—'}</div>
+            <div class="dt-sub">${exceeded?'חורג':bd>0?'בטוח':'אין נתונים'}</div>
+          </div>
+          <div class="dt-metric">
+            <div class="dt-lbl">צפי לסיום השלב</div>
+            <div class="dt-val ${exceeded?'over':''}">${f0(projectedTotal)}</div>
+            <div class="dt-sub">${exceeded?'במקום '+f0(tg):'='+f0(tg)}</div>
+          </div>
+        </div>
+        <div class="dt-tip">${extraDaysNote}</div>
+        <div class="dt-tip" style="margin-top:6px;background:rgba(255,255,255,0.45);">📐 <b>אסטרטגיית buffer:</b> שמרי על DD Buffer ≥ $1,000 לא משנה מה. אל תסחרי כשה-buffer יורד לאדום (&lt;$500) — עדיף לחכות יום מאשר לאבד את החשבון.</div>
+      </div>
+    </div>`;
+  } else if(ph==='simfunded'){
+    // Sim Funded: maximize each payout up to the 7-day cap ($2,500 for 50K, etc.)
+    const cap = (acc.startBal>=200000?2500:acc.startBal>=100000?3000:2500);
+    dailyTargetPanel = `
+    <div class="daily-target-zone">
+      <div class="daily-target-card funded">
+        <div class="dt-header">💰 משיכה — אסטרטגיה לFunded</div>
+        <div class="dt-grid">
+          <div class="dt-metric">
+            <div class="dt-lbl">תקרה ל-7 ימים</div>
+            <div class="dt-val safe">${f0(cap)}</div>
+            <div class="dt-sub">למשיכה הבאה</div>
+          </div>
+          <div class="dt-metric">
+            <div class="dt-lbl">רווח בשלב</div>
+            <div class="dt-val ${p>=250?'safe':''}">${f0(p)}</div>
+            <div class="dt-sub">${p>=250?'אפשר למשוך!':'מינ׳ $250'}</div>
+          </div>
+          <div class="dt-metric">
+            <div class="dt-lbl">חוק Consistency</div>
+            <div class="dt-val">30%</div>
+            <div class="dt-sub">בעת משיכה</div>
+          </div>
+        </div>
+        <div class="dt-tip">💡 מקסמי כל משיכה עד התקרה (${f0(cap)} ב-7 ימים). אין יעד — תרוויחי כמה שרק תוכלי.</div>
+        <div class="dt-tip" style="margin-top:6px;background:rgba(255,255,255,0.45);">📐 <b>אסטרטגיית buffer:</b> אל תמשכי בדיוק על ה-MLL. השאירי לפחות $2,000 buffer מעל ה-MLL גם אחרי המשיכה — יום אדום אחד לא ישרוף לך את החשבון.</div>
+      </div>
+    </div>`;
+  }
+
+  // Phase pill style
+  const phStyle=`background:${acc.colorBg};color:${acc.color};border-color:${acc.colorMid}`;
+
+  // Status
+  let stClass='st-sky', stIcon='⏳', stTitle='', stBody='';
+  if(ph==='brokreview'){
+    stClass='st-red'; stIcon='🔴'; stTitle='Brokerage Review — אסור לסחור!';
+    stBody='פתחי Support Ticket. מסחר = ביטול חשבון!';
+  } else if(ph==='live'){
+    stClass='st-green'; stIcon='🎉'; stTitle='Live Brokerage';
+    stBody='90% לכיס · ללא Consistency · ללא Daily Limit';
+  } else if(ph==='simfunded'){
+    if(cs>=10000){ stClass='st-amber'; stIcon='⚠️'; stTitle='$10K הושג — עצרי + Ticket!'; stBody=`מצטבר: ${f0(cs)} — Brokerage Review`; }
+    else if(p>=250&&b>acc.startBal){ stClass='st-green'; stIcon='💸'; stTitle='ניתן למשוך!'; stBody=`${f(p)} רווח · לכיס: ${f0(p*0.9)} · נותר: ${f0(10000-cs)}`; }
+    else{ stTitle='Sim Funded'; stBody=`רווח: ${f(p,true)} · מצטבר: ${f0(cs)}/$10,000`; }
+  } else if(bf<400){
+    stClass='st-red'; stIcon='🚨'; stTitle='Buffer קריטי!'; stBody=`נשאר ${f0(bf)} בלבד לפני שריפה!`;
+  } else if(!cok&&p>0){
+    stClass='st-amber'; stIcon='⚠️'; stTitle=`Consistency ${cLabel} — חרגת!`;
+    stBody=`יום הגדול ${f(bd)} הוא ${Math.round(cCurPct(i)*100)}% מהרווח הכולל (מגבלה ${cLabel}). המשיכי לסחור עד שהרווח יגיע ל-${f0(ct)}.`;
+  } else if(p>=tg){
+    stClass='st-green'; stIcon='✅'; stTitle=`${phS(ph)} — יעד הושג!`;
+    stBody=ph==='eval1'?`עברי ל-BluLive! עדכני Tradovate ל-$900`:`עברי לSim Funded!`;
+  } else {
+    stTitle=phL(ph);
+    stBody=`נותר: ${f0(Math.max(0,tg-p))} · Trigger: ${f0(trig)}`;
+  }
+
+  // Progress bars
+  let progs = '';
+  if(ph==='eval1'||ph==='blulive'){
+    progs = `
+    <div class="prog-zone">
+      <div class="prog-item">
+        <div class="prog-top">
+          <span class="prog-lbl">🎯 רווח → יעד ${f0(tg)}</span>
+          <span class="prog-num" style="color:${p>=tg?'var(--grn)':acc.color}">${f(p,true)} / ${f0(tg)}</span>
+        </div>
+        <div class="prog-track"><div class="prog-fill" style="width:${evalPct}%;background:${p>=tg?'#16a34a':acc.color}"></div></div>
+        <div class="prog-hint">${Math.round(evalPct)}% · ${days(i).length} ימים</div>
+      </div>
+      <div class="prog-item">
+        <div class="prog-top">
+          <span class="prog-lbl">🛡️ Consistency — יום הגדול ÷ סה"כ רווח</span>
+          <span class="prog-num" style="color:${cok?'var(--grn)':'var(--red)'}">${Math.round(cCurPct(i)*100)}% / ${cLabel}</span>
+        </div>
+        <div class="prog-track"><div class="prog-fill" style="width:${Math.min(100,Math.round(cCurPct(i)/cPct(i)*100))}%;background:${cok?'#16a34a':'#dc2626'}"></div></div>
+        <div class="prog-hint">${f(bd,true)} ÷ ${f(p,true)} = ${Math.round(cCurPct(i)*100)}% · ${cok?'✓ עומדת בכלל':'✗ חרגה — המשיכי לסחור עד '+f0(ct)}</div>
+      </div>
+      <div class="prog-item">
+        <div class="prog-top">
+          <span class="prog-lbl">📉 DD Buffer</span>
+          <span class="prog-num" style="color:${bf<500?'var(--red)':bf<1000?'var(--amb)':'var(--grn)'}">${f0(bf)} / ${f0(acc.trailDD)}</span>
+        </div>
+        <div class="prog-track"><div class="prog-fill" style="width:${bufPct}%;background:${bf<500?'#dc2626':bf<1000?'#d97706':'#16a34a'}"></div></div>
+        <div class="prog-hint">Threshold: ${f0(th)} · EOD Trailing</div>
+      </div>
+    </div>`;
+  } else if(ph==='simfunded'){
+    const qualDays = days(i).filter(d=>d.pnl>=250).length;
+    const chips = [1,2,3,4,5].map(n=>`<div class="day-chip${n<=qualDays?' done':''}"><span class="day-chip-num">${n<=qualDays?'✓':n}</span><span class="day-chip-lbl">${n<=qualDays?'יום '+n:''}</span></div>`).join('');
+    progs = `
+    <div class="prog-zone">
+      <div class="prog-item">
+        <div class="prog-top"><span class="prog-lbl">💰 רווח (מינ' $250)</span><span class="prog-num" style="color:${p>=250?'var(--grn)':'var(--sky)'}">${f(p,true)}</span></div>
+        <div class="prog-track"><div class="prog-fill" style="width:${Math.min(100,Math.max(0,(p/500)*100))}%;background:var(--sky)"></div></div>
+      </div>
+      <div class="prog-item">
+        <div class="prog-top"><span class="prog-lbl">📊 מצטבר → Brokerage</span><span class="prog-num" style="color:${cs>=10000?'var(--red)':'var(--amb)'}">${f0(cs)} / $10,000</span></div>
+        <div class="prog-track"><div class="prog-fill" style="width:${Math.min(100,(cs/10000)*100)}%;background:${cs>=10000?'#dc2626':'#d97706'}"></div></div>
+      </div>
+      <div class="day-chips-row">${chips}</div>
+    </div>`;
+  }
+
+  // Detail panel content
+  const allD=days(i);
+  const logRows=allD.slice().reverse().map((d,ri)=>{
+    const ri2=allD.indexOf(d);
+    const b2=d.balance-thresh(i);
+    return`<div class="log-r">
+      <span class="log-dot ${d.pnl>0?'dot-g':d.pnl<0?'dot-r':'dot-0'}"></span>
+      <span class="log-date">${fd(d.date)}</span>
+      <span class="log-pnl" style="color:${pc(d.pnl)}">${f(d.pnl,true)}</span>
+      <span class="log-bal">Bal: ${f(d.balance)} | buf: <strong style="color:${b2<500?'var(--red)':b2<1000?'var(--amb)':'var(--txt4)'}">${f0(b2)}</strong></span>
+      <button class="log-del" onclick="rmDay(${i},${ri2})">×</button>
+    </div>`;
+  }).join('');
+
+  const consBlock=(ph==='eval1'||ph==='blulive')&&p>0?`
+    <div class="divider">Consistency</div>
+    <div class="cons-table">
+      <div class="cons-row"><span class="cons-key">יום הגדול</span><span class="cons-val" style="color:var(--txt)">${f(bd,true)}</span></div>
+      <div class="cons-row"><span class="cons-key">סה"כ רווח עד כה</span><span class="cons-val" style="color:var(--txt)">${f(p,true)}</span></div>
+      <div class="cons-row"><span class="cons-key">אחוז נוכחי (יום גדול ÷ סה"כ)</span><span class="cons-val" style="color:${cok?'var(--grn)':'var(--red)'}">${Math.round(cCurPct(i)*100)}%</span></div>
+      <div class="cons-row"><span class="cons-key">הסף המותר</span><span class="cons-val" style="color:var(--sky)">${cLabel}</span></div>
+      <div class="cons-row"><span class="cons-key">נדרש סה"כ רווח (אם יום הגדול נשאר)</span><span class="cons-val" style="color:${cok?'var(--txt3)':'var(--amb)'}">${ct>0?f0(ct):'—'}</span></div>
+      <div class="cons-row" style="border:none"><span class="cons-key">סטטוס</span><span class="cons-val" style="color:${cok?'var(--grn)':'var(--red)'}">${cok?'✓ עומדת':'✗ צריך עוד '+f0(cNeedMore(i))+' רווח'}</span></div>
+    </div>`:'';
+
+  const ladderBlock=`
+    <div class="divider">מסלול שלבים</div>
+    <div class="ladder">
+      ${PH.map((p2,j)=>{
+        const ci=phI(ph),isC=p2.k===ph,isD=j<ci;
+        const det=[`יעד ${f0(tg)} | ${cLabel}×Bal | DD EOD | מינ' 4 ימים`,
+          `$3K buffer | ללא Daily Limit | 34%×Bal | Trigger $900`,
+          `$250 מינ' | 90% | ללא Consistency`,
+          `Ticket! אסור לסחור!`,`עד $10K | $30K cap | 90%`][j];
+        return`<div class="lr ${isC?'curr':isD?'done':''}">
+          <span class="lr-n ${isC?'c':isD?'d':''}">${j+1}</span>
+          <div style="flex:1"><div class="lr-name">${p2.l}</div><div class="lr-det">${det}</div></div>
+          <span class="lr-b ${isC?'lb-c':isD?'lb-d':j===4?'lb-live':'lb-f'}">${isD?'✓':isC?'← עכשיו':j===4?'LIVE':'—'}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  const formBlock=`
+    <div class="divider">עדכון יום מסחר</div>
+    <div class="form-row">
+      <div class="form-g"><label class="form-lbl">תאריך</label><input type="date" id="fd-${i}"/></div>
+      <div class="form-g"><label class="form-lbl">P&L ($)</label><input type="number" id="fp-${i}" placeholder="+120 או -80" step="0.5"/></div>
+      <div class="form-g"><label class="form-lbl">Balance EOD</label><input type="number" id="fb-${i}" placeholder="אופציונלי" step="0.5"/></div>
+    </div>
+    <button class="btn-add" onclick="addDay(${i})">+ הוסף יום</button>
+    ${ph==='simfunded'?`
+    <div class="div-sm">משיכה</div>
+    <div class="form-row" style="grid-template-columns:1fr 1fr">
+      <div class="form-g"><label class="form-lbl">סכום משיכה</label><input type="number" id="fw-${i}" placeholder="250" step="0.5"/></div>
+      <div class="form-g" style="align-self:flex-end"><button onclick="addW(${i})" style="background:none;border:2px solid var(--grn-mid);border-radius:10px;padding:10px;font-family:var(--f);font-size:13px;font-weight:800;color:var(--grn);cursor:pointer;width:100%">💸 רשום משיכה (${f0(tw)} עד כה)</button></div>
+    </div>`:''}
+    <div class="div-sm">שלב + הגדרות</div>
+    <div class="form-row" style="grid-template-columns:2fr 1fr">
+      <div class="form-g"><label class="form-lbl">שלב נוכחי</label>
+        <select id="ps-${i}" onchange="chPhase(${i})">
+          ${PH.map(p2=>`<option value="${p2.k}" ${p2.k===ph?'selected':''}>${p2.l}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-g"><label class="form-lbl">Adj Target (+$)</label>
+        <input type="number" id="pa-${i}" placeholder="0" value="${aS.adj||0}" onchange="setAdj(${i},this.value)"/>
+      </div>
+    </div>
+    <div class="form-hint">💡 Consistency = ${cLabel} × ${f0(acc.startBal)} = <strong>${f0(ct)}</strong> מקס'/יום · EOD Trailing DD · Daily Trigger: <strong>${f0(trig)}</strong></div>`;
+
+  // ── SIMPLE "EXPLAIN LIKE A CHILD" CARD ──
+  function row(emoji, label, val, cls='') {
+    return `<div class="simple-row">
+      <span class="simple-emoji">${emoji}</span>
+      <div class="simple-text">
+        <div class="simple-label">${label}</div>
+        <div class="simple-val ${cls}">${val}</div>
+      </div>
+    </div>`;
+  }
+
+  // 1. יתרה עכשיו vs. יתרה מינימלית
+  const balRow = row('💰','היתרה שלי עכשיו',
+    `${f(b)} — התחלתי עם ${f0(acc.startBal)}, כלומר הרווחתי ${f(p,true)} עד כה.`,
+    p>0?'sv-ok':p<0?'sv-bad':'');
+
+  // 2. מה אני שואפת
+  let goalRow='';
+  if(ph==='eval1'||ph==='blulive'){
+    const leftAmt = Math.max(0, tg-p);
+    goalRow = row('🎯','מה אני שואפת',
+      leftAmt>0
+        ? `להגיע לרווח של ${f0(tg)} סה"כ. נשאר לי עוד ${f0(leftAmt)} להרוויח כדי לעבור לשלב הבא.`
+        : `הגעתי ליעד! אפשר לעבור לשלב הבא 🎉`,
+      leftAmt===0?'sv-ok':'');
+  } else if(ph==='simfunded'){
+    const rem = 10000 - cumSim(i);
+    goalRow = row('🎯','מה אני שואפת',
+      rem>0
+        ? `אפשר למשוך כסף כל יום! נשאר לי עוד ${f0(rem)} עד שעוברת לחשבון חי אמיתי.`
+        : `הגעת ל-$10,000 — צריך לפתוח Ticket לחשבון חי!`,'');
+  }
+
+  // 3. העסקה הגדולה ביותר
+  const bigDayRow = bd>0
+    ? row('📈','העסקה / היום הרווחי הגדול ביותר',
+        `${f(bd)} — זה הסכום הכי גבוה שהרווחתי ביום אחד.`, '')
+    : row('📈','היום הרווחי הגדול','עדיין אין נתונים','');
+
+  // 4. האם עומדת בכל הכללים
+  let rulesRow='';
+  if(ph==='eval1'||ph==='blulive'){
+    if(!cok && bd>0){
+      const curP=Math.round(cCurPct(i)*100);
+      const needMore=cNeedMore(i);
+      rulesRow = row('⚠️','האם אני עומדת בכלל Consistency?',
+        `עדיין לא — יום הגדול (${f(bd)}) הוא ${curP}% מהרווח הכולל, והמגבלה היא ${cLabel}. ` +
+        `כדי לתקן: צריך עוד ${f0(needMore)} רווח נוסף (סה"כ ${f0(ct)}). זה לא עונש — פשוט להמשיך לסחור!`,
+        'sv-warn');
+    } else if(bf<800){
+      rulesRow = row('🚨','האם אני עומדת בכל הכללים?',
+        `כן, הכל בסדר מבחינת Consistency — אבל הבאפר (כרית הביטחון) ירד ל-${f0(bf)}. זה קצת נמוך, לשים לב!`,
+        'sv-warn');
+    } else {
+      const curP=bd>0&&p>0?Math.round(cCurPct(i)*100):0;
+      rulesRow = row('✅','האם אני עומדת בכל הכללים?',
+        `כן! ${curP>0?`יום הגדול הוא ${curP}% מהרווח (מגבלה ${cLabel}) — עומדת בכלל.`:''}`, 'sv-ok');
+    }
+  } else {
+    rulesRow = row('✅','האם אני עומדת בכל הכללים?',
+      ph==='simfunded'
+        ? `בשלב הזה אין כלל Consistency — אפשר להרוויח כמה שרוצים ביום. ${p>=250&&b>acc.startBal?'✅ אפשר למשוך!':p<250?'צריך עוד קצת להגיע ל-$250 מינימום משיכה.':''}`
+        : `החשבון במצב ${phL(ph)}.`, '');
+  }
+
+  // 5. ממה להיזהר
+  let warnRow='';
+  if(ph==='eval1'||ph==='blulive'){
+    if(bf<600){
+      warnRow = row('🔴','ממה להיזהר — חשוב מאוד!',
+        `הכרית הביטחון ירדה ל-${f0(bf)}! אם אפסיד עוד ${f0(bf)} — החשבון נשרף. לסחור בזהירות מקסימלית!`,
+        'sv-bad');
+    } else if(!cok){
+      // Consistency violated — explain exactly what's needed
+      const needMore = cNeedMore(i);
+      const minPnl = ct; // total pnl needed so bestDay <= limit%
+      warnRow = row('📐','מה צריך לעשות — Consistency',
+        `יום הגדול שלך (${f(bd)}) הוא ${Math.round(cCurPct(i)*100)}% מהרווח הכולל, אבל המגבלה היא ${cLabel}.\n\n` +
+        `כדי שהחריגה תתבטל: הרווח הכולל צריך להגיע ל-${f0(minPnl)}.\n` +
+        `נשאר לך עוד ${f0(needMore)} רווח להרוויח כדי לעמוד בכלל.\n\n` +
+        `אין עונש — פשוט תמשיכי לסחור כרגיל! כל יום שמסתיים ברווח מקרב אותך לשם.`,
+        'sv-warn');
+    } else if(bf<1200){
+      warnRow = row('⚠️','ממה להיזהר',
+        `הכרית הביטחון ירדה ל-${f0(bf)} — כדאי להיות זהירים. המגבלה היומית ב-Tradovate: ${f0(trig)}.`,
+        'sv-warn');
+    } else {
+      const curP=bd>0&&p>0?Math.round(cCurPct(i)*100):0;
+      warnRow = row('💡','על מה להסתכל',
+        `Consistency: ${curP>0?`יום הגדול הוא ${curP}% מהרווח (מגבלה ${cLabel}) — ✓`:'אין נתונים עדיין'}. Daily Trigger ב-Tradovate: ${f0(trig)}.`,
+        '');
+    }
+  } else if(ph==='simfunded'){
+    const rem = 10000 - cumSim(i);
+    warnRow = row('💡','על מה להסתכל',
+      `כשאסכים ${f0(rem)} נוספים (כולל משיכות) — צריך לפתוח Ticket לעבור לחשבון חי. לא לשכוח!`,
+      rem<2000?'sv-warn':'');
+  } else {
+    warnRow = row('💡','על מה להסתכל','עקבי אחרי הנחיות BluSky בשלב הזה.','');
+  }
+
+  const detailOpen = openPanels[i];
+
+  // ── HERO STRIP ──
+  const canW = ph==='simfunded'&&p>=250&&b>acc.startBal;
+  const pocketAmt = canW?Math.round(p*0.9):0;
+  const heroStrip = `
+  <div class="hero-strip">
+    <div class="hero-metric dark">
+      <div class="hero-metric-lbl">לכיס במשיכה</div>
+      <div class="hero-metric-val" style="color:${canW?'#4ade80':'#fff'}">${canW?f(pocketAmt):'—'}</div>
+      <div class="hero-metric-sub">${canW?'זמין למשיכה! 🎉':ph==='simfunded'?`נשאר ${f0(Math.max(0,250-p))} למינימום`:'לא זמין בשלב זה'}</div>
+    </div>
+    <div class="hero-metric">
+      <div class="hero-metric-lbl">רווח Phase</div>
+      <div class="hero-metric-val" style="color:${pc(p)}">${f(p,true)}</div>
+      <div class="hero-metric-sub">${days(i).length} ימים · ${days(i).filter(d=>d.pnl>0).length} רווחיים</div>
+    </div>
+    <div class="hero-metric">
+      <div class="hero-metric-lbl">DD Buffer</div>
+      <div class="hero-metric-val" style="color:${bf<500?'var(--red)':bf<1000?'var(--amb)':'var(--grn)'}">${f0(bf)}</div>
+      <div class="hero-metric-sub">מ-${f0(acc.trailDD)} | Trigger ${f0(ph==='eval1'?acc.p1Trig:acc.p2Trig)}</div>
+    </div>
+  </div>`;
+
+  // ── MLL METER ──
+  const mllPct = Math.min(100,Math.max(0,(bf/acc.trailDD)*100));
+  const mllColor = bf<500?'#dc2626':bf<1000?'#d97706':'#16a34a';
+  const mllMeter = `
+  <div class="mll-meter-zone">
+    <div class="mll-row">
+      <span class="mll-title">📉 MLL Buffer — כמה נשאר עד שריפה</span>
+      <span class="mll-nums" style="color:${mllColor}">${f0(bf)} / ${f0(acc.trailDD)}</span>
+    </div>
+    <div class="mll-track"><div class="mll-fill" style="width:${mllPct}%;background:${mllColor}"></div></div>
+    <div class="mll-labels"><span>שרוף ← MLL ${f0(th)} ${acc.isStatic?'(סטטי 🔒)':'(Trailing)'}</span><span>Balance ${f(b)} →</span></div>
+  </div>`;
+
+  // ── PAYOUT LADDER (BluLive → Sim Funded) ──
+  let payoutLadder='';
+  if(ph==='blulive'||ph==='simfunded'){
+    const weeklyCapSim=2500;
+    const payoutRows=[1,2,3,4].map(n=>{
+      const isCur=ph==='simfunded'&&n===1;
+      const isDone=ph==='simfunded'&&n<1;
+      const net=Math.round(weeklyCapSim*0.9);
+      return`<div class="pl-row ${isCur?'curr':isDone?'done':''}">
+        <span class="pl-num ${isCur?'curr':isDone?'done':''}">#${n}</span>
+        <span class="pl-cap">Cap שבועי: ${f0(weeklyCapSim)}</span>
+        <span class="pl-net">${f(net)} לכיס</span>
+        <span class="pl-status ${isCur?'curr':isDone?'done':''}">${isDone?'✓ הושלם':isCur?'← עכשיו':'—'}</span>
+      </div>`;
+    }).join('');
+    payoutLadder=`
+    <div class="payout-ladder">
+      <div class="payout-ladder-title">מסלול Sim Funded → Brokerage</div>
+      ${payoutRows}
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr2);font-size:13px;color:var(--txt4);font-weight:600">
+        $10,000 מצטבר (כולל משיכות) → Brokerage Review 🎉
+      </div>
+    </div>`;
+  }
+
+  const simpleBlock = `
+  <div class="simple-card">
+    <div class="simple-inner">
+      <div class="simple-title">📋 בקצרה — מה קורה כאן?</div>
+      ${balRow}
+      ${goalRow}
+      ${bigDayRow}
+      ${rulesRow}
+      ${warnRow}
+    </div>
+  </div>`;
+
+  return `
+  <div class="acc-block" id="block-${i}">
+    <div class="acc-header-card">
+      <div class="acc-color-bar" style="background:${acc.color}"></div>
+      <div class="acc-header-body">
+        <div class="acc-name">${acc.name}</div>
+        <div class="acc-num">${accNum(i)}</div>
+        <div class="acc-actions">
+          <button class="acc-action-btn" type="button" onclick="openTransitionModal(${i})" title="כשתעברי שלב — לחצי כאן">🎯 דווחי על מעבר שלב</button>
+          <button class="acc-action-btn" type="button" onclick="openRulesModal('accs', ${i})" title="הצגת חוקים מלאים לחשבון">📖 חוקי החשבון</button>
+          ${(aS.history && aS.history.length) ? `<button class="acc-action-btn" type="button" onclick="openHistoryModal(${i})" title="ראי שלבים קודמים">↻ היסטוריה (${aS.history.length})</button>` : ''}
+        </div>
+        <div style="font-size:13px;font-weight:700;color:var(--sky);margin-bottom:8px;">${lastUpdated(days(i))}</div>
+        <div class="acc-phase-row">
+          <div class="phase-pill" style="${phStyle}">${phL(ph)}</div>
+          <div class="bal-line">Bal: ${f(b)}</div>
+        </div>
+      </div>
+    </div>
+
+    ${heroStrip}
+    ${mllMeter}
+    ${dailyTargetPanel}
+
+    <div class="acc-status ${stClass}">
+      <span class="si">${stIcon}</span>
+      <div class="acc-status-txt">
+        <div class="acc-status-title">${stTitle}</div>
+        <div class="acc-status-body">${stBody}</div>
+      </div>
+    </div>
+
+    ${progs}
+    ${payoutLadder}
+    ${simpleBlock}
+
+    <!-- AI INSIGHT for this account -->
+    <div class="ai-insight">
+      <div class="ai-insight-header">
+        <span class="ai-header-lbl">💡 תובנת AI — ${acc.short}</span>
+        <span class="ai-badge">AI ✦</span>
+      </div>
+      <div class="ai-insight-body" id="ai-${i}">
+        <div class="ai-empty">לחצי "ניתוח AI יומי" לתובנות</div>
+      </div>
+    </div>
+
+    <!-- EXPAND DETAIL -->
+    <div class="expand-toggle" onclick="toggleDetail(${i})" id="dd-${i}">
+      ${detailOpen?'▲ סגור פרטים':'▼ פרטים מלאים — יומן, Consistency, שלבים, עדכון'}
+    </div>
+    <div class="detail-panel ${detailOpen?'open':''}" id="dp-${i}">
+      ${consBlock}
+      ${ladderBlock}
+      ${allD.length?`
+        <div class="divider">יומן</div>
+        <div class="log-tbl">${logRows}</div>
+        <div class="log-footer">
+          <span class="log-stats">סה"כ: <strong>${f(p,true)}</strong> | ✓<strong style="color:var(--grn)">${allD.filter(d=>d.pnl>0).length}</strong> | ✗<strong style="color:var(--red)">${allD.filter(d=>d.pnl<0).length}</strong></span>
+          <button class="btn-sm" onclick="if(confirm('מחק יומן?')){S.accs[${i}].days=[];save();renderAll();}">מחק</button>
+        </div>`:''}
+      ${formBlock}
+    </div>
+  </div>`;
+}
+
+// ════════════ EMPTY FIRM STATE ════════════
+function buildEmptyFirmState(firmKey){
+  const f = FIRMS[firmKey];
+  const color = f.color;
+  const notes = (f.notes||[]).map(n=>`<div style="padding:8px 0;border-bottom:1px solid var(--bdr2);font-size:16px;font-weight:600;color:var(--txt2)">${n}</div>`).join('');
+  const phases = f.phases.map(p=>`<span style="background:var(--s2);border:1.5px solid var(--bdr2);border-radius:20px;padding:5px 14px;font-size:14px;font-weight:700;color:var(--txt3);margin:3px;display:inline-block">${p.l}</span>`).join('');
+
+  return `<div style="grid-column:1/-1;text-align:center;padding:60px 40px;background:var(--surface);border-radius:var(--rl);border:2px dashed var(--bdr);box-shadow:var(--sh)">
+    <div style="font-size:48px;margin-bottom:16px">${firmKey==='apex'?'⚡':'💎'}</div>
+    <div style="font-size:26px;font-weight:900;color:var(--txt);margin-bottom:8px">${f.name}</div>
+    <div style="font-size:17px;color:var(--txt3);font-weight:600;margin-bottom:28px">${f.sub}</div>
+    <div style="background:var(--s2);border-radius:14px;padding:20px 28px;max-width:600px;margin:0 auto 28px;text-align:right">
+      <div style="font-size:15px;font-weight:900;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">כללים עיקריים</div>
+      ${notes||'<div style="color:var(--txt3)">טוען...</div>'}
+    </div>
+    <div style="margin-bottom:28px">
+      <div style="font-size:15px;font-weight:800;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">שלבים</div>
+      ${phases}
+    </div>
+    <button onclick="addFirmAccount('${firmKey}')" style="background:${color};color:#fff;border:none;border-radius:14px;padding:16px 32px;font-family:var(--f);font-size:18px;font-weight:800;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.2)">
+      + הוסף חשבון ${f.name}
+    </button>
+    <div style="margin-top:14px;font-size:14px;color:var(--txt4)">תוכלי להוסיף מספר חשבונות</div>
+  </div>`;
+}
+
+function addFirmAccount(firmKey){
+  if(firmKey==='apex'){
+    const sizes=['25K','50K','100K','150K'];
+    const size=prompt(`גודל חשבון (${sizes.join('/')})`, '50K');
+    if(!size||!FIRMS.apex.accountSpecs[size]){alert('גודל לא תקין');return;}
+    const spec=FIRMS.apex.accountSpecs[size];
+    const name=prompt(`שם / כינוי`,`Apex ${size}`)||`Apex ${size}`;
+    const num=prompt(`מספר חשבון (אופציונלי)`)||'';
+    const ddType=prompt(`סוג Drawdown? EOD / Intraday`,'EOD')||'EOD';
+    const newAcc={id:`apex_${Date.now()}`,name,num,size,ddType,plan:`Apex ${size} ${ddType}`,startBal:spec.startBal,trailDD:spec.trailDD,burnStart:spec.startBal-spec.trailDD,p1T:spec.p1T,p2T:spec.p1T,dll:spec.dll,safetyNet:spec.safetyNet,maxContractsEval:spec.maxContractsEval,maxContractsPA:spec.maxContractsPA,color:'#e05a00',colorBg:'#fff3e0',colorMid:'#f4a460'};
+    S.apexAccs=[...(S.apexAccs||[]),{ph:'eval1',days:[],tw:0,adj:0,payouts:[],meta:newAcc}];
+  } else {
+    const plan=prompt(`סוג (LucidPro/LucidFlex/LucidDirect)`,'LucidPro')||'LucidPro';
+    const size=prompt(`גודל ($25K/$50K/$100K)`,'$50K')||'$50K';
+    const name=prompt(`שם`,`Lucid ${size}`)||`Lucid ${size}`;
+    const num=prompt(`מספר חשבון`)||'';
+    const startBal=parseFloat(size.replace(/[^0-9]/g,''))*1000||50000;
+    const trailDD=startBal*0.04;const p1T=startBal*0.04;
+    const newAcc={id:`lucid_${Date.now()}`,name,num,plan,size,startBal,trailDD,burnStart:startBal-trailDD,p1T,p2T:p1T,color:'#7c3aed',colorBg:'#ede9fe',colorMid:'#c4b5fd'};
+    S.lucidAccs=[...(S.lucidAccs||[]),{ph:'eval1',days:[],tw:0,adj:0,meta:newAcc}];
+  }
+  save();renderAll();
+}
+
+function buildFirmAccBlock(firmKey,i){
+  const accsArr=firmKey==='apex'?(S.apexAccs||[]):(S.lucidAccs||[]);
+  const aS=accsArr[i];const meta=aS.meta||{};
+  const acc={...meta,startBal:meta.startBal||50000,trailDD:meta.trailDD||2500,burnStart:meta.burnStart||(meta.startBal||50000)-(meta.trailDD||2500),p1T:meta.p1T||3000,p2T:meta.p2T||3000,color:meta.color||FIRMS[firmKey].color,colorBg:meta.colorBg||'#fff3e0',colorMid:meta.colorMid||'#f4a460',name:meta.name||`חשבון ${i+1}`,num:meta.num||'',plan:meta.plan||''};
+  const ph=aS.ph||'eval1';const firm=FIRMS[firmKey];
+  const dList=(aS.days||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const p=dList.reduce((s,d)=>s+d.pnl,0);
+  const b=dList.length?dList[dList.length-1].balance:acc.startBal;
+  const bd=dList.filter(d=>d.pnl>0).length?Math.max(...dList.filter(d=>d.pnl>0).map(d=>d.pnl)):0;
+  const isApex=firmKey==='apex';
+  const isLucid=firmKey==='lucid';
+  const bf=isApex||acc.isStatic
+    ? b-acc.burnStart
+    : b-(acc.startBal-acc.trailDD);
+  const tg=firm.getTarget(acc,ph,aS.adj||0);const cp=firm.getConsistPct(acc,ph);
+  const cok=!cp||p<=0||bd/p<=cp;const cCur=p>0&&cp&&bd>0?Math.round(bd/p*100):0;
+  const phS=firm.phases.find(x=>x.k===ph);
+  const evalPct=tg?Math.min(100,Math.max(0,(p/tg)*100)):0;
+  const bufPct=Math.min(100,Math.max(0,(bf/acc.trailDD)*100));
+  const phStyle=`background:${acc.colorBg};color:${acc.color};border-color:${acc.colorMid}`;
+  const safetyNet=meta.safetyNet||(acc.startBal+acc.trailDD+100);
+  const safetyReached=isApex&&b>=safetyNet;
+  const maxContracts=isApex?(ph==='eval1'?meta.maxContractsEval:meta.maxContractsPA):null;
+  const dll=meta.dll||0;const payoutCount=(aS.payouts||[]).length;
+  // Lucid: ימים כשירים = $150+ | Apex PA = $100+
+  const minQualDay = isLucid?150:100;
+  const qualifyingDays=dList.filter(d=>d.pnl>=minQualDay).length;
+  const minDaysNeeded = isLucid?5:isApex&&ph==='pa'?5:0;
+  const snPct=Math.min(100,Math.max(0,((b-acc.startBal)/(acc.trailDD+100))*100));
+
+  // ── Day Chips (Lucid Funded + Apex PA) ──
+  const showChips = (isLucid&&ph==='funded') || (isApex&&ph==='pa');
+  const chipsHTML = showChips ? `
+  <div class="day-chips-row" style="padding:0 22px 16px;background:var(--surface);border-left:1.5px solid var(--bdr2);border-right:1.5px solid var(--bdr2);">
+    <div style="font-size:14px;font-weight:800;color:var(--txt3);margin-bottom:10px;width:100%">
+      ימים כשירים (${minDaysNeeded} נדרשים · P&L ≥ $${minQualDay})
+    </div>
+    ${[1,2,3,4,5].map(n=>`
+      <div class="day-chip${n<=qualifyingDays?' done':''}">
+        <span class="day-chip-num">${n<=qualifyingDays?'✓':n}</span>
+        <span class="day-chip-lbl">${n<=qualifyingDays?'יום '+n:''}</span>
+      </div>`).join('')}
+  </div>` : '';
+
+  // ── Universal Max-Payouts Plan ──
+  // Lauren wants comprehensive payout-plan views for all funded accounts.
+  // Generic builder used by both Lucid and Apex PA. Handles ladder caps,
+  // "how much more until next payout" math, and the record button.
+  function buildPayoutPlanHTML(cfg){
+    const SPLIT = cfg.splitPct || 0.90;
+    const caps = cfg.caps;
+    const TOTAL_PAYOUTS = caps.length;
+    const taken = cfg.taken || [];
+    const cycleNum = taken.length + 1;
+    const totalPaid = taken.reduce((s,t)=>s+(t.amount||0), 0);
+    const totalNetToPocket = taken.reduce((s,t)=>s+(t.net||t.amount*SPLIT||0), 0);
+    const cappedSum = caps.filter(c => c !== null).reduce((s,c)=>s+c, 0);
+    const totalPotentialNet = cappedSum * SPLIT;
+    const hasUnlimited = caps.some(c => c === null);
+    const completedAll = taken.length >= TOTAL_PAYOUTS;
+
+    const rows = caps.map((c, idx)=>{
+      const n = idx + 1;
+      const isUnlimited = c === null;
+      const isDone = idx < taken.length;
+      const isCur = n === cycleNum && !completedAll;
+      const taking = taken[idx];
+      const amount = taking ? taking.amount : c;
+      const net = taking ? Math.round(taking.net || (amount||0)*SPLIT) : (c ? Math.round(c*SPLIT) : null);
+      const dateStr = taking && taking.date ? ' · ' + taking.date : '';
+      if(isUnlimited){
+        return `<div class="pl-row ${isCur?'curr':isDone?'done':''}" style="background:linear-gradient(135deg, rgba(22,163,74,0.10), rgba(22,163,74,0.02));border-right:3px solid var(--grn);">
+          <span class="pl-num">#${n}+</span>
+          <span class="pl-cap" style="color:var(--grn);font-weight:900;">100% Split — ללא תקרה</span>
+          <span class="pl-net" style="color:var(--grn);">90% לכיס לכל משיכה</span>
+          <span class="pl-status ${isCur?'curr':isDone?'done':''}" style="color:var(--grn);">${isDone?'✓ פעיל':isCur?'← פתוח':'🎉 ' + n + ' ואילך'}</span>
+        </div>`;
+      }
+      const lastLabel = cfg.afterLastLabel || ('→ ' + (cfg.transitionLabel || 'הבא 🎉'));
+      return `<div class="pl-row ${isCur?'curr':isDone?'done':''}">
+        <span class="pl-num ${isCur?'curr':isDone?'done':''}">#${n}</span>
+        <span class="pl-cap">${isDone?'משיכה: '+f0(amount):'תקרה: '+f0(c)}</span>
+        <span class="pl-net">${f(Math.round(net))} לכיס${dateStr}</span>
+        <span class="pl-status ${isCur?'curr':isDone?'done':''}">${isDone?'✓ הושלם':isCur?'← עכשיו':n===TOTAL_PAYOUTS?lastLabel:'—'}</span>
+      </div>`;
+    }).join('');
+
+    const progPct = (taken.length / TOTAL_PAYOUTS) * 100;
+
+    // "How much more until next payout?"
+    let nextPanel = '';
+    if(!completedAll){
+      const targetBal = cfg.computeTargetBal(taken, cfg);
+      const balGap = Math.max(0, targetBal - cfg.balance);
+      const balOk = balGap <= 0.01;
+      const cycleQual = cfg.cycleQualifyingDays;
+      const daysGap = Math.max(0, cfg.qualDaysNeeded - cycleQual);
+      const daysOk = daysGap === 0;
+      const allOk = balOk && daysOk;
+      const cycleNote = cfg.lastPayoutDate ? ' · מאז ' + cfg.lastPayoutDate : '';
+      const totalPotentialGross = caps.filter(c => c !== null).reduce((s,c)=>s+c, 0);
+      const totalPotentialPocket = Math.round(totalPotentialGross * SPLIT);
+      const nextCapRaw = caps[Math.min(taken.length, caps.length-1)];
+      const isNextUnlimited = nextCapRaw === null;
+      const nextCap = isNextUnlimited ? '∞ (100%)' : f0(nextCapRaw);
+      nextPanel = `<div style="background:${allOk?'#dcfce7':'#fff7ed'};border:1.5px solid ${allOk?'#86efac':'#fdba74'};border-radius:10px;padding:12px 14px;margin-bottom:12px;direction:rtl;text-align:right;">
+        <div style="font-size:13px;font-weight:900;color:var(--txt);margin-bottom:10px;">
+          ${allOk ? '🎉 כל הדרישות עומדות — אפשר למשוך משיכה #'+cycleNum : '⏳ עד משיכה #'+cycleNum+' חסר:'}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div style="background:${balOk?'rgba(255,255,255,0.6)':'#fff'};border-radius:8px;padding:10px 12px;">
+            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:2px;">${balOk?'✅':'⏳'} Balance — יעד למחזור</div>
+            <div style="font-size:18px;font-weight:900;color:${balOk?'var(--grn)':'var(--amb)'};">$${f0(targetBal)}</div>
+            <div style="font-size:11px;color:var(--txt4);margin-top:2px;">${balOk ? '🎉 הגעת! זמן למשוך $'+f0(nextCap)+' ↗' : 'עוד <b style=\"color:var(--txt2)\">$'+balGap.toFixed(2)+'</b> מ-$'+cfg.balance.toFixed(2)}</div>
+            ${cfg.balanceTargetNote?'<div style="font-size:10px;color:var(--txt4);margin-top:3px;font-style:italic;">'+cfg.balanceTargetNote+'</div>':''}
+          </div>
+          <div style="background:${daysOk?'rgba(255,255,255,0.6)':'#fff'};border-radius:8px;padding:10px 12px;">
+            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:2px;">${daysOk?'✅':'⏳'} ימים כשירים בסבב</div>
+            <div style="font-size:18px;font-weight:900;color:${daysOk?'var(--grn)':'var(--amb)'};">${cycleQual} / ${cfg.qualDaysNeeded}${daysOk?' ✓':''}</div>
+            <div style="font-size:11px;color:var(--txt4);margin-top:2px;">יום כשיר = ≥$${cfg.minQualDay} P&L${cycleNote}</div>
+          </div>
+        </div>
+
+        <!-- Strategy strip: per-cycle action + total-plan target -->
+        <div style="margin-top:10px;padding:10px 12px;background:rgba(0,0,0,0.04);border-radius:8px;font-size:12px;color:var(--txt2);line-height:1.7;">
+          <div style="font-weight:800;margin-bottom:4px;">📐 אסטרטגיית buffer (בטוח, לא מסכן את החשבון)</div>
+          ${isNextUnlimited
+            ? `<div>• עברת את כל המשיכות עם תקרה — מעכשיו <b style="color:var(--grn)">100% Split ללא תקרה</b>. משכי כל פעם כמה שצברת מעל ה-buffer.</div>`
+            : `<div>• בכל מחזור: balance מגיע ל-<b>$${f0(targetBal)}</b> → משיכה <b>$${nextCap}</b> → balance חוזר ל-<b>$${f0(targetBal-nextCapRaw)}</b> → סבב חדש</div>`}
+          <div>• <b>היעד הכולל:</b> ${caps.filter(c=>c!==null).length} משיכות עם תקרה = <b style="color:var(--grn)">$${f0(totalPotentialGross)} ברוטו</b> = <b style="color:var(--grn)">$${f0(totalPotentialPocket)} לכיס</b>${hasUnlimited?' + <b style="color:var(--grn)">100% Split ללא תקרה אחר כך</b>':''}${cfg.transitionLabel && !hasUnlimited?' → '+cfg.transitionLabel:''}</div>
+          ${!isNextUnlimited?`<div style="margin-top:4px;font-size:11px;color:var(--txt4);">💡 המינימום הטכני נמוך יותר ($${f0(targetBal-nextCapRaw)}) אבל אחרי משיכה ה-balance נשאר בדיוק על ה-MLL — סיכון מקסימלי. עדיף לצבור buffer.</div>`:''}
+        </div>
+      </div>`;
+    }
+
+    return `<div class="payout-ladder" style="position:relative;">
+      <div class="payout-ladder-title">💰 ${cfg.title}</div>
+      <div style="background:${cfg.summaryBg||'rgba(124,58,237,0.08)'};border-radius:10px;padding:12px 14px;margin-bottom:12px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
+          <div>
+            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;">משיכות שבוצעו</div>
+            <div style="font-size:18px;font-weight:900;color:${cfg.accent||'var(--pur)'};">${taken.length} / ${TOTAL_PAYOUTS}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;">סה״כ נכנס לכיס</div>
+            <div style="font-size:18px;font-weight:900;color:var(--grn);">${f0(totalNetToPocket)}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;">פוטנציאל לכיס</div>
+            <div style="font-size:18px;font-weight:900;color:var(--txt);">${f0(totalPotentialNet)}</div>
+          </div>
+        </div>
+        <div style="height:6px;background:rgba(0,0,0,0.10);border-radius:999px;margin-top:10px;overflow:hidden;">
+          <div style="height:100%;background:${cfg.accent||'var(--pur)'};width:${progPct}%;transition:width 0.4s ease;"></div>
+        </div>
+        <div style="font-size:11px;color:var(--txt4);margin-top:6px;text-align:center;">${completedAll?cfg.allDoneLabel||'🎉 כל המשיכות הושלמו!':`עוד ${TOTAL_PAYOUTS-taken.length} משיכות עד ${cfg.transitionLabel||'הבא'}`}</div>
+      </div>
+      ${nextPanel}
+      ${rows}
+      <button onclick="${cfg.recordFn}(${cfg.accIdx})" style="margin-top:10px;width:100%;background:${cfg.accent||'var(--pur)'};color:#fff;border:none;border-radius:10px;padding:10px 14px;font-family:var(--f);font-size:13px;font-weight:800;cursor:pointer;${completedAll?'opacity:0.4;':''}" ${completedAll?'disabled':''}>
+        ＋ רשמי משיכה ${cycleNum<=TOTAL_PAYOUTS?'#'+cycleNum:''}
+      </button>
+    </div>`;
+  }
+
+  // ── Lucid: 5 × $2,000 → LucidLive ──
+  let lucidPayoutLadder = '';
+  if(isLucid && ph==='funded'){
+    const taken = aS.payouts || [];
+    const lastPayoutDate = taken.length ? taken[taken.length-1].date : null;
+    const cycleDays = lastPayoutDate ? dList.filter(d => d.date > lastPayoutDate) : dList;
+    const cycleQualifying = cycleDays.filter(d => d.pnl >= 150).length;
+    const lockedMLL = (window.RULES && window.RULES.firms.lucid.plans.FLEX_50K.phases.funded.lockedMLL) || 50100;
+    const initialTrail = (window.RULES && window.RULES.firms.lucid.plans.FLEX_50K.phases.funded.initialTrailBalance) || 52100;
+    lucidPayoutLadder = buildPayoutPlanHTML({
+      title: 'תוכנית משיכות → LucidLive',
+      caps: [2000, 2000, 2000, 2000, 2000],
+      transitionLabel: 'LucidLive 🎉',
+      afterLastLabel: '→ LucidLive 🎉',
+      allDoneLabel: '🎉 כל ה-5 משיכות הושלמו — מעבר ל-LucidLive!',
+      taken: taken,
+      balance: b,
+      computeTargetBal: function(t, cfg){
+        // SAFE target: locked MLL + 2× cap. After withdrawing $2,000, balance
+        // stays $2,000 above MLL — never AT the redline. This is the safer
+        // play vs the technical min ($52,100 = MLL+cap, which leaves balance
+        // exactly AT MLL after withdrawal — any loss = blowout).
+        return lockedMLL + 4000;  // $50,100 + 2×$2,000 = $54,100
+      },
+      balanceTargetNote: 'יעד בטוח: MLL+2×תקרה (משאיר $2K buffer גם אחרי המשיכה)',
+      cycleQualifyingDays: cycleQualifying,
+      qualDaysNeeded: 5,
+      minQualDay: 150,
+      lastPayoutDate: lastPayoutDate,
+      splitPct: 0.90,
+      accent: 'var(--pur)',
+      summaryBg: 'rgba(124,58,237,0.08)',
+      recordFn: 'recordLucidPayout',
+      accIdx: i,
+    });
+  }
+
+  // ── Apex PA: 5 × $2,000 (Legacy) or stepped ladder (4.0) ──
+  let apexPayoutLadder = '';
+  if(isApex && ph==='pa'){
+    const taken = aS.payouts || [];
+    const lastPayoutDate = taken.length ? taken[taken.length-1].date : null;
+    const isLegacy = !!meta.isLegacy;
+    const minQual = isLegacy ? 50 : 250;  // Legacy $50, 4.0 EOD $250
+    const cycleDays = lastPayoutDate ? dList.filter(d => d.date > lastPayoutDate) : dList;
+    const cycleQualifying = cycleDays.filter(d => d.pnl >= minQual).length;
+    const safetyNetVal = meta.safetyNet || (acc.startBal + acc.trailDD + 100);
+    // Apex caps:
+    //   Legacy: first 5 × $2,000, then 100% (we show 5 + a "100%" placeholder slot)
+    //   4.0: $1,500 / $1,500 / $2,000 / $2,500 / $2,500 / $3,000, then 100%
+    // Apex Legacy: 5 capped × $2,000 then 100% split (UNLIMITED — no cap, no count limit).
+    // Apex 4.0:    6 capped (1.5/1.5/2/2.5/2.5/3K) then 100% split (UNLIMITED).
+    // null cap = "100% Split" tier (renderer shows green highlighted row).
+    const caps = isLegacy
+      ? [2000, 2000, 2000, 2000, 2000, null]
+      : [1500, 1500, 2000, 2500, 2500, 3000, null];
+    apexPayoutLadder = buildPayoutPlanHTML({
+      title: isLegacy ? 'תוכנית משיכות Apex Legacy PA' : 'תוכנית משיכות Apex PA 4.0',
+      caps: caps,
+      transitionLabel: isLegacy ? '100% Profit Split 🎉' : '100% Profit Split 🎉',
+      afterLastLabel: isLegacy ? '→ 100% Split (משיכה 6 ואילך)' : '→ 100% Split',
+      allDoneLabel: '🎉 כל המשיכות הושלמו — 100% Profit Split!',
+      taken: taken,
+      balance: b,
+      computeTargetBal: function(t, cfg){
+        // SAFE target: Safety Net + 2× cap. After withdrawing the cap,
+        // balance stays a full cap above the safety net — buffer for the
+        // next loss. Min was Safety Net + $500 (technical) but Lauren
+        // prefers buffer accumulation before each withdrawal.
+        const cap = caps[Math.min(taken.length, caps.length-1)];
+        return safetyNetVal + (2 * cap);
+      },
+      balanceTargetNote: 'יעד בטוח: Safety Net+2×תקרה (buffer גם אחרי המשיכה)',
+      cycleQualifyingDays: cycleQualifying,
+      qualDaysNeeded: 5,
+      minQualDay: minQual,
+      lastPayoutDate: lastPayoutDate,
+      splitPct: 0.90,
+      accent: '#e05a00',
+      summaryBg: '#fff3e0',
+      recordFn: 'recordApexPayout',
+      accIdx: i,
+    });
+  }
+
+  // Combine the two — only one will be non-empty
+  if(apexPayoutLadder) lucidPayoutLadder = apexPayoutLadder;
+  let stClass='st-sky',stIcon='⏳',stTitle=phS?.l||ph,stBody='';
+  if(isApex&&ph==='pa'&&!meta.isLegacy){stClass='st-red';stIcon='🤖';stTitle='PA — בוט אסור!';stBody='Apex אוסר בוטים ב-PA!';}
+  else if(bf<=0){stClass='st-red';stIcon='💥';stTitle='חשבון נשרף!';}
+  else if(bf<400){stClass='st-red';stIcon='🚨';stTitle='Buffer קריטי!';stBody=`נשאר ${f0(bf)} בלבד!`;}
+  else if(!cok&&p>0&&ph==='pa'){stClass='st-amber';stIcon='⚠️';stTitle='Consistency 50% — חרגת';stBody=`עוד ${f0(Math.max(0,bd/0.50-p))} נדרש`;}
+  else if(ph==='eval1'&&p>=tg){stClass='st-green';stIcon='✅';stTitle='יעד הושג — עברי ל-PA!';stBody='שלמי $99 Activation Fee תוך 7 ימים!';}
+  else{stBody=ph==='eval1'?`נותר: ${f0(Math.max(0,tg-p))} | ${qualifyingDays} ימים | DLL: ${f0(dll)}`:`Payouts: ${payoutCount}/6 | ${qualifyingDays} ימים כשירים`;}
+  // ── כרטיס "בקצרה" ──
+  function fRow(emoji,label,val,cls=''){
+    return `<div class="simple-row"><span class="simple-emoji">${emoji}</span><div class="simple-text"><div class="simple-label">${label}</div><div class="simple-val ${cls}">${val}</div></div></div>`;
+  }
+  // 1. יתרה
+  const r1 = fRow('💰','היתרה שלי עכשיו',`${f(b)} — התחלתי עם ${f0(acc.startBal)}, רווח עד כה: ${f(p,true)}`, p>=0?'sv-ok':'sv-bad');
+  // 2. מה שואפת
+  let r2='';
+  if(ph==='eval1') r2=fRow('🎯','מה אני שואפת', p>=tg?`הגעתי ליעד! אפשר לעבור לשלב הבא 🎉`:`להגיע ל-${f0(tg)} רווח. נשאר עוד ${f0(Math.max(0,tg-p))}.`, p>=tg?'sv-ok':'');
+  else if(ph==='pa') r2=fRow('🎯','מה אני שואפת', `לצבור ${f0(acc.trailDD+100)} מעל ה-Safety Net ולבקש Payout. עוד ${f0(Math.max(0,safetyNet-b))}.`, safetyReached?'sv-ok':'');
+  else if(ph==='funded') r2=fRow('🎯','מה אני שואפת', p>=150?`אפשר לבקש Payout! רווח: ${f(p,true)}`:`צריך מינימום $150 רווח. עוד ${f0(Math.max(0,150-p))}.`, p>=150?'sv-ok':'');
+  // 3. יום הגדול
+  const r3 = fRow('📈','היום הרווחי הגדול ביותר', bd>0?`${f(bd)} — זה הסכום הכי גבוה ביום אחד.`:'עדיין אין נתונים','');
+  // 4. כללים
+  let r4='';
+  if(cp){
+    r4=cok?fRow('✅','האם עומדת בכלל Consistency?',`כן! יום הגדול הוא ${cCur}% מהרווח (מגבלה ${Math.round(cp*100)}%) — בסדר.`,'sv-ok'):
+           fRow('⚠️','האם עומדת בכלל Consistency?',`עדיין לא — יום הגדול (${f(bd)}) הוא ${cCur}% מהרווח, מגבלה ${Math.round(cp*100)}%. צריך עוד ${f0(bd/cp-p)} רווח.`,'sv-warn');
+  } else {
+    r4=fRow('✅','Consistency',firmKey==='lucid'?'LucidFlex Funded — ללא מגבלת Consistency בכלל! 🎉':'ללא מגבלה בשלב זה','sv-ok');
+  }
+  // 5. ממה להיזהר
+  let r5='';
+  if(bf<600) r5=fRow('🔴','ממה להיזהר — חשוב!',`הכרית הביטחון ירדה ל-${f0(bf)}! קרוב מאוד ל-MLL.`,'sv-bad');
+  else if(meta.isLegacy) r5=fRow('⚠️','ממה להיזהר — Intraday Trailing!',`ה-Drawdown עולה real-time תוך כדי עסקה פתוחה! אל תשאירי פוזיציה ברווח בלי Stop Breakeven.`,'sv-warn');
+  else r5=fRow('💡','על מה להסתכל',`Buffer: ${f0(bf)} | MLL: ${f0(acc.startBal-acc.trailDD)} | סגירה: ${firm.closeTime}`,'');
+
+  const simpleFirmCard=`
+  <div class="simple-card">
+    <div class="simple-inner">
+      <div class="simple-title">📋 בקצרה — מה קורה כאן?</div>
+      ${r1}${r2}${r3}${r4}${r5}
+    </div>
+  </div>`;
+  const legacyBadge=meta.isLegacy?'⚡ LEGACY · Intraday Trailing · ':'';
+  const apexEvalBanner=isApex&&ph==='eval1'?`<div style="background:#fff3e0;border:1.5px solid #f4a460;border-top:none;padding:10px 18px;font-size:14px;font-weight:700;color:#b45309">🤖 ✅ בוט מותר ב-Evaluation · ⏱️ 30 יום לעבור · ללא Consistency</div>`:'';
+  const apexPABanner=isApex&&ph==='pa'&&!meta.isLegacy?`<div style="background:var(--red-bg);border:1.5px solid var(--red-mid);border-top:none;padding:10px 18px;font-size:14px;font-weight:700;color:var(--red)">🤖 ❌ בוט אסור ב-PA! | Safety Net: ${safetyReached?'✅':f0(safetyNet-b)+' נותר'} | ${payoutCount}/6 Payouts</div>`:isApex&&ph==='pa'&&meta.isLegacy?`<div style="background:#fef3c7;border:1.5px solid #fcd34d;border-top:none;padding:10px 18px;font-size:14px;font-weight:700;color:#92400e">⚡ LEGACY PA · Intraday Trailing · Consistency 30% · 8 ימים לפני Payout | Safety Net: ${safetyReached?'✅':f0(safetyNet-b)+' נותר'}</div>`:'';;
+  const lucidNote=firmKey==='lucid'&&!cp?`<div style="background:var(--grn-bg);border:1.5px solid var(--grn-mid);border-top:none;padding:10px 18px;font-size:14px;font-weight:700;color:var(--grn)">✅ LucidFlex Funded — ללא Consistency</div>`:'';
+  return `
+  <div class="acc-block">
+    <div class="acc-header-card">
+      <div class="acc-color-bar" style="background:${acc.color}"></div>
+      <div class="acc-header-body">
+        <div class="acc-name">${acc.name}</div>
+        <div class="acc-num">${acc.num||acc.plan}</div>
+        <div style="font-size:13px;font-weight:700;color:${acc.color};margin-bottom:8px;">${lastUpdated(dList)}</div>
+        <div class="acc-phase-row">
+          <div class="phase-pill" style="${phStyle}">${phS?.l||ph}</div>
+          <div class="bal-line">${f(b)}</div>
+        </div>
+      </div>
+    </div>
+    <div class="metrics-strip">
+      <div class="metric"><div class="metric-lbl">רווח</div><div class="metric-val" style="color:${p>=0?'var(--grn)':'var(--red)'}">${f(p,true)}</div><div class="metric-sub">${dList.length} ימים</div></div>
+      <div class="metric"><div class="metric-lbl">DD Buffer</div><div class="metric-val" style="color:${bf<500?'var(--red)':bf<1000?'var(--amb)':'var(--grn)'}">${f0(bf)}</div><div class="metric-sub">MLL: ${f0(acc.startBal-acc.trailDD)}</div></div>
+      <div class="metric"><div class="metric-lbl">${ph==='eval1'?'נותר ליעד':'Payouts'}</div><div class="metric-val">${ph==='eval1'?f0(Math.max(0,tg-p)):`${payoutCount}/6`}</div><div class="metric-sub">${ph==='eval1'?`יעד ${f0(tg)}`:qualifyingDays+' ימים כשירים'}</div></div>
+    </div>
+    <div class="acc-status ${stClass}"><span class="si">${stIcon}</span><div class="acc-status-txt"><div class="acc-status-title">${stTitle}</div><div class="acc-status-body">${stBody}</div></div></div>
+    ${apexEvalBanner}${apexPABanner}${lucidNote}
+    <div class="prog-zone">
+      ${ph==='eval1'?`<div class="prog-item"><div class="prog-top"><span class="prog-lbl">🎯 רווח → יעד ${f0(tg)}</span><span class="prog-num" style="color:${p>=tg?'var(--grn)':'#e05a00'}">${f(p,true)}</span></div><div class="prog-track"><div class="prog-fill" style="width:${evalPct}%;background:${p>=tg?'#16a34a':'#e05a00'}"></div></div><div class="prog-hint">${Math.round(evalPct)}% | מקס' ${maxContracts||'—'} חוזים | DLL: ${f0(dll)}</div></div>`:
+      isApex?`<div class="prog-item"><div class="prog-top"><span class="prog-lbl">🏆 Safety Net ${safetyReached?'✅':''}</span><span class="prog-num" style="color:${safetyReached?'var(--grn)':'#e05a00'}">${f(b)} / ${f0(safetyNet)}</span></div><div class="prog-track"><div class="prog-fill" style="width:${snPct}%;background:${safetyReached?'#16a34a':'#e05a00'}"></div></div><div class="prog-hint">${safetyReached?`✅ Safety Net — ${maxContracts} חוזים מלאים!`:`עוד ${f0(safetyNet-b)} | ${Math.floor((maxContracts||4)/2)} חוזים עד Safety Net`}</div></div>`:''}
+      ${cp?`<div class="prog-item"><div class="prog-top"><span class="prog-lbl">🛡️ Consistency (מגבלה ${Math.round(cp*100)}%)</span><span class="prog-num" style="color:${cok?'var(--grn)':'var(--red)'}">${cCur}% / ${Math.round(cp*100)}%</span></div><div class="prog-track"><div class="prog-fill" style="width:${Math.min(100,p>0?cCur/Math.round(cp*100)*100:0)}%;background:${cok?'#16a34a':'#dc2626'}"></div></div><div class="prog-hint">${firm.consistNote}${!cok?` · עוד ${f0(bd/cp-p)} נדרש`:' · ✓ בסדר'}</div></div>`:`<div class="prog-item"><div class="prog-top"><span class="prog-lbl">🛡️ Consistency</span><span class="prog-num" style="color:var(--grn)">ללא מגבלה ✅</span></div></div>`}
+      <div class="prog-item"><div class="prog-top"><span class="prog-lbl">📉 DD Buffer</span><span class="prog-num" style="color:${bf<500?'var(--red)':bf<1000?'var(--amb)':'var(--grn)'}">${f0(bf)} / ${f0(acc.trailDD)}</span></div><div class="prog-track"><div class="prog-fill" style="width:${bufPct}%;background:${bf<500?'#dc2626':bf<1000?'#d97706':'#16a34a'}"></div></div><div class="prog-hint">MLL: ${f0(acc.startBal-acc.trailDD)} · EOD Trailing</div></div>
+    </div>
+    ${chipsHTML}
+    ${lucidPayoutLadder}
+
+    ${(isLucid && (ph==='funded' || ph==='blulive' || ph==='lucidlive')) ? buildLucidPayoutChecklist(aS, dList, b, p, qualifyingDays, acc, meta) : ''}
+
+    <details style="margin:10px 18px 0;border:1.5px solid var(--bdr2);border-radius:10px;background:var(--surface);">
+      <summary style="cursor:pointer;padding:10px 14px;font-weight:800;font-size:14px;color:var(--sky);">▼ יומן — ${dList.length} ימים</summary>
+      <div style="max-height:280px;overflow-y:auto;background:#fff;">
+        ${dList.length === 0 ? '<div style="padding:20px;text-align:center;color:var(--txt4);">אין ימים עדיין</div>' :
+        ('<table style="width:100%;font-size:12px;border-collapse:collapse;direction:rtl;">' +
+        '<thead style="background:var(--s3);position:sticky;top:0;"><tr>' +
+        '<th style="padding:6px 8px;text-align:right">תאריך</th>' +
+        '<th style="padding:6px 8px;text-align:right">P&L</th>' +
+        '<th style="padding:6px 8px;text-align:right">Balance</th>' +
+        '<th style="padding:6px 8px;text-align:right">כשיר</th>' +
+        '</tr></thead><tbody>' +
+        dList.slice().reverse().map(function(d){
+          const isQual = d.pnl >= minQualDay;
+          return '<tr style="border-top:1px solid var(--bdr2)">' +
+            '<td style="padding:5px 8px;font-weight:700">'+d.date+'</td>' +
+            '<td style="padding:5px 8px;font-weight:800;color:'+(d.pnl>=0?'var(--grn)':'var(--red)')+';">$'+d.pnl.toFixed(2)+'</td>' +
+            '<td style="padding:5px 8px;color:var(--txt3);">$'+(d.balance||0).toFixed(2)+'</td>' +
+            '<td style="padding:5px 8px;font-size:11px;">'+(isQual?'✅':d.pnl>0?'<span style="color:var(--txt4)">< $'+minQualDay+'</span>':'<span style="color:var(--red)">הפסד</span>')+'</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table>')}
+      </div>
+    </details>
+
+    ${simpleFirmCard}
+    <div class="ai-insight" style="border-radius:0 0 var(--rl) var(--rl)"><div class="ai-insight-header"><span class="ai-header-lbl">💡 תובנת AI — ${acc.name}</span><span class="ai-badge">AI ✦</span></div><div class="ai-insight-body" id="ai-firm-${firmKey}-${i}"><div class="ai-empty">לחצי "ניתוח AI" לתובנות</div></div></div>
+    <div style="text-align:center;padding:8px;background:var(--s2);border:1.5px solid var(--bdr2);border-top:none"><button onclick="deleteFirmAcc('${firmKey}',${i})" style="background:none;border:none;font-size:13px;color:var(--txt4);cursor:pointer">× מחק חשבון</button></div>
+  </div>`;
+}
+
+function buildLucidPayoutChecklist(aS, dList, balance, totalPnl, qualifyingDays, acc, meta){
+  // Lucid payout requirements — show EVERY rule with its current status, transparently.
+  // Per official LucidFlex rules. Lauren's account is labeled 'LucidPro' — flag the
+  // potential rule difference at the bottom.
+  const initialTrailBalance = (window.RULES && window.RULES.firms.lucid.plans.FLEX_50K.phases.funded.initialTrailBalance) || 52100;
+  const lockedMLL = (window.RULES && window.RULES.firms.lucid.plans.FLEX_50K.phases.funded.lockedMLL) || 50100;
+  const minPayout = 500;
+  const perPayoutCap = 2000;
+  const maxBalEverReached = dList.length ? Math.max(...dList.map(d=>d.balance)) : balance;
+  const reachedInitialTrail = maxBalEverReached >= initialTrailBalance;
+  const fee = (window.RULES && window.RULES.firms.lucid.feePerContractRoundtrip) || 1.00;
+
+  // Buffer above current MLL — pre-payout MLL trails up
+  const currentMLL = reachedInitialTrail ? lockedMLL : Math.max(acc.startBal - 2000, maxBalEverReached - 2000);
+  const buffer = balance - currentMLL;
+  const minBufferRequired = minPayout;
+
+  function rowStatus(label, ok, value, sub){
+    const color = ok ? 'var(--grn)' : 'var(--amb)';
+    const bg = ok ? '#dcfce7' : '#fef3c7';
+    const icon = ok ? '✅' : '⏳';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:'+bg+';border-radius:8px;margin-bottom:6px;">' +
+           '<div style="font-size:18px;">'+icon+'</div>' +
+           '<div style="flex:1;direction:rtl;text-align:right;">' +
+           '<div style="font-size:13px;font-weight:800;color:var(--txt);">'+label+'</div>' +
+           (sub?'<div style="font-size:11px;color:var(--txt4);">'+sub+'</div>':'') +
+           '</div>' +
+           '<div style="font-size:14px;font-weight:900;color:'+color+';">'+value+'</div>' +
+           '</div>';
+  }
+
+  let html = '<div style="background:var(--s2);margin:10px 18px 0;border-radius:10px;padding:14px;border-right:4px solid var(--pur);">';
+  html += '<div style="font-size:14px;font-weight:900;color:var(--pur);margin-bottom:10px;direction:rtl;text-align:right;">💰 דרישות משיכה — Lucid</div>';
+
+  html += rowStatus('5 ימים כשירים (≥$150 P&L)', qualifyingDays >= 5, qualifyingDays + ' / 5', qualifyingDays >= 5 ? 'מספיק' : 'חסרים ' + (5 - qualifyingDays));
+  html += rowStatus('רווח חיובי בסבב (>$0)', totalPnl > 0, '$' + totalPnl.toFixed(2), totalPnl > 0 ? 'יש רווח' : 'חסר רווח');
+  html += rowStatus('Initial Trail Balance — $' + initialTrailBalance.toLocaleString(), reachedInitialTrail, '$' + maxBalEverReached.toFixed(2), reachedInitialTrail ? 'הגעת ל-Trail Balance — MLL ננעל' : 'עוד ' + (initialTrailBalance - maxBalEverReached).toFixed(2) + ' עד נעילת MLL · ⚠️ לפני הגעה ל-' + initialTrailBalance.toLocaleString() + ', משיכה מסוכנת');
+  html += rowStatus('Buffer מעל MLL (לפחות $500)', buffer >= minBufferRequired, '$' + buffer.toFixed(2), 'MLL נוכחי: $' + currentMLL.toFixed(2));
+
+  const allMet = qualifyingDays >= 5 && totalPnl > 0 && reachedInitialTrail && buffer >= minBufferRequired;
+  const wAmt = Math.min(perPayoutCap, balance * 0.5, buffer);
+
+  html += '<div style="margin-top:12px;padding:12px;border-radius:8px;background:'+(allMet?'#dcfce7':'rgba(0,0,0,0.06)')+';direction:rtl;text-align:right;">';
+  if(allMet){
+    html += '<div style="font-size:14px;font-weight:900;color:var(--grn);">🎉 כל הדרישות עומדות — אפשר למשוך</div>';
+    html += '<div style="font-size:12px;color:var(--txt3);margin-top:4px;">משיכה מקסימלית: $' + Math.min(wAmt, perPayoutCap).toFixed(2) + ' (50% מ-balance, עד תקרה $' + perPayoutCap + ')</div>';
+  } else {
+    html += '<div style="font-size:14px;font-weight:900;color:var(--amb);">⏳ עדיין לא ניתן למשוך</div>';
+    const missing = [];
+    if(qualifyingDays < 5) missing.push((5 - qualifyingDays) + ' ימים כשירים');
+    if(totalPnl <= 0) missing.push('רווח חיובי');
+    if(!reachedInitialTrail) missing.push('balance ≥ $' + initialTrailBalance.toLocaleString() + ' (כדי לנעול את ה-MLL)');
+    if(buffer < minBufferRequired) missing.push('Buffer ≥ $' + minBufferRequired);
+    html += '<div style="font-size:12px;color:var(--txt3);margin-top:4px;">חסר: '+missing.join(' · ')+'</div>';
+  }
+  html += '</div>';
+
+  // LucidPro vs LucidFlex flag
+  if(meta && meta.plan && meta.plan.toLowerCase().indexOf('flex') < 0){
+    html += '<div style="margin-top:10px;padding:8px 12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;font-size:11px;direction:rtl;text-align:right;color:#92400e;">';
+    html += '⚠️ החשבון רשום כ-<b>'+(meta.plan||'LucidPro')+'</b>, אבל החוקים שמוצגים פה לקוחים מ-LucidFlex (המוצר העדכני). אם אצלך הכללים שונים — ספרי לי וננסה לאמת.';
+    html += '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function recordApexPayout(idx){
+  const aS = S.apexAccs[idx];
+  if(!aS){ alert('חשבון לא נמצא'); return; }
+  const meta = aS.meta || {};
+  const isLegacy = !!meta.isLegacy;
+  const SPLIT = 0.90;
+  // Per-payout cap depends on which # we're on
+  const legacyCaps = [2000, 2000, 2000, 2000, 2000];   // first 5 then 100%
+  const fortyCaps = [1500, 1500, 2000, 2500, 2500, 3000];
+  const taken = aS.payouts || [];
+  const num = taken.length + 1;
+  const cap = isLegacy
+    ? (num <= 5 ? legacyCaps[num-1] : 999999)   // 100% after 5 — soft "unlimited"
+    : (num <= 6 ? fortyCaps[num-1] : 999999);
+  const capLabel = isLegacy
+    ? (num <= 5 ? '$'+cap : '100% Split (ללא מגבלה)')
+    : (num <= 6 ? '$'+cap : '100% Split (ללא מגבלה)');
+  const amtRaw = prompt('סכום משיכה #'+num+' ($) — תקרה: '+capLabel+'\nמינימום $500:', String(Math.min(cap, 1000)));
+  if(!amtRaw) return;
+  const amt = parseFloat(amtRaw);
+  if(isNaN(amt) || amt < 500){ alert('הסכום חייב להיות לפחות $500.'); return; }
+  if(amt > cap){ alert('המקסימום למשיכה הזו: '+capLabel); return; }
+  const dateRaw = prompt('תאריך המשיכה (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+  if(!dateRaw || !/^\d{4}-\d{2}-\d{2}$/.test(dateRaw.trim())){ alert('תאריך לא תקין'); return; }
+  const net = Math.round(amt * SPLIT);
+  if(!confirm('משיכה #'+num+':\n\n  סכום: $'+amt+'\n  לכיס (90%): $'+net+'\n  תאריך: '+dateRaw+'\n\nלאשר?')) return;
+  aS.payouts = taken;
+  aS.payouts.push({ date: dateRaw.trim(), amount: amt, net: net });
+  aS.tw = (aS.tw || 0) + amt;
+  save();
+  try{ renderAll(); }catch(e){}
+  const remainCapped = isLegacy ? Math.max(0, 5 - taken.length) : Math.max(0, 6 - taken.length);
+  alert('✅ משיכה #'+num+' נרשמה.\n\n'+(remainCapped===0?'🎉 עברת לשלב 100% Profit Split!':'נשארו '+remainCapped+' משיכות עם תקרה.'));
+}
+
+function recordLucidPayout(idx){
+  const aS = S.lucidAccs[idx];
+  if(!aS){ alert('חשבון לא נמצא'); return; }
+  const PER_CAP = 2000, SPLIT = 0.90;
+  const taken = aS.payouts || [];
+  const num = taken.length + 1;
+  if(num > 5){ alert('כבר עברת 5 משיכות — מעבר ל-LucidLive!'); return; }
+  const amtRaw = prompt('סכום משיכה #'+num+' ($) — מקסימום $'+PER_CAP+':\n\n(זה הסכום הברוטו שמושכים מהחשבון. ה-90% שמגיע אלייך מחושב אוטומטית.)', String(PER_CAP));
+  if(!amtRaw) return;
+  const amt = parseFloat(amtRaw);
+  if(isNaN(amt) || amt < 500){ alert('הסכום חייב להיות לפחות $500 (מינימום משיכה).'); return; }
+  if(amt > PER_CAP){ alert('המקסימום הוא $'+PER_CAP+' למשיכה.'); return; }
+  const dateRaw = prompt('תאריך המשיכה (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+  if(!dateRaw || !/^\d{4}-\d{2}-\d{2}$/.test(dateRaw.trim())){ alert('תאריך לא תקין'); return; }
+  const net = Math.round(amt * SPLIT);
+  if(!confirm('משיכה #'+num+':\n\n  סכום: $'+amt+'\n  לכיס (90%): $'+net+'\n  תאריך: '+dateRaw+'\n\nלאשר?')) return;
+  aS.payouts = taken;
+  aS.payouts.push({ date: dateRaw.trim(), amount: amt, net: net });
+  aS.tw = (aS.tw || 0) + amt;  // total withdrawn
+  // Note: balance update from payout happens via the regular CSV import or daily update flow.
+  // We track payouts separately so the dashboard knows where in the 5-payout cycle she is.
+  save();
+  try{ renderAll(); }catch(e){}
+  alert('✅ משיכה #'+num+' נרשמה.\n\n'+(taken.length>=5?'🎉 כל 5 המשיכות הושלמו — מוכנה ל-LucidLive!':'נשארו '+(5-taken.length)+' משיכות עד LucidLive.'));
+}
+
+function deleteFirmAcc(firmKey,i){
+  if(!confirm('מחק חשבון זה?'))return;
+  if(firmKey==='apex')S.apexAccs.splice(i,1);
+  else S.lucidAccs.splice(i,1);
+  save();renderAll();
+}
+
+// ════════════ ACTIONS ════════════
+function addDay(ai){
+  const date=document.getElementById(`fd-${ai}`)?.value;
+  const p=parseFloat(document.getElementById(`fp-${ai}`)?.value);
+  if(!date||isNaN(p)){alert('נא למלא תאריך ו-P&L');return;}
+  const bv=parseFloat(document.getElementById(`fb-${ai}`)?.value);
+  const balance=!isNaN(bv)?bv:bal(ai)+p;
+  const d=S.accs[ai].days||[];
+  const idx=d.findIndex(x=>x.date===date);
+  if(idx>=0)d[idx]={date,pnl:p,balance};else d.push({date,pnl:p,balance});
+  S.accs[ai].days=d;
+  save();renderAll();
+  setTimeout(()=>{
+    const fp=document.getElementById(`fp-${ai}`);
+    const fb=document.getElementById(`fb-${ai}`);
+    if(fp)fp.value='';if(fb)fb.value='';
+  },50);
+}
+function rmDay(ai,di){S.accs[ai].days.splice(di,1);save();renderAll();}
+function addW(ai){
+  const inp=document.getElementById(`fw-${ai}`);
+  const a=parseFloat(inp?.value);
+  if(isNaN(a)||a<=0){alert('הכניסי סכום');return;}
+  S.accs[ai].tw=(S.accs[ai].tw||0)+a;
+  if(inp)inp.value='';
+  save();renderAll();
+}
+function chPhase(ai){
+  const sel=document.getElementById(`ps-${ai}`);
+  if(!sel)return;
+  if(confirm(`לשנות שלב ל-"${phL(sel.value)}"?\nהיומן יתאפס.`)){
+    S.accs[ai].ph=sel.value;S.accs[ai].days=[];S.accs[ai].adj=0;
+    save();renderAll();
+  }
+}
+function setAdj(ai,v){S.accs[ai].adj=Math.max(0,parseInt(v)||0);save();renderAll();}
+
+// ════════════ MODAL ════════════
+function openModal(){
+  const today=new Date().toISOString().split('T')[0];
+  document.getElementById('modal-body').innerHTML=ACCS.map((acc,i)=>`
+    <div class="modal-acc">
+      <div class="modal-acc-name" style="color:${acc.color}">${acc.name} <span style="font-size:12px;color:var(--txt4);font-family:var(--m)">${phS(S.accs[i].ph)}</span></div>
+      <div class="modal-grid">
+        <div class="form-g"><label class="form-lbl">תאריך</label><input type="date" id="md-${i}" value="${today}"/></div>
+        <div class="form-g"><label class="form-lbl">P&L ($)</label><input type="number" id="mp-${i}" placeholder="+120 או -80" step="0.5"/></div>
+        <div class="form-g"><label class="form-lbl">Balance EOD</label><input type="number" id="mb-${i}" placeholder="אופציונלי" step="0.5"/></div>
+      </div>
+    </div>`).join('');
+  document.getElementById('modal-overlay').style.display='block';
+  document.getElementById('modal').style.display='block';
+  setTimeout(()=>document.getElementById('mp-0')?.focus(),100);
+}
+function closeModal(){
+  document.getElementById('modal-overlay').style.display='none';
+  document.getElementById('modal').style.display='none';
+}
+function saveModal(){
+  let saved=0;
+  ACCS.forEach((_,i)=>{
+    const date=document.getElementById(`md-${i}`)?.value;
+    const p=parseFloat(document.getElementById(`mp-${i}`)?.value);
+    if(!date||isNaN(p))return;
+    const bv=parseFloat(document.getElementById(`mb-${i}`)?.value);
+    const balance=!isNaN(bv)?bv:bal(i)+p;
+    const d=S.accs[i].days||[];
+    const idx=d.findIndex(x=>x.date===date);
+    if(idx>=0)d[idx]={date,pnl:p,balance};else d.push({date,pnl:p,balance});
+    S.accs[i].days=d; saved++;
+  });
+  if(saved===0){alert('לא הוזנו נתונים');return;}
+  save();closeModal();renderAll();
+  generateAll();
+}
+
+// ════════════ AI INSIGHTS ════════════
+async function generateAll(){
+  const btn=document.getElementById('btn-gen');
+  btn.disabled=true; btn.textContent='⏳ מנתחת...';
+  // Show loading in each AI card
+  ACCS.forEach((_,i)=>{
+    const el=document.getElementById(`ai-${i}`);
+    if(el) el.innerHTML=`<div class="ai-loading"><span class="spinner"></span> מנתחת ${ACCS[i].short}...</div>`;
+  });
+
+  const today=new Date().toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long'});
+  const summary=ACCS.map((acc,i)=>({
+    name:acc.name, phase:phL(S.accs[i].ph), startBal:acc.startBal,
+    balance:bal(i), phasePnl:pnl(i), target:target(i),
+    progressPct:target(i)?Math.round((pnl(i)/target(i))*100):null,
+    ddBuffer:buf(i), trailDD:acc.trailDD, threshold:thresh(i),
+    bestDay:bday(i), consistCurPct:Math.round(cCurPct(i)*100)+'%',
+    consistLimit:Math.round(cPct(i)*100)+'%',
+    consistMinPnlNeeded:cThresh(i),
+    consistNeedMore:cNeedMore(i),
+    consistOk:cOk(i),
+    tradingDays:days(i).length, dailyTrigger:S.accs[i].ph==='eval1'?acc.p1Trig:acc.p2Trig,
+    lastPnl:days(i).slice(-1)[0]?.pnl??null, totalWithdrawn:S.accs[i].tw||0,
+    cumSim:S.accs[i].ph==='simfunded'?cumSim(i):0,
+  }));
+
+  const prompt=`אתה יועץ מסחר מקצועי לחברת BluSky Trading. לורן מסחרת ב-MNQ ידנית, חוזה אחד. היא עוקבת אחרי שלושה חשבונות BluSky.
+
+תאריך: ${today}
+נתונים: ${JSON.stringify(summary,null,2)}
+
+חוקי BluSky:
+- EOD Trailing Drawdown: עולה עם רווח, לא יורד עם הפסד. הפרה = שריפה.
+- Consistency (נוסחה רשמית): יום הגדול ÷ סה"כ רווח ≤ סף (PROPEL Eval=30%, LAUNCH Eval=50%, BluLive=34%)
+  אם חרגת — לא נפסלת! פשוט צריך להמשיך לסחור עד שהרווח הכולל יגדל
+- חריגה = יעד עולה בעודף בלבד (לא עונש גדול)
+- Phase1 יעד: 200K=$6,000 | 50K=$3,000
+- Phase2 BluLive יעד: $3,000. אחר כך Sim Funded.
+- Sim: $250 מינ' | Balance מעל התחלה | ללא Consistency | $10K מצטבר = Brokerage Review
+- Daily Profit Trigger: Phase1 200K=$1,800, 50K=$1,500 | BluLive=$900
+
+לכל חשבון תני ניתוח קצר, ישיר ומעשי. דברי ישירות ללורן.
+
+החזירי JSON בלבד (ללא markdown):
+{
+  "accounts":[
+    {"name":"...","status":"good|warn|alert|info|neutral","headline":"כותרת קצרה ומדויקת (עד 8 מילים)","detail":"2-3 שורות פרקטיות: מה קרה, מה חשוב, מה הצעד הבא"}
+  ],
+  "overall":"תובנה אחת כוללת על כל התיק (1-2 שורות)"
+}`;
+
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1200,
+        messages:[{role:'user',content:prompt}]})
+    });
+    const data=await res.json();
+    const raw=data.content?.find(c=>c.type==='text')?.text||'';
+    const clean=raw.replace(/```json|```/g,'').trim();
+    const parsed=JSON.parse(clean);
+    S.insights=parsed; S.insDate=new Date().toISOString();
+    save();
+    applyInsights(parsed);
+  }catch(err){
+    ACCS.forEach((_,i)=>{
+      const el=document.getElementById(`ai-${i}`);
+      if(el) el.innerHTML=`<div class="ai-card warn"><div class="ai-headline">שגיאה בניתוח</div><div class="ai-detail">נסי שוב.</div></div>`;
+    });
+  }
+
+  btn.disabled=false;
+  btn.textContent='✦ ניתוח AI יומי — קבלי תובנות לכל החשבונות';
+}
+
+function applyInsights(data){
+  if(!data)return;
+  (data.accounts||[]).forEach((a,i)=>{
+    const el=document.getElementById(`ai-${i}`);
+    if(!el)return;
+    el.innerHTML=`<div class="ai-card ${a.status||'neutral'}">
+      <div class="ai-headline">${a.headline}</div>
+      <div class="ai-detail">${a.detail}</div>
+    </div>`;
+  });
+  if(data.overall){
+    const ov=document.getElementById('overall-insight');
+    const ob=document.getElementById('overall-body');
+    if(ov){ov.style.display='flex';}
+    if(ob) ob.textContent=data.overall;
+  }
+  if(S.insDate){
+    const d=new Date(S.insDate);
+    const lbl=d.toLocaleDateString('he-IL',{day:'numeric',month:'long'})+' '+d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+    const btn=document.getElementById('btn-gen');
+    if(btn) btn.textContent=`✦ עדכן ניתוח AI (אחרון: ${lbl})`;
+  }
+}
+
+// ════════════ CLOCK ════════════
+function updateClock(){
+  const n=new Date();
+  document.getElementById('clock').textContent=
+    n.toLocaleDateString('he-IL',{weekday:'short',day:'numeric',month:'numeric'})+' · '+
+    n.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ════════════ SEED DATA — from BluSky screenshots 26/04/2026 ════════════
+// 200K PROPEL: Balance $200,529.78 → pnl=$529.78, target $206,000 → $5,470.22 left
+// 50K PROPEL:  Balance $51,384.30  → pnl=$1,384.30, target $53,000 → $1,615.70 left
+// 50K LAUNCH:  Balance $50,226.80  → pnl=$226.80 (phase blulive), target $53,000 → $2,773.20 left
+//              LAUNCH: 4 trading days, DD buffer $2,226.80 (thresh=$48,000)
+//              Consistency shown: 66.36% / 34.00% → best day = 34%×50000×0.6636... 
+//              Actually best day = $226.80 * (66.36/100) = ~$150.49... 
+//              The dashboard shows best day as % of total P&L: 66.36% means best day = 66.36% of $226.80 ≈ $150
+
+function seedFromScreenshots(){
+  if(!confirm('טעיני את הנתונים מקלנדר BluSky אפריל 2026?\nזה ידרוס נתונים קיימים!')) return;
+  S = mkState();
+
+  // 200K PROPEL Phase 1 — נתוני CSV מדויקים
+  S.accs[0]={ph:'eval1',tw:0,adj:0,days:[
+    {date:'2026-04-02', pnl:-401.99, balance:199598.01},
+    {date:'2026-04-06', pnl:-61.62,  balance:199536.39},
+    {date:'2026-04-07', pnl:185.64,  balance:199722.03},
+    {date:'2026-04-08', pnl:-12.87,  balance:199709.16},
+    {date:'2026-04-09', pnl:55.38,   balance:199764.54},
+    {date:'2026-04-10', pnl:12.38,   balance:199776.92},
+    {date:'2026-04-13', pnl:675.51,  balance:200452.43},
+    {date:'2026-04-14', pnl:-82.37,  balance:200370.06},
+    {date:'2026-04-17', pnl:-40.12,  balance:200329.94},
+    {date:'2026-04-19', pnl:-65.37,  balance:200264.57},
+    {date:'2026-04-20', pnl:-309.49, balance:199955.08},
+    {date:'2026-04-21', pnl:-528.23, balance:199426.85},
+    {date:'2026-04-22', pnl:246.63,  balance:199673.48},
+    {date:'2026-04-23', pnl:111.65,  balance:199785.13},
+    {date:'2026-04-24', pnl:744.64,  balance:200529.77},
+    {date:'2026-04-26', pnl:207.51,  balance:200737.28},
+    {date:'2026-04-27', pnl:-26.86,  balance:200710.42},
+    {date:'2026-04-28', pnl:56.77,   balance:200767.19},
+    {date:'2026-04-29', pnl:186.16,  balance:200953.35},
+    {date:'2026-04-30', pnl:239.66,  balance:201193.01},
+    {date:'2026-05-01', pnl:176.51,  balance:201369.52},
+    {date:'2026-05-03', pnl:292.01,  balance:201661.53},
+    {date:'2026-05-04', pnl:-536.35, balance:201125.18},
+    {date:'2026-05-05', pnl:516.88,  balance:201642.06},
+  ]};
+
+  // 50K PROPEL Phase 1 — נתוני קלנדר מדויקים
+  let b1=50000;
+  S.accs[1]={ph:'eval1',tw:0,adj:0,days:[
+    {date:'2026-04-13', pnl:25.85,    balance:50025.85},
+    {date:'2026-04-14', pnl:-131.53,  balance:49894.32},
+    {date:'2026-04-15', pnl:629.20,   balance:50523.52},
+    {date:'2026-04-16', pnl:-57.30,   balance:50466.22},
+    {date:'2026-04-17', pnl:-40.15,   balance:50426.07},
+    {date:'2026-04-19', pnl:-65.38,   balance:50360.69},
+    {date:'2026-04-20', pnl:-309.53,  balance:50051.16},
+    {date:'2026-04-21', pnl:-775.07,  balance:49276.09},
+    {date:'2026-04-22', pnl:1248.08,  balance:50524.17},
+    {date:'2026-04-23', pnl:115.55,   balance:50639.72},
+    {date:'2026-04-24', pnl:744.58,   balance:51384.30},
+  ]};
+
+  // 50K LAUNCH Phase 2 BluLive — נתוני קלנדר מדויקים
+  let b2=50000;
+  S.accs[2]={ph:'blulive',tw:0,adj:0,days:[
+    {date:'2026-04-19', pnl:-65.20,  balance:49934.80},
+    {date:'2026-04-20', pnl:-310.80, balance:49624.00},
+    {date:'2026-04-21', pnl:-526.20, balance:49097.80},
+    {date:'2026-04-22', pnl:268.80,  balance:49366.60},
+    {date:'2026-04-23', pnl:111.70,  balance:49478.30},
+    {date:'2026-04-24', pnl:748.50,  balance:50226.80},
+    {date:'2026-04-26', pnl:208.20,  balance:50435.00},
+    {date:'2026-04-27', pnl:-25.00,  balance:50410.00},
+    {date:'2026-04-28', pnl:58.80,   balance:50468.80},
+    {date:'2026-04-29', pnl:176.40,  balance:50645.20},
+    {date:'2026-04-30', pnl:-40.20,  balance:50605.00},
+    {date:'2026-05-01', pnl:174.20,  balance:50779.20},
+    {date:'2026-05-03', pnl:292.20,  balance:51071.40},
+    {date:'2026-05-04', pnl:-531.80, balance:50539.60},
+    {date:'2026-05-05', pnl:753.00,  balance:51292.60},
+    {date:'2026-05-06', pnl:-224.70, balance:51067.90},
+    {date:'2026-05-07', pnl:529.40,  balance:51597.30},
+    {date:'2026-05-08', pnl:165.60,  balance:51762.90},
+  ]};
+
+  save();
+  renderAll();
+  alert('✅ נתוני קלנדר אפריל 2026 נטענו!\n\n200K PROPEL: 11 ימים | Balance $'+b0.toFixed(2)+'\n50K PROPEL: 10 ימים | Balance $'+b1.toFixed(2)+'\n50K LAUNCH: 4 ימים | Balance $'+b2.toFixed(2));
+}
+
+// ════════════ CSV IMPORT (added 2026-05-08) ════════════
+let csvParsedDays = null;       // last parsed days array
+let csvSelectedAcc = null;      // which account it's for: {bucket:'accs'|'apexAccs'|'lucidAccs', idx:0..3}
+
+function applyFeeDefaults(){
+  const sel = document.getElementById('csv-account');
+  const modeEl = document.getElementById('csv-fee-mode');
+  const feeEl = document.getElementById('csv-fee');
+  if(!sel || !modeEl || !feeEl) return;
+  const v = sel.value || '';   // 'accs:0', 'apexAccs:0', 'lucidAccs:0'
+  if(v.startsWith('lucidAccs:')){
+    modeEl.value = 'per_contract';
+    feeEl.value = '1.00';
+  } else if(v.startsWith('apexAccs:')){
+    modeEl.value = 'per_trade';
+    feeEl.value = '3.45';
+  } else {
+    modeEl.value = 'per_trade';
+    feeEl.value = '2.20';
+  }
+}
+
+function csvAccountOptions(){
+  const opts = [];
+  // BluSky (S.accs) — uses ACCS metadata for names
+  ACCS.forEach(function(a, i){
+    opts.push({val:'accs:'+i, label:'🏦 '+a.name+' — '+a.num, bucket:'accs', idx:i});
+  });
+  // Apex (S.apexAccs) — meta on each entry
+  (S.apexAccs||[]).forEach(function(a, i){
+    const m = a.meta || {};
+    opts.push({val:'apexAccs:'+i, label:'⚡ '+(m.name||'Apex '+(i+1))+' — '+(m.num||''), bucket:'apexAccs', idx:i});
+  });
+  // Lucid (S.lucidAccs)
+  (S.lucidAccs||[]).forEach(function(a, i){
+    const m = a.meta || {};
+    opts.push({val:'lucidAccs:'+i, label:'💎 '+(m.name||'Lucid '+(i+1))+' — '+(m.num||''), bucket:'lucidAccs', idx:i});
+  });
+  return opts;
+}
+
+function openCsvModal(){
+  // Populate account dropdown freshly each open
+  const sel = document.getElementById('csv-account');
+  sel.innerHTML = '';
+  csvAccountOptions().forEach(function(o){
+    const opt = document.createElement('option');
+    opt.value = o.val; opt.textContent = o.label;
+    sel.appendChild(opt);
+  });
+  // Re-apply fee defaults whenever the user picks a different account
+  sel.onchange = applyFeeDefaults;
+  document.getElementById('csv-file').value = '';
+  // auto-default fee model based on which account is initially selected
+  applyFeeDefaults();
+  document.getElementById('csv-preview').textContent = 'העלי קובץ CSV כדי לראות תצוגה מקדימה';
+  document.getElementById('csv-apply').disabled = true;
+  document.getElementById('csv-apply').style.opacity = '0.5';
+  csvParsedDays = null;
+  document.getElementById('csv-modal-overlay').style.display = 'block';
+  document.getElementById('csv-modal').style.display = 'block';
+}
+function closeCsvModal(){
+  document.getElementById('csv-modal-overlay').style.display = 'none';
+  document.getElementById('csv-modal').style.display = 'none';
+}
+
+function parseCsv(text, fee, feeMode){
+  // Tradovate CSV: symbol,...,qty,buyPrice,sellPrice,pnl,boughtTimestamp,soldTimestamp,duration
+  // feeMode: 'per_trade' (BluSky/Apex flat $2.20/trade) | 'per_contract' (Lucid $1.00/contract)
+  const lines = text.split(/\r?\n/).filter(function(x){ return x.trim(); });
+  if(lines.length < 2) throw new Error('הקובץ ריק או לא תקין');
+  const header = lines[0].split(',').map(function(h){ return h.trim(); });
+  const idx = {
+    pnl: header.indexOf('pnl'),
+    sold: header.indexOf('soldTimestamp'),
+    qty: header.indexOf('qty')
+  };
+  if(idx.pnl<0 || idx.sold<0) throw new Error('חסרות עמודות pnl/soldTimestamp — האם זה Performance.csv מ-Tradovate?');
+  if(feeMode === 'per_contract' && idx.qty < 0) throw new Error('חסרה עמודת qty — נחוצה למודל עמלה לפי חוזה');
+
+  const byDate = {};
+  for(let i=1; i<lines.length; i++){
+    const cells = lines[i].split(',');
+    const pnlS = (cells[idx.pnl] || '').replace(/[$,\s]/g, '');
+    const neg = pnlS.indexOf('(') >= 0;
+    const num = parseFloat(pnlS.replace(/[()]/g,'')) || 0;
+    const pnl = neg ? -num : num;
+    const qty = parseInt(cells[idx.qty] || '0', 10) || 0;
+    const sold = cells[idx.sold] || '';
+    const m = sold.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if(!m) continue;
+    const date = m[3] + '-' + m[1].padStart(2,'0') + '-' + m[2].padStart(2,'0');
+    if(!byDate[date]) byDate[date] = {gross:0, count:0, qty:0};
+    byDate[date].gross += pnl;
+    byDate[date].count += 1;
+    byDate[date].qty += qty;
+  }
+  const days = [];
+  Object.keys(byDate).sort().forEach(function(date){
+    const d = byDate[date];
+    const fees = (feeMode === 'per_contract') ? (d.qty * fee) : (d.count * fee);
+    const net = +(d.gross - fees).toFixed(2);
+    days.push({date:date, pnl:net, _trades:d.count, _qty:d.qty, _gross:+d.gross.toFixed(2), _fees:+fees.toFixed(2)});
+  });
+  return days;
+}
+
+function recomputeBalances(existingDays, newDays, startBal){
+  // Replace any existing date that exists in newDays; keep the rest
+  const newDates = new Set(newDays.map(function(d){ return d.date; }));
+  const kept = (existingDays||[]).filter(function(d){ return !newDates.has(d.date); });
+  const merged = kept.concat(newDays.map(function(d){ return {date:d.date, pnl:d.pnl}; }))
+                     .sort(function(a,b){ return a.date.localeCompare(b.date); });
+  let bal = startBal;
+  return merged.map(function(d){
+    bal = +(bal + d.pnl).toFixed(2);
+    return {date:d.date, pnl:d.pnl, balance:bal};
+  });
+}
+
+document.addEventListener('change', function(e){
+  if(e.target && e.target.id === 'csv-file'){
+    const f = e.target.files[0]; if(!f) return;
+    console.log('[CSV] file selected:', f.name, f.size, 'bytes');
+    const fee = parseFloat(document.getElementById('csv-fee').value) || 2.20;
+    const feeMode = document.getElementById('csv-fee-mode').value || 'per_trade';
+    const reader = new FileReader();
+    reader.onerror = function(){
+      document.getElementById('csv-preview').innerHTML = '<span style="color:var(--red);font-weight:700">⚠ קריאת הקובץ נכשלה</span>';
+    };
+    reader.onload = function(ev){
+      try{
+        const days = parseCsv(ev.target.result, fee, feeMode);
+        csvParsedDays = days;
+        const total = days.reduce(function(s,d){return s+d.pnl;},0);
+        let html = '<div style="font-weight:800;color:var(--txt);margin-bottom:8px;">תצוגה מקדימה: '+days.length+' ימים, סה"כ Net <span style="color:'+(total>=0?'var(--grn)':'var(--red)')+';">$'+total.toFixed(2)+'</span></div>';
+        html += '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--bdr);border-radius:6px;background:#fff;">';
+        html += '<table style="width:100%;font-size:12px;border-collapse:collapse;">';
+        html += '<thead style="background:var(--s3);"><tr><th style="padding:6px 8px;text-align:right">תאריך</th><th style="padding:6px 8px;text-align:right">עסקאות</th><th style="padding:6px 8px;text-align:right">חוזים</th><th style="padding:6px 8px;text-align:right">Gross</th><th style="padding:6px 8px;text-align:right">Fees</th><th style="padding:6px 8px;text-align:right">Net</th></tr></thead><tbody>';
+        days.forEach(function(d){
+          html += '<tr style="border-top:1px solid var(--bdr2)"><td style="padding:5px 8px;font-weight:700">'+d.date+'</td>';
+          html += '<td style="padding:5px 8px">'+d._trades+'</td>';
+          html += '<td style="padding:5px 8px;color:var(--txt4)">'+(d._qty||'?')+'</td>';
+          html += '<td style="padding:5px 8px;color:'+(d._gross>=0?'var(--grn)':'var(--red)')+'">$'+d._gross.toFixed(2)+'</td>';
+          html += '<td style="padding:5px 8px;color:var(--txt4)">$'+d._fees.toFixed(2)+'</td>';
+          html += '<td style="padding:5px 8px;font-weight:800;color:'+(d.pnl>=0?'var(--grn)':'var(--red)')+'">$'+d.pnl.toFixed(2)+'</td></tr>';
+        });
+        html += '</tbody></table></div>';
+        document.getElementById('csv-preview').innerHTML = html;
+        document.getElementById('csv-apply').disabled = false;
+        document.getElementById('csv-apply').style.opacity = '1';
+      }catch(err){
+        document.getElementById('csv-preview').innerHTML = '<span style="color:var(--red);font-weight:700">⚠ '+err.message+'</span>';
+        csvParsedDays = null;
+        document.getElementById('csv-apply').disabled = true;
+        document.getElementById('csv-apply').style.opacity = '0.5';
+      }
+    };
+    reader.readAsText(f, 'utf-8');
+  }
+});
+
+async function applyCsv(){
+  const btn = document.getElementById('csv-apply');
+  const preview = document.getElementById('csv-preview');
+  function setStatus(msg, color){
+    preview.innerHTML = '<div style="background:'+(color||'#dbeafe')+';border-radius:10px;padding:14px;font-weight:800;text-align:center;font-size:14px;color:var(--txt);">'+msg+'</div>';
+  }
+  if(!csvParsedDays || !csvParsedDays.length){
+    setStatus('❌ אין נתונים — בחרי קובץ CSV קודם', '#fee2e2');
+    return;
+  }
+  btn.disabled = true; btn.style.opacity = '0.5'; btn.textContent = '⏳ שומר...';
+  try{
+    const sel = document.getElementById('csv-account').value;
+    const m = sel.split(':');
+    const bucket = m[0], idx = parseInt(m[1],10);
+    const acc = (S[bucket]||[])[idx];
+    if(!acc) throw new Error('חשבון לא נמצא: '+sel);
+
+    let startBal;
+    if(bucket === 'accs') startBal = ACCS[idx].startBal;
+    else if(acc.meta && acc.meta.startBal) startBal = acc.meta.startBal;
+    else startBal = 50000;
+    const accLbl = (bucket==='accs') ? ACCS[idx].name : (acc.meta && acc.meta.name) || sel;
+
+    const newDays = recomputeBalances(acc.days, csvParsedDays, startBal);
+    acc.days = newDays;
+
+    setStatus('💾 שמירה מקומית...', '#fef3c7');
+    save();
+
+    if(window.TradingCloudSync && window.TradingCloudSync.hasToken()){
+      setStatus('☁ דחיפה לענן...', '#fef3c7');
+      await window.TradingCloudSync.doSaveImmediate();
+      setStatus('✅ '+accLbl+' עודכן: '+csvParsedDays.length+' ימים · נשמר בענן ✓', '#dcfce7');
+    } else {
+      setStatus('⚠ '+accLbl+' עודכן מקומית — אבל אין token לענן. לחצי על "☁" למעלה לחיבור.', '#fef3c7');
+    }
+    try{ renderAll(); }catch(e){ console.error(e); }
+    setTimeout(closeCsvModal, 3000);
+  }catch(err){
+    console.error('[CSV apply] failed:', err);
+    setStatus('❌ שגיאה: '+err.message, '#fee2e2');
+    btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '💾 החל על החשבון';
+  }
+}
+
+// ════════════ RULES MODAL (added 2026-05-08) ════════════
+function openRulesModal(bucket, idx){
+  if(!window.RULES){
+    alert('עדיין טוען חוקים מהשרת… נסי שוב בעוד שנייה.');
+    return;
+  }
+  let acc, accName, m;
+  if(bucket === 'accs'){
+    acc = ACCS[idx];
+    accName = acc.name;
+    m = window.RULES_PLAN_MAP['a'+idx];
+  } else if(bucket === 'apexAccs'){
+    const aS = S.apexAccs[idx];
+    acc = (aS && aS.meta) || {};
+    accName = acc.name || 'Apex '+(idx+1);
+    m = resolveAccPlan({bucket:'apexAccs', idx:idx, meta:acc});
+  } else if(bucket === 'lucidAccs'){
+    const aS = S.lucidAccs[idx];
+    acc = (aS && aS.meta) || {};
+    accName = acc.name || 'Lucid '+(idx+1);
+    m = resolveAccPlan({bucket:'lucidAccs', idx:idx, meta:acc});
+  }
+  if(!m){ alert('לא נמצאו חוקים לחשבון הזה'); return; }
+  const firm = window.RULES.firms[m.firm];
+  const plan = firm && firm.plans[m.plan];
+  if(!plan){ alert('לא נמצאו חוקים לתוכנית '+m.plan); return; }
+
+  document.getElementById('rules-acc-name').textContent = accName + ' (' + plan.label + ')';
+
+  // Build the body — firm-level info, current phase summary, then expandable per-phase
+  const aS = (bucket === 'accs') ? S.accs[idx] : (bucket === 'apexAccs' ? S.apexAccs[idx] : S.lucidAccs[idx]);
+  const curPh = (aS && aS.ph) || (Object.keys(plan.phases||{})[0]);
+  let html = '';
+
+  // Firm header
+  html += '<div style="background:var(--s2);border-radius:10px;padding:14px;margin-bottom:14px;">';
+  html += '<div style="font-size:13px;color:var(--txt4);margin-bottom:4px;">חברה</div>';
+  html += '<div style="font-weight:800;font-size:16px;color:var(--txt);">'+firm.name+'</div>';
+  if(firm.consistencyFormula) html += '<div style="font-size:12px;color:var(--txt3);margin-top:6px;">נוסחת Consistency: <code style="background:var(--s3);padding:2px 6px;border-radius:4px;">'+firm.consistencyFormula+'</code></div>';
+  if(firm.positionCutoffET) html += '<div style="font-size:12px;color:var(--txt3);margin-top:4px;">סגירת פוזיציות: '+firm.positionCutoffET+' ET</div>';
+  html += '</div>';
+
+  // Plan-level overview
+  html += '<div style="background:var(--s2);border-radius:10px;padding:14px;margin-bottom:14px;">';
+  html += '<div style="font-size:13px;color:var(--txt4);margin-bottom:6px;">תוכנית</div>';
+  html += '<div style="font-weight:800;font-size:16px;color:var(--txt);margin-bottom:8px;">'+plan.label+'</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">';
+  if(plan.accountSize) html += '<div><b>גודל חשבון:</b> $'+plan.accountSize.toLocaleString()+'</div>';
+  if(plan.monthlyFee != null) html += '<div><b>דמי חודשי:</b> $'+plan.monthlyFee+'</div>';
+  if(plan.activationFee != null) html += '<div><b>דמי הפעלה:</b> $'+plan.activationFee+'</div>';
+  if(plan.resetFee != null) html += '<div><b>איפוס:</b> $'+plan.resetFee+'</div>';
+  html += '</div>';
+  html += '</div>';
+
+  // Phases — current phase open, others collapsed
+  Object.keys(plan.phases || {}).forEach(function(ph){
+    const phData = plan.phases[ph];
+    const isOpen = (ph === curPh);
+    const accent = isOpen ? 'var(--sky)' : 'var(--bdr)';
+    const bg = isOpen ? '#dbeafe' : 'var(--s2)';
+    html += '<details '+(isOpen?'open':'')+' style="background:'+bg+';border-radius:10px;border-right:4px solid '+accent+';margin-bottom:10px;">';
+    html += '<summary style="cursor:pointer;padding:12px 16px;font-weight:800;font-size:15px;color:var(--txt);">' + (isOpen ? '⭐ ' : '') + (phData.label || ph) + (isOpen ? ' (השלב הנוכחי)' : '') + '</summary>';
+    html += '<div style="padding:0 16px 14px;font-size:13px;">';
+    const fields = [
+      ['profitTarget', 'יעד רווח', function(v){return '$'+v.toLocaleString();}],
+      ['drawdownType', 'סוג Drawdown', function(v){return v.replace(/_/g,' ');}],
+      ['trailDD', 'גודל Drawdown', function(v){return '$'+v.toLocaleString();}],
+      ['burnStart', 'MLL התחלתי', function(v){return '$'+v.toLocaleString();}],
+      ['safetyNet', 'Safety Net', function(v){return '$'+v.toLocaleString();}],
+      ['initialTrailBalance', 'Initial Trail Balance', function(v){return '$'+v.toLocaleString();}],
+      ['lockedMLL', 'Locked MLL', function(v){return '$'+v.toLocaleString();}],
+      ['dailyLossLimit', 'מגבלת הפסד יומי', function(v){return v ? '$'+v.toLocaleString() : 'אין';}],
+      ['consistencyPct', 'Consistency', function(v){return v ? Math.round(v*100)+'%' : 'אין';}],
+      ['minDays', 'ימי מינימום', function(v){return v == null ? '—' : v;}],
+      ['minDaysOfQualifying', 'ימים כשירים לPayout', function(v){return v;}],
+      ['minProfitPerQualifyingDay', 'מינ. רווח ליום כשיר', function(v){return '$'+v;}],
+      ['minPayout', 'Payout מינימלי', function(v){return '$'+v;}],
+      ['perPayoutCap', 'תקרת Payout', function(v){return '$'+v.toLocaleString();}],
+      ['perPayout7DayCap', 'תקרת Payout 7-יום', function(v){return '$'+v.toLocaleString();}],
+      ['profitSplit', 'חלוקת רווחים', function(v){return Math.round(v*100)+'/'+Math.round((1-v)*100);}],
+      ['maxContracts', 'מקסימום חוזים', function(v){return v;}],
+      ['botsAllowed', 'בוטים', function(v){return v ? '✅ מותר' : '❌ אסור';}],
+      ['passCriteria', 'קריטריון מעבר', function(v){return v;}],
+    ];
+    fields.forEach(function(f){
+      const k = f[0], lbl = f[1], fmt = f[2];
+      if(phData[k] !== undefined){
+        html += '<div style="margin:6px 0;"><b style="color:var(--txt);">'+lbl+':</b> '+fmt(phData[k])+'</div>';
+        // Add note if present
+        const noteKey = '_'+k+'Note';
+        if(phData[noteKey]) html += '<div style="margin:0 0 6px 14px;font-size:11px;color:var(--txt4);font-style:italic;">'+phData[noteKey]+'</div>';
+      }
+    });
+    if(phData.payoutLadder){
+      html += '<div style="margin:6px 0;"><b>Payout Ladder:</b> '+phData.payoutLadder.map(function(p){return '$'+p.toLocaleString();}).join(' → ')+'</div>';
+    }
+    if(phData.scalingPlan){
+      html += '<div style="margin:8px 0 4px;"><b>Scaling Plan:</b></div>';
+      phData.scalingPlan.forEach(function(s){
+        html += '<div style="margin:2px 14px;font-size:12px;">'+s.profitRange+' → '+s.maxContracts+' חוזים</div>';
+      });
+    }
+    if(phData.otherRules){
+      html += '<div style="margin:8px 0 4px;"><b>חוקים נוספים:</b></div>';
+      phData.otherRules.forEach(function(r){ html += '<div style="margin:2px 14px;font-size:12px;">• '+r+'</div>'; });
+    }
+    html += '</div></details>';
+  });
+
+  // Show flags if any apply to this firm
+  if((window.RULES._flags||[]).length){
+    const relevantFlags = window.RULES._flags.filter(function(fl){ return fl.toLowerCase().indexOf(firm.name.toLowerCase()) >= 0 || fl.toLowerCase().indexOf(m.firm) >= 0; });
+    if(relevantFlags.length){
+      html += '<div style="background:#fef3c7;border:1.5px solid #fcd34d;border-radius:10px;padding:12px 14px;margin-top:14px;font-size:12px;color:#92400e;">';
+      html += '<div style="font-weight:800;margin-bottom:6px;">⚠ תיוגים לבדיקה:</div>';
+      relevantFlags.forEach(function(f){ html += '<div style="margin:4px 0;">• '+f+'</div>'; });
+      html += '</div>';
+    }
+  }
+
+  document.getElementById('rules-body').innerHTML = html;
+
+  // Set source link
+  const sources = (window.RULES._sources||{})[m.firm];
+  const sourceLink = document.getElementById('rules-source-link');
+  if(sources && sources[0]){
+    sourceLink.href = sources[0];
+    sourceLink.style.display = 'inline';
+  } else {
+    sourceLink.style.display = 'none';
+  }
+
+  document.getElementById('rules-modal-overlay').style.display='block';
+  document.getElementById('rules-modal').style.display='block';
+}
+function closeRulesModal(){
+  document.getElementById('rules-modal-overlay').style.display='none';
+  document.getElementById('rules-modal').style.display='none';
+}
+
+// ════════════ PHASE TRANSITION + HISTORY (added 2026-05-08) ════════════
+let transitionAccIdx = null;
+
+function openTransitionModal(i){
+  transitionAccIdx = i;
+  const acc = ACCS[i], aS = S.accs[i];
+  const curBal = bal(i);
+  const curDays = (aS.days||[]).length;
+  document.getElementById('trans-acc-name').textContent = acc.name;
+  document.getElementById('trans-cur-days').textContent = curDays;
+  document.getElementById('trans-cur-bal').textContent = '$' + curBal.toFixed(2);
+  document.getElementById('trans-phase').value = aS.ph === 'eval1' ? 'blulive' : aS.ph;  // Smart default
+  document.getElementById('trans-num').value = '';
+  document.getElementById('trans-startbal').value = '';
+  document.getElementById('trans-modal-overlay').style.display='block';
+  document.getElementById('trans-modal').style.display='block';
+}
+function closeTransitionModal(){
+  document.getElementById('trans-modal-overlay').style.display='none';
+  document.getElementById('trans-modal').style.display='none';
+  transitionAccIdx = null;
+}
+
+function applyTransition(){
+  const i = transitionAccIdx;
+  if(i === null) return;
+  const acc = ACCS[i], aS = S.accs[i];
+  const newPh = document.getElementById('trans-phase').value;
+  const newNumRaw = document.getElementById('trans-num').value.trim();
+  const newStartBalRaw = document.getElementById('trans-startbal').value.trim();
+  const newStartBal = newStartBalRaw ? parseFloat(newStartBalRaw) : acc.startBal;
+
+  // Archive current state into history
+  const oldDays = aS.days || [];
+  const oldBal = oldDays.length ? oldDays[oldDays.length-1].balance : acc.startBal;
+  const oldTotalPnL = oldDays.reduce(function(s,d){return s+d.pnl;}, 0);
+  const archiveEntry = {
+    ph: aS.ph,
+    num: accNum(i),
+    startBal: acc.startBal,
+    days: oldDays,
+    finalBalance: +oldBal.toFixed(2),
+    totalPnL: +oldTotalPnL.toFixed(2),
+    passed: oldTotalPnL > 0,
+    passedAt: new Date().toISOString().split('T')[0],
+  };
+  aS.history = (aS.history || []);
+  aS.history.push(archiveEntry);
+
+  // Reset to new phase
+  aS.ph = newPh;
+  aS.days = [];
+  aS.tw = 0;
+  aS.adj = 0;
+  if(newNumRaw){
+    aS.meta = aS.meta || {};
+    aS.meta.num = newNumRaw;
+  }
+  if(newStartBalRaw){
+    aS.meta = aS.meta || {};
+    aS.meta.startBal = newStartBal;
+  }
+
+  save();
+  closeTransitionModal();
+  try{ renderAll(); }catch(e){}
+  alert('✅ '+acc.name+' עבר ל-'+newPh+'\n\nמספר חשבון: '+(newNumRaw||accNum(i))+'\nStart balance: $'+newStartBal.toFixed(2)+'\n\nהשלב הקודם נשמר בהיסטוריה ('+aS.history.length+' שלבים סה"כ).');
+}
+
+function openHistoryModal(i){
+  const acc = ACCS[i], aS = S.accs[i];
+  const hist = aS.history || [];
+  document.getElementById('hist-acc-name').textContent = acc.name;
+  let html = '';
+  if(hist.length === 0){
+    html = '<div style="text-align:center;color:var(--txt4);padding:30px;">עדיין אין שלבים בהיסטוריה</div>';
+  } else {
+    hist.slice().reverse().forEach(function(h, idx){
+      const pnlColor = (h.totalPnL||0) >= 0 ? 'var(--grn)' : 'var(--red)';
+      const phLabel = (typeof PH !== 'undefined' && PH.find(function(p){return p.k===h.ph;})?.l) || h.ph;
+      html += '<div style="background:var(--s2);border-radius:10px;padding:14px;margin-bottom:10px;border-right:4px solid '+(h.passed?'var(--grn)':'var(--amb)')+';">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+      html += '<div><div style="font-weight:800;font-size:15px;color:var(--txt);">'+phLabel+(h.passed?' ✓ עבר':'')+'</div>';
+      html += '<div style="font-family:var(--m);font-size:12px;color:var(--txt4);">'+(h.num||'')+'</div></div>';
+      html += '<div style="text-align:left;font-size:11px;color:var(--txt4);">'+(h.passedAt||'')+'</div></div>';
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:12px;">';
+      html += '<div><div style="color:var(--txt4);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">ימים</div><div style="font-weight:800;font-size:15px;color:var(--txt);">'+(h.days||[]).length+'</div></div>';
+      html += '<div><div style="color:var(--txt4);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">P&L Total</div><div style="font-weight:800;font-size:15px;color:'+pnlColor+';">$'+(h.totalPnL||0).toFixed(2)+'</div></div>';
+      html += '<div><div style="color:var(--txt4);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">Final Balance</div><div style="font-weight:800;font-size:15px;color:var(--sky);">$'+(h.finalBalance||0).toFixed(2)+'</div></div>';
+      html += '</div>';
+      if((h.days||[]).length){
+        html += '<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--sky);">▼ הצגת '+h.days.length+' ימים</summary>';
+        html += '<div style="max-height:200px;overflow-y:auto;margin-top:8px;background:#fff;border-radius:6px;">';
+        html += '<table style="width:100%;font-size:12px;border-collapse:collapse;"><thead style="background:var(--s3);"><tr><th style="padding:5px 8px;text-align:right">תאריך</th><th style="padding:5px 8px;text-align:right">P&L</th><th style="padding:5px 8px;text-align:right">Balance</th></tr></thead><tbody>';
+        h.days.forEach(function(d){
+          html += '<tr style="border-top:1px solid var(--bdr2)"><td style="padding:4px 8px;font-weight:700">'+d.date+'</td>';
+          html += '<td style="padding:4px 8px;color:'+(d.pnl>=0?'var(--grn)':'var(--red)')+';font-weight:700">$'+d.pnl.toFixed(2)+'</td>';
+          html += '<td style="padding:4px 8px">$'+(d.balance||0).toFixed(2)+'</td></tr>';
+        });
+        html += '</tbody></table></div></details>';
+      }
+      html += '</div>';
+    });
+  }
+  document.getElementById('hist-body').innerHTML = html;
+  document.getElementById('hist-modal-overlay').style.display='block';
+  document.getElementById('hist-modal').style.display='block';
+}
+function closeHistoryModal(){
+  document.getElementById('hist-modal-overlay').style.display='none';
+  document.getElementById('hist-modal').style.display='none';
+}
+
+// ════════════ INIT ════════════
+load();  // localStorage cache (fast, sync)
+
+// 🌐 CLOUD STATE — JSON wins (Lauren 2026-05-08: 'הכל חייב להיות בגיט האב')
+// Fetches docs/state/trading.json on every page load; overrides localStorage
+// if successful. Falls back silently to localStorage/seed if offline/404.
+(function loadFromCloud(){
+  const url = '../state/trading.json?_=' + Date.now();
+  fetch(url, {cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(remote){
+      if(!remote || !Array.isArray(remote.accs)) return;
+      // Race-condition fix (2026-05-09): if localStorage was updated AFTER the
+      // cloud snapshot was written, prefer localStorage. This protects fresh
+      // CSV uploads / manual edits from being overwritten by a stale cloud
+      // copy when the user refreshes before the 2-second debounced cloud
+      // save has fired.
+      try{
+        const localStr = localStorage.getItem('bst24');
+        if(localStr){
+          const local = JSON.parse(localStr);
+          const remoteTs = remote._updated_at ? new Date(remote._updated_at).getTime() : 0;
+          const localTs  = local._localUpdatedAt ? new Date(local._localUpdatedAt).getTime() : 0;
+          if(localTs > remoteTs && local.accs && local.accs.length === 4){
+            console.log('[trading] localStorage is newer than cloud — keeping local');
+            const pill = document.getElementById('cloud-pill');
+            if(pill){ pill.className='cloud-pill syncing'; pill.textContent='☁ Pending push'; }
+            // Trigger a cloud save so they converge soon
+            try{ if(window.TradingCloudSync) window.TradingCloudSync.scheduleSave(); }catch(e){}
+            return;
+          }
+        }
+      }catch(e){}
+      // Cloud is the winner — clone into S
+      S.accs      = remote.accs;
+      S.apexAccs  = remote.apexAccs  || [];
+      S.lucidAccs = remote.lucidAccs || [];
+      if(remote.insights) S.insights = remote.insights;
+      if(remote.insDate)  S.insDate  = remote.insDate;
+      save();                       // cache locally
+      try { renderAll(); } catch(e){} // re-render with cloud data
+      const pill = document.getElementById('cloud-pill');
+      if(pill){ pill.className='cloud-pill synced'; pill.textContent='☁ Synced'; }
+    })
+    .catch(function(err){
+      console.warn('[trading] cloud load failed:', err.message);
+      const pill = document.getElementById('cloud-pill');
+      if(pill){ pill.className='cloud-pill offline'; pill.textContent='☁ Offline'; }
+    });
+})();
+
+// If no localStorage data yet → auto-seed from screenshots (fallback for very first load)
+if(!S.accs[0].days?.length && !S.accs[1].days?.length && !S.accs[2].days?.length){
+  // auto-seed — מנתוני קלנדר BluSky אפריל 2026
+  // 200K PROPEL Phase 1 — נתוני CSV מדויקים (Performance__12_.csv)
+  S.accs[0] = {ph:'eval1', tw:0, adj:0, days:[
+    {date:'2026-04-02', pnl:-401.99, balance:199598.01},
+    {date:'2026-04-06', pnl:-61.62,  balance:199536.39},
+    {date:'2026-04-07', pnl:185.64,  balance:199722.03},
+    {date:'2026-04-08', pnl:-12.87,  balance:199709.16},
+    {date:'2026-04-09', pnl:55.38,   balance:199764.54},
+    {date:'2026-04-10', pnl:12.38,   balance:199776.92},
+    {date:'2026-04-13', pnl:675.51,  balance:200452.43},
+    {date:'2026-04-14', pnl:-82.37,  balance:200370.06},
+    {date:'2026-04-17', pnl:-40.12,  balance:200329.94},
+    {date:'2026-04-19', pnl:-65.37,  balance:200264.57},
+    {date:'2026-04-20', pnl:-309.49, balance:199955.08},
+    {date:'2026-04-21', pnl:-528.23, balance:199426.85},
+    {date:'2026-04-22', pnl:246.63,  balance:199673.48},
+    {date:'2026-04-23', pnl:111.65,  balance:199785.13},
+    {date:'2026-04-24', pnl:744.64,  balance:200529.77},
+    {date:'2026-04-26', pnl:207.51,  balance:200737.28},
+    {date:'2026-04-27', pnl:-26.86,  balance:200710.42},
+    {date:'2026-04-28', pnl:56.77,   balance:200767.19},
+    {date:'2026-04-29', pnl:186.16,  balance:200953.35},
+    {date:'2026-04-30', pnl:239.66,  balance:201193.01},
+    {date:'2026-05-01', pnl:176.51,  balance:201369.52},
+    {date:'2026-05-03', pnl:292.01,  balance:201661.53},
+    {date:'2026-05-04', pnl:-536.35, balance:201125.18},
+    {date:'2026-05-05', pnl:516.88,  balance:201642.06},
+  ]};
+
+  // 50K PROPEL Phase 1 — CSV net of fees ($128.70/54 trades) — מדויק ל-$0.00
+  S.accs[1] = {ph:'eval1', tw:0, adj:0, days:[
+    {date:'2026-04-13', pnl:25.85,   balance:50025.85},
+    {date:'2026-04-14', pnl:-131.53, balance:49894.32},
+    {date:'2026-04-15', pnl:629.20,  balance:50523.52},
+    {date:'2026-04-16', pnl:-57.30,  balance:50466.22},
+    {date:'2026-04-17', pnl:-40.15,  balance:50426.07},
+    {date:'2026-04-19', pnl:-65.38,  balance:50360.69},
+    {date:'2026-04-20', pnl:-309.53, balance:50051.16},
+    {date:'2026-04-21', pnl:-775.07, balance:49276.09},
+    {date:'2026-04-22', pnl:1248.08, balance:50524.17},
+    {date:'2026-04-23', pnl:115.55,  balance:50639.72},
+    {date:'2026-04-24', pnl:744.58,  balance:51384.30},
+    {date:'2026-04-26', pnl:207.47,  balance:51591.77},
+    {date:'2026-04-27', pnl:-25.92,  balance:51565.85},
+    {date:'2026-04-28', pnl:60.70,   balance:51626.55},
+    {date:'2026-04-29', pnl:205.02,  balance:51831.57},
+    {date:'2026-04-30', pnl:117.90,  balance:51949.47},
+    {date:'2026-05-01', pnl:164.47,  balance:52113.94},
+    {date:'2026-05-03', pnl:291.97,  balance:52405.91},
+    {date:'2026-05-04', pnl:-357.30, balance:52048.61},
+  ]};
+
+  // 50K LAUNCH Phase 2 BluLive — CSV net of fees ($85.80/39 trades) — Performance (30).csv 2026-05-08
+  // ── Apex Legacy PA x4 ──
+  S.apexAccs = [
+    {ph:'pa', days:[
+      {date:'2026-03-03', pnl:-97.48,  balance:49902.52},
+      {date:'2026-03-04', pnl:410.78,  balance:50313.30},
+      {date:'2026-03-05', pnl:498.91,  balance:50812.21},
+      {date:'2026-03-06', pnl:144.26,  balance:50956.47},
+      {date:'2026-03-08', pnl:-411.85, balance:50544.62},
+      {date:'2026-03-09', pnl:-410.97, balance:50133.65},
+      {date:'2026-03-10', pnl:204.39,  balance:50338.04},
+      {date:'2026-03-11', pnl:-38.96,  balance:50299.08},
+      {date:'2026-03-12', pnl:-69.07,  balance:50230.01},
+      {date:'2026-03-16', pnl:92.63,   balance:50322.64},
+      {date:'2026-03-17', pnl:1110.26, balance:51432.90},
+      {date:'2026-03-18', pnl:-404.22, balance:51028.68},
+      {date:'2026-03-19', pnl:523.15,  balance:51551.83},
+      {date:'2026-03-23', pnl:-436.98, balance:51114.85},
+      {date:'2026-03-24', pnl:-848.05, balance:50266.80},
+      {date:'2026-04-30', pnl:-1622.8, balance:48644},
+      {date:'2026-05-01', pnl:80.02,   balance:48724.02},
+      {date:'2026-05-03', pnl:162.39,  balance:48886.41},
+      {date:'2026-05-04', pnl:-181.72, balance:48704.69},
+    ], tw:0, adj:0, payouts:[], meta:{id:'apex_leg1', name:'Legacy PA #1 — 09 — 09', num:'PA-APEX-158140-09', size:'50K_LEGACY', ddType:'Intraday', plan:'Apex Legacy PA $50K', startBal:50000, trailDD:2500, burnStart:47500, p1T:3000, p2T:3000, dll:0, safetyNet:52600, maxContractsEval:0, maxContractsPA:5, isLegacy:true, color:'#b45309', colorBg:'#fef3c7', colorMid:'#fcd34d'}},
+    {ph:'pa', days:[
+      {date:'2026-03-03', pnl:-97.48,  balance:49902.52},
+      {date:'2026-03-04', pnl:405.28,  balance:50307.80},
+      {date:'2026-03-05', pnl:500.41,  balance:50808.21},
+      {date:'2026-03-06', pnl:145.26,  balance:50953.47},
+      {date:'2026-03-08', pnl:-415.35, balance:50538.12},
+      {date:'2026-03-09', pnl:-411.47, balance:50126.65},
+      {date:'2026-03-10', pnl:204.39,  balance:50331.04},
+      {date:'2026-03-11', pnl:-39.96,  balance:50291.08},
+      {date:'2026-03-12', pnl:-70.07,  balance:50221.01},
+      {date:'2026-03-16', pnl:92.63,   balance:50313.64},
+      {date:'2026-03-17', pnl:1110.26, balance:51423.90},
+      {date:'2026-03-18', pnl:-404.22, balance:51019.68},
+      {date:'2026-03-19', pnl:521.15,  balance:51540.83},
+      {date:'2026-03-23', pnl:-436.98, balance:51103.85},
+      {date:'2026-03-24', pnl:-850.55, balance:50253.30},
+      {date:'2026-04-30', pnl:-1485.3, balance:48768},
+      {date:'2026-05-01', pnl:80.02,   balance:48848.02},
+      {date:'2026-05-03', pnl:162.39,  balance:49010.41},
+      {date:'2026-05-04', pnl:-181.22, balance:48829.19},
+    ], tw:0, adj:0, payouts:[], meta:{id:'apex_leg2', name:'Legacy PA #2 — 08 — 08', num:'PA-APEX-158140-08', size:'50K_LEGACY', ddType:'Intraday', plan:'Apex Legacy PA $50K', startBal:50000, trailDD:2500, burnStart:47500, p1T:3000, p2T:3000, dll:0, safetyNet:52600, maxContractsEval:0, maxContractsPA:5, isLegacy:true, color:'#b45309', colorBg:'#fef3c7', colorMid:'#fcd34d'}},
+    {ph:'pa', days:[
+      {date:'2026-03-03', pnl:-90.48,  balance:49909.52},
+      {date:'2026-03-04', pnl:411.28,  balance:50320.80},
+      {date:'2026-03-05', pnl:498.91,  balance:50819.71},
+      {date:'2026-03-06', pnl:145.26,  balance:50964.97},
+      {date:'2026-03-08', pnl:-416.35, balance:50548.62},
+      {date:'2026-03-09', pnl:-411.47, balance:50137.15},
+      {date:'2026-03-10', pnl:204.39,  balance:50341.54},
+      {date:'2026-03-11', pnl:-40.96,  balance:50300.58},
+      {date:'2026-03-12', pnl:-70.07,  balance:50230.51},
+      {date:'2026-03-16', pnl:92.63,   balance:50323.14},
+      {date:'2026-03-17', pnl:1110.26, balance:51433.40},
+      {date:'2026-03-18', pnl:-409.22, balance:51024.18},
+      {date:'2026-03-19', pnl:524.65,  balance:51548.83},
+      {date:'2026-03-23', pnl:-436.98, balance:51111.85},
+      {date:'2026-03-24', pnl:-849.05, balance:50262.80},
+      {date:'2026-04-30', pnl:-1475.8, balance:48787},
+      {date:'2026-05-01', pnl:80.52,   balance:48867.52},
+      {date:'2026-05-03', pnl:162.39,  balance:49029.91},
+      {date:'2026-05-04', pnl:-179.72, balance:48850.19},
+    ], tw:0, adj:0, payouts:[], meta:{id:'apex_leg3', name:'Legacy PA #3 — 07 — 07', num:'PA-APEX-158140-07', size:'50K_LEGACY', ddType:'Intraday', plan:'Apex Legacy PA $50K', startBal:50000, trailDD:2500, burnStart:47500, p1T:3000, p2T:3000, dll:0, safetyNet:52600, maxContractsEval:0, maxContractsPA:5, isLegacy:true, color:'#b45309', colorBg:'#fef3c7', colorMid:'#fcd34d'}},
+    {ph:'pa', days:[
+      {date:'2026-03-03', pnl:-98.48,  balance:49901.52},
+      {date:'2026-03-04', pnl:413.28,  balance:50314.80},
+      {date:'2026-03-05', pnl:500.41,  balance:50815.21},
+      {date:'2026-03-06', pnl:143.26,  balance:50958.47},
+      {date:'2026-03-08', pnl:-410.85, balance:50547.62},
+      {date:'2026-03-09', pnl:-410.97, balance:50136.65},
+      {date:'2026-03-10', pnl:204.39,  balance:50341.04},
+      {date:'2026-03-11', pnl:-41.96,  balance:50299.08},
+      {date:'2026-03-12', pnl:-69.07,  balance:50230.01},
+      {date:'2026-03-16', pnl:92.63,   balance:50322.64},
+      {date:'2026-03-17', pnl:1110.26, balance:51432.90},
+      {date:'2026-03-18', pnl:-404.22, balance:51028.68},
+      {date:'2026-03-19', pnl:523.15,  balance:51551.83},
+      {date:'2026-03-23', pnl:-436.98, balance:51114.85},
+      {date:'2026-03-24', pnl:-849.05, balance:50265.80},
+      {date:'2026-04-30', pnl:-1695.8, balance:48570},
+      {date:'2026-05-01', pnl:80.02,   balance:48650.02},
+      {date:'2026-05-03', pnl:161.89,  balance:48811.91},
+      {date:'2026-05-04', pnl:-182.22, balance:48629.69},
+    ], tw:0, adj:0, payouts:[], meta:{id:'apex_leg4', name:'Legacy PA #4 — 06 — 06', num:'PA-APEX-158140-06', size:'50K_LEGACY', ddType:'Intraday', plan:'Apex Legacy PA $50K', startBal:50000, trailDD:2500, burnStart:47500, p1T:3000, p2T:3000, dll:0, safetyNet:52600, maxContractsEval:0, maxContractsPA:5, isLegacy:true, color:'#b45309', colorBg:'#fef3c7', colorMid:'#fcd34d'}},
+  ];
+
+  // ── LucidFlex Funded ──
+  S.lucidAccs = [
+    {ph:'funded', days:[
+      {date:'2026-04-26', pnl:244.93,  balance:50244.93},
+      {date:'2026-04-27', pnl:56.08,   balance:50301.01},
+      {date:'2026-04-28', pnl:-778.30, balance:49522.71},
+      {date:'2026-04-29', pnl:1522.01, balance:51044.72},
+      {date:'2026-04-30', pnl:-209.76, balance:50834.96},
+      {date:'2026-05-03', pnl:-56.00,  balance:50723.01},
+      {date:'2026-05-04', pnl:336.90,  balance:51059.91},
+    ], tw:0, adj:0, meta:{
+      id:'lucid_flex1', name:'LucidFlex 50K', num:'LFF05064983840002',
+      plan:'LucidFlex', size:'$50K',
+      startBal:50000, trailDD:954, burnStart:49046,
+      p1T:2000, p2T:2000,
+      minProfitDay:150, isStatic:true,
+      color:'#7c3aed', colorBg:'#ede9fe', colorMid:'#c4b5fd',
+    }},
+  ];
+
+  S.accs[2] = {ph:'blulive', tw:0, adj:0, days:[
+    {date:'2026-04-19', pnl:-65.20,  balance:49934.80},
+    {date:'2026-04-20', pnl:-310.80, balance:49624.00},
+    {date:'2026-04-21', pnl:-526.20, balance:49097.80},
+    {date:'2026-04-22', pnl:268.80,  balance:49366.60},
+    {date:'2026-04-23', pnl:111.70,  balance:49478.30},
+    {date:'2026-04-24', pnl:748.50,  balance:50226.80},
+    {date:'2026-04-26', pnl:208.20,  balance:50435.00},
+    {date:'2026-04-27', pnl:-25.00,  balance:50410.00},
+    {date:'2026-04-28', pnl:58.80,   balance:50468.80},
+    {date:'2026-04-29', pnl:176.40,  balance:50645.20},
+    {date:'2026-04-30', pnl:-40.20,  balance:50605.00},
+    {date:'2026-05-01', pnl:174.20,  balance:50779.20},
+    {date:'2026-05-03', pnl:292.20,  balance:51071.40},
+    {date:'2026-05-04', pnl:-531.80, balance:50539.60},
+    {date:'2026-05-05', pnl:753.00,  balance:51292.60},
+    {date:'2026-05-06', pnl:-224.70, balance:51067.90},
+    {date:'2026-05-07', pnl:529.40,  balance:51597.30},
+    {date:'2026-05-08', pnl:165.60,  balance:51762.90},
+  ]};
+  // 50K LAUNCH II Phase 1 — BSKELAUNCHELI36013 — CSV net of fees ($2.20/trade)
+  S.accs[3] = {ph:'eval1', tw:0, adj:0, days:[
+    {date:'2026-04-29', pnl:772.80,  balance:50772.80},
+    {date:'2026-04-30', pnl:120.40,  balance:50893.20},
+    {date:'2026-05-01', pnl:169.20,  balance:51062.40},
+    {date:'2026-05-03', pnl:292.70,  balance:51355.10},
+    {date:'2026-05-04', pnl:-344.20, balance:51010.90},
+  ]};
+  save();
+}
+renderAll();
+updateClock();
+setInterval(updateClock,30000);
+setTimeout(()=>{
+  const today=new Date().toISOString().split('T')[0];
+  ACCS.forEach((_,i)=>{const el=document.getElementById(`fd-${i}`);if(el&&!el.value)el.value=today;});
+},100);
+if(S.insights) applyInsights(S.insights);
+</script>
+</body>
+</html>
