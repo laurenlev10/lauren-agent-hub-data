@@ -1595,9 +1595,10 @@ function buildFirmAccBlock(firmKey,i){
 
         <!-- Strategy strip: per-cycle action + total-plan target -->
         <div style="margin-top:10px;padding:10px 12px;background:rgba(0,0,0,0.04);border-radius:8px;font-size:12px;color:var(--txt2);line-height:1.7;">
-          <div style="font-weight:800;margin-bottom:4px;">📐 אסטרטגיית מקסימום משיכות</div>
-          <div>• בכל מחזור: balance מגיע ל-<b>$${f0(targetBal)}</b> → משיכה <b>$${f0(nextCap)}</b> → balance חוזר ל-MLL → סבב חדש</div>
+          <div style="font-weight:800;margin-bottom:4px;">📐 אסטרטגיית buffer (בטוח, לא מסכן את החשבון)</div>
+          <div>• בכל מחזור: balance מגיע ל-<b>$${f0(targetBal)}</b> → משיכה <b>$${f0(nextCap)}</b> → balance חוזר ל-<b>$${f0(targetBal-nextCap)}</b> (עדיין <b>$${f0(targetBal-nextCap-(cfg.computeMllForBuffer?cfg.computeMllForBuffer():(targetBal-2*nextCap)))}</b> מעל ה-MLL) → סבב חדש</div>
           <div>• <b>היעד הכולל:</b> ${TOTAL_PAYOUTS} משיכות = <b style="color:var(--grn)">$${f0(totalPotentialGross)} ברוטו</b> = <b style="color:var(--grn)">$${f0(totalPotentialPocket)} לכיס</b>${cfg.transitionLabel?' → '+cfg.transitionLabel:''}</div>
+          <div style="margin-top:4px;font-size:11px;color:var(--txt4);">💡 המינימום הטכני נמוך יותר ($${f0(targetBal-nextCap)}) אבל אחרי משיכה ה-balance נשאר בדיוק על ה-MLL — סיכון מקסימלי. עדיף לצבור buffer.</div>
         </div>
       </div>`;
     }
@@ -1650,10 +1651,13 @@ function buildFirmAccBlock(firmKey,i){
       taken: taken,
       balance: b,
       computeTargetBal: function(t, cfg){
-        // First payout: hit Initial Trail Balance. After that: locked MLL + cap.
-        return t.length === 0 ? initialTrail : (lockedMLL + 2000);
+        // SAFE target: locked MLL + 2× cap. After withdrawing $2,000, balance
+        // stays $2,000 above MLL — never AT the redline. This is the safer
+        // play vs the technical min ($52,100 = MLL+cap, which leaves balance
+        // exactly AT MLL after withdrawal — any loss = blowout).
+        return lockedMLL + 4000;  // $50,100 + 2×$2,000 = $54,100
       },
-      balanceTargetNote: 'MLL+תקרה',
+      balanceTargetNote: 'יעד בטוח: MLL+2×תקרה (משאיר $2K buffer גם אחרי המשיכה)',
       cycleQualifyingDays: cycleQualifying,
       qualDaysNeeded: 5,
       minQualDay: 150,
@@ -1691,10 +1695,14 @@ function buildFirmAccBlock(firmKey,i){
       taken: taken,
       balance: b,
       computeTargetBal: function(t, cfg){
-        // Apex: balance must be ≥ Safety Net + min payout for safe withdrawal
-        return safetyNetVal + 500;
+        // SAFE target: Safety Net + 2× cap. After withdrawing the cap,
+        // balance stays a full cap above the safety net — buffer for the
+        // next loss. Min was Safety Net + $500 (technical) but Lauren
+        // prefers buffer accumulation before each withdrawal.
+        const cap = caps[Math.min(taken.length, caps.length-1)];
+        return safetyNetVal + (2 * cap);
       },
-      balanceTargetNote: 'Safety Net+$500',
+      balanceTargetNote: 'יעד בטוח: Safety Net+2×תקרה (buffer גם אחרי המשיכה)',
       cycleQualifyingDays: cycleQualifying,
       qualDaysNeeded: 5,
       minQualDay: minQual,
