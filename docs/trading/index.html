@@ -306,6 +306,34 @@ select option{background:#fff;}
 .daily-target-card .dt-sub{font-size:10px;font-weight:600;color:var(--txt4);margin-top:2px;}
 .daily-target-card .dt-tip{font-size:12px;font-weight:700;color:var(--txt2);background:rgba(255,255,255,0.55);border-radius:6px;padding:8px 10px;direction:rtl;text-align:right;line-height:1.5;}
 
+
+.dl-panel{display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:8px;}
+@media(max-width:700px){.dl-panel{grid-template-columns:1fr;}}
+.dl-card{background:var(--surface);border:1.5px solid var(--bdr);border-radius:12px;padding:14px 18px;box-shadow:var(--sh);}
+.dl-stop{background:linear-gradient(135deg,#dc2626,#991b1b);color:#fff;border:none;animation:dl-pulse 1.5s infinite;}
+@keyframes dl-pulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.5);}50%{box-shadow:0 0 0 12px rgba(220,38,38,0);}}
+.dl-card .dl-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.dl-card .dl-h{font-size:13px;font-weight:800;color:var(--txt);}
+.dl-card .dl-edit{font-size:11px;color:var(--sky);background:none;border:1px solid var(--sky);border-radius:6px;padding:3px 10px;cursor:pointer;font-family:var(--f);font-weight:700;}
+.dl-card .dl-pnl{font-size:24px;font-weight:900;color:var(--sky);text-align:center;margin:6px 0;}
+.dl-card .dl-pnl.win{color:var(--grn);} .dl-card .dl-pnl.loss{color:var(--red);}
+.dl-card .dl-bar-track{height:14px;background:linear-gradient(90deg,#fee2e2 0%,#fee2e2 35%,#dcfce7 35%,#dcfce7 100%);border-radius:7px;position:relative;overflow:hidden;margin:8px 0;}
+.dl-card .dl-bar-marker{position:absolute;top:-3px;width:3px;height:20px;background:var(--txt);border-radius:1px;}
+.dl-card .dl-bar-zero{position:absolute;left:35%;top:-2px;width:1px;height:18px;background:var(--txt3);}
+.dl-card .dl-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--txt4);font-weight:700;}
+.dl-stop .dl-h, .dl-stop .dl-pnl, .dl-stop .dl-labels{color:#fff;}
+.action-card{background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #f97316;border-radius:12px;padding:14px 18px;}
+.action-card.urgent{background:linear-gradient(135deg,#fef2f2,#fecaca);border-color:#dc2626;}
+.action-card.future{background:#f8fafc;border-color:var(--bdr);border-style:dashed;}
+.action-card .ac-tag{font-size:10px;font-weight:800;color:#9a3412;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}
+.action-card.urgent .ac-tag{color:#991b1b;} .action-card.future .ac-tag{color:var(--txt4);}
+.action-card .ac-ttl{font-size:14px;font-weight:800;color:var(--txt);margin-bottom:4px;}
+.action-card .ac-meta{font-size:11px;color:var(--txt3);font-weight:600;}
+.stop-banner{background:linear-gradient(135deg,#dc2626,#991b1b);color:#fff;border-radius:14px;padding:18px 24px;text-align:center;animation:stop-flash 1s infinite;margin-bottom:14px;}
+@keyframes stop-flash{0%,100%{background:linear-gradient(135deg,#dc2626,#991b1b);}50%{background:linear-gradient(135deg,#7f1d1d,#450a0a);}}
+.stop-banner h2{font-size:1.4rem;font-weight:900;margin-bottom:4px;}
+.stop-banner p{font-size:.9rem;opacity:.95;}
+
 </style>
 </head>
 <body>
@@ -339,6 +367,9 @@ select option{background:#fff;}
     <button class="btn-primary" onclick="openModal()">+ עדכון יומי</button>
   </div>
 </div>
+
+<!-- DAILY LIMITS + ACTION BANNER (2026-05-09) -->
+<div id="daily-status-zone" style="max-width:1200px;margin:0 16px 14px auto;direction:rtl;"></div>
 
 <!-- 3-COLUMN ACCOUNTS GRID -->
 <div class="accounts-grid" id="accounts-grid"></div>
@@ -2710,6 +2741,139 @@ function closeHistoryModal(){
   document.getElementById('hist-modal-overlay').style.display='none';
   document.getElementById('hist-modal').style.display='none';
 }
+
+
+// ════════════ DAILY LIMITS + ACTION BANNER (2026-05-09) ════════════
+async function loadDailyStatus(){
+  const zone = document.getElementById('daily-status-zone');
+  if(!zone) return;
+  let plan = null;
+  try{
+    const r = await fetch('../state/trading_plan.json?_='+Date.now(), {cache:'no-store'});
+    if(r.ok) plan = await r.json();
+  }catch(e){}
+  if(!plan){
+    zone.innerHTML = '<div class="dl-card"><div class="dl-h">📅 לא נמצאה תוכנית פעילה — <a href="../trading-plans/active/" style="color:var(--sky);">פתחי תוכנית</a></div></div>';
+    return;
+  }
+  window.PLAN_CACHE = plan;
+  const limits = plan.daily_limits || {profit_target:1000, loss_limit:-500};
+  const today = new Date().toISOString().split('T')[0];
+  let todayPnl = 0, accsWithToday = 0;
+  function addAcc(a){
+    if(!a || !a.days) return;
+    const t = a.days.find(d => d.date === today);
+    if(t){ todayPnl += t.pnl || 0; accsWithToday++; }
+  }
+  (S.accs||[]).forEach(addAcc);
+  (S.apexAccs||[]).forEach(addAcc);
+  (S.lucidAccs||[]).forEach(addAcc);
+  const hitProfit = todayPnl >= limits.profit_target;
+  const hitLoss = todayPnl <= limits.loss_limit;
+  const hitLimit = hitProfit || hitLoss;
+  let pct;
+  if(todayPnl >= 0) pct = 35 + (todayPnl / limits.profit_target) * 65;
+  else pct = 35 + (todayPnl / Math.abs(limits.loss_limit)) * 35;
+  pct = Math.min(100, Math.max(0, pct));
+  let html = '';
+  if(hitLimit){
+    html += `<div class="stop-banner">
+      <h2>🛑 STOP TRADING ${hitProfit?'— הגעת ליעד הרווח!':'— חצית את מגבלת ההפסד!'}</h2>
+      <p>P&L היום: <b style="font-size:1.1em;">${todayPnl>=0?'+':''}$${todayPnl.toFixed(2)}</b> · יעד: $${limits.profit_target} · מגבלה: $${limits.loss_limit}</p>
+      <p style="margin-top:6px;font-size:0.82rem;">${hitProfit?'יום עבודה הסתיים — שמרי על הרווח, אל תסכני אותו.':'יום עבודה הסתיים — סגרי פוזיציות, חכי למחר. אל תנסי להחזיר.'}</p>
+    </div>`;
+    if('Notification' in window && Notification.permission === 'granted'){
+      try{ new Notification(hitProfit?'🎯 הגעת ליעד הרווח היומי!':'🛑 חצית את מגבלת ההפסד!', {body: 'STOP TRADING — '+(todayPnl>=0?'+$':'$')+todayPnl.toFixed(2)}); }catch(e){}
+    }
+  }
+  const pnlClass = todayPnl > 0 ? 'win' : todayPnl < 0 ? 'loss' : '';
+  html += `<div class="dl-panel">
+    <div class="dl-card ${hitLimit?'dl-stop':''}">
+      <div class="dl-row">
+        <div class="dl-h">📊 P&L היום (כל החשבונות)</div>
+        <button class="dl-edit" onclick="editDailyLimits()">✏️ ערכי יעדים</button>
+      </div>
+      <div class="dl-pnl ${pnlClass}">${todayPnl>=0?'+':''}$${todayPnl.toFixed(2)}</div>
+      <div class="dl-bar-track"><div class="dl-bar-zero"></div><div class="dl-bar-marker" style="right:${pct}%;"></div></div>
+      <div class="dl-labels">
+        <span style="color:var(--red);">🛑 $${limits.loss_limit}</span>
+        <span>$0</span>
+        <span style="color:var(--grn);">🎯 $${limits.profit_target}</span>
+      </div>
+      <div style="font-size:11px;color:var(--txt4);margin-top:6px;text-align:center;">${accsWithToday} חשבונות עם נתונים מהיום</div>
+    </div>
+    ${renderNextAction(plan)}
+  </div>`;
+  zone.innerHTML = html;
+  if('Notification' in window && Notification.permission === 'default'){
+    setTimeout(()=>{ try{ Notification.requestPermission(); }catch(e){} }, 5000);
+  }
+}
+
+function renderNextAction(plan){
+  const status = plan.milestone_status || {};
+  const today = new Date(); today.setHours(0,0,0,0);
+  const open = (plan.milestones||[])
+    .filter(m => (status[m.id]||'pending') === 'pending')
+    .sort((a,b) => a.due.localeCompare(b.due));
+  if(!open.length){
+    return `<div class="action-card future">
+      <div class="ac-tag">😎 אין משימות פתוחות</div>
+      <div class="ac-ttl">המשך לסחור על פי הכללים</div>
+      <div class="ac-meta">פתחי <a href="../trading-plans/active/" style="color:var(--sky);">תוכנית פעילה</a></div>
+    </div>`;
+  }
+  const next = open[0];
+  const d = Math.round((new Date(next.due+'T00:00:00').getTime() - today.getTime()) / 86400000);
+  const urgent = d <= 1;
+  const future = d > 7;
+  const klass = urgent ? 'urgent' : future ? 'future' : '';
+  const urgencyText = d < 0 ? `${Math.abs(d)} ימים באיחור!` : d === 0 ? 'היום!' : d === 1 ? 'מחר' : `בעוד ${d} ימים`;
+  const firmEmoji = {'lucid':'💎','apex':'⚡','blusky':'🏦','all':'🌐'}[next.firm] || '📌';
+  return `<a href="../trading-plans/active/" style="text-decoration:none;display:block;">
+    <div class="action-card ${klass}">
+      <div class="ac-tag">${urgent?'🚨 דחוף!':'📅 משימה הבאה'} · ${urgencyText}</div>
+      <div class="ac-ttl">${firmEmoji} ${next.title}</div>
+      <div class="ac-meta">${next.product||''}${next.cost?` · $${next.cost}/mo`:''}${next.activation?` + $${next.activation}`:''}</div>
+    </div>
+  </a>`;
+}
+
+function editDailyLimits(){
+  const plan = window.PLAN_CACHE;
+  if(!plan){ alert('התוכנית לא נטענה — נסי לרענן'); return; }
+  const limits = plan.daily_limits || {};
+  const newProfit = prompt('יעד רווח יומי ($) — ברירת מחדל 1000:', limits.profit_target||1000);
+  if(!newProfit) return;
+  const newLoss = prompt('מגבלת הפסד יומי ($, מספר שלילי) — ברירת מחדל -500:', limits.loss_limit||-500);
+  if(!newLoss) return;
+  plan.daily_limits = {
+    profit_target: parseFloat(newProfit) || 1000,
+    loss_limit: parseFloat(newLoss) || -500,
+    stop_when_hit: true,
+    stopped_dates: limits.stopped_dates || []
+  };
+  saveDailyLimitsToCloud(plan);
+  loadDailyStatus();
+}
+
+async function saveDailyLimitsToCloud(plan){
+  const t = localStorage.getItem('lauren_gh_token_v1') || '';
+  if(!t){ alert('אין token לענן — לחצי על Cloud בדפדפן ולחברי'); return; }
+  try{
+    const get = await fetch('https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/trading_plan.json?ref=main&_='+Date.now(), {headers:{'Authorization':'Bearer '+t,'Accept':'application/vnd.github+json'}});
+    const cur = await get.json();
+    plan._updated_at = new Date().toISOString();
+    const body = {message:'Update daily_limits',content:btoa(unescape(encodeURIComponent(JSON.stringify(plan,null,2)+'\n'))),branch:'main',sha:cur.sha};
+    await fetch('https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/trading_plan.json', {method:'PUT',headers:{'Authorization':'Bearer '+t,'Accept':'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify(body)});
+  }catch(e){ console.warn('save limits failed:',e); }
+}
+
+const _originalRenderAll = renderAll;
+renderAll = function(){
+  _originalRenderAll();
+  try{ loadDailyStatus(); }catch(e){console.warn(e);}
+};
 
 // ════════════ INIT ════════════
 load();  // localStorage cache (fast, sync)
