@@ -281,6 +281,14 @@ select option{background:#fff;}
 .cloud-pill.offline {background:#f4f6f9;color:#4b5563;border-color:#d2daea;}
 .cloud-pill.error   {background:#fee2e2;color:#991b1b;border-color:#fca5a5;}
 
+
+/* ── PHASE TRANSITION + HISTORY (added 2026-05-08) ─────────────────────────── */
+.acc-actions{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+.acc-action-btn{font-family:var(--f);font-size:11px;font-weight:800;border:1.5px solid var(--bdr);border-radius:8px;padding:5px 10px;background:var(--surface);color:var(--txt3);cursor:pointer;transition:all .15s;letter-spacing:.2px;}
+.acc-action-btn:hover{border-color:var(--sky);color:var(--sky);transform:translateY(-1px);}
+.acc-action-btn.primary{background:var(--sky-bg);border-color:var(--sky-mid);color:var(--sky2);}
+.acc-action-btn.primary:hover{background:var(--sky);color:#fff;border-color:var(--sky);}
+
 </style>
 </head>
 <body>
@@ -358,6 +366,59 @@ select option{background:#fff;}
   <div style="display:flex;gap:10px;margin-top:18px;padding-top:14px;border-top:2px solid var(--bdr2);">
     <button class="btn-cancel" onclick="closeCsvModal()" style="background:none;border:1.5px solid var(--bdr);border-radius:12px;padding:11px 20px;font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;color:var(--txt3);">ביטול</button>
     <button id="csv-apply" onclick="applyCsv()" disabled style="flex:1;background:var(--pur);color:#fff;border:none;border-radius:12px;padding:12px 24px;font-family:var(--f);font-size:16px;font-weight:800;cursor:pointer;opacity:0.5;">💾 החל על החשבון</button>
+  </div>
+</div>
+
+<!-- ═══ PHASE TRANSITION MODAL ═══ -->
+<div id="trans-modal-overlay" onclick="closeTransitionModal()" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:90;"></div>
+<div id="trans-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border-radius:16px;padding:28px;width:min(560px,92vw);max-height:85vh;overflow-y:auto;box-shadow:var(--sh2);z-index:91;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid var(--bdr2);">
+    <div style="font-size:22px;font-weight:900;color:var(--sky);">🎯 עברתי שלב — <span id="trans-acc-name">—</span></div>
+    <button onclick="closeTransitionModal()" style="background:none;border:none;font-size:22px;color:var(--txt3);cursor:pointer;">✕</button>
+  </div>
+  <div style="background:var(--s2);border-radius:10px;padding:14px;margin-bottom:14px;font-size:13px;line-height:1.6;color:var(--txt3);direction:rtl;">
+    <div style="font-weight:700;color:var(--txt);margin-bottom:6px;">⚠ זה ידחוס את השלב הנוכחי להיסטוריה</div>
+    <div>הנתונים הנוכחיים (<span id="trans-cur-days">—</span> ימים, balance <span id="trans-cur-bal">—</span>) <b>נשמרים</b> כפי שהם תחת היסטוריה — לא נמחקים.<br>
+    החשבון יתאפס: יומן ריק, balance חוזר ל-startBal, השלב והמספר מתעדכנים לפי מה שתבחרי.</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:14px;">
+    <div>
+      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">שלב חדש:</label>
+      <select id="trans-phase" style="width:100%;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--f);font-size:15px;font-weight:700;background:var(--s2);">
+        <option value="eval1">Phase 1 — Evaluation</option>
+        <option value="blulive" selected>Phase 2 — BluLive</option>
+        <option value="simfunded">Sim Funded</option>
+        <option value="brokreview">Brokerage Review</option>
+        <option value="live">Live Brokerage 🎉</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">מספר חשבון חדש (אם BluSky הנפיקו לך אחד חדש):</label>
+      <input type="text" id="trans-num" placeholder="BSKE..." style="width:100%;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--m);font-size:14px;background:var(--s2);" />
+      <div style="font-size:11px;color:var(--txt4);margin-top:4px;">השאירי ריק אם המספר נשאר זהה</div>
+    </div>
+    <div>
+      <label style="font-size:13px;font-weight:700;color:var(--txt3);display:block;margin-bottom:6px;">Starting balance (אופציונלי):</label>
+      <input type="number" id="trans-startbal" placeholder="50000" style="width:200px;padding:10px 12px;border:1.5px solid var(--bdr);border-radius:10px;font-family:var(--f);font-size:15px;background:var(--s2);" />
+      <div style="font-size:11px;color:var(--txt4);margin-top:4px;">השאירי ריק לערך ברירת המחדל של החשבון</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:18px;padding-top:14px;border-top:2px solid var(--bdr2);">
+    <button onclick="closeTransitionModal()" style="background:none;border:1.5px solid var(--bdr);border-radius:12px;padding:11px 20px;font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;color:var(--txt3);">ביטול</button>
+    <button onclick="applyTransition()" style="flex:1;background:var(--sky);color:#fff;border:none;border-radius:12px;padding:12px 24px;font-family:var(--f);font-size:16px;font-weight:800;cursor:pointer;">💾 בצעי מעבר</button>
+  </div>
+</div>
+
+<!-- ═══ HISTORY MODAL ═══ -->
+<div id="hist-modal-overlay" onclick="closeHistoryModal()" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:90;"></div>
+<div id="hist-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border-radius:16px;padding:28px;width:min(720px,92vw);max-height:85vh;overflow-y:auto;box-shadow:var(--sh2);z-index:91;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid var(--bdr2);">
+    <div style="font-size:22px;font-weight:900;color:var(--pur);">↻ היסטוריית שלבים — <span id="hist-acc-name">—</span></div>
+    <button onclick="closeHistoryModal()" style="background:none;border:none;font-size:22px;color:var(--txt3);cursor:pointer;">✕</button>
+  </div>
+  <div id="hist-body" style="font-size:14px;direction:rtl;"></div>
+  <div style="display:flex;justify-content:flex-start;margin-top:18px;padding-top:14px;border-top:2px solid var(--bdr2);">
+    <button onclick="closeHistoryModal()" style="background:none;border:1.5px solid var(--bdr);border-radius:12px;padding:11px 20px;font-family:var(--f);font-size:15px;font-weight:700;cursor:pointer;color:var(--txt3);">סגור</button>
   </div>
 </div>
 
@@ -685,6 +746,9 @@ function target(ai){
 function cumSim(ai){ return pnl(ai)+(S.accs[ai].tw||0); }
 function phL(k){ return PH.find(p=>p.k===k)?.l||k; }
 function phS(k){ return PH.find(p=>p.k===k)?.s||k; }
+// Account number — prefer per-state meta.num override (set when Lauren transitions
+// phases and BluSky issues a new account number) over the static ACCS[i].num.
+function accNum(i){ return (S.accs[i]?.meta?.num) || ACCS[i].num; }
 function phI(k){ return PH.findIndex(p=>p.k===k); }
 
 // ════════════ FORMAT ════════════
@@ -1083,7 +1147,11 @@ function buildAccBlock(i){
       <div class="acc-color-bar" style="background:${acc.color}"></div>
       <div class="acc-header-body">
         <div class="acc-name">${acc.name}</div>
-        <div class="acc-num">${acc.num}</div>
+        <div class="acc-num">${accNum(i)}</div>
+        <div class="acc-actions">
+          <button class="acc-action-btn primary" type="button" onclick="openTransitionModal(${i})" title="Phase transition">🎯 עברתי שלב</button>
+          ${(aS.history && aS.history.length) ? `<button class="acc-action-btn" type="button" onclick="openHistoryModal(${i})" title="ראי שלבים קודמים">↻ היסטוריה (${aS.history.length})</button>` : ''}
+        </div>
         <div style="font-size:13px;font-weight:700;color:var(--sky);margin-bottom:8px;">${lastUpdated(days(i))}</div>
         <div class="acc-phase-row">
           <div class="phase-pill" style="${phStyle}">${phL(ph)}</div>
@@ -1766,6 +1834,119 @@ function applyCsv(){
   try{ renderAll(); }catch(e){}
   const accLbl = (bucket==='accs') ? ACCS[idx].name : (acc.meta && acc.meta.name) || sel;
   alert('✅ עודכן '+accLbl+'\n\n'+csvParsedDays.length+' ימים נכנסו לחשבון.\nSync לענן יקרה תוך 2 שניות.');
+}
+
+// ════════════ PHASE TRANSITION + HISTORY (added 2026-05-08) ════════════
+let transitionAccIdx = null;
+
+function openTransitionModal(i){
+  transitionAccIdx = i;
+  const acc = ACCS[i], aS = S.accs[i];
+  const curBal = bal(i);
+  const curDays = (aS.days||[]).length;
+  document.getElementById('trans-acc-name').textContent = acc.name;
+  document.getElementById('trans-cur-days').textContent = curDays;
+  document.getElementById('trans-cur-bal').textContent = '$' + curBal.toFixed(2);
+  document.getElementById('trans-phase').value = aS.ph === 'eval1' ? 'blulive' : aS.ph;  // Smart default
+  document.getElementById('trans-num').value = '';
+  document.getElementById('trans-startbal').value = '';
+  document.getElementById('trans-modal-overlay').style.display='block';
+  document.getElementById('trans-modal').style.display='block';
+}
+function closeTransitionModal(){
+  document.getElementById('trans-modal-overlay').style.display='none';
+  document.getElementById('trans-modal').style.display='none';
+  transitionAccIdx = null;
+}
+
+function applyTransition(){
+  const i = transitionAccIdx;
+  if(i === null) return;
+  const acc = ACCS[i], aS = S.accs[i];
+  const newPh = document.getElementById('trans-phase').value;
+  const newNumRaw = document.getElementById('trans-num').value.trim();
+  const newStartBalRaw = document.getElementById('trans-startbal').value.trim();
+  const newStartBal = newStartBalRaw ? parseFloat(newStartBalRaw) : acc.startBal;
+
+  // Archive current state into history
+  const oldDays = aS.days || [];
+  const oldBal = oldDays.length ? oldDays[oldDays.length-1].balance : acc.startBal;
+  const oldTotalPnL = oldDays.reduce(function(s,d){return s+d.pnl;}, 0);
+  const archiveEntry = {
+    ph: aS.ph,
+    num: accNum(i),
+    startBal: acc.startBal,
+    days: oldDays,
+    finalBalance: +oldBal.toFixed(2),
+    totalPnL: +oldTotalPnL.toFixed(2),
+    passed: oldTotalPnL > 0,
+    passedAt: new Date().toISOString().split('T')[0],
+  };
+  aS.history = (aS.history || []);
+  aS.history.push(archiveEntry);
+
+  // Reset to new phase
+  aS.ph = newPh;
+  aS.days = [];
+  aS.tw = 0;
+  aS.adj = 0;
+  if(newNumRaw){
+    aS.meta = aS.meta || {};
+    aS.meta.num = newNumRaw;
+  }
+  if(newStartBalRaw){
+    aS.meta = aS.meta || {};
+    aS.meta.startBal = newStartBal;
+  }
+
+  save();
+  closeTransitionModal();
+  try{ renderAll(); }catch(e){}
+  alert('✅ '+acc.name+' עבר ל-'+newPh+'\n\nמספר חשבון: '+(newNumRaw||accNum(i))+'\nStart balance: $'+newStartBal.toFixed(2)+'\n\nהשלב הקודם נשמר בהיסטוריה ('+aS.history.length+' שלבים סה"כ).');
+}
+
+function openHistoryModal(i){
+  const acc = ACCS[i], aS = S.accs[i];
+  const hist = aS.history || [];
+  document.getElementById('hist-acc-name').textContent = acc.name;
+  let html = '';
+  if(hist.length === 0){
+    html = '<div style="text-align:center;color:var(--txt4);padding:30px;">עדיין אין שלבים בהיסטוריה</div>';
+  } else {
+    hist.slice().reverse().forEach(function(h, idx){
+      const pnlColor = (h.totalPnL||0) >= 0 ? 'var(--grn)' : 'var(--red)';
+      const phLabel = (typeof PH !== 'undefined' && PH.find(function(p){return p.k===h.ph;})?.l) || h.ph;
+      html += '<div style="background:var(--s2);border-radius:10px;padding:14px;margin-bottom:10px;border-right:4px solid '+(h.passed?'var(--grn)':'var(--amb)')+';">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+      html += '<div><div style="font-weight:800;font-size:15px;color:var(--txt);">'+phLabel+(h.passed?' ✓ עבר':'')+'</div>';
+      html += '<div style="font-family:var(--m);font-size:12px;color:var(--txt4);">'+(h.num||'')+'</div></div>';
+      html += '<div style="text-align:left;font-size:11px;color:var(--txt4);">'+(h.passedAt||'')+'</div></div>';
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:12px;">';
+      html += '<div><div style="color:var(--txt4);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">ימים</div><div style="font-weight:800;font-size:15px;color:var(--txt);">'+(h.days||[]).length+'</div></div>';
+      html += '<div><div style="color:var(--txt4);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">P&L Total</div><div style="font-weight:800;font-size:15px;color:'+pnlColor+';">$'+(h.totalPnL||0).toFixed(2)+'</div></div>';
+      html += '<div><div style="color:var(--txt4);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">Final Balance</div><div style="font-weight:800;font-size:15px;color:var(--sky);">$'+(h.finalBalance||0).toFixed(2)+'</div></div>';
+      html += '</div>';
+      if((h.days||[]).length){
+        html += '<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--sky);">▼ הצגת '+h.days.length+' ימים</summary>';
+        html += '<div style="max-height:200px;overflow-y:auto;margin-top:8px;background:#fff;border-radius:6px;">';
+        html += '<table style="width:100%;font-size:12px;border-collapse:collapse;"><thead style="background:var(--s3);"><tr><th style="padding:5px 8px;text-align:right">תאריך</th><th style="padding:5px 8px;text-align:right">P&L</th><th style="padding:5px 8px;text-align:right">Balance</th></tr></thead><tbody>';
+        h.days.forEach(function(d){
+          html += '<tr style="border-top:1px solid var(--bdr2)"><td style="padding:4px 8px;font-weight:700">'+d.date+'</td>';
+          html += '<td style="padding:4px 8px;color:'+(d.pnl>=0?'var(--grn)':'var(--red)')+';font-weight:700">$'+d.pnl.toFixed(2)+'</td>';
+          html += '<td style="padding:4px 8px">$'+(d.balance||0).toFixed(2)+'</td></tr>';
+        });
+        html += '</tbody></table></div></details>';
+      }
+      html += '</div>';
+    });
+  }
+  document.getElementById('hist-body').innerHTML = html;
+  document.getElementById('hist-modal-overlay').style.display='block';
+  document.getElementById('hist-modal').style.display='block';
+}
+function closeHistoryModal(){
+  document.getElementById('hist-modal-overlay').style.display='none';
+  document.getElementById('hist-modal').style.display='none';
 }
 
 // ════════════ INIT ════════════
