@@ -1489,23 +1489,21 @@ function buildFirmAccBlock(firmKey,i){
       </div>`).join('')}
   </div>` : '';
 
-  // ── Lucid Max-Payouts Plan ──
-  // Lauren wants a comprehensive view: 5 payouts × $2,000 = $10,000 max, then LucidLive.
-  // Tracks actual payouts via aS.payouts[] (each entry: {date, amount, net}).
-  const lucidPayoutLadder = isLucid&&ph==='funded' ? (()=>{
-    const PER_CAP = 2000;            // $2,000 cap per payout (LucidFlex 50K)
-    const TOTAL_PAYOUTS = 5;         // 5 payouts before LucidLive
-    const SPLIT = 0.90;              // 90/10 split (trader keeps 90%)
-    const caps = Array(TOTAL_PAYOUTS).fill(PER_CAP);
-    const taken = (aS.payouts||[]);
-    const cycleNum = taken.length + 1;   // next payout number
+  // ── Universal Max-Payouts Plan ──
+  // Lauren wants comprehensive payout-plan views for all funded accounts.
+  // Generic builder used by both Lucid and Apex PA. Handles ladder caps,
+  // "how much more until next payout" math, and the record button.
+  function buildPayoutPlanHTML(cfg){
+    const SPLIT = cfg.splitPct || 0.90;
+    const caps = cfg.caps;
+    const TOTAL_PAYOUTS = caps.length;
+    const taken = cfg.taken || [];
+    const cycleNum = taken.length + 1;
     const totalPaid = taken.reduce((s,t)=>s+(t.amount||0), 0);
     const totalNetToPocket = taken.reduce((s,t)=>s+(t.net||t.amount*SPLIT||0), 0);
-    const totalRemaining = (TOTAL_PAYOUTS * PER_CAP) - totalPaid;
-    const totalPotentialNet = TOTAL_PAYOUTS * PER_CAP * SPLIT; // $9,000
+    const totalPotentialNet = caps.reduce((s,c)=>s+c, 0) * SPLIT;
     const completedAll = taken.length >= TOTAL_PAYOUTS;
 
-    // Per-row rendering: done / current / pending
     const rows = caps.map((c, idx)=>{
       const n = idx + 1;
       const isDone = idx < taken.length;
@@ -1514,85 +1512,154 @@ function buildFirmAccBlock(firmKey,i){
       const amount = taking ? taking.amount : c;
       const net = taking ? (taking.net || amount*SPLIT) : Math.round(c*SPLIT);
       const dateStr = taking && taking.date ? ' · ' + taking.date : '';
+      const lastLabel = cfg.afterLastLabel || ('→ ' + (cfg.transitionLabel || 'הבא 🎉'));
       return `<div class="pl-row ${isCur?'curr':isDone?'done':''}">
         <span class="pl-num ${isCur?'curr':isDone?'done':''}">#${n}</span>
         <span class="pl-cap">${isDone?'משיכה: '+f0(amount):'תקרה: '+f0(c)}</span>
         <span class="pl-net">${f(Math.round(net))} לכיס${dateStr}</span>
-        <span class="pl-status ${isCur?'curr':isDone?'done':''}">${isDone?'✓ הושלם':isCur?'← עכשיו':n===TOTAL_PAYOUTS?'→ LucidLive 🎉':'—'}</span>
+        <span class="pl-status ${isCur?'curr':isDone?'done':''}">${isDone?'✓ הושלם':isCur?'← עכשיו':n===TOTAL_PAYOUTS?lastLabel:'—'}</span>
       </div>`;
     }).join('');
 
     const progPct = (taken.length / TOTAL_PAYOUTS) * 100;
 
-    return `<div class="payout-ladder" style="position:relative;">
-      <div class="payout-ladder-title">💰 תוכנית משיכות → LucidLive</div>
+    // "How much more until next payout?"
+    let nextPanel = '';
+    if(!completedAll){
+      const targetBal = cfg.computeTargetBal(taken, cfg);
+      const balGap = Math.max(0, targetBal - cfg.balance);
+      const balOk = balGap <= 0.01;
+      const cycleQual = cfg.cycleQualifyingDays;
+      const daysGap = Math.max(0, cfg.qualDaysNeeded - cycleQual);
+      const daysOk = daysGap === 0;
+      const allOk = balOk && daysOk;
+      const cycleNote = cfg.lastPayoutDate ? ' · מאז ' + cfg.lastPayoutDate : '';
+      nextPanel = `<div style="background:${allOk?'#dcfce7':'#fff7ed'};border:1.5px solid ${allOk?'#86efac':'#fdba74'};border-radius:10px;padding:12px 14px;margin-bottom:12px;direction:rtl;text-align:right;">
+        <div style="font-size:13px;font-weight:900;color:var(--txt);margin-bottom:8px;">
+          ${allOk ? '🎉 כל הדרישות עומדות — אפשר למשוך משיכה #'+cycleNum : '⏳ עד משיכה #'+cycleNum+' חסר:'}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div style="background:${balOk?'rgba(255,255,255,0.6)':'#fff'};border-radius:8px;padding:8px 10px;">
+            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:2px;">${balOk?'✅':'⏳'} Balance</div>
+            <div style="font-size:14px;font-weight:900;color:${balOk?'var(--grn)':'var(--amb)'};">${balOk ? '$'+cfg.balance.toFixed(2)+' ✓' : 'עוד $'+balGap.toFixed(2)}</div>
+            <div style="font-size:11px;color:var(--txt4);margin-top:2px;">יעד: $${f0(targetBal)}${cfg.balanceTargetNote?' ('+cfg.balanceTargetNote+')':''}</div>
+          </div>
+          <div style="background:${daysOk?'rgba(255,255,255,0.6)':'#fff'};border-radius:8px;padding:8px 10px;">
+            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:2px;">${daysOk?'✅':'⏳'} ימים כשירים בסבב</div>
+            <div style="font-size:14px;font-weight:900;color:${daysOk?'var(--grn)':'var(--amb)'};">${cycleQual} / ${cfg.qualDaysNeeded}${daysOk?' ✓':''}</div>
+            <div style="font-size:11px;color:var(--txt4);margin-top:2px;">יום כשיר = ≥$${cfg.minQualDay} P&L${cycleNote}</div>
+          </div>
+        </div>
+      </div>`;
+    }
 
-      <!-- Top summary bar -->
-      <div style="background:rgba(124,58,237,0.08);border-radius:10px;padding:12px 14px;margin-bottom:12px;">
+    return `<div class="payout-ladder" style="position:relative;">
+      <div class="payout-ladder-title">💰 ${cfg.title}</div>
+      <div style="background:${cfg.summaryBg||'rgba(124,58,237,0.08)'};border-radius:10px;padding:12px 14px;margin-bottom:12px;">
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
           <div>
             <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;">משיכות שבוצעו</div>
-            <div style="font-size:18px;font-weight:900;color:var(--pur);">${taken.length} / ${TOTAL_PAYOUTS}</div>
+            <div style="font-size:18px;font-weight:900;color:${cfg.accent||'var(--pur)'};">${taken.length} / ${TOTAL_PAYOUTS}</div>
           </div>
           <div>
             <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;">סה״כ נכנס לכיס</div>
             <div style="font-size:18px;font-weight:900;color:var(--grn);">${f0(totalNetToPocket)}</div>
           </div>
           <div>
-            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;">פוטנציאל מקס׳ לכיס</div>
+            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;">פוטנציאל לכיס</div>
             <div style="font-size:18px;font-weight:900;color:var(--txt);">${f0(totalPotentialNet)}</div>
           </div>
         </div>
-        <div style="height:6px;background:rgba(124,58,237,0.15);border-radius:999px;margin-top:10px;overflow:hidden;">
-          <div style="height:100%;background:var(--pur);width:${progPct}%;transition:width 0.4s ease;"></div>
+        <div style="height:6px;background:rgba(0,0,0,0.10);border-radius:999px;margin-top:10px;overflow:hidden;">
+          <div style="height:100%;background:${cfg.accent||'var(--pur)'};width:${progPct}%;transition:width 0.4s ease;"></div>
         </div>
-        <div style="font-size:11px;color:var(--txt4);margin-top:6px;text-align:center;">${completedAll?'🎉 כל ה-5 משיכות הושלמו — מעבר ל-LucidLive!':`עוד ${TOTAL_PAYOUTS-taken.length} משיכות עד LucidLive`}</div>
+        <div style="font-size:11px;color:var(--txt4);margin-top:6px;text-align:center;">${completedAll?cfg.allDoneLabel||'🎉 כל המשיכות הושלמו!':`עוד ${TOTAL_PAYOUTS-taken.length} משיכות עד ${cfg.transitionLabel||'הבא'}`}</div>
       </div>
-
-      ${(()=>{
-        if(completedAll) return '';
-        // "How much more until next payout #N?"
-        const lockedMLL = (window.RULES && window.RULES.firms.lucid.plans.FLEX_50K.phases.funded.lockedMLL) || 50100;
-        const initialTrail = (window.RULES && window.RULES.firms.lucid.plans.FLEX_50K.phases.funded.initialTrailBalance) || 52100;
-        // Target balance = MLL + per-payout cap (allows full $2,000 max payout safely)
-        const targetBal = (taken.length === 0) ? initialTrail : (lockedMLL + PER_CAP);
-        const balGap = Math.max(0, targetBal - b);
-        // Qualifying days IN THE CURRENT CYCLE — after last payout (or from account start if no payouts)
-        const lastPayoutDate = taken.length ? taken[taken.length-1].date : null;
-        const cycleDays = lastPayoutDate ? dList.filter(d => d.date > lastPayoutDate) : dList;
-        const cycleQualifying = cycleDays.filter(d => d.pnl >= minQualDay).length;
-        const daysGap = Math.max(0, 5 - cycleQualifying);
-
-        const balOk = balGap === 0;
-        const daysOk = daysGap === 0;
-        const allOk = balOk && daysOk;
-
-        return `<div style="background:${allOk?'#dcfce7':'#fff7ed'};border:1.5px solid ${allOk?'#86efac':'#fdba74'};border-radius:10px;padding:12px 14px;margin-bottom:12px;direction:rtl;text-align:right;">
-          <div style="font-size:13px;font-weight:900;color:var(--txt);margin-bottom:8px;">
-            ${allOk ? '🎉 כל הדרישות עומדות — אפשר למשוך משיכה #'+cycleNum : '⏳ עד משיכה #'+cycleNum+' חסר:'}
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-            <div style="background:${balOk?'rgba(255,255,255,0.6)':'#fff'};border-radius:8px;padding:8px 10px;">
-              <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:2px;">${balOk?'✅':'⏳'} Balance</div>
-              <div style="font-size:14px;font-weight:900;color:${balOk?'var(--grn)':'var(--amb)'};">${balOk ? '$'+b.toFixed(2)+' ✓' : 'עוד $'+balGap.toFixed(2)}</div>
-              <div style="font-size:11px;color:var(--txt4);margin-top:2px;">יעד: $${f0(targetBal)} (MLL+${f0(PER_CAP)})</div>
-            </div>
-            <div style="background:${daysOk?'rgba(255,255,255,0.6)':'#fff'};border-radius:8px;padding:8px 10px;">
-              <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:2px;">${daysOk?'✅':'⏳'} ימים כשירים בסבב</div>
-              <div style="font-size:14px;font-weight:900;color:${daysOk?'var(--grn)':'var(--amb)'};">${cycleQualifying} / 5${daysOk?' ✓':''}</div>
-              <div style="font-size:11px;color:var(--txt4);margin-top:2px;">יום כשיר = ≥$${minQualDay} P&L${lastPayoutDate?' · מאז '+lastPayoutDate:''}</div>
-            </div>
-          </div>
-        </div>`;
-      })()}
-
+      ${nextPanel}
       ${rows}
-
-      <button onclick="recordLucidPayout(${i})" style="margin-top:10px;width:100%;background:var(--pur);color:#fff;border:none;border-radius:10px;padding:10px 14px;font-family:var(--f);font-size:13px;font-weight:800;cursor:pointer;${completedAll?'opacity:0.4;':''}" ${completedAll?'disabled':''}>
+      <button onclick="${cfg.recordFn}(${cfg.accIdx})" style="margin-top:10px;width:100%;background:${cfg.accent||'var(--pur)'};color:#fff;border:none;border-radius:10px;padding:10px 14px;font-family:var(--f);font-size:13px;font-weight:800;cursor:pointer;${completedAll?'opacity:0.4;':''}" ${completedAll?'disabled':''}>
         ＋ רשמי משיכה ${cycleNum<=TOTAL_PAYOUTS?'#'+cycleNum:''}
       </button>
     </div>`;
-  })() : '';
+  }
+
+  // ── Lucid: 5 × $2,000 → LucidLive ──
+  let lucidPayoutLadder = '';
+  if(isLucid && ph==='funded'){
+    const taken = aS.payouts || [];
+    const lastPayoutDate = taken.length ? taken[taken.length-1].date : null;
+    const cycleDays = lastPayoutDate ? dList.filter(d => d.date > lastPayoutDate) : dList;
+    const cycleQualifying = cycleDays.filter(d => d.pnl >= 150).length;
+    const lockedMLL = (window.RULES && window.RULES.firms.lucid.plans.FLEX_50K.phases.funded.lockedMLL) || 50100;
+    const initialTrail = (window.RULES && window.RULES.firms.lucid.plans.FLEX_50K.phases.funded.initialTrailBalance) || 52100;
+    lucidPayoutLadder = buildPayoutPlanHTML({
+      title: 'תוכנית משיכות → LucidLive',
+      caps: [2000, 2000, 2000, 2000, 2000],
+      transitionLabel: 'LucidLive 🎉',
+      afterLastLabel: '→ LucidLive 🎉',
+      allDoneLabel: '🎉 כל ה-5 משיכות הושלמו — מעבר ל-LucidLive!',
+      taken: taken,
+      balance: b,
+      computeTargetBal: function(t, cfg){
+        // First payout: hit Initial Trail Balance. After that: locked MLL + cap.
+        return t.length === 0 ? initialTrail : (lockedMLL + 2000);
+      },
+      balanceTargetNote: 'MLL+תקרה',
+      cycleQualifyingDays: cycleQualifying,
+      qualDaysNeeded: 5,
+      minQualDay: 150,
+      lastPayoutDate: lastPayoutDate,
+      splitPct: 0.90,
+      accent: 'var(--pur)',
+      summaryBg: 'rgba(124,58,237,0.08)',
+      recordFn: 'recordLucidPayout',
+      accIdx: i,
+    });
+  }
+
+  // ── Apex PA: 5 × $2,000 (Legacy) or stepped ladder (4.0) ──
+  let apexPayoutLadder = '';
+  if(isApex && ph==='pa'){
+    const taken = aS.payouts || [];
+    const lastPayoutDate = taken.length ? taken[taken.length-1].date : null;
+    const isLegacy = !!meta.isLegacy;
+    const minQual = isLegacy ? 50 : 250;  // Legacy $50, 4.0 EOD $250
+    const cycleDays = lastPayoutDate ? dList.filter(d => d.date > lastPayoutDate) : dList;
+    const cycleQualifying = cycleDays.filter(d => d.pnl >= minQual).length;
+    const safetyNetVal = meta.safetyNet || (acc.startBal + acc.trailDD + 100);
+    // Apex caps:
+    //   Legacy: first 5 × $2,000, then 100% (we show 5 + a "100%" placeholder slot)
+    //   4.0: $1,500 / $1,500 / $2,000 / $2,500 / $2,500 / $3,000, then 100%
+    const caps = isLegacy
+      ? [2000, 2000, 2000, 2000, 2000, 3000 /* placeholder for "100%" — actually unlimited */]
+      : [1500, 1500, 2000, 2500, 2500, 3000];
+    apexPayoutLadder = buildPayoutPlanHTML({
+      title: isLegacy ? 'תוכנית משיכות Apex Legacy PA' : 'תוכנית משיכות Apex PA 4.0',
+      caps: caps,
+      transitionLabel: isLegacy ? '100% Profit Split 🎉' : '100% Profit Split 🎉',
+      afterLastLabel: isLegacy ? '→ 100% Split (משיכה 6 ואילך)' : '→ 100% Split',
+      allDoneLabel: '🎉 כל המשיכות הושלמו — 100% Profit Split!',
+      taken: taken,
+      balance: b,
+      computeTargetBal: function(t, cfg){
+        // Apex: balance must be ≥ Safety Net + min payout for safe withdrawal
+        return safetyNetVal + 500;
+      },
+      balanceTargetNote: 'Safety Net+$500',
+      cycleQualifyingDays: cycleQualifying,
+      qualDaysNeeded: 5,
+      minQualDay: minQual,
+      lastPayoutDate: lastPayoutDate,
+      splitPct: 0.90,
+      accent: '#e05a00',
+      summaryBg: '#fff3e0',
+      recordFn: 'recordApexPayout',
+      accIdx: i,
+    });
+  }
+
+  // Combine the two — only one will be non-empty
+  if(apexPayoutLadder) lucidPayoutLadder = apexPayoutLadder;
   let stClass='st-sky',stIcon='⏳',stTitle=phS?.l||ph,stBody='';
   if(isApex&&ph==='pa'&&!meta.isLegacy){stClass='st-red';stIcon='🤖';stTitle='PA — בוט אסור!';stBody='Apex אוסר בוטים ב-PA!';}
   else if(bf<=0){stClass='st-red';stIcon='💥';stTitle='חשבון נשרף!';}
@@ -1766,6 +1833,41 @@ function buildLucidPayoutChecklist(aS, dList, balance, totalPnl, qualifyingDays,
 
   html += '</div>';
   return html;
+}
+
+function recordApexPayout(idx){
+  const aS = S.apexAccs[idx];
+  if(!aS){ alert('חשבון לא נמצא'); return; }
+  const meta = aS.meta || {};
+  const isLegacy = !!meta.isLegacy;
+  const SPLIT = 0.90;
+  // Per-payout cap depends on which # we're on
+  const legacyCaps = [2000, 2000, 2000, 2000, 2000];   // first 5 then 100%
+  const fortyCaps = [1500, 1500, 2000, 2500, 2500, 3000];
+  const taken = aS.payouts || [];
+  const num = taken.length + 1;
+  const cap = isLegacy
+    ? (num <= 5 ? legacyCaps[num-1] : 999999)   // 100% after 5 — soft "unlimited"
+    : (num <= 6 ? fortyCaps[num-1] : 999999);
+  const capLabel = isLegacy
+    ? (num <= 5 ? '$'+cap : '100% Split (ללא מגבלה)')
+    : (num <= 6 ? '$'+cap : '100% Split (ללא מגבלה)');
+  const amtRaw = prompt('סכום משיכה #'+num+' ($) — תקרה: '+capLabel+'\nמינימום $500:', String(Math.min(cap, 1000)));
+  if(!amtRaw) return;
+  const amt = parseFloat(amtRaw);
+  if(isNaN(amt) || amt < 500){ alert('הסכום חייב להיות לפחות $500.'); return; }
+  if(amt > cap){ alert('המקסימום למשיכה הזו: '+capLabel); return; }
+  const dateRaw = prompt('תאריך המשיכה (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+  if(!dateRaw || !/^\d{4}-\d{2}-\d{2}$/.test(dateRaw.trim())){ alert('תאריך לא תקין'); return; }
+  const net = Math.round(amt * SPLIT);
+  if(!confirm('משיכה #'+num+':\n\n  סכום: $'+amt+'\n  לכיס (90%): $'+net+'\n  תאריך: '+dateRaw+'\n\nלאשר?')) return;
+  aS.payouts = taken;
+  aS.payouts.push({ date: dateRaw.trim(), amount: amt, net: net });
+  aS.tw = (aS.tw || 0) + amt;
+  save();
+  try{ renderAll(); }catch(e){}
+  const remainCapped = isLegacy ? Math.max(0, 5 - taken.length) : Math.max(0, 6 - taken.length);
+  alert('✅ משיכה #'+num+' נרשמה.\n\n'+(remainCapped===0?'🎉 עברת לשלב 100% Profit Split!':'נשארו '+remainCapped+' משיכות עם תקרה.'));
 }
 
 function recordLucidPayout(idx){
