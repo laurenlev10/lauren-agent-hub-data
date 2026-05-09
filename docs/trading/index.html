@@ -1590,10 +1590,105 @@ function buildFirmAccBlock(firmKey,i){
     </div>
     ${chipsHTML}
     ${lucidPayoutLadder}
+
+    ${(isLucid && (ph==='funded' || ph==='blulive' || ph==='lucidlive')) ? buildLucidPayoutChecklist(aS, dList, b, p, qualifyingDays, acc, meta) : ''}
+
+    <details style="margin:10px 18px 0;border:1.5px solid var(--bdr2);border-radius:10px;background:var(--surface);">
+      <summary style="cursor:pointer;padding:10px 14px;font-weight:800;font-size:14px;color:var(--sky);">▼ יומן — ${dList.length} ימים</summary>
+      <div style="max-height:280px;overflow-y:auto;background:#fff;">
+        ${dList.length === 0 ? '<div style="padding:20px;text-align:center;color:var(--txt4);">אין ימים עדיין</div>' :
+        ('<table style="width:100%;font-size:12px;border-collapse:collapse;direction:rtl;">' +
+        '<thead style="background:var(--s3);position:sticky;top:0;"><tr>' +
+        '<th style="padding:6px 8px;text-align:right">תאריך</th>' +
+        '<th style="padding:6px 8px;text-align:right">P&L</th>' +
+        '<th style="padding:6px 8px;text-align:right">Balance</th>' +
+        '<th style="padding:6px 8px;text-align:right">כשיר</th>' +
+        '</tr></thead><tbody>' +
+        dList.slice().reverse().map(function(d){
+          const isQual = d.pnl >= minQualDay;
+          return '<tr style="border-top:1px solid var(--bdr2)">' +
+            '<td style="padding:5px 8px;font-weight:700">'+d.date+'</td>' +
+            '<td style="padding:5px 8px;font-weight:800;color:'+(d.pnl>=0?'var(--grn)':'var(--red)')+';">$'+d.pnl.toFixed(2)+'</td>' +
+            '<td style="padding:5px 8px;color:var(--txt3);">$'+(d.balance||0).toFixed(2)+'</td>' +
+            '<td style="padding:5px 8px;font-size:11px;">'+(isQual?'✅':d.pnl>0?'<span style="color:var(--txt4)">< $'+minQualDay+'</span>':'<span style="color:var(--red)">הפסד</span>')+'</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table>')}
+      </div>
+    </details>
+
     ${simpleFirmCard}
     <div class="ai-insight" style="border-radius:0 0 var(--rl) var(--rl)"><div class="ai-insight-header"><span class="ai-header-lbl">💡 תובנת AI — ${acc.name}</span><span class="ai-badge">AI ✦</span></div><div class="ai-insight-body" id="ai-firm-${firmKey}-${i}"><div class="ai-empty">לחצי "ניתוח AI" לתובנות</div></div></div>
     <div style="text-align:center;padding:8px;background:var(--s2);border:1.5px solid var(--bdr2);border-top:none"><button onclick="deleteFirmAcc('${firmKey}',${i})" style="background:none;border:none;font-size:13px;color:var(--txt4);cursor:pointer">× מחק חשבון</button></div>
   </div>`;
+}
+
+function buildLucidPayoutChecklist(aS, dList, balance, totalPnl, qualifyingDays, acc, meta){
+  // Lucid payout requirements — show EVERY rule with its current status, transparently.
+  // Per official LucidFlex rules. Lauren's account is labeled 'LucidPro' — flag the
+  // potential rule difference at the bottom.
+  const initialTrailBalance = (window.RULES && window.RULES.firms.lucid.plans.FLEX_50K.phases.funded.initialTrailBalance) || 52100;
+  const lockedMLL = (window.RULES && window.RULES.firms.lucid.plans.FLEX_50K.phases.funded.lockedMLL) || 50100;
+  const minPayout = 500;
+  const perPayoutCap = 2000;
+  const maxBalEverReached = dList.length ? Math.max(...dList.map(d=>d.balance)) : balance;
+  const reachedInitialTrail = maxBalEverReached >= initialTrailBalance;
+  const fee = (window.RULES && window.RULES.firms.lucid.feePerContractRoundtrip) || 1.00;
+
+  // Buffer above current MLL — pre-payout MLL trails up
+  const currentMLL = reachedInitialTrail ? lockedMLL : Math.max(acc.startBal - 2000, maxBalEverReached - 2000);
+  const buffer = balance - currentMLL;
+  const minBufferRequired = minPayout;
+
+  function rowStatus(label, ok, value, sub){
+    const color = ok ? 'var(--grn)' : 'var(--amb)';
+    const bg = ok ? '#dcfce7' : '#fef3c7';
+    const icon = ok ? '✅' : '⏳';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:'+bg+';border-radius:8px;margin-bottom:6px;">' +
+           '<div style="font-size:18px;">'+icon+'</div>' +
+           '<div style="flex:1;direction:rtl;text-align:right;">' +
+           '<div style="font-size:13px;font-weight:800;color:var(--txt);">'+label+'</div>' +
+           (sub?'<div style="font-size:11px;color:var(--txt4);">'+sub+'</div>':'') +
+           '</div>' +
+           '<div style="font-size:14px;font-weight:900;color:'+color+';">'+value+'</div>' +
+           '</div>';
+  }
+
+  let html = '<div style="background:var(--s2);margin:10px 18px 0;border-radius:10px;padding:14px;border-right:4px solid var(--pur);">';
+  html += '<div style="font-size:14px;font-weight:900;color:var(--pur);margin-bottom:10px;direction:rtl;text-align:right;">💰 דרישות משיכה — Lucid</div>';
+
+  html += rowStatus('5 ימים כשירים (≥$150 P&L)', qualifyingDays >= 5, qualifyingDays + ' / 5', qualifyingDays >= 5 ? 'מספיק' : 'חסרים ' + (5 - qualifyingDays));
+  html += rowStatus('רווח חיובי בסבב (>$0)', totalPnl > 0, '$' + totalPnl.toFixed(2), totalPnl > 0 ? 'יש רווח' : 'חסר רווח');
+  html += rowStatus('Initial Trail Balance — $' + initialTrailBalance.toLocaleString(), reachedInitialTrail, '$' + maxBalEverReached.toFixed(2), reachedInitialTrail ? 'הגעת ל-Trail Balance — MLL ננעל' : 'עוד ' + (initialTrailBalance - maxBalEverReached).toFixed(2) + ' עד נעילת MLL · ⚠️ לפני הגעה ל-' + initialTrailBalance.toLocaleString() + ', משיכה מסוכנת');
+  html += rowStatus('Buffer מעל MLL (לפחות $500)', buffer >= minBufferRequired, '$' + buffer.toFixed(2), 'MLL נוכחי: $' + currentMLL.toFixed(2));
+
+  const allMet = qualifyingDays >= 5 && totalPnl > 0 && reachedInitialTrail && buffer >= minBufferRequired;
+  const wAmt = Math.min(perPayoutCap, balance * 0.5, buffer);
+
+  html += '<div style="margin-top:12px;padding:12px;border-radius:8px;background:'+(allMet?'#dcfce7':'rgba(0,0,0,0.06)')+';direction:rtl;text-align:right;">';
+  if(allMet){
+    html += '<div style="font-size:14px;font-weight:900;color:var(--grn);">🎉 כל הדרישות עומדות — אפשר למשוך</div>';
+    html += '<div style="font-size:12px;color:var(--txt3);margin-top:4px;">משיכה מקסימלית: $' + Math.min(wAmt, perPayoutCap).toFixed(2) + ' (50% מ-balance, עד תקרה $' + perPayoutCap + ')</div>';
+  } else {
+    html += '<div style="font-size:14px;font-weight:900;color:var(--amb);">⏳ עדיין לא ניתן למשוך</div>';
+    const missing = [];
+    if(qualifyingDays < 5) missing.push((5 - qualifyingDays) + ' ימים כשירים');
+    if(totalPnl <= 0) missing.push('רווח חיובי');
+    if(!reachedInitialTrail) missing.push('balance ≥ $' + initialTrailBalance.toLocaleString() + ' (כדי לנעול את ה-MLL)');
+    if(buffer < minBufferRequired) missing.push('Buffer ≥ $' + minBufferRequired);
+    html += '<div style="font-size:12px;color:var(--txt3);margin-top:4px;">חסר: '+missing.join(' · ')+'</div>';
+  }
+  html += '</div>';
+
+  // LucidPro vs LucidFlex flag
+  if(meta && meta.plan && meta.plan.toLowerCase().indexOf('flex') < 0){
+    html += '<div style="margin-top:10px;padding:8px 12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;font-size:11px;direction:rtl;text-align:right;color:#92400e;">';
+    html += '⚠️ החשבון רשום כ-<b>'+(meta.plan||'LucidPro')+'</b>, אבל החוקים שמוצגים פה לקוחים מ-LucidFlex (המוצר העדכני). אם אצלך הכללים שונים — ספרי לי וננסה לאמת.';
+    html += '</div>';
+  }
+
+  html += '</div>';
+  return html;
 }
 
 function deleteFirmAcc(firmKey,i){
