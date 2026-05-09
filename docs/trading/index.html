@@ -380,9 +380,6 @@ select option{background:#fff;}
   </div>
 </div>
 
-<!-- DAILY LIMITS + ACTION BANNER (2026-05-09) -->
-<div id="daily-status-zone" style="max-width:1200px;margin:0 16px 14px auto;direction:rtl;"></div>
-
 <!-- 3-COLUMN ACCOUNTS GRID -->
 <div class="accounts-grid" id="accounts-grid"></div>
 
@@ -2974,12 +2971,6 @@ async function saveDailyLimitsToCloud(plan){
     await fetch('https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/trading_plan.json', {method:'PUT',headers:{'Authorization':'Bearer '+t,'Accept':'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify(body)});
   }catch(e){ console.warn('save limits failed:',e); }
 }
-
-const _originalRenderAll = renderAll;
-renderAll = function(){
-  _originalRenderAll();
-  try{ loadDailyStatus(); }catch(e){console.warn(e);}
-};
 
 // ════════════ INIT ════════════
 load();  // localStorage cache (fast, sync)
