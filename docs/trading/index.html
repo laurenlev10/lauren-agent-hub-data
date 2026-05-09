@@ -289,6 +289,23 @@ select option{background:#fff;}
 .acc-action-btn.primary{background:var(--sky-bg);border-color:var(--sky-mid);color:var(--sky2);}
 .acc-action-btn.primary:hover{background:var(--sky);color:#fff;border-color:var(--sky);}
 
+
+/* ── DAILY TARGET PANEL (added 2026-05-09) ─────────────────────────────── */
+.daily-target-zone{margin:10px 0;padding:0 18px;}
+.daily-target-card{background:#dcfce7;border:1.5px solid #86efac;border-radius:14px;padding:14px 18px;}
+.daily-target-card.over{background:#fef3c7;border-color:#fcd34d;}
+.daily-target-card.funded{background:#ddeeff;border-color:#93c5fd;}
+.daily-target-card .dt-header{font-size:14px;font-weight:800;color:var(--txt);margin-bottom:10px;direction:rtl;text-align:right;letter-spacing:-.2px;}
+.daily-target-card .dt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px;}
+@media (max-width:480px){.daily-target-card .dt-grid{grid-template-columns:1fr;}}
+.daily-target-card .dt-metric{background:rgba(255,255,255,0.65);border-radius:8px;padding:8px 10px;text-align:center;}
+.daily-target-card .dt-lbl{font-size:10px;font-weight:700;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;}
+.daily-target-card .dt-val{font-size:19px;font-weight:900;color:var(--txt);line-height:1.1;}
+.daily-target-card .dt-val.safe{color:var(--grn);}
+.daily-target-card .dt-val.over{color:var(--amb);}
+.daily-target-card .dt-sub{font-size:10px;font-weight:600;color:var(--txt4);margin-top:2px;}
+.daily-target-card .dt-tip{font-size:12px;font-weight:700;color:var(--txt2);background:rgba(255,255,255,0.55);border-radius:6px;padding:8px 10px;direction:rtl;text-align:right;line-height:1.5;}
+
 </style>
 </head>
 <body>
@@ -828,6 +845,16 @@ function cNeedMore(ai){ return Math.max(0, cThresh(ai)-pnl(ai)); }
 function target(ai){
   const a=S.accs[ai]; return (a.ph==='eval1'?ACCS[ai].p1T:ACCS[ai].p2T)+(a.adj||0);
 }
+// Max-safe best day = consistencyPct × target. ONLY meaningful for eval/blulive
+// phases where there's a binding profit target. In simfunded/funded phases,
+// the goal is to MAXIMIZE each payout up to the cap, not to balance days.
+function maxSafeBestDay(ai){
+  const ph=S.accs[ai].ph;
+  if(ph!=='eval1' && ph!=='blulive') return null;
+  const tg=target(ai), cp=cPct(ai);
+  if(!tg || !cp) return null;
+  return tg * cp;
+}
 function cumSim(ai){ return pnl(ai)+(S.accs[ai].tw||0); }
 function phL(k){ return PH.find(p=>p.k===k)?.l||k; }
 function phS(k){ return PH.find(p=>p.k===k)?.s||k; }
@@ -906,6 +933,75 @@ function buildAccBlock(i){
   const cBarPct=bd>0?Math.min(100,(bd/ct)*100):0;
   const tw=aS.tw||0, cs=ph==='simfunded'?cumSim(i):0;
   const trig=ph==='eval1'?acc.p1Trig:acc.p2Trig;
+
+  // 🎯 DAILY TARGET PANEL (added 2026-05-09) — bind consistency to target.
+  // For eval/blulive: max-safe daily = consistencyPct × target. If exceeded,
+  // emphasize the TIME-COST (more trading days), not just rule failure.
+  // For simfunded: emphasize maxing each payout up to the 7-day cap.
+  let dailyTargetPanel = '';
+  const _maxSafe = maxSafeBestDay(i);
+  if(_maxSafe != null && (ph==='eval1' || ph==='blulive')){
+    const tg = target(i);
+    const exceeded = bd > _maxSafe;
+    const headerLabel = ph==='eval1'
+      ? 'יעד יומי בטוח · להגיע ל-' + f0(tg) + ' ולעבור Phase 1'
+      : 'יעד יומי בטוח · להגיע ל-' + f0(tg) + ' ולעבור ל-Sim Funded';
+    const projectedTotal = bd > 0 ? Math.max(tg, bd / cpPct) : tg;
+    const extraDaysNote = exceeded
+      ? '⚠ חרגת מ-$' + f0(_maxSafe) + ' ביום הגדול. כדי לעבור — צריך להגיע ל-' + f0(projectedTotal) + ' (לא ' + f0(tg) + '). יותר ימי מסחר.'
+      : '✅ השאירי את יום המסחר מתחת ל-' + f0(_maxSafe) + ' — תסיימי בדיוק ב-' + f0(tg) + ' ללא ימי מסחר נוספים.';
+    dailyTargetPanel = `
+    <div class="daily-target-zone">
+      <div class="daily-target-card ${exceeded?'over':''}">
+        <div class="dt-header">🎯 ${headerLabel}</div>
+        <div class="dt-grid">
+          <div class="dt-metric">
+            <div class="dt-lbl">מקס׳ ליום</div>
+            <div class="dt-val safe">${f0(_maxSafe)}</div>
+            <div class="dt-sub">${Math.round(cpPct*100)}% × ${f0(tg)}</div>
+          </div>
+          <div class="dt-metric">
+            <div class="dt-lbl">יום הגדול עד כה</div>
+            <div class="dt-val ${exceeded?'over':'safe'}">${bd>0?f0(bd):'—'}</div>
+            <div class="dt-sub">${exceeded?'חורג':bd>0?'בטוח':'אין נתונים'}</div>
+          </div>
+          <div class="dt-metric">
+            <div class="dt-lbl">צפי לסיום השלב</div>
+            <div class="dt-val ${exceeded?'over':''}">${f0(projectedTotal)}</div>
+            <div class="dt-sub">${exceeded?'במקום '+f0(tg):'='+f0(tg)}</div>
+          </div>
+        </div>
+        <div class="dt-tip">${extraDaysNote}</div>
+      </div>
+    </div>`;
+  } else if(ph==='simfunded'){
+    // Sim Funded: maximize each payout up to the 7-day cap ($2,500 for 50K, etc.)
+    const cap = (acc.startBal>=200000?2500:acc.startBal>=100000?3000:2500);
+    dailyTargetPanel = `
+    <div class="daily-target-zone">
+      <div class="daily-target-card funded">
+        <div class="dt-header">💰 משיכה — אסטרטגיה לFunded</div>
+        <div class="dt-grid">
+          <div class="dt-metric">
+            <div class="dt-lbl">תקרה ל-7 ימים</div>
+            <div class="dt-val safe">${f0(cap)}</div>
+            <div class="dt-sub">למשיכה הבאה</div>
+          </div>
+          <div class="dt-metric">
+            <div class="dt-lbl">רווח בשלב</div>
+            <div class="dt-val ${p>=250?'safe':''}">${f0(p)}</div>
+            <div class="dt-sub">${p>=250?'אפשר למשוך!':'מינ׳ $250'}</div>
+          </div>
+          <div class="dt-metric">
+            <div class="dt-lbl">חוק Consistency</div>
+            <div class="dt-val">30%</div>
+            <div class="dt-sub">בעת משיכה</div>
+          </div>
+        </div>
+        <div class="dt-tip">💡 מקסמי כל משיכה עד התקרה (${f0(cap)} ב-7 ימים). אין יעד — תרוויחי כמה שרק תוכלי.</div>
+      </div>
+    </div>`;
+  }
 
   // Phase pill style
   const phStyle=`background:${acc.colorBg};color:${acc.color};border-color:${acc.colorMid}`;
@@ -1248,6 +1344,7 @@ function buildAccBlock(i){
 
     ${heroStrip}
     ${mllMeter}
+    ${dailyTargetPanel}
 
     <div class="acc-status ${stClass}">
       <span class="si">${stIcon}</span>
