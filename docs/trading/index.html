@@ -1489,31 +1489,71 @@ function buildFirmAccBlock(firmKey,i){
       </div>`).join('')}
   </div>` : '';
 
-  // ── Lucid Payout Ladder ──
+  // ── Lucid Max-Payouts Plan ──
+  // Lauren wants a comprehensive view: 5 payouts × $2,000 = $10,000 max, then LucidLive.
+  // Tracks actual payouts via aS.payouts[] (each entry: {date, amount, net}).
   const lucidPayoutLadder = isLucid&&ph==='funded' ? (()=>{
-    // LucidFlex 50K: cap קבוע $2,000 בכל cycle (לא עולה!)
-    const caps=[2000,2000,2000,2000,2000];
-    const cycleNum=(aS.cycleNum||1);
-    const rows=caps.map((c,idx)=>{
-      const n=idx+1;
-      const isCur=n===cycleNum;
-      const isDone=n<cycleNum;
-      const net=Math.round(c*0.9);
-      return`<div class="pl-row ${isCur?'curr':isDone?'done':''}">
+    const PER_CAP = 2000;            // $2,000 cap per payout (LucidFlex 50K)
+    const TOTAL_PAYOUTS = 5;         // 5 payouts before LucidLive
+    const SPLIT = 0.90;              // 90/10 split (trader keeps 90%)
+    const caps = Array(TOTAL_PAYOUTS).fill(PER_CAP);
+    const taken = (aS.payouts||[]);
+    const cycleNum = taken.length + 1;   // next payout number
+    const totalPaid = taken.reduce((s,t)=>s+(t.amount||0), 0);
+    const totalNetToPocket = taken.reduce((s,t)=>s+(t.net||t.amount*SPLIT||0), 0);
+    const totalRemaining = (TOTAL_PAYOUTS * PER_CAP) - totalPaid;
+    const totalPotentialNet = TOTAL_PAYOUTS * PER_CAP * SPLIT; // $9,000
+    const completedAll = taken.length >= TOTAL_PAYOUTS;
+
+    // Per-row rendering: done / current / pending
+    const rows = caps.map((c, idx)=>{
+      const n = idx + 1;
+      const isDone = idx < taken.length;
+      const isCur = n === cycleNum && !completedAll;
+      const taking = taken[idx];
+      const amount = taking ? taking.amount : c;
+      const net = taking ? (taking.net || amount*SPLIT) : Math.round(c*SPLIT);
+      const dateStr = taking && taking.date ? ' · ' + taking.date : '';
+      return `<div class="pl-row ${isCur?'curr':isDone?'done':''}">
         <span class="pl-num ${isCur?'curr':isDone?'done':''}">#${n}</span>
-        <span class="pl-cap">Cap: ${f0(c)}</span>
-        <span class="pl-net">${f(net)} לכיס</span>
-        <span class="pl-status ${isCur?'curr':isDone?'done':''}">${isDone?'✓ הושלם':isCur?'← עכשיו':n===5?'→ LucidLive 🎉':'—'}</span>
+        <span class="pl-cap">${isDone?'משיכה: '+f0(amount):'תקרה: '+f0(c)}</span>
+        <span class="pl-net">${f(Math.round(net))} לכיס${dateStr}</span>
+        <span class="pl-status ${isCur?'curr':isDone?'done':''}">${isDone?'✓ הושלם':isCur?'← עכשיו':n===TOTAL_PAYOUTS?'→ LucidLive 🎉':'—'}</span>
       </div>`;
     }).join('');
-    const wAmt=Math.min(p,caps[cycleNum-1]||1500);
-    const canW=qualifyingDays>=5&&p>0&&wAmt>=500;
-    return`<div class="payout-ladder">
-      <div class="payout-ladder-title">מסלול 5 Payouts → LucidLive</div>
-      ${rows}
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr2);font-size:14px;font-weight:700;color:${canW?'var(--grn)':'var(--txt4)'}">
-        ${canW?`🎉 ניתן למשוך! עד ${f(wAmt)} → לכיס: ${f(Math.round(wAmt*0.9))}`:`נדרש: ${5-qualifyingDays>0?`עוד ${5-qualifyingDays} ימים כשירים`:'✓'} · ${p<500?`עוד ${f(500-p)} למינימום $500`:'✓ רווח מספיק'}`}
+
+    const progPct = (taken.length / TOTAL_PAYOUTS) * 100;
+
+    return `<div class="payout-ladder" style="position:relative;">
+      <div class="payout-ladder-title">💰 תוכנית משיכות → LucidLive</div>
+
+      <!-- Top summary bar -->
+      <div style="background:rgba(124,58,237,0.08);border-radius:10px;padding:12px 14px;margin-bottom:12px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
+          <div>
+            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;">משיכות שבוצעו</div>
+            <div style="font-size:18px;font-weight:900;color:var(--pur);">${taken.length} / ${TOTAL_PAYOUTS}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;">סה״כ נכנס לכיס</div>
+            <div style="font-size:18px;font-weight:900;color:var(--grn);">${f0(totalNetToPocket)}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;">פוטנציאל מקס׳ לכיס</div>
+            <div style="font-size:18px;font-weight:900;color:var(--txt);">${f0(totalPotentialNet)}</div>
+          </div>
+        </div>
+        <div style="height:6px;background:rgba(124,58,237,0.15);border-radius:999px;margin-top:10px;overflow:hidden;">
+          <div style="height:100%;background:var(--pur);width:${progPct}%;transition:width 0.4s ease;"></div>
+        </div>
+        <div style="font-size:11px;color:var(--txt4);margin-top:6px;text-align:center;">${completedAll?'🎉 כל ה-5 משיכות הושלמו — מעבר ל-LucidLive!':`עוד ${TOTAL_PAYOUTS-taken.length} משיכות עד LucidLive`}</div>
       </div>
+
+      ${rows}
+
+      <button onclick="recordLucidPayout(${i})" style="margin-top:10px;width:100%;background:var(--pur);color:#fff;border:none;border-radius:10px;padding:10px 14px;font-family:var(--f);font-size:13px;font-weight:800;cursor:pointer;${completedAll?'opacity:0.4;':''}" ${completedAll?'disabled':''}>
+        ＋ רשמי משיכה ${cycleNum<=TOTAL_PAYOUTS?'#'+cycleNum:''}
+      </button>
     </div>`;
   })() : '';
   let stClass='st-sky',stIcon='⏳',stTitle=phS?.l||ph,stBody='';
@@ -1689,6 +1729,32 @@ function buildLucidPayoutChecklist(aS, dList, balance, totalPnl, qualifyingDays,
 
   html += '</div>';
   return html;
+}
+
+function recordLucidPayout(idx){
+  const aS = S.lucidAccs[idx];
+  if(!aS){ alert('חשבון לא נמצא'); return; }
+  const PER_CAP = 2000, SPLIT = 0.90;
+  const taken = aS.payouts || [];
+  const num = taken.length + 1;
+  if(num > 5){ alert('כבר עברת 5 משיכות — מעבר ל-LucidLive!'); return; }
+  const amtRaw = prompt('סכום משיכה #'+num+' ($) — מקסימום $'+PER_CAP+':\n\n(זה הסכום הברוטו שמושכים מהחשבון. ה-90% שמגיע אלייך מחושב אוטומטית.)', String(PER_CAP));
+  if(!amtRaw) return;
+  const amt = parseFloat(amtRaw);
+  if(isNaN(amt) || amt < 500){ alert('הסכום חייב להיות לפחות $500 (מינימום משיכה).'); return; }
+  if(amt > PER_CAP){ alert('המקסימום הוא $'+PER_CAP+' למשיכה.'); return; }
+  const dateRaw = prompt('תאריך המשיכה (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+  if(!dateRaw || !/^\d{4}-\d{2}-\d{2}$/.test(dateRaw.trim())){ alert('תאריך לא תקין'); return; }
+  const net = Math.round(amt * SPLIT);
+  if(!confirm('משיכה #'+num+':\n\n  סכום: $'+amt+'\n  לכיס (90%): $'+net+'\n  תאריך: '+dateRaw+'\n\nלאשר?')) return;
+  aS.payouts = taken;
+  aS.payouts.push({ date: dateRaw.trim(), amount: amt, net: net });
+  aS.tw = (aS.tw || 0) + amt;  // total withdrawn
+  // Note: balance update from payout happens via the regular CSV import or daily update flow.
+  // We track payouts separately so the dashboard knows where in the 5-payout cycle she is.
+  save();
+  try{ renderAll(); }catch(e){}
+  alert('✅ משיכה #'+num+' נרשמה.\n\n'+(taken.length>=5?'🎉 כל 5 המשיכות הושלמו — מוכנה ל-LucidLive!':'נשארו '+(5-taken.length)+' משיכות עד LucidLive.'));
 }
 
 function deleteFirmAcc(firmKey,i){
