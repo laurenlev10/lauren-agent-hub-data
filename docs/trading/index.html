@@ -843,7 +843,10 @@ window.TradingCloudSync = (function(){
     if(saveTimer){ clearTimeout(saveTimer); saveTimer=null; }
     await doSave();
   }
-  return { scheduleSave, doSaveImmediate, promptForToken, setToken, getToken, hasToken };
+  function _cancelPending(){
+    if(saveTimer){ clearTimeout(saveTimer); saveTimer=null; savePending=false; }
+  }
+  return { scheduleSave, doSaveImmediate, _cancelPending, promptForToken, setToken, getToken, hasToken };
 })();
 
 // Wire the cloud-pill click — prompt for token if missing, otherwise force a sync now.
