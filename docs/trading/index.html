@@ -1549,6 +1549,43 @@ function buildFirmAccBlock(firmKey,i){
         <div style="font-size:11px;color:var(--txt4);margin-top:6px;text-align:center;">${completedAll?'🎉 כל ה-5 משיכות הושלמו — מעבר ל-LucidLive!':`עוד ${TOTAL_PAYOUTS-taken.length} משיכות עד LucidLive`}</div>
       </div>
 
+      ${(()=>{
+        if(completedAll) return '';
+        // "How much more until next payout #N?"
+        const lockedMLL = (window.RULES && window.RULES.firms.lucid.plans.FLEX_50K.phases.funded.lockedMLL) || 50100;
+        const initialTrail = (window.RULES && window.RULES.firms.lucid.plans.FLEX_50K.phases.funded.initialTrailBalance) || 52100;
+        // Target balance = MLL + per-payout cap (allows full $2,000 max payout safely)
+        const targetBal = (taken.length === 0) ? initialTrail : (lockedMLL + PER_CAP);
+        const balGap = Math.max(0, targetBal - b);
+        // Qualifying days IN THE CURRENT CYCLE — after last payout (or from account start if no payouts)
+        const lastPayoutDate = taken.length ? taken[taken.length-1].date : null;
+        const cycleDays = lastPayoutDate ? dList.filter(d => d.date > lastPayoutDate) : dList;
+        const cycleQualifying = cycleDays.filter(d => d.pnl >= minQualDay).length;
+        const daysGap = Math.max(0, 5 - cycleQualifying);
+
+        const balOk = balGap === 0;
+        const daysOk = daysGap === 0;
+        const allOk = balOk && daysOk;
+
+        return `<div style="background:${allOk?'#dcfce7':'#fff7ed'};border:1.5px solid ${allOk?'#86efac':'#fdba74'};border-radius:10px;padding:12px 14px;margin-bottom:12px;direction:rtl;text-align:right;">
+          <div style="font-size:13px;font-weight:900;color:var(--txt);margin-bottom:8px;">
+            ${allOk ? '🎉 כל הדרישות עומדות — אפשר למשוך משיכה #'+cycleNum : '⏳ עד משיכה #'+cycleNum+' חסר:'}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div style="background:${balOk?'rgba(255,255,255,0.6)':'#fff'};border-radius:8px;padding:8px 10px;">
+              <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:2px;">${balOk?'✅':'⏳'} Balance</div>
+              <div style="font-size:14px;font-weight:900;color:${balOk?'var(--grn)':'var(--amb)'};">${balOk ? '$'+b.toFixed(2)+' ✓' : 'עוד $'+balGap.toFixed(2)}</div>
+              <div style="font-size:11px;color:var(--txt4);margin-top:2px;">יעד: $${f0(targetBal)} (MLL+${f0(PER_CAP)})</div>
+            </div>
+            <div style="background:${daysOk?'rgba(255,255,255,0.6)':'#fff'};border-radius:8px;padding:8px 10px;">
+              <div style="font-size:10px;color:var(--txt4);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:2px;">${daysOk?'✅':'⏳'} ימים כשירים בסבב</div>
+              <div style="font-size:14px;font-weight:900;color:${daysOk?'var(--grn)':'var(--amb)'};">${cycleQualifying} / 5${daysOk?' ✓':''}</div>
+              <div style="font-size:11px;color:var(--txt4);margin-top:2px;">יום כשיר = ≥$${minQualDay} P&L${lastPayoutDate?' · מאז '+lastPayoutDate:''}</div>
+            </div>
+          </div>
+        </div>`;
+      })()}
+
       ${rows}
 
       <button onclick="recordLucidPayout(${i})" style="margin-top:10px;width:100%;background:var(--pur);color:#fff;border:none;border-radius:10px;padding:10px 14px;font-family:var(--f);font-size:13px;font-weight:800;cursor:pointer;${completedAll?'opacity:0.4;':''}" ${completedAll?'disabled':''}>
