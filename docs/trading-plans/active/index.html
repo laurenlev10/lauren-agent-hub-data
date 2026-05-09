@@ -416,30 +416,33 @@ function renderCalendar(){
 }
 
 function renderChecklist(){
+  // 2026-05-09 (rewrite): Lauren operates an autonomous bot. She doesn't manually
+  // start/stop trades. The checklist tracks ONLY actions Lauren actually performs:
+  // bot configuration, withdrawal decisions, plan cadence, status awareness.
   const items = [
     {
-      id:'buffer_above_1k',
-      icon:'🛡️',
-      title:'שמרתי על buffer של לפחות <b>$1,000</b> בכל חשבון',
-      sub:'ה-buffer = כמה רחוקה את מ-ה-MLL (קו השריפה). דוגמה: Apex Legacy MLL נעול ב-$50,100 → balance צריך להישאר מעל <b>$51,100</b>.'
+      id:'bot_qty_config',
+      icon:'🤖',
+      title:'וידאתי שהבוט מוגדר ב-QTY הנכון לכל חשבון',
+      sub:'<b>2 חוזים</b> אם balance ≥ phase-start · <b>1 חוזה</b> אם פחות. ה-QTY badge בדשבורד מציג את המצב הנכון לכל חשבון. אם יש חוסר התאמה — לעדכן את הגדרות הבוט. <b>זו הפעולה היחידה ביום שאת מתערבת בה.</b>'
     },
     {
-      id:'no_red_buffer_trade',
-      icon:'🚫',
-      title:'לא סחרתי בחשבון שה-buffer שלו ירד לאדום',
-      sub:'אדום = פחות מ-$500 מעל ה-MLL. במצב הזה <b>יום מסחר אחד גרוע יכול לשרוף את החשבון</b> — עדיף לעצור עד שתחזרי לירוק.'
+      id:'buffer_aware_withdrawal',
+      icon:'💸',
+      title:'אם משכתי היום: וידאתי שיישאר buffer של $2,000+ מעל ה-MLL',
+      sub:'<b>Lucid:</b> לא למשוך מתחת ל-$54,100 · <b>Apex Legacy:</b> לא מתחת ל-$56,600. ה-buffer הזה הוא הביטוח שלך מפני יום אדום אחד אחרי המשיכה. אם לא משכת היום — סמני וי, לא רלוונטי.'
     },
     {
-      id:'max_safe_daily',
-      icon:'📐',
-      title:'לא חרגתי מהיעד היומי הבטוח באף חשבון',
-      sub:'יעד בטוח = <b>consistency × יעד שלב</b>. ב-Eval של LAUNCH 50K זה <b>50% × $3,000 = $1,500/יום</b>. ב-Premium / BluLive זה <b>30% × $900 = $270/יום</b>. חריגה = יותר ימי מסחר עד מעבר שלב.'
+      id:'plan_check',
+      icon:'📅',
+      title:'בדקתי בעמוד התוכנית הפעילה — יש משימה היום או השבוע?',
+      sub:'משימות שאת מבצעת: רכישת eval חדש · מעבר שלב (לדווח דרך כפתור 🎯 בדשבורד) · checkpoint חודשי. הקישור: כפתור <b>"📅 תוכנית פעילה"</b> בסרגל העליון של דשבורד המסחר.'
     },
     {
-      id:'lucid_target_progress',
-      icon:'💰',
-      title:'Lucid: ה-balance מתקדם ל-<b>$54,100</b>',
-      sub:'יעד ה-buffer למשיכה הבאה. <b>$54,100 = MLL נעול $50,100 + 2× cap של $2,000</b>. אחרי משיכה, balance חוזר ל-$52,100 — עדיין $2,000 buffer מעל ה-MLL. עדיף לחכות מאשר למשוך ב-$52,100 ולהישאר על קו האש.'
+      id:'consistency_awareness',
+      icon:'🎯',
+      title:'בדקתי שאף חשבון ב-Eval/BluLive לא חרג מ-best day של consistency',
+      sub:'בשלבי <b>Eval/BluLive בלבד</b> — best day של הבוט לא יכול לעבור <b>consistency × יעד שלב</b> (לדוגמה 50% × $3,000 = $1,500). אם הבוט חרג — לא עוצרים אותו, פשוט יידרשו עוד ימי מסחר קטנים כדי שהיעד הכולל יעלה ויעמוד ב-consistency. <b>זו תצפית, לא פעולה.</b>'
     },
   ];
   const today = TODAY.toISOString().split('T')[0];
