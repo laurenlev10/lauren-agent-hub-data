@@ -609,15 +609,19 @@ End: confirm the page is live at https://events.themakeupblowout.com/events/${sl
     const fid = document.getElementById("f-formid");
     if (!fid.value.trim()) {
       fid.value = ev.form_id;
-      // Add a hint near the field that it was auto-filled
+      // Add a green banner near the field that it was auto-filled
+      // (styled to match the .picker-btn.matched reel banner)
       const wrap = fid.closest(".field");
-      if (wrap) {
-        const note = document.createElement("div");
-        note.className = "hint";
-        note.style.color = "#16a34a";
-        note.style.marginTop = "4px";
-        note.innerHTML = `✓ FORM_ID נמצא אוטומטית מ-event_form_ids.json. <a href="${ev.form_url || '#'}" target="_blank" style="color:#16a34a">פתחי ב-SimpleTexting</a>`;
-        wrap.appendChild(note);
+      if (wrap && !wrap.querySelector(".form-id-found-banner")) {
+        const a = document.createElement("a");
+        a.className = "picker-btn matched form-id-found-banner";
+        a.href = ev.form_url || "#";
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.style.textDecoration = "none";
+        const formName = ev.form_name ? ` (${ev.form_name})` : "";
+        a.textContent = `נמצא טופס SimpleTexting אוטומטית${formName} — לחצי לפתוח ב-SimpleTexting`;
+        wrap.appendChild(a);
       }
     }
   });
