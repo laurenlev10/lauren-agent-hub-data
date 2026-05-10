@@ -109,6 +109,37 @@ jobs:
           print("SMS sent:", json.dumps(resp, ensure_ascii=False))
           PY
 
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "hall-photo-reminder":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          print(f"updated lastRunAt = {now}")
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name  "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump hall-photo-reminder lastRunAt"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
+
       # IRON RULE (Lauren 2026-05-10): SMS Lauren if this workflow fails.
       # Notify-on-failure is mandatory for every scheduled workflow in this repo.
       - name: SMS Lauren on failure
