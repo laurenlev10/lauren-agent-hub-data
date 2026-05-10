@@ -1442,8 +1442,8 @@ End date: </div>
             const _city = (ev.city || "").trim();
             const _state = (ev.state || "").trim();
             const _year = (ev.start_date || "").slice(0, 4);
-            const pullPayload = JSON.stringify({mode:"form-id-pull-one", city:_city, state:_state, year:_year, start:ev.start_date, end:ev.end_date, evKey: evKey}).replace(/"/g, "&quot;");
-            rowBtn += '<button class="btn-add-chip" data-partial="' + pullPayload + '" title="Copy a Cowork command to scrape this event\'s SimpleTexting webFormId">📲 + Pull form_id</button>';
+            const fmidPayload = JSON.stringify({city:_city, state:_state, year:_year, start:ev.start_date, end:ev.end_date, evKey: evKey}).replace(/"/g, "&quot;");
+            rowBtn += '<button class="btn-add-chip btn-formid-add" data-formid-add="' + fmidPayload + '" title="הוסיף form_id לאירוע הזה — הזנה ידנית או חפש אוטומטית">📲 + Add form_id</button>';
           }
 
           // 📘 META CAMPAIGNS — black until run, flips green via .done (added 2026-05-09)
@@ -2800,5 +2800,142 @@ window.copyLanding = async function(btn) {
   }
 };
 </script>
+
+<!-- ====== form_id Add modal (added 2026-05-09) ====== -->
+<style>
+  .formid-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center}
+  .formid-modal-bg.open{display:flex}
+  .formid-modal{background:#fff;color:#1f2937;border-radius:14px;padding:18px 20px;max-width:440px;width:92vw;direction:rtl;text-align:right;box-shadow:0 12px 40px rgba(0,0,0,.4)}
+  .formid-modal h3{margin:0 0 4px;font-size:17px;color:#0369a1}
+  .formid-modal .fm-sub{font-size:12px;color:#6b7280;margin:0 0 14px}
+  .formid-modal label{display:block;font-size:12px;font-weight:600;color:#374151;margin:8px 0 4px}
+  .formid-modal input{width:100%;padding:9px 10px;border:1px solid #d1d5db;border-radius:8px;font-family:monospace;font-size:13px;direction:ltr;text-align:left;box-sizing:border-box}
+  .formid-modal input:focus{outline:none;border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.18)}
+  .formid-modal .fm-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .formid-modal .fm-btn{flex:1 1 auto;padding:9px 12px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#fff}
+  .formid-modal .fm-save{background:linear-gradient(180deg,#16a34a,#15803d)}
+  .formid-modal .fm-save:hover{filter:brightness(1.08)}
+  .formid-modal .fm-save.copied{background:#0f766e}
+  .formid-modal .fm-search{background:linear-gradient(180deg,#0ea5e9,#0369a1)}
+  .formid-modal .fm-search:hover{filter:brightness(1.08)}
+  .formid-modal .fm-search.copied{background:#15803d}
+  .formid-modal .fm-cancel{background:transparent;color:#374151;border:1px solid #d1d5db;flex:0 0 auto}
+  .formid-modal .fm-divider{display:flex;align-items:center;gap:8px;margin:14px 0 6px;color:#9ca3af;font-size:11px}
+  .formid-modal .fm-divider::before,.formid-modal .fm-divider::after{content:"";flex:1;border-top:1px solid #e5e7eb}
+  .formid-modal .fm-err{color:#b91c1c;font-size:11px;margin-top:4px;min-height:14px}
+</style>
+<div class="formid-modal-bg" id="formid-modal-bg" onclick="if(event.target===this)window.closeFormidModal()">
+  <div class="formid-modal" id="formid-modal">
+    <h3>📲 הוספת FORM ID</h3>
+    <p class="fm-sub" id="fm-event-label">{event}</p>
+
+    <label>הדביקי כאן את ה-form_id (24 תווי hex) אם יש לך אותו מול העיניים:</label>
+    <input type="text" id="fm-input" placeholder="6930edb84da0131a2656212f" autocomplete="off" maxlength="32" />
+    <div class="fm-err" id="fm-err"></div>
+
+    <div class="fm-row">
+      <button class="fm-btn fm-save" id="fm-save-btn">💾 שמור (העתק פקודה)</button>
+      <button class="fm-btn fm-cancel" onclick="window.closeFormidModal()">ביטול</button>
+    </div>
+
+    <div class="fm-divider">או</div>
+    <p class="fm-sub" style="margin:0 0 8px">אם אין לך את ה-ID — אעבור על כל הטפסים ב-SimpleTexting ואחפש לפי שם האירוע:</p>
+    <button class="fm-btn fm-search" id="fm-search-btn">🔎 חפש אוטומטית ב-SimpleTexting</button>
+  </div>
+</div>
+<script>
+(function(){
+  let _ctx = null;
+  window.openFormidModal = function(payloadStr) {
+    try { _ctx = JSON.parse(payloadStr.replace(/&quot;/g,'"')); } catch(e) { return; }
+    const lbl = document.getElementById("fm-event-label");
+    if (lbl) lbl.textContent = (_ctx.city || "?") + ", " + (_ctx.state || "?") + " · " + (_ctx.start || "?");
+    const inp = document.getElementById("fm-input");
+    if (inp) { inp.value = ""; inp.focus(); }
+    document.getElementById("fm-err").textContent = "";
+    document.getElementById("formid-modal-bg").classList.add("open");
+  };
+  window.closeFormidModal = function() {
+    document.getElementById("formid-modal-bg").classList.remove("open");
+    _ctx = null;
+  };
+  document.getElementById("fm-save-btn").addEventListener("click", async () => {
+    if (!_ctx) return;
+    const raw = document.getElementById("fm-input").value.trim();
+    const err = document.getElementById("fm-err");
+    if (!/^[a-f0-9]{20,30}$/i.test(raw)) {
+      err.textContent = "לא נראה כמו webFormId (24 תווי hex). בדקי שוב.";
+      return;
+    }
+    err.textContent = "";
+    const cmd =
+      "Save manually-entered SimpleTexting webFormId for ONE event.\n\n" +
+      "Event:\n" +
+      "  City: "       + _ctx.city  + ", " + _ctx.state + "\n" +
+      "  Start date: " + _ctx.start + "\n" +
+      "  End date: "   + _ctx.end   + "\n" +
+      "  evKey (dashboard convention): " + _ctx.evKey + "\n" +
+      "  webFormId: "  + raw + "\n\n" +
+      "Steps:\n" +
+      "1. Validate the webFormId is 24 hex chars and not already in use for a different event.\n" +
+      "2. Update lauren-agent-hub-data/docs/state/event_form_ids.json — set events[<slug>-<start_date>] where slug = <city-slug>-<state-lower>-<year>. Value: {form_id, form_url:'https://app2.simpletexting.com/join/joinWebForm?webFormId=<id>&c=USA', form_name:'<City>, <ST> <year>', seeded_at:<today>, source:'manual-paste'}.\n" +
+      "3. Update the FORM_IDS map in lauren-agent-hub-data/docs/launch/index.html — add entry under FORM_IDS['" + _ctx.evKey + "'] with {form_id, form_url, edit_url:'https://app2.simpletexting.com/apps/sign-up-forms/<id>', form_name, scraped_at:<today>}.\n" +
+      "4. Commit + push both via deploy-dashboard. Wait for Pages build.\n" +
+      "5. Touchpoint 3 SMS to Lauren: '@forms ✓ form_id נשמר ל-" + _ctx.city + " " + _ctx.start + " (id ...<last 8 chars>)'.";
+    const btn = document.getElementById("fm-save-btn");
+    const orig = btn.textContent;
+    try {
+      await navigator.clipboard.writeText(cmd);
+      btn.textContent = "✓ הועתק — הדביקי בצ'אט Cowork";
+      btn.classList.add("copied");
+      setTimeout(()=>{ window.closeFormidModal(); btn.textContent = orig; btn.classList.remove("copied"); }, 2200);
+    } catch(e) {
+      err.textContent = "Copy failed. Command:\n\n" + cmd;
+    }
+  });
+  document.getElementById("fm-search-btn").addEventListener("click", async () => {
+    if (!_ctx) return;
+    const cmd =
+      "Pull the SimpleTexting webFormId for ONE event by searching the sign-up-forms list.\n\n" +
+      "Event:\n" +
+      "  City: "        + _ctx.city  + ", " + _ctx.state + "\n" +
+      "  Year: "        + _ctx.year  + "\n" +
+      "  Start date: "  + _ctx.start + "\n" +
+      "  End date: "    + _ctx.end   + "\n" +
+      "  evKey: "       + _ctx.evKey + "\n\n" +
+      "Steps:\n" +
+      "1. Open https://app2.simpletexting.com/apps/sign-up-forms in Chrome (Lauren keeps the tab logged in).\n" +
+      "2. Use the search box to filter by city name or paginate through the table to locate a form whose name matches '" + _ctx.city + ", " + _ctx.state + " " + _ctx.year + "' or close (handle abbreviations like 'Park'/'PA', 'Saint'/'St').\n" +
+      "3. Read the data-id attribute from the matching <tr data-test=\"data-table-row\"> — that's the 24-char hex webFormId.\n" +
+      "4. Update lauren-agent-hub-data/docs/state/event_form_ids.json — set events[<slug>-<start_date>] where slug = <city-slug>-<state-lower>-<year>. Value: {form_id, form_url, form_name, scraped_at, source:'auto-search-one'}.\n" +
+      "5. Update the FORM_IDS map in lauren-agent-hub-data/docs/launch/index.html — add entry under FORM_IDS['" + _ctx.evKey + "'].\n" +
+      "6. Commit + push via deploy-dashboard. Wait for Pages build.\n" +
+      "7. If NO matching form was found in SimpleTexting → DO NOT push. Touchpoint 3 SMS to Lauren: '@forms ⚠ לא נמצא טופס ל-" + _ctx.city + " " + _ctx.year + ". יוצרת אחד חדש?'.\n" +
+      "8. On success, Touchpoint 3 SMS: '@forms ✓ form_id נמצא ל-" + _ctx.city + " " + _ctx.start + " (id ...<last 8 chars>)'.";
+    const btn = document.getElementById("fm-search-btn");
+    const orig = btn.textContent;
+    try {
+      await navigator.clipboard.writeText(cmd);
+      btn.textContent = "✓ הועתק — הדביקי בצ'אט Cowork";
+      btn.classList.add("copied");
+      setTimeout(()=>{ window.closeFormidModal(); btn.textContent = orig; btn.classList.remove("copied"); }, 2500);
+    } catch(e) {
+      document.getElementById("fm-err").textContent = "Copy failed. Command:\n\n" + cmd;
+    }
+  });
+  document.addEventListener("click", function(e){
+    const btn = e.target.closest(".btn-formid-add");
+    if (!btn) return;
+    e.stopPropagation();
+    e.preventDefault();
+    window.openFormidModal(btn.getAttribute("data-formid-add"));
+  });
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && document.getElementById("formid-modal-bg").classList.contains("open")) window.closeFormidModal();
+  });
+})();
+</script>
+<!-- ====== /form_id Add modal ====== -->
+
 </body>
 </html>
