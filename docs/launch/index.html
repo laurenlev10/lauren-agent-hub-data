@@ -1968,6 +1968,14 @@ End date: </div>
   }
 
   document.getElementById("schedule-tbody").addEventListener("click", async (e) => {
+    // 📲 form_id Add button — opens modal instead of copying directly. Check this BEFORE the data-partial branch.
+    const fmAddBtn = e.target.closest(".btn-formid-add");
+    if (fmAddBtn) {
+      e.stopPropagation();
+      e.preventDefault();
+      window.openFormidModal(fmAddBtn.getAttribute("data-formid-add"));
+      return;
+    }
     const chip = e.target.closest(".btn-add-chip");
     if (chip) {
       e.stopPropagation();
