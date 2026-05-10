@@ -2607,12 +2607,7 @@ End date: </div>
       openInstaReelModal(irBtn.dataset.evkey);
       return;
     }
-    // Modal close / overlay click
-    if (e.target.id === "reel-modal-overlay" || e.target.classList.contains("reel-close")) {
-      const m = document.getElementById("reel-modal-overlay");
-      if (m) m.remove();
-      return;
-    }
+    // (Modal close is wired directly inside openInstaReelModal — no delegated handler needed)
   });
 
   function openInstaReelModal(evKey) {
@@ -2700,7 +2695,7 @@ End date: </div>
     overlay.id = "reel-modal-overlay";
     overlay.className = "reel-modal";
     overlay.innerHTML =
-      '<div class="reel-modal-card" onclick="event.stopPropagation()">' +
+      '<div class="reel-modal-card">' +
         '<div class="reel-modal-head">' +
           '<div>' +
             '<h2>📸 INSTA REEL — ' + evLabel + '</h2>' +
@@ -2711,8 +2706,25 @@ End date: </div>
         '<div class="reel-modal-body">' + body + '</div>' +
       '</div>';
     document.body.appendChild(overlay);
+
+    // Closing logic — wired directly so it isn't intercepted by other delegated handlers.
+    const closeModal = () => {
+      overlay.remove();
+      document.removeEventListener("keydown", esc);
+    };
+    // X button
+    overlay.querySelector(".reel-close").addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      closeModal();
+    });
+    // Click on the dimmed overlay (outside the card) closes
+    overlay.addEventListener("click", (ev) => {
+      if (ev.target === overlay) closeModal();
+    });
+    // Stop card-internal clicks from bubbling to the overlay
+    overlay.querySelector(".reel-modal-card").addEventListener("click", (ev) => ev.stopPropagation());
     // ESC closes
-    const esc = (ev) => { if (ev.key === "Escape") { overlay.remove(); document.removeEventListener("keydown", esc); } };
+    const esc = (ev) => { if (ev.key === "Escape") closeModal(); };
     document.addEventListener("keydown", esc);
   }
 
