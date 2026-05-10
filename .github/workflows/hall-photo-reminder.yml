@@ -1,0 +1,110 @@
+# Friday-morning hall-photo reminder
+#
+# Every Friday at 9:00 AM Pacific (= 16:00 UTC during PDT, 17:00 UTC during PST),
+# this workflow checks whether Lauren has uploaded a "hall photo" for the
+# event(s) starting that Friday in her schedule. If a photo is missing, it
+# sends her an SMS reminder via scripts/lauren_sms.py.
+#
+# Photo metadata lives in docs/launch/notes.json under
+# MANUAL_TASKS[<city-slug>-<start_date>].hall_photo. The schedule list lives
+# inside docs/launch/index.html in the SCHEDULE constant. Both are read,
+# never written, by this workflow.
+#
+# Created 2026-05-10 per Lauren's request — she asked for a recurring
+# reminder so she doesn't forget to capture the room before the event ends.
+
+name: hall-photo-reminder
+
+on:
+  schedule:
+    # 16:00 UTC every Friday = 9:00 AM Pacific Daylight Time (March-November)
+    # During PST (Nov-March) this fires at 8:00 AM PT, which is also fine.
+    - cron: '0 16 * * 5'
+  workflow_dispatch:   # manual run from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check missing hall photos and send SMS
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+        run: |
+          python3 <<'PY'
+          import datetime, json, re, sys, urllib.request, urllib.error
+          sys.path.insert(0, "scripts")
+          from lauren_sms import send_sms, LAUREN_PHONE
+
+          # 1) Find this Friday's date (workflow runs on Friday).
+          today = datetime.date.today()
+          # Defensive: if for some reason it's not Friday (manual run on another day),
+          # snap to the upcoming Friday — that's the event Lauren cares about.
+          while today.weekday() != 4:  # Mon=0..Fri=4
+              today += datetime.timedelta(days=1)
+          today_iso = today.isoformat()
+
+          # 2) Load the schedule from docs/launch/index.html
+          with open("docs/launch/index.html", encoding="utf-8") as f:
+              html = f.read()
+          m = re.search(r'const SCHEDULE = ({.*?});\n', html, re.S)
+          if not m:
+              print("Could not locate SCHEDULE in docs/launch/index.html")
+              sys.exit(0)
+          SCHEDULE = json.loads(m.group(1))
+
+          # 3) Collect events whose start_date matches today.
+          year_key = str(today.year)
+          events_today = [e for e in SCHEDULE.get(year_key, []) if e.get("start_date") == today_iso]
+          if not events_today:
+              print(f"No events on {today_iso} — nothing to remind.")
+              sys.exit(0)
+
+          # 4) Load notes.json (manual tasks) — file may legitimately be absent.
+          notes_url = "https://raw.githubusercontent.com/laurenlev10/lauren-agent-hub-data/main/docs/launch/notes.json"
+          try:
+              with urllib.request.urlopen(notes_url, timeout=15) as r:
+                  NOTES = json.load(r)
+          except (urllib.error.HTTPError, urllib.error.URLError, ValueError) as e:
+              print(f"notes.json fetch failed ({e}); assuming no photos uploaded.")
+              NOTES = {}
+
+          def slug(city, start_date):
+              s = re.sub(r"[^a-z0-9]+", "-", (city or "").lower()).strip("-")
+              return f"{s}-{start_date}"
+
+          # 5) For each event today, check hall_photo presence.
+          missing = []
+          for ev in events_today:
+              key = slug(ev.get("city",""), ev.get("start_date",""))
+              note = NOTES.get(key) or {}
+              if not (note.get("hall_photo") and note["hall_photo"].get("path")):
+                  missing.append(ev)
+
+          if not missing:
+              print(f"All {len(events_today)} event(s) on {today_iso} have hall photos. No SMS needed.")
+              sys.exit(0)
+
+          # 6) Compose Hebrew reminder and send.
+          lines = ["📷 תזכורת: חסרה תמונה של האולם לאירוע הקרוב 👇", ""]
+          for ev in missing:
+              city = ev.get("city","?"); state = ev.get("state","")
+              venue = ev.get("venue","") or ""
+              lines.append(f"• {city}, {state} ({today_iso})")
+              if venue:
+                  lines.append(f"  {venue}")
+          lines += [
+              "",
+              "תעלי תמונה מהדאשבורד לפני סוף האירוע — היא תישמר בענן.",
+              "https://laurenlev10.github.io/lauren-agent-hub-data/launch/",
+          ]
+          body = "\n".join(lines)
+
+          resp = send_sms(LAUREN_PHONE, body)
+          print("SMS sent:", json.dumps(resp, ensure_ascii=False))
+          PY

@@ -131,6 +131,27 @@
   .schedule-table tbody tr.row-live td:first-child{border-left:4px solid #15803d}
   .live-under-date{margin-top:6px;text-align:left}
   .live-under-date .badge-live{margin-right:0}
+  /* Hall-photo cell under LIVE — Lauren 2026-05-10
+     Empty: dashed upload button. Filled: thumbnail with hover overlay (zoom/download/replace/delete).
+     Lives in the date <td>; renders for both future and past events (IRON RULE — past events keep the photo). */
+  .hall-photo-cell{margin-top:8px;text-align:left}
+  .hall-photo-cell .hp-empty{display:inline-flex;align-items:center;gap:5px;padding:6px 10px;background:#fff;border:1.5px dashed #cbd5e1;border-radius:8px;font-size:11px;color:#475569;font-weight:600;cursor:pointer;transition:all .12s}
+  .hall-photo-cell .hp-empty:hover{border-color:#16a34a;color:#15803d;background:#f0fdf4}
+  .hall-photo-cell .hp-empty.uploading{opacity:.6;pointer-events:none;border-style:solid;border-color:#16a34a;color:#15803d}
+  .hall-photo-cell .hp-thumb{position:relative;display:inline-block;width:140px;height:88px;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid #e5e7eb;background:#f3f4f6;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .hall-photo-cell .hp-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .hall-photo-cell .hp-thumb .hp-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 50%,rgba(0,0,0,.65));opacity:0;transition:opacity .15s;display:flex;align-items:flex-end;justify-content:space-between;padding:6px 7px;gap:4px}
+  .hall-photo-cell .hp-thumb:hover .hp-overlay{opacity:1}
+  .hall-photo-cell .hp-thumb .hp-overlay button,.hall-photo-cell .hp-thumb .hp-overlay a{background:rgba(255,255,255,.95);color:#1f2937;border:none;border-radius:5px;padding:3px 6px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none;line-height:1;transition:all .1s}
+  .hall-photo-cell .hp-thumb .hp-overlay button:hover,.hall-photo-cell .hp-thumb .hp-overlay a:hover{background:#fff;transform:translateY(-1px)}
+  .hall-photo-cell .hp-caption{font-size:10px;color:#94a3b8;margin-top:3px}
+  /* Lightbox modal for full-size view + download */
+  .hp-lightbox{position:fixed;inset:0;background:rgba(15,23,42,.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;animation:hpFadeIn .15s ease-out}
+  @keyframes hpFadeIn{from{opacity:0}to{opacity:1}}
+  .hp-lightbox img{max-width:90vw;max-height:88vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.5);cursor:default}
+  .hp-lightbox .hp-lb-bar{position:fixed;top:14px;right:14px;display:flex;gap:8px;z-index:10000}
+  .hp-lightbox .hp-lb-bar a,.hp-lightbox .hp-lb-bar button{background:rgba(255,255,255,.95);color:#1f2937;border:none;border-radius:6px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+  .hp-lightbox .hp-lb-bar a:hover,.hp-lightbox .hp-lb-bar button:hover{background:#fff}
   .btn-launch-row{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:5px 10px;background:linear-gradient(180deg,var(--accent),var(--accent-dark));color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.3px;box-shadow:0 1px 2px rgba(236,72,153,.3);transition:all .12s;white-space:nowrap}
   .btn-launch-row:hover{background:linear-gradient(180deg,var(--accent-dark),#9d174d);transform:translateY(-1px)}
   .btn-launch-row.copied{background:var(--ok)}
@@ -1274,6 +1295,38 @@ End date: </div>
       const isLive = !!ev && (start <= today) && (today <= end);
       const cls = rowClassFor(eff) + (isNext ? " row-next" : "") + (isLive ? " row-live" : "");
       const liveBadge = isLive ? '<div class="live-under-date"><span class="badge badge-live" title="האירוע מתקיים כעת">LIVE</span></div>' : '';
+      // Hall-photo cell — visible whenever there's an event (future OR past, per IRON RULE).
+      // Photo metadata stored in MANUAL_TASKS[evKey].hall_photo = { path, uploaded_at, size, name }.
+      let hallPhotoHtml = '';
+      if (ev) {
+        const evKeyHP = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
+        const noteHP = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKeyHP] || {}) : {};
+        const hp = noteHP.hall_photo;
+        if (hp && hp.path) {
+          // Cache-bust with uploaded_at so a newly-uploaded replacement shows immediately.
+          const stamp = (hp.uploaded_at || "").replace(/[^0-9]/g,"") || Date.now();
+          const photoUrl = "https://raw.githubusercontent.com/laurenlev10/lauren-agent-hub-data/main/docs/launch/" + hp.path + "?v=" + stamp;
+          const dlName = "hall-" + evKeyHP + "-" + (hp.uploaded_at||"").slice(0,10) + ".jpg";
+          const dateLabel = (hp.uploaded_at || "").slice(0,10);
+          hallPhotoHtml =
+            '<div class="hall-photo-cell">' +
+              '<div class="hp-thumb" data-evkey="' + evKeyHP + '" data-photo-url="' + photoUrl + '" title="לחיצה להגדלה למסך מלא">' +
+                '<img src="' + photoUrl + '" alt="Hall photo">' +
+                '<div class="hp-overlay">' +
+                  '<a href="' + photoUrl + '" download="' + dlName + '" title="הורד" onclick="event.stopPropagation()">⬇</a>' +
+                  '<button type="button" class="hp-replace-btn" data-evkey="' + evKeyHP + '" title="החלף תמונה">✏</button>' +
+                  '<button type="button" class="hp-delete-btn" data-evkey="' + evKeyHP + '" title="מחק">✖</button>' +
+                '</div>' +
+              '</div>' +
+              (dateLabel ? '<div class="hp-caption">📷 ' + dateLabel + '</div>' : '') +
+            '</div>';
+        } else {
+          hallPhotoHtml =
+            '<div class="hall-photo-cell">' +
+              '<button type="button" class="hp-empty hp-upload-btn" data-evkey="' + evKeyHP + '" title="העלי תמונה של האולם — תישמר בענן ותהיה זמינה גם אחרי האירוע">📷 הוסף תמונה</button>' +
+            '</div>';
+        }
+      }
       const statusBadge = (isNext ? '<span class="badge badge-next" style="margin-right:4px">🔜 Next</span>' : '') + badgeFor(eff);
       // Per-row "🎟️ Eventbrite + List Setup" button — only when there is an event.
       // Replaced "📋 Copy launch" / "📋 Re-copy" on 2026-05-03 (Lauren feedback: those names were
@@ -1590,7 +1643,7 @@ End date: </div>
         eff: eff,
         hasEvent: !!ev,
         html: '<tr class="' + cls + '" data-iso="' + iso + '" data-period="' + periodTag + '">' +
-               '<td class="col-date">' + dateCell + liveBadge + '</td>' +
+               '<td class="col-date">' + dateCell + liveBadge + hallPhotoHtml + '</td>' +
                '<td class="col-city">' + escapeHtml(cityCell) + tierBadge + '</td>' +
                '<td class="col-venue">' + venueCell + '</td>' +
                '<td class="col-status"><div>' + statusBadge + '</div>' + rowBtn + '</td>' +
@@ -2248,6 +2301,203 @@ End date: </div>
     ManualTasksSync.save(MANUAL_TASKS);
     renderSchedule();
   });
+
+  // ────────────────────────────────────────────────────────────
+  // Hall-photo upload + lightbox + delete (Lauren 2026-05-10)
+  // Stores binary in docs/launch/hall-photos/<evkey>.<ext> via Contents API,
+  // metadata in MANUAL_TASKS[evkey].hall_photo (synced via notes.json).
+  // Same TOKEN_KEY as ManualTasksSync — single token per machine.
+  // ────────────────────────────────────────────────────────────
+  const HallPhotoSync = (function(){
+    const OWNER  = "laurenlev10";
+    const REPO   = "lauren-agent-hub-data";
+    const BRANCH = "main";
+    const TOKEN_KEY = "lauren_gh_token_v1";
+    const MAX_BYTES = 10 * 1024 * 1024;  // 10 MB hard cap — phone photos pass easily
+
+    function getToken(){ try { return localStorage.getItem(TOKEN_KEY) || ""; } catch(e){ return ""; } }
+
+    function fileToBase64(file){
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onerror = () => reject(new Error("read failed"));
+        r.onload = () => {
+          const result = r.result;
+          // result is a data URL: "data:image/jpeg;base64,...."
+          const idx = result.indexOf(",");
+          resolve(idx >= 0 ? result.slice(idx+1) : result);
+        };
+        r.readAsDataURL(file);
+      });
+    }
+
+    function extFor(file){
+      const n = (file.name || "").toLowerCase();
+      const m = n.match(/\.(jpg|jpeg|png|webp|heic|gif)$/);
+      if (m) return m[1].replace("jpeg","jpg");
+      // fallback by mimetype
+      if ((file.type||"").includes("png")) return "png";
+      if ((file.type||"").includes("webp")) return "webp";
+      return "jpg";
+    }
+
+    async function getSha(repoPath){
+      const tok = getToken(); if (!tok) return null;
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${repoPath}?ref=${BRANCH}`;
+      try {
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json" } });
+        if (r.ok) { const j = await r.json(); return j.sha || null; }
+      } catch(e){}
+      return null;
+    }
+
+    async function upload(evKey, file){
+      const tok = getToken();
+      if (!tok) { alert("🔑 חסר GitHub token — לחצי על תווית הסנכרון בפינה והדביקי טוקן."); return null; }
+      if (file.size > MAX_BYTES) { alert("התמונה גדולה מדי (" + Math.round(file.size/1024/1024) + " MB). מקסימום 10 MB."); return null; }
+      const ext = extFor(file);
+      const repoPath = `docs/launch/hall-photos/${evKey}.${ext}`;
+      const apiUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${repoPath}`;
+      const b64 = await fileToBase64(file);
+      const existingSha = await getSha(repoPath);
+      const body = {
+        message: `hall-photo: ${evKey} (${(file.size/1024).toFixed(0)} KB)`,
+        content: b64,
+        branch: BRANCH
+      };
+      if (existingSha) body.sha = existingSha;
+      const r = await fetch(apiUrl, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) {
+        const errText = await r.text().catch(()=>"");
+        alert("שגיאת העלאה: " + r.status + "\n" + errText.slice(0,200));
+        return null;
+      }
+      return {
+        path: `hall-photos/${evKey}.${ext}`,
+        ext: ext,
+        size: file.size,
+        name: file.name,
+        uploaded_at: new Date().toISOString()
+      };
+    }
+
+    async function remove(evKey, hpMeta){
+      const tok = getToken();
+      if (!tok || !hpMeta || !hpMeta.path) return;
+      const repoPath = `docs/launch/${hpMeta.path}`;
+      const apiUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${repoPath}`;
+      const sha = await getSha(repoPath);
+      if (!sha) return;
+      try {
+        await fetch(apiUrl, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+          body: JSON.stringify({ message: `hall-photo: delete ${evKey}`, sha: sha, branch: BRANCH })
+        });
+      } catch(e){}
+    }
+
+    return { upload, remove };
+  })();
+
+  // Trigger upload for an event row (used by both "+ הוסף תמונה" and "✏ החלף")
+  function triggerHallPhotoUpload(evKey, btnEl){
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = "image/*";
+    inp.onchange = async () => {
+      const f = inp.files && inp.files[0];
+      if (!f) return;
+      // Visual upload feedback on the original button
+      const origBtn = btnEl || document.querySelector('.hp-upload-btn[data-evkey="' + evKey + '"]');
+      if (origBtn) { origBtn.classList.add("uploading"); origBtn.textContent = "⟳ מעלה…"; }
+      try {
+        const meta = await HallPhotoSync.upload(evKey, f);
+        if (!meta) { if (origBtn) { origBtn.classList.remove("uploading"); origBtn.textContent = "📷 הוסף תמונה"; } return; }
+        if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
+        MANUAL_TASKS[evKey].hall_photo = meta;
+        MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+        ManualTasksSync.save(MANUAL_TASKS);
+        renderSchedule();
+      } catch(e) {
+        alert("שגיאה: " + e.message);
+        if (origBtn) { origBtn.classList.remove("uploading"); origBtn.textContent = "📷 הוסף תמונה"; }
+      }
+    };
+    inp.click();
+  }
+
+  // Click handlers for the hall-photo UI
+  document.addEventListener("click", (e) => {
+    // Empty-state upload button
+    const upBtn = e.target.closest(".hp-upload-btn");
+    if (upBtn) {
+      e.stopPropagation();
+      triggerHallPhotoUpload(upBtn.dataset.evkey, upBtn);
+      return;
+    }
+    // Replace button (in overlay)
+    const repBtn = e.target.closest(".hp-replace-btn");
+    if (repBtn) {
+      e.stopPropagation(); e.preventDefault();
+      triggerHallPhotoUpload(repBtn.dataset.evkey, null);
+      return;
+    }
+    // Delete button (in overlay)
+    const delBtn = e.target.closest(".hp-delete-btn");
+    if (delBtn) {
+      e.stopPropagation(); e.preventDefault();
+      const evKey = delBtn.dataset.evkey;
+      if (!confirm("למחוק את התמונה? הפעולה לא הפיכה.")) return;
+      const hpMeta = (MANUAL_TASKS[evKey] || {}).hall_photo;
+      HallPhotoSync.remove(evKey, hpMeta);
+      delete MANUAL_TASKS[evKey].hall_photo;
+      MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+      ManualTasksSync.save(MANUAL_TASKS);
+      renderSchedule();
+      return;
+    }
+    // Thumbnail click → open lightbox
+    const thumb = e.target.closest(".hp-thumb");
+    if (thumb && !e.target.closest(".hp-overlay button") && !e.target.closest(".hp-overlay a")) {
+      e.stopPropagation();
+      openHallPhotoLightbox(thumb.dataset.photoUrl, thumb.dataset.evkey);
+      return;
+    }
+  });
+
+  function openHallPhotoLightbox(url, evKey){
+    const existing = document.getElementById("hp-lightbox");
+    if (existing) existing.remove();
+    const dl = document.createElement("div");
+    dl.id = "hp-lightbox";
+    dl.className = "hp-lightbox";
+    const dlName = "hall-" + (evKey || "photo") + ".jpg";
+    dl.innerHTML =
+      '<div class="hp-lb-bar">' +
+        '<a href="' + url + '" download="' + dlName + '" target="_blank" rel="noopener">⬇ הורד</a>' +
+        '<button type="button" class="hp-lb-close">✖ סגור</button>' +
+      '</div>' +
+      '<img src="' + url + '" alt="Hall photo">';
+    dl.addEventListener("click", (ev) => {
+      // Click on overlay (not on image or bar) closes the lightbox.
+      if (ev.target === dl || ev.target.closest(".hp-lb-close")) {
+        dl.remove();
+      }
+    });
+    // Stop image clicks from closing.
+    dl.querySelector("img").addEventListener("click", (ev) => ev.stopPropagation());
+    // Keep download/close buttons clickable.
+    dl.querySelector(".hp-lb-bar a").addEventListener("click", (ev) => ev.stopPropagation());
+    document.body.appendChild(dl);
+    // ESC to close
+    const esc = (ev) => { if (ev.key === "Escape") { dl.remove(); document.removeEventListener("keydown", esc); } };
+    document.addEventListener("keydown", esc);
+  }
 
   // Click handler for staff-edit (✏️) buttons — inline edit, saves to MANUAL_TASKS via ManualTasksSync
   document.addEventListener("click", (e) => {
