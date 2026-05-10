@@ -24,9 +24,13 @@ from pathlib import Path
 # Make sibling lauren_meta importable when running from repo root
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lauren_meta as meta
+import lauren_sms as sms
 
 NOTES_PATH = Path("docs/launch/notes.json")
 LAUNCH_HTML_PATH = Path("docs/launch/index.html")
+
+# Recipients for the per-scan SMS summary (Lauren 2026-05-10 PM)
+ELI_PHONE = os.environ.get("ELI_PHONE", "").lstrip("+").lstrip("1")
 
 # US state → IANA timezone (covers all states currently in Lauren's schedule)
 STATE_TZ = {
@@ -213,6 +217,48 @@ def main() -> int:
         notes[evkey]["updated_at"] = now_utc
         any_change = True
         print(f"[scan] {evkey}: appended scan @ local {local_hour:02d}:00 → shares={scan_rec['shares']} plays={scan_rec['plays']} reach={scan_rec['reach']}")
+
+        # SMS summary to Lauren + Eli (per Lauren's request 2026-05-10 PM).
+        # Fail soft — a send error must not break the scan run for other events.
+        try:
+            prev = existing[-2] if len(existing) >= 2 else None
+            def _delta(cur_val, prev_val):
+                if cur_val is None or prev_val is None:
+                    return ""
+                d = cur_val - prev_val
+                if d == 0: return " (±0)"
+                return f" ({'+' if d>0 else ''}{d})"
+            sh, pl, re_, lk = scan_rec.get('shares'), scan_rec.get('plays'), scan_rec.get('reach'), scan_rec.get('likes')
+            psh = prev.get('shares') if prev else None
+            ppl = prev.get('plays')  if prev else None
+            pre = prev.get('reach')  if prev else None
+            plk = prev.get('likes')  if prev else None
+            scan_num = len(existing)
+            ev_label = f"{city}, {state}"
+            sms_body = (
+                f"📸 INSTA REEL · סריקה {scan_num}\n"
+                f"{ev_label} · {ev.get('start_date','')} · {local_hour:02d}:00 מקומי\n"
+                f"\n"
+                f"Shares: {sh if sh is not None else '—'}{_delta(sh, psh)}\n"
+                f"Plays:  {pl if pl is not None else '—'}{_delta(pl, ppl)}\n"
+                f"Reach:  {re_ if re_ is not None else '—'}{_delta(re_, pre)}\n"
+                f"Likes:  {lk if lk is not None else '—'}{_delta(lk, plk)}\n"
+                f"\n"
+                f"{reel_url}"
+            )
+            recipients = []
+            if sms.LAUREN_PHONE:
+                recipients.append(("Lauren", sms.LAUREN_PHONE))
+            if ELI_PHONE:
+                recipients.append(("Eli", ELI_PHONE))
+            for name, phone in recipients:
+                try:
+                    sms.send_sms(phone, sms_body)
+                    print(f"[scan] {evkey}: SMS sent to {name} ({phone}).")
+                except Exception as se:
+                    print(f"[scan] {evkey}: SMS to {name} failed: {se}")
+        except Exception as e:
+            print(f"[scan] {evkey}: SMS summary block failed: {e}")
 
     if any_change:
         _save_notes(notes)
