@@ -143,6 +143,106 @@ def fetch_recent_fb_posts(limit: int = 30, *, token: _Optional[str] = None,
     return data.get("data", [])[:limit]
 
 
+def fetch_media_insights(media_id: str, metrics: _Optional[list] = None,
+                         *, token: _Optional[str] = None) -> dict:
+    """
+    Fetch Instagram Graph API insights for a single media item (reel or post).
+    Returns a flat dict of metric_name → integer value.
+
+    Default metrics for Reels: shares, plays, reach, likes, comments, saved.
+    Note: not every metric is supported on every media_product_type. We
+    request them individually and skip any that the API rejects (HTTP 400)
+    so a single unsupported metric doesn't blank the whole result.
+    """
+    tok = token or get_token()
+    if metrics is None:
+        metrics = ["shares", "plays", "reach", "likes", "comments", "saved"]
+    out = {}
+    # Try a single combined call first — usually works.
+    try:
+        params = {"metric": ",".join(metrics), "access_token": tok}
+        data = _get(f"/{media_id}/insights", params)
+        for m in data.get("data", []):
+            name = m.get("name")
+            vals = m.get("values") or []
+            if name and vals:
+                v = vals[0].get("value")
+                if isinstance(v, (int, float)):
+                    out[name] = int(v)
+        if out:
+            return out
+    except RuntimeError:
+        pass
+    # Fallback: try each metric individually so one bad metric doesn't kill all.
+    for metric in metrics:
+        try:
+            params = {"metric": metric, "access_token": tok}
+            data = _get(f"/{media_id}/insights", params)
+            for m in data.get("data", []):
+                vals = m.get("values") or []
+                if vals:
+                    v = vals[0].get("value")
+                    if isinstance(v, (int, float)):
+                        out[m.get("name", metric)] = int(v)
+        except RuntimeError:
+            # Skip metrics this media doesn't support.
+            continue
+    return out
+
+
+def find_media_id_by_permalink(permalink_url: str, *, token: _Optional[str] = None,
+                               ig_id: _Optional[str] = None,
+                               max_search: int = 100) -> _Optional[str]:
+    """
+    Convert an Instagram reel permalink (e.g. https://www.instagram.com/reel/<shortcode>/)
+    into the underlying ig_business media_id by scanning recent media.
+
+    Returns the media_id string if found, else None. Uses normalized comparison
+    (case-insensitive, ignores trailing slashes / query strings) since the
+    Graph API permalink doesn't always match the user-facing URL exactly.
+    """
+    import re as _re
+    def _norm(u: str) -> str:
+        u = (u or "").lower().split("?")[0].rstrip("/")
+        return u
+    target = _norm(permalink_url)
+    # Also extract the shortcode for a fuzzier fallback match.
+    m = _re.search(r"/(?:reel|p)/([A-Za-z0-9_-]+)", permalink_url)
+    target_sc = (m.group(1) if m else "").lower()
+
+    items = fetch_recent_media(limit=max_search, token=token, ig_id=ig_id)
+    for it in items:
+        plink = _norm(it.get("permalink", ""))
+        if plink == target:
+            return it.get("id")
+        # Fallback: match by shortcode in case URL form differs
+        if target_sc:
+            mm = _re.search(r"/(?:reel|p)/([A-Za-z0-9_-]+)", it.get("permalink", ""))
+            if mm and mm.group(1).lower() == target_sc:
+                return it.get("id")
+    return None
+
+
+def find_pinned_or_latest_reel(*, token: _Optional[str] = None,
+                               ig_id: _Optional[str] = None) -> _Optional[dict]:
+    """
+    Find the current pinned/most-recent Reel of the IG business account.
+    The Graph API does not directly expose 'pinned' status, so we treat
+    'most recent reel' as the proxy — Lauren's workflow is to re-pin the
+    new weekly reel as the current featured content, so the latest reel
+    in the feed should match the pinned one in 99% of cases.
+    """
+    items = fetch_recent_media(limit=15, token=token, ig_id=ig_id)
+    for it in items:
+        if it.get("media_product_type") == "REELS":
+            return it
+    # Fallback: first VIDEO item if no item carries REELS product type
+    for it in items:
+        if it.get("media_type") == "VIDEO":
+            return it
+    return None
+
+
 def match_by_city(items: list, city: str, *, state: _Optional[str] = None) -> _Optional[dict]:
     """
     Find the BEST match — the item whose caption clearly identifies it as the

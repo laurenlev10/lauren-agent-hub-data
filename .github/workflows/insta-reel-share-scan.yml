@@ -1,0 +1,57 @@
+# Instagram Reel share-scan during event weekends
+#
+# Lauren's request (2026-05-10): every Fri/Sat/Sun of an active event,
+# at 12:00, 14:00, and 17:00 EVENT-LOCAL time, fetch the share count of
+# the pinned Instagram Reel and append a scan record so she can see if
+# attendees are sharing the reel during the event (a proxy for staff
+# performance in the room).
+#
+# This workflow runs every hour on Fri/Sat/Sun (UTC). The Python script
+# decides — per event — whether the current event-local hour is one of
+# {12, 14, 17}, and only then does it scan. Multiple events on the same
+# weekend with different timezones are all handled in one run.
+#
+# The reel URL comes from MANUAL_TASKS[evkey].insta_reel_url if Lauren
+# set it manually; otherwise the script falls back to the most-recent
+# reel of the IG business account (Lauren's workflow is to keep the
+# weekly featured reel pinned at the top of the page, so most-recent
+# = pinned in practice).
+
+name: insta-reel-share-scan
+
+on:
+  schedule:
+    # Hourly on Friday (5), Saturday (6), Sunday (0).
+    # The script handles event-local time alignment; runs that fall
+    # outside any event's 12/14/17 window exit cheaply.
+    - cron: '0 * * * 5,6,0'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # to update docs/launch/notes.json
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan reel insights for active events
+        env:
+          META_PAGE_TOKEN:     ${{ secrets.META_PAGE_TOKEN }}
+          META_IG_BUSINESS_ID: ${{ secrets.META_IG_BUSINESS_ID }}
+        run: |
+          python3 scripts/insta_reel_scan.py
+
+      - name: Commit + push notes.json if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name  "Lauren (via Actions)"
+          if ! git diff --quiet docs/launch/notes.json 2>/dev/null; then
+            git add docs/launch/notes.json
+            git commit -m "insta-reel-scan: update share counts $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push origin main
+          else
+            echo "No new scans this run."
+          fi
