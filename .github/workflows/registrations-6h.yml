@@ -1,0 +1,214 @@
+# Event-registration counts — every 6 hours
+#
+# Pulls TWO data sources every 6h and writes them into launch/index.html:
+#   1. EVENTBRITE_STATS — registration counts per event from Eventbrite v3 API
+#   2. LIST_STATS       — SimpleTexting subscriber counts per event SMS list
+#
+# Lauren wanted both signals refreshed every 6h instead of weekly/daily so she
+# can see registration progress mid-day. Replaces the data-pull side of the
+# old daily-sms-list-counts (still kept as workflow_dispatch backup).
+#
+# Created 2026-05-10 PM. Visible in the "משימות אוטומטיות" widget.
+
+name: registrations-6h
+
+on:
+  schedule:
+    # Every 6 hours at :15 (offset from refresh-meta-posts at :07 and
+    # marketing-stats at :30 to spread API load across providers).
+    - cron: '15 */6 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Refresh EVENTBRITE_STATS + LIST_STATS
+        env:
+          EB_TOKEN: ${{ secrets.EVENTBRITE_TOKEN }}
+          ST_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+        run: |
+          python3 <<'PY'
+          import os, re, json, urllib.request, datetime, time
+
+          EB_TOKEN = os.environ["EB_TOKEN"]
+          ST_TOKEN = os.environ["ST_TOKEN"]
+          fp = "docs/launch/index.html"
+          with open(fp, encoding="utf-8") as f:
+              html = f.read()
+
+          def get_map(name):
+              m = re.search(rf'const {name} = (\{{[^;]+\}});', html, re.S)
+              return json.loads(m.group(1)) if m else {}
+
+          SETUPS    = get_map("SETUPS")
+          EB_STATS  = get_map("EVENTBRITE_STATS")
+          LIST_STATS_PREV = get_map("LIST_STATS")
+
+          today    = datetime.date.today().isoformat()
+          now_iso  = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+
+          # ─────────────────────────────────────────────
+          # 1. Eventbrite registrations
+          # ─────────────────────────────────────────────
+          def eb_get(eid):
+              req = urllib.request.Request(
+                  f"https://www.eventbriteapi.com/v3/events/{eid}/?expand=ticket_classes",
+                  headers={"Authorization": f"Bearer {EB_TOKEN}"}
+              )
+              with urllib.request.urlopen(req, timeout=15) as r:
+                  return json.load(r)
+
+          new_eb = dict(EB_STATS)
+          eb_touched = 0
+          for key, s in SETUPS.items():
+              eid = ((s or {}).get("eventbrite") or {}).get("eventId")
+              if not eid:
+                  continue
+              try:
+                  d = eb_get(eid)
+                  prev = EB_STATS.get(key, {})
+                  prev_total = prev.get("registrations", 0)
+                  new_total  = sum(int(tc.get("quantity_sold", 0) or 0) for tc in d.get("ticket_classes", []))
+                  history = list(prev.get("history", []))
+                  if history and history[-1].get("date") == today:
+                      history[-1] = {"date": today, "registrations": new_total}
+                  else:
+                      history.append({"date": today, "registrations": new_total})
+                  history = history[-20:]
+                  new_eb[key] = {
+                      "eventId":         eid,
+                      "registrations":   new_total,
+                      "capacity":        d.get("capacity", 0),
+                      "last_week_total": prev.get("last_week_total", prev_total),
+                      "weekly_delta":    prev.get("weekly_delta", 0),
+                      "today_delta":     new_total - prev_total,
+                      "history":         history,
+                      "updated_at":      now_iso
+                  }
+                  eb_touched += 1
+                  time.sleep(0.1)
+              except Exception as e:
+                  print(f"  EB err {key}: {e}")
+
+          # ─────────────────────────────────────────────
+          # 2. SimpleTexting list subscriber counts
+          # ─────────────────────────────────────────────
+          def st_get(list_id):
+              req = urllib.request.Request(
+                  f"https://app2.simpletexting.com/v2/api/contact-lists/{list_id}",
+                  headers={"Authorization": f"Bearer {ST_TOKEN}"}
+              )
+              with urllib.request.urlopen(req, timeout=15) as r:
+                  return json.load(r)
+
+          new_list = dict(LIST_STATS_PREV)
+          list_touched = 0
+          for key, s in SETUPS.items():
+              sms = (s or {}).get("smslist") or {}
+              lid = sms.get("list_id")
+              if not lid:
+                  continue
+              try:
+                  d = st_get(lid)
+                  prev = LIST_STATS_PREV.get(key, {})
+                  total      = int(d.get("totalSubscribers", d.get("totalContacts", 0)) or 0)
+                  active     = int(d.get("activeSubscribers", d.get("activeContacts", 0)) or 0)
+                  invalid    = int(d.get("invalidSubscribers", d.get("invalidContacts", 0)) or 0)
+                  unsub      = int(d.get("unsubscribedSubscribers", d.get("unsubscribedContacts", 0)) or 0)
+                  history = list(prev.get("history", []))
+                  if history and history[-1].get("date") == today:
+                      history[-1] = {"date": today, "total": total, "active": active}
+                  else:
+                      history.append({"date": today, "total": total, "active": active})
+                  history = history[-20:]
+                  yesterday = prev.get("yesterday_total", prev.get("total", total))
+                  new_list[key] = {
+                      "list_id":        lid,
+                      "list_name":      sms.get("list_name", ""),
+                      "total":          total,
+                      "active":         active,
+                      "invalid":        invalid,
+                      "unsubscribed":   unsub,
+                      "yesterday_total": yesterday,
+                      "daily_delta":    total - yesterday,
+                      "history":        history,
+                      "updated_at":     now_iso
+                  }
+                  list_touched += 1
+                  time.sleep(0.1)
+              except Exception as e:
+                  print(f"  ST err {key}: {e}")
+                  if key in LIST_STATS_PREV:
+                      new_list[key] = LIST_STATS_PREV[key]
+
+          # ─────────────────────────────────────────────
+          # 3. Write both maps back into launch/index.html
+          # ─────────────────────────────────────────────
+          new_eb_block   = "const EVENTBRITE_STATS = " + json.dumps(new_eb,   ensure_ascii=False, separators=(",", ":")) + ";"
+          new_list_block = "const LIST_STATS = "       + json.dumps(new_list, ensure_ascii=False, separators=(",", ":")) + ";"
+          html = re.sub(r'const EVENTBRITE_STATS = \{[^;]*\};', new_eb_block,   html, count=1, flags=re.S)
+          html = re.sub(r'const LIST_STATS = \{[^;]*\};',       new_list_block, html, count=1, flags=re.S)
+          with open(fp, "w", encoding="utf-8") as f:
+              f.write(html)
+          print(f"  refreshed: EVENTBRITE_STATS={eb_touched}, LIST_STATS={list_touched}")
+          PY
+
+      - name: Commit + push if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name  "Lauren (via Actions)"
+          if ! git diff --quiet docs/launch/index.html; then
+            git add docs/launch/index.html
+            git commit -m "registrations-6h: refresh EB + ST counts $(date -u +%Y-%m-%dT%H:%MZ)"
+            git pull --rebase origin main || true
+            git push origin main
+          else
+            echo "No changes."
+          fi
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "registrations-6h":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump registrations-6h lastRunAt"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
+
+      # IRON RULE (Lauren 2026-05-10): SMS Lauren if this workflow fails.
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
