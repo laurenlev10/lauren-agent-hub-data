@@ -118,10 +118,11 @@ jobs:
               try:
                   d = st_get(lid)
                   prev = LIST_STATS_PREV.get(key, {})
-                  total      = int(d.get("totalSubscribers", d.get("totalContacts", 0)) or 0)
-                  active     = int(d.get("activeSubscribers", d.get("activeContacts", 0)) or 0)
-                  invalid    = int(d.get("invalidSubscribers", d.get("invalidContacts", 0)) or 0)
-                  unsub      = int(d.get("unsubscribedSubscribers", d.get("unsubscribedContacts", 0)) or 0)
+                  # SimpleTexting v2 API field names — verified against daily-sms-list-counts.yml
+                  total      = int(d.get("totalContactsCount", 0) or 0)
+                  active     = int(d.get("activeContactsCount", 0) or 0)
+                  invalid    = int(d.get("invalidContactsCount", 0) or 0)
+                  unsub      = int(d.get("unsubscribedContactsCount", 0) or 0)
                   history = list(prev.get("history", []))
                   if history and history[-1].get("date") == today:
                       history[-1] = {"date": today, "total": total, "active": active}
