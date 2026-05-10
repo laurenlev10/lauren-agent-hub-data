@@ -2417,35 +2417,115 @@ End date: </div>
       return null;
     }
 
+    // Compress an image File to JPEG <= ~4 MB if it's too big or too wide.
+    // GitHub Contents API returns 500 on files >25 MB; phone HEIC/HEIF photos
+    // can be 5-15 MB and Columbus's photo hit that limit (Lauren 2026-05-10 PM).
+    async function compressIfNeeded(file){
+      const TARGET_BYTES = 4 * 1024 * 1024;   // soft target — avoid GH 500
+      const MAX_WIDTH    = 2400;              // plenty for a hall thumbnail
+      // Skip compression for small files of supported types.
+      const isImage = (file.type || "").startsWith("image/");
+      if (!isImage) return file;
+      if (file.size <= TARGET_BYTES) return file;
+      // HEIC/HEIF can\'t be drawn into <canvas> — return as-is and let GH error
+      // (we add a clearer message in upload()).
+      if ((file.type||"").includes("heic") || (file.type||"").includes("heif")) {
+        console.warn("[hall-photo] HEIC/HEIF file — browser cannot resize. Will try as-is.");
+        return file;
+      }
+      try {
+        const dataUrl = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onerror = () => rej(new Error("read failed"));
+          r.onload  = () => res(r.result);
+          r.readAsDataURL(file);
+        });
+        const img = await new Promise((res, rej) => {
+          const i = new Image();
+          i.onerror = () => rej(new Error("image decode failed"));
+          i.onload  = () => res(i);
+          i.src = dataUrl;
+        });
+        const ratio = Math.min(1, MAX_WIDTH / img.naturalWidth);
+        const w = Math.round(img.naturalWidth * ratio);
+        const h = Math.round(img.naturalHeight * ratio);
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.85));
+        if (!blob) return file;
+        // Wrap as a File so name/ext logic stays consistent
+        const newName = (file.name || "photo").replace(/\.[^.]+$/, "") + ".jpg";
+        const compressed = new File([blob], newName, { type: "image/jpeg" });
+        console.log(`[hall-photo] compressed ${(file.size/1024/1024).toFixed(1)} MB → ${(compressed.size/1024/1024).toFixed(1)} MB (${img.naturalWidth}x${img.naturalHeight} → ${w}x${h})`);
+        return compressed;
+      } catch(e) {
+        console.warn("[hall-photo] compression failed, uploading original:", e);
+        return file;
+      }
+    }
+
     async function upload(evKey, file){
       const tok = getToken();
       if (!tok) { alert("🔑 חסר GitHub token — לחצי על תווית הסנכרון בפינה והדביקי טוקן."); return null; }
-      if (file.size > MAX_BYTES) { alert("התמונה גדולה מדי (" + Math.round(file.size/1024/1024) + " MB). מקסימום 10 MB."); return null; }
-      const ext = extFor(file);
+      // Compress first, then size-check
+      const useFile = await compressIfNeeded(file);
+      if (useFile.size > MAX_BYTES) {
+        alert("התמונה גדולה מדי (" + (useFile.size/1024/1024).toFixed(1) + " MB) גם אחרי דחיסה. מקסימום 10 MB.");
+        return null;
+      }
+      // HEIC/HEIF heads-up — these usually fail in browsers
+      if ((useFile.type||"").includes("heic") || (useFile.type||"").includes("heif")) {
+        console.warn("[hall-photo] uploading HEIC — preview may not render in browsers");
+      }
+      const ext = extFor(useFile);
       const repoPath = `docs/launch/hall-photos/${evKey}.${ext}`;
       const apiUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${repoPath}`;
-      const b64 = await fileToBase64(file);
+      console.log(`[hall-photo] PUT ${repoPath} (${(useFile.size/1024).toFixed(0)} KB, type=${useFile.type})`);
+      const b64 = await fileToBase64(useFile);
       const existingSha = await getSha(repoPath);
       const body = {
-        message: `hall-photo: ${evKey} (${(file.size/1024).toFixed(0)} KB)`,
+        message: `hall-photo: ${evKey} (${(useFile.size/1024).toFixed(0)} KB)`,
         content: b64,
         branch: BRANCH
       };
       if (existingSha) body.sha = existingSha;
-      const r = await fetch(apiUrl, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
+      let r;
+      try {
+        r = await fetch(apiUrl, {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${tok}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+      } catch (netErr) {
+        alert("שגיאת רשת: " + netErr.message + "\n\nנסי שוב, או רעני את הדף.");
+        return null;
+      }
       if (!r.ok) {
         const errText = await r.text().catch(()=>"");
-        alert("שגיאת העלאה: " + r.status + "\n" + errText.slice(0,200));
+        // Try to parse GH JSON error for the actual message
+        let ghMsg = "";
+        try {
+          const j = JSON.parse(errText);
+          ghMsg = j.message || "";
+          if (j.errors && j.errors.length) ghMsg += " · " + j.errors.map(e => e.code || e.message || JSON.stringify(e)).join(", ");
+        } catch(e){ ghMsg = errText.slice(0, 240); }
+        // Hint based on common causes
+        let hint = "";
+        if (r.status === 401 || r.status === 403) hint = "\n\nכנראה ה-GitHub token פג תוקף או חסרות לו הרשאות. לחצי על תווית הסנכרון בפינה ועדכני אותו.";
+        else if (r.status === 404)               hint = "\n\nהנתיב לא נמצא — תקלת קוד, פני אליי.";
+        else if (r.status === 409)               hint = "\n\nהקובץ השתנה ברקע. רעני את הדף ונסי שוב.";
+        else if (r.status === 422)               hint = "\n\nגודל הקובץ או התוכן לא תקין. נסי תמונה קטנה יותר.";
+        else if (r.status >= 500)                hint = "\n\nשרת GitHub מחזיר שגיאה. נסי שוב בעוד דקה. אם זה חוזר — התמונה כנראה גדולה מדי או בפורמט לא נתמך (נסי לצלם מחדש כ-JPG).";
+        console.error(`[hall-photo] upload failed (${r.status})`, ghMsg);
+        alert("שגיאת העלאה: " + r.status + " — " + (ghMsg || "ללא פרטים") + hint);
         return null;
       }
       return {
         path: `hall-photos/${evKey}.${ext}`,
         ext: ext,
-        size: file.size,
+        size: useFile.size,
         name: file.name,
         uploaded_at: new Date().toISOString()
       };
