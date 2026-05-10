@@ -108,3 +108,15 @@ jobs:
           resp = send_sms(LAUREN_PHONE, body)
           print("SMS sent:", json.dumps(resp, ensure_ascii=False))
           PY
+
+      # IRON RULE (Lauren 2026-05-10): SMS Lauren if this workflow fails.
+      # Notify-on-failure is mandatory for every scheduled workflow in this repo.
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
