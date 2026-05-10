@@ -1475,7 +1475,7 @@ def main():
                     }
                     # Persist (best-effort — the workflow will commit via the deploy step)
                     handled_path = Path(__file__).resolve().parent.parent / "docs/meta/handled.json"
-                    handled_path.write_text(_json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
+                    handled_path.write_text(json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
                     print(f"  ✓ marked handled in docs/meta/handled.json")
             except Exception as e:
                 print(f"  ❌ reply failed: {e}")
@@ -1526,7 +1526,7 @@ def main():
                 failed += 1
         print(f"  Phase 2 auto-reply: sent={sent} failed={failed} skipped_24h={skipped_24h}")
         handled_path = Path(__file__).resolve().parent.parent / "docs/meta/handled.json"
-        handled_path.write_text(_json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
+        handled_path.write_text(json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # === Bulk mark all classified items as handled (manual cleanup) ===
     if args.bulk_mark_handled:
