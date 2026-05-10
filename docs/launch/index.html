@@ -261,6 +261,39 @@
                            padding:7px 14px;border-radius:6px;cursor:pointer;
                            margin-top:6px;width:100%;font-family:inherit}
   .btn-reel-row{background:linear-gradient(180deg,#4f46e5,#3730a3)}
+  /* INSTA REEL — separate from Canva Reel; tracks pinned IG reel + share scans (Lauren 2026-05-10) */
+  .btn-insta-row{background:linear-gradient(135deg,#f58529 0%,#dd2a7b 50%,#8134af 100%)}
+  .btn-insta-row.done{background:linear-gradient(180deg,#16a34a,#15803d) !important}
+  .btn-insta-row .scan-count{background:rgba(255,255,255,.22);padding:1px 5px;border-radius:4px;font-size:10px;margin-left:3px}
+  .reel-link-btn{display:inline-flex;align-items:center;justify-content:center;margin-top:6px;margin-left:2px;padding:4px 7px;background:transparent;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:11px;color:#6b7280;transition:all .12s;vertical-align:middle}
+  .reel-link-btn:hover{border-color:#dd2a7b;color:#dd2a7b;background:#fdf4ff}
+  .reel-link-btn.set{border-color:#dd2a7b;color:#dd2a7b;background:#fdf4ff}
+  /* Reel insights modal */
+  .reel-modal{position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;animation:hpFadeIn .15s ease-out}
+  .reel-modal-card{background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4);direction:rtl}
+  .reel-modal-head{padding:18px 22px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;background:linear-gradient(135deg,#f58529 0%,#dd2a7b 50%,#8134af 100%);color:#fff;border-radius:14px 14px 0 0}
+  .reel-modal-head h2{margin:0;font-size:18px;font-weight:800}
+  .reel-modal-head .reel-sub{font-size:12px;opacity:.9;margin-top:3px;word-break:break-all}
+  .reel-modal-head .reel-close{background:rgba(255,255,255,.25);border:none;color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-weight:700;flex-shrink:0}
+  .reel-modal-body{padding:18px 22px}
+  .reel-stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+  .reel-stat{background:#f8fafc;border-radius:10px;padding:12px;text-align:center;border:1px solid #e5e7eb}
+  .reel-stat .label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:6px}
+  .reel-stat .value{font-size:22px;font-weight:800;color:#0f172a;line-height:1}
+  .reel-stat .delta{font-size:11px;font-weight:700;margin-top:4px}
+  .reel-stat .delta.pos{color:#16a34a}
+  .reel-stat .delta.neg{color:#dc2626}
+  .reel-stat .delta.neutral{color:#94a3b8}
+  .reel-rate{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;color:#78350f}
+  .reel-rate b{color:#92400e;font-weight:800}
+  .reel-history{font-size:12px}
+  .reel-history table{width:100%;border-collapse:collapse}
+  .reel-history th{font-weight:700;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:7px 6px;border-bottom:1px solid #e5e7eb;text-align:right}
+  .reel-history td{padding:8px 6px;border-bottom:1px solid #f1f5f9;color:#334155}
+  .reel-history tr:last-child td{border-bottom:none}
+  .reel-history .scan-time{font-weight:600;color:#1e293b}
+  .reel-empty{text-align:center;padding:24px;color:#64748b;font-size:13px}
+  .reel-empty b{color:#1f2937}
   .btn-pr-influencer-row{background:linear-gradient(180deg,#d946ef,#a21caf)}
   .btn-summary-row{background:linear-gradient(180deg,#0891b2,#155e75)}
   .btn-metaads-row{background:linear-gradient(180deg,#1f2937,#0f172a)} /* black per Lauren's spec — flips green via .done */
@@ -1480,6 +1513,36 @@ End date: </div>
             }
           } else {
             rowBtn += '<a class="btn-agent-row btn-reel-row" href="../canva-reel/?' + params + '" target="_blank" rel="noopener" title="Open Canva Reel pre-filled with this event">🎬 Reel</a>';
+
+          // ─────────────────────────────────────────────
+          // INSTA REEL button + manual URL paste chip (Lauren 2026-05-10)
+          // Reads MANUAL_TASKS[evKey] for: insta_reel_url, insta_reel_url_set_by, insta_reel_scans
+          // Click button → modal with shares/plays/reach growth.
+          // Click 🔗 chip → prompt to paste a reel URL (overrides auto-detected one).
+          // ─────────────────────────────────────────────
+          {
+            const noteIR = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKey] || {}) : {};
+            const reelUrl = noteIR.insta_reel_url || "";
+            const scans = Array.isArray(noteIR.insta_reel_scans) ? noteIR.insta_reel_scans : [];
+            const setBy = noteIR.insta_reel_url_set_by || "";
+            const hasUrl = !!reelUrl;
+            const hasScans = scans.length > 0;
+            const irBtnClass = (hasUrl && hasScans) ? "btn-agent-row btn-insta-row done" : "btn-agent-row btn-insta-row";
+            const irLabel = hasUrl
+              ? ('📸 INSTA REEL' + (hasScans ? ' <span class="scan-count">' + scans.length + '</span>' : ''))
+              : '📸 + INSTA REEL';
+            const irTitle = hasUrl
+              ? ('Reel: ' + reelUrl + (hasScans ? ' · ' + scans.length + ' סריקות' : ' · אין עדיין סריקות'))
+              : 'הדבקי URL של הריל הסגור הפינו';
+            rowBtn += '<button type="button" class="' + irBtnClass + ' insta-reel-btn" data-evkey="' + evKey + '" title="' + escapeHtml(irTitle) + '">' + irLabel + '</button>';
+            // Always show the 🔗 manual paste chip — Lauren needs to be able to override anytime
+            const chipCls = hasUrl ? "reel-link-btn set" : "reel-link-btn";
+            const chipTitle = hasUrl
+              ? ('הריל הנוכחי: ' + reelUrl + (setBy === 'auto' ? ' (אותר אוטומטית)' : ' (ידני)') + ' — לחיצה לעריכה')
+              : 'הדבקי URL של הריל ידנית (אופציונלי — נסרק גם אוטומטית)';
+            rowBtn += '<button type="button" class="' + chipCls + ' reel-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(reelUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(chipTitle) + '">🔗</button>';
+          }
+
           }
 
           // 📲 SMS Campaigns
@@ -2499,6 +2562,157 @@ End date: </div>
     document.body.appendChild(dl);
     // ESC to close
     const esc = (ev) => { if (ev.key === "Escape") { dl.remove(); document.removeEventListener("keydown", esc); } };
+    document.addEventListener("keydown", esc);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // INSTA REEL — manual URL paste + insights modal (Lauren 2026-05-10)
+  // Auto-scan runs via .github/workflows/insta-reel-share-scan.yml.
+  // Manual override here just sets MANUAL_TASKS[evKey].insta_reel_url + _set_by="manual".
+  // ────────────────────────────────────────────────────────────
+  document.addEventListener("click", (e) => {
+    // Manual URL paste chip (🔗)
+    const chip = e.target.closest(".reel-link-paste-btn");
+    if (chip) {
+      e.stopPropagation();
+      const evKey = chip.dataset.evkey;
+      const cur = chip.dataset.current || "";
+      const v = prompt(
+        "🔗 הדבקי URL של ריל אינסטגרם של האירוע הזה:\n\n" +
+        "דוגמה:\n  https://www.instagram.com/reel/DXxbbJhRHEE/\n\n" +
+        "אם תשאירי ריק — האוטו-סריקה תקבע את הריל לפי הפוסט הכי חדש בדף העסקי.",
+        cur
+      );
+      if (v === null) return;   // canceled
+      const trimmed = (v || "").trim();
+      if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
+      if (trimmed === "") {
+        delete MANUAL_TASKS[evKey].insta_reel_url;
+        delete MANUAL_TASKS[evKey].insta_reel_url_set_by;
+        delete MANUAL_TASKS[evKey].insta_reel_url_set_at;
+      } else {
+        MANUAL_TASKS[evKey].insta_reel_url = trimmed;
+        MANUAL_TASKS[evKey].insta_reel_url_set_by = "manual";
+        MANUAL_TASKS[evKey].insta_reel_url_set_at = new Date().toISOString();
+      }
+      MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+      ManualTasksSync.save(MANUAL_TASKS);
+      renderSchedule();
+      return;
+    }
+    // INSTA REEL button → open insights modal
+    const irBtn = e.target.closest(".insta-reel-btn");
+    if (irBtn) {
+      e.stopPropagation(); e.preventDefault();
+      openInstaReelModal(irBtn.dataset.evkey);
+      return;
+    }
+    // Modal close / overlay click
+    if (e.target.id === "reel-modal-overlay" || e.target.classList.contains("reel-close")) {
+      const m = document.getElementById("reel-modal-overlay");
+      if (m) m.remove();
+      return;
+    }
+  });
+
+  function openInstaReelModal(evKey) {
+    const note = (MANUAL_TASKS[evKey] || {});
+    const reelUrl = note.insta_reel_url || "";
+    const scans = Array.isArray(note.insta_reel_scans) ? note.insta_reel_scans.slice() : [];
+    scans.sort((a,b) => (a.scanned_at || "").localeCompare(b.scanned_at || ""));   // chronological
+
+    // Compute deltas + average shares-per-scan
+    let body = '';
+    if (!reelUrl) {
+      body = '<div class="reel-empty">' +
+               '<b>אין URL לריל עדיין.</b><br>' +
+               'לחצי על כפתור ה-🔗 ליד הכפתור כדי להדביק URL ידנית,<br>' +
+               'או חכי לסריקה האוטומטית הבאה (היא תזהה את הריל הסגור הפינו בדף העסקי).' +
+             '</div>';
+    } else if (scans.length === 0) {
+      body = '<div class="reel-empty">' +
+               '<b>הריל מוגדר אבל אין עדיין סריקות.</b><br>' +
+               'הסריקה הראשונה תרוץ ביום שישי בשעה 12:00 שעון מקומי באירוע.<br>' +
+               '3 סריקות ביום: 12:00, 14:00, 17:00 (שישי-ראשון בלבד).' +
+             '</div>';
+    } else {
+      const last = scans[scans.length - 1];
+      const prev = scans.length > 1 ? scans[scans.length - 2] : null;
+      function delta(cur, p, key) {
+        if (!p || p[key] == null || cur[key] == null) return { txt: "—", cls: "neutral" };
+        const d = cur[key] - p[key];
+        if (d === 0) return { txt: "±0", cls: "neutral" };
+        return { txt: (d > 0 ? "▲ +" : "▼ ") + d, cls: d > 0 ? "pos" : "neg" };
+      }
+      const dShares = delta(last, prev, "shares");
+      const dPlays  = delta(last, prev, "plays");
+      const dReach  = delta(last, prev, "reach");
+
+      // Average rate of share growth across consecutive scans (per hour)
+      let totalShareDelta = 0, totalHours = 0;
+      for (let i = 1; i < scans.length; i++) {
+        const a = scans[i-1], b = scans[i];
+        const da = (b.shares != null && a.shares != null) ? (b.shares - a.shares) : 0;
+        const ta = new Date(a.scanned_at).getTime();
+        const tb = new Date(b.scanned_at).getTime();
+        const hrs = (tb - ta) / 3600000;
+        if (hrs > 0) { totalShareDelta += da; totalHours += hrs; }
+      }
+      const avgPerHour = totalHours > 0 ? (totalShareDelta / totalHours) : 0;
+      const totalShares = (last.shares || 0) - (scans[0].shares || 0);
+      const rateLabel = scans.length > 1
+        ? '<b>ממוצע עליית שיתופים:</b> ' + avgPerHour.toFixed(1) + ' לשעה · <b>סה״כ מאז סריקה ראשונה:</b> +' + totalShares + ' שיתופים על פני ' + totalHours.toFixed(1) + ' שעות'
+        : '<b>סריקה ראשונה — אין עדיין ממוצע.</b> חכי לסריקה הבאה לחישוב קצב.';
+
+      body = '<div class="reel-stats-grid">' +
+               '<div class="reel-stat"><div class="label">Shares</div><div class="value">' + (last.shares != null ? last.shares : "—") + '</div><div class="delta ' + dShares.cls + '">' + dShares.txt + '</div></div>' +
+               '<div class="reel-stat"><div class="label">Plays</div><div class="value">' + (last.plays != null ? last.plays : "—") + '</div><div class="delta ' + dPlays.cls + '">' + dPlays.txt + '</div></div>' +
+               '<div class="reel-stat"><div class="label">Reach</div><div class="value">' + (last.reach != null ? last.reach : "—") + '</div><div class="delta ' + dReach.cls + '">' + dReach.txt + '</div></div>' +
+             '</div>' +
+             '<div class="reel-rate">' + rateLabel + '</div>' +
+             '<div class="reel-history"><table>' +
+               '<thead><tr><th>סריקה</th><th>Shares</th><th>Plays</th><th>Reach</th><th>Likes</th></tr></thead>' +
+               '<tbody>' +
+                 scans.map(s => {
+                   const t = (s.scanned_at || "").slice(0,16).replace("T"," ");
+                   return '<tr>' +
+                            '<td class="scan-time">' + t + '</td>' +
+                            '<td>' + (s.shares != null ? s.shares : "—") + '</td>' +
+                            '<td>' + (s.plays != null ? s.plays : "—") + '</td>' +
+                            '<td>' + (s.reach != null ? s.reach : "—") + '</td>' +
+                            '<td>' + (s.likes != null ? s.likes : "—") + '</td>' +
+                          '</tr>';
+                 }).reverse().join("") +
+               '</tbody>' +
+             '</table></div>';
+    }
+
+    const ev = (() => {
+      const yr = activeYear;
+      const src = activeSource()[yr] || [];
+      return src.find(e => ((e.city||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + e.start_date) === evKey) || null;
+    })();
+    const evLabel = ev ? (ev.city + ", " + ev.state + " · " + ev.start_date) : evKey;
+
+    const old = document.getElementById("reel-modal-overlay");
+    if (old) old.remove();
+    const overlay = document.createElement("div");
+    overlay.id = "reel-modal-overlay";
+    overlay.className = "reel-modal";
+    overlay.innerHTML =
+      '<div class="reel-modal-card" onclick="event.stopPropagation()">' +
+        '<div class="reel-modal-head">' +
+          '<div>' +
+            '<h2>📸 INSTA REEL — ' + evLabel + '</h2>' +
+            '<div class="reel-sub">' + (reelUrl ? '<a href="' + reelUrl + '" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline">' + reelUrl + '</a>' : 'אין URL') + '</div>' +
+          '</div>' +
+          '<button type="button" class="reel-close" title="סגור">✖</button>' +
+        '</div>' +
+        '<div class="reel-modal-body">' + body + '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    // ESC closes
+    const esc = (ev) => { if (ev.key === "Escape") { overlay.remove(); document.removeEventListener("keydown", esc); } };
     document.addEventListener("keydown", esc);
   }
 
