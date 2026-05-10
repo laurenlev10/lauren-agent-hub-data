@@ -123,6 +123,12 @@
   .schedule-table tbody tr.row-next td{background:#fef08a !important;border-top:2px solid #facc15;border-bottom:2px solid #facc15}
   .schedule-table tbody tr.row-next td:first-child{border-left:4px solid #f59e0b}
   .badge-next{background:#fef08a;color:#92400e;animation:pulse 1.6s ease-in-out infinite}
+  /* LIVE badge — shown on event rows whose Fri–Sun span includes today (Lauren's local time) */
+  .badge-live{background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;display:inline-flex;align-items:center;gap:5px;font-weight:800;letter-spacing:.7px;padding:3px 9px;box-shadow:0 0 0 2px rgba(34,197,94,.25),0 1px 2px rgba(22,163,74,.35);margin-right:4px}
+  .badge-live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#fff;animation:livePulse 1.2s ease-in-out infinite}
+  @keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(255,255,255,.95)}70%{box-shadow:0 0 0 6px rgba(255,255,255,0)}100%{box-shadow:0 0 0 0 rgba(255,255,255,0)}}
+  .schedule-table tbody tr.row-live td{background:#dcfce7 !important;border-top:2px solid #16a34a;border-bottom:2px solid #16a34a}
+  .schedule-table tbody tr.row-live td:first-child{border-left:4px solid #15803d}
   .btn-launch-row{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:5px 10px;background:linear-gradient(180deg,var(--accent),var(--accent-dark));color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.3px;box-shadow:0 1px 2px rgba(236,72,153,.3);transition:all .12s;white-space:nowrap}
   .btn-launch-row:hover{background:linear-gradient(180deg,var(--accent-dark),#9d174d);transform:translateY(-1px)}
   .btn-launch-row.copied{background:var(--ok)}
@@ -1261,8 +1267,12 @@ End date: </div>
         }
       }
       const isNext = (iso === nextIso);
-      const cls = rowClassFor(eff) + (isNext ? " row-next" : "");
-      const statusBadge = (isNext ? '<span class="badge badge-next" style="margin-right:4px">🔜 Next</span>' : '') + badgeFor(eff);
+      // LIVE — today is within the event's Fri–Sun window (in Lauren's local TZ).
+      // Only flag rows that actually have a scheduled event (skip empty open weekends).
+      const isLive = !!ev && (start <= today) && (today <= end);
+      const cls = rowClassFor(eff) + (isNext ? " row-next" : "") + (isLive ? " row-live" : "");
+      const liveBadge = isLive ? '<span class="badge badge-live" title="האירוע מתקיים כעת">LIVE</span>' : '';
+      const statusBadge = liveBadge + (isNext ? '<span class="badge badge-next" style="margin-right:4px">🔜 Next</span>' : '') + badgeFor(eff);
       // Per-row "🎟️ Eventbrite + List Setup" button — only when there is an event.
       // Replaced "📋 Copy launch" / "📋 Re-copy" on 2026-05-03 (Lauren feedback: those names were
       // ambiguous — agent does TWO things, Eventbrite event + SMS list creation).
