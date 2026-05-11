@@ -294,6 +294,49 @@
   .reel-history .scan-time{font-weight:600;color:#1e293b}
   .reel-empty{text-align:center;padding:24px;color:#64748b;font-size:13px}
   .reel-empty b{color:#1f2937}
+  /* Hero shares card — Lauren's #1 metric per business context 2026-05-10 PM */
+  .reel-hero{background:linear-gradient(135deg,#fce7f3 0%,#fdf2f8 100%);border:2px solid #ec4899;border-radius:14px;padding:16px 20px;margin-bottom:14px;position:relative;overflow:hidden}
+  .reel-hero::before{content:"⭐ המטריקה הקריטית";position:absolute;top:8px;left:14px;font-size:10px;font-weight:800;letter-spacing:.8px;color:#9d174d;background:rgba(255,255,255,.7);padding:3px 9px;border-radius:999px}
+  .reel-hero .hero-label{font-size:11px;color:#9d174d;font-weight:700;letter-spacing:.6px;text-transform:uppercase;margin-top:14px}
+  .reel-hero .hero-value{font-size:42px;font-weight:900;color:#831843;line-height:1;margin:6px 0 4px;letter-spacing:-1px}
+  .reel-hero .hero-delta{font-size:14px;font-weight:800;display:inline-block;padding:3px 10px;border-radius:999px;margin-right:6px}
+  .reel-hero .hero-delta.pos{background:#dcfce7;color:#14532d}
+  .reel-hero .hero-delta.neg{background:#fee2e2;color:#7f1d1d}
+  .reel-hero .hero-delta.neutral{background:#f1f5f9;color:#475569}
+  .reel-hero .hero-rate{font-size:12px;color:#831843;margin-top:8px;font-weight:600}
+  .reel-hero .hero-rate b{color:#9d174d}
+  /* Inline SVG sparkline */
+  .reel-sparkline{width:100%;height:54px;margin-top:8px;display:block}
+  .reel-sparkline path.line{fill:none;stroke:#ec4899;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+  .reel-sparkline path.fill{fill:rgba(236,72,153,.15);stroke:none}
+  .reel-sparkline circle{fill:#ec4899;stroke:#fff;stroke-width:1.5}
+  /* Section heading inside modal */
+  .reel-section-title{font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px}
+  /* Per-slot cards (12:00 / 14:00 / 17:00) */
+  .reel-slot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
+  .reel-slot{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:9px 10px;text-align:center}
+  .reel-slot .slot-time{font-size:10px;font-weight:800;color:#64748b;letter-spacing:.4px}
+  .reel-slot .slot-avg{font-size:18px;font-weight:800;color:#1e293b;margin-top:3px}
+  .reel-slot .slot-count{font-size:10px;color:#94a3b8;margin-top:2px}
+  /* Day-by-day cards (Fri / Sat / Sun) */
+  .reel-day-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:8px}
+  .reel-day{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px}
+  .reel-day .day-label{font-size:11px;font-weight:700;color:#1e293b}
+  .reel-day .day-range{font-size:10px;color:#64748b;margin-top:3px}
+  .reel-day .day-gain{font-size:14px;font-weight:800;margin-top:5px}
+  .reel-day .day-gain.pos{color:#16a34a}
+  .reel-day .day-gain.neg{color:#dc2626}
+  .reel-day .day-gain.neutral{color:#94a3b8}
+  /* Compact secondary stats row */
+  .reel-stats-mini{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+  .reel-stat-mini{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;text-align:center}
+  .reel-stat-mini .label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+  .reel-stat-mini .value{font-size:16px;font-weight:800;color:#0f172a;margin-top:3px}
+  .reel-stat-mini .delta{font-size:10px;font-weight:700;margin-top:2px}
+  .reel-stat-mini .delta.pos{color:#16a34a}
+  .reel-stat-mini .delta.neg{color:#dc2626}
+  .reel-stat-mini .delta.neutral{color:#94a3b8}
+  .reel-history .catchup-pill{font-size:9px;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:4px;font-weight:700;margin-right:4px}
   .btn-pr-influencer-row{background:linear-gradient(180deg,#d946ef,#a21caf)}
   .btn-summary-row{background:linear-gradient(180deg,#0891b2,#155e75)}
   .btn-metaads-row{background:linear-gradient(180deg,#1f2937,#0f172a)} /* black per Lauren's spec — flips green via .done */
@@ -2720,16 +2763,17 @@ End date: </div>
       const last = scans[scans.length - 1];
       const prev = scans.length > 1 ? scans[scans.length - 2] : null;
       function delta(cur, p, key) {
-        if (!p || p[key] == null || cur[key] == null) return { txt: "—", cls: "neutral" };
+        if (!p || p[key] == null || cur[key] == null) return { txt: "—", cls: "neutral", n: null };
         const d = cur[key] - p[key];
-        if (d === 0) return { txt: "±0", cls: "neutral" };
-        return { txt: (d > 0 ? "▲ +" : "▼ ") + d, cls: d > 0 ? "pos" : "neg" };
+        if (d === 0) return { txt: "±0", cls: "neutral", n: 0 };
+        return { txt: (d > 0 ? "▲ +" : "▼ ") + d, cls: d > 0 ? "pos" : "neg", n: d };
       }
       const dShares = delta(last, prev, "shares");
       const dPlays  = delta(last, prev, "plays");
       const dReach  = delta(last, prev, "reach");
+      const dLikes  = delta(last, prev, "likes");
 
-      // Average rate of share growth across consecutive scans (per hour)
+      // Share-rate computation (consecutive scans, shares/hour)
       let totalShareDelta = 0, totalHours = 0;
       for (let i = 1; i < scans.length; i++) {
         const a = scans[i-1], b = scans[i];
@@ -2741,24 +2785,126 @@ End date: </div>
       }
       const avgPerHour = totalHours > 0 ? (totalShareDelta / totalHours) : 0;
       const totalShares = (last.shares || 0) - (scans[0].shares || 0);
-      const rateLabel = scans.length > 1
-        ? '<b>ממוצע עליית שיתופים:</b> ' + avgPerHour.toFixed(1) + ' לשעה · <b>סה״כ מאז סריקה ראשונה:</b> +' + totalShares + ' שיתופים על פני ' + totalHours.toFixed(1) + ' שעות'
-        : '<b>סריקה ראשונה — אין עדיין ממוצע.</b> חכי לסריקה הבאה לחישוב קצב.';
+      const rateLine = scans.length > 1
+        ? '<b>ממוצע עליית שיתופים:</b> ' + avgPerHour.toFixed(1) + ' לשעה · סה״כ +' + totalShares + ' על פני ' + totalHours.toFixed(1) + ' שעות'
+        : '<b>סריקה ראשונה — אין עדיין ממוצע.</b> ההשוואה מתחילה מהסריקה הבאה.';
 
-      body = '<div class="reel-stats-grid">' +
-               '<div class="reel-stat"><div class="label">Shares</div><div class="value">' + (last.shares != null ? last.shares : "—") + '</div><div class="delta ' + dShares.cls + '">' + dShares.txt + '</div></div>' +
-               '<div class="reel-stat"><div class="label">Plays</div><div class="value">' + (last.plays != null ? last.plays : "—") + '</div><div class="delta ' + dPlays.cls + '">' + dPlays.txt + '</div></div>' +
-               '<div class="reel-stat"><div class="label">Reach</div><div class="value">' + (last.reach != null ? last.reach : "—") + '</div><div class="delta ' + dReach.cls + '">' + dReach.txt + '</div></div>' +
-             '</div>' +
-             '<div class="reel-rate">' + rateLabel + '</div>' +
+      // Build the sparkline path from share values across scans
+      const sharesSeries = scans.map(s => (s.shares != null ? s.shares : null));
+      function sparkline(values, w, h){
+        const vs = values.filter(v => v != null);
+        if (vs.length < 2) return '';
+        const minV = Math.min.apply(null, vs);
+        const maxV = Math.max.apply(null, vs);
+        const range = Math.max(1, maxV - minV);
+        const pad = 6;
+        const pts = values.map((v, i) => {
+          if (v == null) return null;
+          const x = pad + (values.length === 1 ? (w - 2*pad) / 2 : (i / (values.length - 1)) * (w - 2*pad));
+          const y = h - pad - ((v - minV) / range) * (h - 2*pad);
+          return [x, y];
+        }).filter(Boolean);
+        if (pts.length < 2) return '';
+        const linePath = "M" + pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" L");
+        const fillPath = linePath + " L" + pts[pts.length-1][0].toFixed(1) + "," + (h - pad) + " L" + pts[0][0].toFixed(1) + "," + (h - pad) + " Z";
+        const lastPt = pts[pts.length-1];
+        return '<svg class="reel-sparkline" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">' +
+                 '<path class="fill" d="' + fillPath + '"/>' +
+                 '<path class="line" d="' + linePath + '"/>' +
+                 '<circle cx="' + lastPt[0].toFixed(1) + '" cy="' + lastPt[1].toFixed(1) + '" r="3.5"/>' +
+               '</svg>';
+      }
+
+      // Per-slot averages (12 / 14 / 17): for each slot, compute the average shares-per-scan across all days
+      function slotAvg(slotHour, key){
+        const vs = scans.filter(s => s.event_local_hour === slotHour && s[key] != null).map(s => s[key]);
+        if (!vs.length) return null;
+        return vs.reduce((a,b) => a+b, 0) / vs.length;
+      }
+      const slotsHtml = [12, 14, 17].map(h => {
+        const avg = slotAvg(h, "shares");
+        const count = scans.filter(s => s.event_local_hour === h).length;
+        return '<div class="reel-slot">' +
+                 '<div class="slot-time">' + (h < 10 ? "0" + h : h) + ':00 שיתופים</div>' +
+                 '<div class="slot-avg">' + (avg != null ? Math.round(avg) : "—") + '</div>' +
+                 '<div class="slot-count">' + count + ' סריקות</div>' +
+               '</div>';
+      }).join("");
+
+      // Day-by-day: group scans by UTC date, compute net share gain per day
+      const byDay = {};
+      scans.forEach(s => {
+        const d = (s.scanned_at || "").slice(0, 10);
+        if (!d) return;
+        if (!byDay[d]) byDay[d] = [];
+        byDay[d].push(s);
+      });
+      const dayLabel = (iso) => {
+        try {
+          const dt = new Date(iso + "T00:00:00");
+          const dow = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"][dt.getDay()];
+          return dow + " " + iso.slice(5);
+        } catch(e){ return iso; }
+      };
+      const daysHtml = Object.keys(byDay).sort().map(dateIso => {
+        const dayScans = byDay[dateIso].slice().sort((a,b) => (a.scanned_at||"").localeCompare(b.scanned_at||""));
+        const first = dayScans[0];
+        const lastDay = dayScans[dayScans.length - 1];
+        const fs = first.shares;
+        const ls = lastDay.shares;
+        const gain = (fs != null && ls != null) ? (ls - fs) : null;
+        let gainCls = "neutral", gainTxt = "—";
+        if (gain != null) {
+          if (gain > 0) { gainCls = "pos"; gainTxt = "+" + gain + " שיתופים"; }
+          else if (gain < 0) { gainCls = "neg"; gainTxt = gain + " שיתופים"; }
+          else { gainCls = "neutral"; gainTxt = "±0"; }
+        }
+        return '<div class="reel-day">' +
+                 '<div class="day-label">' + dayLabel(dateIso) + '</div>' +
+                 '<div class="day-range">' + (fs != null ? fs : "—") + ' → ' + (ls != null ? ls : "—") + '</div>' +
+                 '<div class="day-gain ' + gainCls + '">' + gainTxt + '</div>' +
+               '</div>';
+      }).join("");
+
+      // Hero shares card
+      const heroDelta = scans.length > 1
+        ? '<span class="hero-delta ' + dShares.cls + '">' + (dShares.n != null ? (dShares.n > 0 ? "▲ +" : (dShares.n < 0 ? "▼ " : "±")) + Math.abs(dShares.n) : "—") + ' מהסריקה הקודמת</span>'
+        : '<span class="hero-delta neutral">סריקה ראשונה</span>';
+      const heroHtml =
+        '<div class="reel-hero">' +
+          '<div class="hero-label">Shares · המדד החשוב ביותר לעסק</div>' +
+          '<div class="hero-value">' + (last.shares != null ? last.shares.toLocaleString() : "—") + '</div>' +
+          heroDelta +
+          (scans.length > 1 ? sparkline(sharesSeries, 600, 54) : '') +
+          '<div class="hero-rate">' + rateLine + '</div>' +
+        '</div>';
+
+      // Mini stats row (Plays / Reach / Likes)
+      const miniHtml =
+        '<div class="reel-stats-mini">' +
+          '<div class="reel-stat-mini"><div class="label">Plays</div><div class="value">' + (last.plays != null ? last.plays.toLocaleString() : "—") + '</div><div class="delta ' + dPlays.cls + '">' + dPlays.txt + '</div></div>' +
+          '<div class="reel-stat-mini"><div class="label">Reach</div><div class="value">' + (last.reach != null ? last.reach.toLocaleString() : "—") + '</div><div class="delta ' + dReach.cls + '">' + dReach.txt + '</div></div>' +
+          '<div class="reel-stat-mini"><div class="label">Likes</div><div class="value">' + (last.likes != null ? last.likes.toLocaleString() : "—") + '</div><div class="delta ' + dLikes.cls + '">' + dLikes.txt + '</div></div>' +
+        '</div>';
+
+      body = heroHtml + miniHtml +
+             '<div class="reel-section-title">ממוצע שיתופים לפי slot</div>' +
+             '<div class="reel-slot-grid">' + slotsHtml + '</div>' +
+             '<div class="reel-section-title">פילוח יומי (התקדמות שיתופים)</div>' +
+             '<div class="reel-day-grid">' + daysHtml + '</div>' +
+             '<div class="reel-section-title">היסטוריית סריקות מלאה</div>' +
              '<div class="reel-history"><table>' +
-               '<thead><tr><th>סריקה</th><th>Shares</th><th>Plays</th><th>Reach</th><th>Likes</th></tr></thead>' +
+               '<thead><tr><th>סריקה</th><th>Slot</th><th>Shares</th><th>Plays</th><th>Reach</th><th>Likes</th></tr></thead>' +
                '<tbody>' +
                  scans.map(s => {
                    const t = (s.scanned_at || "").slice(0,16).replace("T"," ");
+                   const slotH = s.event_local_hour;
+                   const slot = (slotH != null ? (slotH < 10 ? "0" + slotH : slotH) + ":00" : "—");
+                   const catchup = s.catchup ? '<span class="catchup-pill">catch-up</span>' : '';
                    return '<tr>' +
                             '<td class="scan-time">' + t + '</td>' +
-                            '<td>' + (s.shares != null ? s.shares : "—") + '</td>' +
+                            '<td>' + catchup + slot + '</td>' +
+                            '<td><b>' + (s.shares != null ? s.shares : "—") + '</b></td>' +
                             '<td>' + (s.plays != null ? s.plays : "—") + '</td>' +
                             '<td>' + (s.reach != null ? s.reach : "—") + '</td>' +
                             '<td>' + (s.likes != null ? s.likes : "—") + '</td>' +
