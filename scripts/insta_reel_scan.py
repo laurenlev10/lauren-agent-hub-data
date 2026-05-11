@@ -162,13 +162,41 @@ def main() -> int:
     now_utc = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds")
     any_change = False
 
+    SCAN_SLOTS = sorted(SCAN_HOURS)   # [12, 14, 17]
+
+    def _delta(cur_val, prev_val):
+        if cur_val is None or prev_val is None:
+            return ""
+        d = cur_val - prev_val
+        if d == 0:
+            return " (±0)"
+        return f" ({'+' if d > 0 else ''}{d})"
+
     for ev in active:
         city = ev.get("city", "?")
         state = ev.get("state", "")
         evkey = _slug(city, ev.get("start_date", ""))
         local_hour = _event_local_hour(state)
-        if local_hour not in SCAN_HOURS:
-            print(f"[scan] {evkey}: local hour {local_hour:02d} — not in {sorted(SCAN_HOURS)}; skip.")
+
+        # Slot-based catch-up (Lauren 2026-05-10 PM bugfix).
+        # GitHub Actions cron can lag 30-90 min; a strict `if local_hour not in
+        # [12,14,17]: skip` missed scans entirely when the cron landed at e.g.
+        # 15:32 instead of 14:00. New rule: for each scan slot S, if local_hour
+        # >= S AND no scan recorded for S today, do the scan now with
+        # event_local_hour = S (the slot label, not the actual hour). One
+        # delayed run can backfill multiple missed slots in a single pass, and
+        # idempotency by slot still holds.
+        notes.setdefault(evkey, {})
+        existing = notes[evkey].get("insta_reel_scans") or []
+        today_str = now_utc[:10]
+        done_slots = {
+            s.get("event_local_hour")
+            for s in existing
+            if (s.get("scanned_at", "")[:10] == today_str)
+        }
+        eligible_slots = [S for S in SCAN_SLOTS if local_hour >= S and S not in done_slots]
+        if not eligible_slots:
+            print(f"[scan] {evkey}: local hour {local_hour:02d} · slots done today {sorted(done_slots)}; nothing eligible.")
             continue
 
         reel_url, set_by, media_id = _resolve_reel(notes, evkey)
@@ -182,83 +210,72 @@ def main() -> int:
             print(f"[scan] {evkey}: insights fetch failed: {e}")
             continue
 
-        scan_rec = {
-            "scanned_at": now_utc,
-            "event_local_hour": local_hour,
-            "url_at_scan": reel_url,
-            "media_id": media_id,
-            "shares":   insights.get("shares"),
-            "plays":    insights.get("plays"),
-            "reach":    insights.get("reach"),
-            "likes":    insights.get("likes"),
-            "comments": insights.get("comments"),
-            "saved":    insights.get("saved"),
-        }
-
-        notes.setdefault(evkey, {})
-        # Idempotency: don't append if we already scanned at this hour today
-        existing = notes[evkey].get("insta_reel_scans") or []
-        already = any(
-            (s.get("scanned_at", "")[:10] == now_utc[:10] and
-             s.get("event_local_hour") == local_hour)
-            for s in existing
-        )
-        if already:
-            print(f"[scan] {evkey}: already scanned at local hour {local_hour:02d} today; skip.")
-            continue
-
-        existing.append(scan_rec)
-        notes[evkey]["insta_reel_scans"] = existing
-        # Persist the URL we used (overwrites stale URL if auto-detected one differs)
+        # Persist URL meta once (in case auto-detect just picked it up)
         if reel_url and notes[evkey].get("insta_reel_url") != reel_url:
             notes[evkey]["insta_reel_url"] = reel_url
             notes[evkey]["insta_reel_url_set_by"] = set_by
             notes[evkey]["insta_reel_url_set_at"] = now_utc
-        notes[evkey]["updated_at"] = now_utc
-        any_change = True
-        print(f"[scan] {evkey}: appended scan @ local {local_hour:02d}:00 → shares={scan_rec['shares']} plays={scan_rec['plays']} reach={scan_rec['reach']}")
 
-        # SMS summary to Lauren + Eli (per Lauren's request 2026-05-10 PM).
-        # Fail soft — a send error must not break the scan run for other events.
-        try:
-            prev = existing[-2] if len(existing) >= 2 else None
-            def _delta(cur_val, prev_val):
-                if cur_val is None or prev_val is None:
-                    return ""
-                d = cur_val - prev_val
-                if d == 0: return " (±0)"
-                return f" ({'+' if d>0 else ''}{d})"
-            sh, pl, re_, lk = scan_rec.get('shares'), scan_rec.get('plays'), scan_rec.get('reach'), scan_rec.get('likes')
-            psh = prev.get('shares') if prev else None
-            ppl = prev.get('plays')  if prev else None
-            pre = prev.get('reach')  if prev else None
-            plk = prev.get('likes')  if prev else None
-            scan_num = len(existing)
-            ev_label = f"{city}, {state}"
-            sms_body = (
-                f"📸 INSTA REEL · סריקה {scan_num}\n"
-                f"{ev_label} · {ev.get('start_date','')} · {local_hour:02d}:00 מקומי\n"
-                f"\n"
-                f"Shares: {sh if sh is not None else '—'}{_delta(sh, psh)}\n"
-                f"Plays:  {pl if pl is not None else '—'}{_delta(pl, ppl)}\n"
-                f"Reach:  {re_ if re_ is not None else '—'}{_delta(re_, pre)}\n"
-                f"Likes:  {lk if lk is not None else '—'}{_delta(lk, plk)}\n"
-                f"\n"
-                f"{reel_url}"
-            )
-            recipients = []
-            if sms.LAUREN_PHONE:
-                recipients.append(("Lauren", sms.LAUREN_PHONE))
-            if ELI_PHONE:
-                recipients.append(("Eli", ELI_PHONE))
-            for name, phone in recipients:
-                try:
-                    sms.send_sms(phone, sms_body)
-                    print(f"[scan] {evkey}: SMS sent to {name} ({phone}).")
-                except Exception as se:
-                    print(f"[scan] {evkey}: SMS to {name} failed: {se}")
-        except Exception as e:
-            print(f"[scan] {evkey}: SMS summary block failed: {e}")
+        # Per eligible slot: append a scan record + send an SMS digest.
+        # When catching up multiple slots in one run, each gets its own record
+        # (same scanned_at, same insights — Meta API doesn\'t expose historical
+        # snapshots, so this is the best available proxy for the missed slot).
+        for slot in eligible_slots:
+            scan_rec = {
+                "scanned_at": now_utc,
+                "event_local_hour": slot,
+                "actual_local_hour": local_hour,
+                "url_at_scan": reel_url,
+                "media_id": media_id,
+                "shares":   insights.get("shares"),
+                "plays":    insights.get("plays"),
+                "reach":    insights.get("reach"),
+                "likes":    insights.get("likes"),
+                "comments": insights.get("comments"),
+                "saved":    insights.get("saved"),
+                "catchup":  (local_hour != slot),
+            }
+            existing.append(scan_rec)
+            notes[evkey]["insta_reel_scans"] = existing
+            notes[evkey]["updated_at"] = now_utc
+            any_change = True
+            print(f"[scan] {evkey}: appended slot {slot:02d}:00 (actual local {local_hour:02d}:00, catchup={scan_rec['catchup']}) → shares={scan_rec['shares']} plays={scan_rec['plays']} reach={scan_rec['reach']}")
+
+            # SMS summary to Lauren + Eli — Hebrew, ends with the reel URL.
+            try:
+                prev = existing[-2] if len(existing) >= 2 else None
+                sh, pl, re_, lk = scan_rec.get('shares'), scan_rec.get('plays'), scan_rec.get('reach'), scan_rec.get('likes')
+                psh = prev.get('shares') if prev else None
+                ppl = prev.get('plays')  if prev else None
+                pre = prev.get('reach')  if prev else None
+                plk = prev.get('likes')  if prev else None
+                scan_num = len(existing)
+                ev_label = f"{city}, {state}"
+                catchup_note = "  ⚠ catch-up (cron איחור)" if scan_rec['catchup'] else ""
+                sms_body = (
+                    f"📸 INSTA REEL · סריקה {scan_num}\n"
+                    f"{ev_label} · {ev.get('start_date','')} · סלוט {slot:02d}:00 מקומי{catchup_note}\n"
+                    f"\n"
+                    f"Shares: {sh if sh is not None else '—'}{_delta(sh, psh)}\n"
+                    f"Plays:  {pl if pl is not None else '—'}{_delta(pl, ppl)}\n"
+                    f"Reach:  {re_ if re_ is not None else '—'}{_delta(re_, pre)}\n"
+                    f"Likes:  {lk if lk is not None else '—'}{_delta(lk, plk)}\n"
+                    f"\n"
+                    f"{reel_url}"
+                )
+                recipients = []
+                if sms.LAUREN_PHONE:
+                    recipients.append(("Lauren", sms.LAUREN_PHONE))
+                if ELI_PHONE:
+                    recipients.append(("Eli", ELI_PHONE))
+                for name, phone in recipients:
+                    try:
+                        sms.send_sms(phone, sms_body)
+                        print(f"[scan] {evkey}: SMS sent to {name} ({phone}) for slot {slot:02d}.")
+                    except Exception as se:
+                        print(f"[scan] {evkey}: SMS to {name} failed: {se}")
+            except Exception as e:
+                print(f"[scan] {evkey}: SMS summary block failed: {e}")
 
     if any_change:
         _save_notes(notes)
