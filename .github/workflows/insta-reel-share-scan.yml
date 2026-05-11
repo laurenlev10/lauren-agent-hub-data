@@ -55,6 +55,9 @@ jobs:
           if ! git diff --quiet docs/launch/notes.json 2>/dev/null; then
             git add docs/launch/notes.json
             git commit -m "insta-reel-scan: update share counts $(date -u +%Y-%m-%dT%H:%MZ)"
+            # Pull-rebase before push — other workflows may have committed concurrently.
+            # Without this the workflow fails (run #4 on 2026-05-11 was the first incident).
+            git pull --rebase origin main || true
             git push origin main
           else
             echo "No new scans this run."
