@@ -3025,6 +3025,14 @@ End date: </div>
     renderSchedule();
   });
 
+  // Refresh the event-local-time chips every 60s so they stay accurate without re-rendering rows (Lauren 2026-05-10 PM)
+  setInterval(() => {
+    document.querySelectorAll(".event-local-time[data-state]").forEach(el => {
+      const st = el.getAttribute("data-state") || "";
+      el.innerHTML = "🕐 " + escapeHtml(eventLocalTimeStr(st));
+    });
+  }, 60 * 1000);
+
   // ────────────────────────────────────────────────────────────
   // 📊 Event Summary upload — drag-drop modal that pushes files
   // (3 required: cash report, OctoPos, TikTok • 2 optional: meta, travel)
