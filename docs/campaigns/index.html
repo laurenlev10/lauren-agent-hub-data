@@ -1025,4 +1025,37 @@ const RUN = {
     if (!record || !record.city) return;
     record.date = record.date || new Date().toISOString().slice(0,10);
     record.status = record.status || "success";
-    co
+    const list = loadRecentRuns();
+    // Replace existing entry for the same city+year, otherwise prepend
+    const key = (record.city + "_" + (record.year||"")).toLowerCase();
+    const filtered = list.filter(r => ((r.city||"") + "_" + (r.year||"")).toLowerCase() !== key);
+    filtered.unshift(record);
+    // Cap to 10 most recent
+    while (filtered.length > 10) filtered.pop();
+    localStorage.setItem("simple-texting:recent-runs", JSON.stringify(filtered));
+    renderRecentRuns();
+  };
+
+  // Also: support URL hash like #save?city=Tulsa%2C+OK&year=2026&webFormId=619e9b412f966868805a214d
+  if (window.location.hash.startsWith("#save?")){
+    const params = new URLSearchParams(window.location.hash.slice(6));
+    const rec = {};
+    for (const [k, v] of params) rec[k] = v;
+    if (rec.city && rec.webFormId){
+      window.simpleTextingSaveRun(rec);
+      // Clean the hash so refresh doesn't re-add
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      // Show a toast
+      setTimeout(() => {
+        const note = document.createElement("div");
+        note.style.cssText = "position:fixed;top:14px;right:14px;background:#ecfdf5;border:1px solid var(--ok);color:#065f46;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.08)";
+        note.innerHTML = "✓ Run record saved for " + rec.city + " " + (rec.year||"");
+        document.body.appendChild(note);
+        setTimeout(() => note.remove(), 5000);
+      }, 200);
+    }
+  }
+</script>
+
+</body>
+</html>
