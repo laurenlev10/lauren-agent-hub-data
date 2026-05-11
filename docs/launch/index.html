@@ -1522,15 +1522,21 @@ End date: </div>
         // 🛑 IRON RULE: any future per-event button MUST be added inside this block.
         // It will then automatically also appear on past events without extra code.
         if (!incomplete && (eff === "signed" || eff === "launched" || eff === "done")){
+          // Per-event agent buttons — each flips from "run for this event" → "see results" when the owner agent has produced a result.
+          // Match key (must match every owner agent's upsert logic):
+          const evKey = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + ev.start_date;
+          // 2026-05-11 — reel_link is threaded into every per-event agent URL so the campaigns
+          // page (and any future agent that takes a reel param) gets the Instagram Reel URL
+          // Lauren pasted via the 📸 INSTA REEL chip without re-typing it. Source of truth:
+          // MANUAL_TASKS[evKey].insta_reel_url (set manually by Lauren OR by the insta-reel-share-scan fallback).
+          const _reelLinkForParams = ((typeof MANUAL_TASKS !== "undefined") && MANUAL_TASKS[evKey] && MANUAL_TASKS[evKey].insta_reel_url) || "";
           const params = new URLSearchParams({
             city: ev.city + ", " + ev.state, year: (ev.start_date||"").slice(0,4),
             start_date: ev.start_date, end_date: ev.end_date,
             venue: ev.venue || "", address: ev.address || "",
-            tier: (ev.tier != null ? String(ev.tier) : "")
+            tier: (ev.tier != null ? String(ev.tier) : ""),
+            reel_link: _reelLinkForParams
           }).toString();
-          // Per-event agent buttons — each flips from "run for this event" → "see results" when the owner agent has produced a result.
-          // Match key (must match every owner agent's upsert logic):
-          const evKey = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + ev.start_date;
           const fmtK = (n) => (n / 1000).toFixed(n % 1000 === 0 ? 0 : 1);
           const fmtSigned = (n) => (n >= 0 ? "+$" : "−$") + fmtK(Math.abs(n)) + "K";
 
