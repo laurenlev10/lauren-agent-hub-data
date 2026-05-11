@@ -147,13 +147,41 @@ def main() -> int:
         print("[scan] META_PAGE_TOKEN not set; nothing to do.")
         return 0
 
-    today = _dt.date.today()
-    if today.weekday() not in (4, 5, 6):  # Fri=4, Sat=5, Sun=6
-        print(f"[scan] today is {today} ({today.strftime('%A')}); not Fri/Sat/Sun.")
-        return 0
+    # Active = any event whose Fri-Sun window contains TODAY in the event's
+    # LOCAL timezone — not UTC. At boundary times (e.g. ~midnight UTC =
+    # ~7 PM ET prev-day = ~5 PM PT prev-day), UTC and event-local can be
+    # on different calendar days; the event-local date is the one that
+    # matters for "is the event happening right now".
+    # 2026-05-10 PM bugfix — script previously returned early when UTC
+    # ticked to Monday even though Columbia (CDT) was still Sunday evening.
+    try:
+        from zoneinfo import ZoneInfo as _ZI
+    except ImportError:
+        _ZI = None
 
     events = _load_schedule()
-    active = _active_events_today(events, today)
+    active = []
+    for ev in events:
+        st = (ev.get("state") or "").upper()
+        tz_name = STATE_TZ.get(st, "America/Los_Angeles")
+        if _ZI is not None:
+            try:
+                local_today = _dt.datetime.now(_ZI(tz_name)).date()
+            except Exception:
+                local_today = _dt.date.today()
+        else:
+            local_today = _dt.date.today()
+        if local_today.weekday() not in (4, 5, 6):
+            continue
+        try:
+            sd = _dt.date.fromisoformat(ev["start_date"])
+            ed = _dt.date.fromisoformat(ev["end_date"])
+        except Exception:
+            continue
+        if sd <= local_today <= ed:
+            active.append(ev)
+    # For the rest of the function, use UTC `today` as a logging label
+    today = _dt.date.today()
     if not active:
         print(f"[scan] no active events on {today}.")
         return 0
