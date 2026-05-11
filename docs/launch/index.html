@@ -1630,6 +1630,28 @@ End date: </div>
             rowBtn += '<button type="button" class="' + chipCls + ' reel-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(reelUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(chipTitle) + '">🔗</button>';
           }
 
+          // 🎵 TikTok button + manual URL paste chip (Lauren 2026-05-11)
+          // Click button → opens the post URL if set in MANUAL_TASKS[evKey].tiktok_url,
+          // otherwise opens TikTok Studio upload page so Lauren can upload the video.
+          // Click 🔗 chip → prompt to paste/edit URL. Renders on past + future events.
+          {
+            const noteTT = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKey] || {}) : {};
+            const ttUrl = noteTT.tiktok_url || "";
+            const hasTT = !!ttUrl;
+            const ttHref = hasTT ? ttUrl : "https://www.tiktok.com/tiktokstudio/upload?from=webapp";
+            const ttBtnClass = hasTT ? "btn-agent-row btn-tiktok-row done" : "btn-agent-row btn-tiktok-row";
+            const ttLabel = hasTT ? '🎵 TikTok ✓' : '🎵 TikTok';
+            const ttTitle = hasTT
+              ? ('TikTok post: ' + ttUrl + ' — לחיצה לפתיחה')
+              : 'אין עדיין URL לפוסט בטיקטוק. לחיצה תפתח את TikTok Studio להעלאת הסרטון. לחצי על 🔗 כדי להדביק URL.';
+            rowBtn += '<a class="' + ttBtnClass + '" href="' + ttHref + '" target="_blank" rel="noopener" title="' + escapeHtml(ttTitle) + '">' + ttLabel + '</a>';
+            const ttChipCls = hasTT ? "reel-link-btn set" : "reel-link-btn";
+            const ttChipTitle = hasTT
+              ? ('הפוסט בטיקטוק: ' + ttUrl + ' — לחיצה לעריכה')
+              : 'הדבקי URL של הפוסט בטיקטוק (לאחר העלאת הסרטון)';
+            rowBtn += '<button type="button" class="' + ttChipCls + ' tiktok-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(ttUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(ttChipTitle) + '">🔗</button>';
+          }
+
           // 📲 SMS Campaigns
           const cmp = (typeof CAMPAIGNS_RESULTS !== "undefined") ? CAMPAIGNS_RESULTS[evKey] : null;
           if (cmp) {
@@ -2759,6 +2781,36 @@ End date: </div>
         MANUAL_TASKS[evKey].insta_reel_url = trimmed;
         MANUAL_TASKS[evKey].insta_reel_url_set_by = "manual";
         MANUAL_TASKS[evKey].insta_reel_url_set_at = new Date().toISOString();
+      }
+      MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+      ManualTasksSync.save(MANUAL_TASKS);
+      renderSchedule();
+      return;
+    }
+    // TikTok manual URL paste chip (🔗) — Lauren 2026-05-11
+    // Mirrors the INSTA REEL paste flow. Writes MANUAL_TASKS[evKey].tiktok_url (+ _set_by="manual" + _set_at).
+    const ttChip = e.target.closest(".tiktok-link-paste-btn");
+    if (ttChip) {
+      e.stopPropagation();
+      const evKey = ttChip.dataset.evkey;
+      const cur = ttChip.dataset.current || "";
+      const v = prompt(
+        "🔗 הדבקי URL של פוסט TikTok של האירוע הזה:\n\n" +
+        "דוגמה:\n  https://www.tiktok.com/@makeupblowoutsale/video/7638634023014698271\n\n" +
+        "אם תשאירי ריק — הכפתור 🎵 TikTok יפתח את TikTok Studio להעלאת הסרטון.",
+        cur
+      );
+      if (v === null) return;   // canceled
+      const trimmed = (v || "").trim();
+      if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
+      if (trimmed === "") {
+        delete MANUAL_TASKS[evKey].tiktok_url;
+        delete MANUAL_TASKS[evKey].tiktok_url_set_by;
+        delete MANUAL_TASKS[evKey].tiktok_url_set_at;
+      } else {
+        MANUAL_TASKS[evKey].tiktok_url = trimmed;
+        MANUAL_TASKS[evKey].tiktok_url_set_by = "manual";
+        MANUAL_TASKS[evKey].tiktok_url_set_at = new Date().toISOString();
       }
       MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
       ManualTasksSync.save(MANUAL_TASKS);
