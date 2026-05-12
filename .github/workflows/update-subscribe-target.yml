@@ -79,6 +79,44 @@ jobs:
             git push origin main
           fi
 
+      # SMS Lauren on success (Lauren 2026-05-11: 'כל יום שני תעדכן אותי בSMS')
+      - name: SMS Lauren — events page refreshed
+        if: success()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          from pathlib import Path
+          sys.path.insert(0, "scripts")
+          from lauren_sms import send_sms, LAUREN_PHONE
+
+          tgt = json.loads(Path("docs/state/subscribe_target.json").read_text())
+          upc = json.loads(Path("docs/state/upcoming_events.json").read_text())
+          n = len(upc.get("events", []))
+          city = tgt.get("city", "?")
+          state = tgt.get("state", "")
+          sd = tgt.get("start_date", "")
+          ed = tgt.get("end_date", "")
+          # Format dates as M/D
+          def md(d):
+              try: return f"{int(d[5:7])}/{int(d[8:10])}"
+              except: return d
+          dates = f"{md(sd)}-{md(ed)}" if sd and ed else sd
+
+          body = (
+              "✓ דף האירועים עודכן.\n"
+              f"אירוע קרוב: {city}, {state} ({dates}).\n"
+              f"{n} אירועים בלו\"ז הקרוב.\n"
+              "https://events.themakeupblowout.com/"
+          )
+          print("--- SMS body ---")
+          print(body)
+          send_sms(LAUREN_PHONE, body)
+          print("sent.")
+          PY
+
       # IRON RULE (Lauren 2026-05-10): SMS Lauren if this workflow fails.
       - name: SMS Lauren on failure
         if: failure()
