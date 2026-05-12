@@ -176,6 +176,100 @@ def main() -> int:
     n = TARGET.stat().st_size
     print(f"wrote {TARGET} ({n}B): event_key={target['event_key']} "
           f"is_live={target['is_live']} form_id={target['form_id']}")
+
+    # Self-healing: sync LANDING_PAGES with reality (catches cases where @landing
+    # built a per-event page but forgot to upsert the dashboard map — STEP 6 in SKILL).
+    print("--- syncing LANDING_PAGES with live events repo ---")
+    sync_landing_pages_map()
+
+    return 0
+
+
+def sync_landing_pages_map() -> int:
+    """
+    Self-healing: scan events.themakeupblowout.com for per-event landing pages
+    that exist on disk but aren't registered in LANDING_PAGES map. Auto-add
+    missing entries so the launch dashboard's 🪧 Landing buttons flip green.
+
+    This is the safety net for @landing agent's STEP 6 (SKILL.md) — when the
+    agent forgets to upsert the map, this catches it within 24h.
+
+    Returns 0 always (sync failures are non-fatal — main subscribe-target work
+    has already succeeded by this point).
+    """
+    import urllib.request
+    LAUNCH = ROOT / "docs/launch/index.html"
+    if not LAUNCH.exists():
+        return 0
+
+    html = LAUNCH.read_text(encoding="utf-8")
+    SCHEDULE = parse_map(html, "SCHEDULE")
+    map_match = re.search(r"const LANDING_PAGES = (\{[^;]+\});", html)
+    if not map_match:
+        print("  sync: no LANDING_PAGES anchor — skipping")
+        return 0
+    LANDING_PAGES = json.loads(map_match.group(1))
+
+    # Walk all upcoming events from SCHEDULE
+    today = today_pt()
+    candidates = []
+    for year, lst in SCHEDULE.items():
+        if not (isinstance(lst, list) and year.isdigit()):
+            continue
+        for ev in lst:
+            sd = ev.get("start_date")
+            if not sd:
+                continue
+            try:
+                sd_d = datetime.date.fromisoformat(sd)
+            except Exception:
+                continue
+            if sd_d < today:
+                continue   # ignore past events; they had their landing page (or didnt) and the moment has passed
+            candidates.append((ev, sd_d))
+
+    added = 0
+    for ev, sd_d in candidates:
+        city_slug  = slug_of(ev["city"])
+        state_lc   = (ev.get("state") or "").lower()
+        year_str   = ev["start_date"][:4]
+        evkey_short = f"{city_slug}-{ev['start_date']}"            # SETUPS / LANDING_PAGES key
+        evkey_full  = f"{city_slug}-{state_lc}-{year_str}"           # /events/<slug>/ URL slug
+
+        # Skip if already in map
+        if evkey_short in LANDING_PAGES:
+            continue
+
+        # HEAD probe — does the landing page actually exist on the events site?
+        url = f"https://events.themakeupblowout.com/events/{evkey_full}/"
+        try:
+            req = urllib.request.Request(url, method="HEAD")
+            with urllib.request.urlopen(req, timeout=8) as r:
+                if not (200 <= r.status < 300):
+                    continue
+        except Exception:
+            continue
+
+        # It exists but isn't mapped → upsert it
+        LANDING_PAGES[evkey_short] = {
+            "url":          url,
+            "generated_at": datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat(timespec="seconds"),
+            "has_form_id":  True,
+            "has_venue":    True,
+            "has_ig_url":   True,
+        }
+        added += 1
+        print(f"  sync: + {evkey_short} → {url}")
+
+    if added == 0:
+        print("  sync: LANDING_PAGES already in sync — no changes")
+        return 0
+
+    # Write back surgically (preserves all other content)
+    new_block = "const LANDING_PAGES = " + json.dumps(LANDING_PAGES, ensure_ascii=False, separators=(",", ":")) + ";"
+    new_html = re.sub(r"const LANDING_PAGES = \{[^;]+\};", new_block, html, count=1)
+    LAUNCH.write_text(new_html, encoding="utf-8")
+    print(f"  sync: wrote launch/index.html — {added} entries added")
     return 0
 
 
