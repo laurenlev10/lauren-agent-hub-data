@@ -138,7 +138,7 @@ def main() -> int:
     # themakeupblowoutsale-group.com — same repo as /subscribe-list/).
     # ─────────────────────────────────────────────
     upcoming_list = []
-    for sd, ev in upcoming[:8]:
+    for sd, ev in upcoming[:14]:  # 14 = ~3.5 months of weekly events (covers Lauren's 3-month visible window)
         u_city_slug  = slug_of(ev["city"])
         u_state_lc   = (ev.get("state") or "").lower()
         u_year       = ev["start_date"][:4]
