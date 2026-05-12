@@ -127,7 +127,12 @@
       const card = document.createElement(dashHref ? "a" : "div");
       card.className = "sched-task";
       if (dashHref) {
-        card.href = "../" + dashHref;
+        var isAbsolute = /^https?:\/\//.test(dashHref);
+        card.href = isAbsolute ? dashHref : ("../" + dashHref);
+        if (isAbsolute) {
+          card.target = "_blank";
+          card.rel = "noopener";
+        }
         card.style.textDecoration = "none";
         card.style.color = "inherit";
         card.style.display = "block";
