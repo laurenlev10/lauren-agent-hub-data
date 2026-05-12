@@ -4,6 +4,10 @@
 #   1. EVENTBRITE_STATS — registration counts per event from Eventbrite v3 API
 #   2. LIST_STATS       — SimpleTexting subscriber counts per event SMS list
 #
+# Then pushes a slim per-event snapshot to themakeupblowout-events as
+# docs/state/registration_stats.json so each event's /stats.html page
+# reflects the freshest signup numbers immediately (set 2026-05-12, see CLAUDE.md).
+#
 # Lauren wanted both signals refreshed every 6h instead of weekly/daily so she
 # can see registration progress mid-day. Replaces the data-pull side of the
 # old daily-sms-list-counts (still kept as workflow_dispatch backup).
@@ -172,6 +176,112 @@ jobs:
             git push origin main
           else
             echo "No changes."
+          fi
+
+      # ─────────────────────────────────────────────────────────────────
+      # NEW (2026-05-12): Cross-repo push to themakeupblowout-events.
+      # Builds a slim registration_stats.json keyed by the events-repo
+      # slug (e.g. "milwaukee-wi-2026") and pushes it so every event's
+      # /stats.html page shows fresh Eventbrite + SMS numbers in sync
+      # with the launch dashboard. Fail-soft: if PAT missing, skip.
+      # ─────────────────────────────────────────────────────────────────
+      - name: Build registration_stats.json
+        run: |
+          python3 <<'PY'
+          import os, re, json, urllib.request, datetime
+
+          fp = "docs/launch/index.html"
+          html = open(fp, encoding="utf-8").read()
+
+          def get_map(name):
+              m = re.search(rf'const {name} = (\{{[^;]+\}});', html, re.S)
+              return json.loads(m.group(1)) if m else {}
+
+          LIST_STATS = get_map("LIST_STATS")
+          EB_STATS   = get_map("EVENTBRITE_STATS")
+          print(f"Read LIST_STATS={len(LIST_STATS)}, EVENTBRITE_STATS={len(EB_STATS)}")
+
+          # Build evkey → events-repo slug map from upcoming-events.json
+          # evkey (launch_dashboard format): "<city-slug>-<start_date>"
+          # slug  (events-repo format):      "<city-slug>-<state>-<year>"
+          slug_by_evkey = {}
+          try:
+              with urllib.request.urlopen("https://events.themakeupblowout.com/upcoming-events.json", timeout=15) as r:
+                  upcoming = json.load(r)
+              for ev in upcoming.get("events", []):
+                  city  = (ev.get("city")  or "").lower().replace(" ", "-")
+                  state = (ev.get("state") or "").lower()
+                  sd    = ev.get("start_date") or ""
+                  if not (city and state and sd):
+                      continue
+                  year  = sd[:4]
+                  evkey = f"{city}-{sd}"
+                  slug  = f"{city}-{state}-{year}"
+                  slug_by_evkey[evkey] = slug
+          except Exception as e:
+              print(f"⚠ couldn't fetch upcoming-events.json: {e}")
+          print(f"Built slug_by_evkey for {len(slug_by_evkey)} events")
+
+          # Union of keys present in either map
+          all_keys = set(LIST_STATS.keys()) | set(EB_STATS.keys())
+          out = {"events": {}, "_updated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+          touched = 0
+          for evkey in all_keys:
+              slug = slug_by_evkey.get(evkey)
+              if not slug:
+                  continue  # past event or not in upcoming-events.json
+              ls = LIST_STATS.get(evkey, {})
+              eb = EB_STATS.get(evkey, {})
+              # Use the most-recent updated_at across the two for this event
+              latest_upd = max(filter(None, [ls.get("updated_at"), eb.get("updated_at")]), default=out["_updated_at"])
+              out["events"][slug] = {
+                  "eventbrite": {
+                      "registrations": int(eb.get("registrations", 0) or 0),
+                      "capacity":      int(eb.get("capacity", 0) or 0),
+                      "today_delta":   int(eb.get("today_delta", 0) or 0),
+                      "weekly_delta":  int(eb.get("weekly_delta", 0) or 0),
+                  } if eb else {},
+                  "sms": {
+                      "list_id":     ls.get("list_id", ""),
+                      "list_name":   ls.get("list_name", ""),
+                      "total":       int(ls.get("total", 0) or 0),
+                      "active":      int(ls.get("active", 0) or 0),
+                      "daily_delta": int(ls.get("daily_delta", 0) or 0),
+                  } if ls else {},
+                  "updated_at": latest_upd,
+              }
+              touched += 1
+          os.makedirs("/tmp/regstats", exist_ok=True)
+          with open("/tmp/regstats/registration_stats.json", "w") as f:
+              json.dump(out, f, indent=2, ensure_ascii=False)
+          print(f"✓ wrote registration_stats.json with {touched} events")
+          PY
+
+      - name: Push registration_stats.json to themakeupblowout-events
+        env:
+          GH_PAT: ${{ secrets.EVENTS_REPO_PAT }}
+        run: |
+          if [ -z "$GH_PAT" ]; then
+            echo "⚠ EVENTS_REPO_PAT not set — skipping cross-repo push"; exit 0
+          fi
+          if [ ! -s /tmp/regstats/registration_stats.json ]; then
+            echo "⚠ no registration_stats.json built — skipping"; exit 0
+          fi
+          rm -rf /tmp/events
+          git clone https://x-access-token:${GH_PAT}@github.com/laurenlev10/themakeupblowout-events.git /tmp/events
+          mkdir -p /tmp/events/docs/state
+          cp /tmp/regstats/registration_stats.json /tmp/events/docs/state/registration_stats.json
+          cd /tmp/events
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via registrations-6h)"
+          git add docs/state/registration_stats.json
+          if ! git diff --cached --quiet; then
+            git commit -m "stats: refresh registration_stats.json (EB + SMS per event)"
+            git pull --rebase origin main || true
+            git push origin main
+            echo "✓ pushed registration_stats.json"
+          else
+            echo "no changes to registration_stats.json"
           fi
 
       - name: Update scheduled-runs.json (refresh lastRunAt)

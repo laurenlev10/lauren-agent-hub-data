@@ -102,14 +102,21 @@ jobs:
           if [ -z "$GH_PAT" ]; then
             echo "⚠ EVENTS_REPO_PAT not set — skipping cross-repo push"; exit 0
           fi
+          rm -rf /tmp/events
           git clone https://x-access-token:${GH_PAT}@github.com/laurenlev10/themakeupblowout-events.git /tmp/events
+          mkdir -p /tmp/events/docs/state
           cp docs/state/conversion_history.json /tmp/events/docs/state/event_analytics.json
+          # Also push the registration time-series so per-event /stats.html
+          # can chart Eventbrite + SMS growth over time (set 2026-05-12).
+          if [ -f docs/state/event_timeseries.json ]; then
+            cp docs/state/event_timeseries.json /tmp/events/docs/state/event_timeseries.json
+          fi
           cd /tmp/events
           git config user.email "lauren@noreply.github.com"
           git config user.name "Lauren (via marketing-stats)"
-          git add docs/state/event_analytics.json
+          git add docs/state/event_analytics.json docs/state/event_timeseries.json 2>/dev/null || true
           if ! git diff --cached --quiet; then
-            git commit -m "stats: refresh event_analytics.json (with funnel)"
+            git commit -m "stats: refresh event_analytics.json + event_timeseries.json"
             git pull --rebase origin main || true
             git push origin main
           fi
