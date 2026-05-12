@@ -424,51 +424,50 @@ assert not SHORTENER_RE.search(ad_copy or ""), "shortener leaked into ad copy"
 
 ---
 
-## 🛑 IRON RULE #7 — All Lauren-owned files live in GitHub. OneDrive is scratch only.
+## 🛑 IRON RULE #7 — `lauren-agent-infra` is the GitHub backup of `memory.md` + SKILLs
 
-Set 2026-05-12 PM. Lauren's directive (verbatim): "אני רוצה שתמיד תדחוף את כל הנתונים לגיט האב לא למקומי. תעדכן זיכרון ואת כל ההוראות והקבצים".
+Set 2026-05-12 PM (revised same evening after a misunderstanding — see memory.md). Lauren's working files (`memory.md`, agent SKILLs under `Scheduled/NEW/`, `.claude/secrets/`, CLAUDE.md) **live in OneDrive locally**. That's the source of truth and the day-to-day editing surface. Lauren is NOT expected to clone/edit/push for every routine update — that would be friction with no payoff.
 
-**Background — the OneDrive truncation incident, 2026-05-12 PM.** While documenting the new TikTok stats work, Claude's `Edit` calls against `CLAUDE.md` returned success — but the file on disk had been silently truncated by OneDrive sync from 39 KB / 430 lines to 13 KB / 150 lines. All of IRON RULES #2–#6 were missing from the truncated version. The first commit that pushed to GitHub (`a683c34`) carried the truncated copy, ostensibly destroying the source of truth. We caught it before damage spread, restored the full version from the session-start snapshot, and force-corrected on commit `354b2b9`. Simultaneous discovery: `memory.md` was ALSO truncated mid-sentence at "Accepta" — losing every entry past that cutoff. The exact same OneDrive sync bug that mangles dashboard HTML (IRON RULE #1) was eating instruction + memory files too.
+**The risk:** OneDrive silently truncates large files during sync. Confirmed today (2026-05-12 PM): `CLAUDE.md` went 39 KB → 13 KB (lost IRON RULES #2–#6), and `memory.md` was chopped mid-sentence at "Accepta". The OneDrive sync bug that ruins dashboard HTML (IRON RULE #1) eats instruction + memory files identically. This is a content-agnostic OS-level bug — anything above ~30 KB is at risk.
 
-**The rule (apply to every file Lauren owns, today and going forward):**
+**The mitigation (this rule):** the private repo `laurenlev10/lauren-agent-infra` exists as a **durable backup** of `memory.md` + agent SKILLs. It is **NOT** the source of truth. Cowork sessions push fresh copies after major edits so that an OneDrive truncation incident is recoverable.
 
-1. **All Lauren-owned files MUST be stored in GitHub repositories.** Instructions, memory, SKILLs, agent code, dashboards — everything. OneDrive copies are scratch only — useful for the running Cowork session, but never the source of truth.
-2. **Edit flow:** clone → edit → push. Never edit-locally-only.
-3. **Read flow at session start:** when uncertain whether the local copy is current, `git pull` or re-clone from GitHub.
-4. **After any edit to memory.md or CLAUDE.md, push it back to GitHub in the same session.** Don't leave changes in OneDrive overnight — OneDrive may truncate them before the next session opens.
+**Behavior for Cowork sessions:**
 
-**Repos that hold Lauren's files:**
+1. **Reading.** Default to the OneDrive copy. If the file looks suspicious (size too small, `tail -1` ends mid-sentence, expected IRON RULE missing) — pull from `lauren-agent-infra` and check. Otherwise no special action.
+2. **Editing.** Edit the OneDrive copy as normal (this is what Lauren has been doing for months). No change to the day-to-day flow.
+3. **Backup.** After substantial edits to `memory.md` or any `SKILL.md` (a new IRON RULE, a major change-log entry, a SKILL rewrite), push the updated file to `lauren-agent-infra` before the session ends. This is the rule. Trivial edits do not need a backup push.
+4. **Restoration.** If a local file is detected as truncated, pull the latest from `lauren-agent-infra` and overwrite the OneDrive copy. Document the incident in `memory.md` so we track how often this happens.
+
+**Repos and what they hold:**
 
 | Repo                              | Visibility | What                                                                |
 |-----------------------------------|------------|---------------------------------------------------------------------|
 | `lauren-agent-hub-data`           | public     | `CLAUDE.md` (root), launch dashboards (`docs/launch/`), all GitHub Actions workflows, `scripts/lauren_*.py` |
 | `themakeupblowout-events`         | public     | Per-event public landing pages + stats pages + `_template/*.tpl`    |
 | `themakeupblowoutsale-group-site` | public     | The QR-subscribe landing site (replaces ClickFunnels)               |
-| `lauren-agent-infra`              | **private**| `state/memory.md` (durable Lauren memory) + `skills/<agent>/SKILL.md` for every agent (canva-reel, eventbrite-setup, marketing-stats, etc.) |
+| `lauren-agent-infra`              | **private**| **BACKUP ONLY** — `state/memory.md` + `skills/<agent>/SKILL.md`. Source of truth is OneDrive; this repo is insurance against OneDrive truncation. |
 
-**Edit procedure for `memory.md` or any SKILL.md (private repo):**
+**Edit procedure for `memory.md` backup push (only after major edits):**
 ```bash
-PAT=$(cat /sessions/<session>/mnt/Claude/.claude/secrets/github_pat_stats_v1.txt)  # broad PAT — has access to private repos
+PAT=$(cat /sessions/<session>/mnt/Claude/.claude/secrets/github_pat_stats_v1.txt)  # broad PAT — access to private repos
 cd /tmp && rm -rf lauren-agent-infra
 git clone "https://x-access-token:${PAT}@github.com/laurenlev10/lauren-agent-infra.git"
 cd /tmp/lauren-agent-infra
-# Edit state/memory.md or skills/<agent>/SKILL.md surgically
-git add <file>
-git commit -m "<file>: <what changed>"
+cp /sessions/<session>/mnt/Claude/Scheduled/NEW/agent-infra/sms-chat/state/memory.md state/memory.md
+git add state/memory.md
+git commit -m "backup: memory.md — <what major thing changed>"
 git push origin main
 ```
 
-🛑 **The fine-grained PAT (`github_pat.txt`) does NOT have access to `lauren-agent-infra` by default** (it was created with the broad PAT). Either grant explicit access in GitHub UI, or always use `github_pat_stats_v1.txt` for that repo.
+🛑 **The fine-grained PAT (`github_pat.txt`) does NOT have access to `lauren-agent-infra`.** Always use `github_pat_stats_v1.txt` for this repo.
 
-**Exception: secrets.** PATs, API tokens, and credentials remain in `.claude/secrets/` locally on Lauren's machine. They are NEVER pushed to GitHub — only their names + paths are documented in `CLAUDE.md`. If a secret value ever leaks into a commit, treat it as a security incident: rotate immediately, force-push history, and SMS Lauren.
+**Exception: secrets.** `.claude/secrets/` stays local only — never pushed to GitHub, ever.
 
 **How to detect a truncated local file (the OneDrive symptom):**
-- File size on disk is significantly smaller than the GitHub copy
-- `tail -1 <file>` ends mid-sentence or mid-section header (no closing punctuation)
-- The "Last updated" footer is missing or older than expected
+- File size on disk is significantly smaller than the GitHub backup
+- `tail -1 <file>` ends mid-sentence or mid-section header
 - An IRON RULE number you expected to find is missing (`grep -c "IRON RULE #" <file>`)
-
-When any of these triggers fires: stop, `git pull` (or re-clone) from GitHub, and resume from the GitHub copy.
 
 ---
 
@@ -478,4 +477,4 @@ Default to **Hebrew** with Lauren — natural, conversational. Proper nouns / UR
 
 ---
 
-_Last updated: 2026-05-12 PM — added IRON RULE #7 (everything lives in GitHub, OneDrive is scratch only) after discovering OneDrive truncated both CLAUDE.md and memory.md silently. Created `lauren-agent-infra` private repo to host memory.md + agent SKILLs. Earlier the same evening: added the "Per-event stats page — data shape" section documenting the new Paid Acquisition (Meta + TikTok) block on `events.themakeupblowout.com/events/<slug>/stats.html`. Companion commits: `themakeupblowout-events` a10107e (template), `lauren-agent-hub-data` 004b5ed (richer TikTok fetcher + slug matching), 354b2b9 (CLAUDE.md restoration after truncation incident), `lauren-agent-infra` 5664b38 (initial memory + SKILLs migration)._
+_Last updated: 2026-05-12 PM (late) — clarified IRON RULE #7 after Lauren's feedback: `lauren-agent-infra` is a BACKUP repo, not a forced source of truth. OneDrive remains the working source for memory.md + SKILLs + secrets; the GitHub copy is insurance against OneDrive's confirmed truncation bug. No change to Lauren's day-to-day flow. Earlier the same evening: added the "Per-event stats page — data shape" section documenting the new Paid Acquisition (Meta + TikTok) block on `events.themakeupblowout.com/events/<slug>/stats.html`. Companion commits: `themakeupblowout-events` a10107e (template), `lauren-agent-hub-data` 004b5ed (TikTok fetcher + slug matching) / 354b2b9 (CLAUDE.md restoration) / 220ad77 (original IRON RULE #7) / this commit (softened IRON RULE #7), `lauren-agent-infra` 5664b38 (initial backup).
