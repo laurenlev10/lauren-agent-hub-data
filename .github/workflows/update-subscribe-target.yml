@@ -16,10 +16,12 @@ name: update-subscribe-target
 
 on:
   schedule:
-    # Daily at 13:00 UTC = 06:00 PT (PDT) / 05:00 PT (PST).
-    # Runs before any event-day (events are Fri-Sun) so the page is fresh
-    # by the time door-traffic starts each event morning.
-    - cron: '0 13 * * *'
+    # Monday at 15:00 UTC = 08:00 PT (PDT) / 07:00 PT (PST).
+    # Refreshes the public events page once a week — events end Sunday night,
+    # so Monday morning is when the rotation needs to happen.
+    # Runs 1h before weekly-event-check (Mon 09:00 PT) so that workflow sees fresh data.
+    # Lauren 2026-05-11: 'מספיק ביום שני בבוקר כדי לרענן את האירועים'.
+    - cron: '0 15 * * 1'  # Monday 08:00 PT (was daily 06:00 PT — Lauren 2026-05-11)
   workflow_dispatch: {}
 
 permissions:
