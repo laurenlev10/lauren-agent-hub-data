@@ -1,0 +1,79 @@
+# weekly-event-check.yml — Monday 09:00 PT reminder for upcoming events
+#
+# Walks SCHEDULE for events in the next 8 weeks. For each event in the
+# 4-week action window, checks whether it has:
+#   1. Per-event landing page on events.themakeupblowout.com
+#   2. hero.png in the events repo
+#   3. insta_reel_url in launch/notes.json
+#
+# Sends ONE SMS to Lauren ONLY IF something is missing. Silent success
+# otherwise. Lauren approved scope on 2026-05-11:
+#   "אני אדאג לייצר דפי נחיתה לכל האירועים לפני שיגיע ה-4 שבועות לפני"
+#
+# IRON RULE #4 compliant: registry entry in scheduled-runs.json + failure SMS.
+
+name: weekly-event-check
+
+on:
+  schedule:
+    # Monday 09:00 PT = 16:00 UTC (PDT) / 17:00 UTC (PST). Picking 16:00 UTC,
+    # which means 09:00 PT during PDT and 08:00 PT during PST. Acceptable drift
+    # — Lauren's existing daily 9-AM-PT crons use the same convention.
+    - cron: '0 16 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run weekly event check + send SMS if needed
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+        run: python3 scripts/weekly_event_check.py
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "weekly-event-check":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump weekly-event-check lastRunAt"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
+
+      # IRON RULE #3 (Lauren 2026-05-10): SMS Lauren if this workflow fails.
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
