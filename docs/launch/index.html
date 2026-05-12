@@ -1674,6 +1674,27 @@ End date: </div>
             rowBtn += '<button type="button" class="' + ttChipCls + ' tiktok-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(ttUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(ttChipTitle) + '">🔗</button>';
           }
 
+          // 📘 Facebook button + manual URL paste chip (Lauren 2026-05-11 — same pattern as TikTok)
+          // Click button → opens MANUAL_TASKS[evKey].fb_url if set, else opens FB Reels composer.
+          // Click 🔗 chip → prompt to paste/edit URL. Renders on past + future events.
+          {
+            const noteFB = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKey] || {}) : {};
+            const fbUrl = noteFB.fb_url || "";
+            const hasFB = !!fbUrl;
+            const fbHref = hasFB ? fbUrl : "https://www.facebook.com/reel/create/";
+            const fbBtnClass = hasFB ? "btn-agent-row btn-fb-row done" : "btn-agent-row btn-fb-row";
+            const fbLabel = hasFB ? '📘 FB Reel ✓' : '📘 FB Reel';
+            const fbTitle = hasFB
+              ? ('FB post: ' + fbUrl + ' — לחיצה לפתיחה')
+              : 'אין עדיין URL לפוסט בפייסבוק. לחיצה תפתח את FB Reels composer. לחצי על 🔗 כדי להדביק URL.';
+            rowBtn += '<a class="' + fbBtnClass + '" href="' + fbHref + '" target="_blank" rel="noopener" title="' + escapeHtml(fbTitle) + '">' + fbLabel + '</a>';
+            const fbChipCls = hasFB ? "reel-link-btn set" : "reel-link-btn";
+            const fbChipTitle = hasFB
+              ? ('הפוסט בפייסבוק: ' + fbUrl + ' — לחיצה לעריכה')
+              : 'הדבקי URL של הפוסט בפייסבוק (לאחר העלאת ה-Reel)';
+            rowBtn += '<button type="button" class="' + fbChipCls + ' fb-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(fbUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(fbChipTitle) + '">🔗</button>';
+          }
+
           // 📲 SMS Campaigns
           const cmp = (typeof CAMPAIGNS_RESULTS !== "undefined") ? CAMPAIGNS_RESULTS[evKey] : null;
           if (cmp) {
@@ -2833,6 +2854,36 @@ End date: </div>
         MANUAL_TASKS[evKey].tiktok_url = trimmed;
         MANUAL_TASKS[evKey].tiktok_url_set_by = "manual";
         MANUAL_TASKS[evKey].tiktok_url_set_at = new Date().toISOString();
+      }
+      MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+      ManualTasksSync.save(MANUAL_TASKS);
+      renderSchedule();
+      return;
+    }
+    // FB Reel manual URL paste chip (🔗) — Lauren 2026-05-11
+    // Same pattern as TikTok above. Writes MANUAL_TASKS[evKey].fb_url + _set_by + _set_at.
+    const fbChip = e.target.closest(".fb-link-paste-btn");
+    if (fbChip) {
+      e.stopPropagation();
+      const evKey = fbChip.dataset.evkey;
+      const cur = fbChip.dataset.current || "";
+      const v = prompt(
+        "🔗 הדבקי URL של פוסט פייסבוק של האירוע הזה:\n\n" +
+        "דוגמה:\n  https://fb.watch/H2lW3P7zL9/\n  או\n  https://www.facebook.com/reel/2245982816143690/\n\n" +
+        "אם תשאירי ריק — הכפתור 📘 FB יפתח את FB Reels composer להעלאת ה-Reel.",
+        cur
+      );
+      if (v === null) return;
+      const trimmed = (v || "").trim();
+      if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
+      if (trimmed === "") {
+        delete MANUAL_TASKS[evKey].fb_url;
+        delete MANUAL_TASKS[evKey].fb_url_set_by;
+        delete MANUAL_TASKS[evKey].fb_url_set_at;
+      } else {
+        MANUAL_TASKS[evKey].fb_url = trimmed;
+        MANUAL_TASKS[evKey].fb_url_set_by = "manual";
+        MANUAL_TASKS[evKey].fb_url_set_at = new Date().toISOString();
       }
       MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
       ManualTasksSync.save(MANUAL_TASKS);
