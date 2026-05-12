@@ -230,21 +230,69 @@ def fetch_meta_pixel_events(start_date: str, end_date: str) -> dict:
 # TikTok Business API
 # ---------------------------------------------------------------------------
 
-def fetch_tiktok_pixel_events(start_date: str, end_date: str) -> dict:
-    """Fetch TikTok ad performance + pixel events."""
+def _match_tiktok_slug(combined_name: str, slugs: list) -> str | None:
+    """Match a TikTok campaign/adgroup/ad name to one of the event slugs.
+
+    Lauren's TikTok campaign names don't follow a slug convention — they're
+    descriptive ("Traffic Best Post", "New Link of Roseville, MN 2026 Leads",
+    "Copy 1 of Roseville, MN 2026 Traffic"). So we match by looking for
+    BOTH the city name AND the year inside the combined campaign+adgroup+ad
+    name string. The first slug whose city+year both appear wins.
+
+    Returns None if no slug matches (caller should skip the row).
+    """
+    name_lower = (combined_name or "").lower()
+    if not name_lower:
+        return None
+    # Try exact slug substring first (e.g., "roseville-mn-2026")
+    for slug in slugs:
+        if slug.lower() in name_lower:
+            return slug
+    # Then city + year (handles "Roseville, MN 2026" — note: comma between city and state)
+    for slug in slugs:
+        parts = slug.split("-")
+        if len(parts) >= 3:
+            city = parts[0].replace("_", " ")
+            year = parts[-1]
+            if city in name_lower and year in name_lower:
+                return slug
+    return None
+
+
+def fetch_tiktok_pixel_events(start_date: str, end_date: str, slugs: list = None) -> dict:
+    """Fetch TikTok ad performance per event.
+
+    Returns per-slug dicts with:
+      - tiktok_spend, tiktok_impressions, tiktok_clicks, tiktok_landing_page_views,
+        tiktok_conversions, tiktok_complete_payment
+      - tiktok_ctr, tiktok_cpc, tiktok_cpm, tiktok_cost_per_lpv (derived)
+      - tiktok_top_ads: [{ad_id, ad_name, spend, impressions, clicks, lpv}] sorted by LPV desc, max 5
+
+    Requires Marketing API access (status: PENDING as of 2026-05-12 — see CLAUDE.md
+    IRON RULE about TikTok ticket). Returns {} gracefully if token absent.
+    """
     token = _os.environ.get("TIKTOK_ACCESS_TOKEN")
     advertiser_id = _os.environ.get("TIKTOK_ADVERTISER_ID")
     if not token or not advertiser_id:
-        print("  ⚠ tiktok: token or advertiser ID not set — skipping")
+        print("  ⚠ tiktok: token or advertiser ID not set — skipping (API access pending)")
         return {}
 
+    slugs = slugs or []
     url = "https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/"
     params = {
         "advertiser_id": advertiser_id,
         "report_type": "BASIC",
         "data_level": "AUCTION_AD",
-        "dimensions": _json.dumps(["ad_id", "campaign_name"]),
-        "metrics": _json.dumps(["spend", "conversion", "complete_payment"]),
+        "dimensions": _json.dumps(["ad_id", "campaign_name", "adgroup_name", "ad_name"]),
+        # Richer metrics so the stats page can show CTR/CPL/CPM per event,
+        # not just spend. landing_page_view is critical because that's the
+        # optimization event Lauren picked in the Traffic campaign (2026-05-12).
+        "metrics": _json.dumps([
+            "spend", "impressions", "clicks", "ctr", "cpc", "cpm",
+            "conversion", "cost_per_conversion", "conversion_rate",
+            "landing_page_view", "cost_per_landing_page_view",
+            "complete_payment",
+        ]),
         "start_date": start_date,
         "end_date": end_date,
     }
@@ -256,18 +304,72 @@ def fetch_tiktok_pixel_events(start_date: str, end_date: str) -> dict:
         with _urlreq.urlopen(req, timeout=20) as resp:
             data = _json.loads(resp.read().decode())
     except _urlerr.HTTPError as e:
-        print(f"  ⚠ tiktok query failed: {e.read().decode()[:200]}")
+        body = ""
+        try:
+            body = e.read().decode()[:200]
+        except Exception:
+            pass
+        print(f"  ⚠ tiktok query failed (HTTP {e.code}): {body}")
+        return {}
+    except Exception as e:
+        print(f"  ⚠ tiktok query failed: {e}")
         return {}
 
     out = {}
     for row in data.get("data", {}).get("list", []):
         meta = row.get("dimensions", {})
         metrics = row.get("metrics", {})
-        name = meta.get("campaign_name", "")
-        slug = name.split("_")[0] if "_" in name else name
-        ev = out.setdefault(slug, {"tiktok_spend": 0.0, "tiktok_conversions": 0})
-        ev["tiktok_spend"] += float(metrics.get("spend", 0))
-        ev["tiktok_conversions"] += int(metrics.get("conversion", 0))
+        combined = " ".join([
+            str(meta.get("campaign_name", "")),
+            str(meta.get("adgroup_name", "")),
+            str(meta.get("ad_name", "")),
+        ])
+        slug = _match_tiktok_slug(combined, slugs)
+        if not slug:
+            # No event-slug match in the name — skip rather than guess.
+            continue
+        ev = out.setdefault(slug, {
+            "tiktok_spend": 0.0,
+            "tiktok_impressions": 0,
+            "tiktok_clicks": 0,
+            "tiktok_landing_page_views": 0,
+            "tiktok_conversions": 0,
+            "tiktok_complete_payment": 0,
+            "tiktok_top_ads": [],
+        })
+        spend = float(metrics.get("spend", 0))
+        imp = int(float(metrics.get("impressions", 0)))
+        clk = int(float(metrics.get("clicks", 0)))
+        lpv = int(float(metrics.get("landing_page_view", 0)))
+        conv = int(float(metrics.get("conversion", 0)))
+        cp = int(float(metrics.get("complete_payment", 0)))
+        ev["tiktok_spend"] += spend
+        ev["tiktok_impressions"] += imp
+        ev["tiktok_clicks"] += clk
+        ev["tiktok_landing_page_views"] += lpv
+        ev["tiktok_conversions"] += conv
+        ev["tiktok_complete_payment"] += cp
+        ev["tiktok_top_ads"].append({
+            "ad_id": str(meta.get("ad_id", "")),
+            "ad_name": str(meta.get("ad_name", ""))[:60],
+            "spend": round(spend, 2),
+            "impressions": imp,
+            "clicks": clk,
+            "lpv": lpv,
+        })
+
+    # Derived metrics + sort top ads by LPV (proxy for "best creative" per event)
+    for slug, ev in out.items():
+        imp = ev["tiktok_impressions"]
+        clk = ev["tiktok_clicks"]
+        lpv = ev["tiktok_landing_page_views"]
+        spend = ev["tiktok_spend"]
+        ev["tiktok_ctr"] = round(clk / imp * 100, 2) if imp else 0
+        ev["tiktok_cpc"] = round(spend / clk, 2) if clk else 0
+        ev["tiktok_cpm"] = round(spend / imp * 1000, 2) if imp else 0
+        ev["tiktok_cost_per_lpv"] = round(spend / lpv, 2) if lpv else 0
+        ev["tiktok_top_ads"].sort(key=lambda x: x["lpv"], reverse=True)
+        ev["tiktok_top_ads"] = ev["tiktok_top_ads"][:5]
     return out
 
 
@@ -286,7 +388,7 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
 
     ga4 = fetch_ga4_event_data(start_date, end_date, slugs=slugs)
     meta = fetch_meta_pixel_events(start_date, end_date)
-    tt = fetch_tiktok_pixel_events(start_date, end_date)
+    tt = fetch_tiktok_pixel_events(start_date, end_date, slugs=slugs)
 
     out = {"events": {}}
     for slug in slugs:
@@ -300,6 +402,38 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
         if m.get("meta_spend"):
             ev["roas_by_source"]["meta"] = round(m.get("meta_revenue", 0) / m["meta_spend"], 2)
         # No TikTok revenue side yet — leave roas blank
+
+        # Rich TikTok metrics (added 2026-05-12 — feeds the Paid Acquisition section
+        # in stats.html.tpl). All zeros when API token absent or no campaigns matched.
+        ev["tiktok"] = {
+            "spend":              t.get("tiktok_spend", 0),
+            "impressions":        t.get("tiktok_impressions", 0),
+            "clicks":             t.get("tiktok_clicks", 0),
+            "landing_page_views": t.get("tiktok_landing_page_views", 0),
+            "conversions":        t.get("tiktok_conversions", 0),
+            "ctr":                t.get("tiktok_ctr", 0),
+            "cpc":                t.get("tiktok_cpc", 0),
+            "cpm":                t.get("tiktok_cpm", 0),
+            "cost_per_lpv":       t.get("tiktok_cost_per_lpv", 0),
+            "top_ads":            t.get("tiktok_top_ads", []),
+        }
+        # Mirror Meta into the same shape so stats.html.tpl can render both
+        # platforms side-by-side without special-casing.
+        ev["meta"] = {
+            "spend":   m.get("meta_spend", 0),
+            "revenue": m.get("meta_revenue", 0),
+            # impressions/clicks/ctr/cpl populated by fetch_meta_pixel_events when
+            # Meta API returns them; today the function only returns spend+revenue,
+            # so the rest stay zero. Same shape as tiktok = easy to extend later.
+            "impressions":        m.get("meta_impressions", 0),
+            "clicks":             m.get("meta_clicks", 0),
+            "landing_page_views": m.get("meta_landing_page_views", 0),
+            "ctr":                m.get("meta_ctr", 0),
+            "cpc":                m.get("meta_cpc", 0),
+            "cpm":                m.get("meta_cpm", 0),
+            "cost_per_lpv":       m.get("meta_cost_per_lpv", 0),
+            "top_ads":            m.get("meta_top_ads", []),
+        }
         ev["last_pulled"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         out["events"][slug] = ev
     out["_updated_at"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
