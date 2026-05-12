@@ -25,7 +25,7 @@ UPCOMING  = ROOT / "docs/state/upcoming_events.json"
 
 DEFAULT_FB = "https://www.facebook.com/themakeupblowoutsale/"
 DEFAULT_TT = "https://www.tiktok.com/@makeupblowoutsale"
-DEFAULT_IG = "https://www.instagram.com/makeupblowoutsale/"
+DEFAULT_IG = "https://www.instagram.com/themakeupblowoutsale/"
 
 
 def slug_of(s: str) -> str:
