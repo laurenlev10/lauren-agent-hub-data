@@ -345,6 +345,7 @@
   .btn-pr-influencer-row{background:linear-gradient(180deg,#d946ef,#a21caf)}
   .btn-summary-row{background:linear-gradient(180deg,#0891b2,#155e75)}
   .btn-metaads-row{background:linear-gradient(180deg,#1f2937,#0f172a)} /* black per Lauren's spec — flips green via .done */
+  .btn-inventory-row{background:linear-gradient(180deg,#d97706,#92400e)} /* brown-gold per Lauren's spec — flips green via .done */
   /* 'needs-summary' — past event without a published summary yet (call-to-action,
      Lauren 2026-05-05: 'הפעילות הכי חשובה לעשות כשאירוע נגמר'). Pulsing
      orange/red gradient grabs attention until the agent runs and the button
@@ -581,6 +582,10 @@ const META_CAMPAIGNS = {
     "reel_ad_pending_manual": true
   }
 };
+
+// Owner: inventory-orders — entry: { total_usd, suppliers_ordered, suppliers_received, href, generated_at }   (added 2026-05-12)
+// Done state: when at least one supplier has status != "pending", button flips green showing "$<total> · <ordered>/15".
+const INVENTORY_ORDERS = {};
 
 // Owner: eventbrite-setup — entry: { eventbrite: {url, eventId, generated_at} | null, smslist: {list_id, list_name, generated_at} | null }
 // Both fields can populate independently — the agent reports per-service result.
@@ -1816,6 +1821,23 @@ End date: </div>
             rowBtn += '<a class="btn-forecast-row done" href="' + fc.href + '" target="_blank" rel="noopener" title="תחזית מכירות · ביטחון ' + confLabel + ' · נוצרה ' + (fc.generated_at || "").slice(0,10) + '">📈 תחזית: $' + lowK + '–$' + highK + 'K<span class="conf-dot ' + fc.confidence + '"></span></a>';
           } else {
             rowBtn += '<a class="btn-forecast-row" href="../forecast/?' + params + '&autorun=1" target="_blank" rel="noopener" title="Open חוזה עתידות (Event Forecast) pre-filled with this event">🔮 חוזה עתידות</a>';
+          }
+
+          // 📦 Inventory Orders — flips when @inventory has recorded any supplier activity (added 2026-05-12)
+          // Owner: inventory-orders. Schema: INVENTORY_ORDERS[evKey] = { total_usd, suppliers_ordered, suppliers_received, href, generated_at }
+          const inv = (typeof INVENTORY_ORDERS !== "undefined") ? INVENTORY_ORDERS[evKey] : null;
+          if (inv) {
+            const invTotal = (inv.total_usd != null) ? "$" + Math.round(inv.total_usd).toLocaleString("en-US") : "$0";
+            const invTip = "Inventory orders · " + (inv.suppliers_received||0) + "/" + (inv.suppliers_ordered||0) + " received · " + (inv.generated_at||"").slice(0,10);
+            const invHref = inv.href || ("../inventory/?evkey=" + evKey);
+            rowBtn += '<a class="btn-agent-row btn-inventory-row done" href="' + invHref + '" target="_blank" rel="noopener" title="' + escapeHtml(invTip) + '">📦 Inventory ' + invTotal + ' · ' + (inv.suppliers_ordered||0) + '/15</a>';
+          } else {
+            const invParams = new URLSearchParams({
+              evkey: evKey, city: _evCity, state: _evState,
+              start_date: ev.start_date, end_date: ev.end_date,
+              venue: ev.venue || "", address: ev.address || ""
+            }).toString();
+            rowBtn += '<a class="btn-agent-row btn-inventory-row" href="../inventory/?' + invParams + '" target="_blank" rel="noopener" title="Open Inventory Orders pre-filled with this event">📦 Inventory</a>';
           }
 
           // 📊 Post-event summary — past events ONLY (Lauren 2026-05-05: can't summarize an event

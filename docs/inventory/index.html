@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>📦 Inventory Orders · Makeup Blowout Sale Group</title>
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><text y='52' font-size='52'>📦</text></svg>">
+<style>
+  :root{
+    --bg:#0f0f12;
+    --panel:#17171c;
+    --panel2:#1c1c22;
+    --line:#2a2a33;
+    --text:#f4f4f6;
+    --muted:#9ca0aa;
+    --accent:#d97706;    /* amber-600 — brown-gold */
+    --accent2:#92400e;   /* amber-800 */
+    --gold:#facc15;
+    --green:#16a34a;
+    --green-d:#15803d;
+    --red:#dc2626;
+    --orange:#ea580c;
+    --pink:#ec4899;
+    --blue:#0ea5e9;
+    --purple:#a855f7;
+    --warning:#fbbf24;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Heebo,Arial,sans-serif;direction:rtl;text-align:right}
+  body{padding:0 0 80px}
+  a{color:var(--gold);text-decoration:none}
+  a:hover{text-decoration:underline}
+  header.top{position:sticky;top:0;z-index:30;background:linear-gradient(180deg,#1a1a20 0%,#101014 100%);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  header.top h1{margin:0;font-size:16px;font-weight:800;letter-spacing:.2px}
+  header.top .logo{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:linear-gradient(180deg,var(--accent),var(--accent2));font-size:18px}
+  header.top .spacer{flex:1}
+  header.top .chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);padding:5px 9px;border-radius:999px;font-size:12px;color:var(--muted);cursor:pointer}
+  header.top .chip:hover{border-color:var(--accent);color:var(--text)}
+  header.top .chip.sync-on{color:#bbf7d0;border-color:#16a34a44}
+  header.top .chip.sync-off{color:#fca5a5;border-color:#dc262644}
+  header.top a.back{font-size:12px;color:var(--muted)}
+  header.top a.back:hover{color:var(--gold)}
+
+  .container{max-width:1100px;margin:0 auto;padding:16px}
+  .event-strip{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .event-strip .ev-title{font-size:18px;font-weight:800}
+  .event-strip .ev-meta{color:var(--muted);font-size:13px}
+  .event-strip .ev-meta b{color:var(--text);font-weight:700}
+  .event-strip .pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:var(--panel2);border:1px solid var(--line)}
+  .pill.warn{color:#fde68a;border-color:#fde68a44;background:#3b2e0c}
+  .pill.ok{color:#bbf7d0;border-color:#16a34a55;background:#0a2a18}
+  .pill.live{color:#fecaca;border-color:#dc2626;background:#3b0c0c}
+
+  .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+  .summary-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .summary-card .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+  .summary-card .value{font-size:24px;font-weight:800;margin-top:6px}
+  .summary-card .delta{font-size:11px;color:var(--muted);margin-top:4px}
+  .summary-card.total .value{color:var(--gold)}
+  .summary-card.ordered .value{color:#a78bfa}
+  .summary-card.received .value{color:#86efac}
+  .summary-card.pending .value{color:#fca5a5}
+
+  .controls{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .controls .search{flex:1;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px;color:var(--text);font-size:13px}
+  .controls select,.controls button{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px;color:var(--text);font-size:13px;cursor:pointer}
+  .controls button.primary{background:linear-gradient(180deg,var(--accent),var(--accent2));border-color:transparent;font-weight:700}
+  .controls button.primary:hover{filter:brightness(1.1)}
+
+  .suppliers{display:flex;flex-direction:column;gap:10px}
+  .supplier{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;transition:border-color .15s}
+  .supplier.expanded{border-color:var(--accent)}
+  .supplier .hdr{display:grid;grid-template-columns:32px 1fr auto auto auto;align-items:center;gap:12px;padding:12px 14px;cursor:pointer}
+  .supplier .hdr:hover{background:var(--panel2)}
+  .supplier .hdr .num{color:var(--muted);font-size:12px;font-weight:700;width:28px;text-align:center}
+  .supplier .hdr .name{font-size:15px;font-weight:700}
+  .supplier .hdr .name .cat{color:var(--muted);font-size:11px;font-weight:500;margin-right:8px}
+  .supplier .hdr .status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line)}
+  .supplier .hdr .status.pending{color:var(--muted)}
+  .supplier .hdr .status.ordered{color:#fde68a;border-color:#fde68a44;background:#3b2e0c}
+  .supplier .hdr .status.shipped{color:#bae6fd;border-color:#0ea5e9aa;background:#082236}
+  .supplier .hdr .status.picked-up{color:#fed7aa;border-color:#ea580caa;background:#3b1a0a}
+  .supplier .hdr .status.received{color:#bbf7d0;border-color:#16a34aaa;background:#0a2a18}
+  .supplier .hdr .status.cancelled{color:#fca5a5;border-color:#dc262655;background:#2a0c0c}
+  .supplier .hdr .total{font-size:14px;font-weight:800;color:var(--gold);min-width:80px;text-align:left}
+  .supplier .hdr .chev{color:var(--muted);transition:transform .15s}
+  .supplier.expanded .hdr .chev{transform:rotate(180deg)}
+
+  .supplier .body{display:none;padding:0 14px 14px;border-top:1px solid var(--line)}
+  .supplier.expanded .body{display:block}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  .row.full{grid-template-columns:1fr}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+  .field input,.field select,.field textarea{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;font-family:inherit}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent)}
+  .field textarea{resize:vertical;min-height:60px}
+
+  .invoice-up{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .invoice-up label.btn{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px dashed var(--line);border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer}
+  .invoice-up label.btn:hover{border-color:var(--accent)}
+  .invoice-up .chip{font-size:11px;color:var(--muted);padding:4px 9px;background:var(--panel2);border-radius:999px;border:1px solid var(--line)}
+  .invoice-up .chip.set{color:#bbf7d0;border-color:#16a34a55}
+
+  .products-section{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+  .products-section .ps-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+  .products-section .ps-hdr h3{margin:0;font-size:13px;font-weight:700;color:var(--text)}
+  .products-section .ps-hdr select{font-size:12px;padding:5px 8px}
+  .products-section .ps-hdr button{font-size:12px;padding:5px 10px}
+  table.products{width:100%;border-collapse:collapse;font-size:13px}
+  table.products th{text-align:right;padding:6px 8px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:600;border-bottom:1px solid var(--line)}
+  table.products td{padding:6px 8px;border-bottom:1px solid var(--line)}
+  table.products td input{background:transparent;border:none;color:var(--text);font-size:13px;width:100%;font-family:inherit}
+  table.products td input:focus{outline:1px solid var(--accent);border-radius:4px}
+  table.products .new-mark{color:var(--gold);font-size:11px;font-weight:700;margin-right:4px}
+  table.products tr.is-new td:first-child{position:relative}
+  table.products tr.is-new td:first-child::before{content:"NEW";position:absolute;top:6px;right:-2px;background:var(--gold);color:#000;font-size:9px;font-weight:800;padding:1px 4px;border-radius:3px}
+  table.products .btn-del{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px}
+  table.products .btn-del:hover{color:var(--red)}
+  .add-product{margin-top:8px;display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px dashed var(--line);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--muted)}
+  .add-product:hover{color:var(--text);border-color:var(--accent)}
+
+  .contact-section{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .contact-section h3{margin:0 0 8px;font-size:13px;font-weight:700;color:var(--text)}
+
+  .octopos-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;font-size:11px;color:#fde68a;border:1px solid #fde68a44;background:#3b2e0c}
+
+  .empty-state{background:var(--panel);border:1px dashed var(--line);border-radius:12px;padding:40px 20px;text-align:center;color:var(--muted)}
+  .empty-state h2{margin:0 0 6px;color:var(--text);font-size:18px}
+  .empty-state p{margin:6px 0;font-size:13px}
+  .empty-state a.cta{display:inline-block;margin-top:14px;background:linear-gradient(180deg,var(--accent),var(--accent2));color:#fff;font-weight:700;padding:10px 18px;border-radius:10px;font-size:13px}
+
+  .overview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+  .ov-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;transition:border-color .15s,transform .15s;display:block;color:var(--text);text-decoration:none}
+  .ov-card:hover{border-color:var(--accent);transform:translateY(-1px);text-decoration:none}
+  .ov-card .city{font-size:15px;font-weight:800;color:var(--text)}
+  .ov-card .city .state{color:var(--muted);font-weight:500;margin-right:5px}
+  .ov-card .date{font-size:12px;color:var(--muted);margin-top:3px}
+  .ov-card .stats{display:flex;gap:12px;margin-top:10px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+  .ov-card .stats b{color:var(--gold);font-weight:700}
+  .ov-card .progress{height:6px;background:var(--panel2);border-radius:6px;overflow:hidden;margin-top:10px}
+  .ov-card .progress .fill{height:100%;background:linear-gradient(90deg,var(--green),var(--gold));transition:width .3s}
+  .ov-card .progress .fill.zero{background:var(--line)}
+
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 18px;font-size:13px;color:var(--text);z-index:50;box-shadow:0 4px 12px rgba(0,0,0,.4);transition:opacity .25s}
+  .toast.success{border-color:#16a34a55;color:#bbf7d0}
+  .toast.error{border-color:#dc262655;color:#fca5a5}
+  .toast.fade{opacity:0;pointer-events:none}
+
+  .year-tabs{display:inline-flex;gap:6px;background:var(--panel2);border-radius:10px;padding:4px;margin-bottom:14px}
+  .year-tabs button{background:transparent;border:none;color:var(--muted);font-size:13px;font-weight:600;padding:6px 14px;border-radius:8px;cursor:pointer}
+  .year-tabs button.active{background:var(--panel);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.4)}
+  .year-tabs button:not(.active):hover{color:var(--text)}
+
+  @media (max-width:720px){
+    .summary-grid{grid-template-columns:repeat(2,1fr)}
+    .row{grid-template-columns:1fr}
+    .supplier .hdr{grid-template-columns:24px 1fr auto;gap:8px}
+    .supplier .hdr .total,.supplier .hdr .chev{grid-column:span 3;justify-self:end}
+    .supplier .hdr .status{grid-column:1/-1}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <span class="logo">📦</span>
+  <h1>Inventory Orders</h1>
+  <span id="sub" style="color:var(--muted);font-size:13px;font-weight:500"></span>
+  <span class="spacer"></span>
+  <span id="syncChip" class="chip sync-off" title="לחיצה להגדרת GitHub token לסנכרון בין מכשירים">⛔ Sync: off</span>
+  <a class="back" href="../launch/">← חזרה ל-Event Launch</a>
+</header>
+
+<div class="container">
+
+  <div id="focusView" style="display:none">
+    <div class="event-strip" id="eventStrip"></div>
+
+    <div class="summary-grid">
+      <div class="summary-card total">
+        <div class="label">סה"כ הזמנות</div>
+        <div class="value" id="sumTotal">$0</div>
+        <div class="delta" id="sumTotalDelta"></div>
+      </div>
+      <div class="summary-card ordered">
+        <div class="label">ספקים בהזמנה</div>
+        <div class="value" id="sumOrdered">0 / 15</div>
+        <div class="delta">פתחו הזמנה</div>
+      </div>
+      <div class="summary-card received">
+        <div class="label">ספקים שהגיעו</div>
+        <div class="value" id="sumReceived">0 / 15</div>
+        <div class="delta">סחורה במחסן</div>
+      </div>
+      <div class="summary-card pending">
+        <div class="label">ממתינים</div>
+        <div class="value" id="sumPending">15 / 15</div>
+        <div class="delta">עוד לא הוזמן</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <input type="text" class="search" id="search" placeholder="חיפוש ספק / מוצר / מספר מעקב...">
+      <select id="filterStatus">
+        <option value="">כל הסטטוסים</option>
+        <option value="pending">ממתין</option>
+        <option value="ordered">הוזמן</option>
+        <option value="shipped">בדרך</option>
+        <option value="picked-up">נאסף</option>
+        <option value="received">הגיע</option>
+        <option value="cancelled">בוטל</option>
+      </select>
+      <button id="expandAll" type="button">↧ פתח הכל</button>
+      <button id="collapseAll" type="button">↥ סגור הכל</button>
+    </div>
+
+    <div class="suppliers" id="suppliers"></div>
+  </div>
+
+  <div id="overviewView" style="display:none">
+    <h2 style="font-size:20px;font-weight:800;margin:6px 0 4px">ניהול הזמנות מלאי לפי אירוע</h2>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 14px">בחרי אירוע כדי לפתוח את דשבורד הספקים שלו. עדכוני סטטוס, חשבוניות, ומוצרים נשמרים אוטומטית ב-GitHub.</p>
+    <div class="year-tabs" id="yearTabs"></div>
+    <div class="overview-grid" id="ovGrid"></div>
+  </div>
+
+  <div id="loadingView" class="empty-state">
+    <h2>טוען נתונים...</h2>
+    <p>מושך את ה-state האחרון מ-GitHub Pages</p>
+  </div>
+
+</div>
+
+<div id="toast" class="toast fade"></div>
+
+<script>
+/* ============================================================
+   📦 Inventory Orders — per-event restock manager
+   Source of truth: docs/state/inventory_orders.json (in repo)
+   RemoteSync: GitHub Contents API, token = localStorage["lauren_gh_token_v1"]
+   ============================================================ */
+
+const SUPPLIERS = [
+  { code: "she-makeup",       name: "She Makeup",       category: "Cosmetics" },
+  { code: "mystery-box",      name: "Mystery Box",      category: "Mixed / Closeouts" },
+  { code: "amuse-cosmetics",  name: "Amuse Cosmetics",  category: "Cosmetics" },
+  { code: "nabi",             name: "Nabi",             category: "Cosmetics" },
+  { code: "bb-and-w",         name: "BB&W",             category: "Bath & Body" },
+  { code: "prolux",           name: "Prolux",           category: "Cosmetics" },
+  { code: "golden-touch",     name: "Golden Touch",     category: "Skin / Hair" },
+  { code: "ebc",              name: "EBC",              category: "Cosmetics" },
+  { code: "rude",             name: "Rude",             category: "Cosmetics" },
+  { code: "xime-beauty",      name: "Xime Beauty",      category: "Cosmetics" },
+  { code: "feral-edge",       name: "Feral Edge",       category: "Cosmetics" },
+  { code: "lurella",          name: "Lurella",          category: "Cosmetics" },
+  { code: "kara-beauty",      name: "Kara Beauty",      category: "Cosmetics" },
+  { code: "romantic-beauty",  name: "Romantic Beauty",  category: "Cosmetics" },
+  { code: "beauty-creations", name: "Beauty Creations", category: "Cosmetics" }
+];
+
+const STATUS_LABELS = {
+  "pending":   "⏳ ממתין",
+  "ordered":   "📝 הוזמן",
+  "shipped":   "🚚 בדרך",
+  "picked-up": "📦 נאסף",
+  "received":  "✅ הגיע",
+  "cancelled": "🚫 בוטל"
+};
+
+const STATE_PATH = "state/inventory_orders.json";
+const STATE_URL  = "../" + STATE_PATH;
+const REPO_OWNER = "laurenlev10";
+const REPO_NAME  = "lauren-agent-hub-data";
+const REPO_BRANCH= "main";
+const REPO_FILE  = "docs/" + STATE_PATH;
+const TOKEN_KEY  = "lauren_gh_token_v1";
+const LS_LOCAL   = "lauren_inventory_local_v1";
+
+let STATE = { _updated_at: null, events: {} };
+let CURRENT_EVKEY = null;
+let CURRENT_EVENT = null;
+let SYNC_BUSY = false;
+let PENDING_SAVE = null;
+
+const $ = (s, root) => (root||document).querySelector(s);
+const $$ = (s, root) => Array.from((root||document).querySelectorAll(s));
+function fmtUsd(n){ const v = Number(n||0); return "$" + v.toLocaleString("en-US", {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2}); }
+function escHtml(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function nowIso(){ return new Date().toISOString(); }
+function citySlug(c){ return String(c||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); }
+function toast(msg, kind){
+  const t = $("#toast");
+  t.textContent = msg;
+  t.className = "toast " + (kind||"");
+  setTimeout(()=>t.classList.add("fade"), 2200);
+  t.classList.remove("fade");
+}
+
+const URL_PARAMS = new URLSearchParams(location.search);
+const URL_EVKEY = URL_PARAMS.get("evkey") || URL_PARAMS.get("ev") || null;
+
+function setSyncChip(){
+  const chip = $("#syncChip");
+  const tok = (localStorage.getItem(TOKEN_KEY)||"").trim();
+  if (tok){
+    chip.className = "chip sync-on";
+    chip.textContent = "✓ Sync: on";
+    chip.title = "סנכרון פעיל — שינויים נכתבים ל-GitHub אוטומטית. לחיצה לעדכון הטוקן.";
+  } else {
+    chip.className = "chip sync-off";
+    chip.textContent = "⛔ Sync: off";
+    chip.title = "אין טוקן GitHub — שינויים נשמרים מקומית בדפדפן בלבד. לחיצה להגדרה.";
+  }
+}
+$("#syncChip").addEventListener("click", () => {
+  const cur = (localStorage.getItem(TOKEN_KEY)||"").trim();
+  const next = prompt("הדביקי GitHub PAT עם הרשאת `repo` (`lauren_gh_token_v1`):\n(ריק = למחיקה)", cur ? "•••" : "");
+  if (next === null) return;
+  const val = next.trim();
+  if (!val){
+    localStorage.removeItem(TOKEN_KEY);
+    toast("Sync כובה", "");
+  } else if (val !== "•••"){
+    localStorage.setItem(TOKEN_KEY, val);
+    toast("Sync מופעל", "success");
+  }
+  setSyncChip();
+});
+
+async function loadState(){
+  try{
+    const r = await fetch(STATE_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok){
+      const cloud = await r.json();
+      const cloudTs = new Date(cloud._updated_at||0).getTime();
+      const localRaw = localStorage.getItem(LS_LOCAL);
+      const local = localRaw ? JSON.parse(localRaw) : null;
+      const localTs = local ? new Date(local._localUpdatedAt||0).getTime() : 0;
+      if (cloudTs >= localTs){
+        if (PENDING_SAVE){ clearTimeout(PENDING_SAVE); PENDING_SAVE = null; }
+        STATE = cloud;
+      } else {
+        STATE = local;
+      }
+    } else if (r.status === 404){
+      STATE = { _updated_at: null, events: {} };
+    } else {
+      throw new Error("HTTP " + r.status);
+    }
+  } catch(e){
+    console.warn("loadState failed, using local cache:", e);
+    const localRaw = localStorage.getItem(LS_LOCAL);
+    STATE = localRaw ? JSON.parse(localRaw) : { _updated_at: null, events: {} };
+  }
+  if (!STATE.events) STATE.events = {};
+}
+
+function scheduleSave(){
+  if (PENDING_SAVE){ clearTimeout(PENDING_SAVE); PENDING_SAVE = null; }
+  STATE._localUpdatedAt = nowIso();
+  STATE._updated_at = nowIso();
+  localStorage.setItem(LS_LOCAL, JSON.stringify(STATE));
+  PENDING_SAVE = setTimeout(pushToGitHub, 1500);
+  refreshSummary();
+}
+
+async function pushToGitHub(){
+  const tok = (localStorage.getItem(TOKEN_KEY)||"").trim();
+  if (!tok) return;
+  if (SYNC_BUSY) { PENDING_SAVE = setTimeout(pushToGitHub, 800); return; }
+  SYNC_BUSY = true;
+  try{
+    const getUrl = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/" + REPO_FILE + "?ref=" + REPO_BRANCH;
+    let sha = null;
+    const getR = await fetch(getUrl, { headers: { Authorization: "token " + tok, Accept: "application/vnd.github+json" }});
+    if (getR.ok){
+      const j = await getR.json();
+      sha = j.sha;
+    } else if (getR.status !== 404){
+      throw new Error("GET failed: " + getR.status);
+    }
+    const putUrl = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/" + REPO_FILE;
+    const json = JSON.stringify(STATE, null, 2);
+    const body = {
+      message: "@inventory: update state (" + (CURRENT_EVKEY||"overview") + ")",
+      content: btoa(unescape(encodeURIComponent(json))),
+      branch: REPO_BRANCH
+    };
+    if (sha) body.sha = sha;
+    const putR = await fetch(putUrl, {
+      method: "PUT",
+      headers: { Authorization: "token " + tok, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    if (!putR.ok){
+      const t = await putR.text();
+      throw new Error("PUT failed: " + putR.status + " " + t.slice(0, 200));
+    }
+    toast("נשמר ב-GitHub ✓", "success");
+  } catch(e){
+    console.error("pushToGitHub failed:", e);
+    toast("שגיאת סנכרון — שמור מקומית", "error");
+  } finally {
+    SYNC_BUSY = false;
+  }
+}
+
+function ensureSlice(evkey, eventMeta){
+  if (!STATE.events[evkey]){
+    STATE.events[evkey] = {
+      evkey,
+      city: eventMeta.city || "",
+      state: eventMeta.state || "",
+      start_date: eventMeta.start_date || "",
+      end_date: eventMeta.end_date || "",
+      venue: eventMeta.venue || "",
+      address: eventMeta.address || "",
+      suppliers: {},
+      summary: { total_usd: 0, suppliers_ordered: 0, suppliers_received: 0, last_supplier_updated: null },
+      updated_at: nowIso()
+    };
+  }
+  const slice = STATE.events[evkey];
+  ["city","state","start_date","end_date","venue","address"].forEach(k => {
+    if (eventMeta[k] && !slice[k]) slice[k] = eventMeta[k];
+  });
+  SUPPLIERS.forEach(sup => {
+    if (!slice.suppliers[sup.code]){
+      slice.suppliers[sup.code] = {
+        status: "pending",
+        delivery_mode: null,
+        tracking_number: null,
+        tracking_carrier: null,
+        invoice_total_usd: 0,
+        invoice_file: null,
+        received: false,
+        received_at: null,
+        products: [],
+        contact: { name: "", phone: "", email: "", address: "" },
+        notes: "",
+        updated_at: null
+      };
+    } else {
+      const s = slice.suppliers[sup.code];
+      if (!s.contact) s.contact = { name: "", phone: "", email: "", address: "" };
+      if (!Array.isArray(s.products)) s.products = [];
+      if (s.invoice_total_usd == null) s.invoice_total_usd = 0;
+    }
+  });
+}
+
+function recomputeSummary(evkey){
+  const slice = STATE.events[evkey];
+  if (!slice) return;
+  let total = 0, ordered = 0, received = 0;
+  SUPPLIERS.forEach(sup => {
+    const s = slice.suppliers[sup.code];
+    if (!s) return;
+    total += Number(s.invoice_total_usd||0);
+    if (s.status && s.status !== "pending" && s.status !== "cancelled") ordered++;
+    if (s.received || s.status === "received") received++;
+  });
+  slice.summary = {
+    total_usd: total,
+    suppliers_ordered: ordered,
+    suppliers_received: received,
+    last_supplier_updated: slice.summary && slice.summary.last_supplier_updated || null
+  };
+}
+
+function renderEventStrip(){
+  const ev = CURRENT_EVENT;
+  if (!ev) return;
+  const liveBadge = (() => {
+    if (!ev.start_date) return "";
+    const start = new Date(ev.start_date);
+    const end = ev.end_date ? new Date(ev.end_date) : start;
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    if (today >= start && today <= end) return '<span class="pill live">🔴 אירוע חי</span>';
+    if (today > end) return '<span class="pill ok">✓ עבר</span>';
+    return '<span class="pill warn">📅 עתידי</span>';
+  })();
+  const dateRange = ev.start_date + (ev.end_date && ev.end_date !== ev.start_date ? " — " + ev.end_date : "");
+  $("#eventStrip").innerHTML =
+    '<div class="ev-title">📦 ' + escHtml(ev.city) + (ev.state ? ', <span style="color:var(--muted);font-weight:500">'+escHtml(ev.state)+'</span>' : '') + '</div>' +
+    '<div class="ev-meta"><b>' + escHtml(dateRange) + '</b>' + (ev.venue ? ' · ' + escHtml(ev.venue) : '') + '</div>' +
+    liveBadge;
+  $("#sub").textContent = "· " + (ev.city || "");
+}
+
+function renderSummary(){
+  const slice = STATE.events[CURRENT_EVKEY];
+  if (!slice) return;
+  recomputeSummary(CURRENT_EVKEY);
+  const s = slice.summary;
+  $("#sumTotal").textContent = fmtUsd(s.total_usd);
+  $("#sumOrdered").textContent = s.suppliers_ordered + " / " + SUPPLIERS.length;
+  $("#sumReceived").textContent = s.suppliers_received + " / " + SUPPLIERS.length;
+  $("#sumPending").textContent = (SUPPLIERS.length - s.suppliers_ordered) + " / " + SUPPLIERS.length;
+}
+
+function refreshSummary(){ renderSummary(); }
+
+function renderSuppliers(){
+  const slice = STATE.events[CURRENT_EVKEY];
+  if (!slice) return;
+  const filt = $("#filterStatus").value;
+  const q = ($("#search").value||"").toLowerCase().trim();
+  const wrap = $("#suppliers");
+  wrap.innerHTML = "";
+  SUPPLIERS.forEach((sup, i) => {
+    const s = slice.suppliers[sup.code];
+    if (filt && s.status !== filt) return;
+    if (q){
+      const hay = (sup.name + " " + sup.category + " " + (s.tracking_number||"") + " " + (s.notes||"") + " " + (s.contact && s.contact.name||"") + " " + s.products.map(p=>p.name).join(" ")).toLowerCase();
+      if (!hay.includes(q)) return;
+    }
+    const card = document.createElement("div");
+    card.className = "supplier" + (s._expanded ? " expanded" : "");
+    card.dataset.code = sup.code;
+    card.innerHTML = renderSupplierCard(sup, s, i);
+    wrap.appendChild(card);
+  });
+}
+
+function renderSupplierCard(sup, s, idx){
+  const statusClass = s.status || "pending";
+  const totalDisp = Number(s.invoice_total_usd||0) > 0 ? fmtUsd(s.invoice_total_usd) : "—";
+  const carrierOpts = ["ups","usps","fedex","dhl","other"];
+  return ''+
+    '<div class="hdr" data-toggle="1">'+
+      '<div class="num">'+(idx+1)+'.</div>'+
+      '<div class="name">'+escHtml(sup.name)+' <span class="cat">· '+escHtml(sup.category)+'</span></div>'+
+      '<div class="status '+statusClass+'">'+(STATUS_LABELS[s.status]||STATUS_LABELS.pending)+'</div>'+
+      '<div class="total">'+totalDisp+'</div>'+
+      '<div class="chev">▾</div>'+
+    '</div>'+
+    '<div class="body">'+
+      '<div class="row">'+
+        '<div class="field">'+
+          '<label>סטטוס</label>'+
+          '<select data-bind="status">'+
+            Object.entries(STATUS_LABELS).map(([k,v]) => '<option value="'+k+'" '+(s.status===k?"selected":"")+'>'+v+'</option>').join("")+
+          '</select>'+
+        '</div>'+
+        '<div class="field">'+
+          '<label>אופן משלוח</label>'+
+          '<select data-bind="delivery_mode">'+
+            '<option value="">—</option>'+
+            '<option value="pickup" '+(s.delivery_mode==="pickup"?"selected":"")+'>איסוף עצמי</option>'+
+            '<option value="shipped" '+(s.delivery_mode==="shipped"?"selected":"")+'>נשלח (משלוח)</option>'+
+          '</select>'+
+        '</div>'+
+        '<div class="field">'+
+          '<label>סה"כ חשבונית ($)</label>'+
+          '<input type="number" step="0.01" min="0" data-bind="invoice_total_usd" value="'+(s.invoice_total_usd||"")+'" placeholder="0.00">'+
+        '</div>'+
+        '<div class="field">'+
+          '<label>חשבונית (קובץ)</label>'+
+          '<div class="invoice-up">'+
+            '<label class="btn">📎 העלאת קובץ<input type="file" data-bind="invoice_file" accept=".pdf,.png,.jpg,.jpeg,.heic" style="display:none"></label>'+
+            '<span class="chip '+(s.invoice_file?"set":"")+'">'+(s.invoice_file ? "✓ " + escHtml(s.invoice_file.name || s.invoice_file) : "אין קובץ")+'</span>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="row">'+
+        '<div class="field" data-show-if-shipped style="'+(s.delivery_mode==="shipped"?"":"display:none")+'">'+
+          '<label>מספר מעקב</label>'+
+          '<input type="text" data-bind="tracking_number" value="'+escHtml(s.tracking_number||"")+'" placeholder="לדוגמה: 1Z999AA10123456784">'+
+        '</div>'+
+        '<div class="field" data-show-if-shipped style="'+(s.delivery_mode==="shipped"?"":"display:none")+'">'+
+          '<label>חברת שליחויות</label>'+
+          '<select data-bind="tracking_carrier">'+
+            '<option value="">—</option>'+
+            carrierOpts.map(c => '<option value="'+c+'" '+(s.tracking_carrier===c?"selected":"")+'>'+c.toUpperCase()+'</option>').join("")+
+          '</select>'+
+        '</div>'+
+        '<div class="field">'+
+          '<label><input type="checkbox" data-bind="received" '+(s.received?"checked":"")+'> סחורה התקבלה במחסן</label>'+
+          '<span style="color:var(--muted);font-size:11px">'+(s.received_at ? "התקבל ב-" + s.received_at.slice(0,10) : "")+'</span>'+
+        '</div>'+
+        '<div class="field">'+
+          '<label>OCTOPOS sync</label>'+
+          '<span class="octopos-chip">⏳ Phase 2 — ממתין לטוקן</span>'+
+        '</div>'+
+      '</div>'+
+      '<div class="products-section">'+
+        '<div class="ps-hdr">'+
+          '<h3>📋 מוצרים <span style="color:var(--muted);font-weight:500">('+s.products.length+')</span></h3>'+
+          '<select data-products-sort>'+
+            '<option value="default">סדר ברירת מחדל</option>'+
+            '<option value="name">לפי שם</option>'+
+            '<option value="qty-desc">לפי כמות (גבוה→נמוך)</option>'+
+            '<option value="sales-desc">לפי מכירות (גבוה→נמוך)</option>'+
+            '<option value="new-first">חדשים תחילה</option>'+
+          '</select>'+
+          '<label style="color:var(--muted);font-size:12px"><input type="checkbox" data-products-only-new> הצג רק חדשים</label>'+
+          '<button type="button" data-action="add-product">+ מוצר חדש</button>'+
+        '</div>'+
+        '<table class="products">'+
+          '<thead>'+
+            '<tr><th style="width:50%">שם המוצר</th><th>כמות</th><th>מחיר ליחידה ($)</th><th>סה"כ</th><th>חדש?</th><th></th></tr>'+
+          '</thead>'+
+          '<tbody data-products-tbody>'+
+            renderProductRows(s)+
+          '</tbody>'+
+        '</table>'+
+      '</div>'+
+      '<div class="contact-section">'+
+        '<h3>📞 פרטי הספק</h3>'+
+        '<div class="row">'+
+          '<div class="field"><label>שם איש קשר</label><input type="text" data-bind="contact.name" value="'+escHtml(s.contact && s.contact.name||"")+'"></div>'+
+          '<div class="field"><label>טלפון</label><input type="tel" data-bind="contact.phone" value="'+escHtml(s.contact && s.contact.phone||"")+'"></div>'+
+          '<div class="field"><label>אימייל</label><input type="email" data-bind="contact.email" value="'+escHtml(s.contact && s.contact.email||"")+'"></div>'+
+          '<div class="field"><label>כתובת מחסן / משרד</label><input type="text" data-bind="contact.address" value="'+escHtml(s.contact && s.contact.address||"")+'"></div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="row full" style="margin-top:14px">'+
+        '<div class="field">'+
+          '<label>הערות פנימיות</label>'+
+          '<textarea data-bind="notes" placeholder="לדוגמה: דיברתי עם רון, מבטיח לשלוח ביום חמישי">'+escHtml(s.notes||"")+'</textarea>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+}
+
+function renderProductRows(s){
+  if (!s.products || s.products.length === 0){
+    return '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:14px">אין מוצרים עדיין — לחצי "+ מוצר חדש"</td></tr>';
+  }
+  return s.products.map((p, idx) => {
+    const lineTotal = (Number(p.qty||0) * Number(p.unit_usd||0)).toFixed(2);
+    return '<tr class="'+(p.is_new?"is-new":"")+'" data-pidx="'+idx+'">'+
+      '<td><input type="text" data-pbind="name" value="'+escHtml(p.name||"")+'" placeholder="שם מוצר"></td>'+
+      '<td><input type="number" min="0" step="1" data-pbind="qty" value="'+(p.qty||0)+'" style="width:70px"></td>'+
+      '<td><input type="number" min="0" step="0.01" data-pbind="unit_usd" value="'+(p.unit_usd||0)+'" style="width:90px"></td>'+
+      '<td style="color:var(--gold);font-weight:700">$'+lineTotal+'</td>'+
+      '<td><input type="checkbox" data-pbind="is_new" '+(p.is_new?"checked":"")+'></td>'+
+      '<td><button class="btn-del" data-action="del-product" type="button">✕</button></td>'+
+    '</tr>';
+  }).join("");
+}
+
+function getSupplierState(code){
+  return STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers[code];
+}
+
+function setNested(obj, path, val){
+  const parts = path.split(".");
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i++){
+    if (!cur[parts[i]]) cur[parts[i]] = {};
+    cur = cur[parts[i]];
+  }
+  cur[parts[parts.length-1]] = val;
+}
+
+function bindCardEvents(card){
+  const code = card.dataset.code;
+  const sup = SUPPLIERS.find(x => x.code === code);
+  const s = getSupplierState(code);
+
+  card.querySelector('.hdr').addEventListener("click", (e) => {
+    if (e.target.closest("input,select,button,a,label")) return;
+    s._expanded = !card.classList.contains("expanded");
+    card.classList.toggle("expanded");
+  });
+
+  card.querySelectorAll('[data-bind]').forEach(el => {
+    const path = el.dataset.bind;
+    el.addEventListener("change", () => {
+      let v;
+      if (el.type === "checkbox") v = el.checked;
+      else if (el.type === "number") v = el.value === "" ? 0 : Number(el.value);
+      else if (el.type === "file") {
+        const f = el.files[0];
+        if (f){
+          v = { name: f.name, size: f.size, type: f.type, uploaded_at: nowIso() };
+        }
+      } else v = el.value;
+      setNested(s, path, v);
+      if (path === "received") s.received_at = v ? nowIso() : null;
+      if (path === "status" && v === "received" && !s.received){ s.received = true; s.received_at = nowIso(); }
+      s.updated_at = nowIso();
+      STATE.events[CURRENT_EVKEY].summary.last_supplier_updated = code;
+      STATE.events[CURRENT_EVKEY].updated_at = nowIso();
+      const expanded = card.classList.contains("expanded");
+      card.innerHTML = renderSupplierCard(sup, s, SUPPLIERS.indexOf(sup));
+      if (expanded){ card.classList.add("expanded"); s._expanded = true; }
+      bindCardEvents(card);
+      scheduleSave();
+    });
+  });
+
+  bindProductRows(card);
+
+  const addBtn = card.querySelector('[data-action="add-product"]');
+  if (addBtn){
+    addBtn.addEventListener("click", () => {
+      s.products.push({ name: "", qty: 0, unit_usd: 0, is_new: false });
+      s.updated_at = nowIso();
+      const tbody = card.querySelector('[data-products-tbody]');
+      tbody.innerHTML = renderProductRows(s);
+      bindProductRows(card);
+      scheduleSave();
+    });
+  }
+
+  const sortSel = card.querySelector('[data-products-sort]');
+  if (sortSel){
+    sortSel.addEventListener("change", () => {
+      const mode = sortSel.value;
+      if (mode === "name") s.products.sort((a,b) => (a.name||"").localeCompare(b.name||"","he"));
+      else if (mode === "qty-desc") s.products.sort((a,b) => (b.qty||0) - (a.qty||0));
+      else if (mode === "sales-desc") s.products.sort((a,b) => (b.sales_rank||0) - (a.sales_rank||0));
+      else if (mode === "new-first") s.products.sort((a,b) => (b.is_new?1:0) - (a.is_new?1:0));
+      const tbody = card.querySelector('[data-products-tbody]');
+      tbody.innerHTML = renderProductRows(s);
+      bindProductRows(card);
+    });
+  }
+  const onlyNew = card.querySelector('[data-products-only-new]');
+  if (onlyNew){
+    onlyNew.addEventListener("change", () => {
+      const filterFn = onlyNew.checked ? (p => p.is_new) : () => true;
+      const tbody = card.querySelector('[data-products-tbody]');
+      Array.from(tbody.querySelectorAll("tr")).forEach((tr, idx) => {
+        const p = s.products[idx];
+        tr.style.display = (p && filterFn(p)) ? "" : "none";
+      });
+    });
+  }
+}
+
+function bindProductRows(card){
+  const code = card.dataset.code;
+  const s = getSupplierState(code);
+  const tbody = card.querySelector('[data-products-tbody]');
+  if (!tbody) return;
+  tbody.querySelectorAll('input[data-pbind]').forEach(inp => {
+    inp.addEventListener("change", () => {
+      const tr = inp.closest("tr");
+      const pidx = Number(tr.dataset.pidx);
+      const path = inp.dataset.pbind;
+      const p = s.products[pidx];
+      if (!p) return;
+      if (inp.type === "checkbox") p[path] = inp.checked;
+      else if (inp.type === "number") p[path] = inp.value === "" ? 0 : Number(inp.value);
+      else p[path] = inp.value;
+      s.updated_at = nowIso();
+      tbody.innerHTML = renderProductRows(s);
+      bindProductRows(card);
+      scheduleSave();
+    });
+  });
+  tbody.querySelectorAll('[data-action="del-product"]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tr = btn.closest("tr");
+      const pidx = Number(tr.dataset.pidx);
+      s.products.splice(pidx, 1);
+      s.updated_at = nowIso();
+      tbody.innerHTML = renderProductRows(s);
+      bindProductRows(card);
+      scheduleSave();
+    });
+  });
+}
+
+$("#search").addEventListener("input", () => renderSuppliersWithBindings());
+$("#filterStatus").addEventListener("change", () => renderSuppliersWithBindings());
+$("#expandAll").addEventListener("click", () => {
+  const slice = STATE.events[CURRENT_EVKEY];
+  SUPPLIERS.forEach(sup => { slice.suppliers[sup.code]._expanded = true; });
+  renderSuppliersWithBindings();
+});
+$("#collapseAll").addEventListener("click", () => {
+  const slice = STATE.events[CURRENT_EVKEY];
+  SUPPLIERS.forEach(sup => { slice.suppliers[sup.code]._expanded = false; });
+  renderSuppliersWithBindings();
+});
+
+function renderSuppliersWithBindings(){
+  renderSuppliers();
+  $$("#suppliers .supplier").forEach(bindCardEvents);
+}
+
+async function renderOverview(){
+  $("#overviewView").style.display = "";
+  $("#focusView").style.display = "none";
+  const events = await fetchEventsList();
+  const years = Array.from(new Set(events.map(e => (e.start_date||"").slice(0,4)))).filter(Boolean).sort();
+  const curYear = years.includes(String(new Date().getFullYear())) ? String(new Date().getFullYear()) : (years[years.length-1] || "");
+  const tabsHtml = years.map(y => '<button class="'+(y===curYear?"active":"")+'" data-year="'+y+'">'+y+'</button>').join("");
+  $("#yearTabs").innerHTML = tabsHtml;
+  $("#yearTabs").querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      $("#yearTabs").querySelectorAll("button").forEach(b => b.classList.toggle("active", b===btn));
+      renderOverviewGrid(events, btn.dataset.year);
+    });
+  });
+  renderOverviewGrid(events, curYear);
+}
+
+async function fetchEventsList(){
+  try{
+    const r = await fetch("../state/upcoming_events.json?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok){
+      const j = await r.json();
+      const evs = (j.events||j||[]).map(ev => ({
+        city: ev.city || "",
+        state: ev.state || ev.st || "",
+        start_date: ev.start_date || ev.date || "",
+        end_date: ev.end_date || ev.start_date || "",
+        venue: ev.venue || "",
+        address: ev.address || "",
+        evkey: citySlug(ev.city) + "-" + (ev.start_date||ev.date||"")
+      }));
+      if (evs.length) return evs;
+    }
+  } catch(e){ console.warn(e); }
+  return Object.entries(STATE.events).map(([evkey, slice]) => ({
+    evkey, city: slice.city, state: slice.state, start_date: slice.start_date, end_date: slice.end_date, venue: slice.venue, address: slice.address
+  }));
+}
+
+function renderOverviewGrid(events, year){
+  const grid = $("#ovGrid");
+  const filtered = events.filter(e => (e.start_date||"").startsWith(year)).sort((a,b) => (a.start_date||"").localeCompare(b.start_date||""));
+  if (filtered.length === 0){
+    grid.innerHTML = '<div class="empty-state"><h2>אין אירועים לשנה זו</h2><p>בחרי שנה אחרת מהטאבים למעלה.</p></div>';
+    return;
+  }
+  grid.innerHTML = filtered.map(ev => {
+    const slice = STATE.events[ev.evkey];
+    const s = (slice && slice.summary) || { total_usd: 0, suppliers_ordered: 0, suppliers_received: 0 };
+    const orderedPct = (s.suppliers_ordered / SUPPLIERS.length) * 100;
+    const receivedPct = (s.suppliers_received / SUPPLIERS.length) * 100;
+    const dateDisp = ev.start_date + (ev.end_date && ev.end_date !== ev.start_date ? " — " + ev.end_date.slice(5) : "");
+    const params = new URLSearchParams({ evkey: ev.evkey, city: ev.city, state: ev.state, start_date: ev.start_date, end_date: ev.end_date, venue: ev.venue||"", address: ev.address||"" });
+    return '<a class="ov-card" href="?'+params.toString()+'">'+
+      '<div class="city">'+escHtml(ev.city)+' <span class="state">'+escHtml(ev.state)+'</span></div>'+
+      '<div class="date">'+escHtml(dateDisp)+'</div>'+
+      '<div class="stats">'+
+        '<span><b>'+fmtUsd(s.total_usd)+'</b> סה"כ</span>'+
+        '<span><b>'+s.suppliers_ordered+'</b>/'+SUPPLIERS.length+' הוזמן</span>'+
+        '<span><b>'+s.suppliers_received+'</b>/'+SUPPLIERS.length+' הגיע</span>'+
+      '</div>'+
+      '<div class="progress"><div class="fill '+(s.suppliers_ordered===0?"zero":"")+'" style="width:'+Math.max(receivedPct, orderedPct)+'%"></div></div>'+
+    '</a>';
+  }).join("");
+}
+
+async function init(){
+  setSyncChip();
+  await loadState();
+  if (URL_EVKEY){
+    CURRENT_EVKEY = URL_EVKEY;
+    CURRENT_EVENT = {
+      city: URL_PARAMS.get("city") || "",
+      state: URL_PARAMS.get("state") || "",
+      start_date: URL_PARAMS.get("start_date") || "",
+      end_date: URL_PARAMS.get("end_date") || "",
+      venue: URL_PARAMS.get("venue") || "",
+      address: URL_PARAMS.get("address") || ""
+    };
+    ensureSlice(CURRENT_EVKEY, CURRENT_EVENT);
+    const slice = STATE.events[CURRENT_EVKEY];
+    CURRENT_EVENT = {
+      city: slice.city, state: slice.state, start_date: slice.start_date, end_date: slice.end_date, venue: slice.venue, address: slice.address
+    };
+    $("#focusView").style.display = "";
+    $("#overviewView").style.display = "none";
+    $("#loadingView").style.display = "none";
+    renderEventStrip();
+    renderSummary();
+    renderSuppliersWithBindings();
+  } else {
+    $("#loadingView").style.display = "none";
+    await renderOverview();
+  }
+}
+
+document.addEventListener("DOMContentLoaded", init);
+window.addEventListener("beforeunload", () => {
+  if (PENDING_SAVE){ clearTimeout(PENDING_SAVE); PENDING_SAVE = null; pushToGitHub(); }
+});
+</script>
+</body>
+</html>
