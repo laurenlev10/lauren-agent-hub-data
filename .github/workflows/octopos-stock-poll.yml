@@ -36,8 +36,8 @@ jobs:
         run: |
           git config user.email "lauren@noreply.github.com"
           git config user.name "Lauren (via octopos-stock-poll)"
-          if ! git diff --quiet docs/state/octopos_products.json; then
-            git add docs/state/octopos_products.json
+          git add docs/state/octopos_products.json
+          if ! git diff --cached --quiet; then
             git commit -m "octopos: refresh products snapshot"
             git pull --rebase origin main || true
             git push origin main
