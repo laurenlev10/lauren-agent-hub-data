@@ -148,8 +148,12 @@ def build_snapshot(vendors, products):
                 "city": (v.get("city") or "").strip(),
                 "state": (v.get("state") or "").strip(),
             },
-            "products": [],
-            "summary": {"count": 0, "in_stock_count": 0, "total_units": 0.0},
+            "products": [],            # active products only
+            "inactive_products": [],   # products with active=false
+            "summary": {
+                "count": 0, "in_stock_count": 0, "total_units": 0.0,
+                "inactive_count": 0, "inactive_in_stock_count": 0, "inactive_total_units": 0.0,
+            },
         }
 
     mapped = 0
@@ -166,25 +170,35 @@ def build_snapshot(vendors, products):
             qty = float(p.get("in_stock_qty") or 0)
         except (TypeError, ValueError):
             qty = 0.0
+        is_active = bool(p.get("active", True))
         entry = {
             "id": p.get("id"),
             "name": p.get("name", ""),
             "sku": p.get("sku", ""),
             "barcode": p.get("barcode", ""),
             "in_stock_qty": qty,
+            "active": is_active,
             "department": (p.get("department") or {}).get("name", ""),
             "updated_at": p.get("updated_at", ""),
         }
-        snapshot["vendors"][code]["products"].append(entry)
-        snapshot["vendors"][code]["summary"]["count"] += 1
-        if qty > 0:
-            snapshot["vendors"][code]["summary"]["in_stock_count"] += 1
-        snapshot["vendors"][code]["summary"]["total_units"] += qty
+        sv = snapshot["vendors"][code]
+        sumkey = "summary"
+        if is_active:
+            sv["products"].append(entry)
+            sv[sumkey]["count"] += 1
+            if qty > 0: sv[sumkey]["in_stock_count"] += 1
+            sv[sumkey]["total_units"] += qty
+        else:
+            sv["inactive_products"].append(entry)
+            sv[sumkey]["inactive_count"] += 1
+            if qty > 0: sv[sumkey]["inactive_in_stock_count"] += 1
+            sv[sumkey]["inactive_total_units"] += qty
         mapped += 1
 
-    # Sort products per supplier: in-stock first, then alphabetic
+    # Sort both lists per supplier: in-stock first, then alphabetic
     for code in snapshot["vendors"]:
-        snapshot["vendors"][code]["products"].sort(key=lambda x: (-(x["in_stock_qty"] > 0), x["name"].lower()))
+        for k in ("products", "inactive_products"):
+            snapshot["vendors"][code][k].sort(key=lambda x: (-(x["in_stock_qty"] > 0), x["name"].lower()))
 
     snapshot["_total_products_mapped"] = mapped
     return snapshot
@@ -230,7 +244,7 @@ def main():
     print("Per-supplier summary:")
     for code, ent in snapshot["vendors"].items():
         s = ent["summary"]
-        print(f"  {code:<22} ({ent['octopos_name']:<18})  {s['count']:>4} products  {s['in_stock_count']:>4} in-stock  {s['total_units']:>8.0f} units")
+        print(f"  {code:<22} ({ent['octopos_name']:<18})  active: {s['count']:>4} ({s['in_stock_count']:>4} in stock, {s['total_units']:>7.0f} units)  · inactive: {s['inactive_count']:>4} ({s['inactive_in_stock_count']:>3} in stock)")
 
     # Write
     out_path = Path("docs/state/octopos_products.json")
