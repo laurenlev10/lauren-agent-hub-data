@@ -1536,10 +1536,19 @@ function eventMultiplier(){
   return m;
 }
 function roundToCase(qty, multiple, dir){
+  if (qty <= 0) return 0;
   if (!multiple || multiple <= 1) return Math.ceil(qty);
   const m = multiple;
   if (dir === 'up')   return Math.ceil(qty / m) * m;
   if (dir === 'down') return Math.floor(qty / m) * m;
+  if (dir === 'nearest'){
+    // Round to nearest multiple. Ties (e.g. 6/12, 18/12) go UP per JS Math.round semantics.
+    let r = Math.round(qty / m) * m;
+    // If the math says 0 but Lauren actually has a gap > 0, bump to 1 case so the product
+    // doesn't silently disappear (per Lauren 2026-05-13).
+    if (r === 0 && qty > 0) r = m;
+    return r;
+  }
   return qty;
 }
 function classifyLane(p, suggestedQty){
@@ -1574,7 +1583,7 @@ function buildSupplierOrder(supplierCode){
     let gap   = Math.max(0, thr - stock) * mult;
     // MOQ: if base > 0 but below MOQ, snap up to MOQ
     if (gap > 0 && Number(rule.moq || 0) > 0 && gap < Number(rule.moq)) gap = Number(rule.moq);
-    let suggested = roundToCase(gap, cs, 'up');
+    let suggested = roundToCase(gap, cs, 'nearest');  // Lauren 2026-05-13 — round to nearest, not always up
     // Max cap
     if (Number(rule.max || 0) > 0) suggested = Math.min(suggested, Number(rule.max));
     // Hard skip
