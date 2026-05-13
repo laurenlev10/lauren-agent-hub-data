@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+"""
+OCTOPOS daily stock sync — pulls all of Lauren's products from her POS,
+filters to her 15 mapped suppliers, and writes a snapshot the inventory
+dashboard reads.
+
+Tenant: themakeup.octoretail.com
+Output: docs/state/octopos_products.json
+
+API quirks discovered 2026-05-12:
+- get_products_by_filter ignores page/pagination params (always returns first 100).
+- get_products_by_filter ignores vendor_id filter.
+- Get product by ID (GET /api/v2/products/{id}) DOES work for any valid id.
+- Auth header is raw token: `Authorization: <token>` (no Bearer prefix).
+- Location field must be `location_ids` (plural array), not `location_id`.
+
+Workaround: iterate by product id from 1 to ~MAX_ID using HEAD-then-GET.
+Currently ~1112 products; binary-search to discover max each run.
+"""
+import json, os, sys, urllib.request, urllib.error
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from datetime import datetime, timezone
+
+BASE = "https://themakeup.octoretail.com/api/v2"
+
+# Lauren's 15 suppliers → OCTOPOS vendor_id (confirmed 2026-05-12).
+# Key = supplier code used in the dashboard's SUPPLIERS array.
+MAPPING = {
+    "she-makeup":       18,  # OCTOPOS: "She"
+    "mystery-box":      24,  # OCTOPOS: "Garage"
+    "amuse-cosmetics":   2,  # OCTOPOS: "Amuse"
+    "nabi":             14,
+    "bb-and-w":          3,
+    "prolux":           15,
+    "golden-touch":      8,
+    "ebs-perfumes":      6,  # was "EBC" in early dashboard; renamed per Lauren 2026-05-12
+    "rude":             17,
+    "xime-beauty":      23,  # OCTOPOS: "Xime"
+    "feral-edge":        7,
+    "lurella":          12,
+    "kara-beauty":      10,
+    "romantic-beauty":  16,
+    "beauty-creations":  4,
+}
+# Inverse: vendor_id → supplier_code (for fast lookup during product iteration)
+VENDOR_TO_CODE = {v: k for k, v in MAPPING.items()}
+
+LOCATION_ID = 2  # "THE MAKEUP BLOWOUT SALE GROUP INC"
+
+
+def _request(method, path, token=None, body=None, timeout=20):
+    headers = {"Accept": "application/json"}
+    if token:
+        headers["Authorization"] = token
+    data = None
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(f"{BASE}{path}", data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read().decode("utf-8", "replace"))
+        except Exception:
+            return e.code, {}
+
+
+def authenticate(email, password):
+    code, resp = _request("POST", "/authenticate", body={"email": email, "password": password})
+    if code != 200 or "token" not in resp:
+        raise SystemExit(f"OCTOPOS auth failed: HTTP {code} {resp}")
+    return resp["token"], resp.get("locations", [])
+
+
+def list_vendors(token):
+    code, resp = _request("GET", "/vendors", token=token)
+    if code != 200:
+        raise SystemExit(f"list_vendors HTTP {code}: {resp}")
+    return resp.get("data", []) if isinstance(resp, dict) else resp
+
+
+def find_max_product_id(token, start=1500, ceiling=50000):
+    """Binary-search for the highest existing product id."""
+    def exists(pid):
+        code, _ = _request("GET", f"/products/{pid}", token=token, timeout=8)
+        return code != 404
+    lo = 1
+    hi = start
+    while exists(hi) and hi < ceiling:
+        hi *= 2
+    # binary search between lo and hi
+    while lo < hi - 1:
+        mid = (lo + hi) // 2
+        if exists(mid):
+            lo = mid
+        else:
+            hi = mid
+    return lo
+
+
+def fetch_product(token, pid):
+    code, resp = _request("GET", f"/products/{pid}", token=token, timeout=12)
+    if code == 200 and isinstance(resp, dict) and "id" in resp:
+        return resp
+    return None
+
+
+def fetch_all_products(token, max_id, concurrency=50):
+    products = []
+
+    def task(pid):
+        return fetch_product(token, pid)
+
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        for i, p in enumerate(pool.map(task, range(1, max_id + 1)), start=1):
+            if p:
+                products.append(p)
+            if i % 200 == 0:
+                print(f"  …scanned {i}/{max_id} ids, {len(products)} products so far")
+    return products
+
+
+def build_snapshot(vendors, products):
+    """Group products by Lauren's mapped suppliers."""
+    vendor_by_id = {v["id"]: v for v in vendors}
+    snapshot = {
+        "_updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "_about": "Daily OCTOPOS snapshot — products grouped by Lauren's 15 mapped suppliers. Source: scripts/octopos_sync.py.",
+        "_total_products_scanned": len(products),
+        "_total_products_mapped": 0,
+        "vendors": {},
+    }
+    # Seed every mapped supplier so the dashboard always sees all 15
+    for code, vid in MAPPING.items():
+        v = vendor_by_id.get(vid, {})
+        snapshot["vendors"][code] = {
+            "octopos_vendor_id": vid,
+            "octopos_name": v.get("name", ""),
+            "active": v.get("active", True),
+            "contact": {
+                "name": (v.get("contact_person") or "").strip(),
+                "phone": str(v.get("phone") or "") if v.get("phone") else "",
+                "email": (v.get("email") or "").strip(),
+                "address": (v.get("address") or "").strip(),
+                "city": (v.get("city") or "").strip(),
+                "state": (v.get("state") or "").strip(),
+            },
+            "products": [],
+            "summary": {"count": 0, "in_stock_count": 0, "total_units": 0.0},
+        }
+
+    mapped = 0
+    for p in products:
+        vendors_arr = p.get("vendors") or []
+        if not vendors_arr:
+            continue
+        default = next((v for v in vendors_arr if v.get("is_default")), vendors_arr[0])
+        vid = default.get("id")
+        code = VENDOR_TO_CODE.get(vid)
+        if not code:
+            continue
+        try:
+            qty = float(p.get("in_stock_qty") or 0)
+        except (TypeError, ValueError):
+            qty = 0.0
+        entry = {
+            "id": p.get("id"),
+            "name": p.get("name", ""),
+            "sku": p.get("sku", ""),
+            "barcode": p.get("barcode", ""),
+            "in_stock_qty": qty,
+            "department": (p.get("department") or {}).get("name", ""),
+            "updated_at": p.get("updated_at", ""),
+        }
+        snapshot["vendors"][code]["products"].append(entry)
+        snapshot["vendors"][code]["summary"]["count"] += 1
+        if qty > 0:
+            snapshot["vendors"][code]["summary"]["in_stock_count"] += 1
+        snapshot["vendors"][code]["summary"]["total_units"] += qty
+        mapped += 1
+
+    # Sort products per supplier: in-stock first, then alphabetic
+    for code in snapshot["vendors"]:
+        snapshot["vendors"][code]["products"].sort(key=lambda x: (-(x["in_stock_qty"] > 0), x["name"].lower()))
+
+    snapshot["_total_products_mapped"] = mapped
+    return snapshot
+
+
+def main():
+    email = os.environ.get("OCTOPOS_EMAIL", "").strip()
+    password = os.environ.get("OCTOPOS_PASSWORD", "").strip()
+    if not email or not password:
+        # Local-run fallback: read from secrets file
+        cred_path = Path(__file__).resolve().parent.parent.parent / "Claude" / ".claude" / "secrets" / "octopos_credentials.txt"
+        if cred_path.exists():
+            raw = cred_path.read_text()
+            import re
+            parts = [p.strip() for p in re.split(r"[:\r\n\t]+", raw.strip()) if p.strip()]
+            if len(parts) >= 2:
+                email, password = parts[0], parts[1]
+    if not email or not password:
+        raise SystemExit("OCTOPOS_EMAIL + OCTOPOS_PASSWORD required (env or secrets file)")
+
+    print(f"→ authenticating as {email[:3]}***@{email.split('@')[-1] if '@' in email else '?'}")
+    token, locations = authenticate(email, password)
+    print(f"✓ auth ok ({len(token)} char token, {len(locations)} location(s))")
+
+    print("→ listing vendors")
+    vendors = list_vendors(token)
+    print(f"✓ {len(vendors)} vendors")
+
+    # Skip binary search — use a static ceiling (real max ≈ 1112 as of 2026-05-12;
+    # bumping to 1500 leaves room for growth without doubling the scan cost).
+    # The fetch step gracefully skips 404s, so over-shooting is harmless.
+    max_id = 1500
+    print(f"→ scanning ids 1..{max_id} (binary search skipped for speed)")
+
+    print(f"→ fetching all {max_id} product ids (concurrency=50)")
+    products = fetch_all_products(token, max_id, concurrency=50)
+    print(f"✓ {len(products)} products fetched")
+
+    print("→ building snapshot")
+    snapshot = build_snapshot(vendors, products)
+    print(f"✓ mapped {snapshot['_total_products_mapped']} products into 15 suppliers")
+    print()
+    print("Per-supplier summary:")
+    for code, ent in snapshot["vendors"].items():
+        s = ent["summary"]
+        print(f"  {code:<22} ({ent['octopos_name']:<18})  {s['count']:>4} products  {s['in_stock_count']:>4} in-stock  {s['total_units']:>8.0f} units")
+
+    # Write
+    out_path = Path("docs/state/octopos_products.json")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(snapshot, indent=2, ensure_ascii=False))
+    print(f"\n✓ wrote {out_path}  ({out_path.stat().st_size:,} bytes)")
+
+
+if __name__ == "__main__":
+    main()

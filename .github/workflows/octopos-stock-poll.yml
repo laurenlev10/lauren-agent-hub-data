@@ -1,0 +1,87 @@
+name: octopos-stock-poll
+
+# Daily OCTOPOS inventory snapshot (Lauren 2026-05-12).
+# Pulls all products from themakeup.octoretail.com, filters to Lauren's 15
+# mapped suppliers, writes docs/state/octopos_products.json.
+# Inventory dashboard reads that file to render per-supplier product lists
+# with stock chips.
+
+on:
+  schedule:
+    # 09:00 UTC = 2 AM PT (off-peak for the API).
+    - cron: '0 9 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run OCTOPOS sync
+        env:
+          OCTOPOS_EMAIL:    ${{ secrets.OCTOPOS_EMAIL }}
+          OCTOPOS_PASSWORD: ${{ secrets.OCTOPOS_PASSWORD }}
+        run: python3 scripts/octopos_sync.py
+
+      - name: Commit + push snapshot if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via octopos-stock-poll)"
+          if ! git diff --quiet docs/state/octopos_products.json; then
+            git add docs/state/octopos_products.json
+            git commit -m "octopos: refresh products snapshot"
+            git pull --rebase origin main || true
+            git push origin main
+            echo "✓ pushed octopos_products.json"
+          else
+            echo "no changes in octopos_products.json"
+          fi
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "octopos-stock-poll":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump octopos-stock-poll lastRunAt"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
+
+      # IRON RULE (Lauren 2026-05-10): SMS Lauren if this workflow fails.
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py

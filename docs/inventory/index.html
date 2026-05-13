@@ -123,7 +123,14 @@
   .contact-section{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
   .contact-section h3{margin:0 0 8px;font-size:13px;font-weight:700;color:var(--text)}
 
-  .octopos-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;font-size:11px;color:#fde68a;border:1px solid #fde68a44;background:#3b2e0c}
+  .octopos-section{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+  .octopos-section .ps-hdr h3{margin:0 0 8px;font-size:13px;font-weight:700;color:var(--text)}
+  .oct-chip{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:var(--panel2)}
+  .oct-chip.stock-ok{color:#bbf7d0;border-color:#16a34a66;background:#0a2a18}
+  .oct-chip.stock-mid{color:#fde68a;border-color:#fde68a66;background:#3b2e0c}
+  .oct-chip.stock-low{color:#fca5a5;border-color:#dc262666;background:#2a0c0c}
+  .oct-chip.stock-empty{color:var(--muted);border-color:var(--line);background:var(--panel2)}
+    .octopos-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;font-size:11px;color:#fde68a;border:1px solid #fde68a44;background:#3b2e0c}
 
   .empty-state{background:var(--panel);border:1px dashed var(--line);border-radius:12px;padding:40px 20px;text-align:center;color:var(--muted)}
   .empty-state h2{margin:0 0 6px;color:var(--text);font-size:18px}
@@ -242,21 +249,23 @@
    ============================================================ */
 
 const SUPPLIERS = [
-  { code: "she-makeup",       name: "She Makeup",       category: "Cosmetics" },
-  { code: "mystery-box",      name: "Mystery Box",      category: "Mixed / Closeouts" },
-  { code: "amuse-cosmetics",  name: "Amuse Cosmetics",  category: "Cosmetics" },
-  { code: "nabi",             name: "Nabi",             category: "Cosmetics" },
-  { code: "bb-and-w",         name: "BB&W",             category: "Bath & Body" },
-  { code: "prolux",           name: "Prolux",           category: "Cosmetics" },
-  { code: "golden-touch",     name: "Golden Touch",     category: "Skin / Hair" },
-  { code: "ebc",              name: "EBC",              category: "Cosmetics" },
-  { code: "rude",             name: "Rude",             category: "Cosmetics" },
-  { code: "xime-beauty",      name: "Xime Beauty",      category: "Cosmetics" },
-  { code: "feral-edge",       name: "Feral Edge",       category: "Cosmetics" },
-  { code: "lurella",          name: "Lurella",          category: "Cosmetics" },
-  { code: "kara-beauty",      name: "Kara Beauty",      category: "Cosmetics" },
-  { code: "romantic-beauty",  name: "Romantic Beauty",  category: "Cosmetics" },
-  { code: "beauty-creations", name: "Beauty Creations", category: "Cosmetics" }
+  // OCTOPOS vendor IDs mapped 2026-05-12 against Lauren's themakeup.octoretail.com tenant.
+  // Stock + product list flows in via docs/state/octopos_products.json (daily cron).
+  { code: "she-makeup",       name: "She Makeup",       category: "Cosmetics",        octopos_vendor_id: 18 },
+  { code: "mystery-box",      name: "Mystery Box",      category: "Mixed / Closeouts", octopos_vendor_id: 24 },
+  { code: "amuse-cosmetics",  name: "Amuse Cosmetics",  category: "Cosmetics",        octopos_vendor_id:  2 },
+  { code: "nabi",             name: "Nabi",             category: "Cosmetics",        octopos_vendor_id: 14 },
+  { code: "bb-and-w",         name: "BB&W",             category: "Bath & Body",      octopos_vendor_id:  3 },
+  { code: "prolux",           name: "Prolux",           category: "Cosmetics",        octopos_vendor_id: 15 },
+  { code: "golden-touch",     name: "Golden Touch",     category: "Skin / Hair",      octopos_vendor_id:  8 },
+  { code: "ebs-perfumes",     name: "EBS Perfumes",     category: "Perfumes",         octopos_vendor_id:  6 },
+  { code: "rude",             name: "Rude",             category: "Cosmetics",        octopos_vendor_id: 17 },
+  { code: "xime-beauty",      name: "Xime Beauty",      category: "Cosmetics",        octopos_vendor_id: 23 },
+  { code: "feral-edge",       name: "Feral Edge",       category: "Cosmetics",        octopos_vendor_id:  7 },
+  { code: "lurella",          name: "Lurella",          category: "Cosmetics",        octopos_vendor_id: 12 },
+  { code: "kara-beauty",      name: "Kara Beauty",      category: "Cosmetics",        octopos_vendor_id: 10 },
+  { code: "romantic-beauty",  name: "Romantic Beauty",  category: "Cosmetics",        octopos_vendor_id: 16 },
+  { code: "beauty-creations", name: "Beauty Creations", category: "Cosmetics",        octopos_vendor_id:  4 }
 ];
 
 const STATUS_LABELS = {
@@ -278,6 +287,9 @@ const TOKEN_KEY  = "lauren_gh_token_v1";
 const LS_LOCAL   = "lauren_inventory_local_v1";
 
 let STATE = { _updated_at: null, events: {} };
+// OCTOPOS daily snapshot — populated by loadOctopos(). Shape: {vendors: {[code]: {products, summary, contact, octopos_name, ...}}, _updated_at}
+let OCTOPOS = { vendors: {}, _updated_at: null };
+const OCTOPOS_STATE_URL = "../state/octopos_products.json";
 let CURRENT_EVKEY = null;
 let CURRENT_EVENT = null;
 let SYNC_BUSY = false;
@@ -608,6 +620,35 @@ function renderSupplierCard(sup, s, idx){
           '</tbody>'+
         '</table>'+
       '</div>'+
+      // OCTOPOS overlay (added 2026-05-12) — live stock per supplier from daily sync
+      (function(){
+        var oct = getOctoposForSupplier(sup.code);
+        if (!oct) return '';
+        var prods = oct.products || [];
+        var summary = oct.summary || {count:0, in_stock_count:0, total_units:0};
+        var lastSync = (OCTOPOS && OCTOPOS._updated_at) ? (' · עודכן ' + OCTOPOS._updated_at.slice(0,16).replace('T',' ')) : '';
+        var rows = prods.length === 0
+          ? '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:14px">אין מוצרים של ' + escHtml(sup.name) + ' באוקטופוס עדיין</td></tr>'
+          : prods.map(function(p){
+              var qty = Number(p.in_stock_qty||0);
+              var chipClass = qty <= 0 ? 'stock-empty' : (qty < 10 ? 'stock-low' : (qty < 50 ? 'stock-mid' : 'stock-ok'));
+              var chipLabel = qty <= 0 ? '⛔ 0' : (qty < 10 ? '🔴 ' + qty : (qty < 50 ? '🟡 ' + qty : '🟢 ' + qty));
+              return '<tr>'+
+                '<td>'+escHtml(p.name||'')+(p.department?' <span style="color:var(--muted);font-size:11px">· '+escHtml(p.department)+'</span>':'')+'</td>'+
+                '<td><code style="font-size:11px;color:var(--muted)">'+escHtml(p.sku||'')+'</code></td>'+
+                '<td><code style="font-size:11px;color:var(--muted)">'+escHtml(p.barcode||'')+'</code></td>'+
+                '<td><span class="oct-chip '+chipClass+'">'+chipLabel+'</span></td>'+
+                '<td style="color:var(--muted);font-size:11px">'+(p.updated_at||'').slice(0,10)+'</td>'+
+              '</tr>';
+            }).join('');
+        return ''+
+          '<div class="octopos-section">'+
+            '<div class="ps-hdr">'+
+              '<h3>📊 OCTOPOS — מלאי לייב <span style="color:var(--muted);font-weight:500">('+summary.count+' מוצרים · '+summary.in_stock_count+' במלאי · '+Math.round(summary.total_units)+' יחידות'+lastSync+')</span></h3>'+
+            '</div>'+
+            '<table class="products"><thead><tr><th style="width:45%">מוצר</th><th>SKU</th><th>ברקוד</th><th>מלאי</th><th>עודכן</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+          '</div>';
+      })()+
       '<div class="contact-section">'+
         '<h3>📞 פרטי הספק</h3>'+
         '<div class="row">'+
@@ -852,9 +893,28 @@ function renderOverviewGrid(events, year){
   }).join("");
 }
 
+async function loadOctopos(){
+  try{
+    const r = await fetch(OCTOPOS_STATE_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok){
+      OCTOPOS = await r.json();
+      if (!OCTOPOS.vendors) OCTOPOS.vendors = {};
+    } else {
+      OCTOPOS = { vendors: {}, _updated_at: null };
+    }
+  } catch(e){
+    console.warn("loadOctopos failed:", e);
+    OCTOPOS = { vendors: {}, _updated_at: null };
+  }
+}
+
+function getOctoposForSupplier(code){
+  return (OCTOPOS && OCTOPOS.vendors && OCTOPOS.vendors[code]) || null;
+}
+
 async function init(){
   setSyncChip();
-  await loadState();
+  await Promise.all([loadState(), loadOctopos()]);
   if (URL_EVKEY){
     CURRENT_EVKEY = URL_EVKEY;
     CURRENT_EVENT = {
