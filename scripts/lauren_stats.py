@@ -187,42 +187,120 @@ def fetch_ga4_event_data(start_date: str, end_date: str, slugs=None) -> dict:
 # Meta Marketing API (ad spend + pixel events)
 # ---------------------------------------------------------------------------
 
-def fetch_meta_pixel_events(start_date: str, end_date: str) -> dict:
-    """Fetch ad spend + conversions per ad set, attributable to events."""
+def fetch_meta_pixel_events(start_date: str, end_date: str, slugs: list = None) -> dict:
+    """Fetch ad performance per event from Meta Marketing Insights.
+
+    Returns per-slug dicts mirroring the TikTok shape so stats.html.tpl can
+    render Meta and TikTok side-by-side without special-casing.
+
+    Returns dict keyed by event-slug with:
+      - meta_spend, meta_revenue, meta_impressions, meta_clicks,
+        meta_landing_page_views, meta_conversions
+      - meta_ctr, meta_cpc, meta_cpm, meta_cost_per_lpv (derived per-event)
+      - meta_top_ads: [{ad_id, ad_name, spend, impressions, clicks, lpv}]
+                     sorted by LPV desc, max 5
+
+    Lauren's Meta campaign names (e.g. "Traffic English 2026 Cleveland, OH",
+    "NEW Reel 2026 Roseville, MN", "Traffic Spanish 2026 Milwaukee, WI - Copy")
+    don't follow a kebab-slug convention. We match by city+year using the same
+    matcher as TikTok (_match_tiktok_slug). Ads whose name doesn't contain a
+    recognizable city+year are skipped rather than mis-attributed.
+
+    Rewritten 2026-05-13 — previous version used `slug = name.split("_")[0]`
+    which never matched Lauren's naming, returning 0 for every event despite
+    $4,897 of real spend in last 7d. Also fetched only `spend, actions,
+    action_values` — missing impressions/clicks/CTR/CPL entirely. See
+    CLAUDE.md change-log for full incident notes.
+    """
     token = _os.environ.get("META_PAGE_TOKEN")
     ad_account = _os.environ.get("META_AD_ACCOUNT_ID")
     if not token or not ad_account:
         print("  ⚠ meta: token or ad account ID not set — skipping")
         return {}
 
+    slugs = slugs or []
+
     url = f"https://graph.facebook.com/v25.0/{ad_account}/insights"
     params = {
-        "fields": "campaign_name,ad_name,spend,actions,action_values",
+        "fields": "campaign_name,adset_name,ad_name,ad_id,spend,impressions,clicks,ctr,cpc,cpm,actions,action_values",
         "time_range": _json.dumps({"since": start_date, "until": end_date}),
         "level": "ad",
+        "limit": "500",
         "access_token": token,
     }
     req = _urlreq.Request(f"{url}?{_urlparse.urlencode(params)}")
     try:
-        with _urlreq.urlopen(req, timeout=20) as resp:
+        with _urlreq.urlopen(req, timeout=30) as resp:
             data = _json.loads(resp.read().decode())
     except _urlerr.HTTPError as e:
-        print(f"  ⚠ meta query failed: {e.read().decode()[:200]}")
+        body = ""
+        try:
+            body = e.read().decode()[:200]
+        except Exception:
+            pass
+        print(f"  ⚠ meta query failed (HTTP {e.code}): {body}")
+        return {}
+    except Exception as e:
+        print(f"  ⚠ meta query failed: {e}")
         return {}
 
     out = {}
     for ad in data.get("data", []):
-        # Try to extract slug from campaign_name (e.g. "columbia-mo-2026_round1")
-        name = ad.get("campaign_name", "")
-        slug = name.split("_")[0] if "_" in name else name
-        ev = out.setdefault(slug, {"meta_spend": 0.0, "meta_conversions": 0, "meta_revenue": 0.0})
-        ev["meta_spend"] += float(ad.get("spend", 0))
-        for a in ad.get("actions", []):
-            if a.get("action_type") in ("lead", "complete_registration"):
-                ev["meta_conversions"] += int(a.get("value", 0))
-        for a in ad.get("action_values", []):
+        combined = " ".join([
+            str(ad.get("campaign_name", "")),
+            str(ad.get("adset_name", "")),
+            str(ad.get("ad_name", "")),
+        ])
+        slug = _match_tiktok_slug(combined, slugs)
+        if not slug:
+            # No event-slug match in the name — skip rather than guess.
+            continue
+        ev = out.setdefault(slug, {
+            "meta_spend": 0.0,
+            "meta_revenue": 0.0,
+            "meta_impressions": 0,
+            "meta_clicks": 0,
+            "meta_landing_page_views": 0,
+            "meta_conversions": 0,
+            "meta_top_ads": [],
+        })
+        spend = float(ad.get("spend", 0) or 0)
+        imp = int(float(ad.get("impressions", 0) or 0))
+        clk = int(float(ad.get("clicks", 0) or 0))
+        lpv = 0
+        for a in ad.get("actions", []) or []:
+            at = a.get("action_type")
+            v = int(float(a.get("value", 0) or 0))
+            if at == "landing_page_view":
+                lpv += v
+            elif at in ("lead", "complete_registration"):
+                ev["meta_conversions"] += v
+        for a in ad.get("action_values", []) or []:
             if a.get("action_type") == "lead":
-                ev["meta_revenue"] += float(a.get("value", 0))
+                ev["meta_revenue"] += float(a.get("value", 0) or 0)
+        ev["meta_spend"] += spend
+        ev["meta_impressions"] += imp
+        ev["meta_clicks"] += clk
+        ev["meta_landing_page_views"] += lpv
+        ev["meta_top_ads"].append({
+            "ad_id": str(ad.get("ad_id", "")),
+            "ad_name": str(ad.get("ad_name", ""))[:60],
+            "spend": round(spend, 2),
+            "impressions": imp,
+            "clicks": clk,
+            "lpv": lpv,
+        })
+
+    # Compute derived metrics + sort top_ads
+    for slug, ev in out.items():
+        imp = ev["meta_impressions"]; clk = ev["meta_clicks"]
+        spend = ev["meta_spend"]; lpv = ev["meta_landing_page_views"]
+        ev["meta_ctr"] = round(clk / imp * 100, 2) if imp else 0
+        ev["meta_cpc"] = round(spend / clk, 3) if clk else 0
+        ev["meta_cpm"] = round(spend / imp * 1000, 2) if imp else 0
+        ev["meta_cost_per_lpv"] = round(spend / lpv, 3) if lpv else 0
+        ev["meta_top_ads"].sort(key=lambda a: -a.get("lpv", 0))
+        ev["meta_top_ads"] = ev["meta_top_ads"][:5]
     return out
 
 
@@ -387,7 +465,7 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
     start_date = start_date or (today - _dt.timedelta(days=30)).isoformat()
 
     ga4 = fetch_ga4_event_data(start_date, end_date, slugs=slugs)
-    meta = fetch_meta_pixel_events(start_date, end_date)
+    meta = fetch_meta_pixel_events(start_date, end_date, slugs=slugs)
     tt = fetch_tiktok_pixel_events(start_date, end_date, slugs=slugs)
 
     out = {"events": {}}
