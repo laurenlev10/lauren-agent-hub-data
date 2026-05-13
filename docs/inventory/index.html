@@ -214,7 +214,10 @@
   .rev-lane.lane-order h3{color:#15803d}
   .rev-lane.lane-borderline h3{color:#b45309}
   .rev-lane.lane-skip h3{color:#b91c1c}
-  .rev-row{display:grid;grid-template-columns:1fr 70px 70px 80px 80px 88px 30px;gap:8px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
+  .rev-row{display:grid;grid-template-columns:1fr 60px 60px 80px 70px 80px 100px;gap:8px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
+  .rev-row.rev-row-head{font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);background:var(--panel2);padding:8px 6px;margin-bottom:4px;border-bottom:2px solid var(--line);border-radius:6px}
+  .rev-row.rev-row-head > div{text-align:center}
+  .rev-row.rev-row-head > div:first-child{text-align:right}
   .rev-row:last-child{border-bottom:none}
   .rev-row .nm{font-weight:600}
   .rev-row .nm .sku{color:var(--muted);font-size:11px;display:block}
@@ -223,7 +226,8 @@
   .rev-row .qty-btn{padding:3px 7px;background:var(--panel);border:1px solid var(--line);border-radius:5px;cursor:pointer;font-size:12px;color:var(--text)}
   .rev-row .qty-btn:hover{border-color:var(--accent);color:var(--accent)}
   .rev-row .qty-btn.del{color:var(--red);border-color:#fca5a5}
-  .rev-row .rev-line-total{text-align:left;font-weight:700;color:var(--accent)}
+  .rev-row > div:not(.nm):not(.qty-controls){text-align:center}
+  .rev-row .rev-line-total{text-align:center;font-weight:700;color:var(--accent)}
   .rev-row.skipped{opacity:.4;background:#f9fafb}
   .rev-row .lane-note{font-size:11px;color:var(--muted);font-style:italic}
   .rev-actions{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
@@ -1743,6 +1747,15 @@ function openReviewModal(){
       return '<div class="rev-lane lane-' + cls + '">' +
         '<h3>' + title + ' (' + items.length + ')</h3>' +
         '<div class="lane-sub">' + subTexts[L] + '</div>' +
+        '<div class="rev-row rev-row-head">' +
+          '<div>מוצר</div>' +
+          '<div>מלאי</div>' +
+          '<div>Thr</div>' +
+          '<div>כמות</div>' +
+          '<div>$/יח׳</div>' +
+          '<div>סה״כ</div>' +
+          '<div></div>' +
+        '</div>' +
         items.map(function(r, ri){
           return '<div class="rev-row' + (r.kept ? '' : ' skipped') + '" data-i="' + ri + '" data-lane="' + L + '">' +
             '<div class="nm">' + escHtml(r.name) + '<span class="sku">' + escHtml(r.sku) + ' · מלאי ' + r.in_stock + ' · thr ' + r.threshold + '</span>' +
