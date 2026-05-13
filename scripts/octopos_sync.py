@@ -146,7 +146,7 @@ def build_snapshot(vendors, products):
         snapshot["vendors"][code] = {
             "octopos_vendor_ids": vids,
             "octopos_name": display_name,
-            "active": v.get("active", True),
+            "active": primary.get("active", True),
             "contact": {
                 "name": (primary.get("contact_person") or "").strip(),
                 "phone": str(primary.get("phone") or "") if primary.get("phone") else "",
@@ -161,6 +161,8 @@ def build_snapshot(vendors, products):
                 "count": 0, "in_stock_count": 0, "total_units": 0.0,
                 "inactive_count": 0, "inactive_in_stock_count": 0, "inactive_total_units": 0.0,
                 "needs_recount": 0,
+                "total_threshold": 0.0,  # sum of all active products' thresholds
+                "total_to_order": 0.0,   # sum of max(0, threshold - in_stock) across active products
             },
         }
 
@@ -180,12 +182,24 @@ def build_snapshot(vendors, products):
             qty = 0.0
         is_active = bool(p.get("active", True))
         needs_recount = qty < 0
+        # threshold = the minimum qty Lauren wants on hand at event start;
+        # to_order = max(0, threshold - in_stock_qty) is computed in the dashboard.
+        try:
+            threshold = float(p.get("threshold") or 0)
+        except (TypeError, ValueError):
+            threshold = 0.0
+        # categories = OCTOPOS's tagging mechanism (Recount, Display, Case, Check, etc.)
+        cats = []
+        for c in (p.get("categories") or []):
+            cats.append({"id": c.get("id"), "name": c.get("name","")})
         entry = {
             "id": p.get("id"),
             "name": p.get("name", ""),
             "sku": p.get("sku", ""),
             "barcode": p.get("barcode", ""),
             "in_stock_qty": qty,
+            "threshold": threshold,
+            "categories": cats,
             "active": is_active,
             "needs_recount": needs_recount,
             "department": (p.get("department") or {}).get("name", ""),
@@ -198,6 +212,10 @@ def build_snapshot(vendors, products):
             sv[sumkey]["count"] += 1
             if qty > 0: sv[sumkey]["in_stock_count"] += 1
             sv[sumkey]["total_units"] += qty
+            sv[sumkey]["total_threshold"] += threshold
+            gap = threshold - qty
+            if gap > 0:
+                sv[sumkey]["total_to_order"] += gap
         else:
             sv["inactive_products"].append(entry)
             sv[sumkey]["inactive_count"] += 1
@@ -243,6 +261,14 @@ def main():
     vendors = list_vendors(token)
     print(f"✓ {len(vendors)} vendors")
 
+    print("→ listing categories (used as tags by Lauren)")
+    code_cats, all_cats = _request("GET", "/categories", token=token)
+    cats_data = []
+    if code_cats == 200:
+        cats_data = all_cats if isinstance(all_cats, list) else (all_cats.get("data", []) if isinstance(all_cats, dict) else [])
+    cats_simplified = [{"id": c.get("id"), "name": c.get("name","")} for c in cats_data]
+    print(f"✓ {len(cats_simplified)} categories")
+
     # Skip binary search — use a static ceiling (real max ≈ 1112 as of 2026-05-12;
     # bumping to 1500 leaves room for growth without doubling the scan cost).
     # The fetch step gracefully skips 404s, so over-shooting is harmless.
@@ -255,6 +281,7 @@ def main():
 
     print("→ building snapshot")
     snapshot = build_snapshot(vendors, products)
+    snapshot["categories"] = cats_simplified  # global tag catalog for dashboard picker
     print(f"✓ mapped {snapshot['_total_products_mapped']} products into 15 suppliers")
     print()
     print("Per-supplier summary:")
@@ -262,7 +289,9 @@ def main():
         s = ent["summary"]
         recount = s.get('needs_recount', 0)
         rc_str = f" · 🔢 RECOUNT={recount}" if recount > 0 else ""
-        print(f"  {code:<22} ({ent['octopos_name']:<28})  active: {s['count']:>4} ({s['in_stock_count']:>4} in stock, {s['total_units']:>7.0f} units)  · inactive: {s['inactive_count']:>4} ({s['inactive_in_stock_count']:>3} in stock){rc_str}")
+        to_order = int(s.get('total_to_order', 0))
+        order_str = f" · 🛒 to-order={to_order}" if to_order > 0 else ""
+        print(f"  {code:<22} ({ent['octopos_name']:<28})  active: {s['count']:>4} ({s['in_stock_count']:>4} in stock, {s['total_units']:>7.0f} units)  · inactive: {s['inactive_count']:>4} ({s['inactive_in_stock_count']:>3} in stock){rc_str}{order_str}")
 
     # Write
     out_path = Path("docs/state/octopos_products.json")
