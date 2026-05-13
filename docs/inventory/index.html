@@ -223,6 +223,7 @@
   <span id="sub" style="color:var(--muted);font-size:13px;font-weight:500"></span>
   <span class="spacer"></span>
   <span id="syncChip" class="chip sync-off" title="לחיצה להגדרת GitHub token לסנכרון בין מכשירים">⛔ Sync: off</span>
+  <a class="back" id="modeSwitch" href="#">📊 דשבורד ספקים מלא</a>
   <a class="back" href="../launch/">← חזרה ל-Event Launch</a>
 </header>
 
@@ -277,6 +278,22 @@
     <p style="color:var(--muted);font-size:13px;margin:0 0 14px">בחרי אירוע כדי לפתוח את דשבורד הספקים שלו. עדכוני סטטוס, חשבוניות, ומוצרים נשמרים אוטומטית ב-GitHub.</p>
     <div class="year-tabs" id="yearTabs"></div>
     <div class="overview-grid" id="ovGrid"></div>
+  </div>
+
+  <div id="globalView" style="display:none">
+    <h2 style="font-size:22px;font-weight:800;margin:6px 0 4px">📊 דשבורד ספקים מלא</h2>
+    <p style="color:var(--muted);font-size:14px;margin:0 0 16px">כל 15 הספקים עם מלאי, הזמנות, POs, ו-tags מאוקטופוס. כאן את מנהלת את הספקים שלך באופן כללי — בלי תלות באירוע ספציפי.</p>
+    <div class="summary-grid" id="gSummary"></div>
+    <div class="controls" style="margin-bottom:14px">
+      <input type="text" class="search" id="gSearch" placeholder="חיפוש ספק / מוצר / SKU / מספר PO...">
+      <select id="gFilter" style="font-size:14px">
+        <option value="">כל הספקים</option>
+        <option value="has-to-order">🛒 רק עם הזמנות פתוחות</option>
+        <option value="has-recount">🔢 רק עם מוצרים לספירה</option>
+        <option value="has-gen-po">📋 רק עם POs פתוחות</option>
+      </select>
+    </div>
+    <div class="suppliers" id="gSuppliers"></div>
   </div>
 
   <div id="loadingView" class="empty-state">
@@ -359,6 +376,8 @@ function toast(msg, kind){
 
 const URL_PARAMS = new URLSearchParams(location.search);
 const URL_EVKEY = URL_PARAMS.get("evkey") || URL_PARAMS.get("ev") || null;
+const URL_MODE = URL_PARAMS.get("mode") || "";
+const MODE = URL_MODE === "global" ? "global" : (URL_EVKEY ? "event" : "overview");
 
 function setSyncChip(){
   const chip = $("#syncChip");
@@ -798,6 +817,7 @@ function renderSupplierCard(sup, s, idx){
             poRecHtml +
           '</div>';
 
+        if (MODE !== 'global') return '';
         return ''+
           posSectionHtml +
           '<div class="octopos-section" data-supplier-code="'+sup.code+'">'+
@@ -1383,9 +1403,118 @@ async function pushTagsToOctopos(productId, categories){
   }
 }
 
+function setupModeSwitch(){
+  var ms = document.getElementById("modeSwitch");
+  if (!ms) return;
+  if (MODE === "global"){
+    var backEvkey = sessionStorage.getItem("inventory_last_evkey") || "";
+    ms.textContent = backEvkey ? "← חזרה לאירוע" : "📅 רשימת אירועים";
+    ms.href = backEvkey ? "?evkey=" + encodeURIComponent(backEvkey) : "./";
+  } else if (MODE === "event"){
+    sessionStorage.setItem("inventory_last_evkey", URL_EVKEY);
+    ms.textContent = "📊 דשבורד ספקים מלא";
+    ms.href = "?mode=global";
+  } else {
+    ms.textContent = "📊 דשבורד ספקים מלא";
+    ms.href = "?mode=global";
+  }
+}
+
+function renderGlobalSummary(){
+  var totals = { suppliers: 0, products: 0, in_stock: 0, units: 0, to_order: 0, recount: 0, po_gen: 0 };
+  var vendors = (OCTOPOS && OCTOPOS.vendors) || {};
+  SUPPLIERS.forEach(function(sup){
+    var v = vendors[sup.code]; if (!v) return;
+    var s = v.summary || {};
+    totals.suppliers++;
+    totals.products += (s.count || 0);
+    totals.in_stock += (s.in_stock_count || 0);
+    totals.units += (s.total_units || 0);
+    totals.to_order += (s.total_to_order || 0);
+    totals.recount += (s.needs_recount || 0);
+    totals.po_gen += (v.purchase_orders_generated || []).length;
+  });
+  $("#gSummary").innerHTML =
+    '<div class="summary-card total"><div class="label">סה"כ ספקים</div><div class="value">'+totals.suppliers+'</div><div class="delta">מוצרים: '+totals.products+'</div></div>' +
+    '<div class="summary-card ordered"><div class="label">סה"כ יחידות במלאי</div><div class="value">'+Math.round(totals.units).toLocaleString()+'</div><div class="delta">'+totals.in_stock+' מוצרים במלאי</div></div>' +
+    '<div class="summary-card pending"><div class="label">🛒 יחידות להזמין</div><div class="value">'+Math.round(totals.to_order).toLocaleString()+'</div><div class="delta">'+totals.recount+' מוצרים לספירה</div></div>' +
+    '<div class="summary-card received"><div class="label">📋 POs פתוחות</div><div class="value">'+totals.po_gen+'</div><div class="delta">סה"כ במערכת</div></div>';
+}
+
+function renderGlobalSuppliers(){
+  var wrap = $("#gSuppliers");
+  var q = ($("#gSearch") ? $("#gSearch").value : "").toLowerCase().trim();
+  var fil = $("#gFilter") ? $("#gFilter").value : "";
+  wrap.innerHTML = "";
+  var vendors = (OCTOPOS && OCTOPOS.vendors) || {};
+  SUPPLIERS.forEach(function(sup, i){
+    var v = vendors[sup.code] || { products: [], inactive_products: [], summary: {}, purchase_orders_generated: [], purchase_orders_received: [] };
+    var s = v.summary || {};
+    if (fil === "has-to-order"  && !(s.total_to_order > 0)) return;
+    if (fil === "has-recount"   && !(s.needs_recount > 0)) return;
+    if (fil === "has-gen-po"    && !((v.purchase_orders_generated||[]).length > 0)) return;
+    if (q){
+      var hay = (sup.name + " " + sup.code + " " + (v.octopos_name||"") + " " +
+        (v.products||[]).map(function(p){return p.name+" "+p.sku;}).join(" ") + " " +
+        (v.purchase_orders_generated||[]).map(function(p){return "PO"+p.id;}).join(" ")).toLowerCase();
+      if (!hay.includes(q)) return;
+    }
+    var card = document.createElement("div");
+    card.className = "supplier";
+    card.dataset.code = sup.code;
+    card.innerHTML = ''+
+      '<div class="hdr" data-toggle="1">'+
+        '<div class="num">'+(i+1)+'.</div>'+
+        '<div class="name">'+escHtml(sup.name)+' <span class="cat">· '+escHtml(sup.category)+' · '+(v.octopos_name||"")+'</span></div>'+
+        '<div class="status pending">'+(s.count||0)+' מוצרים · '+(v.purchase_orders_generated||[]).length+' POs</div>'+
+        '<div class="total">'+(s.total_to_order > 0 ? '🛒 $'+Math.round(s.total_to_order) : '✓')+'</div>'+
+        '<div class="chev">▾</div>'+
+      '</div>'+
+      '<div class="body"></div>';
+    var hdr = card.querySelector('.hdr');
+    hdr.addEventListener('click', function(){
+      var expanded = card.classList.toggle('expanded');
+      if (expanded && !card.dataset.rendered){
+        card.dataset.rendered = "1";
+        card.querySelector('.body').innerHTML = renderGlobalSupplierBody(sup, v);
+      }
+    });
+    wrap.appendChild(card);
+  });
+}
+
+function renderGlobalSupplierBody(sup, v){
+  // Render the OCTOPOS + PO sections inline. Reuse renderSupplierCard machinery by passing
+  // a synthetic supplier state — only the OCTOPOS overlay + PO section are gated to global mode,
+  // so we extract just those out of the full card render.
+  var s = {
+    status: "pending", delivery_mode: null, tracking_number: null, tracking_carrier: null,
+    invoice_total_usd: 0, invoice_file: null, received: false, received_at: null,
+    products: [], contact: { name: "", phone: "", email: "", address: "" }, notes: ""
+  };
+  var fullHtml = renderSupplierCard(sup, s, SUPPLIERS.indexOf(sup));
+  var i1 = fullHtml.indexOf('<div class="body">');
+  return i1 === -1 ? '' : fullHtml.substring(i1 + '<div class="body">'.length);
+}
+
 async function init(){
   setSyncChip();
+  setupModeSwitch();
   await Promise.all([loadState(), loadOctopos()]);
+
+  if (MODE === 'global'){
+    $("#globalView").style.display = "";
+    $("#focusView").style.display = "none";
+    $("#overviewView").style.display = "none";
+    $("#loadingView").style.display = "none";
+    $("#sub").textContent = "· דשבורד ספקים מלא";
+    renderGlobalSummary();
+    renderGlobalSuppliers();
+    $("#gSearch").addEventListener("input", renderGlobalSuppliers);
+    $("#gFilter").addEventListener("change", renderGlobalSuppliers);
+    return;
+  }
+
   if (URL_EVKEY){
     CURRENT_EVKEY = URL_EVKEY;
     CURRENT_EVENT = {
