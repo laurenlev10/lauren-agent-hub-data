@@ -110,6 +110,40 @@ def fetch_product(token, pid):
     return None
 
 
+def find_max_po_id(token, start=250, ceiling=10000):
+    """Binary-search for the highest existing PurchaseOrder id."""
+    def exists(pid):
+        code, _ = _request("GET", f"/purchase_orders/{pid}", token=token, timeout=8)
+        return code != 404
+    lo = 1
+    hi = start
+    while exists(hi) and hi < ceiling:
+        hi *= 2
+    while lo < hi - 1:
+        mid = (lo + hi) // 2
+        if exists(mid): lo = mid
+        else: hi = mid
+    return lo
+
+
+def fetch_po(token, pid):
+    code, resp = _request("GET", f"/purchase_orders/{pid}", token=token, timeout=10)
+    if code == 200 and isinstance(resp, dict) and "id" in resp:
+        return resp
+    return None
+
+
+def fetch_all_purchase_orders(token, max_id, concurrency=25):
+    pos = []
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        for i, p in enumerate(pool.map(lambda pid: fetch_po(token, pid), range(1, max_id + 1)), start=1):
+            if p:
+                pos.append(p)
+            if i % 50 == 0:
+                print(f"  …scanned {i}/{max_id} PO ids, {len(pos)} POs so far")
+    return pos
+
+
 def fetch_all_products(token, max_id, concurrency=50):
     products = []
 
@@ -147,6 +181,8 @@ def build_snapshot(vendors, products):
             "octopos_vendor_ids": vids,
             "octopos_name": display_name,
             "active": primary.get("active", True),
+            "purchase_orders_generated": [],   # populated below from fetched POs
+            "purchase_orders_received": [],    # ditto
             "contact": {
                 "name": (primary.get("contact_person") or "").strip(),
                 "phone": str(primary.get("phone") or "") if primary.get("phone") else "",
@@ -188,6 +224,10 @@ def build_snapshot(vendors, products):
             threshold = float(p.get("threshold") or 0)
         except (TypeError, ValueError):
             threshold = 0.0
+        try:
+            unit_cost = float(p.get("cost") or 0)
+        except (TypeError, ValueError):
+            unit_cost = 0.0
         # categories = OCTOPOS's tagging mechanism (Recount, Display, Case, Check, etc.)
         cats = []
         for c in (p.get("categories") or []):
@@ -199,6 +239,7 @@ def build_snapshot(vendors, products):
             "barcode": p.get("barcode", ""),
             "in_stock_qty": qty,
             "threshold": threshold,
+            "unit_cost": unit_cost,
             "categories": cats,
             "active": is_active,
             "needs_recount": needs_recount,
@@ -279,9 +320,66 @@ def main():
     products = fetch_all_products(token, max_id, concurrency=50)
     print(f"✓ {len(products)} products fetched")
 
+    print("→ binary-searching max PO id")
+    max_po = find_max_po_id(token)
+    print(f"✓ max PO id = {max_po}")
+
+    print(f"→ fetching all {max_po} PO ids (concurrency=25)")
+    pos = fetch_all_purchase_orders(token, max_po, concurrency=25)
+    print(f"✓ {len(pos)} POs fetched")
+
     print("→ building snapshot")
     snapshot = build_snapshot(vendors, products)
     snapshot["categories"] = cats_simplified  # global tag catalog for dashboard picker
+
+    # Merge POs into per-supplier slots. Resolve product_id → name from products list.
+    product_by_id = {p["id"]: p for p in products}
+    po_total_lines = 0
+    for po in pos:
+        if not po.get("active"): continue
+        vid = po.get("vendor_id")
+        code = VENDOR_TO_CODE.get(vid)
+        if not code: continue
+        items = []
+        line_total = 0.0
+        for li in (po.get("purchase_order_items") or []):
+            pid = li.get("product_id")
+            prod = product_by_id.get(pid) or {}
+            try:
+                qty  = float(li.get("quantity") or li.get("no_of_ea") or 0)
+            except (TypeError, ValueError): qty = 0
+            try:
+                cost = float(li.get("cost_unit") or li.get("cost") or 0)
+            except (TypeError, ValueError): cost = 0
+            items.append({
+                "product_id": pid,
+                "product_name": prod.get("name") or f"#{pid}",
+                "product_sku":  prod.get("sku") or "",
+                "quantity":     qty,
+                "cost_unit":    cost,
+                "line_total":   round(qty * cost, 2),
+            })
+            line_total += qty * cost
+        po_summary = {
+            "id": po.get("id"),
+            "status": po.get("status"),
+            "vendor_invoice_number": po.get("vendor_invoice_number"),
+            "received_date": po.get("received_date"),
+            "order_paid": bool(po.get("order_paid")),
+            "items": items,
+            "total_qty": sum(it["quantity"] for it in items),
+            "total_cost": round(line_total, 2),
+        }
+        bucket = "purchase_orders_generated" if po.get("status") == "Generated" else "purchase_orders_received"
+        snapshot["vendors"][code][bucket].append(po_summary)
+        po_total_lines += len(items)
+    # Sort each bucket: id desc (most recent first)
+    for code in snapshot["vendors"]:
+        for b in ("purchase_orders_generated", "purchase_orders_received"):
+            snapshot["vendors"][code][b].sort(key=lambda x: -(x.get("id") or 0))
+    snapshot["_total_pos"] = len(pos)
+    snapshot["_total_po_lines"] = po_total_lines
+    print(f"✓ merged {len(pos)} POs ({po_total_lines} line items) into supplier slots")
     print(f"✓ mapped {snapshot['_total_products_mapped']} products into 15 suppliers")
     print()
     print("Per-supplier summary:")
@@ -291,7 +389,10 @@ def main():
         rc_str = f" · 🔢 RECOUNT={recount}" if recount > 0 else ""
         to_order = int(s.get('total_to_order', 0))
         order_str = f" · 🛒 to-order={to_order}" if to_order > 0 else ""
-        print(f"  {code:<22} ({ent['octopos_name']:<28})  active: {s['count']:>4} ({s['in_stock_count']:>4} in stock, {s['total_units']:>7.0f} units)  · inactive: {s['inactive_count']:>4} ({s['inactive_in_stock_count']:>3} in stock){rc_str}{order_str}")
+        po_gen = len(ent.get('purchase_orders_generated', []))
+        po_rec = len(ent.get('purchase_orders_received', []))
+        po_str = f" · 📋 POs gen={po_gen} rec={po_rec}" if po_gen + po_rec > 0 else ""
+        print(f"  {code:<22} ({ent['octopos_name']:<28})  active: {s['count']:>4} ({s['in_stock_count']:>4} in stock, {s['total_units']:>7.0f} units)  · inactive: {s['inactive_count']:>4} ({s['inactive_in_stock_count']:>3} in stock){rc_str}{order_str}{po_str}")
 
     # Write
     out_path = Path("docs/state/octopos_products.json")

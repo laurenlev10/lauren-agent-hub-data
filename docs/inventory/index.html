@@ -155,6 +155,26 @@
   .tag-add:hover{color:var(--text);border-color:var(--accent)}
   .oct-filter{margin-right:auto;font-size:13px;padding:5px 10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--text);cursor:pointer}
   .oct-table tbody tr.hidden{display:none}
+    .po-section{margin-top:16px;padding:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+  .po-section .ps-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+  .po-section .ps-hdr h3{margin:0;font-size:15px;font-weight:700}
+  .po-row, .po-received-wrap{margin-top:8px;padding:8px 12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px}
+  .po-row summary, .po-received-wrap summary{cursor:pointer;font-size:14px;list-style:none;padding:2px 0}
+  .po-row summary::-webkit-details-marker, .po-received-wrap summary::-webkit-details-marker{display:none}
+  .po-row[open] summary, .po-received-wrap[open] summary{padding-bottom:6px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  .btn-generate-po{margin-right:auto;font-size:13px;font-weight:700;padding:8px 14px;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;cursor:pointer;box-shadow:0 1px 2px rgba(22,163,74,.25)}
+  .btn-generate-po:hover{filter:brightness(1.08)}
+  .btn-generate-po:disabled{opacity:.5;cursor:not-allowed;filter:grayscale(.3)}
+  .po-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px}
+  .po-modal{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 22px;max-width:760px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .po-modal h2{margin:0 0 8px;font-size:19px}
+  .po-modal .modal-sub{color:var(--muted);font-size:14px;margin-bottom:14px}
+  .po-modal table{width:100%;font-size:14px}
+  .po-modal table input{width:80px;text-align:center;padding:4px 6px;font-size:13px;border:1px solid var(--line);border-radius:6px}
+  .po-modal .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .po-modal .modal-actions button{padding:9px 16px;font-size:14px;font-weight:700;border-radius:8px;cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--text)}
+  .po-modal .modal-actions button.primary{background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border-color:transparent}
+  .po-modal .modal-actions button:disabled{opacity:.5;cursor:not-allowed}
     .recount-pill{display:inline-block;margin-right:8px;padding:3px 12px;background:#facc15;color:#000;font-size:12px;font-weight:800;border-radius:999px;letter-spacing:.3px}
     .oct-chip.stock-empty{color:var(--muted);border-color:var(--line);background:var(--panel2)}
     .octopos-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;font-size:12px;color:#92400e;border:1px solid #fde68a;background:#fef3c7}
@@ -732,7 +752,54 @@ function renderSupplierCard(sup, s, idx){
             '<table class="products oct-table inactive" style="margin-top:8px">'+thHdr+'<tbody>'+buildRows(inactive)+'</tbody></table>'+
           '</details>';
 
+
+        // ----- Generated POs section (from OCTOPOS) -----
+        var poGen = oct.purchase_orders_generated || [];
+        var poRec = oct.purchase_orders_received || [];
+        function buildPoRows(list){
+          if (!list.length) return '';
+          return list.map(function(po){
+            var items = po.items || [];
+            var rows = items.map(function(it){
+              return '<tr><td>'+escHtml(it.product_name||'#'+it.product_id)+'</td>'+
+                     '<td><code style="font-size:12px;color:var(--muted)">'+escHtml(it.product_sku||'')+'</code></td>'+
+                     '<td style="text-align:center">'+fmtNum(it.quantity)+'</td>'+
+                     '<td>$'+fmtNum(it.cost_unit)+'</td>'+
+                     '<td>$'+fmtNum(it.line_total)+'</td></tr>';
+            }).join('');
+            return '<details class="po-row"><summary>📋 PO #'+po.id+' · <b>'+items.length+' פריטים</b> · '+fmtNum(po.total_qty)+' יחידות · <b>$'+fmtNum(po.total_cost)+'</b>' +
+                   (po.vendor_invoice_number ? ' · חשבונית '+escHtml(po.vendor_invoice_number) : '') +
+                   '</summary>'+
+                   '<table class="products" style="margin:8px 0"><thead><tr><th>מוצר</th><th>SKU</th><th>כמות</th><th>מחיר ליחידה</th><th>סה"כ</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+                   '</details>';
+          }).join('');
+        }
+        var poGenHtml = poGen.length === 0
+          ? '<div style="color:var(--muted);padding:8px 0;font-size:13px">אין הזמנות פתוחות לספק הזה</div>'
+          : buildPoRows(poGen);
+        var poRecHtml = poRec.length === 0 ? '' :
+          '<details class="po-received-wrap"><summary>✓ הזמנות שהגיעו ('+poRec.length+' POs · '+poRec.reduce(function(a,p){return a+(p.total_cost||0)},0).toFixed(0)+'$ סה"כ)</summary>'+
+          buildPoRows(poRec.slice(0, 20)) +
+          (poRec.length > 20 ? '<div style="color:var(--muted);font-size:12px;padding:8px">…ועוד '+(poRec.length-20)+' POs ישנים</div>' : '') +
+          '</details>';
+        // Generate PO — list products with to_order > 0
+        var toOrderItems = active.filter(function(x){ return Math.max(0, Number(x.threshold||0) - Number(x.in_stock_qty||0)) > 0; });
+        var canGenerate = toOrderItems.length > 0 && sup.octopos_vendor_ids && sup.octopos_vendor_ids.length > 0;
+        var genBtn = canGenerate
+          ? '<button type="button" class="btn-generate-po" data-supplier-code="'+sup.code+'" data-vendor-id="'+(sup.octopos_vendor_ids[0])+'">✨ צרי PO חדש ('+toOrderItems.length+' פריטים · $'+fmtNum(toOrderItems.reduce(function(a,x){var g=Math.max(0,Number(x.threshold||0)-Number(x.in_stock_qty||0));return a+g*Number(x.unit_cost||0);},0))+')</button>'
+          : '<span style="color:var(--muted);font-size:13px">אין מה להזמין (threshold ≥ stock)</span>';
+        var posSectionHtml =
+          '<div class="po-section">'+
+            '<div class="ps-hdr">'+
+              '<h3>📋 Purchase Orders <span style="color:var(--muted);font-weight:500">('+poGen.length+' פתוחות · '+poRec.length+' שהגיעו)</span></h3>'+
+              genBtn +
+            '</div>'+
+            poGenHtml +
+            poRecHtml +
+          '</div>';
+
         return ''+
+          posSectionHtml +
           '<div class="octopos-section" data-supplier-code="'+sup.code+'">'+
             '<div class="ps-hdr">'+
               '<h3>📊 OCTOPOS — מלאי פעיל <span style="color:var(--muted);font-weight:500">('+summary.count+' מוצרים · '+summary.in_stock_count+' במלאי · '+Math.round(summary.total_units)+' יחידות'+lastSync+')</span>'+
@@ -1008,6 +1075,184 @@ function getOctoposForSupplier(code){
   return (OCTOPOS && OCTOPOS.vendors && OCTOPOS.vendors[code]) || null;
 }
 
+
+/* ---- Generate PO modal + submit ---- */
+document.addEventListener("click", function(e){
+  var btn = e.target.closest('.btn-generate-po');
+  if (btn){
+    e.preventDefault();
+    openGeneratePoModal(btn.dataset.supplierCode, parseInt(btn.dataset.vendorId, 10));
+  }
+});
+
+function openGeneratePoModal(supplierCode, vendorId){
+  var oct = getOctoposForSupplier(supplierCode);
+  if (!oct) return;
+  var active = oct.products || [];
+  var items = active.map(function(p){
+    var qty = Number(p.in_stock_qty||0);
+    var thr = Number(p.threshold||0);
+    var gap = Math.max(0, thr - qty);
+    return { product_id: p.id, product_name: p.name, product_sku: p.sku, in_stock: qty, threshold: thr, suggested: gap, cost_unit: Number(p.unit_cost||0) };
+  }).filter(function(it){ return it.suggested > 0; });
+  if (items.length === 0){ toast('אין מה להזמין לספק הזה', ''); return; }
+
+  var rowsHtml = items.map(function(it, i){
+    return '<tr data-i="'+i+'">' +
+      '<td>'+escHtml(it.product_name||'')+'<div style="color:var(--muted);font-size:12px"><code>'+escHtml(it.product_sku||'')+'</code></div></td>'+
+      '<td style="text-align:center">'+it.in_stock+'</td>'+
+      '<td style="text-align:center">'+it.threshold+'</td>'+
+      '<td><input type="number" min="0" step="1" data-bind="qty" value="'+it.suggested+'"></td>'+
+      '<td><input type="number" min="0" step="0.01" data-bind="cost" value="'+it.cost_unit.toFixed(2)+'"></td>'+
+      '<td class="line-total" style="text-align:left;font-weight:700">$'+(it.suggested * it.cost_unit).toFixed(2)+'</td>'+
+      '<td><button type="button" class="po-line-del" data-i="'+i+'" title="הסר שורה">✕</button></td>'+
+    '</tr>';
+  }).join('');
+  var sumCost = items.reduce(function(a,it){return a + it.suggested * it.cost_unit;}, 0);
+
+  var modal = document.createElement('div');
+  modal.className = 'po-modal-backdrop';
+  modal.innerHTML =
+    '<div class="po-modal">'+
+      '<h2>✨ צרי Purchase Order חדש</h2>'+
+      '<div class="modal-sub">ספק: <b>'+escHtml(oct.octopos_name || supplierCode)+'</b> (OCTOPOS vendor #'+vendorId+') · '+items.length+' פריטים</div>'+
+      '<table class="products"><thead><tr><th style="width:40%">מוצר</th><th>במלאי</th><th>Thr</th><th>כמות</th><th>מחיר ליחידה</th><th>סה"כ</th><th></th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'+
+      '<div style="text-align:left;margin-top:10px;font-size:15px;font-weight:700">סה"כ הזמנה: <span class="po-grand-total">$'+sumCost.toFixed(2)+'</span></div>'+
+      '<div class="modal-actions">'+
+        '<button type="button" data-action="cancel">בטל</button>'+
+        '<button type="button" class="primary" data-action="submit">📤 שלח PO לאוקטופוס</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(modal);
+
+  function recalc(){
+    var rows = modal.querySelectorAll('tbody tr');
+    var grand = 0;
+    rows.forEach(function(tr){
+      var q = Number(tr.querySelector('[data-bind="qty"]').value || 0);
+      var c = Number(tr.querySelector('[data-bind="cost"]').value || 0);
+      var line = q * c;
+      tr.querySelector('.line-total').textContent = '$' + line.toFixed(2);
+      grand += line;
+    });
+    modal.querySelector('.po-grand-total').textContent = '$' + grand.toFixed(2);
+  }
+  modal.addEventListener('input', recalc);
+  modal.addEventListener('click', function(ev){
+    if (ev.target.closest('[data-action="cancel"]') || ev.target === modal){ modal.remove(); return; }
+    var del = ev.target.closest('.po-line-del');
+    if (del){ del.closest('tr').remove(); recalc(); return; }
+    var sub = ev.target.closest('[data-action="submit"]');
+    if (sub){
+      sub.disabled = true;
+      sub.textContent = 'שולח…';
+      submitPO(vendorId, modal, oct);
+    }
+  });
+}
+
+async function submitPO(vendorId, modal, oct){
+  var rows = modal.querySelectorAll('tbody tr');
+  var items = [];
+  rows.forEach(function(tr){
+    var i = Number(tr.dataset.i);
+    var q = Number(tr.querySelector('[data-bind="qty"]').value || 0);
+    var c = Number(tr.querySelector('[data-bind="cost"]').value || 0);
+    if (q > 0){
+      items.push({
+        product_id: oct.products[i] ? oct.products[i].id : null,
+        unit_of_measure_id: 1,
+        cost: c.toFixed(2),
+        quantity: q.toString(),
+        no_of_ea: q.toString(),
+        cost_unit: c.toFixed(2)
+      });
+    }
+  });
+  // Re-map product_id from the row data (because filter changed indices)
+  var allActive = oct.products || [];
+  items = [];
+  rows.forEach(function(tr){
+    var q = Number(tr.querySelector('[data-bind="qty"]').value || 0);
+    var c = Number(tr.querySelector('[data-bind="cost"]').value || 0);
+    if (q <= 0) return;
+    // The row's product_name uniquely identifies it
+    var name = tr.querySelector('td').textContent;
+    var prod = allActive.find(function(p){ return name.indexOf(p.name) === 0; });
+    if (!prod) return;
+    items.push({
+      product_id: prod.id,
+      unit_of_measure_id: 1,
+      cost: c.toFixed(2),
+      quantity: q.toString(),
+      no_of_ea: q.toString(),
+      cost_unit: c.toFixed(2)
+    });
+  });
+  if (items.length === 0){ toast('אין שורות לשליחה', 'error'); modal.remove(); return; }
+
+  var token = (localStorage.getItem("lauren_octopos_token") || "").trim();
+  if (!token){
+    token = prompt("הדביקי טוקן OCTOPOS פעיל (יישמר מקומית). אם אין לך — בטלי, אני אריץ מחדש את הסנכרון היומי כדי לרענן.");
+    if (!token){ modal.remove(); return; }
+    localStorage.setItem("lauren_octopos_token", token.trim());
+  }
+  try{
+    var r = await fetch("https://themakeup.octoretail.com/api/v2/purchase_orders", {
+      method: "POST",
+      headers: {"Authorization": token, "Content-Type": "application/json", "Accept": "application/json"},
+      body: JSON.stringify({
+        vendor_id: vendorId,
+        location_id: 2,
+        purchase_order_items: items
+      })
+    });
+    if (r.ok){
+      var j = await r.json();
+      toast('✓ PO #'+(j.id || '?')+' נוצר באוקטופוס', 'success');
+      modal.remove();
+      // Optimistic local insert so it appears immediately
+      var sliceCode = Object.keys(OCTOPOS.vendors).find(function(c){ return (OCTOPOS.vendors[c].octopos_vendor_ids||[]).indexOf(vendorId) !== -1; });
+      if (sliceCode){
+        OCTOPOS.vendors[sliceCode].purchase_orders_generated.unshift({
+          id: j.id || ('local-'+Date.now()),
+          status: 'Generated',
+          vendor_invoice_number: null,
+          received_date: null,
+          order_paid: false,
+          items: items.map(function(it){
+            var prod = allActive.find(function(p){return p.id===it.product_id;}) || {};
+            return {
+              product_id: it.product_id,
+              product_name: prod.name || ('#'+it.product_id),
+              product_sku: prod.sku || '',
+              quantity: Number(it.quantity),
+              cost_unit: Number(it.cost_unit),
+              line_total: Number(it.quantity) * Number(it.cost_unit)
+            };
+          }),
+          total_qty: items.reduce(function(a,it){return a+Number(it.quantity);},0),
+          total_cost: items.reduce(function(a,it){return a+Number(it.quantity)*Number(it.cost_unit);},0)
+        });
+        renderSuppliersWithBindings();
+      }
+    } else if (r.status === 401){
+      localStorage.removeItem("lauren_octopos_token");
+      toast('הטוקן פג — נסי שוב והדביקי טוקן חדש', 'error');
+      modal.remove();
+    } else {
+      var txt = await r.text();
+      console.error('PO POST failed:', r.status, txt);
+      toast('שגיאה: '+r.status, 'error');
+      var btn = modal.querySelector('[data-action="submit"]');
+      if (btn){ btn.disabled = false; btn.textContent = '📤 שלח PO לאוקטופוס'; }
+    }
+  } catch(e){
+    console.error(e);
+    toast('שגיאת רשת', 'error');
+    modal.remove();
+  }
+}
 
 /* ---- OCTOPOS section event delegation (stock filter + tag add/remove) ---- */
 document.addEventListener("change", function(e){
