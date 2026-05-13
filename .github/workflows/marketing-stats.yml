@@ -95,6 +95,15 @@ jobs:
       - name: Upsert EVENT_ANALYTICS into launch_dashboard.html
         run: python3 scripts/upsert_event_analytics.py
 
+      - name: Silent-zero watchdog (cross-check aggregator vs Meta API)
+        env:
+          META_PAGE_TOKEN:     ${{ secrets.META_PAGE_TOKEN }}
+          META_AD_ACCOUNT_ID:  ${{ secrets.META_AD_ACCOUNT_ID }}
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/watchdog_silent_zero.py
+
       - name: Push to themakeupblowout-events repo (event_analytics.json)
         env:
           GH_PAT: ${{ secrets.EVENTS_REPO_PAT }}
