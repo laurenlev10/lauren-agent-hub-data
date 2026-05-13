@@ -214,7 +214,14 @@
   .rev-lane.lane-order h3{color:#15803d}
   .rev-lane.lane-borderline h3{color:#b45309}
   .rev-lane.lane-skip h3{color:#b91c1c}
-  .rev-row{display:grid;grid-template-columns:1fr 60px 60px 80px 70px 80px 100px;gap:8px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
+  .rev-row{display:grid;grid-template-columns:1fr 55px 55px 55px 75px 65px 75px 130px;gap:8px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
+  .rev-row .gap-cell{text-align:center;font-weight:700}
+  .rev-row .gap-cell.gap-pos{color:#b45309}
+  .rev-row .gap-cell.gap-neg{color:#15803d}
+  .rev-row .lane-hints{margin-top:3px;display:flex;flex-wrap:wrap;gap:4px}
+  .rev-row .rule-hint{display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:6px;background:#e0f2fe;color:#0369a1;border:1px solid #7dd3fc}
+  .qty-btn.add-back{background:#dcfce7;color:#15803d;border-color:#86efac;font-weight:800}
+  .qty-btn.add-back:hover{background:#bbf7d0}
   .rev-row.rev-row-head{font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);background:var(--panel2);padding:8px 6px;margin-bottom:4px;border-bottom:2px solid var(--line);border-radius:6px}
   .rev-row.rev-row-head > div{text-align:center}
   .rev-row.rev-row-head > div:first-child{text-align:right}
@@ -1554,13 +1561,31 @@ function buildSupplierOrder(supplierCode){
   const active = (oct.products || []).filter(p => p.active !== false);
   const lanes = { order: [], borderline: [], skip: [] };
   active.forEach(p => {
+    const rule = getRuleFor(p.id) || {};
     const stock = Number(p.in_stock_qty || 0);
-    const thr   = Number(p.threshold || 0);
-    const cost  = Number(p.unit_cost || 0);
-    const cs    = Number(p.case_size || 0) > 1 ? Number(p.case_size) : DEFAULT_CASE_SIZE;
-    const gap   = Math.max(0, thr - stock) * mult;
-    const suggested = roundToCase(gap, cs, 'up');
-    const lane = classifyLane(p, suggested);
+    // min_display from rule DORS the OCTOPOS threshold if higher
+    const thrBase = Number(p.threshold || 0);
+    const thr = Math.max(thrBase, Number(rule.min_display || 0));
+    const cost = Number(p.unit_cost || 0);
+    const csOcto = Number(p.case_size || 0) > 1 ? Number(p.case_size) : 0;
+    // multiple_of from rule overrides OCTOPOS case_size, else case_size, else DEFAULT (12)
+    const cs = Number(rule.multiple_of || 0) > 0 ? Number(rule.multiple_of)
+             : (csOcto > 1 ? csOcto : DEFAULT_CASE_SIZE);
+    let gap   = Math.max(0, thr - stock) * mult;
+    // MOQ: if base > 0 but below MOQ, snap up to MOQ
+    if (gap > 0 && Number(rule.moq || 0) > 0 && gap < Number(rule.moq)) gap = Number(rule.moq);
+    let suggested = roundToCase(gap, cs, 'up');
+    // Max cap
+    if (Number(rule.max || 0) > 0) suggested = Math.min(suggested, Number(rule.max));
+    // Hard skip
+    if (rule.skip) suggested = 0;
+    const lane = rule.skip ? 'skip' : classifyLane({in_stock_qty: stock, threshold: thr}, suggested);
+    const ruleHints = [];
+    if (rule.min_display > thrBase) ruleHints.push(`📌 min_display=${rule.min_display}`);
+    if (rule.moq) ruleHints.push(`🛡 moq=${rule.moq}`);
+    if (rule.multiple_of) ruleHints.push(`📦 כפולה ${rule.multiple_of}`);
+    if (rule.max) ruleHints.push(`🚦 מקס ${rule.max}`);
+    if (rule.skip) ruleHints.push("🚫 skip");
     const row = {
       product_id: p.id,
       name: p.name,
@@ -1570,13 +1595,18 @@ function buildSupplierOrder(supplierCode){
       case_size: cs,
       unit_cost: cost,
       suggested: suggested,
-      qty: suggested,  // editable
+      qty: suggested,
       lane: lane,
-      kept: lane === 'order',   // default keep for order lane
-      note: lane === 'order' ? '' :
+      // Borderline lane is now also "kept by default" — Lauren still has to decide,
+      // but the row visuals are normal-opacity (per 2026-05-13 feedback).
+      // Only SKIP lane stays unkept (half-transparent) by default.
+      kept: (lane === 'order' || lane === 'borderline') && suggested > 0,
+      rule: rule,
+      ruleHints: ruleHints,
+      note: rule.note || (lane === 'order' ? '' :
             (stock >= 2 * thr ? `יש כבר ${stock} (יותר מ-2×threshold)` :
-             stock >= thr ? `יש ${stock} ≥ threshold ${thr} — מספיק לאירוע אחד` :
-             thr <= 0 ? 'אין threshold מוגדר באוקטופוס' : '')
+             stock >= thr ? `יש ${stock} ≥ ${thr} — מספיק לאירוע אחד` :
+             thr <= 0 ? 'אין threshold מוגדר באוקטופוס' : ''))
     };
     lanes[lane].push(row);
   });
@@ -1751,25 +1781,43 @@ function openReviewModal(){
           '<div>מוצר</div>' +
           '<div>מלאי</div>' +
           '<div>Thr</div>' +
+          '<div>Gap</div>' +
           '<div>כמות</div>' +
           '<div>$/יח׳</div>' +
           '<div>סה״כ</div>' +
           '<div></div>' +
         '</div>' +
         items.map(function(r, ri){
-          return '<div class="rev-row' + (r.kept ? '' : ' skipped') + '" data-i="' + ri + '" data-lane="' + L + '">' +
+          var gap = (r.threshold||0) - (r.in_stock||0);
+          // Half-transparent ONLY for skip lane (and explicitly skipped rows in borderline)
+          var laneClass = (L === 'skip' || !r.kept) ? ' skipped' : '';
+          // For skip lane the toggle button reads 'הוסיפי לרשימה' / '+ הוסיפי' to make the
+          // add-back affordance obvious. For order + borderline lanes it stays ✕/✓.
+          var toggleLabel, toggleTitle;
+          if (L === 'skip'){
+            toggleLabel = r.kept ? '✕' : '＋';
+            toggleTitle = r.kept ? 'הסר מהרשימה' : 'הוסיפי לרשימה';
+          } else {
+            toggleLabel = r.kept ? '✕' : '✓';
+            toggleTitle = r.kept ? 'דלג' : 'כלל בחזרה';
+          }
+          var ruleHints = (r.ruleHints || []).map(function(h){ return '<span class="rule-hint">'+escHtml(h)+'</span>'; }).join(' ');
+          return '<div class="rev-row' + laneClass + '" data-i="' + ri + '" data-lane="' + L + '">' +
             '<div class="nm">' + escHtml(r.name) + '<span class="sku">' + escHtml(r.sku) + ' · מלאי ' + r.in_stock + ' · thr ' + r.threshold + '</span>' +
+              (ruleHints ? '<div class="lane-hints">' + ruleHints + '</div>' : '') +
               (r.note ? '<div class="lane-note">' + escHtml(r.note) + '</div>' : '') +
             '</div>' +
             '<div>' + (r.in_stock || 0) + '</div>' +
             '<div>' + (r.threshold || 0) + '</div>' +
+            '<div class="gap-cell ' + (gap > 0 ? 'gap-pos' : (gap < 0 ? 'gap-neg' : '')) + '">' + (gap > 0 ? '+' : '') + gap + '</div>' +
             '<input type="number" min="0" step="1" data-bind="qty" value="' + r.qty + '">' +
             '<div>$' + (r.unit_cost || 0).toFixed(2) + '</div>' +
             '<div class="rev-line-total">$' + (r.qty * r.unit_cost).toFixed(2) + '</div>' +
             '<div class="qty-controls">' +
-              '<button class="qty-btn" data-action="case-up" title="הגדל ל-' + (Math.ceil((r.qty + 1) / r.case_size) * r.case_size) + ' (ארגז)">↑</button>' +
+              '<button class="qty-btn" data-action="edit-rule" title="📝 הערות וכללים למוצר">📝</button>' +
+              '<button class="qty-btn" data-action="case-up" title="הגדל">↑</button>' +
               '<button class="qty-btn" data-action="case-down" title="הקטן">↓</button>' +
-              '<button class="qty-btn" data-action="toggle" title="' + (r.kept ? 'דלג' : 'כלל בחזרה') + '">' + (r.kept ? '✕' : '✓') + '</button>' +
+              '<button class="qty-btn' + (L === 'skip' && !r.kept ? ' add-back' : '') + '" data-action="toggle" title="' + toggleTitle + '">' + toggleLabel + '</button>' +
             '</div>' +
           '</div>';
         }).join('') +
@@ -1818,6 +1866,23 @@ function openReviewModal(){
     const ri = Number(row.dataset.i);
     const L = row.dataset.lane;
     const r = data.suppliers[activeIdx].lanes[L][ri];
+    if (e.target.matches('[data-action="edit-rule"]')){
+      // Synthesize a product-like object for the rule editor
+      var prod = {
+        id: r.product_id, name: r.name, sku: r.sku,
+        threshold: r.threshold, case_size: r.case_size, in_stock_qty: r.in_stock
+      };
+      openRuleEditor(prod, function(){
+        // After save: rebuild this supplier's order to reflect new rule
+        var newSup = buildSupplierOrder(data.suppliers[activeIdx].code);
+        if (newSup){
+          recomputeSupplierTotals(newSup);
+          data.suppliers[activeIdx].lanes = newSup.lanes;
+          renderTab();
+        }
+      });
+      return;
+    }
     if (e.target.matches('[data-action="case-up"]')){
       r.qty = roundToCase(r.qty + 1, r.case_size, 'up');
       r.kept = r.qty > 0;
@@ -2005,6 +2070,122 @@ document.addEventListener("click", function(e){
 });
 
 
+/* ---- Product Rules (Phase 2, 2026-05-13) ---- */
+let PRODUCT_RULES = { _updated_at: null, rules: {} };
+const PRODUCT_RULES_URL = "../state/product_rules.json";
+const RULES_REPO_FILE = "docs/state/product_rules.json";
+
+async function loadProductRules(){
+  try{
+    const r = await fetch(PRODUCT_RULES_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok){
+      PRODUCT_RULES = await r.json();
+      if (!PRODUCT_RULES.rules) PRODUCT_RULES.rules = {};
+    } else {
+      PRODUCT_RULES = { _updated_at: null, rules: {} };
+    }
+  } catch(e){
+    console.warn("loadProductRules failed:", e);
+    PRODUCT_RULES = { _updated_at: null, rules: {} };
+  }
+}
+
+function getRuleFor(productId){
+  return (PRODUCT_RULES.rules && PRODUCT_RULES.rules[String(productId)]) || null;
+}
+
+async function saveProductRule(productId, rule){
+  // Local optimistic update first
+  if (!rule || (rule && !rule.min_display && !rule.moq && !rule.multiple_of && !rule.max && !rule.skip && !rule.note)){
+    delete PRODUCT_RULES.rules[String(productId)];
+  } else {
+    PRODUCT_RULES.rules[String(productId)] = rule;
+  }
+  PRODUCT_RULES._updated_at = new Date().toISOString();
+  const token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+  if (!token){
+    toast("שמור מקומית, צריך GitHub token כדי לסנכרן", "");
+    return false;
+  }
+  try{
+    const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RULES_REPO_FILE + "?ref=main";
+    let sha = null;
+    const getR = await fetch(getUrl, { headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
+    if (getR.ok){ const j = await getR.json(); sha = j.sha; }
+    const putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RULES_REPO_FILE;
+    const content = JSON.stringify(PRODUCT_RULES, null, 2);
+    const body = { message: "@inventory: update product_rules for product " + productId, content: btoa(unescape(encodeURIComponent(content))), branch: "main" };
+    if (sha) body.sha = sha;
+    const r = await fetch(putUrl, { method: "PUT", headers: {"Authorization":"token "+token,"Accept":"application/vnd.github+json","Content-Type":"application/json"}, body: JSON.stringify(body) });
+    return r.ok;
+  } catch(e){
+    console.error("saveProductRule failed:", e);
+    return false;
+  }
+}
+
+function openRuleEditor(product, onSave){
+  const existing = getRuleFor(product.id) || {};
+  const modal = document.createElement('div');
+  modal.className = 'sms-modal';
+  modal.innerHTML =
+    '<div class="sms-card" style="max-width:540px">' +
+      '<h2>📝 הגדרות פר-מוצר</h2>' +
+      '<div class="sms-sub">' + escHtml(product.name||'') + ' · <code>' + escHtml(product.sku||'') + '</code>' +
+        '<br>OCTOPOS — thr=' + (product.threshold||0) + ' · case=' + (product.case_size||0) + ' · stock=' + (product.in_stock_qty||0) +
+      '</div>' +
+      '<div class="row" style="margin-top:12px">' +
+        '<div class="field"><label>min_display (דורס את ה-threshold אם גבוה יותר)</label><input type="number" min="0" id="rMinDisplay" value="' + (existing.min_display||'') + '" placeholder="ריק = משתמש ב-' + (product.threshold||0) + '"></div>' +
+        '<div class="field"><label>moq (מינ. יחידות שספק מוכר)</label><input type="number" min="0" id="rMoq" value="' + (existing.moq||'') + '" placeholder="ריק = ללא מינימום"></div>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div class="field"><label>multiple_of (כפולה של, דורס case_size)</label><input type="number" min="1" id="rMultiple" value="' + (existing.multiple_of||'') + '" placeholder="ריק = משתמש ב-' + (product.case_size||12) + '"></div>' +
+        '<div class="field"><label>max (לא יותר מ-)</label><input type="number" min="0" id="rMax" value="' + (existing.max||'') + '" placeholder="ריק = ללא מקסימום"></div>' +
+      '</div>' +
+      '<div style="margin-top:10px"><label style="font-size:13px"><input type="checkbox" id="rSkip" ' + (existing.skip ? "checked" : "") + '> דלג תמיד על המוצר הזה בהזמנות אוטומטיות</label></div>' +
+      '<div style="margin-top:10px"><label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">הערה חופשית (מוצגת בדשבורד + ב-SMS אם רלוונטי)</label>' +
+      '<textarea id="rNote" style="min-height:80px;direction:rtl;text-align:right">' + escHtml(existing.note||'') + '</textarea></div>' +
+      '<div class="sms-actions">' +
+        '<button data-action="delete">🗑 מחק כלל</button>' +
+        '<button data-action="cancel">בטל</button>' +
+        '<button class="primary" data-action="save">💾 שמור</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('click', async function(e){
+    if (e.target === modal || e.target.matches('[data-action="cancel"]')){ modal.remove(); return; }
+    if (e.target.matches('[data-action="delete"]')){
+      modal.querySelector('[data-action="save"]').disabled = true;
+      const ok = await saveProductRule(product.id, null);
+      toast(ok ? "כלל נמחק ✓" : "שגיאה במחיקה", ok ? "success" : "error");
+      modal.remove();
+      if (onSave) onSave();
+      return;
+    }
+    if (e.target.matches('[data-action="save"]')){
+      const r = {};
+      const v = id => modal.querySelector(id).value.trim();
+      const min_display = Number(v('#rMinDisplay'));
+      const moq         = Number(v('#rMoq'));
+      const multiple_of = Number(v('#rMultiple'));
+      const max         = Number(v('#rMax'));
+      const skip        = modal.querySelector('#rSkip').checked;
+      const note        = v('#rNote');
+      if (min_display > 0) r.min_display = min_display;
+      if (moq > 0)         r.moq = moq;
+      if (multiple_of > 0) r.multiple_of = multiple_of;
+      if (max > 0)         r.max = max;
+      if (skip)            r.skip = true;
+      if (note)            r.note = note;
+      e.target.disabled = true; e.target.textContent = "שומר…";
+      const ok = await saveProductRule(product.id, Object.keys(r).length ? r : null);
+      toast(ok ? "נשמר ✓" : "נשמר מקומית בלבד", ok ? "success" : "");
+      modal.remove();
+      if (onSave) onSave();
+    }
+  });
+}
+
 function setupModeSwitch(){
   var ms = document.getElementById("modeSwitch");
   if (!ms) return;
@@ -2102,7 +2283,7 @@ function renderGlobalSupplierBody(sup, v){
 async function init(){
   setSyncChip();
   setupModeSwitch();
-  await Promise.all([loadState(), loadOctopos()]);
+  await Promise.all([loadState(), loadOctopos(), loadProductRules()]);
 
   if (MODE === 'global'){
     $("#globalView").style.display = "";
