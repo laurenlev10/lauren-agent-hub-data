@@ -1558,7 +1558,8 @@ function buildSupplierOrder(supplierCode){
   if (!oct) return null;
   const sup = SUPPLIERS.find(s => s.code === supplierCode);
   const mult = eventMultiplier();
-  const active = (oct.products || []).filter(p => p.active !== false);
+  // Filter out 'Clearance!' products entirely (Lauren 2026-05-13 — they're discontinued).
+  const active = (oct.products || []).filter(p => p.active !== false && !(p.name||'').toLowerCase().startsWith('clearance!'));
   const lanes = { order: [], borderline: [], skip: [] };
   active.forEach(p => {
     const rule = getRuleFor(p.id) || {};
@@ -2090,6 +2091,27 @@ async function loadProductRules(){
   }
 }
 
+async function pushOctoposProductFields(productId, fields){
+  let token = (localStorage.getItem("lauren_octopos_token") || "").trim();
+  if (!token){
+    token = prompt("הדביקי טוקן OCTOPOS פעיל (יישמר מקומית בדפדפן):");
+    if (!token) return false;
+    localStorage.setItem("lauren_octopos_token", token.trim());
+  }
+  try{
+    const r = await fetch("https://themakeup.octoretail.com/api/v2/products/" + productId, {
+      method: "PUT",
+      headers: {"Authorization": token, "Content-Type": "application/json", "Accept": "application/json"},
+      body: JSON.stringify(fields)
+    });
+    if (r.status === 401){ localStorage.removeItem("lauren_octopos_token"); return false; }
+    return r.ok;
+  } catch(e){
+    console.error("pushOctoposProductFields failed:", e);
+    return false;
+  }
+}
+
 function getRuleFor(productId){
   return (PRODUCT_RULES.rules && PRODUCT_RULES.rules[String(productId)]) || null;
 }
@@ -2128,12 +2150,32 @@ function openRuleEditor(product, onSave){
   const existing = getRuleFor(product.id) || {};
   const modal = document.createElement('div');
   modal.className = 'sms-modal';
+  const ALLOWED_TAGS = ["Recount", "Check"];
+  const allCats = (OCTOPOS && OCTOPOS.categories) || [];
+  const myCats  = allCats.filter(c => ALLOWED_TAGS.indexOf(c.name) !== -1);
+  let prodCategories = [];
+  for (const code in (OCTOPOS && OCTOPOS.vendors || {})){
+    const arr = OCTOPOS.vendors[code].products || [];
+    const found = arr.find(x => x.id === product.id);
+    if (found){ prodCategories = found.categories || []; break; }
+  }
+  const tagsHtml = myCats.map(function(c){
+    const has = prodCategories.some(x => x.id === c.id);
+    return '<label style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1px solid ' + (has?"#86efac":"var(--line)") + ';border-radius:999px;background:' + (has?"#dcfce7":"var(--panel2)") + ';color:' + (has?"#14532d":"var(--text)") + ';font-size:13px;cursor:pointer">' +
+      '<input type="checkbox" data-tag-id="' + c.id + '" data-tag-name="' + escHtml(c.name) + '" ' + (has?"checked":"") + '> ' + escHtml(c.name) +
+    '</label>';
+  }).join(' ');
+
   modal.innerHTML =
-    '<div class="sms-card" style="max-width:540px">' +
-      '<h2>📝 הגדרות פר-מוצר</h2>' +
-      '<div class="sms-sub">' + escHtml(product.name||'') + ' · <code>' + escHtml(product.sku||'') + '</code>' +
+    '<div class="sms-card" style="max-width:560px">' +
+      '<h2>📝 הגדרות + עריכת מוצר</h2>' +
+      '<div class="sms-sub">SKU: <code>' + escHtml(product.sku||'') + '</code>' +
         '<br>OCTOPOS — thr=' + (product.threshold||0) + ' · case=' + (product.case_size||0) + ' · stock=' + (product.in_stock_qty||0) +
       '</div>' +
+      '<div class="field" style="margin-top:14px"><label>שם המוצר באוקטופוס (שינוי ידחף ל-OCTOPOS)</label>' +
+      '<input type="text" id="rName" value="' + escHtml(product.name||'') + '"></div>' +
+      '<div style="margin-top:10px"><label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Tags (Recount / Check) — שינוי נשמר מיד באוקטופוס</label>' +
+      '<div id="rTags" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">' + (tagsHtml || '<span style="color:var(--muted);font-size:12px">אין categories זמינות עדיין</span>') + '</div></div>' +
       '<div class="row" style="margin-top:12px">' +
         '<div class="field"><label>min_display (דורס את ה-threshold אם גבוה יותר)</label><input type="number" min="0" id="rMinDisplay" value="' + (existing.min_display||'') + '" placeholder="ריק = משתמש ב-' + (product.threshold||0) + '"></div>' +
         '<div class="field"><label>moq (מינ. יחידות שספק מוכר)</label><input type="number" min="0" id="rMoq" value="' + (existing.moq||'') + '" placeholder="ריק = ללא מינימום"></div>' +
@@ -2171,6 +2213,7 @@ function openRuleEditor(product, onSave){
       const max         = Number(v('#rMax'));
       const skip        = modal.querySelector('#rSkip').checked;
       const note        = v('#rNote');
+      const newName     = v('#rName');
       if (min_display > 0) r.min_display = min_display;
       if (moq > 0)         r.moq = moq;
       if (multiple_of > 0) r.multiple_of = multiple_of;
@@ -2178,8 +2221,48 @@ function openRuleEditor(product, onSave){
       if (skip)            r.skip = true;
       if (note)            r.note = note;
       e.target.disabled = true; e.target.textContent = "שומר…";
-      const ok = await saveProductRule(product.id, Object.keys(r).length ? r : null);
-      toast(ok ? "נשמר ✓" : "נשמר מקומית בלבד", ok ? "success" : "");
+      const ruleOk = await saveProductRule(product.id, Object.keys(r).length ? r : null);
+      let octoposPushes = [];
+      if (newName && newName !== product.name){
+        octoposPushes.push(pushOctoposProductFields(product.id, { name: newName }));
+        product.name = newName;
+        for (const code in (OCTOPOS.vendors || {})){
+          const arr = OCTOPOS.vendors[code].products || [];
+          const found = arr.find(x => x.id === product.id);
+          if (found){ found.name = newName; }
+        }
+      }
+      const tagCheckboxes = modal.querySelectorAll('#rTags input[type=checkbox]');
+      const desiredCatIds = [];
+      tagCheckboxes.forEach(cb => { if (cb.checked) desiredCatIds.push(Number(cb.dataset.tagId)); });
+      let prodFromLocal = null;
+      for (const code in (OCTOPOS.vendors || {})){
+        const arr = OCTOPOS.vendors[code].products || [];
+        const found = arr.find(x => x.id === product.id);
+        if (found){ prodFromLocal = found; break; }
+      }
+      const currentManagedIds = (prodFromLocal && prodFromLocal.categories || []).filter(c => ["Recount","Check"].indexOf(c.name) !== -1).map(c => c.id);
+      const allCurrentIds = (prodFromLocal && prodFromLocal.categories || []).map(c => c.id);
+      const otherIds = allCurrentIds.filter(id => currentManagedIds.indexOf(id) === -1);
+      const finalIds = otherIds.concat(desiredCatIds);
+      const tagsChanged = JSON.stringify(finalIds.sort()) !== JSON.stringify(allCurrentIds.sort());
+      if (tagsChanged){
+        octoposPushes.push(pushOctoposProductFields(product.id, { category_ids: finalIds }));
+        if (prodFromLocal){
+          prodFromLocal.categories = finalIds.map(id => {
+            const cat = (OCTOPOS.categories || []).find(c => c.id === id);
+            return cat ? { id: cat.id, name: cat.name } : { id, name: '' };
+          });
+        }
+      }
+      let allPushOk = true;
+      for (const promise of octoposPushes){
+        const ok = await promise;
+        if (!ok) allPushOk = false;
+      }
+      if (ruleOk && allPushOk){ toast("נשמר ✓", "success"); }
+      else if (ruleOk){ toast("כלל נשמר; חלק מ-OCTOPOS לא עודכן", "error"); }
+      else { toast("נשמר מקומית", ""); }
       modal.remove();
       if (onSave) onSave();
     }
