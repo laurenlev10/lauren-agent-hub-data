@@ -285,6 +285,7 @@ def fetch_meta_pixel_events(start_date: str, end_date: str, slugs: list = None) 
         ev["meta_top_ads"].append({
             "ad_id": str(ad.get("ad_id", "")),
             "ad_name": str(ad.get("ad_name", ""))[:60],
+            "campaign_name": str(ad.get("campaign_name", ""))[:60],
             "spend": round(spend, 2),
             "impressions": imp,
             "clicks": clk,
