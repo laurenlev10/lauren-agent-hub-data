@@ -8,8 +8,11 @@ name: octopos-stock-poll
 
 on:
   schedule:
-    # 09:00 UTC = 2 AM PT (off-peak for the API).
+    # 09:00 UTC = 2 AM PT — daily baseline (off-peak)
     - cron: '0 9 * * *'
+    # 01:00 UTC Mon = 6 PM PDT Sunday — post-event snapshot.
+    # Lauren orders Sunday evening, so the sales delta needs to be ready by 6:15 PM PT.
+    - cron: '0 1 * * 1'
   workflow_dispatch: {}
 
 permissions:

@@ -228,6 +228,12 @@ def build_snapshot(vendors, products):
             unit_cost = float(p.get("cost") or 0)
         except (TypeError, ValueError):
             unit_cost = 0.0
+        # OCTOPOS may expose `cost_calculator_base_units_in_a_case` — use as default case_size.
+        # If absent / zero, dashboard falls back to 12 (smallest common case).
+        try:
+            case_size = int(float(p.get("cost_calculator_base_units_in_a_case") or 0))
+        except (TypeError, ValueError):
+            case_size = 0
         # categories = OCTOPOS's tagging mechanism (Recount, Display, Case, Check, etc.)
         cats = []
         for c in (p.get("categories") or []):
@@ -240,6 +246,7 @@ def build_snapshot(vendors, products):
             "in_stock_qty": qty,
             "threshold": threshold,
             "unit_cost": unit_cost,
+            "case_size": case_size,
             "categories": cats,
             "active": is_active,
             "needs_recount": needs_recount,
