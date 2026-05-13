@@ -656,7 +656,12 @@ function renderSupplierCard(sup, s, idx){
         var inactive = oct.inactive_products || [];
         var summary = oct.summary || {count:0, in_stock_count:0, total_units:0, inactive_count:0, inactive_in_stock_count:0, inactive_total_units:0, needs_recount:0, total_threshold:0, total_to_order:0};
         var lastSync = (OCTOPOS && OCTOPOS._updated_at) ? (' · עודכן ' + OCTOPOS._updated_at.slice(0,16).replace('T',' ')) : '';
-        var cats = (OCTOPOS && OCTOPOS.categories) || [];
+        // Per Lauren 2026-05-13 — only show RECOUNT + CHECK in the dashboard.
+        // Other categories the product has in OCTOPOS stay there untouched; just hidden here.
+        var ALLOWED_TAG_NAMES = ["Recount", "Check"];
+        var cats = ((OCTOPOS && OCTOPOS.categories) || []).filter(function(c){
+          return ALLOWED_TAG_NAMES.indexOf(c.name) !== -1;
+        });
 
         function chip(qty, needsRecount){
           if (qty < 0){ return '<span class="oct-chip stock-recount">🔢 RECOUNT (' + qty + ')</span>'; }
@@ -677,7 +682,9 @@ function renderSupplierCard(sup, s, idx){
               ? '<span class="to-order-pill">🛒 ' + fmtNum(toOrder) + '</span>'
               : '<span style="color:var(--muted);font-size:12px">—</span>';
             var rcCls = p.needs_recount ? ' class="row-recount"' : (toOrder > 0 ? ' class="row-needs-order"' : '');
-            var existingTags = (p.categories || []).map(function(c){
+            var existingTags = (p.categories || []).filter(function(c){
+              return ALLOWED_TAG_NAMES.indexOf(c.name) !== -1;
+            }).map(function(c){
               return '<span class="tag-chip" title="' + escHtml(c.name||'') + '" data-cat-id="' + c.id + '">' + escHtml(c.name||'') + '<button type="button" class="tag-x" data-action="remove-tag" data-product-id="' + p.id + '" data-cat-id="' + c.id + '">×</button></span>';
             }).join(' ');
             var tagPickerOpts = '<option value="">+ הוסיפי tag</option>' + cats.map(function(c){
