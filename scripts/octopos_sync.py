@@ -24,27 +24,29 @@ from datetime import datetime, timezone
 
 BASE = "https://themakeup.octoretail.com/api/v2"
 
-# Lauren's 15 suppliers → OCTOPOS vendor_id (confirmed 2026-05-12).
-# Key = supplier code used in the dashboard's SUPPLIERS array.
+# Lauren's 15 suppliers → list of OCTOPOS vendor_ids (confirmed 2026-05-12; 2026-05-13: Mystery Box now spans Garage + Storage).
+# Most suppliers are 1:1. Mystery Box is special — Lauren's "מסחורה ממוזגת מהמחסן" combines two
+# internal OCTOPOS vendors (24=Garage + 19=Storage). Adding more multi-vendor suppliers later is
+# just appending IDs to the list.
 MAPPING = {
-    "she-makeup":       18,  # OCTOPOS: "She"
-    "mystery-box":      24,  # OCTOPOS: "Garage"
-    "amuse-cosmetics":   2,  # OCTOPOS: "Amuse"
-    "nabi":             14,
-    "bb-and-w":          3,
-    "prolux":           15,
-    "golden-touch":      8,
-    "ebs-perfumes":      6,  # was "EBC" in early dashboard; renamed per Lauren 2026-05-12
-    "rude":             17,
-    "xime-beauty":      23,  # OCTOPOS: "Xime"
-    "feral-edge":        7,
-    "lurella":          12,
-    "kara-beauty":      10,
-    "romantic-beauty":  16,
-    "beauty-creations":  4,
+    "she-makeup":       [18],         # OCTOPOS: "She"
+    "mystery-box":      [24, 19],     # OCTOPOS: "Garage" + "Storage" — mixed warehouse merchandise (Lauren 2026-05-13)
+    "amuse-cosmetics":  [2],          # OCTOPOS: "Amuse"
+    "nabi":             [14],
+    "bb-and-w":         [3],
+    "prolux":           [15],
+    "golden-touch":     [8],
+    "ebs-perfumes":     [6],          # was "EBC" in early dashboard; renamed per Lauren 2026-05-12
+    "rude":             [17],
+    "xime-beauty":      [23],         # OCTOPOS: "Xime"
+    "feral-edge":       [7],
+    "lurella":          [12],
+    "kara-beauty":      [10],
+    "romantic-beauty":  [16],
+    "beauty-creations": [4],
 }
-# Inverse: vendor_id → supplier_code (for fast lookup during product iteration)
-VENDOR_TO_CODE = {v: k for k, v in MAPPING.items()}
+# Inverse: vendor_id → supplier_code (multi-vendor → first-match wins, but each vid is unique across the table)
+VENDOR_TO_CODE = {vid: code for code, vids in MAPPING.items() for vid in vids}
 
 LOCATION_ID = 2  # "THE MAKEUP BLOWOUT SALE GROUP INC"
 
@@ -134,25 +136,31 @@ def build_snapshot(vendors, products):
         "vendors": {},
     }
     # Seed every mapped supplier so the dashboard always sees all 15
-    for code, vid in MAPPING.items():
-        v = vendor_by_id.get(vid, {})
+    for code, vids in MAPPING.items():
+        # First vid is canonical for display/contact; additional vids are co-sources
+        primary = vendor_by_id.get(vids[0], {})
+        co_names = [vendor_by_id.get(x, {}).get("name", "") for x in vids[1:] if vendor_by_id.get(x)]
+        display_name = primary.get("name", "")
+        if co_names:
+            display_name += " + " + " + ".join(co_names)
         snapshot["vendors"][code] = {
-            "octopos_vendor_id": vid,
-            "octopos_name": v.get("name", ""),
+            "octopos_vendor_ids": vids,
+            "octopos_name": display_name,
             "active": v.get("active", True),
             "contact": {
-                "name": (v.get("contact_person") or "").strip(),
-                "phone": str(v.get("phone") or "") if v.get("phone") else "",
-                "email": (v.get("email") or "").strip(),
-                "address": (v.get("address") or "").strip(),
-                "city": (v.get("city") or "").strip(),
-                "state": (v.get("state") or "").strip(),
+                "name": (primary.get("contact_person") or "").strip(),
+                "phone": str(primary.get("phone") or "") if primary.get("phone") else "",
+                "email": (primary.get("email") or "").strip(),
+                "address": (primary.get("address") or "").strip(),
+                "city": (primary.get("city") or "").strip(),
+                "state": (primary.get("state") or "").strip(),
             },
             "products": [],            # active products only
             "inactive_products": [],   # products with active=false
             "summary": {
                 "count": 0, "in_stock_count": 0, "total_units": 0.0,
                 "inactive_count": 0, "inactive_in_stock_count": 0, "inactive_total_units": 0.0,
+                "needs_recount": 0,
             },
         }
 
@@ -171,6 +179,7 @@ def build_snapshot(vendors, products):
         except (TypeError, ValueError):
             qty = 0.0
         is_active = bool(p.get("active", True))
+        needs_recount = qty < 0
         entry = {
             "id": p.get("id"),
             "name": p.get("name", ""),
@@ -178,6 +187,7 @@ def build_snapshot(vendors, products):
             "barcode": p.get("barcode", ""),
             "in_stock_qty": qty,
             "active": is_active,
+            "needs_recount": needs_recount,
             "department": (p.get("department") or {}).get("name", ""),
             "updated_at": p.get("updated_at", ""),
         }
@@ -193,12 +203,18 @@ def build_snapshot(vendors, products):
             sv[sumkey]["inactive_count"] += 1
             if qty > 0: sv[sumkey]["inactive_in_stock_count"] += 1
             sv[sumkey]["inactive_total_units"] += qty
+        if needs_recount:
+            sv[sumkey]["needs_recount"] += 1
         mapped += 1
 
-    # Sort both lists per supplier: in-stock first, then alphabetic
+    # Sort both lists per supplier: recount-needed first, then in-stock, then alphabetic
     for code in snapshot["vendors"]:
         for k in ("products", "inactive_products"):
-            snapshot["vendors"][code][k].sort(key=lambda x: (-(x["in_stock_qty"] > 0), x["name"].lower()))
+            snapshot["vendors"][code][k].sort(key=lambda x: (
+                not x.get("needs_recount", False),                  # recount items first
+                -(x["in_stock_qty"] > 0),                            # then in-stock
+                x["name"].lower()                                    # then alphabetic
+            ))
 
     snapshot["_total_products_mapped"] = mapped
     return snapshot
@@ -244,7 +260,9 @@ def main():
     print("Per-supplier summary:")
     for code, ent in snapshot["vendors"].items():
         s = ent["summary"]
-        print(f"  {code:<22} ({ent['octopos_name']:<18})  active: {s['count']:>4} ({s['in_stock_count']:>4} in stock, {s['total_units']:>7.0f} units)  · inactive: {s['inactive_count']:>4} ({s['inactive_in_stock_count']:>3} in stock)")
+        recount = s.get('needs_recount', 0)
+        rc_str = f" · 🔢 RECOUNT={recount}" if recount > 0 else ""
+        print(f"  {code:<22} ({ent['octopos_name']:<28})  active: {s['count']:>4} ({s['in_stock_count']:>4} in stock, {s['total_units']:>7.0f} units)  · inactive: {s['inactive_count']:>4} ({s['inactive_in_stock_count']:>3} in stock){rc_str}")
 
     # Write
     out_path = Path("docs/state/octopos_products.json")
