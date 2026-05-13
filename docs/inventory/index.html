@@ -1496,7 +1496,7 @@ const MULT_SMALL = 1.0;
 const MULT_MEDIUM = 1.3;
 const MULT_LARGE = 1.6;
 const TWO_EVENTS_BUMP = 1.5;   // applied on top of size multiplier when two events
-const DEFAULT_CASE_SIZE = 12;  // when product has no case_size set
+const DEFAULT_CASE_SIZE = 12;  // ALWAYS step by 12 unless rule.multiple_of overrides (Lauren 2026-05-13)
 const BUDGET_DEFAULT_PCT = 0.175;  // 17.5% of last event's sales
 
 let WIZARD_STATE = { events: 1, size: 'medium', useBudget: false, budgetAmount: 0, anchorEvent: null };
@@ -1568,10 +1568,9 @@ function buildSupplierOrder(supplierCode){
     const thrBase = Number(p.threshold || 0);
     const thr = Math.max(thrBase, Number(rule.min_display || 0));
     const cost = Number(p.unit_cost || 0);
-    const csOcto = Number(p.case_size || 0) > 1 ? Number(p.case_size) : 0;
-    // multiple_of from rule overrides OCTOPOS case_size, else case_size, else DEFAULT (12)
-    const cs = Number(rule.multiple_of || 0) > 0 ? Number(rule.multiple_of)
-             : (csOcto > 1 ? csOcto : DEFAULT_CASE_SIZE);
+    // Default case_size = 12 (Lauren 2026-05-13 — always step in 12s unless rule overrides).
+    // OCTOPOS case_size field is unreliable (e.g. GP20 shows case=84) — ignore unless explicitly overridden via rule.multiple_of.
+    const cs = Number(rule.multiple_of || 0) > 0 ? Number(rule.multiple_of) : DEFAULT_CASE_SIZE;
     let gap   = Math.max(0, thr - stock) * mult;
     // MOQ: if base > 0 but below MOQ, snap up to MOQ
     if (gap > 0 && Number(rule.moq || 0) > 0 && gap < Number(rule.moq)) gap = Number(rule.moq);
@@ -1811,7 +1810,7 @@ function openReviewModal(){
             '<div>' + (r.in_stock || 0) + '</div>' +
             '<div>' + (r.threshold || 0) + '</div>' +
             '<div class="gap-cell ' + (gap > 0 ? 'gap-pos' : (gap < 0 ? 'gap-neg' : '')) + '">' + (gap > 0 ? '+' : '') + gap + '</div>' +
-            '<input type="number" min="0" step="' + r.case_size + '" data-bind="qty" value="' + r.qty + '" title="חצי מקלדת / גלגלת עכבר קופצים בגדלי ארגז (' + r.case_size + ')">' +
+            '<input type="number" min="0" step="' + r.case_size + '" data-bind="qty" value="' + r.qty + '" title="חצי מקלדת / גלגלת עכבר קופצים ב-' + r.case_size + ' (אפשר גם להקליד ידנית)">' +
             '<div>$' + (r.unit_cost || 0).toFixed(2) + '</div>' +
             '<div class="rev-line-total">$' + (r.qty * r.unit_cost).toFixed(2) + '</div>' +
             '<div class="qty-controls">' +
