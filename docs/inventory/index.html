@@ -323,9 +323,11 @@
   .recv-po-card .po-body .po-foot{gap:10px}
   .recv-po-card .po-body .po-foot button.skip-btn{background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5;background-image:none}
   .recv-po-card .po-body .po-foot button.skip-btn:hover{background:#fecaca;filter:none}
-  .recv-skipped-bar{background:var(--panel2);border:1px dashed var(--line);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:8px}
-  .recv-skipped-bar:hover{border-color:var(--accent);color:var(--text)}
-  .recv-skipped-bar b{color:var(--text)}
+  .recv-skipped-bar{background:#fef9c3;border:1px solid #fde68a;border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:14px;color:#854d0e;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .15s}
+  .recv-skipped-bar:hover{background:#fef08a;border-color:#facc15;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .recv-skipped-bar b{color:#713f12;font-weight:800}
+  .recv-skipped-bar .toggle-pill{background:#fff;border:1px solid #facc15;color:#854d0e;font-weight:700;padding:6px 14px;border-radius:999px;font-size:13px;white-space:nowrap}
+  .recv-skipped-bar:hover .toggle-pill{background:#fef9c3;border-color:#eab308}
   .recv-po-card.skipped{background:#fafbfd;opacity:.7}
   .recv-po-card.skipped .po-hdr{cursor:default}
   .recv-po-card.skipped .po-hdr:hover{background:transparent}
@@ -2634,10 +2636,13 @@ function renderReceiveList(){
   var html = '';
   // Skipped bar (collapsible)
   if (skippedPos.length){
-    html += '<div class="recv-skipped-bar" id="recvSkippedBar">' +
-      '<b>🚫 ' + skippedPos.length + ' POs סומנו כ"לא נשלח לאירוע"</b>' +
-      '<span style="flex:1"></span>' +
-      '<span>' + (RECV_SHOW_SKIPPED ? '⬆ הסתר' : '⬇ הצג') + '</span>' +
+    html += '<div class="recv-skipped-bar" id="recvSkippedBar" title="לחצי כדי לפתוח ולשחזר">' +
+      '<span style="font-size:18px">🚫</span>' +
+      '<div style="flex:1">' +
+        '<b>' + skippedPos.length + ' POs סומנו כ"לא נשלח לאירוע"</b>' +
+        '<div style="font-size:12px;margin-top:2px">לחצי כדי לפתוח ולשחזר אם צריך</div>' +
+      '</div>' +
+      '<span class="toggle-pill">' + (RECV_SHOW_SKIPPED ? '⬆ סגור' : '⬇ הצג ושחזר') + '</span>' +
     '</div>';
   }
   if (!filteredActive.length && !RECV_SHOW_SKIPPED){
