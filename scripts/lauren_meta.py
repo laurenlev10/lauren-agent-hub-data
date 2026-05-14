@@ -55,7 +55,7 @@ API_BASE = "https://graph.facebook.com/v25.0"
 # Credential loading (env > workspace > local fallback)
 # ---------------------------------------------------------------------------
 
-def _load_secret(env_var: str, workspace_filename: str, local_filename: str) -> str:
+def _load_secret(env_var: str, workspace_filename: str, local_filename: str, required: bool = True) -> str:
     v = _os.environ.get(env_var, "").strip()
     if v:
         return v
@@ -75,11 +75,27 @@ def _load_secret(env_var: str, workspace_filename: str, local_filename: str) -> 
             return p.read_text().strip()
         except PermissionError:
             pass
+    if not required:
+        return None
     raise SystemExit(f"{env_var} not set and no fallback file at {local_filename}")
 
 
 def get_token() -> str:
+    """Returns Page Access Token. Used by Messenger conversations, FB Page posts —
+    endpoints Meta explicitly gates to require a Page Access Token (not a System User
+    token, which would 400 with code 190 'This method must be called with a Page
+    Access Token')."""
     return _load_secret("META_PAGE_TOKEN", ".meta_page_token", "meta_page_token.txt")
+
+
+def get_insights_token() -> str:
+    """Returns System User Token (IRON RULE #8). Used by IG/Reel/Post Insights,
+    Ads Reporting, and any endpoint that benefits from the broader scope set
+    (instagram_manage_insights, read_insights, etc.) + never-expires stability.
+    Falls back to Page Access Token if SU token isn't configured — preserves
+    backward compatibility while we transition individual endpoints."""
+    return (_load_secret("META_SYSTEM_USER_TOKEN", ".meta_system_user_token", "meta_system_user_token.txt", required=False)
+            or _load_secret("META_PAGE_TOKEN", ".meta_page_token", "meta_page_token.txt"))
 
 
 def get_ig_business_id() -> str:
@@ -145,6 +161,9 @@ def fetch_recent_fb_posts(limit: int = 30, *, token: _Optional[str] = None,
 
 def fetch_media_insights(media_id: str, metrics: _Optional[list] = None,
                          *, token: _Optional[str] = None) -> dict:
+    """2026-05-14 PM update: defaults to get_insights_token() (System User Token)
+    which has instagram_manage_insights scope. Callers can still override via token=.
+    """
     """
     Fetch Instagram Graph API insights for a single media item (reel or post).
     Returns a flat dict of metric_name → integer value.
@@ -154,7 +173,7 @@ def fetch_media_insights(media_id: str, metrics: _Optional[list] = None,
     request them individually and skip any that the API rejects (HTTP 400)
     so a single unsupported metric doesn't blank the whole result.
     """
-    tok = token or get_token()
+    tok = token or get_insights_token()
     if metrics is None:
         metrics = ["shares", "plays", "reach", "likes", "comments", "saved"]
     out = {}
