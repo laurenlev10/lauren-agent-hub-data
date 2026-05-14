@@ -262,18 +262,31 @@ def fetch_meta_pixel_events(start_date: str, end_date: str, slugs: list = None) 
             "meta_clicks": 0,
             "meta_landing_page_views": 0,
             "meta_conversions": 0,
+            "meta_leads": 0,  # explicit Lead pixel events (form submits via Meta)
             "meta_top_ads": [],
+            # 2026-05-14 — per-language breakdown for budget optimization.
+            # Inferred from "English"/"Spanish" in campaign_name.
+            "meta_by_lang": {
+                "english": {"spend":0.0,"impressions":0,"clicks":0,"lpv":0,"leads":0,"ad_count":0},
+                "spanish": {"spend":0.0,"impressions":0,"clicks":0,"lpv":0,"leads":0,"ad_count":0},
+                "other":   {"spend":0.0,"impressions":0,"clicks":0,"lpv":0,"leads":0,"ad_count":0},
+            },
         })
         spend = float(ad.get("spend", 0) or 0)
         imp = int(float(ad.get("impressions", 0) or 0))
         clk = int(float(ad.get("clicks", 0) or 0))
         lpv = 0
+        leads_this_ad = 0  # 2026-05-14 — track Lead per ad for language split
         for a in ad.get("actions", []) or []:
             at = a.get("action_type")
             v = int(float(a.get("value", 0) or 0))
             if at == "landing_page_view":
                 lpv += v
-            elif at in ("lead", "complete_registration"):
+            elif at in ("lead", "offsite_conversion.fb_pixel_lead"):
+                ev["meta_conversions"] += v
+                ev["meta_leads"] += v
+                leads_this_ad += v
+            elif at == "complete_registration":
                 ev["meta_conversions"] += v
         for a in ad.get("action_values", []) or []:
             if a.get("action_type") == "lead":
@@ -282,6 +295,27 @@ def fetch_meta_pixel_events(start_date: str, end_date: str, slugs: list = None) 
         ev["meta_impressions"] += imp
         ev["meta_clicks"] += clk
         ev["meta_landing_page_views"] += lpv
+
+        # 2026-05-14 — bucket this ad's totals into English/Spanish/Other.
+        # Lauren's campaign names always include the language explicitly:
+        #   "Traffic English 2026 Cleveland, OH"
+        #   "Traffic Spanish 2026 Cleveland, OH"
+        # NEW Reel campaigns don't specify language → bucket as "other".
+        camp_lower = (ad.get("campaign_name","") or "").lower()
+        if "english" in camp_lower:
+            lang_bucket = "english"
+        elif "spanish" in camp_lower:
+            lang_bucket = "spanish"
+        else:
+            lang_bucket = "other"
+        lb = ev["meta_by_lang"][lang_bucket]
+        lb["spend"] += spend
+        lb["impressions"] += imp
+        lb["clicks"] += clk
+        lb["lpv"] += lpv
+        lb["leads"] += leads_this_ad
+        lb["ad_count"] += 1
+
         ev["meta_top_ads"].append({
             "ad_id": str(ad.get("ad_id", "")),
             "ad_name": str(ad.get("ad_name", ""))[:60],
@@ -318,6 +352,18 @@ def fetch_meta_pixel_events(start_date: str, end_date: str, slugs: list = None) 
             return (2, -spend)
         ev["meta_top_ads"].sort(key=_ad_rank)
         ev["meta_top_ads"] = ev["meta_top_ads"][:5]
+
+        # 2026-05-14 — derived per-language metrics
+        for lang, lb in ev["meta_by_lang"].items():
+            li = lb["impressions"]; lc = lb["clicks"]; ls = lb["spend"]; lv = lb["lpv"]; ll = lb["leads"]
+            lb["ctr"] = round(lc/li*100, 2) if li else 0
+            lb["cpc"] = round(ls/lc, 3) if lc else 0
+            lb["cpm"] = round(ls/li*1000, 2) if li else 0
+            lb["cpl"] = round(ls/lv, 3) if lv else 0  # cost-per-LPV
+            lb["cost_per_lead"] = round(ls/ll, 3) if ll else 0
+
+        # Overall cost-per-lead
+        ev["meta_cost_per_lead"] = round(ev["meta_spend"]/ev["meta_leads"], 3) if ev["meta_leads"] else 0
     return out
 
 
@@ -538,9 +584,6 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
         ev["meta"] = {
             "spend":   m.get("meta_spend", 0),
             "revenue": m.get("meta_revenue", 0),
-            # impressions/clicks/ctr/cpl populated by fetch_meta_pixel_events when
-            # Meta API returns them; today the function only returns spend+revenue,
-            # so the rest stay zero. Same shape as tiktok = easy to extend later.
             "impressions":        m.get("meta_impressions", 0),
             "clicks":             m.get("meta_clicks", 0),
             "landing_page_views": m.get("meta_landing_page_views", 0),
@@ -549,6 +592,14 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
             "cpm":                m.get("meta_cpm", 0),
             "cost_per_lpv":       m.get("meta_cost_per_lpv", 0),
             "top_ads":            m.get("meta_top_ads", []),
+            # 2026-05-14 PM — new fields for budget-optimization view:
+            "leads":              m.get("meta_leads", 0),                    # form submits via Meta Pixel
+            "cost_per_lead":      m.get("meta_cost_per_lead", 0),            # spend / leads
+            "by_lang":            m.get("meta_by_lang", {                    # English vs Spanish vs other
+                "english": {"spend":0,"impressions":0,"clicks":0,"lpv":0,"leads":0,"ad_count":0,"ctr":0,"cpc":0,"cpm":0,"cpl":0,"cost_per_lead":0},
+                "spanish": {"spend":0,"impressions":0,"clicks":0,"lpv":0,"leads":0,"ad_count":0,"ctr":0,"cpc":0,"cpm":0,"cpl":0,"cost_per_lead":0},
+                "other":   {"spend":0,"impressions":0,"clicks":0,"lpv":0,"leads":0,"ad_count":0,"ctr":0,"cpc":0,"cpm":0,"cpl":0,"cost_per_lead":0},
+            }),
         }
         ev["last_pulled"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         out["events"][slug] = ev
