@@ -102,15 +102,21 @@ def compose_event_sms(slug: str, ev: dict) -> str:
         spend_line += " (Meta only)"
     lines.append(spend_line)
 
-    # Forms line
+    # Forms line — only crown a "best" when BOTH channels have form data;
+    # otherwise just show the count + which channel is reporting.
     if total_forms > 0:
-        if cpf_tt is not None and (cpf_meta is None or cpf_tt < cpf_meta):
-            best_label = f"📝 {total_forms} forms · 🏆 TT @ ${cpf_tt:.2f}"
-        elif cpf_meta is not None:
-            best_label = f"📝 {total_forms} forms · 🏆 Meta @ ${cpf_meta:.2f}"
-        else:
-            best_label = f"📝 {total_forms} forms"
-        lines.append(best_label)
+        parts = []
+        if meta_leads > 0:
+            parts.append(f"Meta {meta_leads} @ ${cpf_meta:.2f}")
+        if tt_convs > 0:
+            parts.append(f"TT {tt_convs} @ ${cpf_tt:.2f}")
+        lines.append(f"📝 {total_forms} forms · " + " · ".join(parts))
+        # Comparative call-out only when both channels are non-zero
+        if meta_leads >= 5 and tt_convs >= 5 and cpf_meta and cpf_tt:
+            ratio = max(cpf_meta, cpf_tt) / min(cpf_meta, cpf_tt)
+            if ratio >= 1.5:
+                cheaper = "Meta" if cpf_meta < cpf_tt else "TT"
+                lines.append(f"💡 {cheaper} זול פי {ratio:.1f} מהשני — להזיז תקציב")
     else:
         lines.append("📝 0 forms (Meta pixel חדש, צפי 24-48h)")
 
@@ -154,10 +160,33 @@ def compose_event_sms(slug: str, ev: dict) -> str:
     return "\n".join(lines)
 
 
-def is_active(ev: dict) -> bool:
+def is_future_event(slug: str) -> bool:
+    """Return True if the event date is today or in the future."""
+    if not NOTES.exists(): return True  # safe default
+    try:
+        notes = json.loads(NOTES.read_text())
+    except Exception:
+        return True
+    city_prefix = slug.split("-")[0]
+    year_suffix = slug.split("-")[-1]
+    candidates = [k for k in notes if k.startswith(city_prefix + "-") and year_suffix in k]
+    if not candidates: return True
+    parts = candidates[0].split("-")
+    if len(parts) < 4: return True
+    try:
+        event_date = datetime.date(int(parts[-3]), int(parts[-2]), int(parts[-1]))
+        return event_date >= datetime.date.today()
+    except Exception:
+        return True
+
+
+def is_active(slug: str, ev: dict) -> bool:
     m = ev.get("meta", {}); t = ev.get("tiktok", {})
     spend = float(m.get("spend",0) or 0) + float(t.get("spend",0) or 0)
-    return spend >= ACTIVE_SPEND_THRESHOLD
+    if spend < ACTIVE_SPEND_THRESHOLD: return False
+    # 2026-05-14 PM — only future events. Past events still have 30d spend
+    # in the window but it's not actionable.
+    return is_future_event(slug)
 
 
 def main() -> int:
@@ -166,7 +195,7 @@ def main() -> int:
     data = json.loads(CONV_HISTORY.read_text())
     events = data.get("events", {})
 
-    active = [(slug, ev) for slug, ev in events.items() if is_active(ev)]
+    active = [(slug, ev) for slug, ev in events.items() if is_active(slug, ev)]
     if not active:
         print("[digest] no events with active campaigns — skipping"); return 0
 
