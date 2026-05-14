@@ -320,6 +320,18 @@
   .recv-po-card .po-body .po-foot{padding:12px 16px;display:flex;justify-content:flex-end;background:var(--panel)}
   .recv-po-card .po-body .po-foot button{background:linear-gradient(180deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer}
   .recv-po-card .po-body .po-foot button:hover{filter:brightness(1.08)}
+  .recv-po-card .po-body .po-foot{gap:10px}
+  .recv-po-card .po-body .po-foot button.skip-btn{background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5;background-image:none}
+  .recv-po-card .po-body .po-foot button.skip-btn:hover{background:#fecaca;filter:none}
+  .recv-skipped-bar{background:var(--panel2);border:1px dashed var(--line);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:8px}
+  .recv-skipped-bar:hover{border-color:var(--accent);color:var(--text)}
+  .recv-skipped-bar b{color:var(--text)}
+  .recv-po-card.skipped{background:#fafbfd;opacity:.7}
+  .recv-po-card.skipped .po-hdr{cursor:default}
+  .recv-po-card.skipped .po-hdr:hover{background:transparent}
+  .recv-po-card.skipped .po-vendor{text-decoration:line-through}
+  .recv-po-card.skipped .restore-btn{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;color:var(--accent)}
+  .recv-po-card.skipped .restore-btn:hover{border-color:var(--accent);background:#fff7ed}
   .recv-step-head{display:flex;align-items:center;gap:14px;margin:0 0 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;flex-wrap:wrap}
   .recv-step-head h3{margin:0;font-size:18px;font-weight:800}
   .recv-step-head .meta{color:var(--muted);font-size:14px}
@@ -2546,6 +2558,28 @@ function skuSimilar(a, b){
   return 0;
 }
 
+// Per-device "PO skipped — not shipped to this event" — stored in localStorage
+var SKIPPED_POS_KEY = "recv_skipped_pos_v1";
+function getSkippedPos(){
+  try{ var arr = JSON.parse(localStorage.getItem(SKIPPED_POS_KEY) || "[]"); return Array.isArray(arr) ? arr.map(String) : []; }
+  catch(e){ return []; }
+}
+function setSkippedPos(arr){
+  localStorage.setItem(SKIPPED_POS_KEY, JSON.stringify(arr));
+}
+function isPoSkipped(poId){ return getSkippedPos().indexOf(String(poId)) !== -1; }
+function markPoSkipped(poId){
+  var s = getSkippedPos();
+  if (s.indexOf(String(poId)) === -1){ s.push(String(poId)); setSkippedPos(s); }
+}
+function restorePoSkipped(poId){
+  var s = getSkippedPos().filter(function(x){ return x !== String(poId); });
+  setSkippedPos(s);
+}
+
+// Toggle for showing skipped POs (session-only)
+var RECV_SHOW_SKIPPED = false;
+
 // Collect all Generated POs across all suppliers from OCTOPOS snapshot
 function collectAllGeneratedPOs(){
   var out = [];
@@ -2577,23 +2611,62 @@ function renderReceiveList(){
         || String(r.po.id||"").indexOf(q) !== -1
         || (r.octopos_vendor_name||"").toLowerCase().indexOf(q) !== -1;
   });
+  // Partition into active vs skipped
+  var skippedIds = getSkippedPos();
+  var activePos = pos.filter(function(r){ return skippedIds.indexOf(String(r.po.id)) === -1; });
+  var skippedPos = pos.filter(function(r){ return skippedIds.indexOf(String(r.po.id)) !== -1; });
+  var filteredActive = activePos.filter(function(r){
+    if (!q) return true;
+    return (r.supplier_name||"").toLowerCase().indexOf(q) !== -1
+        || String(r.po.id||"").indexOf(q) !== -1
+        || (r.octopos_vendor_name||"").toLowerCase().indexOf(q) !== -1;
+  });
+
   // Summary cards
-  var totSum = pos.reduce(function(a,r){return a + Number(r.po.total_cost||0);}, 0);
+  var totSum = activePos.reduce(function(a,r){return a + Number(r.po.total_cost||0);}, 0);
   $("#recvSummary").innerHTML =
-    '<div class="summary-card pending"><div class="label">POs פתוחים</div><div class="value">' + pos.length + '</div><div class="delta">' + filtered.length + ' מוצגים</div></div>' +
+    '<div class="summary-card pending"><div class="label">POs פתוחים</div><div class="value">' + activePos.length + '</div><div class="delta">' + filteredActive.length + ' מוצגים' + (skippedPos.length ? ' · ' + skippedPos.length + ' מוסתרים' : '') + '</div></div>' +
     '<div class="summary-card total"><div class="label">סה"כ הזמנות פתוחות</div><div class="value">' + fmtUsd(totSum) + '</div><div class="delta">לפי מחירי PO</div></div>' +
-    '<div class="summary-card ordered"><div class="label">ספקים</div><div class="value">' + new Set(pos.map(function(r){return r.supplier_code;})).size + '</div><div class="delta">עם הזמנות פתוחות</div></div>' +
-    '<div class="summary-card received"><div class="label">סה"כ שורות</div><div class="value">' + pos.reduce(function(a,r){return a+(r.po.items||[]).length;},0) + '</div><div class="delta">פריטים להשוואה</div></div>';
+    '<div class="summary-card ordered"><div class="label">ספקים</div><div class="value">' + new Set(activePos.map(function(r){return r.supplier_code;})).size + '</div><div class="delta">עם הזמנות פתוחות</div></div>' +
+    '<div class="summary-card received"><div class="label">סה"כ שורות</div><div class="value">' + activePos.reduce(function(a,r){return a+(r.po.items||[]).length;},0) + '</div><div class="delta">פריטים להשוואה</div></div>';
   // List
   var list = $("#recvPoList");
-  if (!filtered.length){
-    list.innerHTML = '<div class="empty-state"><p>אין POs פתוחים כרגע. לחצי 🔄 כדי לרענן מאוקטופוס.</p></div>';
+  var html = '';
+  // Skipped bar (collapsible)
+  if (skippedPos.length){
+    html += '<div class="recv-skipped-bar" id="recvSkippedBar">' +
+      '<b>🚫 ' + skippedPos.length + ' POs סומנו כ"לא נשלח לאירוע"</b>' +
+      '<span style="flex:1"></span>' +
+      '<span>' + (RECV_SHOW_SKIPPED ? '⬆ הסתר' : '⬇ הצג') + '</span>' +
+    '</div>';
+  }
+  if (!filteredActive.length && !RECV_SHOW_SKIPPED){
+    html += '<div class="empty-state"><p>אין POs פתוחים כרגע. לחצי 🔄 כדי לרענן מאוקטופוס.</p></div>';
+    list.innerHTML = html;
+    bindSkippedBar(list, pos);
     return;
   }
-  list.innerHTML = filtered.map(function(r){
+  var filtered = RECV_SHOW_SKIPPED ? filteredActive.concat(skippedPos) : filteredActive;
+  html += filtered.map(function(r){
     var po = r.po;
+    var isSk = skippedIds.indexOf(String(po.id)) !== -1;
     var nLines = (po.items||[]).length;
     var totQty = po.total_qty || (po.items||[]).reduce(function(a,it){return a+Number(it.quantity||0);},0);
+    if (isSk){
+      // Compact "skipped" card with restore button
+      return '<div class="recv-po-card skipped" data-po-id="' + po.id + '" data-supplier-code="' + r.supplier_code + '">' +
+        '<div class="po-hdr">' +
+          '<div class="po-num">#' + po.id + '</div>' +
+          '<div>' +
+            '<div class="po-vendor">' + escHtml(r.supplier_name) + ' <span style="color:var(--muted);font-weight:500;font-size:13px">· ' + escHtml(r.octopos_vendor_name||"") + '</span></div>' +
+            '<div class="po-meta">🚫 סומן כלא-נשלח לאירוע · ' + fmtUsd(po.total_cost) + '</div>' +
+          '</div>' +
+          '<div></div>' +
+          '<button class="restore-btn" data-action="restore-po">↩︎ שחזר</button>' +
+          '<div></div>' +
+        '</div>' +
+      '</div>';
+    }
     var itemsHtml = (po.items||[]).map(function(it){
       return '<tr>' +
         '<td>' + escHtml(it.product_name||('#'+it.product_id)) + '</td>' +
@@ -2619,24 +2692,56 @@ function renderReceiveList(){
           '<thead><tr><th>מוצר</th><th>SKU</th><th style="text-align:center">כמות</th><th style="text-align:center">$/יח׳</th><th style="text-align:center">סה"כ</th></tr></thead>' +
           '<tbody>' + itemsHtml + '</tbody>' +
         '</table>' +
-        '<div class="po-foot"><button class="recv-go-btn">📥 התחל השוואה לחשבונית →</button></div>' +
+        '<div class="po-foot">' +
+          '<button class="skip-btn" data-action="skip-po">🚫 לא נשלח לאירוע</button>' +
+          '<button class="recv-go-btn">📥 התחל השוואה לחשבונית →</button>' +
+        '</div>' +
       '</div>' +
     '</div>';
   }).join('');
-  // Bind: header click toggles expand; button inside body starts reconcile
+  list.innerHTML = html;
+  bindSkippedBar(list, pos);
+  // Bind: header click toggles expand; reconcile button; skip button; restore button
   list.querySelectorAll('.recv-po-card').forEach(function(card){
     var hdr = card.querySelector('.po-hdr');
-    var btn = card.querySelector('.recv-go-btn');
-    if (hdr) hdr.addEventListener('click', function(){
+    var btnGo = card.querySelector('.recv-go-btn');
+    var btnSkip = card.querySelector('[data-action="skip-po"]');
+    var btnRestore = card.querySelector('[data-action="restore-po"]');
+    if (hdr && !card.classList.contains('skipped')) hdr.addEventListener('click', function(){
       card.classList.toggle('expanded');
     });
-    if (btn) btn.addEventListener('click', function(e){
+    if (btnGo) btnGo.addEventListener('click', function(e){
       e.stopPropagation();
       var poId = card.dataset.poId;
       var code = card.dataset.supplierCode;
       var rec = pos.find(function(r){return String(r.po.id) === String(poId) && r.supplier_code === code;});
       if (rec) openReconcile(rec);
     });
+    if (btnSkip) btnSkip.addEventListener('click', function(e){
+      e.stopPropagation();
+      var poId = card.dataset.poId;
+      var rec = pos.find(function(r){return String(r.po.id) === String(poId);});
+      var name = rec ? rec.supplier_name : ('#' + poId);
+      if (!confirm('לסמן את PO #' + poId + ' (' + name + ') כלא-נשלח לאירוע?\n\nה-PO ייעלם מהרשימה הפעילה ולא נעדכן אותו באוקטופוס. ניתן לשחזר בכל עת.')) return;
+      markPoSkipped(poId);
+      toast('🚫 PO #' + poId + ' סומן כלא-נשלח', 'success');
+      renderReceiveList();
+    });
+    if (btnRestore) btnRestore.addEventListener('click', function(e){
+      e.stopPropagation();
+      var poId = card.dataset.poId;
+      restorePoSkipped(poId);
+      toast('↩︎ PO #' + poId + ' שוחזר', 'success');
+      renderReceiveList();
+    });
+  });
+}
+
+function bindSkippedBar(list, pos){
+  var bar = list.querySelector('#recvSkippedBar');
+  if (bar) bar.addEventListener('click', function(){
+    RECV_SHOW_SKIPPED = !RECV_SHOW_SKIPPED;
+    renderReceiveList();
   });
 }
 
