@@ -3153,25 +3153,28 @@ function renderDiffTable(){
   var bar = renderApplyBar();
 
   $("#recvDiff").innerHTML = wrongInvoiceWarning + tot + table + bar;
-  ensureRecvDiffDelegation();
 }
 
-// Delegated handler — bound ONCE on #recvDiff, survives all renderDiffTable() re-renders.
-var _RECV_DIFF_DELEG_BOUND = false;
-function ensureRecvDiffDelegation(){
-  if (_RECV_DIFF_DELEG_BOUND) return;
-  var root = $("#recvDiff");
-  if (!root) return;
-  _RECV_DIFF_DELEG_BOUND = true;
+// Delegated handlers — bound ONCE on document.body. Survives EVERY rebuild of
+// #recvDiff / #recvStep2 / etc. Uses .closest() to scope to receive view.
+var _RECV_DELEG_BOUND = false;
+function bindReceiveDelegation(){
+  if (_RECV_DELEG_BOUND) return;
+  _RECV_DELEG_BOUND = true;
 
-  // CLICK delegation — row action buttons, apply, cancel
-  root.addEventListener('click', function(e){
+  document.body.addEventListener('click', function(e){
+    // Scope: only inside #receiveView
+    if (!e.target.closest('#receiveView')) return;
+
     var b = e.target.closest('.recv-row-actions button');
     if (b){
       var key = b.dataset.key;
       var act = b.dataset.action;
       console.log('[recv] row action click', {key: key, act: act, hasCtx: !!RECV_CTX});
-      if (!RECV_CTX) return;
+      if (!RECV_CTX){
+        console.warn('[recv] click ignored: no RECV_CTX');
+        return;
+      }
       RECV_CTX.action_by_key[key] = act;
       if (act === 'newprod'){
         openNewProductModal(key);
@@ -3185,17 +3188,17 @@ function ensureRecvDiffDelegation(){
       return;
     }
     if (e.target.closest('#recvCancelBtn')){
+      console.log('[recv] cancel click');
       $("#recvStep1").style.display = "block";
       $("#recvStep2").style.display = "none";
-      $("#recvDiff").innerHTML = '';
-      _RECV_DIFF_DELEG_BOUND = false;  // re-bind on next render
+      if ($("#recvDiff")) $("#recvDiff").innerHTML = '';
       RECV_CTX = null;
       return;
     }
-  });
+  }, true);
 
-  // CHANGE delegation — editable qty/price overrides
-  root.addEventListener('change', function(e){
+  document.body.addEventListener('change', function(e){
+    if (!e.target.closest('#receiveView')) return;
     var inp = e.target.closest('input.edit-num');
     if (!inp || !RECV_CTX) return;
     var key = inp.dataset.key;
@@ -3204,8 +3207,23 @@ function ensureRecvDiffDelegation(){
     if (!row) return;
     row['override_' + field] = Number(inp.value);
     renderDiffTable();
-  });
+  }, true);
 }
+
+// Convenience debugger — Lauren can run window.recvDebug() in DevTools console
+window.recvDebug = function(){
+  var view = document.getElementById('receiveView');
+  var diff = document.getElementById('recvDiff');
+  var btns = document.querySelectorAll('#receiveView .recv-row-actions button');
+  console.log('=== RECV DEBUG ===');
+  console.log('receiveView present:', !!view, 'display:', view ? view.style.display : null);
+  console.log('recvDiff present:', !!diff, 'children:', diff ? diff.children.length : 0);
+  console.log('RECV_CTX:', RECV_CTX);
+  console.log('row buttons found:', btns.length);
+  if (btns.length) console.log('first button:', btns[0].outerHTML.slice(0,200));
+  console.log('delegation bound:', _RECV_DELEG_BOUND);
+  return {view: view, diff: diff, buttons: btns, ctx: RECV_CTX};
+};
 
 function computePendingTotal(){
   var t = 0;
@@ -3569,6 +3587,7 @@ function renderSummaryStep(log, poUpdated, newItems){
 // ────────── Init for receive mode ──────────
 
 function initReceiveMode(){
+  bindReceiveDelegation();
   $("#receiveView").style.display = "";
   $("#globalView").style.display = "none";
   $("#focusView").style.display = "none";
