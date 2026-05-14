@@ -438,6 +438,11 @@
   .event-banner-strip .event-meta{color:#1e40af;font-size:13px}
   .event-banner-strip a{margin-right:auto;color:#1e3a8a;font-weight:700;font-size:14px;text-decoration:none;padding:6px 14px;background:#fff;border:1px solid #93c5fd;border-radius:8px}
   .event-banner-strip a:hover{background:#dbeafe}
+  .local-only-btn{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+  .local-only-btn:hover{background:#ddd6fe;border-color:#a78bfa}
+  .recv-po-card.local-po{border-left:4px solid #7c3aed}
+  .recv-po-card.local-po .po-num{background:linear-gradient(180deg,#ede9fe,#ddd6fe);color:#5b21b6}
+  .local-po-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:800;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;margin-right:6px;letter-spacing:.4px}
   @media(max-width:640px){
     .event-phase-buttons{grid-template-columns:1fr}
   }
@@ -754,6 +759,7 @@ function ensureSlice(evkey, eventMeta){
   if (!STATE.events[evkey]){
     STATE.events[evkey] = {
       po_ids: [],
+      local_pos: [],
       evkey,
       city: eventMeta.city || "",
       state: eventMeta.state || "",
@@ -767,6 +773,8 @@ function ensureSlice(evkey, eventMeta){
     };
   }
   const slice = STATE.events[evkey];
+  if (!slice.po_ids) slice.po_ids = [];
+  if (!slice.local_pos) slice.local_pos = [];
   ["city","state","start_date","end_date","venue","address"].forEach(k => {
     if (eventMeta[k] && !slice[k]) slice[k] = eventMeta[k];
   });
@@ -1414,6 +1422,7 @@ function openGeneratePoModal(supplierCode, vendorId){
       '<div style="text-align:left;margin-top:10px;font-size:15px;font-weight:700">סה"כ הזמנה: <span class="po-grand-total">$'+sumCost.toFixed(2)+'</span></div>'+
       '<div class="modal-actions">'+
         '<button type="button" data-action="cancel">בטל</button>'+
+        '<button type="button" class="local-only-btn" data-action="submit-local" title="ההזמנה נשמרת אצלנו ב-GitHub ולא נוצרת באוקטופוס. כשתגיע חשבונית - תתאימי אותה ותעדכני את המלאי דרך הדשבורד.">💾 שמור אצלנו (לא לאוקטופוס)</button>'+
         '<button type="button" class="primary" data-action="submit">📤 שלח PO לאוקטופוס</button>'+
       '</div>'+
     '</div>';
@@ -1441,8 +1450,72 @@ function openGeneratePoModal(supplierCode, vendorId){
       sub.disabled = true;
       sub.textContent = 'שולח…';
       submitPO(vendorId, modal, oct);
+      return;
+    }
+    var subLoc = ev.target.closest('[data-action="submit-local"]');
+    if (subLoc){
+      subLoc.disabled = true;
+      subLoc.textContent = '💾 שומר…';
+      submitLocalPO(supplierCode, vendorId, modal, oct);
     }
   });
+}
+
+// Save a PO purely in our state — no Octopos call. Reconcile flow handles the rest later.
+async function submitLocalPO(supplierCode, vendorId, modal, oct){
+  if (!CURRENT_EVKEY){
+    toast('ניתן לשמור הזמנה מקומית רק מתוך דשבורד אירוע', 'error');
+    return;
+  }
+  var rows = modal.querySelectorAll('tbody tr');
+  var allActive = oct.products || [];
+  var items = [];
+  rows.forEach(function(tr){
+    var q = Number(tr.querySelector('[data-bind="qty"]').value || 0);
+    var c = Number(tr.querySelector('[data-bind="cost"]').value || 0);
+    if (q <= 0) return;
+    var nameCell = tr.querySelector('td');
+    var nm = nameCell ? nameCell.textContent : '';
+    var prod = allActive.find(function(p){ return nm.indexOf(p.name) === 0; });
+    if (!prod) return;
+    items.push({
+      product_id: prod.id,
+      product_name: prod.name,
+      product_sku: prod.sku || '',
+      quantity: q,
+      cost_unit: c,
+      line_total: q * c
+    });
+  });
+  if (!items.length){
+    toast('אין שורות לשמירה', 'error');
+    modal.remove();
+    return;
+  }
+  var localPoId = 'local-' + Date.now();
+  var po = {
+    id: localPoId,
+    status: 'Generated',
+    is_local: true,
+    supplier_code: supplierCode,
+    octopos_vendor_id: vendorId,
+    created_at: new Date().toISOString(),
+    items: items,
+    total_qty: items.reduce(function(a,it){return a + Number(it.quantity);}, 0),
+    total_cost: items.reduce(function(a,it){return a + Number(it.line_total);}, 0),
+    sms_sent_at: null,
+    reconciled_at: null
+  };
+  var slice = STATE.events[CURRENT_EVKEY];
+  if (!slice){ ensureSlice(CURRENT_EVKEY, CURRENT_EVENT); slice = STATE.events[CURRENT_EVKEY]; }
+  if (!slice.local_pos) slice.local_pos = [];
+  slice.local_pos.unshift(po);
+  slice.updated_at = nowIso();
+  scheduleSave();
+
+  toast('💾 הזמנה מקומית נשמרה (' + items.length + ' שורות · ' + fmtUsd(po.total_cost) + ')', 'success');
+  modal.remove();
+  if (typeof renderSuppliersWithBindings === 'function') renderSuppliersWithBindings();
 }
 
 async function submitPO(vendorId, modal, oct){
@@ -2681,21 +2754,45 @@ var RECV_SHOW_SKIPPED = false;
 // Collect all Generated POs across all suppliers from OCTOPOS snapshot
 function collectAllGeneratedPOs(){
   var out = [];
-  if (!OCTOPOS || !OCTOPOS.vendors) return out;
-  Object.keys(OCTOPOS.vendors).forEach(function(code){
-    var v = OCTOPOS.vendors[code];
-    (v.purchase_orders_generated || []).forEach(function(po){
-      out.push({
-        po: po,
-        supplier_code: code,
-        supplier_name: (SUPPLIERS.find(function(s){return s.code===code;}) || {}).name || code,
-        octopos_vendor_name: v.octopos_name,
-        octopos_vendor_id: (v.octopos_vendor_ids || [])[0]
+  if (OCTOPOS && OCTOPOS.vendors){
+    Object.keys(OCTOPOS.vendors).forEach(function(code){
+      var v = OCTOPOS.vendors[code];
+      (v.purchase_orders_generated || []).forEach(function(po){
+        out.push({
+          po: po,
+          supplier_code: code,
+          supplier_name: (SUPPLIERS.find(function(s){return s.code===code;}) || {}).name || code,
+          octopos_vendor_name: v.octopos_name,
+          octopos_vendor_id: (v.octopos_vendor_ids || [])[0]
+        });
       });
     });
+  }
+  // Include LOCAL POs from event slices (not yet reconciled)
+  if (STATE && STATE.events){
+    Object.keys(STATE.events).forEach(function(evk){
+      var slice = STATE.events[evk] || {};
+      (slice.local_pos || []).forEach(function(po){
+        if (po.reconciled_at) return;
+        var supCode = po.supplier_code;
+        var ven = (OCTOPOS && OCTOPOS.vendors && OCTOPOS.vendors[supCode]) || {};
+        out.push({
+          po: po,
+          supplier_code: supCode,
+          supplier_name: (SUPPLIERS.find(function(s){return s.code===supCode;}) || {}).name || supCode,
+          octopos_vendor_name: ven.octopos_name || supCode,
+          octopos_vendor_id: po.octopos_vendor_id || (ven.octopos_vendor_ids || [])[0],
+          is_local: true,
+          evkey: evk
+        });
+      });
+    });
+  }
+  out.sort(function(a,b){
+    var aK = a.is_local ? (a.po.created_at||'') : ('00000000-'+Number(a.po.id||0));
+    var bK = b.is_local ? (b.po.created_at||'') : ('00000000-'+Number(b.po.id||0));
+    return aK < bK ? 1 : (aK > bK ? -1 : 0);
   });
-  // Newest first by PO id
-  out.sort(function(a,b){ return Number(b.po.id||0) - Number(a.po.id||0); });
   return out;
 }
 
@@ -2785,12 +2882,15 @@ function renderReceiveList(){
         '<td class="num"><b>' + fmtUsd(it.line_total) + '</b></td>' +
       '</tr>';
     }).join('');
-    return '<div class="recv-po-card" data-po-id="' + po.id + '" data-supplier-code="' + r.supplier_code + '">' +
+    var isLocal = !!r.is_local;
+    var poIdDisplay = isLocal ? 'LOCAL' : ('#' + po.id);
+    var localBadge = isLocal ? '<span class="local-po-badge">💾 מקומי</span>' : '';
+    return '<div class="recv-po-card ' + (isLocal ? 'local-po' : '') + '" data-po-id="' + po.id + '" data-supplier-code="' + r.supplier_code + '">' +
       '<div class="po-hdr">' +
-        '<div class="po-num">#' + po.id + '</div>' +
+        '<div class="po-num">' + poIdDisplay + '</div>' +
         '<div>' +
-          '<div class="po-vendor">' + escHtml(r.supplier_name) + ' <span style="color:var(--muted);font-weight:500;font-size:13px">· ' + escHtml(r.octopos_vendor_name||"") + '</span></div>' +
-          '<div class="po-meta">' + nLines + ' שורות · ' + Math.round(totQty) + ' יחידות · Status: <b>Generated</b></div>' +
+          '<div class="po-vendor">' + localBadge + escHtml(r.supplier_name) + ' <span style="color:var(--muted);font-weight:500;font-size:13px">· ' + escHtml(r.octopos_vendor_name||"") + '</span></div>' +
+          '<div class="po-meta">' + nLines + ' שורות · ' + Math.round(totQty) + ' יחידות · ' + (isLocal ? '<b>שמור אצלנו (לא באוקטופוס)</b>' : 'Status: <b>Generated</b>') + '</div>' +
         '</div>' +
         '<div class="po-total">' + fmtUsd(po.total_cost) + '</div>' +
         '<div style="color:var(--accent);font-weight:700;font-size:13px">📥 השווה</div>' +
@@ -3739,6 +3839,15 @@ function renderSummaryStep(log, deltas, stockBefore, stockAfter){
         '<a href="https://themakeup.octoretail.com/purchase_orders/' + rec.po.id + '" target="_blank" style="padding:10px 16px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);text-decoration:none;font-size:14px">פתח את ה-PO באוקטופוס ↗</a>' +
       '</div>' +
     '</div>';
+  if (rec && rec.is_local && rec.evkey && STATE.events[rec.evkey]){
+    var slice = STATE.events[rec.evkey];
+    var lp = (slice.local_pos || []).find(function(p){ return p.id === rec.po.id; });
+    if (lp){
+      lp.reconciled_at = new Date().toISOString();
+      slice.updated_at = nowIso();
+      scheduleSave();
+    }
+  }
   $("#recvDone").addEventListener('click', function(){
     $("#recvStep1").style.display = "block";
     $("#recvStep3").style.display = "none";
