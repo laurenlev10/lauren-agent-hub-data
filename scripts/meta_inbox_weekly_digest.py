@@ -64,8 +64,10 @@ def main() -> int:
             else:
                 manual += 1
 
-    # Response rate (rough — assumes all-time received vs all-time handled)
-    response_rate = (week_handled / max(total, 1) * 100) if total > 0 else 0
+    # Response rate — handled-this-week / (handled-this-week + still-open-now).
+    # This is a fair approximation: handled vs in-the-queue.
+    denom = week_handled + total
+    response_rate = (week_handled / denom * 100) if denom > 0 else 0
 
     # Sentiment + urgent across all classified
     all_items = msgs + fb_c + ig_c
