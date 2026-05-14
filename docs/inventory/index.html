@@ -2678,8 +2678,8 @@ function renderReceiveList(){
     html += '<div class="recv-skipped-bar" id="recvSkippedBar" title="לחצי כדי לפתוח ולשחזר">' +
       '<span style="font-size:18px">🚫</span>' +
       '<div style="flex:1">' +
-        '<b>' + skippedPos.length + ' POs יעברו לאירוע הבא כפי שהם</b>' +
-        '<div style="font-size:12px;margin-top:2px">סומנו כ"לא נשלח" · לא עודכנו באוקטופוס · לחצי לפתוח ולשחזר</div>' +
+        '<b>' + skippedPos.length + ' POs סומנו כסיימתי לטפל בהם</b>' +
+        '<div style="font-size:12px;margin-top:2px">מוסתרים מהרשימה הפעילה · ה-PO באוקטופוס לא נגע · לחצי לפתוח ולשחזר</div>' +
       '</div>' +
       '<span class="toggle-pill">' + (RECV_SHOW_SKIPPED ? '⬆ סגור' : '⬇ הצג ושחזר') + '</span>' +
     '</div>';
@@ -2703,7 +2703,7 @@ function renderReceiveList(){
           '<div class="po-num">#' + po.id + '</div>' +
           '<div>' +
             '<div class="po-vendor">' + escHtml(r.supplier_name) + ' <span style="color:var(--muted);font-weight:500;font-size:13px">· ' + escHtml(r.octopos_vendor_name||"") + '</span></div>' +
-            '<div class="po-meta">🚫 יעבור לאירוע הבא כפי שהוא · ' + fmtUsd(po.total_cost) + '</div>' +
+            '<div class="po-meta">✓ סומן כסיימתי לטפל · ' + fmtUsd(po.total_cost) + '</div>' +
           '</div>' +
           '<div></div>' +
           '<button class="restore-btn" data-action="restore-po">↩︎ שחזר</button>' +
@@ -2737,7 +2737,7 @@ function renderReceiveList(){
           '<tbody>' + itemsHtml + '</tbody>' +
         '</table>' +
         '<div class="po-foot">' +
-          '<button class="skip-btn" data-action="skip-po" title="ה-PO יעבור לאירוע הבא כפי שהוא — לא נוגעים באוקטופוס">🚫 לא נשלח · עבור לאירוע הבא</button>' +
+          '<button class="skip-btn" data-action="skip-po" title="להסתיר את ה-PO מהרשימה הפעילה — באוקטופוס הוא נשאר Generated כפי שהוא">✓ סיימתי לטפל ב-PO</button>' +
           '<button class="recv-go-btn">📥 התחל השוואה לחשבונית →</button>' +
         '</div>' +
       '</div>' +
@@ -2766,7 +2766,7 @@ function renderReceiveList(){
       var poId = card.dataset.poId;
       var rec = pos.find(function(r){return String(r.po.id) === String(poId);});
       var name = rec ? rec.supplier_name : ('#' + poId);
-      if (!confirm('לסמן את PO #' + poId + ' (' + name + ') כלא-נשלח לאירוע?\n\n• ה-PO ייעלם מהרשימה הפעילה ויעבור לאירוע הבא כמו שהוא\n• לא נעדכן אותו באוקטופוס — נתונים נשארים כפי שהם\n• ניתן לשחזר בכל עת מה-bar הצהוב למעלה\n• הסטטוס מסונכרן ב-GitHub ויראה בכל המכשירים שלך')) return;
+      if (!confirm('לסמן את PO #' + poId + ' (' + name + ') כסיימתי לטפל בו?\n\n• ה-PO ייעלם מהרשימה הפעילה\n• ה-PO באוקטופוס נשאר Generated — נתונים שם לא נוגעים\n• ניתן לשחזר בכל עת מה-bar הצהוב למעלה\n• הסטטוס מסונכרן ב-GitHub ויראה בכל המכשירים')) return;
       btnSkip.disabled = true; btnSkip.textContent = '⏳ שומר...';
       var ok = await markPoSkipped(poId);
       toast(ok ? '🚫 PO #' + poId + ' סומן ונשמר ב-GitHub' : '⚠️ סומן מקומית — צריך GitHub token לסנכרון', ok ? 'success' : 'error');
@@ -3370,7 +3370,7 @@ function renderApplyBar(){
   return '<div class="recv-apply-bar">' +
     '<div class="ops-summary">' + parts.join(' · ') + '</div>' +
     '<button id="recvCancelBtn" class="cancel">ביטול</button>' +
-    '<button id="recvApplyBtn" class="apply"' + (hasChanges ? '' : ' disabled') + '>✅ עדכן את ההזמנה באוקטופוס</button>' +
+    '<button id="recvApplyBtn" class="apply"' + (hasChanges ? '' : ' disabled') + '>📦 עדכן מלאי באוקטופוס לפי החשבונית</button>' +
   '</div>';
 }
 
@@ -3418,6 +3418,10 @@ function openNewProductModal(key){
 // ────────── Apply to Octopos ──────────
 
 async function applyChangesToOctopos(){
+  // NEW FLOW (2026-05-14): Octopos PUT /purchase_orders/{id} silently ignores
+  // purchase_order_items. So we update STOCK DIRECTLY via PUT /products/{id}
+  // per-product, leaving the PO untouched. PO stays "Generated" forever; Lauren
+  // uses the "סיימתי לטפל" button to hide it from the active list (GitHub state).
   var token = (localStorage.getItem("lauren_octopos_token") || "").trim();
   if (!token){
     token = prompt("הדביקי טוקן OCTOPOS פעיל (יישמר מקומית):");
@@ -3425,114 +3429,147 @@ async function applyChangesToOctopos(){
     localStorage.setItem("lauren_octopos_token", token.trim());
   }
   var btn = $("#recvApplyBtn");
-  if (btn){ btn.disabled = true; btn.textContent = '⏳ מעדכן...'; }
+  if (btn){ btn.disabled = true; btn.textContent = '⏳ מעדכן מלאי...'; }
 
   var rec = RECV_CTX.rec;
   var rows = RECV_CTX.diff || [];
   var log = [];
-  var newItems = [];   // for PUT /purchase_orders/{id}
-  var creates_needed = [];  // [{row, payload}] — POST /products first
 
-  // Step 1: Gather new products to create
-  rows.forEach(function(r){
+  // Step 1: collect new-product creations
+  var creates = rows.filter(function(r){
     var act = RECV_CTX.action_by_key[r._key] || r.default_action;
-    if (act === 'newprod' && r.new_product){
-      creates_needed.push({ row: r, payload: {
-        name: r.new_product.name,
-        sku: r.new_product.sku,
-        unit_cost: r.new_product.cost,
-        threshold: r.new_product.threshold,
-        vendor_ids: [r.new_product.vendor_id],
-        location_id: 2,
-        active: true
-      }});
-    }
+    return act === 'newprod' && r.new_product;
   });
 
-  // Step 2: Create new products first (best-effort POST /products)
-  for (var i = 0; i < creates_needed.length; i++){
-    var c = creates_needed[i];
+  for (var i = 0; i < creates.length; i++){
+    var c = creates[i];
     try{
-      var r = await fetch("https://themakeup.octoretail.com/api/v2/products", {
+      var pr = await fetch("https://themakeup.octoretail.com/api/v2/products", {
         method: "POST",
         headers: {"Authorization": token, "Content-Type": "application/json", "Accept": "application/json"},
-        body: JSON.stringify(c.payload)
-      });
-      if (r.ok){
-        var j = await r.json();
-        c.row._created_product_id = j.id || j.product_id || null;
-        log.push({ok: true, msg: 'נוצר מוצר חדש: ' + c.payload.sku + ' (id ' + (j.id||'?') + ')'});
-      } else {
-        var txt = await r.text();
-        log.push({ok: false, msg: 'יצירת מוצר נכשלה (' + c.payload.sku + '): HTTP ' + r.status + ' — ' + txt.slice(0, 200)});
-        c.row._created_product_id = null;
-      }
-    } catch(e){
-      log.push({ok: false, msg: 'יצירת מוצר נכשלה (' + c.payload.sku + '): ' + e.message});
-      c.row._created_product_id = null;
-    }
-  }
-
-  // Step 3: Build new purchase_order_items array
-  rows.forEach(function(r){
-    var act = RECV_CTX.action_by_key[r._key] || r.default_action;
-    if (act === 'remove' || act === 'skip') return;
-
-    if (act === 'accept' && r.po_line){
-      newItems.push(toPoItem(r.po_line.product_id, r.po_line.quantity, r.po_line.cost_unit));
-      return;
-    }
-    if (act === 'update' && r.po_line){
-      var qty = r.override_qty !== undefined ? r.override_qty : (r.inv_line ? r.inv_line.qty : r.po_line.quantity);
-      var price = r.override_price !== undefined ? r.override_price : (r.inv_line ? r.inv_line.price : r.po_line.cost_unit);
-      newItems.push(toPoItem(r.po_line.product_id, qty, price));
-      return;
-    }
-    if (act === 'add' && r.oct_product_id && r.inv_line){
-      newItems.push(toPoItem(r.oct_product_id, r.inv_line.qty, r.inv_line.price));
-      return;
-    }
-    if (act === 'replace' && r.sub_oct_product_id && r.sub_inv_line){
-      newItems.push(toPoItem(r.sub_oct_product_id, r.sub_inv_line.qty, r.sub_inv_line.price));
-      return;
-    }
-    if (act === 'newprod' && r._created_product_id && r.inv_line){
-      newItems.push(toPoItem(r._created_product_id, r.inv_line.qty, r.inv_line.price));
-      return;
-    }
-  });
-
-  if (!newItems.length){
-    log.push({ok: false, msg: 'אין שורות לעדכון — לא עודכן ה-PO'});
-  }
-
-  // Step 4: PUT /purchase_orders/{id}
-  var poUpdated = false;
-  if (newItems.length){
-    try{
-      var pr = await fetch("https://themakeup.octoretail.com/api/v2/purchase_orders/" + rec.po.id, {
-        method: "PUT",
-        headers: {"Authorization": token, "Content-Type": "application/json", "Accept": "application/json"},
         body: JSON.stringify({
-          vendor_id: rec.octopos_vendor_id,
+          name: c.new_product.name,
+          sku: c.new_product.sku,
+          cost: c.new_product.cost,
+          unit_cost: c.new_product.cost,
+          threshold: c.new_product.threshold,
+          vendor_ids: [c.new_product.vendor_id],
           location_id: 2,
-          purchase_order_items: newItems
+          active: true,
+          in_stock_qty: 0
         })
       });
       if (pr.ok){
-        log.push({ok: true, msg: 'PO #' + rec.po.id + ' עודכן באוקטופוס בהצלחה (' + newItems.length + ' שורות)'});
-        poUpdated = true;
+        var j = await pr.json();
+        var pid = (j.data && j.data.id) || j.id;
+        c._created_product_id = pid;
+        log.push({ok: true, msg: '🆕 נוצר מוצר: ' + c.new_product.sku + ' → #' + pid});
       } else {
-        var ptxt = await pr.text();
-        log.push({ok: false, msg: 'עדכון PO נכשל: HTTP ' + pr.status + ' — ' + ptxt.slice(0, 300)});
+        var txt = await pr.text();
+        log.push({ok: false, msg: 'יצירת מוצר נכשלה (' + c.new_product.sku + '): HTTP ' + pr.status + ' — ' + txt.slice(0, 150)});
       }
     } catch(e){
-      log.push({ok: false, msg: 'עדכון PO נכשל: ' + e.message});
+      log.push({ok: false, msg: 'יצירת מוצר נכשלה: ' + e.message});
     }
   }
 
-  // Step 5: Show summary
-  renderSummaryStep(log, poUpdated, newItems);
+  // Step 2: compute per-product stock deltas
+  // Key by product_id (string). For each row, decide how many units to ADD to stock.
+  var deltas = {};   // {product_id: {qty_to_add, sku, name, reason}}
+  rows.forEach(function(r){
+    var act = RECV_CTX.action_by_key[r._key] || r.default_action;
+    if (act === 'remove' || act === 'skip' || act === 'accept' && r.kind === 'missing'){
+      return; // No stock change — item didn't arrive (or we explicitly chose to skip)
+    }
+
+    var pid = null, addQty = 0, sku = r.sku || '', name = r.name || '', reason = '';
+
+    if (r.kind === 'match' && act === 'accept' && r.po_line && r.inv_line){
+      pid = r.po_line.product_id;
+      addQty = Number(r.inv_line.qty);
+      reason = 'תואם · קבל';
+    }
+    else if ((r.kind === 'qty' || r.kind === 'price') && r.po_line && r.inv_line){
+      pid = r.po_line.product_id;
+      if (act === 'update'){
+        var q = (r.override_qty !== undefined ? r.override_qty : r.inv_line.qty);
+        addQty = Number(q);
+        reason = (r.kind === 'qty' ? 'כמות' : 'מחיר') + ' · עדכן לחשבונית';
+      } else if (act === 'accept'){
+        addQty = Number(r.po_line.quantity);
+        reason = (r.kind === 'qty' ? 'כמות' : 'מחיר') + ' · השאר כמו ב-PO';
+      }
+    }
+    else if (r.kind === 'extra' && r.inv_line){
+      if (act === 'add' && r.oct_product_id){
+        pid = r.oct_product_id;
+        addQty = Number(r.inv_line.qty);
+        reason = 'הגיע לא הוזמן · הוסף';
+      }
+      else if (act === 'newprod' && r._created_product_id){
+        pid = r._created_product_id;
+        addQty = Number(r.inv_line.qty);
+        reason = '🆕 מוצר חדש';
+      }
+    }
+    else if (r.kind === 'sub' && r.sub_inv_line && r.sub_oct_product_id && act === 'replace'){
+      pid = r.sub_oct_product_id;
+      addQty = Number(r.sub_inv_line.qty);
+      reason = 'החלפה';
+    }
+
+    if (pid && addQty > 0){
+      var key = String(pid);
+      if (!deltas[key]) deltas[key] = {add: 0, sku: sku, name: name, reasons: []};
+      deltas[key].add += addQty;
+      deltas[key].reasons.push(reason);
+    }
+  });
+
+  // Step 3: fetch current stock + PUT new for each
+  var ids = Object.keys(deltas);
+  if (!ids.length){
+    log.push({ok: false, msg: 'אין שינויים במלאי לעדכון'});
+  }
+  var stockBefore = {}, stockAfter = {};
+  for (var k = 0; k < ids.length; k++){
+    var pidK = ids[k];
+    var d = deltas[pidK];
+    try{
+      var gr = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pidK, {
+        headers: {"Authorization": token, "Accept": "application/json"}
+      });
+      if (!gr.ok){
+        log.push({ok: false, msg: 'קריאת מלאי נכשלה (' + d.sku + '): HTTP ' + gr.status});
+        continue;
+      }
+      var gj = await gr.json();
+      var pd = gj.data || gj;
+      var cur = Number(pd.in_stock_qty || 0);
+      var newQ = cur + d.add;
+      stockBefore[pidK] = cur;
+
+      var pr2 = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pidK, {
+        method: "PUT",
+        headers: {"Authorization": token, "Content-Type": "application/json", "Accept": "application/json"},
+        body: JSON.stringify({in_stock_qty: newQ})
+      });
+      if (pr2.ok){
+        var pj = await pr2.json();
+        var actualNew = Number((pj.data || pj).in_stock_qty || newQ);
+        stockAfter[pidK] = actualNew;
+        log.push({ok: true, msg: d.sku + ': ' + cur + ' + ' + d.add + ' = ' + actualNew + '  (' + d.reasons.join(', ') + ')'});
+      } else {
+        var ptxt = await pr2.text();
+        log.push({ok: false, msg: 'עדכון מלאי נכשל (' + d.sku + '): HTTP ' + pr2.status + ' — ' + ptxt.slice(0, 100)});
+      }
+    } catch(e){
+      log.push({ok: false, msg: 'שגיאת רשת (' + d.sku + '): ' + e.message});
+    }
+  }
+
+  // Step 4: render summary
+  renderSummaryStep(log, deltas, stockBefore, stockAfter);
 }
 
 function toPoItem(product_id, quantity, cost_unit){
@@ -3546,34 +3583,57 @@ function toPoItem(product_id, quantity, cost_unit){
   };
 }
 
-function renderSummaryStep(log, poUpdated, newItems){
+function renderSummaryStep(log, deltas, stockBefore, stockAfter){
   $("#recvStep2").style.display = "none";
   $("#recvStep3").style.display = "block";
   var rec = RECV_CTX.rec;
-  var rows = RECV_CTX.diff || [];
-  var counts = { update: 0, remove: 0, add: 0, newprod: 0, replace: 0 };
-  rows.forEach(function(r){
-    var act = RECV_CTX.action_by_key[r._key] || r.default_action;
-    if (counts[act] !== undefined) counts[act]++;
-  });
-  var newTotal = newItems.reduce(function(a,it){return a + Number(it.quantity)*Number(it.cost_unit);}, 0);
+
+  // Build success/failure counts
+  var okCount = log.filter(function(l){return l.ok;}).length;
+  var failCount = log.length - okCount;
+  var productCount = Object.keys(deltas).length;
+  var totalUnitsAdded = 0;
+  Object.keys(deltas).forEach(function(k){ totalUnitsAdded += deltas[k].add; });
+
+  // Build per-product stock table
+  var deltaRows = Object.keys(deltas).map(function(pid){
+    var d = deltas[pid];
+    var before = stockBefore[pid] !== undefined ? stockBefore[pid] : '?';
+    var after  = stockAfter[pid]  !== undefined ? stockAfter[pid]  : '?';
+    var didChange = stockAfter[pid] !== undefined;
+    return '<tr>' +
+      '<td><code style="font-family:monospace;font-size:12px">' + escHtml(d.sku||'') + '</code></td>' +
+      '<td>' + escHtml(d.name||'') + '</td>' +
+      '<td style="text-align:center" class="num">' + before + '</td>' +
+      '<td style="text-align:center;color:#15803d;font-weight:700">+' + d.add + '</td>' +
+      '<td style="text-align:center" class="num"><b>' + after + '</b></td>' +
+      '<td style="text-align:center">' + (didChange ? '✓' : '✗') + '</td>' +
+    '</tr>';
+  }).join('');
+
   $("#recvStep3").innerHTML =
-    '<div class="recv-summary">' +
-      '<div class="ttl">' + (poUpdated ? '✅ ה-PO עודכן בהצלחה' : '⚠️ ה-PO לא עודכן') + '</div>' +
+    '<div class="recv-summary" style="max-width:880px">' +
+      '<div class="ttl">' + (failCount === 0 ? '✅ המלאי עודכן בהצלחה' : '⚠️ עודכן עם ' + failCount + ' שגיאות') + '</div>' +
       '<div class="sub">PO #' + rec.po.id + ' · ' + escHtml(rec.supplier_name) + ' · ' + new Date().toLocaleString("he-IL") + '</div>' +
-      '<div class="stat-grid">' +
-        '<div class="stat-card"><div class="lbl">PO לפני</div><div class="val">' + fmtUsd(rec.po.total_cost) + '</div></div>' +
-        '<div class="stat-card"><div class="lbl">PO אחרי</div><div class="val">' + fmtUsd(newTotal) + '</div></div>' +
-        '<div class="stat-card"><div class="lbl">עדכוני כמות/מחיר</div><div class="val">' + counts.update + '</div></div>' +
-        '<div class="stat-card"><div class="lbl">הסרות</div><div class="val">' + counts.remove + '</div></div>' +
-        '<div class="stat-card"><div class="lbl">הוספות</div><div class="val">' + (counts.add + counts.replace) + '</div></div>' +
-        '<div class="stat-card"><div class="lbl">מוצרים חדשים</div><div class="val">' + counts.newprod + '</div></div>' +
+      '<div style="background:#fef9c3;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;margin:14px 0;font-size:13px;color:#854d0e">' +
+        '<b>📝 שים לב:</b> המלאי באוקטופוס עודכן ישירות לפי החשבונית. ה-PO עצמו <b>נשאר Generated</b> ולא שונה. אם תרצי לסגור אותו לעתיד, פתחי אותו באוקטופוס UI ידנית או השתמשי בכפתור "סיימתי לטפל" כדי להעלים מהרשימה הפעילה.' +
       '</div>' +
+      '<div class="stat-grid">' +
+        '<div class="stat-card"><div class="lbl">מוצרים שעודכנו</div><div class="val">' + productCount + '</div></div>' +
+        '<div class="stat-card"><div class="lbl">סה"כ יחידות נוספו</div><div class="val">' + totalUnitsAdded + '</div></div>' +
+        '<div class="stat-card"><div class="lbl">הצליחו</div><div class="val" style="color:#15803d">' + okCount + '</div></div>' +
+        '<div class="stat-card"><div class="lbl">נכשלו</div><div class="val" style="color:' + (failCount?'#b91c1c':'var(--muted)') + '">' + failCount + '</div></div>' +
+      '</div>' +
+      (deltaRows ? '<div style="margin:14px 0 6px;font-weight:700">פירוט מלאי לכל מוצר:</div>' +
+        '<div class="recv-diff-table" style="margin-bottom:14px"><table>' +
+          '<thead><tr><th>SKU</th><th>מוצר</th><th style="text-align:center">לפני</th><th style="text-align:center">תוספת</th><th style="text-align:center">אחרי</th><th style="text-align:center">✓</th></tr></thead>' +
+          '<tbody>' + deltaRows + '</tbody>' +
+        '</table></div>' : '') +
       '<div style="margin:14px 0 6px;font-weight:700">לוג פעולות:</div>' +
       '<div class="ops-log">' + log.map(function(l){return '<div class="' + (l.ok ? 'op-ok' : 'op-fail') + '">' + (l.ok ? '✓ ' : '✗ ') + escHtml(l.msg) + '</div>';}).join('') + '</div>' +
       '<div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">' +
         '<button id="recvDone" class="btn-order-wizard">חזרה לרשימת POs</button>' +
-        '<a href="https://themakeup.octoretail.com/purchase_orders/' + rec.po.id + '" target="_blank" style="padding:10px 16px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);text-decoration:none;font-size:14px">פתח באוקטופוס ↗</a>' +
+        '<a href="https://themakeup.octoretail.com/purchase_orders/' + rec.po.id + '" target="_blank" style="padding:10px 16px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);text-decoration:none;font-size:14px">פתח את ה-PO באוקטופוס ↗</a>' +
       '</div>' +
     '</div>';
   $("#recvDone").addEventListener('click', function(){
