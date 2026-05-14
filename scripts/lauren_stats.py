@@ -833,6 +833,36 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
 
         ev["last_pulled"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         out["events"][slug] = ev
+    # 2026-05-14 PM — cross-event averages for dashboard insight panels.
+    # Computed once per aggregator run; consumed by stats.html.tpl renderInsight().
+    eligible = []
+    for slug, ev in out["events"].items():
+        m = ev.get("meta", {})
+        s = float(m.get("spend", 0) or 0)
+        lpv = int(m.get("landing_page_views", 0) or 0)
+        if s >= 100 and lpv >= 200:
+            eligible.append((slug, m, ev.get("tiktok", {})))
+    if eligible:
+        cpls   = [m["spend"]/m["landing_page_views"] for _,m,_ in eligible if m.get("landing_page_views")]
+        ctrs   = [m.get("ctr", 0) for _,m,_ in eligible]
+        spends = [m.get("spend", 0) for _,m,_ in eligible]
+        en_cpls = [m["by_lang"]["english"]["cpl"] for _,m,_ in eligible if m.get("by_lang",{}).get("english",{}).get("lpv",0) >= 100]
+        es_cpls = [m["by_lang"]["spanish"]["cpl"] for _,m,_ in eligible if m.get("by_lang",{}).get("spanish",{}).get("lpv",0) >= 100]
+        # Best/worst by CPL
+        ev_cpls = [(slug, m["spend"]/m["landing_page_views"]) for slug,m,_ in eligible if m.get("landing_page_views")]
+        ev_cpls.sort(key=lambda kv: kv[1])
+        out["_averages"] = {
+            "mean_cpl":     round(sum(cpls)/len(cpls), 3) if cpls else 0,
+            "mean_ctr":     round(sum(ctrs)/len(ctrs), 2) if ctrs else 0,
+            "mean_spend":   round(sum(spends)/len(spends), 2) if spends else 0,
+            "mean_cpl_english": round(sum(en_cpls)/len(en_cpls), 3) if en_cpls else 0,
+            "mean_cpl_spanish": round(sum(es_cpls)/len(es_cpls), 3) if es_cpls else 0,
+            "best_event":   ev_cpls[0][0]  if ev_cpls else None,
+            "best_cpl":     round(ev_cpls[0][1], 3) if ev_cpls else 0,
+            "worst_event":  ev_cpls[-1][0] if ev_cpls else None,
+            "worst_cpl":    round(ev_cpls[-1][1], 3) if ev_cpls else 0,
+            "event_count":  len(eligible),
+        }
     out["_updated_at"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return out
 
