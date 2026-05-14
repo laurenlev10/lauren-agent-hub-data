@@ -29,6 +29,74 @@ from docx import Document
 
 # --- KB loader ---------------------------------------------------------------
 
+
+# ============================================================
+# 2026-05-14 PM — Sentiment + Urgency classifiers (keyword-based)
+# Lauren's directive: tag every incoming message, SMS on urgent.
+# ============================================================
+
+_SENTIMENT_KEYWORDS = {
+    "angry": [
+        # Hebrew
+        "כועס", "מאוכזב", "תלונה", "תרמיתם", "רמאות", "גנבים", "גרוע", "נורא",
+        "אסון", "מטופש", "לא מקצועי", "חוצפה", "בושה", "בעיה",
+        # English
+        "angry", "furious", "scam", "fraud", "rip off", "ripoff", "terrible",
+        "awful", "horrible", "complaint", "disappointed", "refund", "lawsuit",
+        "report", "bbb", "stolen", "stole",
+    ],
+    "complaint": [
+        # Hebrew
+        "תלונה", "החזר", "כסף בחזרה", "לא מרוצה", "לא מקצועי", "בעיה",
+        # English
+        "complaint", "refund", "return", "cancel", "unhappy", "not happy",
+        "issue", "problem", "broken", "defective", "damaged",
+    ],
+    "positive": [
+        # Hebrew
+        "תודה", "מעולה", "אהבתי", "מדהים", "מקסים", "מומלץ", "שיא", "אש",
+        # English
+        "thank you", "thanks", "thx", "love", "amazing", "perfect", "awesome",
+        "great", "wonderful", "recommend", "fire", "best",
+    ],
+}
+
+_URGENT_KEYWORDS = [
+    # Hebrew
+    "דחוף", "מיידי", "עכשיו", "תלונה", "החזר", "תרמיתם", "כועס", "מאוכזב",
+    "מתי תתפתחו", "מתי הם פותחים", "סגור", "בעיה דחופה",
+    # English
+    "urgent", "asap", "immediately", "complaint", "refund", "scam", "fraud",
+    "stolen", "bbb", "lawsuit", "police", "report",
+]
+
+
+def classify_sentiment(text: str) -> str:
+    """Return one of: angry | complaint | positive | neutral."""
+    if not text:
+        return "neutral"
+    t = text.lower()
+    # Priority: angry > complaint > positive > neutral
+    for kw in _SENTIMENT_KEYWORDS["angry"]:
+        if kw in t:
+            return "angry"
+    for kw in _SENTIMENT_KEYWORDS["complaint"]:
+        if kw in t:
+            return "complaint"
+    for kw in _SENTIMENT_KEYWORDS["positive"]:
+        if kw in t:
+            return "positive"
+    return "neutral"
+
+
+def is_urgent(text: str) -> bool:
+    """Return True if message contains urgency-signaling keywords."""
+    if not text:
+        return False
+    t = text.lower()
+    return any(kw in t for kw in _URGENT_KEYWORDS)
+
+
 def load_venues() -> list:
     """Parse scripts/data/venue_details.md into list of {dates, city, venue, address} dicts."""
     candidates = [
@@ -1348,6 +1416,9 @@ def main():
                 break
         reply_url = f"https://www.facebook.com/messages/t/{customer_psid}" if customer_psid else \
                     f"https://business.facebook.com/latest/inbox/all?asset_id={page_id}"
+        # 2026-05-14 — sentiment + urgency tags
+        sentiment = classify_sentiment(text)
+        urgent = is_urgent(text)
         classified_messenger.append({
             "conv_id": conv_id,
             "dedup_key": dedup_key("messenger", conv_id),
@@ -1357,6 +1428,8 @@ def main():
             "reply_url": reply_url,
             "customer_psid": customer_psid,
             "cls": cls,
+            "sentiment": sentiment,
+            "urgent": urgent,
         })
 
     # FB comments
@@ -1384,6 +1457,8 @@ def main():
                 "text": txt,
                 "reply_url": post_permalink or f"https://www.facebook.com/{cmt.get('id','')}",
                 "cls": cls,
+                "sentiment": classify_sentiment(txt),
+                "urgent": is_urgent(txt),
             })
 
     # IG comments
@@ -1410,12 +1485,63 @@ def main():
                 "text": txt,
                 "reply_url": media_permalink,
                 "cls": cls,
+                "sentiment": classify_sentiment(txt),
+                "urgent": is_urgent(txt),
             })
 
     print(f"Classified: messenger A/B/NEG = "
           f"{sum(1 for c in classified_messenger if c['cls']['bucket']=='A')}/"
           f"{sum(1 for c in classified_messenger if c['cls']['bucket']=='B')}/"
           f"{sum(1 for c in classified_messenger if c['cls']['bucket']=='NEG')}")
+
+    # 2026-05-14 — urgent message alerts. Scans all classified items and
+    # SMSes Lauren immediately on any urgent flag (not deduplicated against
+    # handled — if the URGENT flag fires on a new message, Lauren needs to know).
+    urgent_items = []
+    for m in classified_messenger:
+        if m.get("urgent") and not handled.get(m.get("dedup_key", ""), {}).get("urgent_smsed"):
+            urgent_items.append(("DM", m.get("name","?"), m.get("msg","")))
+    for c in classified_fb:
+        if c.get("urgent") and not handled.get(c.get("dedup_key", ""), {}).get("urgent_smsed"):
+            urgent_items.append(("FB comment", c.get("from","?"), c.get("text","")))
+    for c in classified_ig:
+        if c.get("urgent") and not handled.get(c.get("dedup_key", ""), {}).get("urgent_smsed"):
+            urgent_items.append(("IG comment", c.get("username","?"), c.get("text","")))
+
+    if urgent_items:
+        print(f"  🚨 {len(urgent_items)} urgent messages — sending SMS alert to Lauren")
+        try:
+            import lauren_sms as _sms
+            for source, sender, txt in urgent_items[:5]:  # cap at 5 to avoid SMS spam
+                short = (txt or "")[:120]
+                body = (
+                    f"🚨 URGENT INBOX — {source}\n"
+                    f"מ-{sender}:\n"
+                    f"{short}\n"
+                    f"\n"
+                    f"👉 laurenlev10.github.io/lauren-agent-hub-data/meta/"
+                )
+                if _sms.LAUREN_PHONE and os.environ.get("SIMPLETEXTING_TOKEN"):
+                    try:
+                        _sms.send_sms(_sms.LAUREN_PHONE, body)
+                        print(f"  ✓ urgent SMS sent: {source} / {sender}")
+                    except Exception as e:
+                        print(f"  ⚠ urgent SMS failed: {e}")
+            # Mark items as urgent_smsed so we don't re-SMS Lauren on each daily run
+            for source, sender, txt in urgent_items:
+                # Find the matching item back and mark it
+                for items, channel in [(classified_messenger, "messenger"),
+                                        (classified_fb, "fb-comment"),
+                                        (classified_ig, "ig-comment")]:
+                    for it in items:
+                        if it.get("urgent") and (it.get("name") == sender or it.get("from") == sender or it.get("username") == sender):
+                            k = it.get("dedup_key", "")
+                            if k:
+                                h = handled.get(k, {})
+                                h["urgent_smsed"] = True
+                                handled[k] = h
+        except Exception as e:
+            print(f"  ⚠ urgent alert handling failed: {e}")
 
     # Render preview
     html_out = render_preview(snap, classified_messenger, classified_fb, classified_ig)
@@ -1527,6 +1653,39 @@ def main():
         print(f"  Phase 2 auto-reply: sent={sent} failed={failed} skipped_24h={skipped_24h}")
         handled_path = Path(__file__).resolve().parent.parent / "docs/meta/handled.json"
         handled_path.write_text(json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # === Phase 2b — auto-reply to FB + IG comments (Bucket A) ===
+    # 2026-05-14 PM — Lauren's directive: extend auto-reply from DMs to public
+    # post comments. Same Bucket-A safety: only KB-answerable, never NEG.
+    if args.reply_bucket_a:
+        from lauren_meta import reply_to_comment
+        c_sent = 0; c_failed = 0
+        all_comments = (
+            [("fb_comment", c) for c in classified_fb] +
+            [("ig_comment", c) for c in classified_ig]
+        )
+        for channel, c in all_comments:
+            if c["cls"]["bucket"] != "A" or not c["cls"].get("reply"):
+                continue
+            comment_id = c.get("comment_id") or c.get("id")
+            if not comment_id:
+                c_failed += 1; continue
+            key = c.get("dedup_key") or dedup_key(channel, comment_id)
+            if handled.get(key, {}).get("handled"):
+                continue
+            try:
+                reply_to_comment(comment_id, c["cls"]["reply"], dry_run=False)
+                handled[key] = {
+                    "handled": True, "handledAt": _now_iso(),
+                    "method": f"phase2b-{channel}-auto",
+                }
+                c_sent += 1
+            except Exception as e:
+                print(f"  ❌ {channel} {comment_id}: {e}")
+                c_failed += 1
+        print(f"  Phase 2b comment auto-reply: sent={c_sent} failed={c_failed}")
+        if c_sent:
+            handled_path.write_text(json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # === Bulk mark all classified items as handled (manual cleanup) ===
     if args.bulk_mark_handled:
