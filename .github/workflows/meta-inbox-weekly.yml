@@ -1,0 +1,37 @@
+name: meta-inbox-weekly-digest
+
+# Weekly KPI digest of Meta Inbox activity — SMS Lauren + Eli every Sunday 8pm PT.
+# Reads the latest daily snapshot in docs/meta/inbox-api-preview/data.json +
+# docs/meta/handled.json to compute metrics.
+
+on:
+  schedule:
+    # Sunday 8pm PT = Monday 03:00 UTC
+    - cron: "0 3 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run weekly digest
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          ELI_PHONE:           ${{ secrets.ELI_PHONE }}
+        run: python3 scripts/meta_inbox_weekly_digest.py
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
