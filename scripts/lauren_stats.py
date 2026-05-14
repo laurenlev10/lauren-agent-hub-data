@@ -263,6 +263,11 @@ def fetch_meta_pixel_events(start_date: str, end_date: str, slugs: list = None) 
             "meta_landing_page_views": 0,
             "meta_conversions": 0,
             "meta_leads": 0,  # explicit Lead pixel events (form submits via Meta)
+            # 2026-05-14 PM — paid engagement metrics for the Reel post used as ad creative.
+            # 'post' = re-shares from paid impressions, 'post_save' = saves, 'post_reaction' = likes.
+            "meta_paid_shares": 0,    # re-shares attributed to paid spend
+            "meta_paid_saves": 0,     # saves attributed to paid spend
+            "meta_paid_reactions": 0, # reactions attributed to paid spend (like/love/etc)
             "meta_top_ads": [],
             # 2026-05-14 — per-language breakdown for budget optimization.
             # Inferred from "English"/"Spanish" in campaign_name.
@@ -288,6 +293,13 @@ def fetch_meta_pixel_events(start_date: str, end_date: str, slugs: list = None) 
                 leads_this_ad += v
             elif at == "complete_registration":
                 ev["meta_conversions"] += v
+            # 2026-05-14 PM — engagement actions for Reel campaigns (paid social signals)
+            elif at == "post":
+                ev["meta_paid_shares"] += v
+            elif at in ("post_save", "onsite_conversion.post_save"):
+                ev["meta_paid_saves"] += v
+            elif at == "post_reaction":
+                ev["meta_paid_reactions"] += v
         for a in ad.get("action_values", []) or []:
             if a.get("action_type") == "lead":
                 ev["meta_revenue"] += float(a.get("value", 0) or 0)
@@ -518,6 +530,111 @@ def fetch_tiktok_pixel_events(start_date: str, end_date: str, slugs: list = None
 # Aggregator + anomaly detector
 # ---------------------------------------------------------------------------
 
+def _build_reel_shares_block(slug: str, paid_shares: int) -> dict:
+    """Build a reel_shares block combining IG Insights (total from scans) +
+    Meta Ads paid_shares (re-shares from paid impressions) → organic = total - paid.
+
+    The notes.json lives in this repo at docs/launch/notes.json and is keyed by
+    "<city-slug>-<start_date>" (e.g. "cleveland-2026-05-29"). We need to find the
+    notes.json entry matching the aggregator's slug "cleveland-oh-2026". Build a
+    mapping from city-only prefix.
+
+    Returns {
+        "total": int,             # latest scan's shares count (from IG Insights API)
+        "paid": int,              # cumulative paid shares (from Meta Ads action_types)
+        "organic": int,           # max(0, total - paid)
+        "last_scan_at": str,      # ISO timestamp of latest scan
+        "url": str,               # the Reel permalink
+        "delta_6h": int,          # shares gained in last 6 hours
+        "delta_24h": int,         # shares gained in last 24 hours
+        "rate_per_hour": float,   # mean shares/hour during scan window
+        "scan_count": int,        # total number of scans recorded
+    }
+    """
+    import pathlib as _pl
+    notes_path = _pl.Path(__file__).resolve().parent.parent / "docs" / "launch" / "notes.json"
+    empty = {
+        "total": 0, "paid": int(paid_shares or 0),
+        "organic": max(0, -int(paid_shares or 0)),
+        "last_scan_at": None, "url": None,
+        "delta_6h": 0, "delta_24h": 0,
+        "rate_per_hour": 0, "scan_count": 0,
+    }
+    if not notes_path.exists():
+        return empty
+    try:
+        notes = _json.loads(notes_path.read_text())
+    except Exception:
+        return empty
+
+    # Map aggregator slug ("cleveland-oh-2026") → notes key ("cleveland-2026-05-29")
+    # The notes key starts with the city prefix (the part before the state code).
+    city_prefix = slug.split("-")[0]  # "cleveland"
+    year_suffix = slug.split("-")[-1]  # "2026"
+    candidates = [
+        k for k in notes.keys()
+        if k.startswith(city_prefix + "-") and year_suffix in k
+    ]
+    if not candidates:
+        return empty
+    nk = candidates[0]  # take first match
+    scans = (notes.get(nk) or {}).get("insta_reel_scans") or []
+    if not scans:
+        return {**empty, "url": (notes.get(nk) or {}).get("insta_reel_url")}
+
+    # Sort scans by scanned_at to be safe
+    scans = sorted(scans, key=lambda s: s.get("scanned_at") or "")
+    latest = scans[-1]
+    total = int(latest.get("shares", 0) or 0)
+    paid = int(paid_shares or 0)
+    organic = max(0, total - paid)
+
+    # Compute deltas
+    import datetime as _ddt
+    try:
+        latest_dt = _ddt.datetime.fromisoformat(latest["scanned_at"].replace("Z","+00:00"))
+    except Exception:
+        latest_dt = None
+
+    def _delta(hours: int) -> int:
+        if not latest_dt: return 0
+        cutoff = latest_dt - _ddt.timedelta(hours=hours)
+        prior = None
+        for s in scans:
+            try:
+                t = _ddt.datetime.fromisoformat(s["scanned_at"].replace("Z","+00:00"))
+            except Exception:
+                continue
+            if t <= cutoff:
+                prior = s
+        if prior is None: return 0
+        return total - int(prior.get("shares", 0) or 0)
+
+    # Mean shares per hour during the scan window
+    rate = 0.0
+    if len(scans) >= 2:
+        try:
+            first_dt = _ddt.datetime.fromisoformat(scans[0]["scanned_at"].replace("Z","+00:00"))
+            elapsed_h = (latest_dt - first_dt).total_seconds() / 3600
+            if elapsed_h > 0:
+                gain = total - int(scans[0].get("shares", 0) or 0)
+                rate = gain / elapsed_h
+        except Exception:
+            pass
+
+    return {
+        "total": total,
+        "paid": paid,
+        "organic": organic,
+        "last_scan_at": latest.get("scanned_at"),
+        "url": (notes.get(nk) or {}).get("insta_reel_url"),
+        "delta_6h": _delta(6),
+        "delta_24h": _delta(24),
+        "rate_per_hour": round(rate, 2),
+        "scan_count": len(scans),
+    }
+
+
 def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = None) -> dict:
     """
     Combines all 3 sources for the given list of event slugs.
@@ -600,7 +717,19 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
                 "spanish": {"spend":0,"impressions":0,"clicks":0,"lpv":0,"leads":0,"ad_count":0,"ctr":0,"cpc":0,"cpm":0,"cpl":0,"cost_per_lead":0},
                 "other":   {"spend":0,"impressions":0,"clicks":0,"lpv":0,"leads":0,"ad_count":0,"ctr":0,"cpc":0,"cpm":0,"cpl":0,"cost_per_lead":0},
             }),
+            # 2026-05-14 PM — paid engagement signals (from Meta Ads action_types).
+            # Combined with total shares from IG Insights (via notes.json) → organic = total - paid.
+            "paid_shares":        m.get("meta_paid_shares", 0),
+            "paid_saves":         m.get("meta_paid_saves", 0),
+            "paid_reactions":     m.get("meta_paid_reactions", 0),
         }
+        # 2026-05-14 PM — Reel shares: total (IG Insights via notes.json) +
+        # paid (Meta Ads action_types) + organic (total - paid).
+        # The agent maps event-analytics slug "cleveland-oh-2026" to
+        # notes.json key "<city-slug>-<start_date>" via the events list.
+        # We pass `events` in via aggregate_with_funnel call site.
+        ev["reel_shares"] = _build_reel_shares_block(slug, m.get("meta_paid_shares", 0))
+
         ev["last_pulled"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         out["events"][slug] = ev
     out["_updated_at"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
