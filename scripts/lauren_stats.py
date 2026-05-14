@@ -688,7 +688,7 @@ def _build_reel_shares_block(slug: str, paid_engagement: int) -> dict:
     scans = sorted(scans, key=lambda s: s.get("scanned_at") or "")
     latest = scans[-1]
     total = int(latest.get("shares", 0) or 0)
-    paid = int(paid_shares or 0)
+    paid = int(paid_engagement or 0)
     organic = max(0, total - paid)
 
     # Compute deltas
