@@ -936,12 +936,21 @@ function renderSupplierCard(sup, s, idx){
         '</div>'+
         '<div class="field">'+
           '<label>OCTOPOS sync</label>'+
-          '<span class="octopos-chip">⏳ Phase 2 — ממתין לטוקן</span>'+
+          (function(){
+            var oct_ = getOctoposForSupplier(sup.code);
+            if (!oct_) return '<span class="octopos-chip" style="background:#fee2e2;color:#7f1d1d;border-color:#fca5a5">⚠️ אין נתוני OCTOPOS</span>';
+            var n = (oct_.products||[]).length;
+            var toOrder = (oct_.summary && oct_.summary.total_to_order) || 0;
+            var lastSync = (OCTOPOS && OCTOPOS._updated_at) ? OCTOPOS._updated_at.slice(5,10).replace('-','/') : '?';
+            return '<span class="octopos-chip" style="background:#dcfce7;color:#14532d;border-color:#86efac">✓ ' + n + ' מוצרים · 🛒 ' + Math.round(toOrder) + ' להזמין · עודכן ' + lastSync + '</span>';
+          })()+
         '</div>'+
       '</div>'+
       '<div class="products-section">'+
         '<div class="ps-hdr">'+
-          '<h3>📋 מוצרים <span style="color:var(--muted);font-weight:500">('+s.products.length+')</span></h3>'+
+          '<h3>📋 מוצרים ידניים <span style="color:var(--muted);font-weight:500">('+s.products.length+')</span>'+
+            (s.products.length === 0 ? '<span style="font-weight:500;color:var(--muted);font-size:12px;margin-right:8px">— רשימת OCTOPOS למטה ⬇️</span>' : '')+
+          '</h3>'+
           '<select data-products-sort>'+
             '<option value="default">סדר ברירת מחדל</option>'+
             '<option value="name">לפי שם</option>'+
@@ -1134,7 +1143,7 @@ function renderSupplierCard(sup, s, idx){
 
 function renderProductRows(s){
   if (!s.products || s.products.length === 0){
-    return '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:14px">אין מוצרים עדיין — לחצי "+ מוצר חדש"</td></tr>';
+    return '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:14px">אין הוספות ידניות. כל המוצרים מאוקטופוס מופיעים בטבלה למטה.</td></tr>';
   }
   return s.products.map((p, idx) => {
     const lineTotal = (Number(p.qty||0) * Number(p.unit_usd||0)).toFixed(2);
