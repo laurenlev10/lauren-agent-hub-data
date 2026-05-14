@@ -392,6 +392,10 @@
   .recv-row-actions button.act-add.on{background:#15803d;color:#fff;border-color:#14532d}
   .recv-row-actions button.act-skip{background:#f3f4f6;border-color:var(--line);color:var(--muted)}
   .recv-row-actions button.act-skip.on{background:#6b7280;color:#fff;border-color:#4b5563}
+  .recv-price-toggle{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;font-size:11px;font-weight:700;border-radius:6px;cursor:pointer;background:#fff;border:1px dashed #d4d4d8;color:#52525b;white-space:nowrap;margin-top:2px}
+  .recv-price-toggle:hover{border-color:var(--accent);color:var(--text)}
+  .recv-price-toggle.on{background:#7c2d12;color:#fff;border-color:#7c2d12;border-style:solid}
+  .recv-price-toggle input{margin:0;cursor:pointer}
   .recv-apply-bar{position:sticky;bottom:0;background:var(--panel);border-top:2px solid var(--line);padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;box-shadow:0 -3px 10px rgba(0,0,0,.05);border-radius:0 0 12px 12px}
   .recv-apply-bar .ops-summary{flex:1;font-size:14px;color:var(--text)}
   .recv-apply-bar .ops-summary b{font-weight:800}
@@ -3199,6 +3203,17 @@ function bindReceiveDelegation(){
 
   document.body.addEventListener('change', function(e){
     if (!e.target.closest('#receiveView')) return;
+    // Master price toggle
+    var mpEl = e.target.closest('input[data-master-price-key]');
+    if (mpEl && RECV_CTX){
+      var mpKey = mpEl.dataset.masterPriceKey;
+      var mpRow = (RECV_CTX.diff || []).find(function(r){return r._key === mpKey;});
+      if (mpRow){
+        mpRow.update_master_price = mpEl.checked;
+        renderDiffTable();
+      }
+      return;
+    }
     var inp = e.target.closest('input.edit-num');
     if (!inp || !RECV_CTX) return;
     var key = inp.dataset.key;
@@ -3349,7 +3364,21 @@ function renderRowActions(r, currentAct){
     btn('remove',  '❌ הסר את הישן', 'act-remove');
     btn('accept',  'השאר את הישן', 'act-accept');
   }
-  return '<div class="recv-row-actions">' + btns.join('') + '</div>';
+
+  // Master price toggle — appears for rows where invoice price ≠ PO price AND action is "update"
+  var priceToggleHtml = '';
+  var hasPriceDiff = (r.po_line && r.inv_line && Math.abs(Number(r.po_line.cost_unit||0) - Number(r.inv_line.price||0)) > 0.001);
+  var showToggle = hasPriceDiff && currentAct === 'update';
+  if (showToggle){
+    var checked = r.update_master_price === true;
+    priceToggleHtml =
+      '<label class="recv-price-toggle ' + (checked ? 'on' : '') + '" title="עדכן את המחיר הראשי של המוצר באוקטופוס לפי החשבונית. אם לא מסומן — המחיר נשאר כמו שהוא במערכת.">' +
+        '<input type="checkbox" data-master-price-key="' + r._key + '" ' + (checked ? 'checked' : '') + '>' +
+        '<span>📌 עדכן גם מחיר במערכת</span>' +
+      '</label>';
+  }
+
+  return '<div class="recv-row-actions">' + btns.join('') + priceToggleHtml + '</div>';
 }
 
 function renderApplyBar(){
@@ -3473,9 +3502,10 @@ async function applyChangesToOctopos(){
     }
   }
 
-  // Step 2: compute per-product stock deltas
+  // Step 2: compute per-product stock deltas + collect master-price updates
   // Key by product_id (string). For each row, decide how many units to ADD to stock.
-  var deltas = {};   // {product_id: {qty_to_add, sku, name, reason}}
+  var deltas = {};        // {product_id: {qty_to_add, sku, name, reason}}
+  var priceUpdates = {};  // {product_id: new_cost} — only if user opted-in via 📌 toggle
   rows.forEach(function(r){
     var act = RECV_CTX.action_by_key[r._key] || r.default_action;
     if (act === 'remove' || act === 'skip' || act === 'accept' && r.kind === 'missing'){
@@ -3495,6 +3525,12 @@ async function applyChangesToOctopos(){
         var q = (r.override_qty !== undefined ? r.override_qty : r.inv_line.qty);
         addQty = Number(q);
         reason = (r.kind === 'qty' ? 'כמות' : 'מחיר') + ' · עדכן לחשבונית';
+        // Master-price opt-in: only if user checked 📌 AND price actually differs
+        if (r.update_master_price && r.po_line.cost_unit && r.inv_line.price &&
+            Math.abs(Number(r.po_line.cost_unit) - Number(r.inv_line.price)) > 0.001){
+          var newCost = (r.override_price !== undefined ? r.override_price : r.inv_line.price);
+          priceUpdates[String(pid)] = Number(newCost);
+        }
       } else if (act === 'accept'){
         addQty = Number(r.po_line.quantity);
         reason = (r.kind === 'qty' ? 'כמות' : 'מחיר') + ' · השאר כמו ב-PO';
@@ -3549,19 +3585,25 @@ async function applyChangesToOctopos(){
       var newQ = cur + d.add;
       stockBefore[pidK] = cur;
 
+      var putBody = {in_stock_qty: newQ};
+      var priceMsg = '';
+      if (priceUpdates[pidK] !== undefined){
+        putBody.cost = priceUpdates[pidK];
+        priceMsg = ' · 📌 cost → $' + Number(priceUpdates[pidK]).toFixed(2);
+      }
       var pr2 = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pidK, {
         method: "PUT",
         headers: {"Authorization": token, "Content-Type": "application/json", "Accept": "application/json"},
-        body: JSON.stringify({in_stock_qty: newQ})
+        body: JSON.stringify(putBody)
       });
       if (pr2.ok){
         var pj = await pr2.json();
         var actualNew = Number((pj.data || pj).in_stock_qty || newQ);
         stockAfter[pidK] = actualNew;
-        log.push({ok: true, msg: d.sku + ': ' + cur + ' + ' + d.add + ' = ' + actualNew + '  (' + d.reasons.join(', ') + ')'});
+        log.push({ok: true, msg: d.sku + ': ' + cur + ' + ' + d.add + ' = ' + actualNew + priceMsg + '  (' + d.reasons.join(', ') + ')'});
       } else {
         var ptxt = await pr2.text();
-        log.push({ok: false, msg: 'עדכון מלאי נכשל (' + d.sku + '): HTTP ' + pr2.status + ' — ' + ptxt.slice(0, 100)});
+        log.push({ok: false, msg: 'עדכון נכשל (' + d.sku + '): HTTP ' + pr2.status + ' — ' + ptxt.slice(0, 100)});
       }
     } catch(e){
       log.push({ok: false, msg: 'שגיאת רשת (' + d.sku + '): ' + e.message});
