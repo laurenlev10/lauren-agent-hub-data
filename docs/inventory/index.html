@@ -3068,6 +3068,21 @@ function renderDiffTable(){
   // Compute net total after current actions
   var pendingTotal = computePendingTotal();
 
+  // Match-rate sanity check — if < 30% of PO lines matched the invoice, it's likely
+  // the wrong invoice for this PO. Surface a warning banner.
+  var poLineCount = (RECV_CTX.rec.po.items || []).length;
+  var matchedCount = rows.filter(function(r){return r.po_line && r.inv_line;}).length;
+  var matchRate = poLineCount ? matchedCount / poLineCount : 0;
+  var wrongInvoiceWarning = "";
+  if (poLineCount >= 4 && matchRate < 0.30){
+    wrongInvoiceWarning =
+      '<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:12px;padding:14px 16px;margin-bottom:14px;color:#7f1d1d">' +
+        '<div style="font-weight:800;font-size:15px;margin-bottom:4px">⚠️ ייתכן שזו לא החשבונית הנכונה ל-PO הזה</div>' +
+        '<div style="font-size:13px;line-height:1.5">רק <b>' + matchedCount + ' מתוך ' + poLineCount + '</b> שורות מה-PO תאמו את החשבונית (' + Math.round(matchRate*100) + '%). ' +
+        'בדקי שהעלית את החשבונית מהספק הנכון. אם כן — אז כל המוצרים האחרים באמת לא הגיעו ואת יכולה להמשיך.</div>' +
+      '</div>';
+  }
+
   var tot =
     '<div class="recv-totals">' +
       '<div class="tot-card"><div class="lbl">PO באוקטופוס</div><div class="val">' + fmtUsd(poTotal) + '</div></div>' +
@@ -3093,7 +3108,7 @@ function renderDiffTable(){
 
   var bar = renderApplyBar();
 
-  $("#recvDiff").innerHTML = tot + table + bar;
+  $("#recvDiff").innerHTML = wrongInvoiceWarning + tot + table + bar;
 
   // Bind row action buttons
   $("#recvDiff").querySelectorAll('.recv-row-actions button').forEach(function(b){
@@ -3237,10 +3252,10 @@ function renderRowActions(r, currentAct){
   } else if (r.kind === 'qty' || r.kind === 'price'){
     btn('accept', 'השאר כמו ב-PO', 'act-accept');
     btn('update', '✏️ עדכן לחשבונית', 'act-update');
-    btn('remove', '❌ הסר', 'act-remove');
+    btn('remove', '❌ ביטול', 'act-remove');
   } else if (r.kind === 'missing'){
-    btn('accept', 'השאר ב-PO', 'act-accept');
-    btn('remove', '❌ הסר מ-PO', 'act-remove');
+    btn('accept', '⏸ שמור לעדכון עתידי', 'act-accept');
+    btn('remove', '❌ ביטול', 'act-remove');
   } else if (r.kind === 'extra'){
     if (r.new_product_needed){
       btn('newprod', '🆕 צור מוצר + הוסף', 'act-add');
