@@ -3153,39 +3153,57 @@ function renderDiffTable(){
   var bar = renderApplyBar();
 
   $("#recvDiff").innerHTML = wrongInvoiceWarning + tot + table + bar;
+  ensureRecvDiffDelegation();
+}
 
-  // Bind row action buttons
-  $("#recvDiff").querySelectorAll('.recv-row-actions button').forEach(function(b){
-    b.addEventListener('click', function(){
+// Delegated handler — bound ONCE on #recvDiff, survives all renderDiffTable() re-renders.
+var _RECV_DIFF_DELEG_BOUND = false;
+function ensureRecvDiffDelegation(){
+  if (_RECV_DIFF_DELEG_BOUND) return;
+  var root = $("#recvDiff");
+  if (!root) return;
+  _RECV_DIFF_DELEG_BOUND = true;
+
+  // CLICK delegation — row action buttons, apply, cancel
+  root.addEventListener('click', function(e){
+    var b = e.target.closest('.recv-row-actions button');
+    if (b){
       var key = b.dataset.key;
       var act = b.dataset.action;
+      console.log('[recv] row action click', {key: key, act: act, hasCtx: !!RECV_CTX});
+      if (!RECV_CTX) return;
       RECV_CTX.action_by_key[key] = act;
-      // If "newprod" action chosen, open the new-product modal
       if (act === 'newprod'){
         openNewProductModal(key);
       } else {
         renderDiffTable();
       }
-    });
+      return;
+    }
+    if (e.target.closest('#recvApplyBtn')){
+      applyChangesToOctopos();
+      return;
+    }
+    if (e.target.closest('#recvCancelBtn')){
+      $("#recvStep1").style.display = "block";
+      $("#recvStep2").style.display = "none";
+      $("#recvDiff").innerHTML = '';
+      _RECV_DIFF_DELEG_BOUND = false;  // re-bind on next render
+      RECV_CTX = null;
+      return;
+    }
   });
-  // Editable cells (qty / price overrides)
-  $("#recvDiff").querySelectorAll('input.edit-num').forEach(function(inp){
-    inp.addEventListener('change', function(){
-      var key = inp.dataset.key;
-      var field = inp.dataset.field;
-      var row = RECV_CTX.diff.find(function(r){return r._key === key;});
-      if (!row) return;
-      row['override_' + field] = Number(inp.value);
-      renderDiffTable();
-    });
-  });
-  // Apply / cancel
-  if ($("#recvApplyBtn")) $("#recvApplyBtn").addEventListener('click', applyChangesToOctopos);
-  if ($("#recvCancelBtn")) $("#recvCancelBtn").addEventListener('click', function(){
-    $("#recvStep1").style.display = "block";
-    $("#recvStep2").style.display = "none";
-    $("#recvDiff").innerHTML = '';
-    RECV_CTX = null;
+
+  // CHANGE delegation — editable qty/price overrides
+  root.addEventListener('change', function(e){
+    var inp = e.target.closest('input.edit-num');
+    if (!inp || !RECV_CTX) return;
+    var key = inp.dataset.key;
+    var field = inp.dataset.field;
+    var row = (RECV_CTX.diff || []).find(function(r){return r._key === key;});
+    if (!row) return;
+    row['override_' + field] = Number(inp.value);
+    renderDiffTable();
   });
 }
 
