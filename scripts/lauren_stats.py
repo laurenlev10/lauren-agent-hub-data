@@ -222,7 +222,10 @@ def fetch_meta_pixel_events(start_date: str, end_date: str, slugs: list = None) 
 
     url = f"https://graph.facebook.com/v25.0/{ad_account}/insights"
     params = {
-        "fields": "campaign_name,adset_name,ad_name,ad_id,spend,impressions,clicks,ctr,cpc,cpm,actions,action_values",
+        # 2026-05-14 PM — inline_link_clicks = link-clicks only (per Meta's new
+        # attribution model starting later this month). clicks includes likes/
+        # shares/saves. We want both so we can compute engagement = clicks - link_clicks.
+        "fields": "campaign_name,adset_name,ad_name,ad_id,spend,impressions,clicks,inline_link_clicks,ctr,cpc,cpm,actions,action_values",
         "time_range": _json.dumps({"since": start_date, "until": end_date}),
         "level": "ad",
         "limit": "500",
@@ -259,7 +262,8 @@ def fetch_meta_pixel_events(start_date: str, end_date: str, slugs: list = None) 
             "meta_spend": 0.0,
             "meta_revenue": 0.0,
             "meta_impressions": 0,
-            "meta_clicks": 0,
+            "meta_clicks": 0,              # total clicks (all interactions — like/share/etc)
+            "meta_link_clicks": 0,         # 2026-05-14 — link clicks only (Meta's new attribution model)
             "meta_landing_page_views": 0,
             "meta_conversions": 0,
             "meta_leads": 0,  # explicit Lead pixel events (form submits via Meta)
@@ -303,9 +307,11 @@ def fetch_meta_pixel_events(start_date: str, end_date: str, slugs: list = None) 
         for a in ad.get("action_values", []) or []:
             if a.get("action_type") == "lead":
                 ev["meta_revenue"] += float(a.get("value", 0) or 0)
+        link_clk = int(float(ad.get("inline_link_clicks", 0) or 0))
         ev["meta_spend"] += spend
         ev["meta_impressions"] += imp
         ev["meta_clicks"] += clk
+        ev["meta_link_clicks"] += link_clk
         ev["meta_landing_page_views"] += lpv
 
         # 2026-05-14 — bucket this ad's totals into English/Spanish/Other.
@@ -346,6 +352,13 @@ def fetch_meta_pixel_events(start_date: str, end_date: str, slugs: list = None) 
         ev["meta_cpc"] = round(spend / clk, 3) if clk else 0
         ev["meta_cpm"] = round(spend / imp * 1000, 2) if imp else 0
         ev["meta_cost_per_lpv"] = round(spend / lpv, 3) if lpv else 0
+        # 2026-05-14 PM — engage-through metrics (per Meta's new attribution model).
+        # link_clicks = direct CTA clicks (the "real" clicks Meta's new system attributes).
+        # engage_through = social engagements (likes/shares/saves) — moving to engage-through bucket.
+        ev["meta_link_clicks_total"] = ev["meta_link_clicks"]
+        ev["meta_engage_through"] = max(0, ev["meta_clicks"] - ev["meta_link_clicks"])
+        ev["meta_link_ctr"] = round(ev["meta_link_clicks"] / imp * 100, 2) if imp else 0
+        ev["meta_cost_per_link_click"] = round(spend / ev["meta_link_clicks"], 3) if ev["meta_link_clicks"] else 0
         # Sort by CPL ascending — Lauren's 2026-05-13 PM directive: "תדרג כל
         # מודעה לפי המצליחה ביותר לפחות". Ranking tiers:
         #   Tier 0: meaningful data (LPV >= 100 AND spend >= $20) — ranked by CPL
@@ -376,6 +389,86 @@ def fetch_meta_pixel_events(start_date: str, end_date: str, slugs: list = None) 
 
         # Overall cost-per-lead
         ev["meta_cost_per_lead"] = round(ev["meta_spend"]/ev["meta_leads"], 3) if ev["meta_leads"] else 0
+    return out
+
+
+
+
+def fetch_meta_daily_timeseries(start_date: str, end_date: str, slugs: list = None) -> dict:
+    """Daily breakdown of Meta ad performance per event. Returns dict keyed by
+    event-slug -> list of {date, spend, impressions, clicks, link_clicks, lpv, leads}.
+
+    Uses time_increment=1 to get one row per day. Aggregates by campaign_name to
+    map to event slugs (same matcher as fetch_meta_pixel_events).
+
+    Set 2026-05-14 PM — Lauren wants daily spend chart per event.
+    """
+    token = _os.environ.get("META_PAGE_TOKEN")
+    ad_account = _os.environ.get("META_AD_ACCOUNT_ID")
+    if not token or not ad_account:
+        print("  ⚠ meta-timeseries: token or ad account ID not set — skipping")
+        return {}
+    slugs = slugs or []
+
+    url = f"https://graph.facebook.com/v25.0/{ad_account}/insights"
+    params = {
+        "fields": "campaign_name,spend,impressions,clicks,inline_link_clicks,actions",
+        "time_range": _json.dumps({"since": start_date, "until": end_date}),
+        "level": "campaign",
+        "time_increment": "1",
+        "limit": "1000",
+        "access_token": token,
+    }
+    req = _urlreq.Request(f"{url}?{_urlparse.urlencode(params)}")
+    try:
+        with _urlreq.urlopen(req, timeout=30) as resp:
+            data = _json.loads(resp.read().decode())
+    except Exception as e:
+        print(f"  ⚠ meta-timeseries query failed: {e}")
+        return {}
+
+    by_event_date = {}  # slug -> date -> {spend,imp,clk,link_clk,lpv,leads}
+    for row in data.get("data", []):
+        camp_name = row.get("campaign_name","")
+        slug = _match_tiktok_slug(camp_name, slugs)
+        if not slug: continue
+        date = row.get("date_start", "")
+        spend = float(row.get("spend",0) or 0)
+        imp = int(float(row.get("impressions",0) or 0))
+        clk = int(float(row.get("clicks",0) or 0))
+        link_clk = int(float(row.get("inline_link_clicks",0) or 0))
+        lpv = 0; leads = 0
+        for a in row.get("actions",[]) or []:
+            at = a.get("action_type")
+            v = int(float(a.get("value",0) or 0))
+            if at == "landing_page_view": lpv += v
+            elif at in ("lead","offsite_conversion.fb_pixel_lead"): leads += v
+        d = by_event_date.setdefault(slug, {}).setdefault(date, {
+            "spend":0.0,"impressions":0,"clicks":0,"link_clicks":0,"lpv":0,"leads":0
+        })
+        d["spend"] += spend
+        d["impressions"] += imp
+        d["clicks"] += clk
+        d["link_clicks"] += link_clk
+        d["lpv"] += lpv
+        d["leads"] += leads
+
+    # Convert to sorted list per slug
+    out = {}
+    for slug, by_date in by_event_date.items():
+        rows = []
+        for date in sorted(by_date.keys()):
+            d = by_date[date]
+            rows.append({
+                "date": date,
+                "spend": round(d["spend"], 2),
+                "impressions": d["impressions"],
+                "clicks": d["clicks"],
+                "link_clicks": d["link_clicks"],
+                "lpv": d["lpv"],
+                "leads": d["leads"],
+            })
+        out[slug] = rows
     return out
 
 
@@ -646,6 +739,7 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
 
     ga4 = fetch_ga4_event_data(start_date, end_date, slugs=slugs)
     meta = fetch_meta_pixel_events(start_date, end_date, slugs=slugs)
+    meta_daily = fetch_meta_daily_timeseries(start_date, end_date, slugs=slugs)
     tt = fetch_tiktok_pixel_events(start_date, end_date, slugs=slugs)
 
     # Manual TikTok fallback (2026-05-13 PM) — until TikTok Marketing API ticket
@@ -703,6 +797,11 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
             "revenue": m.get("meta_revenue", 0),
             "impressions":        m.get("meta_impressions", 0),
             "clicks":             m.get("meta_clicks", 0),
+            # 2026-05-14 — engage-through metrics (Meta's new attribution model)
+            "link_clicks":        m.get("meta_link_clicks", 0),
+            "engage_through":     m.get("meta_engage_through", 0),
+            "link_ctr":           m.get("meta_link_ctr", 0),
+            "cost_per_link_click": m.get("meta_cost_per_link_click", 0),
             "landing_page_views": m.get("meta_landing_page_views", 0),
             "ctr":                m.get("meta_ctr", 0),
             "cpc":                m.get("meta_cpc", 0),
@@ -722,6 +821,8 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
             "paid_shares":        m.get("meta_paid_shares", 0),
             "paid_saves":         m.get("meta_paid_saves", 0),
             "paid_reactions":     m.get("meta_paid_reactions", 0),
+            # 2026-05-14 PM — daily breakdown for the spend-vs-conversions chart
+            "daily_timeseries":   meta_daily.get(slug, []),
         }
         # 2026-05-14 PM — Reel shares: total (IG Insights via notes.json) +
         # paid (Meta Ads action_types) + organic (total - paid).
