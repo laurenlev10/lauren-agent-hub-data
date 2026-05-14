@@ -808,16 +808,6 @@ def _detect_state_name(text: str) -> str:
     return None
 
 
-# Place-mention (relaxed) — catches "come back to X", "we miss you in X", etc.
-# without requiring a verb like 'when/are you/sale/event'. More forgiving than
-# CITY_QUESTION_PAT so short informal mentions auto-classify.
-RELAXED_PLACE_PAT = re.compile(
-    r"(?:come|back|return|visit|miss).*?"
-    r"(?:to|in|at)\s+"
-    r"([A-Z][A-Za-z][\w\s.\-,/]{1,40}?)"
-    r"(?:[\?\.\!]|$)",
-    re.IGNORECASE,
-) if False else None  # placeholder, real one defined below
 
 
 def _is_tag_only(text: str) -> bool:
