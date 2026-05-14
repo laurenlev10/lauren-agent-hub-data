@@ -301,14 +301,21 @@ def fetch_meta_pixel_events(start_date: str, end_date: str, slugs: list = None) 
         ev["meta_cpm"] = round(spend / imp * 1000, 2) if imp else 0
         ev["meta_cost_per_lpv"] = round(spend / lpv, 3) if lpv else 0
         # Sort by CPL ascending — Lauren's 2026-05-13 PM directive: "תדרג כל
-        # מודעה לפי המצליחה ביותר לפחות". Ads with low LPV (<10) sink to the
-        # bottom regardless of CPL so we don't spotlight zero-data ads.
+        # מודעה לפי המצליחה ביותר לפחות". Ranking tiers:
+        #   Tier 0: meaningful data (LPV >= 100 AND spend >= $20) — ranked by CPL
+        #   Tier 1: some data (LPV >= 20)                          — ranked by CPL
+        #   Tier 2: barely any data                                — ranked by spend desc
+        # Without tiers, a $3 ad with 25 LPV (random luck) outranks a $794 ad
+        # with 4,161 LPV. Lauren wants real winners, not statistical noise.
         def _ad_rank(a):
             lpv = a.get("lpv", 0)
-            if lpv < 10:
-                return (1, 999)  # bucket below: not enough data
-            cpl = a["spend"] / lpv if lpv else 999
-            return (0, cpl)
+            spend = a.get("spend", 0)
+            cpl = spend / lpv if lpv else 999
+            if lpv >= 100 and spend >= 20:
+                return (0, cpl)
+            if lpv >= 20:
+                return (1, cpl)
+            return (2, -spend)
         ev["meta_top_ads"].sort(key=_ad_rank)
         ev["meta_top_ads"] = ev["meta_top_ads"][:5]
     return out
