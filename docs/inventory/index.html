@@ -2560,26 +2560,65 @@ function skuSimilar(a, b){
   return 0;
 }
 
-// Per-device "PO skipped — not shipped to this event" — stored in localStorage
-var SKIPPED_POS_KEY = "recv_skipped_pos_v1";
-function getSkippedPos(){
-  try{ var arr = JSON.parse(localStorage.getItem(SKIPPED_POS_KEY) || "[]"); return Array.isArray(arr) ? arr.map(String) : []; }
-  catch(e){ return []; }
-}
-function setSkippedPos(arr){
-  localStorage.setItem(SKIPPED_POS_KEY, JSON.stringify(arr));
-}
-function isPoSkipped(poId){ return getSkippedPos().indexOf(String(poId)) !== -1; }
-function markPoSkipped(poId){
-  var s = getSkippedPos();
-  if (s.indexOf(String(poId)) === -1){ s.push(String(poId)); setSkippedPos(s); }
-}
-function restorePoSkipped(poId){
-  var s = getSkippedPos().filter(function(x){ return x !== String(poId); });
-  setSkippedPos(s);
+// Receive-mode state — synced to GitHub (docs/state/inventory_receive_state.json)
+// Per Lauren 2026-05-14: "אני רוצה הכל מסונכרן דרך גיט האב ולא על המחשבים המקומיים תמיד".
+// Only secrets (PATs / Octopos tokens) stay in localStorage; all user data syncs.
+var RECV_STATE = { _updated_at: null, skipped_pos: [] };
+var RECV_STATE_URL = "../state/inventory_receive_state.json";
+var RECV_STATE_REPO_FILE = "docs/state/inventory_receive_state.json";
+
+async function loadReceiveState(){
+  try{
+    var r = await fetch(RECV_STATE_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok){
+      RECV_STATE = await r.json();
+      if (!Array.isArray(RECV_STATE.skipped_pos)) RECV_STATE.skipped_pos = [];
+    }
+  } catch(e){ console.warn("loadReceiveState failed:", e); }
 }
 
-// Toggle for showing skipped POs (session-only)
+async function saveReceiveState(commitMsg){
+  RECV_STATE._updated_at = new Date().toISOString();
+  var token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+  if (!token){
+    toast("⚠️ צריך GitHub token כדי לסנכרן — לחצי על ⛔ Sync: off למעלה", "error");
+    return false;
+  }
+  try{
+    var getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RECV_STATE_REPO_FILE + "?ref=main";
+    var sha = null;
+    var getR = await fetch(getUrl, { headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
+    if (getR.ok){ var j = await getR.json(); sha = j.sha; }
+    var putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RECV_STATE_REPO_FILE;
+    var content = JSON.stringify(RECV_STATE, null, 2);
+    var body = { message: commitMsg || "@inventory/receive: update state", content: btoa(unescape(encodeURIComponent(content))), branch: "main" };
+    if (sha) body.sha = sha;
+    var r = await fetch(putUrl, { method: "PUT", headers: {"Authorization":"token "+token,"Accept":"application/vnd.github+json","Content-Type":"application/json"}, body: JSON.stringify(body) });
+    return r.ok;
+  } catch(e){
+    console.error("saveReceiveState failed:", e);
+    return false;
+  }
+}
+
+function getSkippedPos(){
+  return (RECV_STATE.skipped_pos || []).map(String);
+}
+function isPoSkipped(poId){ return getSkippedPos().indexOf(String(poId)) !== -1; }
+async function markPoSkipped(poId){
+  var s = getSkippedPos();
+  if (s.indexOf(String(poId)) !== -1) return true;
+  RECV_STATE.skipped_pos = s.concat([String(poId)]);
+  renderReceiveList();
+  return await saveReceiveState("@inventory/receive: skip PO #" + poId);
+}
+async function restorePoSkipped(poId){
+  RECV_STATE.skipped_pos = getSkippedPos().filter(function(x){ return x !== String(poId); });
+  renderReceiveList();
+  return await saveReceiveState("@inventory/receive: restore PO #" + poId);
+}
+
+// Toggle for showing skipped POs (session-only — pure UI state, fine to keep local)
 var RECV_SHOW_SKIPPED = false;
 
 // Collect all Generated POs across all suppliers from OCTOPOS snapshot
@@ -2639,8 +2678,8 @@ function renderReceiveList(){
     html += '<div class="recv-skipped-bar" id="recvSkippedBar" title="לחצי כדי לפתוח ולשחזר">' +
       '<span style="font-size:18px">🚫</span>' +
       '<div style="flex:1">' +
-        '<b>' + skippedPos.length + ' POs סומנו כ"לא נשלח לאירוע"</b>' +
-        '<div style="font-size:12px;margin-top:2px">לחצי כדי לפתוח ולשחזר אם צריך</div>' +
+        '<b>' + skippedPos.length + ' POs יעברו לאירוע הבא כפי שהם</b>' +
+        '<div style="font-size:12px;margin-top:2px">סומנו כ"לא נשלח" · לא עודכנו באוקטופוס · לחצי לפתוח ולשחזר</div>' +
       '</div>' +
       '<span class="toggle-pill">' + (RECV_SHOW_SKIPPED ? '⬆ סגור' : '⬇ הצג ושחזר') + '</span>' +
     '</div>';
@@ -2664,7 +2703,7 @@ function renderReceiveList(){
           '<div class="po-num">#' + po.id + '</div>' +
           '<div>' +
             '<div class="po-vendor">' + escHtml(r.supplier_name) + ' <span style="color:var(--muted);font-weight:500;font-size:13px">· ' + escHtml(r.octopos_vendor_name||"") + '</span></div>' +
-            '<div class="po-meta">🚫 סומן כלא-נשלח לאירוע · ' + fmtUsd(po.total_cost) + '</div>' +
+            '<div class="po-meta">🚫 יעבור לאירוע הבא כפי שהוא · ' + fmtUsd(po.total_cost) + '</div>' +
           '</div>' +
           '<div></div>' +
           '<button class="restore-btn" data-action="restore-po">↩︎ שחזר</button>' +
@@ -2698,7 +2737,7 @@ function renderReceiveList(){
           '<tbody>' + itemsHtml + '</tbody>' +
         '</table>' +
         '<div class="po-foot">' +
-          '<button class="skip-btn" data-action="skip-po">🚫 לא נשלח לאירוע</button>' +
+          '<button class="skip-btn" data-action="skip-po" title="ה-PO יעבור לאירוע הבא כפי שהוא — לא נוגעים באוקטופוס">🚫 לא נשלח · עבור לאירוע הבא</button>' +
           '<button class="recv-go-btn">📥 התחל השוואה לחשבונית →</button>' +
         '</div>' +
       '</div>' +
@@ -2722,22 +2761,22 @@ function renderReceiveList(){
       var rec = pos.find(function(r){return String(r.po.id) === String(poId) && r.supplier_code === code;});
       if (rec) openReconcile(rec);
     });
-    if (btnSkip) btnSkip.addEventListener('click', function(e){
+    if (btnSkip) btnSkip.addEventListener('click', async function(e){
       e.stopPropagation();
       var poId = card.dataset.poId;
       var rec = pos.find(function(r){return String(r.po.id) === String(poId);});
       var name = rec ? rec.supplier_name : ('#' + poId);
-      if (!confirm('לסמן את PO #' + poId + ' (' + name + ') כלא-נשלח לאירוע?\n\nה-PO ייעלם מהרשימה הפעילה ולא נעדכן אותו באוקטופוס. ניתן לשחזר בכל עת.')) return;
-      markPoSkipped(poId);
-      toast('🚫 PO #' + poId + ' סומן כלא-נשלח', 'success');
-      renderReceiveList();
+      if (!confirm('לסמן את PO #' + poId + ' (' + name + ') כלא-נשלח לאירוע?\n\n• ה-PO ייעלם מהרשימה הפעילה ויעבור לאירוע הבא כמו שהוא\n• לא נעדכן אותו באוקטופוס — נתונים נשארים כפי שהם\n• ניתן לשחזר בכל עת מה-bar הצהוב למעלה\n• הסטטוס מסונכרן ב-GitHub ויראה בכל המכשירים שלך')) return;
+      btnSkip.disabled = true; btnSkip.textContent = '⏳ שומר...';
+      var ok = await markPoSkipped(poId);
+      toast(ok ? '🚫 PO #' + poId + ' סומן ונשמר ב-GitHub' : '⚠️ סומן מקומית — צריך GitHub token לסנכרון', ok ? 'success' : 'error');
     });
-    if (btnRestore) btnRestore.addEventListener('click', function(e){
+    if (btnRestore) btnRestore.addEventListener('click', async function(e){
       e.stopPropagation();
       var poId = card.dataset.poId;
-      restorePoSkipped(poId);
-      toast('↩︎ PO #' + poId + ' שוחזר', 'success');
-      renderReceiveList();
+      btnRestore.disabled = true; btnRestore.textContent = '⏳';
+      var ok = await restorePoSkipped(poId);
+      toast(ok ? '↩︎ PO #' + poId + ' שוחזר ונשמר ב-GitHub' : '⚠️ שוחזר מקומית — צריך GitHub token לסנכרון', ok ? 'success' : 'error');
     });
   });
 }
@@ -3642,7 +3681,7 @@ function renderGlobalSupplierBody(sup, v){
 async function init(){
   setSyncChip();
   setupModeSwitch();
-  await Promise.all([loadState(), loadOctopos(), loadProductRules()]);
+  await Promise.all([loadState(), loadOctopos(), loadProductRules(), loadReceiveState()]);
 
   if (MODE === 'global'){
     $("#globalView").style.display = "";
