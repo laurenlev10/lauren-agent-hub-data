@@ -443,6 +443,16 @@ CITY_QUESTION_PAT = re.compile(
 # We only fire this fallback if no FAQ keyword matched AND the text is short.
 BARE_PLACE_PAT = re.compile(r"^\s*([A-Za-z][\w\s.\-,/]{2,40}?)\s*\?+\s*$", re.IGNORECASE)
 
+# 2026-05-14 PM — relaxed place mention without question word.
+# Matches "(any prefix)come/back/return/visit/miss(any) to/in/at <Place>"
+RELAXED_PLACE_PAT = re.compile(
+    r"\b(?:come|back|return|visit|miss|love)\b[^A-Za-z]*?"
+    r"\b(?:to|in|at|out\s+in)\s+"
+    r"([A-Z][\w][\w\s.\-,/]{1,40}?)"
+    r"(?:[\?\.\!]|\b(?:soon|please|again|next|this|that|love|need|want|hope|thanks?)\b|$)",
+    re.IGNORECASE,
+)
+
 
 def _normalize_place(s: str) -> str:
     """Lower, strip punctuation, collapse spaces."""
@@ -658,6 +668,158 @@ import re as _re_classify
 TAG_ONLY_PAT = _re_classify.compile(r"^[A-ZA-Za-zÀ-ÿ\u00C0-\u017F]+(\s+[A-ZA-Za-zÀ-ÿ\u00C0-\u017F]+){1,5}\s*$")
 
 
+def _is_emoji_only_friendly(text: str) -> bool:
+    """True if text is ONLY emojis AND none of them are negative/angry.
+
+    Lauren's directive 2026-05-14 PM: "כשיש רק אימוג'י חמודים ולא רעים תעשה
+    DONE. אל תעלה אותם זה מיותר". Comments like "🙈🙈🙈" or "💜💜" should be
+    auto-marked handled — no need to bother Lauren.
+
+    Negative emoji set (anything that suggests displeasure / anger / complaint)
+    will FAIL this check and the comment will still surface to Lauren.
+    """
+    if not text:
+        return False
+    t = text.strip()
+    if not t:
+        return False
+    # Strip whitespace + zero-width chars
+    import unicodedata
+    cleaned = "".join(ch for ch in t if ch.strip())
+    if not cleaned:
+        return False
+    # Negative emojis — if ANY appear, return False so the comment surfaces
+    negative_emojis = {
+        "😡","🤬","😠","😤","😣","😖","😞","😔","😟","😕","☹️","🙁","😢","😭","😩","😫",
+        "💔","🖕","👎","💩","🤢","🤮","😒","😑","😐","🙄","😏","😈","👿","💀","☠️",
+    }
+    if any(neg in cleaned for neg in negative_emojis):
+        return False
+    # Check if every character is an emoji / symbol / whitespace
+    for ch in cleaned:
+        cat = unicodedata.category(ch)
+        # Emoji ranges + symbol categories
+        codepoint = ord(ch)
+        is_emoji = (
+            cat.startswith("S")  # Symbol categories: So, Sm, Sk, Sc
+            or (0x1F300 <= codepoint <= 0x1FAFF)
+            or (0x2600 <= codepoint <= 0x27BF)
+            or (0xFE00 <= codepoint <= 0xFE0F)  # variation selectors
+            or (0x1F1E6 <= codepoint <= 0x1F1FF)  # regional indicators (flags)
+            or codepoint == 0x200D  # zero-width joiner (combines emojis)
+            or codepoint == 0x200C
+        )
+        if not is_emoji and not ch.isspace():
+            return False
+    return True
+
+
+def _is_reaction_or_empty(text: str) -> bool:
+    """Detect the placeholder text the script writes when Meta API returns
+    a conversation with no real message body (just a reaction emoji or
+    attachment-only). Per SKILL.md 'Auto-move to Done': skip these."""
+    if not text:
+        return True
+    t = text.lower().strip()
+    markers = [
+        "(reaction or empty message)",
+        "(no text — perhaps an attachment)",
+        "(empty message)",
+        "(deleted)",
+    ]
+    return any(m in t for m in markers)
+
+
+def _is_positive_closer(text: str) -> bool:
+    """Detect short positive messages with no question — 'thanks!', 'love you all',
+    'great time last year'. Per SKILL.md 'Auto-move to Done'.
+
+    Heuristics:
+    - Length <= 80 chars
+    - No '?' (no question)
+    - Has at least one positive keyword
+    - No city/place mention pattern (those need real reply)
+    - Not asking about scheduling
+    """
+    if not text:
+        return False
+    t = text.strip()
+    if len(t) > 80:
+        return False
+    if "?" in t:
+        return False
+    t_lower = t.lower()
+    positives = [
+        "thank you","thanks","thx","ty","love","loved","amazing","great","perfect",
+        "awesome","wonderful","fire","best","grateful","mean a lot","appreciate",
+        "תודה","אהבתי","אוהבת","מעולה","מדהים","תענוג",
+    ]
+    has_pos = any(p in t_lower for p in positives)
+    if not has_pos:
+        return False
+    # Reject only if it contains CLEAR scheduling-question intent.
+    # "had a great time last year" is positive-closer, NOT scheduling.
+    # Trim list to unambiguous scheduling signals only.
+    schedule_words = [
+        "when ", " when","where","coming back","come back","please come",
+        "going to","be in","near me","around here","next event","next sale",
+        "מתי","איפה",
+    ]
+    if any(w in t_lower for w in schedule_words):
+        return False
+    return True
+
+
+# US state abbreviation → full name (for short messages like "Ca" / "TX")
+_US_STATES = {
+    "AL":"Alabama","AK":"Alaska","AZ":"Arizona","AR":"Arkansas","CA":"California",
+    "CO":"Colorado","CT":"Connecticut","DE":"Delaware","FL":"Florida","GA":"Georgia",
+    "HI":"Hawaii","ID":"Idaho","IL":"Illinois","IN":"Indiana","IA":"Iowa",
+    "KS":"Kansas","KY":"Kentucky","LA":"Louisiana","ME":"Maine","MD":"Maryland",
+    "MA":"Massachusetts","MI":"Michigan","MN":"Minnesota","MS":"Mississippi","MO":"Missouri",
+    "MT":"Montana","NE":"Nebraska","NV":"Nevada","NH":"New Hampshire","NJ":"New Jersey",
+    "NM":"New Mexico","NY":"New York","NC":"North Carolina","ND":"North Dakota","OH":"Ohio",
+    "OK":"Oklahoma","OR":"Oregon","PA":"Pennsylvania","RI":"Rhode Island","SC":"South Carolina",
+    "SD":"South Dakota","TN":"Tennessee","TX":"Texas","UT":"Utah","VT":"Vermont",
+    "VA":"Virginia","WA":"Washington","WV":"West Virginia","WI":"Wisconsin","WY":"Wyoming",
+}
+
+
+def _detect_state_name(text: str) -> str:
+    """Return state code (e.g. 'CA') if the text is essentially just a state
+    reference. Returns None if not a clean state mention.
+
+    Examples that match: 'Ca', 'CA', 'California', 'california?', 'Ca?'.
+    Examples that don't: 'CA event when?', 'Going to CA next month'.
+    """
+    if not text:
+        return None
+    t = text.strip().rstrip("?").strip()
+    if len(t) > 15:
+        return None
+    # Match by abbreviation (case-insensitive)
+    upper = t.upper()
+    if upper in _US_STATES:
+        return upper
+    # Match by full state name
+    for code, name in _US_STATES.items():
+        if t.lower() == name.lower():
+            return code
+    return None
+
+
+# Place-mention (relaxed) — catches "come back to X", "we miss you in X", etc.
+# without requiring a verb like 'when/are you/sale/event'. More forgiving than
+# CITY_QUESTION_PAT so short informal mentions auto-classify.
+RELAXED_PLACE_PAT = re.compile(
+    r"(?:come|back|return|visit|miss).*?"
+    r"(?:to|in|at)\s+"
+    r"([A-Z][A-Za-z][\w\s.\-,/]{1,40}?)"
+    r"(?:[\?\.\!]|$)",
+    re.IGNORECASE,
+) if False else None  # placeholder, real one defined below
+
+
 def _is_tag_only(text: str) -> bool:
     """True if text appears to be JUST friend-tag names with no real content.
 
@@ -702,6 +864,28 @@ def classify(text: str, kb: dict) -> dict:
     # Tag-only friend mentions (e.g. "Marilyn Rodriguez Sandy Rodriguez")
     if _is_tag_only(text):
         return {"bucket": "SKIP", "reason": "tag-only-friends (no question)", "reply": None}
+
+    # 2026-05-14 PM — emoji-only friendly comments → auto-handled, never shown to Lauren
+    if _is_emoji_only_friendly(text):
+        return {"bucket": "SKIP", "reason": "emoji-only-friendly (auto-done)", "reply": None}
+
+    # 2026-05-14 PM — reaction or empty-body messages from Meta API → auto-done
+    if _is_reaction_or_empty(text):
+        return {"bucket": "SKIP", "reason": "reaction-or-empty (auto-done)", "reply": None}
+
+    # 2026-05-14 PM — positive closer with no question → auto-done (per SKILL.md)
+    if _is_positive_closer(text):
+        return {"bucket": "SKIP", "reason": "positive-closer-no-question (auto-done)", "reply": None}
+
+    # 2026-05-14 PM — state-name-only message ("Ca", "California") → CA event rotation reply
+    state_code = _detect_state_name(text)
+    if state_code:
+        state_name = _US_STATES[state_code]
+        return {
+            "bucket": "A",
+            "reason": f"State mention ({state_name}) — off-schedule rotation reply",
+            "reply": city_rotation_reply(state_name, seed=kb.get("_seed","") + state_code),
+        }
 
     t = text.strip()
 
@@ -834,6 +1018,27 @@ def classify(text: str, kb: dict) -> dict:
         return {"bucket": "B",
                 "reason": f"Bare-place pattern matched '{place}' but not on schedule — ambiguous, Lauren reviews",
                 "reply": None}
+
+    # 2026-05-14 PM — relaxed place mention (informal "come back to X") → city reply
+    m_relax = RELAXED_PLACE_PAT.search(t)
+    if m_relax:
+        place = m_relax.group(1).strip()
+        if 1 < len(place) <= 40:
+            hit = _find_in_schedule(place, kb["schedule"])
+            seed = kb.get("_seed","") + place
+            if hit:
+                city_key, dates = hit
+                city_title = city_key.split(",")[0].strip().title()
+                if _is_past(dates):
+                    return {"bucket": "A",
+                            "reason": f"Place mention ({place}) — was on schedule, past",
+                            "reply": city_past_reply(city_title, dates, seed=seed)}
+                return {"bucket": "A",
+                        "reason": f"Place mention ({place}) — on upcoming schedule",
+                        "reply": city_on_schedule_reply(city_title, dates, seed=seed)}
+            return {"bucket": "A",
+                    "reason": f"Place mention ({place}) — off-schedule rotation reply",
+                    "reply": city_rotation_reply(place, seed=seed)}
 
     # Generic fallback
     return {"bucket": "B", "reason": "no KB pattern matched",
