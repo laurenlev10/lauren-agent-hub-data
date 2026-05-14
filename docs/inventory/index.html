@@ -3703,15 +3703,150 @@ function initReceiveMode(){
   if (rb) rb.addEventListener("click", async function(){
     rb.disabled = true; rb.textContent = '⏳ מרענן...';
     try{
+      // 1) Snapshot refresh
       var r = await fetch(OCTOPOS_STATE_URL + '?t=' + Date.now());
       if (r.ok){
         OCTOPOS = await r.json();
-        toast('✓ נתונים רעננו', 'success');
-        renderReceiveList();
-      } else toast('שגיאת רענון', 'error');
-    } catch(e){ toast('שגיאת רענון', 'error'); }
+      }
+      // 2) Live append — fetch any POs created AFTER the snapshot
+      var added = await refreshLivePOs();
+      var msg = added > 0 ? ('✓ נתונים רעננו · נמצאו ' + added + ' POs חדשים') : '✓ נתונים רעננו';
+      toast(msg, 'success');
+      renderReceiveList();
+    } catch(e){
+      console.error('refresh failed', e);
+      toast('שגיאת רענון', 'error');
+    }
     rb.disabled = false; rb.textContent = '🔄 רענני';
   });
+}
+
+// Fetch POs from Octopos that aren't yet in our local OCTOPOS state.
+// Probes IDs from max_known+1 upward. Stops after 3 consecutive 404s.
+// Also re-fetches currently-Generated POs to catch status flips.
+async function refreshLivePOs(){
+  var token = (localStorage.getItem("lauren_octopos_token") || "").trim();
+  if (!token){
+    toast('צריך טוקן OCTOPOS לרענון חי — לחצי שוב על 🔄 והדביקי', '');
+    return 0;
+  }
+  if (!OCTOPOS || !OCTOPOS.vendors) return 0;
+
+  // Build vendor_id → supplier_code map from SUPPLIERS / OCTOPOS state
+  var vendorIdToCode = {};
+  Object.keys(OCTOPOS.vendors).forEach(function(code){
+    (OCTOPOS.vendors[code].octopos_vendor_ids || []).forEach(function(vid){
+      vendorIdToCode[vid] = code;
+    });
+  });
+
+  // Find max known PO id
+  var maxId = 0;
+  var knownIds = {};
+  Object.keys(OCTOPOS.vendors).forEach(function(code){
+    var v = OCTOPOS.vendors[code];
+    ['purchase_orders_generated', 'purchase_orders_received'].forEach(function(f){
+      (v[f] || []).forEach(function(po){
+        var id = Number(po.id);
+        knownIds[id] = {code: code, list: f, po: po};
+        if (id > maxId) maxId = id;
+      });
+    });
+  });
+
+  // 2a. Re-fetch currently-Generated POs to catch status flips
+  var rechecks = [];
+  Object.keys(OCTOPOS.vendors).forEach(function(code){
+    var v = OCTOPOS.vendors[code];
+    (v.purchase_orders_generated || []).forEach(function(po){
+      rechecks.push({code: code, id: po.id});
+    });
+  });
+  for (var i = 0; i < rechecks.length; i++){
+    var rc = rechecks[i];
+    try{
+      var r = await fetch("https://themakeup.octoretail.com/api/v2/purchase_orders/" + rc.id, {
+        headers: {"Authorization": token, "Accept":"application/json"}
+      });
+      if (r.ok){
+        var j = await r.json();
+        var live = j.data || j;
+        if (live.status === 'Received'){
+          // Move from generated → received in our state
+          var slice = OCTOPOS.vendors[rc.code];
+          slice.purchase_orders_generated = (slice.purchase_orders_generated || []).filter(function(p){return p.id !== rc.id;});
+          slice.purchase_orders_received = (slice.purchase_orders_received || []);
+          slice.purchase_orders_received.unshift(slimPo(live));
+        }
+      }
+    } catch(e){ /* ignore */ }
+  }
+
+  // 2b. Probe new IDs above max
+  var added = 0;
+  var consecutive404 = 0;
+  var id = maxId + 1;
+  while (consecutive404 < 3 && id < maxId + 30){
+    try{
+      var r2 = await fetch("https://themakeup.octoretail.com/api/v2/purchase_orders/" + id, {
+        headers: {"Authorization": token, "Accept":"application/json"}
+      });
+      if (r2.status === 404){
+        consecutive404++;
+        id++;
+        continue;
+      }
+      if (r2.ok){
+        consecutive404 = 0;
+        var j = await r2.json();
+        var live = j.data || j;
+        if (live.status === 'Generated' && live.active !== false){
+          var code = vendorIdToCode[live.vendor_id];
+          if (code){
+            var slice = OCTOPOS.vendors[code];
+            if (!slice.purchase_orders_generated) slice.purchase_orders_generated = [];
+            // Don't double-add
+            if (!slice.purchase_orders_generated.some(function(p){return p.id === live.id;})){
+              slice.purchase_orders_generated.unshift(slimPo(live));
+              added++;
+            }
+          }
+        }
+      } else {
+        consecutive404++;
+      }
+    } catch(e){
+      consecutive404++;
+    }
+    id++;
+  }
+  return added;
+}
+
+// Convert Octopos API PO shape → our slim shape used in snapshot
+function slimPo(live){
+  var items = (live.purchase_order_items || []).map(function(it){
+    return {
+      product_id: it.product_id,
+      product_name: it.product && it.product.name || ('#'+it.product_id),
+      product_sku: it.product && it.product.sku || '',
+      quantity: Number(it.quantity || 0),
+      cost_unit: Number(it.cost_unit || it.cost || 0),
+      line_total: Number(it.quantity || 0) * Number(it.cost_unit || it.cost || 0)
+    };
+  });
+  var totalQty = items.reduce(function(a,it){return a + Number(it.quantity||0);}, 0);
+  var totalCost = items.reduce(function(a,it){return a + Number(it.line_total||0);}, 0);
+  return {
+    id: live.id,
+    status: live.status,
+    vendor_invoice_number: live.vendor_invoice_number || null,
+    received_date: live.received_date || null,
+    order_paid: !!live.order_paid,
+    items: items,
+    total_qty: totalQty,
+    total_cost: totalCost
+  };
 }
 
 
