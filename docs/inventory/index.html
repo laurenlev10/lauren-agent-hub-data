@@ -421,6 +421,26 @@
   .recv-newprod-modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
   .recv-newprod-modal .actions button{padding:10px 18px;font-size:14px;font-weight:700;border-radius:8px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text)}
   .recv-newprod-modal .actions button.primary{background:linear-gradient(180deg,#15803d,#14532d);color:#fff;border-color:transparent}
+  .event-phase-buttons{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0 18px}
+  .phase-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px 18px;background:var(--panel);border:2px solid var(--line);border-radius:14px;cursor:pointer;text-align:center;transition:all .15s;font-family:inherit}
+  .phase-btn:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.08)}
+  .phase-btn .phase-icon{font-size:36px;line-height:1}
+  .phase-btn .phase-title{font-size:18px;font-weight:800;letter-spacing:.5px}
+  .phase-btn .phase-sub{font-size:13px;color:var(--muted);font-weight:500}
+  .phase-btn.phase-order{background:linear-gradient(180deg,#fef3c7,#fde68a);border-color:#fbbf24}
+  .phase-btn.phase-order:hover{border-color:#d97706;background:linear-gradient(180deg,#fde68a,#fcd34d)}
+  .phase-btn.phase-order .phase-title{color:#7c2d12}
+  .phase-btn.phase-receive{background:linear-gradient(180deg,#d1fae5,#a7f3d0);border-color:#34d399}
+  .phase-btn.phase-receive:hover{border-color:#059669;background:linear-gradient(180deg,#a7f3d0,#6ee7b7)}
+  .phase-btn.phase-receive .phase-title{color:#14532d}
+  .event-banner-strip{background:linear-gradient(180deg,#dbeafe,#bfdbfe);border:1px solid #93c5fd;border-radius:12px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .event-banner-strip .event-ttl{font-size:18px;font-weight:800;color:#1e3a8a}
+  .event-banner-strip .event-meta{color:#1e40af;font-size:13px}
+  .event-banner-strip a{margin-right:auto;color:#1e3a8a;font-weight:700;font-size:14px;text-decoration:none;padding:6px 14px;background:#fff;border:1px solid #93c5fd;border-radius:8px}
+  .event-banner-strip a:hover{background:#dbeafe}
+  @media(max-width:640px){
+    .event-phase-buttons{grid-template-columns:1fr}
+  }
 </style>
 </head>
 <body>
@@ -440,7 +460,19 @@
 
   <div id="focusView" style="display:none">
     <div class="event-strip" id="eventStrip"></div>
-    <div style="margin:0 0 16px;display:flex;gap:10px;flex-wrap:wrap">
+    <div class="event-phase-buttons">
+      <button id="btnOrderPhase" class="phase-btn phase-order">
+        <span class="phase-icon">📤</span>
+        <span class="phase-title">ORDER INVENTORY</span>
+        <span class="phase-sub">יצירת POs · שליחה לספק</span>
+      </button>
+      <button id="btnReceivePhase" class="phase-btn phase-receive">
+        <span class="phase-icon">📥</span>
+        <span class="phase-title">INVENTORY RECEIVED</span>
+        <span class="phase-sub">השוואה לחשבונית · עדכון מלאי</span>
+      </button>
+    </div>
+    <div style="margin:0 0 16px;display:flex;gap:10px;flex-wrap:wrap" id="orderControls">
       <button id="btnOrderWizard" class="btn-order-wizard">✨ צרי הזמנות לאירוע</button>
       <button id="btnRefreshOctopos" class="btn-refresh-octopos" title="הפעיל סנכרון מאוקטופוס עכשיו (לוקח כ-3 דקות)">🔄 רענני נתוני OCTOPOS עכשיו</button>
     </div>
@@ -608,6 +640,8 @@ function toast(msg, kind){
 const URL_PARAMS = new URLSearchParams(location.search);
 const URL_EVKEY = URL_PARAMS.get("evkey") || URL_PARAMS.get("ev") || null;
 const URL_MODE = URL_PARAMS.get("mode") || "";
+// In receive mode, evkey is optional — filters POs to the event's po_ids list
+const RECV_EVKEY = URL_MODE === "receive" ? URL_EVKEY : null;
 const MODE = URL_MODE === "global" ? "global" : (URL_MODE === "receive" ? "receive" : (URL_EVKEY ? "event" : "overview"));
 
 function setSyncChip(){
@@ -719,6 +753,7 @@ async function pushToGitHub(){
 function ensureSlice(evkey, eventMeta){
   if (!STATE.events[evkey]){
     STATE.events[evkey] = {
+      po_ids: [],
       evkey,
       city: eventMeta.city || "",
       state: eventMeta.state || "",
@@ -1470,6 +1505,15 @@ async function submitPO(vendorId, modal, oct){
       var j = await r.json();
       toast('✓ PO #'+(j.id || '?')+' נוצר באוקטופוס', 'success');
       modal.remove();
+      // Auto-link new PO to current event (so the per-event receive view can filter to it)
+      if (CURRENT_EVKEY && STATE.events[CURRENT_EVKEY] && j.id){
+        if (!STATE.events[CURRENT_EVKEY].po_ids) STATE.events[CURRENT_EVKEY].po_ids = [];
+        if (STATE.events[CURRENT_EVKEY].po_ids.indexOf(j.id) === -1){
+          STATE.events[CURRENT_EVKEY].po_ids.push(j.id);
+          STATE.events[CURRENT_EVKEY].updated_at = nowIso();
+          scheduleSave();
+        }
+      }
       // Optimistic local insert so it appears immediately
       var sliceCode = Object.keys(OCTOPOS.vendors).find(function(c){ return (OCTOPOS.vendors[c].octopos_vendor_ids||[]).indexOf(vendorId) !== -1; });
       if (sliceCode){
@@ -2287,6 +2331,15 @@ async function manualRefreshOctopos(btn){
 document.addEventListener("click", function(e){
   if (e.target.matches('#btnOrderWizard')){ openOrderWizard(); }
   if (e.target.matches('#btnRefreshOctopos, #btnRefreshOctoposGlobal')){ manualRefreshOctopos(e.target); }
+  if (e.target.closest('#btnOrderPhase')){
+    // ORDER phase: scroll to the supplier list (already visible on this view)
+    var sup = document.getElementById('suppliers');
+    if (sup) sup.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+  if (e.target.closest('#btnReceivePhase')){
+    // RECEIVE phase: open the receive view scoped to this event
+    location.href = '?mode=receive&evkey=' + encodeURIComponent(URL_EVKEY||CURRENT_EVKEY);
+  }
 });
 
 
@@ -2648,7 +2701,15 @@ function collectAllGeneratedPOs(){
 
 // Render the list of open POs (Step 1)
 function renderReceiveList(){
-  var pos = collectAllGeneratedPOs();
+  var allPos = collectAllGeneratedPOs();
+  // Per-event filter — show only POs linked to this event in STATE.events[evkey].po_ids
+  var pos;
+  if (RECV_EVKEY && STATE.events && STATE.events[RECV_EVKEY] && Array.isArray(STATE.events[RECV_EVKEY].po_ids) && STATE.events[RECV_EVKEY].po_ids.length){
+    var allowed = STATE.events[RECV_EVKEY].po_ids.map(String);
+    pos = allPos.filter(function(r){ return allowed.indexOf(String(r.po.id)) !== -1; });
+  } else {
+    pos = allPos;
+  }
   var q = (($("#recvSearch") && $("#recvSearch").value) || "").toLowerCase().trim();
   var filtered = pos.filter(function(r){
     if (!q) return true;
@@ -3695,7 +3756,26 @@ function initReceiveMode(){
   $("#focusView").style.display = "none";
   $("#overviewView").style.display = "none";
   $("#loadingView").style.display = "none";
-  $("#sub").textContent = "· קבלת סחורה";
+  $("#sub").textContent = "· קבלת סחורה" + (RECV_EVKEY ? " · " + RECV_EVKEY : "");
+  // Banner showing event context (if scoped to an event)
+  if (RECV_EVKEY){
+    var slice = (STATE.events || {})[RECV_EVKEY] || {};
+    var poCount = (slice.po_ids || []).length;
+    var bannerHost = document.getElementById('recvStep1');
+    if (bannerHost && !document.getElementById('recvEventBanner')){
+      var b = document.createElement('div');
+      b.id = 'recvEventBanner';
+      b.className = 'event-banner-strip';
+      b.innerHTML =
+        '<span style="font-size:22px">📅</span>' +
+        '<div>' +
+          '<div class="event-ttl">' + escHtml(RECV_EVKEY) + '</div>' +
+          '<div class="event-meta">' + poCount + ' POs יצרת לאירוע הזה · רק הם מוצגים למטה</div>' +
+        '</div>' +
+        '<a href="?evkey=' + encodeURIComponent(RECV_EVKEY) + '" title="חזרה לדשבורד מלאי של האירוע">← חזרה לדשבורד האירוע</a>';
+      bannerHost.insertBefore(b, bannerHost.firstChild);
+    }
+  }
   renderReceiveList();
   var s = $("#recvSearch");
   if (s) s.addEventListener("input", renderReceiveList);
