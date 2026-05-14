@@ -623,19 +623,24 @@ def fetch_tiktok_pixel_events(start_date: str, end_date: str, slugs: list = None
 # Aggregator + anomaly detector
 # ---------------------------------------------------------------------------
 
-def _build_reel_shares_block(slug: str, paid_shares: int) -> dict:
-    """Build a reel_shares block combining IG Insights (total from scans) +
-    Meta Ads paid_shares (re-shares from paid impressions) → organic = total - paid.
+def _build_reel_shares_block(slug: str, paid_engagement: int) -> dict:
+    """Build a reel_shares block combining IG Creator UI data (total_shares from
+    scans) + Meta Ads paid post-engagement metric.
 
-    The notes.json lives in this repo at docs/launch/notes.json and is keyed by
-    "<city-slug>-<start_date>" (e.g. "cleveland-2026-05-29"). We need to find the
-    notes.json entry matching the aggregator's slug "cleveland-oh-2026". Build a
-    mapping from city-only prefix.
+    NOTE 2026-05-14 PM: the Meta "post" action_type doesn't cleanly equal "shares".
+    Empirically paid_engagement > total_shares (1340 vs 107 for Milwaukee), which
+    is impossible if paid were a strict subset. So we treat them as separate signals:
+    - total_shares: real organic+paid mix from IG Creator UI (manual scrape via
+      Chrome OR Meta Graph API once instagram_manage_insights scope lands)
+    - paid_engagement: Meta's post-level engagement from paid impressions (likely
+      includes reactions/saves/shares aggregated — Meta hasn't clearly documented)
+
+    Real ORGANIC shares can't be cleanly isolated without instagram_manage_insights
+    showing audience source. For now we report both numbers independently.
 
     Returns {
-        "total": int,             # latest scan's shares count (from IG Insights API)
-        "paid": int,              # cumulative paid shares (from Meta Ads action_types)
-        "organic": int,           # max(0, total - paid)
+        "total_shares": int,      # from latest IG scan (manual or scheduled)
+        "paid_engagement": int,   # Meta Ads "post" action_type — engagement signal
         "last_scan_at": str,      # ISO timestamp of latest scan
         "url": str,               # the Reel permalink
         "delta_6h": int,          # shares gained in last 6 hours
@@ -647,8 +652,12 @@ def _build_reel_shares_block(slug: str, paid_shares: int) -> dict:
     import pathlib as _pl
     notes_path = _pl.Path(__file__).resolve().parent.parent / "docs" / "launch" / "notes.json"
     empty = {
-        "total": 0, "paid": int(paid_shares or 0),
-        "organic": max(0, -int(paid_shares or 0)),
+        "total_shares": 0,
+        "paid_engagement": int(paid_engagement or 0),
+        # Keep legacy keys for back-compat with templates already deployed
+        "total": 0,
+        "paid": int(paid_engagement or 0),
+        "organic": None,  # honest: we can't split organic without IG insights API
         "last_scan_at": None, "url": None,
         "delta_6h": 0, "delta_24h": 0,
         "rate_per_hour": 0, "scan_count": 0,
@@ -716,9 +725,14 @@ def _build_reel_shares_block(slug: str, paid_shares: int) -> dict:
             pass
 
     return {
+        "total_shares": total,
+        "paid_engagement": paid,
+        # Legacy keys (template may still use 'total'/'paid')
         "total": total,
         "paid": paid,
-        "organic": organic,
+        # organic = None means "data not separable" (per the note above).
+        # Templates should display total + paid_engagement separately, not subtract.
+        "organic": None,
         "last_scan_at": latest.get("scanned_at"),
         "url": (notes.get(nk) or {}).get("insta_reel_url"),
         "delta_6h": _delta(6),
@@ -829,6 +843,8 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
         # The agent maps event-analytics slug "cleveland-oh-2026" to
         # notes.json key "<city-slug>-<start_date>" via the events list.
         # We pass `events` in via aggregate_with_funnel call site.
+        # paid_engagement = Meta "post" action_type (umbrella signal,
+        # not strictly shares). See helper docstring for caveat.
         ev["reel_shares"] = _build_reel_shares_block(slug, m.get("meta_paid_shares", 0))
 
         ev["last_pulled"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
