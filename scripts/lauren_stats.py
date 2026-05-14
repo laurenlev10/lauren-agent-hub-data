@@ -485,6 +485,27 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
     meta = fetch_meta_pixel_events(start_date, end_date, slugs=slugs)
     tt = fetch_tiktok_pixel_events(start_date, end_date, slugs=slugs)
 
+    # Manual TikTok fallback (2026-05-13 PM) — until TikTok Marketing API ticket
+    # #4080917 is approved, Lauren uploads her TikTok Ads Manager CSV manually
+    # and we store the parsed data in docs/state/manual_tiktok_overrides.json.
+    # If the live API returned nothing for a slug, merge the manual data in.
+    # When the API is approved and returns real data, the manual block is
+    # silently superseded — no extra work needed.
+    try:
+        import pathlib as _pl
+        _manual_path = _pl.Path(__file__).resolve().parent.parent / "docs" / "state" / "manual_tiktok_overrides.json"
+        if _manual_path.exists():
+            _manual = _json.loads(_manual_path.read_text())
+            _manual_events = _manual.get("events", {})
+            for _slug, _mdata in _manual_events.items():
+                _live = tt.get(_slug, {})
+                # Only fill in if live API gave zero/no data for this slug.
+                if not _live or _live.get("tiktok_spend", 0) == 0:
+                    tt[_slug] = _mdata
+                    print(f"  ↳ TikTok manual override applied for {_slug}: ${_mdata.get('tiktok_spend',0):.2f}")
+    except Exception as _e:
+        print(f"  ⚠ manual TikTok merge failed (non-fatal): {_e}")
+
     out = {"events": {}}
     for slug in slugs:
         ev = ga4.get(slug, {"views": {"total": 0, "by_source": {}, "by_campaign": {}, "by_lang": {}}, "conversions": {"total": 0, "by_source": {}}, "share_clicks": {}})
