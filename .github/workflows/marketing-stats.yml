@@ -253,6 +253,17 @@ jobs:
               except Exception as e:
                   print(f"⚠ send to {name} failed: {e}")
           PY
+      - name: Per-event marketing pulse digest SMS (9 AM/PM PT)
+        if: env.SHOULD_SEND_SMS == 'true'
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+        # Sends one concise Hebrew SMS per event with active campaigns:
+        # spend (Meta+TT), form submits, top ad, language insight, Reel shares
+        # (paid vs organic). Lauren's 2026-05-14 PM directive.
+        run: python3 scripts/lauren_digest_sms.py
+        continue-on-error: true  # never block the workflow on SMS failures
+
       - name: Update scheduled-runs.json (refresh lastRunAt)
         run: |
           python3 - <<'PY'
