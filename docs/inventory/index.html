@@ -4210,8 +4210,24 @@ function renderApplyBar(){
   if (counts.newprod) parts.push('🆕 מוצר חדש: <b>' + counts.newprod + '</b>');
   if (counts.shipping) parts.push('💰 משלוח: <b>' + counts.shipping + '</b>');
   if (counts.accept_as_po) parts.push('✅ קבל כמו PO: <b>' + counts.accept_as_po + '</b>');
-  if (!parts.length) parts.push('אין שינויים פעילים' + (appliedCount ? '' : ' — כל השורות תואמות'));
-  var hasChanges = (counts.update + counts.remove + counts.add + counts.replace + counts.newprod + counts.shipping + counts.accept_as_po) > 0;
+  // hasChanges = is there ANY row that will result in stock add or shipping save?
+  // Mirrors the action handling in applyChangesToOctopos so the button enable state matches reality.
+  var hasChanges = rows.some(function(r){
+    if (r._applied) return false;
+    var actR = RECV_CTX.action_by_key[r._key] || r.default_action;
+    if (actR === 'shipping') return true;
+    if (actR === 'skip' || actR === 'remove') return false;
+    if (r.kind === 'match' && actR === 'accept' && r.po_line && r.inv_line) return true;
+    if ((r.kind === 'qty' || r.kind === 'price') && (actR === 'update' || actR === 'accept')) return true;
+    if (r.kind === 'missing' && actR === 'accept_as_po') return true;
+    if (r.kind === 'extra' && (actR === 'add' || actR === 'newprod')) return true;
+    if (r.kind === 'sub' && actR === 'replace') return true;
+    return false;
+  });
+  if (!parts.length){
+    if (hasChanges) parts.push('כל השורות תואמות — לחצי "עדכן מלאי" כדי להוסיף לאוקטופוס');
+    else parts.push('אין שינויים פעילים' + (appliedCount ? '' : ' — כל השורות תואמות'));
+  }
   var appliedNote = appliedCount > 0 ? '<span style="color:#15803d;font-weight:700;margin-left:14px">✓ ' + appliedCount + ' שורות עודכנו כבר</span>' : '';
   var priceSmsBtn = priceDiffRows.length > 0
     ? '<button id="recvPriceSmsBtn" style="background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:700;cursor:pointer">📱 הודעה לספק על ' + priceDiffRows.length + ' פערי מחיר</button>'
