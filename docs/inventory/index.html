@@ -4070,12 +4070,21 @@ function renderDiffRowHtml(r){
         : fmtUsd(rawInvPrice))
     : '—';
 
-  // Editable overrides when action=update
+  // Editable overrides when action=update.
+  // The default value is the EFFECTIVE qty/price (already adjusted for pack_size + discount)
+  // so Lauren sees the real units she's getting. When she types a value, that's treated
+  // as real units directly (override bypasses the pack multiplier).
   var qtyCell = '<span>' + invQty + '</span>';
   var priceCell = '<span>' + invPrice + '</span>';
   if (act === 'update' && r.kind !== 'match'){
-    qtyCell = '<input class="edit-num" type="number" min="0" step="1" data-key="' + r._key + '" data-field="qty" value="' + (r.override_qty !== undefined ? r.override_qty : (inv.qty != null ? inv.qty : '')) + '" style="width:62px;text-align:center;padding:3px 5px;border:1px solid var(--line);border-radius:4px;background:#fffbeb">';
-    priceCell = '<input class="edit-num" type="number" min="0" step="0.01" data-key="' + r._key + '" data-field="price" value="' + (r.override_price !== undefined ? r.override_price : (inv.price != null ? inv.price : '')) + '" style="width:74px;text-align:center;padding:3px 5px;border:1px solid var(--line);border-radius:4px;background:#fffbeb">';
+    var defQty = (r.override_qty !== undefined)
+      ? r.override_qty
+      : (inv.qty != null ? Number(inv.qty) * Math.max(1, getSupplierPackSize(supCodeQty)) : '');
+    var defPrice = (r.override_price !== undefined)
+      ? r.override_price
+      : (inv.price != null ? Number(effectiveInvoicePrice(inv.price, supCodeRow)).toFixed(4) : '');
+    qtyCell = '<input class="edit-num" type="number" min="0" step="1" data-key="' + r._key + '" data-field="qty" value="' + defQty + '" style="width:62px;text-align:center;padding:3px 5px;border:1px solid var(--line);border-radius:4px;background:#fffbeb">';
+    priceCell = '<input class="edit-num" type="number" min="0" step="0.01" data-key="' + r._key + '" data-field="price" value="' + defPrice + '" style="width:74px;text-align:center;padding:3px 5px;border:1px solid var(--line);border-radius:4px;background:#fffbeb">';
   }
 
   // Net line total after action
