@@ -2755,6 +2755,17 @@ function skusEqual(a, b){
   // Fallback: full-string normalize match (for SKUs that don't split well)
   var na = normalizeSku(a), nb = normalizeSku(b);
   if (na && nb && na === nb) return true;
+  // Extension match — one SKU is the BASE and the other has a color/variant suffix.
+  // E.g., 'LS300A' (invoice base) ↔ 'LS300ARed' (PO with color tag).
+  // Require: shorter normalized SKU >= 5 chars, and the suffix has a letter.
+  if (na && nb && na !== nb){
+    var shortS = na.length < nb.length ? na : nb;
+    var longS  = na.length < nb.length ? nb : na;
+    if (shortS.length >= 5 && longS.indexOf(shortS) === 0){
+      var suffix = longS.slice(shortS.length);
+      if (/[A-Z]/.test(suffix)) return true;
+    }
+  }
   return false;
 }
 
