@@ -2705,7 +2705,7 @@ function skuSimilar(a, b){
 // Receive-mode state — synced to GitHub (docs/state/inventory_receive_state.json)
 // Per Lauren 2026-05-14: "אני רוצה הכל מסונכרן דרך גיט האב ולא על המחשבים המקומיים תמיד".
 // Only secrets (PATs / Octopos tokens) stay in localStorage; all user data syncs.
-var RECV_STATE = { _updated_at: null, skipped_pos: [] };
+var RECV_STATE = { _updated_at: null, skipped_pos: [], aliases: {} };
 var RECV_STATE_URL = "../state/inventory_receive_state.json";
 var RECV_STATE_REPO_FILE = "docs/state/inventory_receive_state.json";
 
@@ -2715,6 +2715,7 @@ async function loadReceiveState(){
     if (r.ok){
       RECV_STATE = await r.json();
       if (!Array.isArray(RECV_STATE.skipped_pos)) RECV_STATE.skipped_pos = [];
+      if (!RECV_STATE.aliases || typeof RECV_STATE.aliases !== 'object') RECV_STATE.aliases = {};
     }
   } catch(e){ console.warn("loadReceiveState failed:", e); }
 }
@@ -2741,6 +2742,28 @@ async function saveReceiveState(commitMsg){
     console.error("saveReceiveState failed:", e);
     return false;
   }
+}
+
+// ==== Alias system (learns "this invoice description = that Octopos product") ====
+function aliasKeyForInvoiceLine(inv){
+  if (inv.sku){
+    var s = String(inv.sku).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (s.length >= 3) return 'sku:' + s;
+  }
+  var nm = String(inv.name||'').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(function(t){return t.length>=3;}).slice(0,5).sort().join('-');
+  return nm ? 'name:' + nm : null;
+}
+function getAlias(inv){
+  var k = aliasKeyForInvoiceLine(inv);
+  if (!k || !RECV_STATE.aliases) return null;
+  return RECV_STATE.aliases[k] || null;
+}
+async function setAlias(inv, pid){
+  var k = aliasKeyForInvoiceLine(inv);
+  if (!k) return false;
+  if (!RECV_STATE.aliases) RECV_STATE.aliases = {};
+  RECV_STATE.aliases[k] = pid;
+  return await saveReceiveState('@inventory/receive: alias ' + k + ' -> ' + pid);
 }
 
 function getSkippedPos(){
@@ -3206,6 +3229,16 @@ function computeDiff(){
       }
       if (bestIdx !== -1){ idx = bestIdx; matchedBy = 'name'; }
     }
+    // 1c. Saved alias — learned from a previous manual link
+    if (idx === -1){
+      for (var ja = 0; ja < invLines.length; ja++){
+        if (usedInvIdx[ja]) continue;
+        var aliasPid = getAlias(invLines[ja]);
+        if (aliasPid && String(aliasPid) === String(pl.product_id)){
+          idx = ja; matchedBy = 'alias'; break;
+        }
+      }
+    }
     if (idx !== -1){
       usedInvIdx[idx] = true;
       var inv = invLines[idx];
@@ -3404,6 +3437,11 @@ function bindReceiveDelegation(){
       applyChangesToOctopos();
       return;
     }
+    var linkBtn = e.target.closest('button[data-action="link-existing"]');
+    if (linkBtn){
+      openLinkExistingModal(linkBtn.dataset.key);
+      return;
+    }
     if (e.target.closest('#recvPasteFallback') || e.target.closest('#recvPasteFallback2')){
       e.preventDefault();
       openManualInvoicePaste();
@@ -3546,6 +3584,8 @@ function renderDiffRowHtml(r){
     '<td><div class="name">' + escHtml(r.name||'') + '</div>' +
       (r.sub_for ? '<div style="font-size:11px;color:#1e3a8a;margin-top:2px">↪︎ במקום ' + escHtml(r.sub_for) + '</div>' : '') +
       (r.matched_by === 'name' ? '<div style="font-size:10px;color:#7c3aed;margin-top:2px;font-weight:700">📛 התאמה לפי שם המוצר (SKU בחשבונית שונה)</div>' : '') +
+      (r.matched_by === 'alias' ? '<div style="font-size:10px;color:#1d4ed8;margin-top:2px;font-weight:700">🧠 התאמה אוטומטית (למדתי מהפעם הקודמת)</div>' : '') +
+      (r.matched_by === 'manual-link' ? '<div style="font-size:10px;color:#1d4ed8;margin-top:2px;font-weight:700">🔗 חוברה ידנית · נשמר לעתיד</div>' : '') +
     '</td>' +
     '<td style="text-align:center" class="sku">' + escHtml(r.sku||'') + '</td>' +
     '<td class="' + qtyClass + '">' + poQty + '</td>' +
@@ -3575,7 +3615,8 @@ function renderRowActions(r, currentAct){
     btn('remove', '❌ הסר מ-PO', 'act-remove');
   } else if (r.kind === 'extra'){
     if (r.new_product_needed){
-      btn('newprod', '🆕 צור מוצר + הוסף', 'act-add');
+      btns.push('<button data-action="link-existing" data-key="' + r._key + '" style="background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;padding:4px 9px;font-size:11px;font-weight:700;border-radius:6px;cursor:pointer;white-space:nowrap;font-family:inherit">🔗 חבר למוצר קיים</button>');
+      btn('newprod', '🆕 צור מוצר חדש', 'act-add');
       btn('skip',    'דלג כרגע', 'act-skip');
     } else {
       btn('add',  '➕ הוסף ל-PO', 'act-add');
@@ -3670,6 +3711,63 @@ function openNewProductModal(key){
 }
 
 // ────────── Apply to Octopos ──────────
+
+// Manual link: connect a "new product" row to an existing PO line that's "missing"
+function openLinkExistingModal(rowKey){
+  if (!RECV_CTX || !RECV_CTX.diff) return;
+  var newRow = RECV_CTX.diff.find(function(r){return r._key === rowKey;});
+  if (!newRow || !newRow.new_product_needed) return;
+  var missingRows = RECV_CTX.diff.filter(function(r){ return r.kind === 'missing' && !r._applied; });
+  if (!missingRows.length){
+    toast('אין מוצרים מסומנים כ"לא הגיע" — הכפתור עובד רק כשיש מוצר חסר ב-PO שמתאים', '');
+    return;
+  }
+  var modal = document.createElement('div');
+  modal.className = 'recv-newprod-modal';
+  var listHtml = missingRows.map(function(mr){
+    var po = mr.po_line || {};
+    return '<button class="link-pick" data-pid="' + escHtml(String(po.product_id||'')) + '" data-mkey="' + mr._key + '" style="display:block;width:100%;text-align:right;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:6px;cursor:pointer;font-family:inherit">' +
+      '<div style="font-weight:700">' + escHtml(mr.name||'') + '</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin-top:2px"><code style="font-family:monospace">' + escHtml(mr.sku||'') + '</code> · כמות PO: ' + po.quantity + ' · $/יח׳: $' + (po.cost_unit||0) + '</div>' +
+    '</button>';
+  }).join('');
+
+  modal.innerHTML =
+    '<div class="card" style="max-width:580px;width:100%">' +
+      '<h2 style="margin:0 0 6px;font-size:19px;font-weight:800">🔗 חבר ל"לא הגיע" קיים</h2>' +
+      '<div style="color:var(--muted);font-size:13px;margin-bottom:12px">' +
+        'מהחשבונית: <b>' + escHtml(newRow.name||'') + '</b><br>' +
+        'בחרי את המוצר ב-PO שזה באמת:' +
+      '</div>' +
+      '<div style="max-height:340px;overflow:auto">' + listHtml + '</div>' +
+      '<div class="actions" style="margin-top:10px"><button data-x>סגור</button></div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  modal.querySelector('[data-x]').addEventListener('click', function(){ modal.remove(); });
+  modal.querySelectorAll('.link-pick').forEach(function(b){
+    b.addEventListener('click', async function(){
+      var pid = b.dataset.pid;
+      var mkey = b.dataset.mkey;
+      var missing = RECV_CTX.diff.find(function(r){return r._key === mkey;});
+      if (!missing){ modal.remove(); return; }
+      newRow.kind = 'sub';
+      newRow.sub_for = missing.sku;
+      newRow.sub_inv_line = newRow.inv_line;
+      newRow.sub_oct_product_id = Number(pid);
+      newRow.po_line = missing.po_line;
+      newRow.new_product_needed = false;
+      newRow.matched_by = 'manual-link';
+      newRow.default_action = 'replace';
+      RECV_CTX.action_by_key[newRow._key] = 'replace';
+      var midx = RECV_CTX.diff.indexOf(missing);
+      if (midx !== -1) RECV_CTX.diff.splice(midx, 1);
+      if (newRow.inv_line) await setAlias(newRow.inv_line, Number(pid));
+      modal.remove();
+      toast('🔗 חיברתי. נשמר אוטומטית לעתיד.', 'success');
+      renderDiffTable();
+    });
+  });
+}
 
 // Manual paste fallback — Lauren pastes the invoice text and we parse it
 function openManualInvoicePaste(){
