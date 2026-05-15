@@ -3388,10 +3388,11 @@ async function parseInvoiceImage(file){
 function parseInvoiceRows(rowStrings){
   var lines = [];
   rowStrings.forEach(function(row){
-    // Try to find a SKU-like token (very permissive — Lauren's catalog has many formats:
-    // PRO-21, EM1-16, ES2-005-2, A100, LC2-02, E30-151-1, F1-20-1, XS-070HA, XB-S02,
-    // BB&WCB, etc.). Pattern: any alphanumeric block (optionally with dashes), at least
-    // 3 chars, containing at least one digit. Empty SKU is fine — name match handles it.
+    // Try to find a SKU-like token. Two passes:
+    //   Pass A: letter-prefixed alphanumeric (XS-070, PRO-21, BB-W, etc.)
+    //   Pass B: pure-numeric 4-7 digit codes (Rude's 88148, 38522, etc.) — only used
+    //           if Pass A found nothing.
+    // The (qty, price, total) heuristic below validates it's a real line either way.
     var sku = '';
     var skuMatch = null;
     var skuRe = /\b([A-Z][A-Z0-9]*(?:[-\/][A-Z0-9]+)*)\b/g;
@@ -3406,6 +3407,8 @@ function parseInvoiceRows(rowStrings){
         break;
       }
     }
+    // Defer the pure-numeric fallback — happens after the (qty,price,total) triple
+    // is identified, so we can exclude those numbers from being treated as SKUs.
 
     // Extract numeric tokens
     var nums = [];
@@ -3433,6 +3436,22 @@ function parseInvoiceRows(rowStrings){
       }
     }
     if (!found) return;
+
+    // Pure-numeric SKU fallback (for suppliers like Rude with item numbers 88148, 38522 etc.)
+    if (!sku){
+      var numSkuRe = /\b(\d{4,7})\b/g;
+      var nm;
+      while ((nm = numSkuRe.exec(row)) !== null){
+        var cand2 = nm[1];
+        var nVal = Number(cand2);
+        // Exclude the qty/price/total numbers themselves
+        if (nVal === found.qty || nVal === Math.round(found.price * 100) / 100 || nVal === Math.round(found.total * 100) / 100) continue;
+        // Skip prices that happen to be 4 digits (e.g., 31.56 doesn't match \d+ but 1056 might)
+        sku = cand2;
+        skuMatch = { 0: cand2, index: nm.index };
+        break;
+      }
+    }
 
     // Extract a name — strip SKU, the 3 matched numbers, and noise
     var nameRaw = row;
