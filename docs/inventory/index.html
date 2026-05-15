@@ -3544,6 +3544,7 @@ function renderDiffTable(){
     '<th>מוצר</th>' +
     '<th style="text-align:center">SKU</th>' +
     '<th style="text-align:center" title="כמות יחידות בדיספליי — לתכנון הזמנות עתידיות">📦 בדיספליי</th>' +
+    '<th style="text-align:center" title="מינימום הזמנה מהספק (MOQ) — לפעמים הספק שולח רק במספרים מסוימים, למשל 144">🏭 מינ׳ ספק</th>' +
     '<th style="text-align:center">PO כמות</th>' +
     '<th style="text-align:center">חשבונית כמות</th>' +
     '<th style="text-align:center">PO מחיר</th>' +
@@ -3711,6 +3712,23 @@ function bindReceiveDelegation(){
       })();
       return;
     }
+    var moqInp = e.target.closest('input.edit-moq-cap');
+    if (moqInp){
+      var pidMQ = Number(moqInp.dataset.pid);
+      if (!pidMQ) return;
+      var existingRuleM = getRuleFor(pidMQ) || {};
+      var newValM = Math.max(0, Number(moqInp.value) || 0);
+      var newRuleM = Object.assign({}, existingRuleM);
+      if (newValM > 0) newRuleM.moq = newValM;
+      else delete newRuleM.moq;
+      (async function(){
+        var ok = await saveProductRule(pidMQ, Object.keys(newRuleM).length ? newRuleM : null);
+        if (ok) toast('🏭 מינ׳ ספק: ' + (newValM || 'נמחק') + ' נשמר', 'success');
+        else toast('שמירה נכשלה — בדקי GitHub token', 'error');
+        renderDiffTable();
+      })();
+      return;
+    }
   }, true);
 }
 
@@ -3854,6 +3872,13 @@ function renderDiffRowHtml(r){
       var ruleD = getRuleFor(pidD) || {};
       var curD = ruleD.display_capacity || '';
       return '<input type="number" min="0" step="1" class="edit-display-cap" data-pid="' + pidD + '" value="' + curD + '" placeholder="—" style="width:54px;padding:3px 5px;border:1px solid var(--line);border-radius:4px;background:' + (curD ? '#dbeafe' : 'var(--panel2)') + ';text-align:center;font-size:12px">';
+    })() + '</td>' +
+    '<td style="text-align:center">' + (function(){
+      var pidM = r.po_line ? r.po_line.product_id : (r.oct_product_id || r.sub_oct_product_id || r._created_product_id);
+      if (!pidM) return '<span style="color:var(--muted);font-size:11px">—</span>';
+      var ruleM = getRuleFor(pidM) || {};
+      var curM = ruleM.moq || '';
+      return '<input type="number" min="0" step="1" class="edit-moq-cap" data-pid="' + pidM + '" value="' + curM + '" placeholder="—" style="width:54px;padding:3px 5px;border:1px solid var(--line);border-radius:4px;background:' + (curM ? '#fef3c7' : 'var(--panel2)') + ';text-align:center;font-size:12px">';
     })() + '</td>' +
     '<td class="' + qtyClass + '">' + poQty + '</td>' +
     '<td class="' + invQtyClass + '">' + qtyCell + '</td>' +
