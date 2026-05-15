@@ -4014,13 +4014,8 @@ function openLinkExistingModal(rowKey){
   }
   var supCode = RECV_CTX.rec.supplier_code;
   var vendor = (OCTOPOS && OCTOPOS.vendors && OCTOPOS.vendors[supCode]) || {};
-  // Active only — drop inactive_products. Also filter discontinued names
-  // (Clearance!, OUT OF STOCK, SOLD OUT) so Lauren doesn't accidentally link to them.
-  var DROP_PREFIX = /^(Clearance!|OUT OF STOCK|SOLD OUT)/i;
-  var allProducts = (vendor.products || []).filter(function(p){
-    if (p.active === false) return false;
-    return !DROP_PREFIX.test(String(p.name||''));
-  });
+  // Active only — per Lauren: filter by Octopos active status, NOT by product name
+  var allProducts = (vendor.products || []).filter(function(p){ return p.active !== false; });
   if (!allProducts.length){
     toast('לא נמצאו מוצרים פעילים עבור הספק ' + supCode, 'error');
     return;
