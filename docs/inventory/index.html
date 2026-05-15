@@ -3867,6 +3867,7 @@ function renderDiffRowHtml(r){
       (r.matched_by === 'name' ? '<div style="font-size:10px;color:#7c3aed;margin-top:2px;font-weight:700">📛 התאמה לפי שם המוצר (SKU בחשבונית שונה)</div>' : '') +
       (r.matched_by === 'alias' ? '<div style="font-size:10px;color:#1d4ed8;margin-top:2px;font-weight:700">🧠 התאמה אוטומטית (למדתי מהפעם הקודמת)</div>' : '') +
       (r.matched_by === 'manual-link' ? '<div style="font-size:10px;color:#1d4ed8;margin-top:2px;font-weight:700">🔗 חוברה ידנית · נשמר לעתיד</div>' : '') +
+      (r.matched_by === 'manual-entry' ? '<div style="font-size:10px;color:#7c2d12;margin-top:2px;font-weight:700">✏️ הוזן ידנית</div>' : '') +
       (r.matched_by === 'duplicate' ? '<div style="font-size:10px;color:#dc2626;margin-top:2px;font-weight:700">🚫 כפילות · ידלג ולא יוסיף מלאי</div>' : '') +
     '</td>' +
     '<td style="text-align:center" class="sku">' + escHtml(r.sku||'') + '</td>' +
@@ -4172,10 +4173,6 @@ function openLinkInvoiceModal(rowKey){
   var extras = RECV_CTX.diff.filter(function(r){
     return r.kind === 'extra' && r.new_product_needed && !r._applied && r.inv_line;
   });
-  if (!extras.length){
-    toast('אין שורות חשבונית לא-מקושרות. אם המוצר באמת בחשבונית — תוסיפי שורה ידנית או השתמשי ב"✅ השאר כמו ב-PO".', '');
-    return;
-  }
   var modal = document.createElement('div');
   modal.className = 'recv-newprod-modal';
 
@@ -4187,6 +4184,9 @@ function openLinkInvoiceModal(rowKey){
              (r.sku||'').toLowerCase().indexOf(q) !== -1 ||
              (r.inv_line && r.inv_line.name || '').toLowerCase().indexOf(q) !== -1;
     });
+    if (!filtered.length){
+      return '<div style="text-align:center;padding:14px;color:var(--muted);background:var(--panel2);border-radius:8px;font-size:13px">אין שורות חשבונית לא-מקושרות. השתמשי באפשרות "הזנה ידנית" למטה ⬇️</div>';
+    }
     return filtered.slice(0, 60).map(function(r){
       var inv = r.inv_line || {};
       return '<button class="pick-inv" data-rkey="' + r._key + '" style="display:block;width:100%;text-align:right;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:6px;cursor:pointer;font-family:inherit">' +
@@ -4196,15 +4196,28 @@ function openLinkInvoiceModal(rowKey){
     }).join('');
   }
 
+  var poQtyHint = (missingRow.po_line && missingRow.po_line.quantity) || 0;
+  var poPriceHint = (missingRow.po_line && missingRow.po_line.cost_unit) || 0;
+
   modal.innerHTML =
     '<div class="card" style="max-width:640px;width:100%">' +
       '<h2 style="margin:0 0 6px;font-size:19px;font-weight:800">🔗 חבר למוצר קיים: ' + escHtml(missingRow.name||'') + '</h2>' +
       '<div style="color:var(--muted);font-size:13px;margin-bottom:12px">' +
-        'המוצר הזה (' + escHtml(missingRow.sku||'') + ') מסומן "לא הגיע" אבל את יודעת שהוא בעצם הגיע. בחרי איזו שורה מהחשבונית מייצגת אותו — אחרי החיבור היא תזוז למצב כמות/מחיר רגיל.' +
+        'המוצר הזה (' + escHtml(missingRow.sku||'') + ') מסומן "לא הגיע" אבל את יודעת שהוא בעצם הגיע. שני מסלולים:' +
       '</div>' +
+      '<div style="font-weight:700;font-size:13px;margin-bottom:6px;color:#1e3a8a">1. בחרי שורת חשבונית קיימת:</div>' +
       '<input type="text" id="recvInvSearch" placeholder="חיפוש בשם או SKU של שורת חשבונית..." style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-size:14px;margin-bottom:10px">' +
-      '<div id="recvInvList" style="max-height:400px;overflow:auto">' + renderList('') + '</div>' +
-      '<div class="actions" style="margin-top:10px"><button data-x>סגור</button></div>' +
+      '<div id="recvInvList" style="max-height:240px;overflow:auto;margin-bottom:14px">' + renderList('') + '</div>' +
+      '<div style="border-top:1px solid var(--line);padding-top:14px"></div>' +
+      '<div style="font-weight:700;font-size:13px;margin-bottom:6px;color:#7c2d12">2. או הזיני ידנית כמה הגיע (אם הפארסר לא תפס):</div>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:12px">' +
+        '<label style="font-size:13px;font-weight:600">כמות:</label>' +
+        '<input type="number" id="manQty" min="0" step="1" value="' + poQtyHint + '" style="width:80px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:center">' +
+        '<label style="font-size:13px;font-weight:600">מחיר ליחידה ($):</label>' +
+        '<input type="number" id="manPrice" min="0" step="0.01" value="' + poPriceHint + '" style="width:90px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:center">' +
+        '<button id="manAccept" style="background:#15803d;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">✓ אשרי</button>' +
+      '</div>' +
+      '<div class="actions" style="margin-top:14px"><button data-x>סגור</button></div>' +
     '</div>';
   document.body.appendChild(modal);
   modal.querySelector('[data-x]').addEventListener('click', function(){ modal.remove(); });
@@ -4219,7 +4232,6 @@ function openLinkInvoiceModal(rowKey){
     var pickedRowKey = b.dataset.rkey;
     var pickedRow = RECV_CTX.diff.find(function(r){return r._key === pickedRowKey;});
     if (!pickedRow){ modal.remove(); return; }
-    // Merge invoice data into the missing PO row → becomes qty/price/match
     var qty = Number(pickedRow.inv_line.qty || 0);
     var price = Number(pickedRow.inv_line.price || 0);
     var poQty = Number(missingRow.po_line.quantity || 0);
@@ -4236,15 +4248,53 @@ function openLinkInvoiceModal(rowKey){
     missingRow.matched_by = 'manual-link';
     missingRow.default_action = (qtyDiff || priceDiff) ? 'update' : 'accept';
     delete RECV_CTX.action_by_key[missingRow._key];
-    // Remove the picked extra row from the diff
     var pidx = RECV_CTX.diff.indexOf(pickedRow);
     if (pidx !== -1) RECV_CTX.diff.splice(pidx, 1);
-    // Save alias — this invoice fingerprint = the PO line's product_id
     if (pickedRow.inv_line && missingRow.po_line && missingRow.po_line.product_id){
       await setAlias(pickedRow.inv_line, missingRow.po_line.product_id);
     }
     modal.remove();
     toast('🔗 חוברה. ' + escHtml(missingRow.name||'') + ' עברה לטבלה למעלה.', 'success');
+    renderDiffTable();
+    scheduleRecvSave();
+  });
+
+  // Manual qty/price entry — for when parser missed the invoice line entirely
+  modal.querySelector('#manAccept').addEventListener('click', async function(){
+    var qty = Math.max(0, Number(modal.querySelector('#manQty').value) || 0);
+    var price = Math.max(0, Number(modal.querySelector('#manPrice').value) || 0);
+    if (qty <= 0){
+      toast('כמות חייבת להיות גדולה מ-0', 'error');
+      return;
+    }
+    // Create a virtual inv_line and attach to the missing row
+    var virtualInv = {
+      sku: missingRow.po_line.product_sku || missingRow.sku || '',
+      name: missingRow.po_line.product_name || missingRow.name || '',
+      qty: qty,
+      price: price,
+      total: qty * price,
+      _manual: true
+    };
+    var poQty = Number(missingRow.po_line.quantity || 0);
+    var poPrice = Number(missingRow.po_line.cost_unit || 0);
+    var supCode = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
+    // For manual entry, qty is in REAL units (not multiplied by pack)
+    var effInvPrice = effectiveInvoicePrice(price, supCode);
+    var qtyDiff = Math.abs(poQty - qty) > 0.01;
+    var priceDiff = Math.abs(poPrice - effInvPrice) > 0.05;
+    missingRow.inv_line = virtualInv;
+    missingRow.kind = (!qtyDiff && !priceDiff) ? 'match' : (priceDiff && !qtyDiff ? 'price' : 'qty');
+    missingRow.qtyDiff = qtyDiff;
+    missingRow.priceDiff = priceDiff;
+    missingRow.matched_by = 'manual-entry';
+    // qty already in real units — bypass pack multiplier on Apply
+    missingRow.override_qty = qty;
+    missingRow.override_price = price;
+    missingRow.default_action = (qtyDiff || priceDiff) ? 'update' : 'accept';
+    delete RECV_CTX.action_by_key[missingRow._key];
+    modal.remove();
+    toast('✏️ ' + escHtml(missingRow.name||'') + ': נוסף ידנית qty=' + qty + ' @ $' + price, 'success');
     renderDiffTable();
     scheduleRecvSave();
   });
