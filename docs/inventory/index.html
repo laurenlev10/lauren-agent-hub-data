@@ -2774,7 +2774,7 @@ function skuSimilar(a, b){
 // Receive-mode state — synced to GitHub (docs/state/inventory_receive_state.json)
 // Per Lauren 2026-05-14: "אני רוצה הכל מסונכרן דרך גיט האב ולא על המחשבים המקומיים תמיד".
 // Only secrets (PATs / Octopos tokens) stay in localStorage; all user data syncs.
-var RECV_STATE = { _updated_at: null, skipped_pos: [], aliases: {}, supplier_discounts: {}, supplier_pack_sizes: {}, reconciled_pos: {}, in_progress: {} };
+var RECV_STATE = { _updated_at: null, skipped_pos: [], aliases: {}, supplier_discounts: {}, supplier_pack_sizes: {}, supplier_ignore_patterns: {}, reconciled_pos: {}, in_progress: {} };
 var RECV_STATE_URL = "../state/inventory_receive_state.json";
 var RECV_STATE_REPO_FILE = "docs/state/inventory_receive_state.json";
 
@@ -2789,6 +2789,7 @@ async function loadReceiveState(){
       if (!RECV_STATE.reconciled_pos || typeof RECV_STATE.reconciled_pos !== 'object') RECV_STATE.reconciled_pos = {};
       if (!RECV_STATE.in_progress || typeof RECV_STATE.in_progress !== 'object') RECV_STATE.in_progress = {};
       if (!RECV_STATE.supplier_pack_sizes || typeof RECV_STATE.supplier_pack_sizes !== 'object') RECV_STATE.supplier_pack_sizes = {};
+      if (!RECV_STATE.supplier_ignore_patterns || typeof RECV_STATE.supplier_ignore_patterns !== 'object') RECV_STATE.supplier_ignore_patterns = {};
     }
   } catch(e){ console.warn("loadReceiveState failed:", e); }
 }
@@ -2893,6 +2894,30 @@ async function setSupplierPackSize(supCode, n){
 function effectiveInvoiceQty(rawQty, supCode){
   var pack = getSupplierPackSize(supCode);
   return Number(rawQty||0) * pack;
+}
+
+// Filter parsed invoice lines through per-supplier ignore patterns (regex strings).
+// Tested against (sku + ' ' + name) of each line. Used to skip rows that should
+// never be counted (e.g., 'GM' miscellaneous accessory rows in S.he Makeup invoices).
+function filterIgnoredLines(lines, supCode){
+  if (!supCode || !RECV_STATE.supplier_ignore_patterns) return lines;
+  var patterns = RECV_STATE.supplier_ignore_patterns[supCode] || [];
+  if (!patterns.length) return lines;
+  var compiled = patterns.map(function(p){
+    try { return new RegExp(p, 'i'); } catch(e){ console.warn('bad ignore pattern:', p, e); return null; }
+  }).filter(Boolean);
+  if (!compiled.length) return lines;
+  var skipped = 0;
+  var out = lines.filter(function(line){
+    var testStr = ((line.sku||'') + ' ' + (line.name||'')).trim();
+    var match = compiled.some(function(re){ return re.test(testStr); });
+    if (match) skipped++;
+    return !match;
+  });
+  if (skipped > 0){
+    console.log('[recv] supplier ignore patterns filtered ' + skipped + ' line(s) for ' + supCode);
+  }
+  return out;
 }
 
 // Mark an invoice-line fingerprint as a DUPLICATE — future invoices with the same
@@ -3319,6 +3344,9 @@ async function handleInvoiceFile(file){
       $("#recvDiff").innerHTML = '<div class="empty-state"><p>לא הצלחתי לזהות שורות חשבונית בקובץ. נסי קובץ PDF אחר או הדביקי טקסט ידני.</p></div>';
       return;
     }
+    // Apply per-supplier ignore patterns (e.g., 'GM' rows in S.he Makeup)
+    var supForFilter = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
+    lines = filterIgnoredLines(lines, supForFilter);
     RECV_CTX.invoice = { lines: lines };
     computeDiff();
     renderDiffTable();
