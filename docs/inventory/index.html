@@ -2502,7 +2502,7 @@ async function _saveProductRuleNow(productId, rule){
   // every known field so single-field rules (like just display_capacity) are kept.
   function ruleIsEmpty(r){
     if (!r) return true;
-    var keys = ['min_display','moq','multiple_of','max','skip','note','display_capacity'];
+    var keys = ['min_display','moq','multiple_of','max','skip','note','display_capacity','pack_size'];
     for (var i = 0; i < keys.length; i++){
       var v = r[keys[i]];
       if (v !== undefined && v !== null && v !== '' && v !== 0 && v !== false) return false;
@@ -2594,6 +2594,7 @@ function openRuleEditor(product, onSave){
       '</div>' +
       '<div class="row" style="margin-top:10px">' +
         '<div class="field"><label>📦 כמות בדיספליי (לתכנון רענון מלאי)</label><input type="number" min="0" id="rDisplayCap" value="' + (existing.display_capacity||'') + '" placeholder="ריק = ללא"></div>' +
+        '<div class="field"><label>🔢 יח׳ לכל שורת חשבונית (דורס pack_size של הספק)</label><input type="number" min="1" id="rPackSize" value="' + (existing.pack_size||'') + '" placeholder="ריק = כמו הספק"></div>' +
       '</div>' +
       '<div style="margin-top:10px"><label style="font-size:13px"><input type="checkbox" id="rSkip" ' + (existing.skip ? "checked" : "") + '> דלג תמיד על המוצר הזה בהזמנות אוטומטיות</label></div>' +
       '<div style="margin-top:10px"><label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">הערה חופשית (מוצגת בדשבורד + ב-SMS אם רלוונטי)</label>' +
@@ -2623,6 +2624,7 @@ function openRuleEditor(product, onSave){
       const multiple_of = Number(v('#rMultiple'));
       const max         = Number(v('#rMax'));
       const display_cap = Number(v('#rDisplayCap'));
+      const pack_size_v = Number(v('#rPackSize'));
       const skip        = modal.querySelector('#rSkip').checked;
       const note        = v('#rNote');
       const newName     = v('#rName');
@@ -2631,6 +2633,7 @@ function openRuleEditor(product, onSave){
       if (multiple_of > 0) r.multiple_of = multiple_of;
       if (max > 0)         r.max = max;
       if (display_cap > 0) r.display_capacity = display_cap;
+      if (pack_size_v > 0) r.pack_size = pack_size_v;
       if (skip)            r.skip = true;
       if (note)            r.note = note;
       e.target.disabled = true; e.target.textContent = "שומר…";
@@ -2874,16 +2877,27 @@ async function setSupplierDiscount(supCode, pct){
   RECV_STATE.supplier_discounts[supCode] = Number(pct) || 0;
   return await saveReceiveState('@inventory/receive: discount ' + supCode + ' = ' + pct + '%');
 }
-function effectiveInvoicePrice(rawPrice, supCode){
+function effectiveInvoicePrice(rawPrice, supCode, productId){
   var disc = getSupplierDiscount(supCode);
-  var pack = getSupplierPackSize(supCode);
-  // When invoice qty is in packs (e.g., "1 dz" = 12 units), the price is also per-pack.
-  // Divide by pack to get per-unit price, then apply discount.
+  var pack = getEffectivePackForLine(supCode, productId);
   return (Number(rawPrice||0) / pack) * (1 - disc/100);
 }
 function getSupplierPackSize(supCode){
   if (!supCode || !RECV_STATE.supplier_pack_sizes) return 1;
   return Number(RECV_STATE.supplier_pack_sizes[supCode] || 1) || 1;
+}
+
+// Per-product pack override (in product_rules.pack_size) takes precedence over
+// the supplier default. Useful when ONE product within a supplier ships in
+// different units than the rest (e.g., a single bulky item among dz-shipped pencils).
+function getEffectivePackForLine(supCode, productId){
+  if (productId){
+    var r = getRuleFor(productId) || {};
+    if (r.pack_size && Number(r.pack_size) > 0){
+      return Number(r.pack_size);
+    }
+  }
+  return getSupplierPackSize(supCode);
 }
 async function setSupplierPackSize(supCode, n){
   if (!supCode) return false;
@@ -2891,8 +2905,8 @@ async function setSupplierPackSize(supCode, n){
   RECV_STATE.supplier_pack_sizes[supCode] = Math.max(1, Number(n) || 1);
   return await saveReceiveState('@inventory/receive: pack-size ' + supCode + ' = ' + n);
 }
-function effectiveInvoiceQty(rawQty, supCode){
-  var pack = getSupplierPackSize(supCode);
+function effectiveInvoiceQty(rawQty, supCode, productId){
+  var pack = getEffectivePackForLine(supCode, productId);
   return Number(rawQty||0) * pack;
 }
 
@@ -3664,8 +3678,8 @@ function computeDiff(){
       usedInvIdx[idx] = true;
       var inv = invLines[idx];
       var supCodeDiff = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
-      var effInvPrice = effectiveInvoicePrice(inv.price, supCodeDiff);
-      var effInvQty = effectiveInvoiceQty(inv.qty, supCodeDiff);
+      var effInvPrice = effectiveInvoicePrice(inv.price, supCodeDiff, pl.product_id);
+      var effInvQty = effectiveInvoiceQty(inv.qty, supCodeDiff, pl.product_id);
       var qtyDiff = Math.abs(Number(pl.quantity||0) - effInvQty) > 0.01;
       var priceDiff = Math.abs(Number(pl.cost_unit||0) - effInvPrice) > 0.05;  // wider tolerance — discounts often round to nearest cent
       var kind = (!qtyDiff && !priceDiff) ? 'match' : (qtyDiff && priceDiff ? 'qty' : (qtyDiff ? 'qty' : 'price'));
@@ -4076,7 +4090,7 @@ function renderDiffRowHtml(r){
   var po = r.po_line || {};
   var inv = r.inv_line || (r.sub_inv_line || {});
   var supCodeQty = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
-  var packForQty = getSupplierPackSize(supCodeQty);
+  var packForQty = getEffectivePackForLine(supCodeQty, po.product_id);
   var poQty = po.quantity != null ? po.quantity : '—';
   var rawInvQty = inv.qty != null ? Number(inv.qty) : null;
   var effInvQtyDisp = rawInvQty != null && packForQty > 1 ? rawInvQty * packForQty : rawInvQty;
@@ -4088,9 +4102,9 @@ function renderDiffRowHtml(r){
   var poPrice = po.cost_unit != null ? fmtUsd(po.cost_unit) : '—';
   var supCodeRow = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
   var rowDiscount = getSupplierDiscount(supCodeRow);
-  var rowPack = getSupplierPackSize(supCodeRow);
+  var rowPack = getEffectivePackForLine(supCodeRow, po.product_id);
   var rawInvPrice = inv.price != null ? Number(inv.price) : null;
-  var effInvPrice = rawInvPrice != null ? effectiveInvoicePrice(rawInvPrice, supCodeRow) : null;
+  var effInvPrice = rawInvPrice != null ? effectiveInvoicePrice(rawInvPrice, supCodeRow, po.product_id) : null;
   var hasPriceMod = (rowDiscount > 0 || rowPack > 1);
   var invPrice = rawInvPrice != null
     ? (hasPriceMod
@@ -4107,10 +4121,10 @@ function renderDiffRowHtml(r){
   if (act === 'update' && r.kind !== 'match'){
     var defQty = (r.override_qty !== undefined)
       ? r.override_qty
-      : (inv.qty != null ? Number(inv.qty) * Math.max(1, getSupplierPackSize(supCodeQty)) : '');
+      : (inv.qty != null ? Number(inv.qty) * Math.max(1, getEffectivePackForLine(supCodeQty, po.product_id)) : '');
     var defPrice = (r.override_price !== undefined)
       ? r.override_price
-      : (inv.price != null ? Number(effectiveInvoicePrice(inv.price, supCodeRow)).toFixed(4) : '');
+      : (inv.price != null ? Number(effectiveInvoicePrice(inv.price, supCodeRow, po.product_id)).toFixed(4) : '');
     qtyCell = '<input class="edit-num" type="number" min="0" step="1" data-key="' + r._key + '" data-field="qty" value="' + defQty + '" style="width:62px;text-align:center;padding:3px 5px;border:1px solid var(--line);border-radius:4px;background:#fffbeb">';
     priceCell = '<input class="edit-num" type="number" min="0" step="0.01" data-key="' + r._key + '" data-field="price" value="' + defPrice + '" style="width:74px;text-align:center;padding:3px 5px;border:1px solid var(--line);border-radius:4px;background:#fffbeb">';
   }
@@ -4900,7 +4914,7 @@ async function applyChangesToOctopos(){
     if (r.kind === 'match' && act === 'accept' && r.po_line && r.inv_line){
       pid = r.po_line.product_id;
       var supCodeM = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
-      addQty = effectiveInvoiceQty(r.inv_line.qty, supCodeM);
+      addQty = effectiveInvoiceQty(r.inv_line.qty, supCodeM, pid);
       reason = 'תואם · קבל';
     }
     else if ((r.kind === 'qty' || r.kind === 'price') && r.po_line && r.inv_line){
@@ -4908,14 +4922,13 @@ async function applyChangesToOctopos(){
       if (act === 'update'){
         var supCodeU = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
         var qRaw = (r.override_qty !== undefined ? r.override_qty : r.inv_line.qty);
-        // If override was set, it's already in real units — don't multiply
-        addQty = r.override_qty !== undefined ? Number(qRaw) : effectiveInvoiceQty(qRaw, supCodeU);
+        addQty = r.override_qty !== undefined ? Number(qRaw) : effectiveInvoiceQty(qRaw, supCodeU, pid);
         reason = (r.kind === 'qty' ? 'כמות' : 'מחיר') + ' · עדכן לחשבונית';
         // Master-price opt-in: only if user checked 📌 AND price actually differs
         if (r.update_master_price && r.po_line.cost_unit && r.inv_line.price){
           var supCodePU = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
           var newCostRaw = (r.override_price !== undefined ? r.override_price : r.inv_line.price);
-          var newCostEff = effectiveInvoicePrice(newCostRaw, supCodePU);
+          var newCostEff = effectiveInvoicePrice(newCostRaw, supCodePU, pid);
           if (Math.abs(Number(r.po_line.cost_unit) - newCostEff) > 0.001){
             priceUpdates[String(pid)] = Number(newCostEff);
           }
@@ -4929,19 +4942,19 @@ async function applyChangesToOctopos(){
       var supCodeE = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
       if (act === 'add' && r.oct_product_id){
         pid = r.oct_product_id;
-        addQty = effectiveInvoiceQty(r.inv_line.qty, supCodeE);
+        addQty = effectiveInvoiceQty(r.inv_line.qty, supCodeE, pid);
         reason = 'הגיע לא הוזמן · הוסף';
       }
       else if (act === 'newprod' && r._created_product_id){
         pid = r._created_product_id;
-        addQty = effectiveInvoiceQty(r.inv_line.qty, supCodeE);
+        addQty = effectiveInvoiceQty(r.inv_line.qty, supCodeE, pid);
         reason = '🆕 מוצר חדש';
       }
     }
     else if (r.kind === 'sub' && r.sub_inv_line && r.sub_oct_product_id && act === 'replace'){
       pid = r.sub_oct_product_id;
       var supCodeS = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
-      addQty = effectiveInvoiceQty(r.sub_inv_line.qty, supCodeS);
+      addQty = effectiveInvoiceQty(r.sub_inv_line.qty, supCodeS, pid);
       reason = 'החלפה';
     }
 
