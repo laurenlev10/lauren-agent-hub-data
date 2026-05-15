@@ -3086,25 +3086,23 @@ function parseInvoiceText(text){
 }
 
 // Heuristic parser — extract {qty, sku, name, price, total} from a row string.
-// Handles the Xime invoice format where rows have either:
-//   "<qty> <price> <total> <SKU> <description>"   (left column)
-//   "<qty> <SKU> <description> <price> <total>"  (right column)
+// Two-pass: prefer rows with a strict SKU pattern, but also accept rows without
+// one (where SKU stays blank — name-similarity matching handles those at diff time).
 function parseInvoiceRows(rowStrings){
   var lines = [];
   rowStrings.forEach(function(row){
-    // Strict SKU pattern: 2-4 letters, optional digits and 1-2 letters
+    // Try to find a strict SKU pattern (optional — if absent, sku stays empty)
     var skuMatch = row.match(/\b([A-Z]{2,4}[-]?[A-Z]?\d{2,5}[A-Z]{0,3})\b/);
-    if (!skuMatch) return;
-    var sku = skuMatch[1];
-    // Extract all numeric tokens (with optional decimal)
+    var sku = skuMatch ? skuMatch[1] : '';
+
+    // Extract numeric tokens
     var nums = [];
     var numRe = /\b(\d+(?:\.\d+)?)\b/g;
     var m;
     while ((m = numRe.exec(row)) !== null) nums.push({raw: m[1], val: Number(m[1])});
     if (nums.length < 3) return; // need qty, price, total
 
-    // Heuristic: qty is the only integer, price is < 100, total is qty*price
-    // Try different combinations to find the (qty, price, total) triple
+    // Find (qty, price, total) triple where qty is integer ≥1 and qty*price ≈ total
     var found = null;
     for (var i = 0; i < nums.length && !found; i++){
       for (var j = 0; j < nums.length && !found; j++){
@@ -3112,9 +3110,9 @@ function parseInvoiceRows(rowStrings){
         for (var k = 0; k < nums.length && !found; k++){
           if (k === i || k === j) continue;
           var qty = nums[i].val, price = nums[j].val, tot = nums[k].val;
-          // qty should be an integer >= 1
           if (qty < 1 || Math.abs(qty - Math.round(qty)) > 0.01) continue;
-          // total should approximately match qty * price (within 1% or 1 cent)
+          if (qty > 99999) continue; // sanity — reject huge qtys (probably an ID)
+          if (price <= 0 || price > 5000) continue; // sanity — typical unit price range
           var expected = qty * price;
           if (Math.abs(expected - tot) < Math.max(0.05, expected * 0.01)){
             found = {qty: Math.round(qty), price: price, total: tot};
@@ -3123,14 +3121,18 @@ function parseInvoiceRows(rowStrings){
       }
     }
     if (!found) return;
-    // Description = the row minus SKU minus the matched numeric tokens
-    var name = row.replace(skuMatch[0], ' ').replace(new RegExp('\\b' + found.qty + '\\b'), ' ')
-                  .replace(new RegExp('\\b' + found.price + '\\b'), ' ')
-                  .replace(new RegExp('\\b' + found.total + '\\b'), ' ')
-                  .replace(/\s+/g, ' ').trim();
+
+    // Extract a name — strip SKU, the 3 matched numbers, and noise
+    var nameRaw = row;
+    if (sku) nameRaw = nameRaw.replace(skuMatch[0], ' ');
+    nameRaw = nameRaw
+      .replace(new RegExp('\\b' + found.qty + '\\b'), ' ')
+      .replace(new RegExp('\\b' + (typeof found.price === 'number' ? found.price : '').toString().replace('.', '\\.') + '\\b'), ' ')
+      .replace(new RegExp('\\b' + (typeof found.total === 'number' ? found.total : '').toString().replace('.', '\\.') + '\\b'), ' ')
+      .replace(/\s+/g, ' ').trim();
     lines.push({
       sku: sku,
-      name: name,
+      name: nameRaw,
       qty: found.qty,
       price: found.price,
       total: found.total
@@ -3311,13 +3313,16 @@ function renderDiffTable(){
   var poLineCount = (RECV_CTX.rec.po.items || []).length;
   var matchedCount = rows.filter(function(r){return r.po_line && r.inv_line;}).length;
   var matchRate = poLineCount ? matchedCount / poLineCount : 0;
+  var invLineCount = (RECV_CTX.invoice && RECV_CTX.invoice.lines || []).length;
   var wrongInvoiceWarning = "";
   if (poLineCount >= 4 && matchRate < 0.20){
     wrongInvoiceWarning =
       '<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:12px;padding:14px 16px;margin-bottom:14px;color:#7f1d1d">' +
         '<div style="font-weight:800;font-size:15px;margin-bottom:4px">⚠️ ייתכן שזו לא החשבונית הנכונה ל-PO הזה</div>' +
         '<div style="font-size:13px;line-height:1.5">רק <b>' + matchedCount + ' מתוך ' + poLineCount + '</b> שורות מה-PO תאמו את החשבונית (' + Math.round(matchRate*100) + '%). ' +
-        'בדקי שהעלית את החשבונית מהספק הנכון. אם כן — אז כל המוצרים האחרים באמת לא הגיעו ואת יכולה להמשיך.</div>' +
+        'הפארסר חילץ <b>' + invLineCount + '</b> שורות מהחשבונית. ' +
+        'אם הספק שולח חשבוניות עם פורמט בלתי-סטנדרטי (ללא SKU, רק שמות) — הפארסר עלול לפספס שורות.</div>' +
+        '<div style="margin-top:10px;font-size:13px"><a href="#" id="recvPasteFallback" style="color:#7f1d1d;font-weight:700;text-decoration:underline">📋 לחצי כאן להזין את שורות החשבונית ידנית</a></div>' +
       '</div>';
   }
 
@@ -3346,7 +3351,9 @@ function renderDiffTable(){
 
   var bar = renderApplyBar();
 
-  $("#recvDiff").innerHTML = wrongInvoiceWarning + tot + table + bar;
+  // Small always-visible parser indicator
+  var parseInfo = '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span>📄 הפארסר חילץ <b>' + invLineCount + '</b> שורות מהחשבונית · התאמה: <b>' + matchedCount + '/' + poLineCount + '</b> שורות (' + Math.round(matchRate*100) + '%)</span><a href="#" id="recvPasteFallback2" style="color:#0369a1;font-weight:700;text-decoration:underline">📋 הזנה ידנית</a></div>';
+  $("#recvDiff").innerHTML = wrongInvoiceWarning + parseInfo + tot + table + bar;
 }
 
 // Delegated handlers — bound ONCE on document.body. Survives EVERY rebuild of
@@ -3379,6 +3386,11 @@ function bindReceiveDelegation(){
     }
     if (e.target.closest('#recvApplyBtn')){
       applyChangesToOctopos();
+      return;
+    }
+    if (e.target.closest('#recvPasteFallback') || e.target.closest('#recvPasteFallback2')){
+      e.preventDefault();
+      openManualInvoicePaste();
       return;
     }
     if (e.target.closest('#recvCancelBtn')){
@@ -3642,6 +3654,41 @@ function openNewProductModal(key){
 }
 
 // ────────── Apply to Octopos ──────────
+
+// Manual paste fallback — Lauren pastes the invoice text and we parse it
+function openManualInvoicePaste(){
+  var modal = document.createElement('div');
+  modal.className = 'recv-newprod-modal';
+  modal.innerHTML =
+    '<div class="card" style="max-width:680px;width:100%">' +
+      '<h2 style="margin:0 0 8px;font-size:19px;font-weight:800">📋 הזנת שורות חשבונית ידנית</h2>' +
+      '<div style="color:var(--muted);font-size:13px;margin-bottom:12px">העתיקי את שורות החשבונית והדביקי כאן. כל שורה צריכה להכיל את שם המוצר + כמות + מחיר ליחידה + סה"כ. הפארסר ימצא אוטומטית את המספרים.</div>' +
+      '<textarea id="recvPasteText" placeholder="לדוגמה:&#10;Buttercup 12 0.60 7.20&#10;Caramel Frappe 48 0.60 28.80&#10;..." style="width:100%;min-height:240px;padding:12px;font-family:monospace;font-size:13px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);direction:ltr;text-align:left"></textarea>' +
+      '<div class="actions">' +
+        '<button data-x>ביטול</button>' +
+        '<button class="primary" data-parse>📋 נתח את הטקסט</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  modal.querySelector('[data-x]').addEventListener('click', function(){ modal.remove(); });
+  modal.querySelector('[data-parse]').addEventListener('click', function(){
+    var txt = modal.querySelector('#recvPasteText').value;
+    var rowStrings = txt.split(/[\r\n]+/).map(function(s){return s.trim();}).filter(function(s){return s.length;});
+    var lines = parseInvoiceRows(rowStrings);
+    if (!lines.length){
+      toast('לא זוהו שורות. ודאי שיש כמות, מחיר וסה"כ בכל שורה.', 'error');
+      return;
+    }
+    RECV_CTX.invoice = { lines: lines };
+    // Reset row keys so applied flags don't carry over from previous invoice
+    if (RECV_CTX.diff){ RECV_CTX.diff.forEach(function(r){ r._applied = false; }); }
+    RECV_CTX.action_by_key = {};
+    computeDiff();
+    renderDiffTable();
+    toast('✓ זוהו ' + lines.length + ' שורות', 'success');
+    modal.remove();
+  });
+}
 
 async function applyChangesToOctopos(){
   // NEW FLOW (2026-05-14): Octopos PUT /purchase_orders/{id} silently ignores
