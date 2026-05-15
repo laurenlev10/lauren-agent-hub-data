@@ -3430,6 +3430,11 @@ function bindReceiveDelegation(){
         console.warn('[recv] click ignored: no RECV_CTX');
         return;
       }
+      // Special actions that aren't selections — handle BEFORE setting action_by_key
+      if (act === 'link-existing'){
+        openLinkExistingModal(key);
+        return;
+      }
       RECV_CTX.action_by_key[key] = act;
       if (act === 'newprod'){
         openNewProductModal(key);
@@ -3717,60 +3722,117 @@ function openNewProductModal(key){
 
 // ────────── Apply to Octopos ──────────
 
-// Manual link: connect a "new product" row to an existing PO line that's "missing"
+// Manual link: connect a "new product" invoice row to an existing supplier product.
+// Shows ALL of the supplier's products (active + inactive), with a label indicating
+// which are currently in the "missing" state of this diff.
 function openLinkExistingModal(rowKey){
   if (!RECV_CTX || !RECV_CTX.diff) return;
   var newRow = RECV_CTX.diff.find(function(r){return r._key === rowKey;});
-  if (!newRow || !newRow.new_product_needed) return;
-  var missingRows = RECV_CTX.diff.filter(function(r){ return r.kind === 'missing' && !r._applied; });
-  if (!missingRows.length){
-    toast('אין מוצרים מסומנים כ"לא הגיע" — הכפתור עובד רק כשיש מוצר חסר ב-PO שמתאים', '');
+  if (!newRow || !newRow.new_product_needed){
+    toast('הכפתור זמין רק למוצר שזוהה כחדש (לא קיים באוקטופוס)', '');
     return;
   }
+  // Get all supplier products
+  var supCode = RECV_CTX.rec.supplier_code;
+  var vendor = (OCTOPOS && OCTOPOS.vendors && OCTOPOS.vendors[supCode]) || {};
+  var allProducts = (vendor.products || []).concat(vendor.inactive_products || []);
+  if (!allProducts.length){
+    toast('לא נמצאו מוצרים עבור הספק ' + supCode, 'error');
+    return;
+  }
+  // Which products are currently "missing" in this diff?
+  var missingPidSet = {};
+  var missingRowByPid = {};
+  RECV_CTX.diff.forEach(function(r){
+    if (r.kind === 'missing' && r.po_line && !r._applied){
+      missingPidSet[String(r.po_line.product_id)] = true;
+      missingRowByPid[String(r.po_line.product_id)] = r;
+    }
+  });
+
   var modal = document.createElement('div');
   modal.className = 'recv-newprod-modal';
-  var listHtml = missingRows.map(function(mr){
-    var po = mr.po_line || {};
-    return '<button class="link-pick" data-pid="' + escHtml(String(po.product_id||'')) + '" data-mkey="' + mr._key + '" style="display:block;width:100%;text-align:right;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:6px;cursor:pointer;font-family:inherit">' +
-      '<div style="font-weight:700">' + escHtml(mr.name||'') + '</div>' +
-      '<div style="font-size:12px;color:var(--muted);margin-top:2px"><code style="font-family:monospace">' + escHtml(mr.sku||'') + '</code> · כמות PO: ' + po.quantity + ' · $/יח׳: $' + (po.cost_unit||0) + '</div>' +
-    '</button>';
-  }).join('');
+
+  function renderList(query){
+    var q = (query || '').toLowerCase().trim();
+    var filtered = allProducts.filter(function(p){
+      if (!q) return true;
+      return (p.name||'').toLowerCase().indexOf(q) !== -1 ||
+             (p.sku||'').toLowerCase().indexOf(q) !== -1;
+    });
+    // Sort: missing first, then alphabetical
+    filtered.sort(function(a,b){
+      var am = missingPidSet[String(a.id)] ? 0 : 1;
+      var bm = missingPidSet[String(b.id)] ? 0 : 1;
+      if (am !== bm) return am - bm;
+      return (a.name||'').localeCompare(b.name||'');
+    });
+    return filtered.slice(0, 60).map(function(p){
+      var isMissing = !!missingPidSet[String(p.id)];
+      var badge = isMissing ? '<span style="background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:800;margin-right:6px">❌ לא הגיע</span>' : '';
+      return '<button class="link-pick" data-pid="' + escHtml(String(p.id||'')) + '" style="display:block;width:100%;text-align:right;background:#fff;border:1px solid ' + (isMissing ? '#fca5a5' : 'var(--line)') + ';border-radius:8px;padding:10px 14px;margin-bottom:6px;cursor:pointer;font-family:inherit">' +
+        '<div style="font-weight:700">' + badge + escHtml(p.name||'') + '</div>' +
+        '<div style="font-size:12px;color:var(--muted);margin-top:2px"><code style="font-family:monospace">' + escHtml(p.sku||'') + '</code> · מלאי: ' + (p.in_stock_qty||0) + ' · $' + (p.unit_cost||p.cost||0) + '</div>' +
+      '</button>';
+    }).join('');
+  }
 
   modal.innerHTML =
-    '<div class="card" style="max-width:580px;width:100%">' +
-      '<h2 style="margin:0 0 6px;font-size:19px;font-weight:800">🔗 חבר ל"לא הגיע" קיים</h2>' +
+    '<div class="card" style="max-width:640px;width:100%">' +
+      '<h2 style="margin:0 0 6px;font-size:19px;font-weight:800">🔗 חבר למוצר קיים</h2>' +
       '<div style="color:var(--muted);font-size:13px;margin-bottom:12px">' +
         'מהחשבונית: <b>' + escHtml(newRow.name||'') + '</b><br>' +
-        'בחרי את המוצר ב-PO שזה באמת:' +
+        'בחרי את המוצר של ' + escHtml(RECV_CTX.rec.supplier_name || supCode) + ' שזה באמת. מוצרים שכרגע מסומנים "לא הגיע" מופיעים ראשונים.' +
       '</div>' +
-      '<div style="max-height:340px;overflow:auto">' + listHtml + '</div>' +
+      '<input type="text" id="recvLinkSearch" placeholder="חיפוש לפי שם או SKU..." style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-size:14px;margin-bottom:10px">' +
+      '<div id="recvLinkList" style="max-height:400px;overflow:auto">' + renderList('') + '</div>' +
       '<div class="actions" style="margin-top:10px"><button data-x>סגור</button></div>' +
     '</div>';
   document.body.appendChild(modal);
   modal.querySelector('[data-x]').addEventListener('click', function(){ modal.remove(); });
-  modal.querySelectorAll('.link-pick').forEach(function(b){
-    b.addEventListener('click', async function(){
-      var pid = b.dataset.pid;
-      var mkey = b.dataset.mkey;
-      var missing = RECV_CTX.diff.find(function(r){return r._key === mkey;});
-      if (!missing){ modal.remove(); return; }
-      newRow.kind = 'sub';
-      newRow.sub_for = missing.sku;
-      newRow.sub_inv_line = newRow.inv_line;
-      newRow.sub_oct_product_id = Number(pid);
-      newRow.po_line = missing.po_line;
-      newRow.new_product_needed = false;
-      newRow.matched_by = 'manual-link';
-      newRow.default_action = 'replace';
-      RECV_CTX.action_by_key[newRow._key] = 'replace';
+  var searchEl = modal.querySelector('#recvLinkSearch');
+  var listEl = modal.querySelector('#recvLinkList');
+  searchEl.addEventListener('input', function(){
+    listEl.innerHTML = renderList(searchEl.value);
+  });
+  searchEl.focus();
+
+  // Delegate clicks on the list buttons
+  listEl.addEventListener('click', async function(e){
+    var b = e.target.closest('.link-pick');
+    if (!b) return;
+    var pid = Number(b.dataset.pid);
+    if (!pid){ modal.remove(); return; }
+    // If this product is currently "missing" in the diff, also remove the missing row
+    var missing = missingRowByPid[String(pid)];
+    // Find the product details for nice display
+    var prod = allProducts.find(function(p){ return p.id === pid; }) || {};
+    // Mutate newRow → sub row
+    newRow.kind = 'sub';
+    newRow.sub_for = missing ? missing.sku : prod.sku;
+    newRow.sub_inv_line = newRow.inv_line;
+    newRow.sub_oct_product_id = pid;
+    newRow.po_line = missing ? missing.po_line : {
+      product_id: pid,
+      product_name: prod.name,
+      product_sku: prod.sku,
+      quantity: 0,
+      cost_unit: Number(prod.unit_cost || prod.cost || 0)
+    };
+    newRow.name = prod.name || newRow.name;
+    newRow.sku = prod.sku || newRow.sku;
+    newRow.new_product_needed = false;
+    newRow.matched_by = 'manual-link';
+    newRow.default_action = 'replace';
+    RECV_CTX.action_by_key[newRow._key] = 'replace';
+    if (missing){
       var midx = RECV_CTX.diff.indexOf(missing);
       if (midx !== -1) RECV_CTX.diff.splice(midx, 1);
-      if (newRow.inv_line) await setAlias(newRow.inv_line, Number(pid));
-      modal.remove();
-      toast('🔗 חיברתי. נשמר אוטומטית לעתיד.', 'success');
-      renderDiffTable();
-    });
+    }
+    if (newRow.inv_line) await setAlias(newRow.inv_line, pid);
+    modal.remove();
+    toast('🔗 חיברתי ל-' + escHtml(prod.name||'') + '. נשמר לעתיד.', 'success');
+    renderDiffTable();
   });
 }
 
