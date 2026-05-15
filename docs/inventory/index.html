@@ -2862,7 +2862,10 @@ async function setSupplierDiscount(supCode, pct){
 }
 function effectiveInvoicePrice(rawPrice, supCode){
   var disc = getSupplierDiscount(supCode);
-  return Number(rawPrice||0) * (1 - disc/100);
+  var pack = getSupplierPackSize(supCode);
+  // When invoice qty is in packs (e.g., "1 dz" = 12 units), the price is also per-pack.
+  // Divide by pack to get per-unit price, then apply discount.
+  return (Number(rawPrice||0) / pack) * (1 - disc/100);
 }
 function getSupplierPackSize(supCode){
   if (!supCode || !RECV_STATE.supplier_pack_sizes) return 1;
@@ -3656,7 +3659,7 @@ function renderDiffTable(){
     '<span style="color:#d4d4d8">|</span>' +
     '<span style="font-weight:700;color:#854d0e">📦 כפולה:</span>' +
     '<input type="number" id="recvPackInput" min="1" max="999" step="1" value="' + packSizeVal + '" style="width:54px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:center"> יח׳' +
-    '<span style="color:var(--muted);font-size:12px">' + (packSizeVal > 1 ? 'כמות בחשבונית = ' + packSizeVal + ' יחידות' : 'אם הספק מספר באריזות — N יחידות לכל "1"') + '</span>' +
+    '<span style="color:var(--muted);font-size:12px">' + (packSizeVal > 1 ? '1 שורה בחשבונית = ' + packSizeVal + ' יחידות (כמות × ' + packSizeVal + ', מחיר ÷ ' + packSizeVal + ')' : 'אם הספק מספר באריזות — N יחידות לכל "1"') + '</span>' +
     '<span style="flex:1"></span>' +
     '<button id="recvDiscountSave" style="background:#fef3c7;border:1px solid #fbbf24;color:#7c2d12;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer">💾 שמור</button>' +
   '</div>';
@@ -3910,10 +3913,12 @@ function renderDiffRowHtml(r){
   var poPrice = po.cost_unit != null ? fmtUsd(po.cost_unit) : '—';
   var supCodeRow = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
   var rowDiscount = getSupplierDiscount(supCodeRow);
+  var rowPack = getSupplierPackSize(supCodeRow);
   var rawInvPrice = inv.price != null ? Number(inv.price) : null;
   var effInvPrice = rawInvPrice != null ? effectiveInvoicePrice(rawInvPrice, supCodeRow) : null;
+  var hasPriceMod = (rowDiscount > 0 || rowPack > 1);
   var invPrice = rawInvPrice != null
-    ? (rowDiscount > 0
+    ? (hasPriceMod
         ? fmtUsd(effInvPrice) + '<div style="font-size:10px;color:var(--muted);text-decoration:line-through">' + fmtUsd(rawInvPrice) + '</div>'
         : fmtUsd(rawInvPrice))
     : '—';
