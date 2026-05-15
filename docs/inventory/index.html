@@ -643,6 +643,35 @@ let PENDING_SAVE = null;
 const $ = (s, root) => (root||document).querySelector(s);
 const $$ = (s, root) => Array.from((root||document).querySelectorAll(s));
 function fmtUsd(n){ const v = Number(n||0); return "$" + v.toLocaleString("en-US", {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2}); }
+// Convert ISO UTC timestamp → "YYYY-MM-DD HH:mm" formatted in America/Los_Angeles.
+// Use this for ANY user-visible timestamp originally stored as UTC ISO. Avoids the
+// trap of slicing an ISO string and showing UTC hours as if they were local.
+function fmtLA(iso){
+  if (!iso) return '';
+  try {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    var parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Los_Angeles",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false
+    }).formatToParts(d);
+    var get = function(t){ var p = parts.find(function(x){return x.type===t;}); return p ? p.value : ''; };
+    return get("year")+"-"+get("month")+"-"+get("day")+" "+get("hour")+":"+get("minute");
+  } catch(e){ return ''; }
+}
+function fmtLADateMMDD(iso){
+  if (!iso) return '';
+  try {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    var parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Los_Angeles", month: "2-digit", day: "2-digit"
+    }).formatToParts(d);
+    var get = function(t){ var p = parts.find(function(x){return x.type===t;}); return p ? p.value : ''; };
+    return get("month")+"/"+get("day");
+  } catch(e){ return ''; }
+}
 function escHtml(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function nowIso(){ return new Date().toISOString(); }
 function citySlug(c){ return String(c||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); }
@@ -959,7 +988,7 @@ function renderSupplierCard(sup, s, idx){
             if (!oct_) return '<span class="octopos-chip" style="background:#fee2e2;color:#7f1d1d;border-color:#fca5a5">⚠️ אין נתוני OCTOPOS</span>';
             var n = (oct_.products||[]).length;
             var toOrder = (oct_.summary && oct_.summary.total_to_order) || 0;
-            var lastSync = (OCTOPOS && OCTOPOS._updated_at) ? OCTOPOS._updated_at.slice(5,10).replace('-','/') : '?';
+            var lastSync = (OCTOPOS && OCTOPOS._updated_at) ? fmtLADateMMDD(OCTOPOS._updated_at) : '?';
             return '<span class="octopos-chip" style="background:#dcfce7;color:#14532d;border-color:#86efac">✓ ' + n + ' מוצרים · 🛒 ' + Math.round(toOrder) + ' להזמין · עודכן ' + lastSync + '</span>';
           })()+
         '</div>'+
@@ -995,7 +1024,7 @@ function renderSupplierCard(sup, s, idx){
         var active = oct.products || [];
         var inactive = oct.inactive_products || [];
         var summary = oct.summary || {count:0, in_stock_count:0, total_units:0, inactive_count:0, inactive_in_stock_count:0, inactive_total_units:0, needs_recount:0, total_threshold:0, total_to_order:0};
-        var lastSync = (OCTOPOS && OCTOPOS._updated_at) ? (' · עודכן ' + OCTOPOS._updated_at.slice(0,16).replace('T',' ')) : '';
+        var lastSync = (OCTOPOS && OCTOPOS._updated_at) ? (' · עודכן ' + fmtLA(OCTOPOS._updated_at) + ' PT') : '';
         // Per Lauren 2026-05-13 — only show RECOUNT + CHECK in the dashboard.
         // Other categories the product has in OCTOPOS stay there untouched; just hidden here.
         var ALLOWED_TAG_NAMES = ["Recount", "Check"];
@@ -3143,7 +3172,7 @@ function renderReceiveList(){
     var classes = ['recv-po-card'];
     if (isLocal) classes.push('local-po');
     if (isReconciled) classes.push('reconciled-po');
-    var reconAt = isReconciled ? (RECV_STATE.reconciled_pos[String(po.id)]._updated_at || '').slice(0,16).replace('T',' ') : '';
+    var reconAt = isReconciled ? fmtLA(RECV_STATE.reconciled_pos[String(po.id)]._updated_at || '') : '';
     return '<div class="' + classes.join(' ') + '" data-po-id="' + po.id + '" data-supplier-code="' + r.supplier_code + '" data-reconciled="' + (isReconciled ? '1' : '0') + '">' +
       '<div class="po-hdr">' +
         '<div class="po-num">' + poIdDisplay + '</div>' +

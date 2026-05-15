@@ -1238,6 +1238,24 @@ End date: </div>
   function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
   // US state → IANA timezone. Mirrors STATE_TZ in scripts/insta_reel_scan.py.
+  // Convert ISO UTC timestamp → "YYYY-MM-DD HH:mm" formatted in America/Los_Angeles.
+  // Use for any user-visible stored timestamp. ISO timestamps end in Z = UTC; slicing
+  // them and showing 14-19 as if it were local time produces the LA-clock-wrong bug.
+  function fmtLA(iso){
+    if (!iso) return '';
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      var parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Los_Angeles",
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hour12: false
+      }).formatToParts(d);
+      var get = function(t){ var p = parts.find(function(x){return x.type===t;}); return p ? p.value : ''; };
+      return get("year")+"-"+get("month")+"-"+get("day")+" "+get("hour")+":"+get("minute");
+    } catch(e){ return ''; }
+  }
+
   const STATE_TZ = {AL:"America/Chicago",AK:"America/Anchorage",AZ:"America/Phoenix",AR:"America/Chicago",CA:"America/Los_Angeles",CO:"America/Denver",CT:"America/New_York",DE:"America/New_York",FL:"America/New_York",GA:"America/New_York",HI:"Pacific/Honolulu",ID:"America/Boise",IL:"America/Chicago",IN:"America/Indiana/Indianapolis",IA:"America/Chicago",KS:"America/Chicago",KY:"America/New_York",LA:"America/Chicago",ME:"America/New_York",MD:"America/New_York",MA:"America/New_York",MI:"America/Detroit",MN:"America/Chicago",MS:"America/Chicago",MO:"America/Chicago",MT:"America/Denver",NE:"America/Chicago",NV:"America/Los_Angeles",NH:"America/New_York",NJ:"America/New_York",NM:"America/Denver",NY:"America/New_York",NC:"America/New_York",ND:"America/Chicago",OH:"America/New_York",OK:"America/Chicago",OR:"America/Los_Angeles",PA:"America/New_York",RI:"America/New_York",SC:"America/New_York",SD:"America/Chicago",TN:"America/Chicago",TX:"America/Chicago",UT:"America/Denver",VT:"America/New_York",VA:"America/New_York",WA:"America/Los_Angeles",WV:"America/New_York",WI:"America/Chicago",WY:"America/Denver",DC:"America/New_York"};
   function eventLocalTimeStr(state){
     const tz = STATE_TZ[(state||"").toUpperCase()] || "America/Los_Angeles";
@@ -1330,7 +1348,7 @@ End date: </div>
             "Unsubscribed: " + (stats.unsubscribed || 0).toLocaleString(),
             "Invalid: " + (stats.invalid || 0).toLocaleString()
           ];
-          if (stats.updated_at) tooltipParts.push("Updated: " + stats.updated_at.slice(0,16).replace("T"," "));
+          if (stats.updated_at) tooltipParts.push("Updated: " + fmtLA(stats.updated_at) + " PT");
           statsLine = '<div class="list-stats" title="' + escapeHtml(tooltipParts.join(" · ")) + '">📲 ' + num + ' active' + deltaPart + '</div>';
         }
         // 🎟️ Eventbrite registrations (refreshed weekly by scheduled task — Lauren 2026-05-03 PM)
@@ -1348,7 +1366,7 @@ End date: </div>
             "Capacity: " + cap,
             "Fill rate: " + pct + "%"
           ];
-          if (ebStats.updated_at) tipParts.push("Updated: " + ebStats.updated_at.slice(0,16).replace("T"," "));
+          if (ebStats.updated_at) tipParts.push("Updated: " + fmtLA(ebStats.updated_at) + " PT");
           statsLine += '<div class="list-stats eb" title="' + escapeHtml(tipParts.join(" · ")) + '">🎟️ ' + reg + ' / ' + cap + ' registered <span style="color:#888">(' + pct + '%)</span>' + weekDelta + '</div>';
         }
         // Historical subscriber counts (year-over-year) — frozen, no daily refresh.
@@ -3080,7 +3098,7 @@ End date: </div>
                '<thead><tr><th>סריקה</th><th>Slot</th><th>Shares</th><th>Plays</th><th>Reach</th><th>Likes</th></tr></thead>' +
                '<tbody>' +
                  scans.map(s => {
-                   const t = (s.scanned_at || "").slice(0,16).replace("T"," ");
+                   const t = fmtLA(s.scanned_at || "");
                    const slotH = s.event_local_hour;
                    const slot = (slotH != null ? (slotH < 10 ? "0" + slotH : slotH) + ":00" : "—");
                    const catchup = s.catchup ? '<span class="catchup-pill">catch-up</span>' : '';
