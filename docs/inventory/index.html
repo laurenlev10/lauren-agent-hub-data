@@ -2556,6 +2556,9 @@ function openRuleEditor(product, onSave){
         '<div class="field"><label>multiple_of (כפולה של, דורס case_size)</label><input type="number" min="1" id="rMultiple" value="' + (existing.multiple_of||'') + '" placeholder="ריק = משתמש ב-' + (product.case_size||12) + '"></div>' +
         '<div class="field"><label>max (לא יותר מ-)</label><input type="number" min="0" id="rMax" value="' + (existing.max||'') + '" placeholder="ריק = ללא מקסימום"></div>' +
       '</div>' +
+      '<div class="row" style="margin-top:10px">' +
+        '<div class="field"><label>📦 כמות בדיספליי (לתכנון רענון מלאי)</label><input type="number" min="0" id="rDisplayCap" value="' + (existing.display_capacity||'') + '" placeholder="ריק = ללא"></div>' +
+      '</div>' +
       '<div style="margin-top:10px"><label style="font-size:13px"><input type="checkbox" id="rSkip" ' + (existing.skip ? "checked" : "") + '> דלג תמיד על המוצר הזה בהזמנות אוטומטיות</label></div>' +
       '<div style="margin-top:10px"><label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">הערה חופשית (מוצגת בדשבורד + ב-SMS אם רלוונטי)</label>' +
       '<textarea id="rNote" style="min-height:80px;direction:rtl;text-align:right">' + escHtml(existing.note||'') + '</textarea></div>' +
@@ -2583,6 +2586,7 @@ function openRuleEditor(product, onSave){
       const moq         = Number(v('#rMoq'));
       const multiple_of = Number(v('#rMultiple'));
       const max         = Number(v('#rMax'));
+      const display_cap = Number(v('#rDisplayCap'));
       const skip        = modal.querySelector('#rSkip').checked;
       const note        = v('#rNote');
       const newName     = v('#rName');
@@ -2590,6 +2594,7 @@ function openRuleEditor(product, onSave){
       if (moq > 0)         r.moq = moq;
       if (multiple_of > 0) r.multiple_of = multiple_of;
       if (max > 0)         r.max = max;
+      if (display_cap > 0) r.display_capacity = display_cap;
       if (skip)            r.skip = true;
       if (note)            r.note = note;
       e.target.disabled = true; e.target.textContent = "שומר…";
@@ -3538,6 +3543,7 @@ function renderDiffTable(){
     '<th>סטטוס</th>' +
     '<th>מוצר</th>' +
     '<th style="text-align:center">SKU</th>' +
+    '<th style="text-align:center" title="כמות יחידות בדיספליי — לתכנון הזמנות עתידיות">📦 בדיספליי</th>' +
     '<th style="text-align:center">PO כמות</th>' +
     '<th style="text-align:center">חשבונית כמות</th>' +
     '<th style="text-align:center">PO מחיר</th>' +
@@ -3677,14 +3683,34 @@ function bindReceiveDelegation(){
       return;
     }
     var inp = e.target.closest('input.edit-num');
-    if (!inp || !RECV_CTX) return;
-    var key = inp.dataset.key;
-    var field = inp.dataset.field;
-    var row = (RECV_CTX.diff || []).find(function(r){return r._key === key;});
-    if (!row) return;
-    row['override_' + field] = Number(inp.value);
-    renderDiffTable();
-    scheduleRecvSave();
+    if (inp){
+      if (!RECV_CTX) return;
+      var key = inp.dataset.key;
+      var field = inp.dataset.field;
+      var row = (RECV_CTX.diff || []).find(function(r){return r._key === key;});
+      if (!row) return;
+      row['override_' + field] = Number(inp.value);
+      renderDiffTable();
+      scheduleRecvSave();
+      return;
+    }
+    var dispInp = e.target.closest('input.edit-display-cap');
+    if (dispInp){
+      var pidDC = Number(dispInp.dataset.pid);
+      if (!pidDC) return;
+      var existingRule = getRuleFor(pidDC) || {};
+      var newVal = Math.max(0, Number(dispInp.value) || 0);
+      var newRule = Object.assign({}, existingRule);
+      if (newVal > 0) newRule.display_capacity = newVal;
+      else delete newRule.display_capacity;
+      (async function(){
+        var ok = await saveProductRule(pidDC, Object.keys(newRule).length ? newRule : null);
+        if (ok) toast('📦 דיספליי: ' + (newVal || 'נמחק') + ' נשמר', 'success');
+        else toast('שמירה נכשלה — בדקי GitHub token', 'error');
+        renderDiffTable();
+      })();
+      return;
+    }
   }, true);
 }
 
@@ -3822,6 +3848,13 @@ function renderDiffRowHtml(r){
       (r.matched_by === 'duplicate' ? '<div style="font-size:10px;color:#dc2626;margin-top:2px;font-weight:700">🚫 כפילות · ידלג ולא יוסיף מלאי</div>' : '') +
     '</td>' +
     '<td style="text-align:center" class="sku">' + escHtml(r.sku||'') + '</td>' +
+    '<td style="text-align:center">' + (function(){
+      var pidD = r.po_line ? r.po_line.product_id : (r.oct_product_id || r.sub_oct_product_id || r._created_product_id);
+      if (!pidD) return '<span style="color:var(--muted);font-size:11px">—</span>';
+      var ruleD = getRuleFor(pidD) || {};
+      var curD = ruleD.display_capacity || '';
+      return '<input type="number" min="0" step="1" class="edit-display-cap" data-pid="' + pidD + '" value="' + curD + '" placeholder="—" style="width:54px;padding:3px 5px;border:1px solid var(--line);border-radius:4px;background:' + (curD ? '#dbeafe' : 'var(--panel2)') + ';text-align:center;font-size:12px">';
+    })() + '</td>' +
     '<td class="' + qtyClass + '">' + poQty + '</td>' +
     '<td class="' + invQtyClass + '">' + qtyCell + '</td>' +
     '<td class="' + poPriceClass + '">' + poPrice + '</td>' +
