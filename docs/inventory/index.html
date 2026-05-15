@@ -4014,9 +4014,15 @@ function openLinkExistingModal(rowKey){
   }
   var supCode = RECV_CTX.rec.supplier_code;
   var vendor = (OCTOPOS && OCTOPOS.vendors && OCTOPOS.vendors[supCode]) || {};
-  var allProducts = (vendor.products || []).concat(vendor.inactive_products || []);
+  // Active only — drop inactive_products. Also filter discontinued names
+  // (Clearance!, OUT OF STOCK, SOLD OUT) so Lauren doesn't accidentally link to them.
+  var DROP_PREFIX = /^(Clearance!|OUT OF STOCK|SOLD OUT)/i;
+  var allProducts = (vendor.products || []).filter(function(p){
+    if (p.active === false) return false;
+    return !DROP_PREFIX.test(String(p.name||''));
+  });
   if (!allProducts.length){
-    toast('לא נמצאו מוצרים עבור הספק ' + supCode, 'error');
+    toast('לא נמצאו מוצרים פעילים עבור הספק ' + supCode, 'error');
     return;
   }
   // Build a map: pid → { status, row } for products currently in the diff
