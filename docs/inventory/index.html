@@ -3559,25 +3559,35 @@ function parseInvoiceRows(rowStrings){
     while ((m = numRe.exec(row)) !== null) nums.push({raw: m[1], val: Number(m[1])});
     if (nums.length < 3) return; // need qty, price, total
 
-    // Find (qty, price, total) triple where qty is integer ≥1 and qty*price ≈ total
-    var found = null;
-    for (var i = 0; i < nums.length && !found; i++){
-      for (var j = 0; j < nums.length && !found; j++){
+    // Find all valid (qty, price, total) triples where qty is integer ≥1 and qty*price ≈ total,
+    // then pick the one with the LARGEST total (usually the right answer in tables with many numbers).
+    var candidates = [];
+    for (var i = 0; i < nums.length; i++){
+      var qty = nums[i].val;
+      if (qty < 1 || Math.abs(qty - Math.round(qty)) > 0.01) continue;
+      if (qty > 99999) continue;
+      for (var j = 0; j < nums.length; j++){
         if (j === i) continue;
-        for (var k = 0; k < nums.length && !found; k++){
+        var price = nums[j].val;
+        if (price <= 0 || price > 5000) continue;
+        for (var k = 0; k < nums.length; k++){
           if (k === i || k === j) continue;
-          var qty = nums[i].val, price = nums[j].val, tot = nums[k].val;
-          if (qty < 1 || Math.abs(qty - Math.round(qty)) > 0.01) continue;
-          if (qty > 99999) continue; // sanity — reject huge qtys (probably an ID)
-          if (price <= 0 || price > 5000) continue; // sanity — typical unit price range
+          var tot = nums[k].val;
           var expected = qty * price;
           if (Math.abs(expected - tot) < Math.max(0.05, expected * 0.01)){
-            found = {qty: Math.round(qty), price: price, total: tot};
+            candidates.push({qty: Math.round(qty), price: price, total: tot});
           }
         }
       }
     }
-    if (!found) return;
+    if (!candidates.length) return;
+    // Pick the candidate with the largest total. Ties broken by largest price
+    // (avoids picking qty=N, price=1, total=N which is common false positive).
+    candidates.sort(function(a, b){
+      if (b.total !== a.total) return b.total - a.total;
+      return b.price - a.price;
+    });
+    var found = candidates[0];
 
     // Pure-numeric SKU fallback (for suppliers like Rude with item numbers 88148, 38522 etc.)
     if (!sku){
