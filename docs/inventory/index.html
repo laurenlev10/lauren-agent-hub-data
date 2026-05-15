@@ -2922,6 +2922,34 @@ function collectAllGeneratedPOs(){
       });
     });
   }
+  // Add reconciled POs that are no longer in Generated (Lauren reconciled them,
+  // then they got marked Received in Octopos so they disappeared — but we still
+  // have the summary saved and want her to see them as ✓ עודכן in the list).
+  if (RECV_STATE && RECV_STATE.reconciled_pos){
+    var alreadyShownIds = {};
+    out.forEach(function(rs){ alreadyShownIds[String(rs.po.id)] = true; });
+    Object.keys(RECV_STATE.reconciled_pos).forEach(function(poKey){
+      if (alreadyShownIds[poKey]) return;
+      var saved = RECV_STATE.reconciled_pos[poKey];
+      if (!saved) return;
+      out.push({
+        po: {
+          id: saved.po_id,
+          total_cost: saved.po_total_cost_before,
+          total_qty: 0,
+          items: [],
+          status: 'Received'
+        },
+        supplier_code: saved.supplier_code,
+        supplier_name: saved.supplier_name,
+        octopos_vendor_name: saved.octopos_vendor_name,
+        octopos_vendor_id: null,
+        is_local: !!saved.is_local,
+        evkey: saved.evkey,
+        _post_reconciled: true
+      });
+    });
+  }
   out.sort(function(a,b){
     var aK = a.is_local ? (a.po.created_at||'') : ('00000000-'+Number(a.po.id||0));
     var bK = b.is_local ? (b.po.created_at||'') : ('00000000-'+Number(b.po.id||0));
@@ -3008,7 +3036,7 @@ function renderReceiveList(){
         '</div>' +
       '</div>';
     }
-    var itemsHtml = (po.items||[]).map(function(it){
+    var itemsHtmlRaw = (po.items||[]).map(function(it){
       return '<tr>' +
         '<td>' + escHtml(it.product_name||('#'+it.product_id)) + '</td>' +
         '<td class="sku">' + escHtml(it.product_sku||'') + '</td>' +
@@ -3017,6 +3045,7 @@ function renderReceiveList(){
         '<td class="num"><b>' + fmtUsd(it.line_total) + '</b></td>' +
       '</tr>';
     }).join('');
+    var itemsHtml = itemsHtmlRaw || '<tr><td colspan="5" style="text-align:center;padding:14px;color:var(--muted)">פרטי השורות לא זמינים — לחצי על "👁️ פתח סיכום עדכון מלאי" לראות מה עודכן</td></tr>';
     var isLocal = !!r.is_local;
     var poIdDisplay = isLocal ? 'LOCAL' : ('#' + po.id);
     var localBadge = isLocal ? '<span class="local-po-badge">💾 מקומי</span>' : '';
