@@ -3333,27 +3333,68 @@ async function handleInvoiceFile(file){
 async function parseInvoicePdf(file){
   var ab = await file.arrayBuffer();
   var pdf = await window.pdfjsLib.getDocument({data: ab}).promise;
-  var allText = '';
+  var allRawItems = []; // for fallback path
   var rowLines = []; // [{y, items:[{x,str}]}]
   for (var p = 1; p <= pdf.numPages; p++){
     var page = await pdf.getPage(p);
     var txt = await page.getTextContent();
     txt.items.forEach(function(it){
       var x = it.transform[4], y = it.transform[5];
-      // Find existing row with similar y (within 3 units)
+      allRawItems.push({x: x, y: y, str: it.str, page: p});
       var row = rowLines.find(function(r){ return Math.abs(r.y - y) < 3; });
       if (!row){ row = {y: y, items: []}; rowLines.push(row); }
       row.items.push({x: x, str: it.str});
     });
   }
-  // Sort rows top→bottom (PDF y is bottom-origin so larger y = higher up)
   rowLines.sort(function(a,b){ return b.y - a.y; });
-  // For each row, sort items left→right and join
   var rowStrings = rowLines.map(function(r){
     r.items.sort(function(a,b){ return a.x - b.x; });
     return r.items.map(function(i){return i.str;}).join(' ').replace(/\s+/g, ' ').trim();
   }).filter(function(s){return s.length > 0;});
-  return parseInvoiceRows(rowStrings);
+
+  // Primary attempt
+  var lines = parseInvoiceRows(rowStrings);
+  if (lines.length){
+    console.log('[recv] PDF parsed primary: ' + lines.length + ' lines from ' + rowStrings.length + ' rowStrings');
+    return lines;
+  }
+
+  // Fallback 1: wider Y tolerance (merges rows that PDF.js split into multiple Y bands)
+  console.warn('[recv] primary parse 0 lines, trying wider Y tolerance');
+  var rowLines2 = [];
+  allRawItems.forEach(function(it){
+    var row = rowLines2.find(function(r){ return Math.abs(r.y - it.y) < 8 && r.page === it.page; });
+    if (!row){ row = {y: it.y, page: it.page, items: []}; rowLines2.push(row); }
+    row.items.push({x: it.x, str: it.str});
+  });
+  rowLines2.sort(function(a,b){ return (a.page - b.page) || (b.y - a.y); });
+  var rowStrings2 = rowLines2.map(function(r){
+    r.items.sort(function(a,b){ return a.x - b.x; });
+    return r.items.map(function(i){return i.str;}).join(' ').replace(/\s+/g, ' ').trim();
+  }).filter(function(s){return s.length > 0;});
+  lines = parseInvoiceRows(rowStrings2);
+  if (lines.length){
+    console.log('[recv] PDF parsed wider-Y: ' + lines.length + ' lines');
+    return lines;
+  }
+
+  // Fallback 2: concatenate ALL text, split by sentinel patterns
+  console.warn('[recv] wider-Y also 0 lines, trying full-text fallback');
+  var allText = allRawItems.map(function(it){return it.str;}).join(' ').replace(/\s+/g, ' ');
+  // Split on item-number-like patterns (1, 2, 3 at start) or dollar-sign followed by space
+  var splits = allText.split(/(?=\b\d{1,3}\s+Sale\b|\b\d{1,3}\s+Shipping\b)/i);
+  lines = parseInvoiceRows(splits.filter(function(s){return s.length > 5;}));
+  if (lines.length){
+    console.log('[recv] PDF parsed full-text-split: ' + lines.length + ' lines');
+    return lines;
+  }
+
+  // Fallback 3: split full text by 2+ spaces (common table column gap)
+  console.warn('[recv] sentinel split 0 lines, trying loose split');
+  var loose = allText.split(/(?<=\d{2,5}\s*[$])|(?<=\d\.\d{2})\s+(?=\d)/g);
+  lines = parseInvoiceRows(loose.filter(function(s){return s.length > 5;}));
+  console.log('[recv] PDF parsed loose-split: ' + lines.length + ' lines (final attempt)');
+  return lines;
 }
 
 function parseInvoiceText(text){
