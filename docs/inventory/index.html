@@ -2702,6 +2702,19 @@ async function ensurePdfJs(){
   });
 }
 
+// Lazy-load Tesseract.js for OCR on invoice photos
+var TESSERACT_LOADED = false;
+async function ensureTesseract(){
+  if (TESSERACT_LOADED && window.Tesseract) return true;
+  return await new Promise(function(resolve){
+    var s = document.createElement('script');
+    s.src = 'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js';
+    s.onload = function(){ TESSERACT_LOADED = true; resolve(true); };
+    s.onerror = function(){ resolve(false); };
+    document.head.appendChild(s);
+  });
+}
+
 // Lazy-load SheetJS for xlsx PO fallback
 var XLSX_LOADED = false;
 async function ensureXlsx(){
@@ -3258,8 +3271,8 @@ function renderReconcileStep2(){
     '<div id="recvDrop" class="recv-drop">' +
       '<div class="ico">📄</div>' +
       '<div class="ttl">גררי לכאן את החשבונית מהספק (PDF)</div>' +
-      '<div class="sub">או לחצי לבחור קובץ · תומך ב-PDF טקסטואלי. אפשר גם להדביק טקסט ידני בטבלה אחרי הניתוח.</div>' +
-      '<input type="file" id="recvFile" accept="application/pdf,.pdf,.txt">' +
+      '<div class="sub">או לחצי לבחור קובץ · תומך ב-PDF טקסטואלי <b>וגם תמונות</b> (JPG/PNG/צילום מהטלפון). תמונות עוברות OCR אוטומטי.</div>' +
+      '<input type="file" id="recvFile" accept="application/pdf,.pdf,.txt,image/*,.png,.jpg,.jpeg,.webp,.heic">' +
     '</div>' +
     '<div id="recvDiff" style="margin-top:18px"></div>';
 
@@ -3285,13 +3298,18 @@ function renderReconcileStep2(){
 }
 
 async function handleInvoiceFile(file){
-  $("#recvDiff").innerHTML = '<div class="empty-state"><p>📄 מנתח את הקובץ...</p></div>';
+  var isImage = (file.type && file.type.indexOf('image/') === 0) || /\.(png|jpe?g|webp|heic|heif)$/i.test(file.name);
+  $("#recvDiff").innerHTML = '<div class="empty-state"><p>' + (isImage ? '🖼️ מנתח את התמונה (OCR)... זה יכול לקחת 15-30 שניות' : '📄 מנתח את הקובץ...') + '</p></div>';
   try{
     var lines = [];
     if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)){
       var ok = await ensurePdfJs();
       if (!ok){ toast('שגיאה בטעינת PDF.js — בדקי חיבור לאינטרנט', 'error'); return; }
       lines = await parseInvoicePdf(file);
+    } else if (isImage){
+      var okOcr = await ensureTesseract();
+      if (!okOcr){ toast('שגיאה בטעינת Tesseract — בדקי חיבור לאינטרנט', 'error'); return; }
+      lines = await parseInvoiceImage(file);
     } else {
       // Plain text fallback
       var txt = await file.text();
@@ -3341,6 +3359,27 @@ async function parseInvoicePdf(file){
 function parseInvoiceText(text){
   var rows = text.split(/[\r\n]+/).map(function(s){return s.trim();}).filter(function(s){return s.length;});
   return parseInvoiceRows(rows);
+}
+
+// OCR an invoice photo with Tesseract.js and parse the extracted text
+async function parseInvoiceImage(file){
+  // Use createWorker with English (most US suppliers use English invoices)
+  var worker = await window.Tesseract.createWorker('eng', 1, {
+    logger: function(m){
+      if (m.status === 'recognizing text'){
+        var pct = Math.round((m.progress || 0) * 100);
+        var diff = document.getElementById('recvDiff');
+        if (diff) diff.innerHTML = '<div class="empty-state"><p>🖼️ OCR בתהליך: ' + pct + '%</p></div>';
+      }
+    }
+  });
+  try{
+    var result = await worker.recognize(file);
+    var text = (result && result.data && result.data.text) || '';
+    return parseInvoiceText(text);
+  } finally {
+    try { await worker.terminate(); } catch(e){}
+  }
 }
 
 // Heuristic parser — extract {qty, sku, name, price, total} from a row string.
