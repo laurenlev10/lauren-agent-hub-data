@@ -2780,24 +2780,48 @@ async function loadReceiveState(){
   } catch(e){ console.warn("loadReceiveState failed:", e); }
 }
 
-async function saveReceiveState(commitMsg){
+// Serialize saveReceiveState calls — autosave + apply-time saves can race
+var _SAVE_RECV_QUEUE = Promise.resolve();
+function saveReceiveState(commitMsg){
+  var p = _SAVE_RECV_QUEUE.then(function(){ return _saveReceiveStateNow(commitMsg); });
+  _SAVE_RECV_QUEUE = p.catch(function(){});
+  return p;
+}
+
+async function _saveReceiveStateNow(commitMsg){
   RECV_STATE._updated_at = new Date().toISOString();
   var token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
   if (!token){
     toast("⚠️ צריך GitHub token כדי לסנכרן — לחצי על ⛔ Sync: off למעלה", "error");
     return false;
   }
-  try{
+  async function attempt(){
     var getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RECV_STATE_REPO_FILE + "?ref=main";
     var sha = null;
     var getR = await fetch(getUrl, { headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
+    if (getR.status === 401) return { ok: false, status: 401 };
     if (getR.ok){ var j = await getR.json(); sha = j.sha; }
     var putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RECV_STATE_REPO_FILE;
     var content = JSON.stringify(RECV_STATE, null, 2);
     var body = { message: commitMsg || "@inventory/receive: update state", content: btoa(unescape(encodeURIComponent(content))), branch: "main" };
     if (sha) body.sha = sha;
     var r = await fetch(putUrl, { method: "PUT", headers: {"Authorization":"token "+token,"Accept":"application/vnd.github+json","Content-Type":"application/json"}, body: JSON.stringify(body) });
-    return r.ok;
+    return { ok: r.ok, status: r.status };
+  }
+  try{
+    var first = await attempt();
+    if (first.ok) return true;
+    if (first.status === 409){
+      console.warn('[recv_state] sha conflict — retrying');
+      await new Promise(function(res){ setTimeout(res, 300); });
+      var second = await attempt();
+      if (second.ok) return true;
+      console.error('[recv_state] retry also failed:', second.status);
+    }
+    if (first.status === 401){
+      toast('GitHub token פג — לחצי על Sync כדי להזין מחדש', 'error');
+    }
+    return false;
   } catch(e){
     console.error("saveReceiveState failed:", e);
     return false;
@@ -4823,10 +4847,15 @@ async function applyChangesToOctopos(){
     stockBefore: stockBefore,
     stockAfter: stockAfter
   };
-  saveReceiveState('@inventory/receive: PO #' + rec.po.id + ' reconciled');
-  // Apply success — clear the in-progress entry
-  if (RECV_STATE.in_progress && RECV_STATE.in_progress[poKey]){
-    delete RECV_STATE.in_progress[poKey];
+  var saveOk = await saveReceiveState('@inventory/receive: PO #' + rec.po.id + ' reconciled');
+  if (saveOk){
+    // Only clear in-progress backup if reconciled save succeeded
+    if (RECV_STATE.in_progress && RECV_STATE.in_progress[poKey]){
+      delete RECV_STATE.in_progress[poKey];
+      await saveReceiveState('@inventory/receive: clear in-progress PO #' + rec.po.id);
+    }
+  } else {
+    toast('⚠️ העדכון נשמר באוקטופוס אך הסיכום לא הצליח להישמר ב-GitHub. הוא נשמר כעבודה לא סגורה — תוכלי לפתוח את ה-PO שוב.', 'error');
   }
 
   // Step 4: render summary
