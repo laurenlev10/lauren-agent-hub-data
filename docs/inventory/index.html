@@ -2720,7 +2720,7 @@ function skuSimilar(a, b){
 // Receive-mode state — synced to GitHub (docs/state/inventory_receive_state.json)
 // Per Lauren 2026-05-14: "אני רוצה הכל מסונכרן דרך גיט האב ולא על המחשבים המקומיים תמיד".
 // Only secrets (PATs / Octopos tokens) stay in localStorage; all user data syncs.
-var RECV_STATE = { _updated_at: null, skipped_pos: [], aliases: {}, supplier_discounts: {}, reconciled_pos: {} };
+var RECV_STATE = { _updated_at: null, skipped_pos: [], aliases: {}, supplier_discounts: {}, reconciled_pos: {}, in_progress: {} };
 var RECV_STATE_URL = "../state/inventory_receive_state.json";
 var RECV_STATE_REPO_FILE = "docs/state/inventory_receive_state.json";
 
@@ -2733,6 +2733,7 @@ async function loadReceiveState(){
       if (!RECV_STATE.aliases || typeof RECV_STATE.aliases !== 'object') RECV_STATE.aliases = {};
       if (!RECV_STATE.supplier_discounts || typeof RECV_STATE.supplier_discounts !== 'object') RECV_STATE.supplier_discounts = {};
       if (!RECV_STATE.reconciled_pos || typeof RECV_STATE.reconciled_pos !== 'object') RECV_STATE.reconciled_pos = {};
+      if (!RECV_STATE.in_progress || typeof RECV_STATE.in_progress !== 'object') RECV_STATE.in_progress = {};
     }
   } catch(e){ console.warn("loadReceiveState failed:", e); }
 }
@@ -3048,12 +3049,79 @@ function bindSkippedBar(list, pos){
 // Global state for the current reconciliation session
 var RECV_CTX = null;
 
+// Debounced autosave of in-progress reconciliation state to GitHub
+var RECV_AUTOSAVE_TIMER = null;
+function scheduleRecvSave(){
+  if (!RECV_CTX || !RECV_CTX.rec) return;
+  if (RECV_AUTOSAVE_TIMER) clearTimeout(RECV_AUTOSAVE_TIMER);
+  RECV_AUTOSAVE_TIMER = setTimeout(saveInProgressNow, 1500);
+}
+async function saveInProgressNow(){
+  if (!RECV_CTX || !RECV_CTX.rec || !RECV_CTX.rec.po) return;
+  var poKey = String(RECV_CTX.rec.po.id);
+  RECV_STATE.in_progress = RECV_STATE.in_progress || {};
+  RECV_STATE.in_progress[poKey] = {
+    _updated_at: new Date().toISOString(),
+    rec_summary: {
+      po_id: RECV_CTX.rec.po.id,
+      supplier_code: RECV_CTX.rec.supplier_code,
+      supplier_name: RECV_CTX.rec.supplier_name,
+      octopos_vendor_name: RECV_CTX.rec.octopos_vendor_name,
+      octopos_vendor_id: RECV_CTX.rec.octopos_vendor_id,
+      is_local: !!RECV_CTX.rec.is_local,
+      evkey: RECV_CTX.rec.evkey || URL_EVKEY || null
+    },
+    invoice: RECV_CTX.invoice,
+    diff: RECV_CTX.diff,
+    action_by_key: RECV_CTX.action_by_key
+  };
+  await saveReceiveState('@inventory/receive: autosave PO #' + poKey);
+}
+async function clearInProgress(poId){
+  if (!RECV_STATE.in_progress) return;
+  var poKey = String(poId);
+  if (RECV_STATE.in_progress[poKey]){
+    delete RECV_STATE.in_progress[poKey];
+    await saveReceiveState('@inventory/receive: clear in-progress PO #' + poKey);
+  }
+}
+
 function openReconcile(rec){
+  // Check for saved in-progress state and offer to restore
+  var poKey = String(rec.po.id);
+  var saved = RECV_STATE.in_progress && RECV_STATE.in_progress[poKey];
+  if (saved && saved.invoice && saved.diff){
+    var ago = '';
+    try {
+      var diff = (Date.now() - new Date(saved._updated_at).getTime()) / 60000;
+      ago = diff < 1 ? 'לפני פחות מדקה' : (diff < 60 ? 'לפני ' + Math.round(diff) + ' דקות' : 'לפני ' + Math.round(diff/60) + ' שעות');
+    } catch(e){}
+    if (confirm('יש לך עבודה שמורה ב-PO #' + rec.po.id + ' (' + ago + ').\nלשחזר את הבחירות הקודמות שלך? (לחיצה על "ביטול" תפתח השוואה חדשה ותמחק את השמורה)')){
+      RECV_CTX = {
+        rec: rec,
+        invoice: saved.invoice,
+        diff: saved.diff,
+        action_by_key: saved.action_by_key || {}
+      };
+      $("#recvStep1").style.display = "none";
+      $("#recvStep2").style.display = "block";
+      $("#recvStep3").style.display = "none";
+      renderReconcileStep2();
+      // Render the diff directly since invoice is already parsed
+      setTimeout(function(){ renderDiffTable(); }, 50);
+      toast('👁 שוחזרה עבודה שמורה (' + ago + ')', 'success');
+      return;
+    } else {
+      // Lauren chose to start fresh — clear the saved state
+      clearInProgress(poKey);
+    }
+  }
+
   RECV_CTX = {
     rec: rec,
-    invoice: null,            // {lines:[{sku,name,qty,price,total}], shipping, total}
-    diff: null,               // [{kind, po:{...}, inv:{...}, action:...}]
-    action_by_key: {}         // user-overridden actions
+    invoice: null,
+    diff: null,
+    action_by_key: {}
   };
   $("#recvStep1").style.display = "none";
   $("#recvStep2").style.display = "block";
@@ -3124,6 +3192,7 @@ async function handleInvoiceFile(file){
     RECV_CTX.invoice = { lines: lines };
     computeDiff();
     renderDiffTable();
+    scheduleRecvSave();
   } catch(e){
     console.error(e);
     toast('שגיאה בניתוח החשבונית: ' + e.message, 'error');
@@ -3512,6 +3581,7 @@ function bindReceiveDelegation(){
       } else {
         renderDiffTable();
       }
+      scheduleRecvSave();
       return;
     }
     if (e.target.closest('#recvApplyBtn')){
@@ -3549,6 +3619,13 @@ function bindReceiveDelegation(){
     }
     if (e.target.closest('#recvCancelBtn')){
       console.log('[recv] cancel click');
+      if (RECV_CTX && RECV_CTX.rec && RECV_CTX.rec.po){
+        if (confirm('לבטל את העבודה על PO #' + RECV_CTX.rec.po.id + '? כל הבחירות יימחקו (כולל השמירה ב-GitHub).')){
+          clearInProgress(RECV_CTX.rec.po.id);
+        } else {
+          return;
+        }
+      }
       $("#recvStep1").style.display = "block";
       $("#recvStep2").style.display = "none";
       if ($("#recvDiff")) $("#recvDiff").innerHTML = '';
@@ -3578,6 +3655,7 @@ function bindReceiveDelegation(){
     if (!row) return;
     row['override_' + field] = Number(inp.value);
     renderDiffTable();
+    scheduleRecvSave();
   }, true);
 }
 
@@ -3602,6 +3680,10 @@ function computePendingTotal(){
     if (r._applied) return;
     var act = RECV_CTX.action_by_key[r._key] || r.default_action;
     if (act === 'remove' || act === 'skip') return;
+    if (act === 'accept_as_po' && r.kind === 'missing' && r.po_line){
+      t += Number(r.po_line.quantity||0) * Number(r.po_line.cost_unit||0);
+      return;
+    }
     if (act === 'accept'){
       if (r.po_line) t += Number(r.po_line.quantity||0) * Number(r.po_line.cost_unit||0);
       return;
@@ -3722,7 +3804,8 @@ function renderRowActions(r, currentAct){
     btn('update', '✏️ עדכן לחשבונית', 'act-update');
     btn('remove', '❌ הסר מ-PO', 'act-remove');
   } else if (r.kind === 'missing'){
-    btn('accept', '⏸ שמור לעדכון עתידי', 'act-accept');
+    btn('accept_as_po', '✅ השאר כמו ב-PO', 'act-accept');
+    btn('accept', '⏸ שמור לעדכון עתידי', 'act-update');
     btn('remove', '❌ הסר מ-PO', 'act-remove');
   } else if (r.kind === 'extra'){
     if (r.new_product_needed){
@@ -3758,7 +3841,7 @@ function renderRowActions(r, currentAct){
 
 function renderApplyBar(){
   var rows = RECV_CTX.diff || [];
-  var counts = { update: 0, remove: 0, add: 0, newprod: 0, replace: 0, accept: 0, skip: 0, shipping: 0 };
+  var counts = { update: 0, remove: 0, add: 0, newprod: 0, replace: 0, accept: 0, accept_as_po: 0, skip: 0, shipping: 0 };
   var appliedCount = 0;
   var priceDiffRows = [];
   rows.forEach(function(r){
@@ -3777,8 +3860,9 @@ function renderApplyBar(){
   if (counts.replace) parts.push('🔄 החלפה: <b>' + counts.replace + '</b>');
   if (counts.newprod) parts.push('🆕 מוצר חדש: <b>' + counts.newprod + '</b>');
   if (counts.shipping) parts.push('💰 משלוח: <b>' + counts.shipping + '</b>');
+  if (counts.accept_as_po) parts.push('✅ קבל כמו PO: <b>' + counts.accept_as_po + '</b>');
   if (!parts.length) parts.push('אין שינויים פעילים' + (appliedCount ? '' : ' — כל השורות תואמות'));
-  var hasChanges = (counts.update + counts.remove + counts.add + counts.replace + counts.newprod + counts.shipping) > 0;
+  var hasChanges = (counts.update + counts.remove + counts.add + counts.replace + counts.newprod + counts.shipping + counts.accept_as_po) > 0;
   var appliedNote = appliedCount > 0 ? '<span style="color:#15803d;font-weight:700;margin-left:14px">✓ ' + appliedCount + ' שורות עודכנו כבר</span>' : '';
   var priceSmsBtn = priceDiffRows.length > 0
     ? '<button id="recvPriceSmsBtn" style="background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:700;cursor:pointer">📱 הודעה לספק על ' + priceDiffRows.length + ' פערי מחיר</button>'
@@ -4196,6 +4280,21 @@ async function applyChangesToOctopos(){
     if (act === 'remove' || act === 'skip' || act === 'accept' && r.kind === 'missing'){
       return; // No stock change — item didn't arrive (or we explicitly chose to skip)
     }
+    // 'accept_as_po' on missing → add stock per PO qty (Lauren overrides "didn't arrive" verdict)
+    if (act === 'accept_as_po' && r.kind === 'missing' && r.po_line){
+      var pidA = r.po_line.product_id;
+      var poQty = Number(r.po_line.quantity||0);
+      var sku = r.sku || r.po_line.product_sku || '';
+      var name = r.name || r.po_line.product_name || '';
+      if (pidA && poQty > 0){
+        var keyA = String(pidA);
+        if (!deltas[keyA]) deltas[keyA] = {add: 0, sku: sku, name: name, reasons: [], row_keys: []};
+        deltas[keyA].add += poQty;
+        deltas[keyA].reasons.push('לא נמצא בחשבונית · קבל כמו PO');
+        deltas[keyA].row_keys.push(r._key);
+      }
+      return;
+    }
 
     var pid = null, addQty = 0, sku = r.sku || '', name = r.name || '', reason = '';
 
@@ -4350,6 +4449,10 @@ async function applyChangesToOctopos(){
     stockAfter: stockAfter
   };
   saveReceiveState('@inventory/receive: PO #' + rec.po.id + ' reconciled');
+  // Apply success — clear the in-progress entry
+  if (RECV_STATE.in_progress && RECV_STATE.in_progress[poKey]){
+    delete RECV_STATE.in_progress[poKey];
+  }
 
   // Step 4: render summary
   renderSummaryStep(log, deltas, stockBefore, stockAfter);
