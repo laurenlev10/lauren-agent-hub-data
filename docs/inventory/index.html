@@ -2488,9 +2488,28 @@ function getRuleFor(productId){
   return (PRODUCT_RULES.rules && PRODUCT_RULES.rules[String(productId)]) || null;
 }
 
-async function saveProductRule(productId, rule){
-  // Local optimistic update first
-  if (!rule || (rule && !rule.min_display && !rule.moq && !rule.multiple_of && !rule.max && !rule.skip && !rule.note)){
+// Serialize saves so concurrent typing doesn't cause sha-conflict 409s
+var _SAVE_RULE_QUEUE = Promise.resolve();
+function saveProductRule(productId, rule){
+  // Chain onto the queue so saves run one at a time
+  var resultPromise = _SAVE_RULE_QUEUE.then(function(){ return _saveProductRuleNow(productId, rule); });
+  _SAVE_RULE_QUEUE = resultPromise.catch(function(){}); // swallow errors in the chain
+  return resultPromise;
+}
+
+async function _saveProductRuleNow(productId, rule){
+  // Determine if the rule is "empty" (all fields falsy/zero). Note: must include
+  // every known field so single-field rules (like just display_capacity) are kept.
+  function ruleIsEmpty(r){
+    if (!r) return true;
+    var keys = ['min_display','moq','multiple_of','max','skip','note','display_capacity'];
+    for (var i = 0; i < keys.length; i++){
+      var v = r[keys[i]];
+      if (v !== undefined && v !== null && v !== '' && v !== 0 && v !== false) return false;
+    }
+    return true;
+  }
+  if (ruleIsEmpty(rule)){
     delete PRODUCT_RULES.rules[String(productId)];
   } else {
     PRODUCT_RULES.rules[String(productId)] = rule;
@@ -2501,17 +2520,34 @@ async function saveProductRule(productId, rule){
     toast("שמור מקומית, צריך GitHub token כדי לסנכרן", "");
     return false;
   }
-  try{
+  // Try with sha. If 409 conflict, refetch sha and retry once.
+  async function attempt(){
     const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RULES_REPO_FILE + "?ref=main";
     let sha = null;
     const getR = await fetch(getUrl, { headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
+    if (getR.status === 401) return { ok: false, status: 401 };
     if (getR.ok){ const j = await getR.json(); sha = j.sha; }
     const putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RULES_REPO_FILE;
     const content = JSON.stringify(PRODUCT_RULES, null, 2);
     const body = { message: "@inventory: update product_rules for product " + productId, content: btoa(unescape(encodeURIComponent(content))), branch: "main" };
     if (sha) body.sha = sha;
     const r = await fetch(putUrl, { method: "PUT", headers: {"Authorization":"token "+token,"Accept":"application/vnd.github+json","Content-Type":"application/json"}, body: JSON.stringify(body) });
-    return r.ok;
+    return { ok: r.ok, status: r.status };
+  }
+  try{
+    var first = await attempt();
+    if (first.ok) return true;
+    if (first.status === 409){
+      console.warn('[product_rules] sha conflict — retrying');
+      await new Promise(function(res){ setTimeout(res, 250); });
+      var second = await attempt();
+      if (second.ok) return true;
+      console.error('[product_rules] retry also failed:', second.status);
+    }
+    if (first.status === 401){
+      toast('GitHub token פג — לחצי על Sync כדי להזין מחדש', 'error');
+    }
+    return false;
   } catch(e){
     console.error("saveProductRule failed:", e);
     return false;
