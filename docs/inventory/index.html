@@ -451,6 +451,8 @@
   .local-only-btn{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
   .local-only-btn:hover{background:#ddd6fe;border-color:#a78bfa}
   .recv-po-card.local-po{border-left:4px solid #7c3aed}
+  .recv-po-card.reconciled-po{border-left:4px solid #15803d;background:#f0fdf4}
+  .recv-po-card.reconciled-po .po-num{background:linear-gradient(180deg,#dcfce7,#bbf7d0);color:#14532d}
   .recv-po-card.local-po .po-num{background:linear-gradient(180deg,#ede9fe,#ddd6fe);color:#5b21b6}
   .local-po-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:800;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;margin-right:6px;letter-spacing:.4px}
   @media(max-width:640px){
@@ -2718,7 +2720,7 @@ function skuSimilar(a, b){
 // Receive-mode state — synced to GitHub (docs/state/inventory_receive_state.json)
 // Per Lauren 2026-05-14: "אני רוצה הכל מסונכרן דרך גיט האב ולא על המחשבים המקומיים תמיד".
 // Only secrets (PATs / Octopos tokens) stay in localStorage; all user data syncs.
-var RECV_STATE = { _updated_at: null, skipped_pos: [], aliases: {}, supplier_discounts: {} };
+var RECV_STATE = { _updated_at: null, skipped_pos: [], aliases: {}, supplier_discounts: {}, reconciled_pos: {} };
 var RECV_STATE_URL = "../state/inventory_receive_state.json";
 var RECV_STATE_REPO_FILE = "docs/state/inventory_receive_state.json";
 
@@ -2730,6 +2732,7 @@ async function loadReceiveState(){
       if (!Array.isArray(RECV_STATE.skipped_pos)) RECV_STATE.skipped_pos = [];
       if (!RECV_STATE.aliases || typeof RECV_STATE.aliases !== 'object') RECV_STATE.aliases = {};
       if (!RECV_STATE.supplier_discounts || typeof RECV_STATE.supplier_discounts !== 'object') RECV_STATE.supplier_discounts = {};
+      if (!RECV_STATE.reconciled_pos || typeof RECV_STATE.reconciled_pos !== 'object') RECV_STATE.reconciled_pos = {};
     }
   } catch(e){ console.warn("loadReceiveState failed:", e); }
 }
@@ -2930,6 +2933,7 @@ function renderReceiveList(){
   html += filtered.map(function(r){
     var po = r.po;
     var isSk = skippedIds.indexOf(String(po.id)) !== -1;
+    var isReconciled = !!(RECV_STATE.reconciled_pos && RECV_STATE.reconciled_pos[String(po.id)]);
     var nLines = (po.items||[]).length;
     var totQty = po.total_qty || (po.items||[]).reduce(function(a,it){return a+Number(it.quantity||0);},0);
     if (isSk){
@@ -2959,12 +2963,17 @@ function renderReceiveList(){
     var isLocal = !!r.is_local;
     var poIdDisplay = isLocal ? 'LOCAL' : ('#' + po.id);
     var localBadge = isLocal ? '<span class="local-po-badge">💾 מקומי</span>' : '';
-    return '<div class="recv-po-card ' + (isLocal ? 'local-po' : '') + '" data-po-id="' + po.id + '" data-supplier-code="' + r.supplier_code + '">' +
+    var reconciledBadge = isReconciled ? '<span style="background:#dcfce7;color:#14532d;border:1px solid #86efac;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:800;margin-right:6px">✓ עודכן</span>' : '';
+    var classes = ['recv-po-card'];
+    if (isLocal) classes.push('local-po');
+    if (isReconciled) classes.push('reconciled-po');
+    var reconAt = isReconciled ? (RECV_STATE.reconciled_pos[String(po.id)]._updated_at || '').slice(0,16).replace('T',' ') : '';
+    return '<div class="' + classes.join(' ') + '" data-po-id="' + po.id + '" data-supplier-code="' + r.supplier_code + '" data-reconciled="' + (isReconciled ? '1' : '0') + '">' +
       '<div class="po-hdr">' +
         '<div class="po-num">' + poIdDisplay + '</div>' +
         '<div>' +
-          '<div class="po-vendor">' + localBadge + escHtml(r.supplier_name) + ' <span style="color:var(--muted);font-weight:500;font-size:13px">· ' + escHtml(r.octopos_vendor_name||"") + '</span></div>' +
-          '<div class="po-meta">' + nLines + ' שורות · ' + Math.round(totQty) + ' יחידות · ' + (isLocal ? '<b>שמור אצלנו (לא באוקטופוס)</b>' : 'Status: <b>Generated</b>') + '</div>' +
+          '<div class="po-vendor">' + reconciledBadge + localBadge + escHtml(r.supplier_name) + ' <span style="color:var(--muted);font-weight:500;font-size:13px">· ' + escHtml(r.octopos_vendor_name||"") + '</span></div>' +
+          '<div class="po-meta">' + nLines + ' שורות · ' + Math.round(totQty) + ' יחידות · ' + (isReconciled ? '<b style="color:#15803d">✓ עודכן ב-' + reconAt + '</b>' : (isLocal ? '<b>שמור אצלנו (לא באוקטופוס)</b>' : 'Status: <b>Generated</b>')) + '</div>' +
         '</div>' +
         '<div class="po-total">' + fmtUsd(po.total_cost) + '</div>' +
         '<div style="color:var(--accent);font-weight:700;font-size:13px">📥 השווה</div>' +
@@ -2977,7 +2986,7 @@ function renderReceiveList(){
         '</table>' +
         '<div class="po-foot">' +
           '<button class="skip-btn" data-action="skip-po" title="להסתיר את ה-PO מהרשימה הפעילה — באוקטופוס הוא נשאר Generated כפי שהוא">✓ סיימתי לטפל ב-PO</button>' +
-          '<button class="recv-go-btn">📥 התחל השוואה לחשבונית →</button>' +
+          '<button class="recv-go-btn">' + (isReconciled ? '👁️ פתח סיכום עדכון מלאי' : '📥 התחל השוואה לחשבונית →') + '</button>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -2998,7 +3007,13 @@ function renderReceiveList(){
       var poId = card.dataset.poId;
       var code = card.dataset.supplierCode;
       var rec = pos.find(function(r){return String(r.po.id) === String(poId) && r.supplier_code === code;});
-      if (rec) openReconcile(rec);
+      if (!rec) return;
+      var isReconciled = card.dataset.reconciled === '1';
+      if (isReconciled){
+        openReconciledReplay(rec);
+      } else {
+        openReconcile(rec);
+      }
     });
     if (btnSkip) btnSkip.addEventListener('click', async function(e){
       e.stopPropagation();
@@ -3879,6 +3894,24 @@ function openPriceMismatchSms(){
   });
 }
 
+// Open the saved summary for a PO that was already reconciled
+function openReconciledReplay(rec){
+  if (!RECV_STATE.reconciled_pos) return false;
+  var saved = RECV_STATE.reconciled_pos[String(rec.po.id)];
+  if (!saved) return false;
+  var replayRec = {
+    po: { id: saved.po_id, total_cost: saved.po_total_cost_before },
+    supplier_code: saved.supplier_code,
+    supplier_name: saved.supplier_name,
+    octopos_vendor_name: saved.octopos_vendor_name,
+    evkey: saved.evkey,
+    is_local: saved.is_local
+  };
+  RECV_CTX = null;
+  renderSummaryStep(saved.log || [], saved.deltas || {}, saved.stockBefore || {}, saved.stockAfter || {}, replayRec);
+  return true;
+}
+
 // Manual link: connect a "new product" invoice row to an existing supplier product.
 // Shows ALL of the supplier's products (active + inactive), with a label per product
 // indicating its current diff status:
@@ -4299,6 +4332,25 @@ async function applyChangesToOctopos(){
     }
   }
 
+  // Save reconciliation summary so the PO can be re-opened green with the same summary
+  var poKey = String(rec.po.id);
+  RECV_STATE.reconciled_pos = RECV_STATE.reconciled_pos || {};
+  RECV_STATE.reconciled_pos[poKey] = {
+    _updated_at: new Date().toISOString(),
+    supplier_code: rec.supplier_code,
+    supplier_name: rec.supplier_name,
+    octopos_vendor_name: rec.octopos_vendor_name,
+    evkey: rec.evkey || URL_EVKEY || null,
+    is_local: !!rec.is_local,
+    po_id: rec.po.id,
+    po_total_cost_before: rec.po.total_cost,
+    log: log,
+    deltas: deltas,
+    stockBefore: stockBefore,
+    stockAfter: stockAfter
+  };
+  saveReceiveState('@inventory/receive: PO #' + rec.po.id + ' reconciled');
+
   // Step 4: render summary
   renderSummaryStep(log, deltas, stockBefore, stockAfter);
 }
@@ -4314,10 +4366,12 @@ function toPoItem(product_id, quantity, cost_unit){
   };
 }
 
-function renderSummaryStep(log, deltas, stockBefore, stockAfter){
+function renderSummaryStep(log, deltas, stockBefore, stockAfter, replayRec){
+  $("#recvStep1").style.display = "none";
   $("#recvStep2").style.display = "none";
   $("#recvStep3").style.display = "block";
-  var rec = RECV_CTX.rec;
+  var isReplay = !!replayRec;
+  var rec = isReplay ? replayRec : RECV_CTX.rec;
 
   // Build success/failure counts
   var okCount = log.filter(function(l){return l.ok;}).length;
@@ -4363,12 +4417,12 @@ function renderSummaryStep(log, deltas, stockBefore, stockAfter){
       '<div style="margin:14px 0 6px;font-weight:700">לוג פעולות:</div>' +
       '<div class="ops-log">' + log.map(function(l){return '<div class="' + (l.ok ? 'op-ok' : 'op-fail') + '">' + (l.ok ? '✓ ' : '✗ ') + escHtml(l.msg) + '</div>';}).join('') + '</div>' +
       '<div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">' +
-        '<button id="recvBackToDiff" style="padding:10px 16px;background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;color:#7c2d12;font-size:14px;font-weight:700;cursor:pointer">↩︎ חזרה להשוואה (להמשך עריכה)</button>' +
+        (isReplay ? '<button id="recvReopenDiff" style="padding:10px 16px;background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;color:#7c2d12;font-size:14px;font-weight:700;cursor:pointer">🔄 השווה שוב לחשבונית חדשה</button>' : '<button id="recvBackToDiff" style="padding:10px 16px;background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;color:#7c2d12;font-size:14px;font-weight:700;cursor:pointer">↩︎ חזרה להשוואה (להמשך עריכה)</button>') +
         '<button id="recvDone" class="btn-order-wizard">חזרה לרשימת POs</button>' +
-        (rec.is_local ? '' : '<a href="https://themakeup.octoretail.com/purchase_orders/' + rec.po.id + '" target="_blank" style="padding:10px 16px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);text-decoration:none;font-size:14px">פתח את ה-PO באוקטופוס ↗</a>') +
+        (!rec.is_local && rec.po && rec.po.id ? '<a href="https://themakeup.octoretail.com/purchase_orders/' + rec.po.id + '" target="_blank" style="padding:10px 16px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);text-decoration:none;font-size:14px">פתח את ה-PO באוקטופוס ↗</a>' : '') +
       '</div>' +
     '</div>';
-  if (rec && rec.is_local && rec.evkey && STATE.events[rec.evkey]){
+  if (!isReplay && rec && rec.is_local && rec.evkey && STATE.events[rec.evkey]){
     var slice = STATE.events[rec.evkey];
     var lp = (slice.local_pos || []).find(function(p){ return p.id === rec.po.id; });
     if (lp){
@@ -4385,10 +4439,27 @@ function renderSummaryStep(log, deltas, stockBefore, stockAfter){
   });
   var backDiffBtn = $("#recvBackToDiff");
   if (backDiffBtn) backDiffBtn.addEventListener('click', function(){
-    // Return to step 2 — RECV_CTX intact, applied rows marked
     $("#recvStep3").style.display = "none";
     $("#recvStep2").style.display = "block";
     renderDiffTable();
+  });
+  var reopenBtn = $("#recvReopenDiff");
+  if (reopenBtn) reopenBtn.addEventListener('click', async function(){
+    if (!confirm('זה ימחק את הסיכום השמור של PO #' + rec.po.id + ' ויפתח השוואה חדשה. השינויים שכבר עשית במלאי באוקטופוס יישארו — זו רק התחלה מחדש של תהליך ההשוואה. להמשיך?')) return;
+    var poKey2 = String(rec.po.id);
+    if (RECV_STATE.reconciled_pos) delete RECV_STATE.reconciled_pos[poKey2];
+    await saveReceiveState('@inventory/receive: PO #' + rec.po.id + ' replay-cleared');
+    var pos = collectAllGeneratedPOs();
+    var fresh = pos.find(function(r){return String(r.po.id) === poKey2;});
+    if (fresh){
+      $("#recvStep3").style.display = "none";
+      openReconcile(fresh);
+    } else {
+      $("#recvStep3").style.display = "none";
+      $("#recvStep1").style.display = "block";
+      RECV_CTX = null;
+      renderReceiveList();
+    }
   });
 }
 
