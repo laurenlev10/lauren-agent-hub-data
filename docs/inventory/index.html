@@ -3352,6 +3352,10 @@ async function parseInvoicePdf(file){
     return r.items.map(function(i){return i.str;}).join(' ').replace(/\s+/g, ' ').trim();
   }).filter(function(s){return s.length > 0;});
 
+  // Diagnostic — log first few rowStrings so Lauren can see what PDF.js extracted
+  console.log('[recv] PDF.js extracted ' + rowStrings.length + ' raw rows. Sample:');
+  rowStrings.slice(0, 8).forEach(function(s, i){ console.log('  row ' + i + ': ' + s.slice(0, 200)); });
+
   // Primary attempt
   var lines = parseInvoiceRows(rowStrings);
   if (lines.length){
@@ -3393,8 +3397,52 @@ async function parseInvoicePdf(file){
   console.warn('[recv] sentinel split 0 lines, trying loose split');
   var loose = allText.split(/(?<=\d{2,5}\s*[$])|(?<=\d\.\d{2})\s+(?=\d)/g);
   lines = parseInvoiceRows(loose.filter(function(s){return s.length > 5;}));
-  console.log('[recv] PDF parsed loose-split: ' + lines.length + ' lines (final attempt)');
-  return lines;
+  if (lines.length){
+    console.log('[recv] PDF parsed loose-split: ' + lines.length + ' lines');
+    return lines;
+  }
+
+  // Fallback 4: OCR each page (PDF is likely image-based or has unextractable text)
+  console.warn('[recv] all text-extraction tiers failed — falling back to OCR each page');
+  var diff = document.getElementById('recvDiff');
+  if (diff) diff.innerHTML = '<div class="empty-state"><p>🖼️ הטקסט בקובץ לא ניתן לחילוץ — מריץ OCR על העמודים... זה יקח 20-60 שניות</p></div>';
+  var okOcr = await ensureTesseract();
+  if (!okOcr){
+    console.error('[recv] OCR unavailable');
+    return [];
+  }
+  try{
+    var worker = await window.Tesseract.createWorker('eng', 1, {
+      logger: function(m){
+        if (m.status === 'recognizing text'){
+          var pct = Math.round((m.progress || 0) * 100);
+          if (diff) diff.innerHTML = '<div class="empty-state"><p>🖼️ OCR בתהליך: ' + pct + '%</p></div>';
+        }
+      }
+    });
+    var ocrLines = [];
+    for (var pp = 1; pp <= pdf.numPages; pp++){
+      var page = await pdf.getPage(pp);
+      var viewport = page.getViewport({scale: 2.0}); // higher scale = better OCR accuracy
+      var canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      var ctx = canvas.getContext('2d');
+      await page.render({canvasContext: ctx, viewport: viewport}).promise;
+      var dataUrl = canvas.toDataURL('image/png');
+      var result = await worker.recognize(dataUrl);
+      var text = (result && result.data && result.data.text) || '';
+      console.log('[recv] OCR page ' + pp + ' extracted ' + text.length + ' chars');
+      var pageLines = parseInvoiceText(text);
+      ocrLines = ocrLines.concat(pageLines);
+    }
+    await worker.terminate();
+    console.log('[recv] OCR final: ' + ocrLines.length + ' lines');
+    return ocrLines;
+  } catch(e){
+    console.error('[recv] OCR fallback failed:', e);
+    return [];
+  }
 }
 
 function parseInvoiceText(text){
