@@ -3366,8 +3366,9 @@ function renderDiffTable(){
 
   var bar = renderApplyBar();
 
-  // Small always-visible parser indicator
-  var parseInfo = '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span>📄 הפארסר חילץ <b>' + invLineCount + '</b> שורות מהחשבונית · התאמה: <b>' + matchedCount + '/' + poLineCount + '</b> שורות (' + Math.round(matchRate*100) + '%)</span><a href="#" id="recvPasteFallback2" style="color:#0369a1;font-weight:700;text-decoration:underline">📋 הזנה ידנית</a></div>';
+  // Small always-visible parser indicator + remove-from-PO clarification
+  var parseInfo = '<div style="font-size:12px;color:var(--muted);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span>📄 הפארסר חילץ <b>' + invLineCount + '</b> שורות מהחשבונית · התאמה: <b>' + matchedCount + '/' + poLineCount + '</b> שורות (' + Math.round(matchRate*100) + '%)</span><a href="#" id="recvPasteFallback2" style="color:#0369a1;font-weight:700;text-decoration:underline">📋 הזנה ידנית</a></div>' +
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;padding:6px 10px;background:#f3f4f6;border-radius:6px">💡 <b>"❌ הסר מ-PO"</b> = המוצר לא יתעדכן במלאי. ה-PO עצמו באוקטופוס יישאר כפי שהוא (ה-API לא מאפשר מחיקת שורות). למחיקה פיזית — <a href="https://themakeup.octoretail.com/purchase_orders/' + escHtml(String(RECV_CTX.rec.po.id||'')) + '" target="_blank" style="color:#0369a1">פתחי באוקטופוס UI ↗</a></div>';
   $("#recvDiff").innerHTML = wrongInvoiceWarning + parseInfo + tot + table + bar;
 }
 
@@ -3568,10 +3569,10 @@ function renderRowActions(r, currentAct){
   } else if (r.kind === 'qty' || r.kind === 'price'){
     btn('accept', 'השאר כמו ב-PO', 'act-accept');
     btn('update', '✏️ עדכן לחשבונית', 'act-update');
-    btn('remove', '❌ ביטול', 'act-remove');
+    btn('remove', '❌ הסר מ-PO', 'act-remove');
   } else if (r.kind === 'missing'){
     btn('accept', '⏸ שמור לעדכון עתידי', 'act-accept');
-    btn('remove', '❌ ביטול', 'act-remove');
+    btn('remove', '❌ הסר מ-PO', 'act-remove');
   } else if (r.kind === 'extra'){
     if (r.new_product_needed){
       btn('newprod', '🆕 צור מוצר + הוסף', 'act-add');
