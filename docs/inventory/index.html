@@ -379,6 +379,9 @@
   .recv-badge.missing{background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5}
   .recv-badge.extra{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
   .recv-badge.sub{background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd}
+  .recv-badge.applied{background:#dcfce7;color:#14532d;border:1px solid #86efac;display:block;margin-top:3px;font-size:10px}
+  .recv-diff-table tbody tr.applied{background:#f0fdf4;opacity:.85}
+  .recv-diff-table tbody tr.applied .recv-row-actions button{opacity:.4;cursor:not-allowed;pointer-events:none}
   .recv-row-actions{display:flex;gap:4px;flex-wrap:wrap}
   .recv-row-actions button{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;color:var(--text);white-space:nowrap}
   .recv-row-actions button:hover{border-color:var(--accent)}
@@ -3413,6 +3416,7 @@ window.recvDebug = function(){
 function computePendingTotal(){
   var t = 0;
   (RECV_CTX.diff || []).forEach(function(r){
+    if (r._applied) return;
     var act = RECV_CTX.action_by_key[r._key] || r.default_action;
     if (act === 'remove' || act === 'skip') return;
     if (act === 'accept'){
@@ -3438,17 +3442,19 @@ function renderDiffRowHtml(r){
   var act = RECV_CTX.action_by_key[r._key] || r.default_action;
   var badge = '';
   var cls = '';
-  if (r.kind === 'match'){ badge = '<span class="recv-badge match">✓ תואם</span>'; cls = 'row-match'; }
-  else if (r.kind === 'qty'){ badge = '<span class="recv-badge qty">⚠️ כמות</span>'; cls = 'row-qty'; }
-  else if (r.kind === 'price'){ badge = '<span class="recv-badge price">💲 מחיר</span>'; cls = 'row-price'; }
-  else if (r.kind === 'missing'){ badge = '<span class="recv-badge missing">❌ לא הגיע</span>'; cls = 'row-missing'; }
+  var appliedPrefix = r._applied ? '<span class="recv-badge applied">✓ עודכן במערכת</span>' : '';
+  var appliedCls = r._applied ? ' applied' : '';
+  if (r.kind === 'match'){ badge = appliedPrefix + '<span class="recv-badge match">✓ תואם</span>'; cls = 'row-match' + appliedCls; }
+  else if (r.kind === 'qty'){ badge = appliedPrefix + '<span class="recv-badge qty">⚠️ כמות</span>'; cls = 'row-qty' + appliedCls; }
+  else if (r.kind === 'price'){ badge = appliedPrefix + '<span class="recv-badge price">💲 מחיר</span>'; cls = 'row-price' + appliedCls; }
+  else if (r.kind === 'missing'){ badge = appliedPrefix + '<span class="recv-badge missing">❌ לא הגיע</span>'; cls = 'row-missing' + appliedCls; }
   else if (r.kind === 'extra'){
-    badge = r.new_product_needed
+    badge = appliedPrefix + (r.new_product_needed
       ? '<span class="recv-badge extra">🆕 מוצר חדש</span>'
-      : '<span class="recv-badge extra">➕ הגיע, לא הוזמן</span>';
-    cls = 'row-extra';
+      : '<span class="recv-badge extra">➕ הגיע, לא הוזמן</span>');
+    cls = 'row-extra' + appliedCls;
   }
-  else if (r.kind === 'sub'){ badge = '<span class="recv-badge sub">🔄 החלפה</span>'; cls = 'row-sub'; }
+  else if (r.kind === 'sub'){ badge = appliedPrefix + '<span class="recv-badge sub">🔄 החלפה</span>'; cls = 'row-sub' + appliedCls; }
 
   if (act === 'skip' || act === 'remove') cls += ' dimmed';
 
@@ -3554,7 +3560,9 @@ function renderRowActions(r, currentAct){
 function renderApplyBar(){
   var rows = RECV_CTX.diff || [];
   var counts = { update: 0, remove: 0, add: 0, newprod: 0, replace: 0, accept: 0, skip: 0 };
+  var appliedCount = 0;
   rows.forEach(function(r){
+    if (r._applied){ appliedCount++; return; }
     var act = RECV_CTX.action_by_key[r._key] || r.default_action;
     counts[act] = (counts[act]||0) + 1;
   });
@@ -3564,10 +3572,11 @@ function renderApplyBar(){
   if (counts.add)     parts.push('➕ הוספה: <b>' + counts.add + '</b>');
   if (counts.replace) parts.push('🔄 החלפה: <b>' + counts.replace + '</b>');
   if (counts.newprod) parts.push('🆕 מוצר חדש: <b>' + counts.newprod + '</b>');
-  if (!parts.length) parts.push('אין שינויים — כל השורות תואמות');
+  if (!parts.length) parts.push('אין שינויים פעילים' + (appliedCount ? '' : ' — כל השורות תואמות'));
   var hasChanges = (counts.update + counts.remove + counts.add + counts.replace + counts.newprod) > 0;
+  var appliedNote = appliedCount > 0 ? '<span style="color:#15803d;font-weight:700;margin-left:14px">✓ ' + appliedCount + ' שורות עודכנו כבר</span>' : '';
   return '<div class="recv-apply-bar">' +
-    '<div class="ops-summary">' + parts.join(' · ') + '</div>' +
+    '<div class="ops-summary">' + parts.join(' · ') + appliedNote + '</div>' +
     '<button id="recvCancelBtn" class="cancel">ביטול</button>' +
     '<button id="recvApplyBtn" class="apply"' + (hasChanges ? '' : ' disabled') + '>📦 עדכן מלאי באוקטופוס לפי החשבונית</button>' +
   '</div>';
@@ -3674,9 +3683,10 @@ async function applyChangesToOctopos(){
 
   // Step 2: compute per-product stock deltas + collect master-price updates
   // Key by product_id (string). For each row, decide how many units to ADD to stock.
-  var deltas = {};        // {product_id: {qty_to_add, sku, name, reason}}
+  var deltas = {};        // {product_id: {qty_to_add, sku, name, reason, row_keys}}
   var priceUpdates = {};  // {product_id: new_cost} — only if user opted-in via 📌 toggle
   rows.forEach(function(r){
+    if (r._applied) return; // Already applied — don't double-add
     var act = RECV_CTX.action_by_key[r._key] || r.default_action;
     if (act === 'remove' || act === 'skip' || act === 'accept' && r.kind === 'missing'){
       return; // No stock change — item didn't arrive (or we explicitly chose to skip)
@@ -3726,9 +3736,10 @@ async function applyChangesToOctopos(){
 
     if (pid && addQty > 0){
       var key = String(pid);
-      if (!deltas[key]) deltas[key] = {add: 0, sku: sku, name: name, reasons: []};
+      if (!deltas[key]) deltas[key] = {add: 0, sku: sku, name: name, reasons: [], row_keys: []};
       deltas[key].add += addQty;
       deltas[key].reasons.push(reason);
+      deltas[key].row_keys.push(r._key);
     }
   });
 
@@ -3770,6 +3781,16 @@ async function applyChangesToOctopos(){
         var pj = await pr2.json();
         var actualNew = Number((pj.data || pj).in_stock_qty || newQ);
         stockAfter[pidK] = actualNew;
+        // Mark each row that contributed to this product as applied
+        (d.row_keys || []).forEach(function(rk){
+          var rr = (RECV_CTX.diff || []).find(function(x){return x._key === rk;});
+          if (rr){
+            rr._applied = true;
+            rr._applied_at = new Date().toISOString();
+            rr._applied_qty = d.add;
+            rr._applied_action = RECV_CTX.action_by_key[rk] || rr.default_action;
+          }
+        });
         log.push({ok: true, msg: d.sku + ': ' + cur + ' + ' + d.add + ' = ' + actualNew + priceMsg + '  (' + d.reasons.join(', ') + ')'});
       } else {
         var ptxt = await pr2.text();
@@ -3844,8 +3865,9 @@ function renderSummaryStep(log, deltas, stockBefore, stockAfter){
       '<div style="margin:14px 0 6px;font-weight:700">לוג פעולות:</div>' +
       '<div class="ops-log">' + log.map(function(l){return '<div class="' + (l.ok ? 'op-ok' : 'op-fail') + '">' + (l.ok ? '✓ ' : '✗ ') + escHtml(l.msg) + '</div>';}).join('') + '</div>' +
       '<div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">' +
+        '<button id="recvBackToDiff" style="padding:10px 16px;background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;color:#7c2d12;font-size:14px;font-weight:700;cursor:pointer">↩︎ חזרה להשוואה (להמשך עריכה)</button>' +
         '<button id="recvDone" class="btn-order-wizard">חזרה לרשימת POs</button>' +
-        '<a href="https://themakeup.octoretail.com/purchase_orders/' + rec.po.id + '" target="_blank" style="padding:10px 16px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);text-decoration:none;font-size:14px">פתח את ה-PO באוקטופוס ↗</a>' +
+        (rec.is_local ? '' : '<a href="https://themakeup.octoretail.com/purchase_orders/' + rec.po.id + '" target="_blank" style="padding:10px 16px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);text-decoration:none;font-size:14px">פתח את ה-PO באוקטופוס ↗</a>') +
       '</div>' +
     '</div>';
   if (rec && rec.is_local && rec.evkey && STATE.events[rec.evkey]){
@@ -3862,6 +3884,13 @@ function renderSummaryStep(log, deltas, stockBefore, stockAfter){
     $("#recvStep3").style.display = "none";
     RECV_CTX = null;
     renderReceiveList();
+  });
+  var backDiffBtn = $("#recvBackToDiff");
+  if (backDiffBtn) backDiffBtn.addEventListener('click', function(){
+    // Return to step 2 — RECV_CTX intact, applied rows marked
+    $("#recvStep3").style.display = "none";
+    $("#recvStep2").style.display = "block";
+    renderDiffTable();
   });
 }
 
