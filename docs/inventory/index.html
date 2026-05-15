@@ -2720,7 +2720,7 @@ function skuSimilar(a, b){
 // Receive-mode state — synced to GitHub (docs/state/inventory_receive_state.json)
 // Per Lauren 2026-05-14: "אני רוצה הכל מסונכרן דרך גיט האב ולא על המחשבים המקומיים תמיד".
 // Only secrets (PATs / Octopos tokens) stay in localStorage; all user data syncs.
-var RECV_STATE = { _updated_at: null, skipped_pos: [], aliases: {}, supplier_discounts: {}, reconciled_pos: {}, in_progress: {} };
+var RECV_STATE = { _updated_at: null, skipped_pos: [], aliases: {}, supplier_discounts: {}, supplier_pack_sizes: {}, reconciled_pos: {}, in_progress: {} };
 var RECV_STATE_URL = "../state/inventory_receive_state.json";
 var RECV_STATE_REPO_FILE = "docs/state/inventory_receive_state.json";
 
@@ -2734,6 +2734,7 @@ async function loadReceiveState(){
       if (!RECV_STATE.supplier_discounts || typeof RECV_STATE.supplier_discounts !== 'object') RECV_STATE.supplier_discounts = {};
       if (!RECV_STATE.reconciled_pos || typeof RECV_STATE.reconciled_pos !== 'object') RECV_STATE.reconciled_pos = {};
       if (!RECV_STATE.in_progress || typeof RECV_STATE.in_progress !== 'object') RECV_STATE.in_progress = {};
+      if (!RECV_STATE.supplier_pack_sizes || typeof RECV_STATE.supplier_pack_sizes !== 'object') RECV_STATE.supplier_pack_sizes = {};
     }
   } catch(e){ console.warn("loadReceiveState failed:", e); }
 }
@@ -2797,6 +2798,20 @@ async function setSupplierDiscount(supCode, pct){
 function effectiveInvoicePrice(rawPrice, supCode){
   var disc = getSupplierDiscount(supCode);
   return Number(rawPrice||0) * (1 - disc/100);
+}
+function getSupplierPackSize(supCode){
+  if (!supCode || !RECV_STATE.supplier_pack_sizes) return 1;
+  return Number(RECV_STATE.supplier_pack_sizes[supCode] || 1) || 1;
+}
+async function setSupplierPackSize(supCode, n){
+  if (!supCode) return false;
+  if (!RECV_STATE.supplier_pack_sizes) RECV_STATE.supplier_pack_sizes = {};
+  RECV_STATE.supplier_pack_sizes[supCode] = Math.max(1, Number(n) || 1);
+  return await saveReceiveState('@inventory/receive: pack-size ' + supCode + ' = ' + n);
+}
+function effectiveInvoiceQty(rawQty, supCode){
+  var pack = getSupplierPackSize(supCode);
+  return Number(rawQty||0) * pack;
 }
 
 // Mark an invoice-line fingerprint as a DUPLICATE — future invoices with the same
@@ -3378,7 +3393,8 @@ function computeDiff(){
       var inv = invLines[idx];
       var supCodeDiff = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
       var effInvPrice = effectiveInvoicePrice(inv.price, supCodeDiff);
-      var qtyDiff = Math.abs(Number(pl.quantity||0) - Number(inv.qty||0)) > 0.01;
+      var effInvQty = effectiveInvoiceQty(inv.qty, supCodeDiff);
+      var qtyDiff = Math.abs(Number(pl.quantity||0) - effInvQty) > 0.01;
       var priceDiff = Math.abs(Number(pl.cost_unit||0) - effInvPrice) > 0.05;  // wider tolerance — discounts often round to nearest cent
       var kind = (!qtyDiff && !priceDiff) ? 'match' : (qtyDiff && priceDiff ? 'qty' : (qtyDiff ? 'qty' : 'price'));
       rows.push({
@@ -3537,10 +3553,14 @@ function renderDiffTable(){
 
   var supCodeForDiscount = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
   var discountVal = getSupplierDiscount(supCodeForDiscount);
+  var packSizeVal = getSupplierPackSize(supCodeForDiscount);
   var discountBar = '<div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px">' +
     '<span style="font-weight:700;color:#854d0e">💸 הנחת ספק:</span>' +
-    '<input type="number" id="recvDiscountInput" min="0" max="90" step="1" value="' + discountVal + '" style="width:64px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:center"> %' +
-    '<span style="color:var(--muted);font-size:12px">' + (discountVal > 0 ? 'מחירי החשבונית מוכפלים ב-' + (100-discountVal) + '% להשוואה ל-PO' : 'אם הספק נותן הנחה אחרי המחיר ברשימה — הזיני את %') + '</span>' +
+    '<input type="number" id="recvDiscountInput" min="0" max="90" step="1" value="' + discountVal + '" style="width:54px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:center"> %' +
+    '<span style="color:#d4d4d8">|</span>' +
+    '<span style="font-weight:700;color:#854d0e">📦 כפולה:</span>' +
+    '<input type="number" id="recvPackInput" min="1" max="999" step="1" value="' + packSizeVal + '" style="width:54px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;text-align:center"> יח׳' +
+    '<span style="color:var(--muted);font-size:12px">' + (packSizeVal > 1 ? 'כמות בחשבונית = ' + packSizeVal + ' יחידות' : 'אם הספק מספר באריזות — N יחידות לכל "1"') + '</span>' +
     '<span style="flex:1"></span>' +
     '<button id="recvDiscountSave" style="background:#fef3c7;border:1px solid #fbbf24;color:#7c2d12;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer">💾 שמור</button>' +
   '</div>';
@@ -3594,14 +3614,19 @@ function bindReceiveDelegation(){
     }
     if (e.target.closest('#recvDiscountSave')){
       var inp = document.getElementById('recvDiscountInput');
+      var packInp = document.getElementById('recvPackInput');
       if (!inp) return;
       var pct = Math.max(0, Math.min(90, Number(inp.value) || 0));
+      var pack = packInp ? Math.max(1, Number(packInp.value) || 1) : 1;
       var supCode = (RECV_CTX && RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
       if (!supCode){ toast('אין מידע על הספק', 'error'); return; }
       (async function(){
-        var ok = await setSupplierDiscount(supCode, pct);
-        toast(ok ? '💸 הנחה ' + pct + '% נשמרה לספק' : '⚠️ נשמר מקומית, GitHub נכשל', ok ? 'success' : 'error');
-        // Recompute diff with new discount
+        var okD = await setSupplierDiscount(supCode, pct);
+        var okP = await setSupplierPackSize(supCode, pack);
+        var summary = [];
+        if (pct > 0) summary.push('הנחה ' + pct + '%');
+        if (pack > 1) summary.push('כפולה ×' + pack);
+        toast((okD && okP) ? '💾 נשמר: ' + (summary.join(' · ') || 'ברירת מחדל') : '⚠️ שמירה חלקית', (okD && okP) ? 'success' : 'error');
         computeDiff();
         renderDiffTable();
       })();
@@ -3688,6 +3713,10 @@ function computePendingTotal(){
       if (r.po_line) t += Number(r.po_line.quantity||0) * Number(r.po_line.cost_unit||0);
       return;
     }
+    if (act === 'shipping' && r.inv_line){
+      t += Number(r.inv_line.total || (r.inv_line.qty * r.inv_line.price) || 0);
+      return;
+    }
     if (act === 'update' && r.inv_line){
       var qty = (r.override_qty !== undefined ? r.override_qty : r.inv_line.qty);
       var rawPrice = (r.override_price !== undefined ? r.override_price : r.inv_line.price);
@@ -3727,8 +3756,16 @@ function renderDiffRowHtml(r){
 
   var po = r.po_line || {};
   var inv = r.inv_line || (r.sub_inv_line || {});
+  var supCodeQty = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
+  var packForQty = getSupplierPackSize(supCodeQty);
   var poQty = po.quantity != null ? po.quantity : '—';
-  var invQty = inv.qty != null ? inv.qty : '—';
+  var rawInvQty = inv.qty != null ? Number(inv.qty) : null;
+  var effInvQtyDisp = rawInvQty != null && packForQty > 1 ? rawInvQty * packForQty : rawInvQty;
+  var invQty = rawInvQty != null
+    ? (packForQty > 1
+        ? effInvQtyDisp + '<div style="font-size:10px;color:var(--muted)">×' + packForQty + ' מ-' + rawInvQty + '</div>'
+        : rawInvQty)
+    : '—';
   var poPrice = po.cost_unit != null ? fmtUsd(po.cost_unit) : '—';
   var supCodeRow = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
   var rowDiscount = getSupplierDiscount(supCodeRow);
@@ -4301,14 +4338,17 @@ async function applyChangesToOctopos(){
 
     if (r.kind === 'match' && act === 'accept' && r.po_line && r.inv_line){
       pid = r.po_line.product_id;
-      addQty = Number(r.inv_line.qty);
+      var supCodeM = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
+      addQty = effectiveInvoiceQty(r.inv_line.qty, supCodeM);
       reason = 'תואם · קבל';
     }
     else if ((r.kind === 'qty' || r.kind === 'price') && r.po_line && r.inv_line){
       pid = r.po_line.product_id;
       if (act === 'update'){
-        var q = (r.override_qty !== undefined ? r.override_qty : r.inv_line.qty);
-        addQty = Number(q);
+        var supCodeU = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
+        var qRaw = (r.override_qty !== undefined ? r.override_qty : r.inv_line.qty);
+        // If override was set, it's already in real units — don't multiply
+        addQty = r.override_qty !== undefined ? Number(qRaw) : effectiveInvoiceQty(qRaw, supCodeU);
         reason = (r.kind === 'qty' ? 'כמות' : 'מחיר') + ' · עדכן לחשבונית';
         // Master-price opt-in: only if user checked 📌 AND price actually differs
         if (r.update_master_price && r.po_line.cost_unit && r.inv_line.price){
@@ -4325,20 +4365,22 @@ async function applyChangesToOctopos(){
       }
     }
     else if (r.kind === 'extra' && r.inv_line){
+      var supCodeE = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
       if (act === 'add' && r.oct_product_id){
         pid = r.oct_product_id;
-        addQty = Number(r.inv_line.qty);
+        addQty = effectiveInvoiceQty(r.inv_line.qty, supCodeE);
         reason = 'הגיע לא הוזמן · הוסף';
       }
       else if (act === 'newprod' && r._created_product_id){
         pid = r._created_product_id;
-        addQty = Number(r.inv_line.qty);
+        addQty = effectiveInvoiceQty(r.inv_line.qty, supCodeE);
         reason = '🆕 מוצר חדש';
       }
     }
     else if (r.kind === 'sub' && r.sub_inv_line && r.sub_oct_product_id && act === 'replace'){
       pid = r.sub_oct_product_id;
-      addQty = Number(r.sub_inv_line.qty);
+      var supCodeS = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
+      addQty = effectiveInvoiceQty(r.sub_inv_line.qty, supCodeS);
       reason = 'החלפה';
     }
 
