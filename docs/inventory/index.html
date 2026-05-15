@@ -2771,6 +2771,16 @@ async function setAlias(inv, pid){
   return await saveReceiveState('@inventory/receive: alias ' + k + ' -> ' + pid);
 }
 
+// Mark an invoice-line fingerprint as a DUPLICATE — future invoices with the same
+// fingerprint will be auto-skipped (no stock add) since a sibling line covers it.
+async function setAliasAsDuplicate(inv, pid){
+  var k = aliasKeyForInvoiceLine(inv);
+  if (!k) return false;
+  if (!RECV_STATE.aliases) RECV_STATE.aliases = {};
+  RECV_STATE.aliases[k] = {duplicate: true, pid: pid};
+  return await saveReceiveState('@inventory/receive: dup-alias ' + k + ' (skip)');
+}
+
 function getSkippedPos(){
   return (RECV_STATE.skipped_pos || []).map(String);
 }
@@ -3238,9 +3248,20 @@ function computeDiff(){
     if (idx === -1){
       for (var ja = 0; ja < invLines.length; ja++){
         if (usedInvIdx[ja]) continue;
-        var aliasPid = getAlias(invLines[ja]);
+        var aliasVal = getAlias(invLines[ja]);
+        // aliasVal can be a number (pid) OR an object {duplicate:true, pid:N}
+        var aliasPid = (aliasVal && typeof aliasVal === 'object') ? aliasVal.pid : aliasVal;
         if (aliasPid && String(aliasPid) === String(pl.product_id)){
-          idx = ja; matchedBy = 'alias'; break;
+          idx = ja;
+          matchedBy = (aliasVal && aliasVal.duplicate) ? 'alias-dup' : 'alias';
+          if (aliasVal && aliasVal.duplicate){
+            // Mark this invoice line as "used" but DON'T pair it as the real match —
+            // skip it instead. The actual match must come from elsewhere.
+            usedInvIdx[ja] = true;
+            idx = -1; // don't pair
+            continue;
+          }
+          break;
         }
       }
     }
@@ -3600,6 +3621,7 @@ function renderDiffRowHtml(r){
       (r.matched_by === 'name' ? '<div style="font-size:10px;color:#7c3aed;margin-top:2px;font-weight:700">📛 התאמה לפי שם המוצר (SKU בחשבונית שונה)</div>' : '') +
       (r.matched_by === 'alias' ? '<div style="font-size:10px;color:#1d4ed8;margin-top:2px;font-weight:700">🧠 התאמה אוטומטית (למדתי מהפעם הקודמת)</div>' : '') +
       (r.matched_by === 'manual-link' ? '<div style="font-size:10px;color:#1d4ed8;margin-top:2px;font-weight:700">🔗 חוברה ידנית · נשמר לעתיד</div>' : '') +
+      (r.matched_by === 'duplicate' ? '<div style="font-size:10px;color:#dc2626;margin-top:2px;font-weight:700">🚫 כפילות · ידלג ולא יוסיף מלאי</div>' : '') +
     '</td>' +
     '<td style="text-align:center" class="sku">' + escHtml(r.sku||'') + '</td>' +
     '<td class="' + qtyClass + '">' + poQty + '</td>' +
@@ -3796,8 +3818,14 @@ function openPriceMismatchSms(){
 }
 
 // Manual link: connect a "new product" invoice row to an existing supplier product.
-// Shows ALL of the supplier's products (active + inactive), with a label indicating
-// which are currently in the "missing" state of this diff.
+// Shows ALL of the supplier's products (active + inactive), with a label per product
+// indicating its current diff status:
+//   ✓ תואם / ⚠️ כמות / 💲 מחיר / ❌ לא הגיע / — (not on PO)
+// Behavior on pick:
+//   - If 'לא הגיע': link as substitution (existing flow)
+//   - If already matched in diff (תואם/כמות/מחיר): mark this row as DUPLICATE,
+//     set action 'skip', save alias so future invoices auto-skip it
+//   - If not on PO: just attach to this product (add stock for it)
 function openLinkExistingModal(rowKey){
   if (!RECV_CTX || !RECV_CTX.diff) return;
   var newRow = RECV_CTX.diff.find(function(r){return r._key === rowKey;});
@@ -3805,7 +3833,6 @@ function openLinkExistingModal(rowKey){
     toast('הכפתור זמין רק למוצר שזוהה כחדש (לא קיים באוקטופוס)', '');
     return;
   }
-  // Get all supplier products
   var supCode = RECV_CTX.rec.supplier_code;
   var vendor = (OCTOPOS && OCTOPOS.vendors && OCTOPOS.vendors[supCode]) || {};
   var allProducts = (vendor.products || []).concat(vendor.inactive_products || []);
@@ -3813,13 +3840,26 @@ function openLinkExistingModal(rowKey){
     toast('לא נמצאו מוצרים עבור הספק ' + supCode, 'error');
     return;
   }
-  // Which products are currently "missing" in this diff?
+  // Build a map: pid → { status, row } for products currently in the diff
+  var diffStatusByPid = {};
+  RECV_CTX.diff.forEach(function(r){
+    if (r._applied) return;
+    var pid = r.po_line ? r.po_line.product_id : (r.oct_product_id || r.sub_oct_product_id);
+    if (!pid) return;
+    var status = null;
+    if (r.kind === 'match')   status = {label: '✓ תואם',    color: '#15803d', bg: '#dcfce7', border: '#86efac', is_duplicate: true};
+    else if (r.kind === 'qty')   status = {label: '⚠️ כמות',  color: '#854d0e', bg: '#fef9c3', border: '#fde68a', is_duplicate: true};
+    else if (r.kind === 'price') status = {label: '💲 מחיר',  color: '#7c2d12', bg: '#fed7aa', border: '#fdba74', is_duplicate: true};
+    else if (r.kind === 'missing') status = {label: '❌ לא הגיע', color: '#7f1d1d', bg: '#fee2e2', border: '#fca5a5', is_duplicate: false};
+    else if (r.kind === 'sub')     status = {label: '🔄 החלפה', color: '#1e3a8a', bg: '#dbeafe', border: '#93c5fd', is_duplicate: true};
+    if (status) diffStatusByPid[String(pid)] = {status: status, row: r};
+  });
   var missingPidSet = {};
   var missingRowByPid = {};
-  RECV_CTX.diff.forEach(function(r){
-    if (r.kind === 'missing' && r.po_line && !r._applied){
-      missingPidSet[String(r.po_line.product_id)] = true;
-      missingRowByPid[String(r.po_line.product_id)] = r;
+  Object.keys(diffStatusByPid).forEach(function(pid){
+    if (diffStatusByPid[pid].row.kind === 'missing'){
+      missingPidSet[pid] = true;
+      missingRowByPid[pid] = diffStatusByPid[pid].row;
     }
   });
 
@@ -3833,19 +3873,33 @@ function openLinkExistingModal(rowKey){
       return (p.name||'').toLowerCase().indexOf(q) !== -1 ||
              (p.sku||'').toLowerCase().indexOf(q) !== -1;
     });
-    // Sort: missing first, then alphabetical
+    // Sort priority: 1) currently 'missing' (most likely the actual match), 2) other in-diff, 3) rest alphabetical
     filtered.sort(function(a,b){
-      var am = missingPidSet[String(a.id)] ? 0 : 1;
-      var bm = missingPidSet[String(b.id)] ? 0 : 1;
-      if (am !== bm) return am - bm;
+      function rank(p){
+        var st = diffStatusByPid[String(p.id)];
+        if (st && !st.status.is_duplicate) return 0; // missing
+        if (st) return 1; // other in-diff (would be duplicate)
+        return 2;
+      }
+      var ra = rank(a), rb = rank(b);
+      if (ra !== rb) return ra - rb;
       return (a.name||'').localeCompare(b.name||'');
     });
     return filtered.slice(0, 60).map(function(p){
-      var isMissing = !!missingPidSet[String(p.id)];
-      var badge = isMissing ? '<span style="background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:800;margin-right:6px">❌ לא הגיע</span>' : '';
-      return '<button class="link-pick" data-pid="' + escHtml(String(p.id||'')) + '" style="display:block;width:100%;text-align:right;background:#fff;border:1px solid ' + (isMissing ? '#fca5a5' : 'var(--line)') + ';border-radius:8px;padding:10px 14px;margin-bottom:6px;cursor:pointer;font-family:inherit">' +
-        '<div style="font-weight:700">' + badge + escHtml(p.name||'') + '</div>' +
+      var st = diffStatusByPid[String(p.id)];
+      var badgeHtml = '';
+      var borderColor = 'var(--line)';
+      var isDuplicate = false;
+      if (st){
+        badgeHtml = '<span style="background:' + st.status.bg + ';color:' + st.status.color + ';border:1px solid ' + st.status.border + ';padding:1px 7px;border-radius:999px;font-size:10px;font-weight:800;margin-right:6px">' + st.status.label + '</span>';
+        borderColor = st.status.border;
+        isDuplicate = !!st.status.is_duplicate;
+      }
+      var dupNote = isDuplicate ? '<div style="font-size:10px;color:#7c3aed;margin-top:2px;font-weight:700">↪︎ אם תבחרי, המוצר הזה יסומן ככפילות וידלג</div>' : '';
+      return '<button class="link-pick" data-pid="' + escHtml(String(p.id||'')) + '" data-dup="' + (isDuplicate ? '1' : '0') + '" style="display:block;width:100%;text-align:right;background:#fff;border:1px solid ' + borderColor + ';border-radius:8px;padding:10px 14px;margin-bottom:6px;cursor:pointer;font-family:inherit">' +
+        '<div style="font-weight:700">' + badgeHtml + escHtml(p.name||'') + '</div>' +
         '<div style="font-size:12px;color:var(--muted);margin-top:2px"><code style="font-family:monospace">' + escHtml(p.sku||'') + '</code> · מלאי: ' + (p.in_stock_qty||0) + ' · $' + (p.unit_cost||p.cost||0) + '</div>' +
+        dupNote +
       '</button>';
     }).join('');
   }
@@ -3875,12 +3929,27 @@ function openLinkExistingModal(rowKey){
     var b = e.target.closest('.link-pick');
     if (!b) return;
     var pid = Number(b.dataset.pid);
+    var isDup = b.dataset.dup === '1';
     if (!pid){ modal.remove(); return; }
-    // If this product is currently "missing" in the diff, also remove the missing row
-    var missing = missingRowByPid[String(pid)];
-    // Find the product details for nice display
     var prod = allProducts.find(function(p){ return p.id === pid; }) || {};
-    // Mutate newRow → sub row
+    if (isDup){
+      // The picked product is ALREADY handled in the diff — mark this row as DUPLICATE
+      newRow.kind = 'extra';
+      newRow.new_product_needed = false;
+      newRow.matched_by = 'duplicate';
+      newRow.default_action = 'skip';
+      newRow.is_duplicate = true;
+      newRow.duplicate_of_pid = pid;
+      newRow.name = prod.name || newRow.name;
+      RECV_CTX.action_by_key[newRow._key] = 'skip';
+      if (newRow.inv_line) await setAliasAsDuplicate(newRow.inv_line, pid);
+      modal.remove();
+      toast('🚫 סומן ככפילות של ' + escHtml(prod.name||'') + '. הוא לא יוסיף מלאי. נשמר לעתיד.', 'success');
+      renderDiffTable();
+      return;
+    }
+    // Normal substitution path — link to a missing row (or just attach to any unmatched product)
+    var missing = missingRowByPid[String(pid)];
     newRow.kind = 'sub';
     newRow.sub_for = missing ? missing.sku : prod.sku;
     newRow.sub_inv_line = newRow.inv_line;
