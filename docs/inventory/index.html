@@ -3668,9 +3668,9 @@ function renderRowActions(r, currentAct){
       btn('skip', 'דלג', 'act-skip');
     }
   } else if (r.kind === 'sub'){
-    btn('replace', '🔄 החלף ב-PO', 'act-update');
-    btn('remove',  '❌ הסר את הישן', 'act-remove');
-    btn('accept',  'השאר את הישן', 'act-accept');
+    btn('replace', '🔄 כן, זה ההחלפה', 'act-update');
+    btn('accept',  'לא, השאר את ה-PO', 'act-accept');
+    btn('remove',  '❌ בטל את שניהם', 'act-remove');
   }
 
   // Master price toggle — appears for rows where invoice price ≠ PO price AND action is "update"
@@ -3942,48 +3942,64 @@ function openLinkExistingModal(rowKey){
     var isDup = b.dataset.dup === '1';
     if (!pid){ modal.remove(); return; }
     var prod = allProducts.find(function(p){ return p.id === pid; }) || {};
+
+    // Always: remove the new-product (bottom) row — Lauren wants a clean bottom section
+    var newRowIdx = RECV_CTX.diff.indexOf(newRow);
+    if (newRowIdx !== -1) RECV_CTX.diff.splice(newRowIdx, 1);
+    delete RECV_CTX.action_by_key[newRow._key];
+
     if (isDup){
-      // The picked product is ALREADY handled in the diff — mark this row as DUPLICATE
-      newRow.kind = 'extra';
-      newRow.new_product_needed = false;
-      newRow.matched_by = 'duplicate';
-      newRow.default_action = 'skip';
-      newRow.is_duplicate = true;
-      newRow.duplicate_of_pid = pid;
-      newRow.name = prod.name || newRow.name;
-      RECV_CTX.action_by_key[newRow._key] = 'skip';
+      // Pick was an already-handled product — the new-product row is a parser duplicate.
+      // Just disappear it and save the alias as duplicate (so future invoices auto-skip).
       if (newRow.inv_line) await setAliasAsDuplicate(newRow.inv_line, pid);
       modal.remove();
-      toast('🚫 סומן ככפילות של ' + escHtml(prod.name||'') + '. הוא לא יוסיף מלאי. נשמר לעתיד.', 'success');
+      toast('🚫 כפילות של ' + escHtml(prod.name||'') + ' — הוסרה מהרשימה. נשמר לעתיד.', 'success');
       renderDiffTable();
       return;
     }
-    // Normal substitution path — link to a missing row (or just attach to any unmatched product)
+
     var missing = missingRowByPid[String(pid)];
-    newRow.kind = 'sub';
-    newRow.sub_for = missing ? missing.sku : prod.sku;
-    newRow.sub_inv_line = newRow.inv_line;
-    newRow.sub_oct_product_id = pid;
-    newRow.po_line = missing ? missing.po_line : {
-      product_id: pid,
-      product_name: prod.name,
-      product_sku: prod.sku,
-      quantity: 0,
-      cost_unit: Number(prod.unit_cost || prod.cost || 0)
-    };
-    newRow.name = prod.name || newRow.name;
-    newRow.sku = prod.sku || newRow.sku;
-    newRow.new_product_needed = false;
-    newRow.matched_by = 'manual-link';
-    newRow.default_action = 'replace';
-    RECV_CTX.action_by_key[newRow._key] = 'replace';
     if (missing){
-      var midx = RECV_CTX.diff.indexOf(missing);
-      if (midx !== -1) RECV_CTX.diff.splice(midx, 1);
+      // The picked product was 'missing' — convert it to a qty/price/match diff using
+      // the new-product row's invoice data. The original new-product row is gone.
+      var qty = Number(newRow.inv_line.qty || 0);
+      var price = Number(newRow.inv_line.price || 0);
+      var poQty = Number(missing.po_line.quantity || 0);
+      var poPrice = Number(missing.po_line.cost_unit || 0);
+      var qtyDiff = Math.abs(poQty - qty) > 0.01;
+      var priceDiff = Math.abs(poPrice - price) > 0.001;
+      missing.inv_line = newRow.inv_line;
+      missing.kind = (!qtyDiff && !priceDiff) ? 'match' : (priceDiff && !qtyDiff ? 'price' : 'qty');
+      missing.qtyDiff = qtyDiff;
+      missing.priceDiff = priceDiff;
+      missing.matched_by = 'manual-link';
+      missing.default_action = (qtyDiff || priceDiff) ? 'update' : 'accept';
+      delete RECV_CTX.action_by_key[missing._key];
+      if (newRow.inv_line) await setAlias(newRow.inv_line, pid);
+      modal.remove();
+      toast('🔗 חוברה ל-' + escHtml(prod.name||'') + ' — עברה לטבלה למעלה כפער כמות/מחיר.', 'success');
+      renderDiffTable();
+      return;
     }
+
+    // Picked an UNATTACHED supplier product (not on PO at all). Create a fresh extra
+    // row attached to that product so Apply can add stock.
+    var freshRow = {
+      kind: 'extra',
+      po_line: null,
+      inv_line: newRow.inv_line,
+      sku: prod.sku || '',
+      name: prod.name || '',
+      oct_product_id: pid,
+      new_product_needed: false,
+      matched_by: 'manual-link',
+      default_action: 'add',
+      _key: 'r' + (RECV_CTX.diff.length + 100)
+    };
+    RECV_CTX.diff.push(freshRow);
     if (newRow.inv_line) await setAlias(newRow.inv_line, pid);
     modal.remove();
-    toast('🔗 חיברתי ל-' + escHtml(prod.name||'') + '. נשמר לעתיד.', 'success');
+    toast('🔗 חוברה ל-' + escHtml(prod.name||'') + ' (לא היה ב-PO). תוסיף ' + qty + ' למלאי.', 'success');
     renderDiffTable();
   });
 }
