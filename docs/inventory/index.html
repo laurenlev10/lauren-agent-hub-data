@@ -393,6 +393,8 @@
   .recv-row-actions button.act-remove{background:#fef2f2;color:#991b1b}
   .recv-row-actions button.act-add{background:#f0fdf4;color:#166534}
   .recv-row-actions button.act-skip{background:#f9fafb;color:#6b7280}
+  .recv-row-actions button.act-shipping{background:#eff6ff;color:#1e40af;border-color:#93c5fd}
+  .recv-row-actions button.act-shipping.on{background:#15803d;color:#fff;border-color:#14532d}
   /* Selected action — bumped specificity so it always wins over the .act-* tint above */
   .recv-row-actions button.on,
   .recv-row-actions button.act-accept.on,
@@ -794,6 +796,7 @@ function ensureSlice(evkey, eventMeta){
         tracking_number: null,
         tracking_carrier: null,
         invoice_total_usd: 0,
+        shipping_cost_usd: 0,
         invoice_file: null,
         received: false,
         received_at: null,
@@ -807,6 +810,7 @@ function ensureSlice(evkey, eventMeta){
       if (!s.contact) s.contact = { name: "", phone: "", email: "", address: "" };
       if (!Array.isArray(s.products)) s.products = [];
       if (s.invoice_total_usd == null) s.invoice_total_usd = 0;
+      if (s.shipping_cost_usd == null) s.shipping_cost_usd = 0;
     }
   });
 }
@@ -3652,6 +3656,7 @@ function renderRowActions(r, currentAct){
   } else if (r.kind === 'extra'){
     if (r.new_product_needed){
       btns.push('<button data-action="link-existing" data-key="' + r._key + '" style="background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;padding:4px 9px;font-size:11px;font-weight:700;border-radius:6px;cursor:pointer;white-space:nowrap;font-family:inherit">🔗 חבר למוצר קיים</button>');
+      btn('shipping', '💰 הוצאת משלוח', 'act-shipping');
       btn('newprod', '🆕 צור מוצר חדש', 'act-add');
       btn('skip',    'דלג כרגע', 'act-skip');
     } else {
@@ -3682,7 +3687,7 @@ function renderRowActions(r, currentAct){
 
 function renderApplyBar(){
   var rows = RECV_CTX.diff || [];
-  var counts = { update: 0, remove: 0, add: 0, newprod: 0, replace: 0, accept: 0, skip: 0 };
+  var counts = { update: 0, remove: 0, add: 0, newprod: 0, replace: 0, accept: 0, skip: 0, shipping: 0 };
   var appliedCount = 0;
   var priceDiffRows = [];
   rows.forEach(function(r){
@@ -3700,8 +3705,9 @@ function renderApplyBar(){
   if (counts.add)     parts.push('➕ הוספה: <b>' + counts.add + '</b>');
   if (counts.replace) parts.push('🔄 החלפה: <b>' + counts.replace + '</b>');
   if (counts.newprod) parts.push('🆕 מוצר חדש: <b>' + counts.newprod + '</b>');
+  if (counts.shipping) parts.push('💰 משלוח: <b>' + counts.shipping + '</b>');
   if (!parts.length) parts.push('אין שינויים פעילים' + (appliedCount ? '' : ' — כל השורות תואמות'));
-  var hasChanges = (counts.update + counts.remove + counts.add + counts.replace + counts.newprod) > 0;
+  var hasChanges = (counts.update + counts.remove + counts.add + counts.replace + counts.newprod + counts.shipping) > 0;
   var appliedNote = appliedCount > 0 ? '<span style="color:#15803d;font-weight:700;margin-left:14px">✓ ' + appliedCount + ' שורות עודכנו כבר</span>' : '';
   var priceSmsBtn = priceDiffRows.length > 0
     ? '<button id="recvPriceSmsBtn" style="background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:700;cursor:pointer">📱 הודעה לספק על ' + priceDiffRows.length + ' פערי מחיר</button>'
@@ -4073,9 +4079,15 @@ async function applyChangesToOctopos(){
   // Key by product_id (string). For each row, decide how many units to ADD to stock.
   var deltas = {};        // {product_id: {qty_to_add, sku, name, reason, row_keys}}
   var priceUpdates = {};  // {product_id: new_cost} — only if user opted-in via 📌 toggle
+  // Collect shipping charges separately
+  var shippingCharges = [];   // {row, amount}
   rows.forEach(function(r){
     if (r._applied) return; // Already applied — don't double-add
     var act = RECV_CTX.action_by_key[r._key] || r.default_action;
+    if (act === 'shipping' && r.inv_line){
+      shippingCharges.push({row: r, amount: Number(r.inv_line.total || (r.inv_line.qty * r.inv_line.price) || 0)});
+      return; // No stock add — shipping isn't inventory
+    }
     if (act === 'remove' || act === 'skip' || act === 'accept' && r.kind === 'missing'){
       return; // No stock change — item didn't arrive (or we explicitly chose to skip)
     }
@@ -4186,6 +4198,29 @@ async function applyChangesToOctopos(){
       }
     } catch(e){
       log.push({ok: false, msg: 'שגיאת רשת (' + d.sku + '): ' + e.message});
+    }
+  }
+
+  // Apply shipping charges to supplier slice (per-event)
+  if (shippingCharges.length){
+    var evk = rec.evkey || (URL_EVKEY || CURRENT_EVKEY);
+    var supCode = rec.supplier_code;
+    if (evk && supCode && STATE.events[evk] && STATE.events[evk].suppliers && STATE.events[evk].suppliers[supCode]){
+      var supSlice = STATE.events[evk].suppliers[supCode];
+      var totalShipping = shippingCharges.reduce(function(a,s){return a + s.amount;}, 0);
+      supSlice.shipping_cost_usd = Number(supSlice.shipping_cost_usd || 0) + totalShipping;
+      supSlice.updated_at = nowIso();
+      shippingCharges.forEach(function(s){
+        s.row._applied = true;
+        s.row._applied_at = new Date().toISOString();
+        s.row._applied_qty = 0;
+        s.row._applied_action = 'shipping';
+      });
+      STATE.events[evk].updated_at = nowIso();
+      scheduleSave();
+      log.push({ok: true, msg: '💰 ' + fmtUsd(totalShipping) + ' נוסף ל"הוצאות משלוח" של ' + (rec.supplier_name||supCode) + ' (אירוע: ' + evk + ')'});
+    } else {
+      log.push({ok: false, msg: '⚠️ זוהו ' + shippingCharges.length + ' שורות משלוח אבל לא ניתן לקשר לאירוע (PO ללא evkey). הסכום: ' + fmtUsd(shippingCharges.reduce(function(a,s){return a+s.amount;},0))});
     }
   }
 
