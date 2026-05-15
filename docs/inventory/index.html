@@ -3167,11 +3167,27 @@ function computeDiff(){
   // Phase 1: exact SKU match (using skusEqual to handle slash-joined SKUs)
   poLines.forEach(function(pl){
     var idx = -1;
+    var matchedBy = null;
+    // 1a. Try SKU match first
     for (var i = 0; i < invLines.length; i++){
       if (usedInvIdx[i]) continue;
       if (skusEqual(invLines[i].sku, pl.product_sku)){
-        idx = i; break;
+        idx = i; matchedBy = 'sku'; break;
       }
+    }
+    // 1b. Fallback to name-token similarity (handles BB&W-style non-standard SKUs
+    //     where Octopos has 'Buttercup' but invoice has a different SKU code +
+    //     similar product name)
+    if (idx === -1){
+      var bestScore = 0, bestIdx = -1;
+      for (var j = 0; j < invLines.length; j++){
+        if (usedInvIdx[j]) continue;
+        var sim = nameSimilarity(pl.product_name||'', invLines[j].name||'');
+        if (sim >= 0.4 && sim > bestScore){
+          bestScore = sim; bestIdx = j;
+        }
+      }
+      if (bestIdx !== -1){ idx = bestIdx; matchedBy = 'name'; }
     }
     if (idx !== -1){
       usedInvIdx[idx] = true;
@@ -3187,6 +3203,7 @@ function computeDiff(){
         inv_line: inv,
         sku: pl.product_sku,
         name: pl.product_name,
+        matched_by: matchedBy,
         default_action: (qtyDiff || priceDiff) ? 'update' : 'accept'
       });
     } else {
@@ -3295,7 +3312,7 @@ function renderDiffTable(){
   var matchedCount = rows.filter(function(r){return r.po_line && r.inv_line;}).length;
   var matchRate = poLineCount ? matchedCount / poLineCount : 0;
   var wrongInvoiceWarning = "";
-  if (poLineCount >= 4 && matchRate < 0.30){
+  if (poLineCount >= 4 && matchRate < 0.20){
     wrongInvoiceWarning =
       '<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:12px;padding:14px 16px;margin-bottom:14px;color:#7f1d1d">' +
         '<div style="font-weight:800;font-size:15px;margin-bottom:4px">⚠️ ייתכן שזו לא החשבונית הנכונה ל-PO הזה</div>' +
@@ -3500,6 +3517,7 @@ function renderDiffRowHtml(r){
     '<td>' + badge + '</td>' +
     '<td><div class="name">' + escHtml(r.name||'') + '</div>' +
       (r.sub_for ? '<div style="font-size:11px;color:#1e3a8a;margin-top:2px">↪︎ במקום ' + escHtml(r.sub_for) + '</div>' : '') +
+      (r.matched_by === 'name' ? '<div style="font-size:10px;color:#7c3aed;margin-top:2px;font-weight:700">📛 התאמה לפי שם המוצר (SKU בחשבונית שונה)</div>' : '') +
     '</td>' +
     '<td style="text-align:center" class="sku">' + escHtml(r.sku||'') + '</td>' +
     '<td class="' + qtyClass + '">' + poQty + '</td>' +
