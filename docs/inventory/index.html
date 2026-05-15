@@ -3602,6 +3602,10 @@ function bindReceiveDelegation(){
         openLinkExistingModal(key);
         return;
       }
+      if (act === 'link-invoice'){
+        openLinkInvoiceModal(key);
+        return;
+      }
       RECV_CTX.action_by_key[key] = act;
       if (act === 'newprod'){
         openNewProductModal(key);
@@ -3906,6 +3910,7 @@ function renderRowActions(r, currentAct){
     btn('accept_as_po', '✅ השאר כמו ב-PO', 'act-accept');
     btn('accept', '⏸ שמור לעדכון עתידי', 'act-update');
     btn('remove', '❌ הסר מ-PO', 'act-remove');
+    btns.push('<button data-action="link-invoice" data-key="' + r._key + '" style="background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;padding:4px 9px;font-size:11px;font-weight:700;border-radius:6px;cursor:pointer;white-space:nowrap;font-family:inherit">🔗 חבר לחשבונית</button>');
   } else if (r.kind === 'extra'){
     if (r.new_product_needed){
       btns.push('<button data-action="link-existing" data-key="' + r._key + '" style="background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;padding:4px 9px;font-size:11px;font-weight:700;border-radius:6px;cursor:pointer;white-space:nowrap;font-family:inherit">🔗 חבר למוצר קיים</button>');
@@ -4153,6 +4158,96 @@ function openReconciledReplay(rec){
   RECV_CTX = null;
   renderSummaryStep(saved.log || [], saved.deltas || {}, saved.stockBefore || {}, saved.stockAfter || {}, replayRec);
   return true;
+}
+
+// Inverse link: missing PO row → picks an unmatched invoice line (from the 'new
+// products' section) and merges them into a single qty/price/match diff row.
+function openLinkInvoiceModal(rowKey){
+  if (!RECV_CTX || !RECV_CTX.diff) return;
+  var missingRow = RECV_CTX.diff.find(function(r){return r._key === rowKey;});
+  if (!missingRow || missingRow.kind !== 'missing'){
+    toast('הכפתור זמין רק לשורה במצב "לא הגיע"', '');
+    return;
+  }
+  var extras = RECV_CTX.diff.filter(function(r){
+    return r.kind === 'extra' && r.new_product_needed && !r._applied && r.inv_line;
+  });
+  if (!extras.length){
+    toast('אין שורות חשבונית לא-מקושרות. אם המוצר באמת בחשבונית — תוסיפי שורה ידנית או השתמשי ב"✅ השאר כמו ב-PO".', '');
+    return;
+  }
+  var modal = document.createElement('div');
+  modal.className = 'recv-newprod-modal';
+
+  function renderList(query){
+    var q = (query || '').toLowerCase().trim();
+    var filtered = extras.filter(function(r){
+      if (!q) return true;
+      return (r.name||'').toLowerCase().indexOf(q) !== -1 ||
+             (r.sku||'').toLowerCase().indexOf(q) !== -1 ||
+             (r.inv_line && r.inv_line.name || '').toLowerCase().indexOf(q) !== -1;
+    });
+    return filtered.slice(0, 60).map(function(r){
+      var inv = r.inv_line || {};
+      return '<button class="pick-inv" data-rkey="' + r._key + '" style="display:block;width:100%;text-align:right;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:6px;cursor:pointer;font-family:inherit">' +
+        '<div style="font-weight:700">' + escHtml(r.name||'(ללא שם)') + '</div>' +
+        '<div style="font-size:12px;color:var(--muted);margin-top:2px"><code style="font-family:monospace">' + escHtml(r.sku||'(ללא SKU)') + '</code> · כמות: ' + (inv.qty||0) + ' · $' + (inv.price||0) + ' · סה"כ: $' + (inv.total||0) + '</div>' +
+      '</button>';
+    }).join('');
+  }
+
+  modal.innerHTML =
+    '<div class="card" style="max-width:640px;width:100%">' +
+      '<h2 style="margin:0 0 6px;font-size:19px;font-weight:800">🔗 חבר ל-' + escHtml(missingRow.name||'') + '</h2>' +
+      '<div style="color:var(--muted);font-size:13px;margin-bottom:12px">' +
+        'בחרי איזו שורה מהחשבונית מייצגת את המוצר הזה (' + escHtml(missingRow.sku||'') + '). השורה הזו תיעלם מהמוצרים החדשים ותתחבר אל ה-PO.' +
+      '</div>' +
+      '<input type="text" id="recvInvSearch" placeholder="חיפוש בשם או SKU של שורת חשבונית..." style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-size:14px;margin-bottom:10px">' +
+      '<div id="recvInvList" style="max-height:400px;overflow:auto">' + renderList('') + '</div>' +
+      '<div class="actions" style="margin-top:10px"><button data-x>סגור</button></div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  modal.querySelector('[data-x]').addEventListener('click', function(){ modal.remove(); });
+  var searchEl = modal.querySelector('#recvInvSearch');
+  var listEl = modal.querySelector('#recvInvList');
+  searchEl.addEventListener('input', function(){ listEl.innerHTML = renderList(searchEl.value); });
+  searchEl.focus();
+
+  listEl.addEventListener('click', async function(e){
+    var b = e.target.closest('.pick-inv');
+    if (!b) return;
+    var pickedRowKey = b.dataset.rkey;
+    var pickedRow = RECV_CTX.diff.find(function(r){return r._key === pickedRowKey;});
+    if (!pickedRow){ modal.remove(); return; }
+    // Merge invoice data into the missing PO row → becomes qty/price/match
+    var qty = Number(pickedRow.inv_line.qty || 0);
+    var price = Number(pickedRow.inv_line.price || 0);
+    var poQty = Number(missingRow.po_line.quantity || 0);
+    var poPrice = Number(missingRow.po_line.cost_unit || 0);
+    var supCode = (RECV_CTX.rec && RECV_CTX.rec.supplier_code) || '';
+    var effInvQty = effectiveInvoiceQty(qty, supCode);
+    var effInvPrice = effectiveInvoicePrice(price, supCode);
+    var qtyDiff = Math.abs(poQty - effInvQty) > 0.01;
+    var priceDiff = Math.abs(poPrice - effInvPrice) > 0.05;
+    missingRow.inv_line = pickedRow.inv_line;
+    missingRow.kind = (!qtyDiff && !priceDiff) ? 'match' : (priceDiff && !qtyDiff ? 'price' : 'qty');
+    missingRow.qtyDiff = qtyDiff;
+    missingRow.priceDiff = priceDiff;
+    missingRow.matched_by = 'manual-link';
+    missingRow.default_action = (qtyDiff || priceDiff) ? 'update' : 'accept';
+    delete RECV_CTX.action_by_key[missingRow._key];
+    // Remove the picked extra row from the diff
+    var pidx = RECV_CTX.diff.indexOf(pickedRow);
+    if (pidx !== -1) RECV_CTX.diff.splice(pidx, 1);
+    // Save alias — this invoice fingerprint = the PO line's product_id
+    if (pickedRow.inv_line && missingRow.po_line && missingRow.po_line.product_id){
+      await setAlias(pickedRow.inv_line, missingRow.po_line.product_id);
+    }
+    modal.remove();
+    toast('🔗 חוברה. ' + escHtml(missingRow.name||'') + ' עברה לטבלה למעלה.', 'success');
+    renderDiffTable();
+    scheduleRecvSave();
+  });
 }
 
 // Manual link: connect a "new product" invoice row to an existing supplier product.
