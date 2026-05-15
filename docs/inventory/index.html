@@ -3612,6 +3612,10 @@ function bindReceiveDelegation(){
       openPriceMismatchSms();
       return;
     }
+    if (e.target.closest('#recvMissingSmsBtn')){
+      openMissingItemsSms();
+      return;
+    }
     if (e.target.closest('#recvDiscountSave')){
       var inp = document.getElementById('recvDiscountInput');
       var packInp = document.getElementById('recvPackInput');
@@ -3881,13 +3885,16 @@ function renderApplyBar(){
   var counts = { update: 0, remove: 0, add: 0, newprod: 0, replace: 0, accept: 0, accept_as_po: 0, skip: 0, shipping: 0 };
   var appliedCount = 0;
   var priceDiffRows = [];
+  var missingRowsForSms = [];
   rows.forEach(function(r){
     if (r._applied){ appliedCount++; return; }
     var act = RECV_CTX.action_by_key[r._key] || r.default_action;
     counts[act] = (counts[act]||0) + 1;
-    // Track rows with price discrepancies for the supplier-message button
     if (r.po_line && r.inv_line && Math.abs(Number(r.po_line.cost_unit||0) - Number(r.inv_line.price||0)) > 0.001){
       priceDiffRows.push(r);
+    }
+    if (r.kind === 'missing' && r.po_line){
+      missingRowsForSms.push(r);
     }
   });
   var parts = [];
@@ -3904,8 +3911,12 @@ function renderApplyBar(){
   var priceSmsBtn = priceDiffRows.length > 0
     ? '<button id="recvPriceSmsBtn" style="background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:700;cursor:pointer">📱 הודעה לספק על ' + priceDiffRows.length + ' פערי מחיר</button>'
     : '';
+  var missingSmsBtn = missingRowsForSms.length > 0
+    ? '<button id="recvMissingSmsBtn" style="background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:700;cursor:pointer">📱 שאל את הספק על ' + missingRowsForSms.length + ' מוצרים שלא הגיעו</button>'
+    : '';
   return '<div class="recv-apply-bar">' +
     '<div class="ops-summary">' + parts.join(' · ') + appliedNote + '</div>' +
+    missingSmsBtn +
     priceSmsBtn +
     '<button id="recvCancelBtn" class="cancel">ביטול</button>' +
     '<button id="recvApplyBtn" class="apply"' + (hasChanges ? '' : ' disabled') + '>📦 עדכן מלאי באוקטופוס לפי החשבונית</button>' +
@@ -3954,6 +3965,59 @@ function openNewProductModal(key){
 }
 
 // ────────── Apply to Octopos ──────────
+
+// Generate a polite English message to the supplier asking about items that didn't arrive
+function openMissingItemsSms(){
+  if (!RECV_CTX || !RECV_CTX.diff) return;
+  var missingItems = RECV_CTX.diff.filter(function(r){
+    return r.kind === 'missing' && r.po_line && !r._applied;
+  });
+  if (!missingItems.length){
+    toast('אין מוצרים מסומנים כ"לא הגיע"', '');
+    return;
+  }
+  var supplierName = (RECV_CTX.rec.supplier_name || RECV_CTX.rec.octopos_vendor_name || 'team');
+  var poId = RECV_CTX.rec.po && !RECV_CTX.rec.is_local ? ('PO #' + RECV_CTX.rec.po.id) : 'our recent order';
+  var lines = missingItems.map(function(r){
+    var name = r.po_line.product_name || r.name || '';
+    var sku = r.po_line.product_sku || r.sku || '';
+    var qty = r.po_line.quantity || 0;
+    var skuPart = sku ? ' / ' + sku : '';
+    return '• ' + name + skuPart + ' (qty ' + Math.round(qty) + ')';
+  }).join('\n');
+  var body =
+    'Hi ' + supplierName + ',\n\n' +
+    'Just got your latest shipment for ' + poId + '. The following items from our order didn\'t make it in this delivery:\n\n' +
+    lines + '\n\n' +
+    'Could you let us know:\n' +
+    '1. Are these currently out of stock?\n' +
+    '2. If yes, will they be back? Roughly when?\n' +
+    '3. If they\'re being discontinued, please let us know so we can plan around it.\n\n' +
+    'Thanks!';
+  var modal = document.createElement('div');
+  modal.className = 'sms-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML =
+    '<div class="sms-card" style="max-width:680px;width:100%">' +
+      '<h2>📱 הודעה לספק על מוצרים שלא הגיעו</h2>' +
+      '<div class="sms-sub">' + missingItems.length + ' מוצרים · באנגלית · ערוך לפי הצורך לפני העתקה</div>' +
+      '<textarea id="missingSmsTextarea" style="direction:ltr;text-align:left">' + escHtml(body) + '</textarea>' +
+      '<div class="sms-actions">' +
+        '<button data-x>סגור</button>' +
+        '<button class="primary" data-copy>📋 העתק ל-clipboard</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  modal.querySelector('[data-x]').addEventListener('click', function(){ modal.remove(); });
+  modal.querySelector('[data-copy]').addEventListener('click', function(){
+    var ta = modal.querySelector('#missingSmsTextarea');
+    ta.select();
+    try{
+      document.execCommand('copy');
+      toast('✓ הועתק — הדביקי ב-WhatsApp לספק', 'success');
+    } catch(e){ toast('שגיאת העתקה — סמני ידנית', 'error'); }
+  });
+}
 
 // Generate a polite English message to the supplier listing price discrepancies
 // (kind='price' or 'qty' rows where po cost_unit !== invoice price). Lauren copies
