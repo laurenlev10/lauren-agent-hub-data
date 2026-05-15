@@ -3091,9 +3091,24 @@ function parseInvoiceText(text){
 function parseInvoiceRows(rowStrings){
   var lines = [];
   rowStrings.forEach(function(row){
-    // Try to find a strict SKU pattern (optional — if absent, sku stays empty)
-    var skuMatch = row.match(/\b([A-Z]{2,4}[-]?[A-Z]?\d{2,5}[A-Z]{0,3})\b/);
-    var sku = skuMatch ? skuMatch[1] : '';
+    // Try to find a SKU-like token (very permissive — Lauren's catalog has many formats:
+    // PRO-21, EM1-16, ES2-005-2, A100, LC2-02, E30-151-1, F1-20-1, XS-070HA, XB-S02,
+    // BB&WCB, etc.). Pattern: any alphanumeric block (optionally with dashes), at least
+    // 3 chars, containing at least one digit. Empty SKU is fine — name match handles it.
+    var sku = '';
+    var skuMatch = null;
+    var skuRe = /\b([A-Z][A-Z0-9]*(?:[-\/][A-Z0-9]+)*)\b/g;
+    var m_;
+    while ((m_ = skuRe.exec(row.toUpperCase())) !== null){
+      var cand = m_[1];
+      var hasDigit = /\d/.test(cand);
+      var hasLetter = /[A-Z]/.test(cand);
+      if (cand.length >= 3 && hasDigit && hasLetter){
+        sku = cand;
+        skuMatch = { 0: cand, index: m_.index };
+        break;
+      }
+    }
 
     // Extract numeric tokens
     var nums = [];
@@ -3124,7 +3139,7 @@ function parseInvoiceRows(rowStrings){
 
     // Extract a name — strip SKU, the 3 matched numbers, and noise
     var nameRaw = row;
-    if (sku) nameRaw = nameRaw.replace(skuMatch[0], ' ');
+    if (sku) nameRaw = nameRaw.replace(new RegExp('\\b' + sku + '\\b', 'i'), ' ');
     nameRaw = nameRaw
       .replace(new RegExp('\\b' + found.qty + '\\b'), ' ')
       .replace(new RegExp('\\b' + (typeof found.price === 'number' ? found.price : '').toString().replace('.', '\\.') + '\\b'), ' ')
