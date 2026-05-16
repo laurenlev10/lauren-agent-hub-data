@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>🔍 סקאוט עיר — City Scout Dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,'Heebo',sans-serif;background:#fdf7ff;color:#2a1a3a;padding:20px;max-width:1100px;margin:0 auto}
+  header{background:linear-gradient(135deg,#8a3ab9,#cc2b5e);color:#fff;padding:24px 28px;border-radius:14px;margin-bottom:24px;box-shadow:0 6px 24px rgba(138,58,185,.18)}
+  header h1{margin:0 0 6px;font-size:28px;letter-spacing:-.4px}
+  header .sub{opacity:.92;font-size:14px}
+  .nav-back{display:inline-block;color:#fff;text-decoration:none;background:rgba(255,255,255,.22);padding:6px 14px;border-radius:8px;font-size:13px;margin-top:10px}
+  .nav-back:hover{background:rgba(255,255,255,.32)}
+
+  .form-card{background:#fff;border-radius:14px;padding:22px;margin-bottom:24px;box-shadow:0 2px 10px rgba(138,58,185,.07);border:1px solid #f0d9ff}
+  .form-card h2{margin:0 0 14px;font-size:19px;color:#5a2a8a}
+  .form-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:10px}
+  @media (max-width:640px){ .form-row{grid-template-columns:1fr} }
+  label{display:block;font-size:13px;color:#555;margin-bottom:4px}
+  input,select{width:100%;padding:10px 12px;border:1px solid #d8c7e8;border-radius:8px;font-size:14px;font-family:inherit;background:#fff}
+  input:focus,select:focus{outline:0;border-color:#8a3ab9;box-shadow:0 0 0 3px rgba(138,58,185,.12)}
+  .copy-btn{display:block;width:100%;background:linear-gradient(180deg,#8a3ab9,#5a2a8a);color:#fff;border:0;padding:14px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;margin-top:10px;font-family:inherit}
+  .copy-btn:hover{filter:brightness(1.07)}
+  .copy-btn.copied{background:linear-gradient(180deg,#2c8a4a,#1e6b35)}
+  .hint{font-size:12px;color:#666;margin-top:6px;text-align:center}
+
+  h3.section{margin:24px 0 12px;font-size:18px;font-weight:700;color:#5a2a8a}
+  .reports-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .rep-card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.05);border-right:4px solid #8a3ab9;display:flex;flex-direction:column;gap:8px}
+  .rep-card .city{font-size:19px;font-weight:700;color:#2a1a3a}
+  .rep-card .meta{color:#666;font-size:12px}
+  .rep-card .score-row{display:flex;align-items:center;gap:10px;margin-top:6px}
+  .rep-card .score{display:inline-flex;align-items:baseline;gap:2px;padding:6px 12px;border-radius:20px;font-weight:700;font-size:14px;background:linear-gradient(135deg,#ffb347,#cc2b5e);color:#fff}
+  .rep-card .score .num{font-size:16px}
+  .rep-card .score .den{opacity:.85;font-size:11px}
+  .rep-card .verdict-pill{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
+  .rep-card .verdict-pill.green{background:#d4f5d8;color:#2c6b3b}
+  .rep-card .verdict-pill.yellow{background:#fff2c4;color:#8a5a00}
+  .rep-card .verdict-pill.red{background:#ffd6d6;color:#a02020}
+  .rep-card .verdict-pill.gray{background:#ececec;color:#555}
+  .rep-card a.detail{margin-top:6px;color:#8a3ab9;text-decoration:none;font-size:13px;font-weight:500}
+  .rep-card a.detail:hover{text-decoration:underline}
+
+  .empty{background:#fff;border-radius:14px;padding:40px;text-align:center;color:#888;border:2px dashed #ddd}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔍 סקאוט עיר</h1>
+  <div class="sub">סקירת עיר חדשה: ציון התאמה (X/30), 5-10 venues מומלצים, 3-5 ערים סמוכות, חודש מומלץ.</div>
+  <a class="nav-back" href="../">← חזרה ל-Agent Hub</a>
+</header>
+
+<div class="form-card">
+  <h2>הריצי סקאוט חדש לעיר</h2>
+  <div class="form-row">
+    <div>
+      <label>עיר (City)</label>
+      <input type="text" id="s-city" placeholder="Lancaster" autocomplete="off">
+    </div>
+    <div>
+      <label>מדינה (ST)</label>
+      <input type="text" id="s-state" maxlength="2" placeholder="PA" style="text-transform:uppercase" autocomplete="off">
+    </div>
+    <div>
+      <label>חודש (אופציונלי)</label>
+      <select id="s-month">
+        <option value="">—</option>
+        <option>Jan</option><option>Feb</option><option>Mar</option>
+        <option>Apr</option><option>May</option><option>Jun</option>
+        <option>Jul</option><option>Aug</option><option>Sep</option>
+        <option>Oct</option><option>Nov</option><option>Dec</option>
+      </select>
+    </div>
+  </div>
+  <button class="copy-btn" id="copy-cmd">🔍 העתיקי פקודת סקאוט</button>
+  <div class="hint">העתיקי → הדביקי בשיחת Cowork חדשה. הסוכן יחזיר דוח מלא תוך כ-10-15 דק'.</div>
+</div>
+
+<h3 class="section">📂 דוחות סקאוט קיימים</h3>
+<div id="reports"></div>
+
+<script>
+// Maintained list of scout reports. Add a new entry whenever a new
+// docs/scout/<slug>/index.html is committed. Same shape as the
+// SCOUT_REPORTS array in docs/library/index.html — keep both in sync.
+const SCOUT_REPORTS = [
+  { city: "Columbia", state: "MO", date: "2026-05-04", url: "columbia-mo/", score: 15,
+    verdict: "Mixed",
+    note: "אחוז היספני נמוך (4.4%) אבל הכנסה חציונית מצוינת. שווה לשלב עם Sedalia." }
+];
+
+function verdictClass(verdict){
+  const v = (verdict || "").toLowerCase();
+  if (v.startsWith("strong") || v.startsWith("חזק")) return "green";
+  if (v.startsWith("mixed")  || v.startsWith("מעורב")) return "yellow";
+  if (v.startsWith("weak")   || v.startsWith("חלש"))  return "red";
+  return "gray";
+}
+
+function renderReports(){
+  const host = document.getElementById("reports");
+  if (!SCOUT_REPORTS || SCOUT_REPORTS.length === 0){
+    host.innerHTML = '<div class="empty">עדיין לא הורצו דוחות סקאוט. השתמשי בטופס למעלה כדי להריץ אחד.</div>';
+    return;
+  }
+  const sorted = SCOUT_REPORTS.slice().sort((a,b) => (b.date || "").localeCompare(a.date || ""));
+  host.innerHTML = '<div class="reports-grid">' + sorted.map(r => {
+    const vCls = verdictClass(r.verdict);
+    return `
+      <div class="rep-card">
+        <div class="city">${r.city}, ${r.state}</div>
+        <div class="meta">📅 ${r.date || "—"}</div>
+        <div class="score-row">
+          ${typeof r.score === "number" ? `<span class="score"><span class="num">${r.score}</span><span class="den">/30</span></span>` : ""}
+          ${r.verdict ? `<span class="verdict-pill ${vCls}">${r.verdict}</span>` : ""}
+        </div>
+        ${r.note ? `<div class="meta" style="line-height:1.5">${r.note}</div>` : ""}
+        <a class="detail" href="${r.url}">פתחי את הדוח המלא ←</a>
+      </div>`;
+  }).join("") + '</div>';
+}
+
+async function copyText(text){
+  try{
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch(e){
+    try{
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position="fixed"; ta.style.left="-9999px";
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch(_){ return false; }
+  }
+}
+
+document.getElementById("copy-cmd").addEventListener("click", async function(){
+  const btn = this;
+  const city  = document.getElementById("s-city").value.trim();
+  const state = document.getElementById("s-state").value.trim().toUpperCase();
+  const month = document.getElementById("s-month").value;
+  if (!city || !state || state.length !== 2){
+    btn.textContent = "⚠ מלאי עיר + ST";
+    setTimeout(() => { btn.textContent = "🔍 העתיקי פקודת סקאוט"; }, 2200);
+    return;
+  }
+  const slug = (city + "-" + state).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const monthLine = month ? `\n  Target month: ${month}` : "";
+  const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\`\n\nCITY\n  Name:  ${city}, ${state}${monthLine}\n\nRun STEPS 0-12 from the skill IN FULL. Per skill STEP 10.5: if ${city}, ${state} is in launch_dashboard SCHEDULE, upsert SCOUTS["${slug}-<start_date>"]. Per skill STEP 12: send Touchpoint 3 SMS at end with https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/`;
+  const ok = await copyText(cmd);
+  if (ok){
+    btn.classList.add("copied");
+    btn.textContent = "✓ הועתק! הדביקי ב-Cowork";
+    setTimeout(() => { btn.classList.remove("copied"); btn.textContent = "🔍 העתיקי פקודת סקאוט"; }, 2500);
+  } else {
+    btn.textContent = "⚠ העתקה נכשלה — סמני ידנית";
+    setTimeout(() => { btn.textContent = "🔍 העתיקי פקודת סקאוט"; }, 2500);
+  }
+});
+
+renderReports();
+</script>
+
+</body>
+</html>
