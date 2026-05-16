@@ -3732,6 +3732,31 @@ function computeDiff(){
       var effInvQty = effectiveInvoiceQty(inv.qty, supCodeDiff, pl.product_id);
       var qtyDiff = Math.abs(Number(pl.quantity||0) - effInvQty) > 0.01;
       var priceDiff = Math.abs(Number(pl.cost_unit||0) - effInvPrice) > 0.05;  // wider tolerance — discounts often round to nearest cent
+      // PO-aware qty/price swap correction. Parser's (qty, price, total) heuristic
+      // can swap the two when both candidate triples are valid (e.g. Feral Edge with
+      // qty=12, price=$3 vs the swapped qty=3, price=$12 — both give total=$36).
+      // If the PO has known qty + cost, and swapping inv.qty↔inv.price would resolve
+      // BOTH diffs, swap. Mutates inv so the swap persists into in-progress save.
+      if (qtyDiff && priceDiff && Number(pl.quantity||0) > 0 && Number(pl.cost_unit||0) > 0){
+        var rawInvQty = Number(inv.qty || 0);
+        var rawInvPrice = Number(inv.price || 0);
+        // Re-compute "effective" after a hypothetical swap.
+        var packSwap = getEffectivePackForLine(supCodeDiff, pl.product_id);
+        var discSwap = getSupplierDiscount(supCodeDiff) / 100;
+        var swappedEffQty = rawInvPrice * packSwap;
+        var swappedEffPrice = (rawInvQty / packSwap) * (1 - discSwap);
+        var qtyOk = Math.abs(Number(pl.quantity) - swappedEffQty) < 0.01;
+        var priceOk = Math.abs(Number(pl.cost_unit) - swappedEffPrice) < 0.05;
+        if (qtyOk && priceOk){
+          inv.qty = rawInvPrice;
+          inv.price = rawInvQty;
+          inv._swapped_from_po_hint = true;
+          effInvQty = swappedEffQty;
+          effInvPrice = swappedEffPrice;
+          qtyDiff = false;
+          priceDiff = false;
+        }
+      }
       var kind = (!qtyDiff && !priceDiff) ? 'match' : (qtyDiff && priceDiff ? 'qty' : (qtyDiff ? 'qty' : 'price'));
       rows.push({
         kind: (kind === 'match' ? 'match' : (priceDiff && !qtyDiff ? 'price' : 'qty')),
