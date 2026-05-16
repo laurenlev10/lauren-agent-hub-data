@@ -15,7 +15,7 @@
 
   .form-card{background:#fff;border-radius:14px;padding:22px;margin-bottom:24px;box-shadow:0 2px 10px rgba(138,58,185,.07);border:1px solid #f0d9ff}
   .form-card h2{margin:0 0 14px;font-size:19px;color:#5a2a8a}
-  .form-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:10px}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px}
   @media (max-width:640px){ .form-row{grid-template-columns:1fr} }
   label{display:block;font-size:13px;color:#555;margin-bottom:4px}
   input,select{width:100%;padding:10px 12px;border:1px solid #d8c7e8;border-radius:8px;font-size:14px;font-family:inherit;background:#fff}
@@ -58,21 +58,11 @@
   <div class="form-row">
     <div>
       <label>עיר (City)</label>
-      <input type="text" id="s-city" placeholder="Lancaster" autocomplete="off">
+      <input type="text" id="s-city" placeholder="Sunrise" autocomplete="off">
     </div>
     <div>
-      <label>מדינה (ST)</label>
-      <input type="text" id="s-state" maxlength="2" placeholder="PA" style="text-transform:uppercase" autocomplete="off">
-    </div>
-    <div>
-      <label>חודש (אופציונלי)</label>
-      <select id="s-month">
-        <option value="">—</option>
-        <option>Jan</option><option>Feb</option><option>Mar</option>
-        <option>Apr</option><option>May</option><option>Jun</option>
-        <option>Jul</option><option>Aug</option><option>Sep</option>
-        <option>Oct</option><option>Nov</option><option>Dec</option>
-      </select>
+      <label>מיקוד (ZIP)</label>
+      <input type="text" id="s-zip" maxlength="10" placeholder="33323" inputmode="numeric" autocomplete="off">
     </div>
   </div>
   <button class="copy-btn" id="copy-cmd">🔍 העתיקי פקודת סקאוט</button>
@@ -141,17 +131,17 @@ async function copyText(text){
 
 document.getElementById("copy-cmd").addEventListener("click", async function(){
   const btn = this;
-  const city  = document.getElementById("s-city").value.trim();
-  const state = document.getElementById("s-state").value.trim().toUpperCase();
-  const month = document.getElementById("s-month").value;
-  if (!city || !state || state.length !== 2){
-    btn.textContent = "⚠ מלאי עיר + ST";
+  const city = document.getElementById("s-city").value.trim();
+  const zip  = document.getElementById("s-zip").value.trim();
+  if (!city || !zip || zip.length < 5){
+    btn.textContent = "⚠ מלאי עיר + מיקוד";
     setTimeout(() => { btn.textContent = "🔍 העתיקי פקודת סקאוט"; }, 2200);
     return;
   }
-  const slug = (city + "-" + state).toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  const monthLine = month ? `\n  Target month: ${month}` : "";
-  const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\`\n\nCITY\n  Name:  ${city}, ${state}${monthLine}\n\nRun STEPS 0-12 from the skill IN FULL. Per skill STEP 10.5: if ${city}, ${state} is in launch_dashboard SCHEDULE, upsert SCOUTS["${slug}-<start_date>"]. Per skill STEP 12: send Touchpoint 3 SMS at end with https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/`;
+  const cityPart = city.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const zipPart  = zip.replace(/[^0-9]/g, "").slice(0, 5);
+  const slug = `${cityPart}-${zipPart}`;
+  const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\`\n\nCITY\n  Name: ${city}\n  ZIP:  ${zip}   (use to derive state + confirm exact city/neighborhood)\n\nRun STEPS 0-12 from the skill IN FULL. Notes for this run:\n- Research ${city} (${zip}) deeply: demographics, top neighborhoods, foot traffic, MBS optimal-profile match.\n- Per skill STEP 6, ALSO scout 3-5 SURROUNDING cities within ~2hr drive of ${city} (${zip}) as additional options worth visiting on the same trip.\n- For EACH city (the main ${city} + every surrounding city) provide AT LEAST 3 SPECIFIC EVENT VENUES that meet STEP 4 criteria (mid-tier brand or independent, ≥2,500 sqft, top-neighborhood / built-in foot traffic). Build the full venue card per STEP 4 for each — addresses, sqft, brand tier, parking, contact.\n- ALWAYS produce a CROSS-CITY RANKING table that ranks every candidate city (main + surrounding) from MOST recommended to LEAST recommended for an MBS event, with reasoning (match score, top venue, biggest red flag).\n- Per skill STEP 10.5: if ${city} is in launch_dashboard SCHEDULE, upsert SCOUTS["${slug}-<start_date>"].\n- Per skill STEP 12: send Touchpoint 3 SMS at end with https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/`;
   const ok = await copyText(cmd);
   if (ok){
     btn.classList.add("copied");

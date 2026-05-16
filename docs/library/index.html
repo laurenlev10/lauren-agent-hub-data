@@ -457,15 +457,8 @@ function showManualCopyModal(text) {
       const form = document.createElement("div");
       form.className = "scout-form-row";
       form.innerHTML = `
-        <input type="text" id="scout-city" placeholder="עיר (לדוגמה: Lancaster)" autocomplete="off">
-        <input type="text" id="scout-state" placeholder="ST" maxlength="2" style="text-transform:uppercase" autocomplete="off">
-        <select id="scout-month">
-          <option value="">חודש (אופציונלי)</option>
-          <option>Jan</option><option>Feb</option><option>Mar</option>
-          <option>Apr</option><option>May</option><option>Jun</option>
-          <option>Jul</option><option>Aug</option><option>Sep</option>
-          <option>Oct</option><option>Nov</option><option>Dec</option>
-        </select>
+        <input type="text" id="scout-city" placeholder="עיר (לדוגמה: Sunrise)" autocomplete="off">
+        <input type="text" id="scout-zip" placeholder="מיקוד (לדוגמה: 33323)" maxlength="10" inputmode="numeric" autocomplete="off">
       `;
       card.appendChild(form);
 
@@ -521,16 +514,16 @@ function showManualCopyModal(text) {
       scoutBtn.innerHTML = "🔍 העתיקי פקודת סקאוט";
       scoutBtn.addEventListener("click", async () => {
         const city = document.getElementById("scout-city").value.trim();
-        const state = document.getElementById("scout-state").value.trim().toUpperCase();
-        const month = document.getElementById("scout-month").value;
-        if (!city || !state || state.length !== 2) {
-          scoutBtn.innerHTML = "⚠ מלאי עיר + ST";
+        const zip  = document.getElementById("scout-zip").value.trim();
+        if (!city || !zip || zip.length < 5) {
+          scoutBtn.innerHTML = "⚠ מלאי עיר + מיקוד";
           setTimeout(() => { scoutBtn.innerHTML = "🔍 העתיקי פקודת סקאוט"; }, 2500);
           return;
         }
-        const slug = (city + "-" + state).toLowerCase().replace(/[^a-z0-9]+/g, "-");
-        const monthLine = month ? `\n  Target month: ${month}` : "";
-        const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\`\n\nCITY\n  Name:  ${city}, ${state}${monthLine}\n\nRun STEPS 0-12 from the skill IN FULL. Per skill STEP 10.5: if ${city}, ${state} is in launch_dashboard SCHEDULE, upsert SCOUTS["${slug}-<start_date>"]. Per skill STEP 12: send Touchpoint 3 SMS at end with https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/`;
+        const cityPart = city.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        const zipPart  = zip.replace(/[^0-9]/g, "").slice(0, 5);
+        const slug = `${cityPart}-${zipPart}`;
+        const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\`\n\nCITY\n  Name: ${city}\n  ZIP:  ${zip}   (use to derive state + confirm exact city/neighborhood)\n\nRun STEPS 0-12 from the skill IN FULL. Notes for this run:\n- Research ${city} (${zip}) deeply: demographics, top neighborhoods, foot traffic, MBS optimal-profile match.\n- Per skill STEP 6, ALSO scout 3-5 SURROUNDING cities within ~2hr drive of ${city} (${zip}) as additional options worth visiting on the same trip.\n- For EACH city (the main ${city} + every surrounding city) provide AT LEAST 3 SPECIFIC EVENT VENUES that meet STEP 4 criteria (mid-tier brand or independent, ≥2,500 sqft, top-neighborhood / built-in foot traffic). Build the full venue card per STEP 4 for each — addresses, sqft, brand tier, parking, contact.\n- ALWAYS produce a CROSS-CITY RANKING table that ranks every candidate city (main + surrounding) from MOST recommended to LEAST recommended for an MBS event, with reasoning (match score, top venue, biggest red flag).\n- Per skill STEP 10.5: if ${city} is in launch_dashboard SCHEDULE, upsert SCOUTS["${slug}-<start_date>"].\n- Per skill STEP 12: send Touchpoint 3 SMS at end with https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/`;
         const ok = await copyText(cmd);
         if (ok) {
           scoutBtn.classList.add("copied");
