@@ -227,7 +227,7 @@
   .rev-lane.lane-order h3{color:#15803d}
   .rev-lane.lane-borderline h3{color:#b45309}
   .rev-lane.lane-skip h3{color:#b91c1c}
-  .rev-row{display:grid;grid-template-columns:minmax(240px,1fr) 50px 70px 80px 50px 70px 55px 65px 65px 110px;gap:6px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
+  .rev-row{display:grid;grid-template-columns:minmax(220px,1fr) 48px 68px 75px 78px 48px 65px 52px 60px 60px 105px;gap:5px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
   .rev-row .gap-cell{text-align:center;font-weight:700}
   .rev-row .gap-cell.gap-pos{color:#b45309}
   .rev-row .gap-cell.gap-neg{color:#15803d}
@@ -2322,6 +2322,7 @@ function openReviewModal(){
           '<div>מוצר</div>' +
           '<div title="כמה יש במלאי כרגע">מלאי</div>' +
           '<div title="Threshold — הסף המינימלי שהגדרת ב-OCTOPOS">Thr</div>' +
+          '<div title="💡 הצעת המערכת לכמות להזמין — מבוססת על ממוצע מנורמל × חוזק אירוע × מכפיל סיגנל. ריחוף יראה את חישוב המלא. לחיצה תחליף את ערך ה-\"כמות\" להצעה הזו.">💡 הצעה</div>' +
           '<div title="📦 max = כמות מקסימלית שנכנסת בדיספליי · min = כמות מינ׳ לתחילת אירוע (display_min)">📦 max/min</div>' +
           '<div title="GAP = Thr − מלאי. כמה חסר כדי להגיע ל-Threshold. חיובי = צריך להזמין · שלילי = יש יותר ממה שצריך">Gap (?)</div>' +
           '<div>כמות</div>' +
@@ -2410,6 +2411,8 @@ function openReviewModal(){
                 '</span>' +
               '</span>' +
             '</div>' +
+            // 💡 הצעת המערכת — clickable, replaces qty input on click; tooltip = qtyTip (full math)
+            '<div class="suggest-cell" data-suggested="' + r.suggested + '" title="' + qtyTip + '" style="text-align:center;font-weight:700;color:#15803d;background:#f0fdf4;border-radius:6px;padding:4px 6px;cursor:pointer;border:1px solid #bbf7d0;" data-pid="' + r.product_id + '">' + r.suggested + '</div>' +
             // 📦 Display column — show max + min
             (function(){
               var rule_d = r.rule || {};
@@ -2540,6 +2543,24 @@ function openReviewModal(){
         toast('⚠️ נכשל: ' + err.message, 'error');
         recountBtn.disabled = false;
       });
+      return;
+    }
+
+    // 💡 הצעת המערכת — clicking the green suggestion cell copies it into the qty input
+    var suggCell = e.target.closest('.suggest-cell');
+    if (suggCell) {
+      e.stopPropagation();
+      var sV = parseFloat(suggCell.dataset.suggested) || 0;
+      var rowS = suggCell.closest('.rev-row');
+      if (rowS) {
+        var qS = rowS.querySelector('input[data-bind="qty"]');
+        if (qS) {
+          qS.value = sV;
+          qS.dispatchEvent(new Event('input', {bubbles:true}));
+          qS.style.background = '#dcfce7';
+          setTimeout(function(){ qS.style.background = ''; }, 1500);
+        }
+      }
       return;
     }
 
