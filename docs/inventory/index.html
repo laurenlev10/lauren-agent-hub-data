@@ -227,7 +227,7 @@
   .rev-lane.lane-order h3{color:#15803d}
   .rev-lane.lane-borderline h3{color:#b45309}
   .rev-lane.lane-skip h3{color:#b91c1c}
-  .rev-row{display:grid;grid-template-columns:minmax(220px,1fr) 48px 68px 75px 78px 48px 65px 52px 60px 60px 105px;gap:5px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
+  .rev-row{display:grid;grid-template-columns:minmax(210px,1fr) 46px 64px 72px 76px 46px 62px 50px 58px 58px 140px;gap:5px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
   .rev-row .gap-cell{text-align:center;font-weight:700}
   .rev-row .gap-cell.gap-pos{color:#b45309}
   .rev-row .gap-cell.gap-neg{color:#15803d}
@@ -2448,6 +2448,7 @@ function openReviewModal(){
             })() +
             '<div class="qty-controls">' +
               '<button class="qty-btn" data-action="show-history" data-pid="' + r.product_id + '" title="📋 היסטוריה של המוצר">📋</button>' +
+              '<button class="qty-btn" data-action="discontinue" data-pid="' + r.product_id + '" title="🚫 סגירת המוצר — מוסיף Clearance! לשם, יוצא מההזמנות הבאות, מעודכן ב-OCTOPOS" style="color:#991b1b;border-color:#fca5a5;">🚫</button>' +
               '<button class="qty-btn' + (L === 'skip' && !r.kept ? ' add-back' : '') + '" data-action="toggle" title="' + toggleTitle + '">' + (L === 'skip' ? toggleLabel : (r.kept ? 'דלג' : '＋ הוסיפי')) + '</button>' +
             '</div>' +
           '</div>';
@@ -2489,6 +2490,66 @@ function openReviewModal(){
       e.stopPropagation();
       var pid = histBtn.dataset.pid;
       if (pid && typeof openProductHistory === 'function') openProductHistory(pid);
+      return;
+    }
+
+    // 🚫 DISCONTINUE — prepend 'Clearance! ' to product name; existing wizard filter skips Clearance!-prefixed products
+    var discBtn = e.target.closest('[data-action="discontinue"]');
+    if (discBtn) {
+      e.stopPropagation();
+      var pidD = discBtn.dataset.pid;
+      var prodD = null, codeD = null;
+      for (var cD in (OCTOPOS.vendors || {})) {
+        var aD = OCTOPOS.vendors[cD].products || [];
+        for (var jD=0;jD<aD.length;jD++){ if (aD[jD].id == pidD) { prodD = aD[jD]; codeD = cD; break; }}
+        if (prodD) break;
+      }
+      if (!prodD) { toast('⚠️ לא נמצא מוצר', 'error'); return; }
+      if ((prodD.name||'').toLowerCase().startsWith('clearance!')) {
+        toast('המוצר כבר מסומן כ-Clearance', ''); return;
+      }
+      if (!confirm('🚫 לסמן את "' + (prodD.name||'') + '" כ-DISCONTINUED?\n\nהשם ב-OCTOPOS יהיה: "Clearance! ' + (prodD.name||'') + '"\nוהמוצר יוסר אוטומטית מההזמנות הבאות.')) return;
+
+      var octD = (localStorage.getItem('lauren_octopos_token') || '').trim();
+      if (!octD) { toast('⚠️ צריך OCTOPOS token', 'error'); return; }
+      discBtn.disabled = true;
+      discBtn.textContent = '...';
+      var newName = 'Clearance! ' + (prodD.name || '');
+      fetch('https://themakeup.octoretail.com/api/v2/products/' + pidD, {
+        method: 'PUT',
+        headers: {'Authorization': octD, 'Content-Type':'application/json', 'Accept':'application/json'},
+        body: JSON.stringify({'name': newName})
+      }).then(function(rsD){
+        if (!rsD.ok) throw new Error('HTTP ' + rsD.status);
+        toast('✓ סומן Clearance! ב-OCTOPOS', 'success');
+        // Update local cache
+        prodD.name = newName;
+        // Find the row and hide it (with a fade)
+        var rowD = discBtn.closest('.rev-row');
+        if (rowD) {
+          rowD.style.transition = 'opacity 0.4s, max-height 0.4s';
+          rowD.style.opacity = '0.3';
+          rowD.style.background = '#fee2e2';
+          var nmEl = rowD.querySelector('.nm');
+          if (nmEl) { nmEl.innerHTML = '<span style="color:#991b1b">🚫 Clearance! </span>' + nmEl.innerHTML; }
+        }
+        // Also update the REVIEW_DATA snapshot so re-renders are consistent
+        try {
+          if (codeD && REVIEW_DATA && REVIEW_DATA.suppliers) {
+            REVIEW_DATA.suppliers.forEach(function(s){
+              ['order','borderline','skip'].forEach(function(L){
+                (s.lanes[L] || []).forEach(function(rr){ if (rr.product_id == pidD) rr.name = newName; });
+              });
+            });
+          }
+        } catch(_){}
+        discBtn.textContent = '✓';
+        discBtn.disabled = true;
+      }).catch(function(err){
+        toast('⚠️ נכשל: ' + err.message, 'error');
+        discBtn.disabled = false;
+        discBtn.textContent = '🚫';
+      });
       return;
     }
 
