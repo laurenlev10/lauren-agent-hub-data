@@ -697,6 +697,25 @@
       });
       if (!r.ok) throw new Error("HTTP " + r.status);
       showToast("✓ Threshold עודכן ב-OCTOPOS: " + newThr);
+      // Persist override so the inventory dashboard sees the new value before daily octopos_sync
+      try {
+        var ghT2 = (localStorage.getItem('lauren_gh_token_v1') || '').trim();
+        if (ghT2) {
+          var oeU = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/octopos_pending_edits.json";
+          fetch(oeU + "?ref=main", {headers:{Authorization:"token "+ghT2, Accept:"application/vnd.github+json"}})
+            .then(function(rr){return rr.json();}).then(function(info){
+              var co = info.content ? JSON.parse(atob(info.content.replace(/\n/g,""))) : {overrides:{}};
+              co.overrides = co.overrides || {};
+              co.overrides[String(pid)] = Object.assign({}, co.overrides[String(pid)] || {}, {threshold: newThr, edited_at: new Date().toISOString()});
+              co._updated_at = new Date().toISOString();
+              var nC = JSON.stringify(co, null, 2);
+              fetch(oeU, {method:"PUT",
+                headers:{Authorization:"token "+ghT2, Accept:"application/vnd.github+json", "Content-Type":"application/json"},
+                body: JSON.stringify({message:"octopos pending edit: pid="+pid+" threshold="+newThr,
+                  content: btoa(unescape(encodeURIComponent(nC))), branch:"main", sha: info.sha})});
+            });
+        }
+      } catch(_){}
       var ghToken = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
       if (ghToken && SLOW_STATE.products[pid]) {
         var rec = SLOW_STATE.products[pid];
