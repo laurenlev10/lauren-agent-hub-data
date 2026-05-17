@@ -1084,7 +1084,7 @@ function renderSupplierCard(sup, s, idx){
             var noteVal = rule_.note || '';
             return '<tr'+rcCls+' data-product-id="'+p.id+'" data-qty="'+qty+'" data-thr="'+thr+'">'+
               '<td>'+escHtml(p.name||'')+(p.department?' <span style="color:var(--muted);font-size:12px">· '+escHtml(p.department)+'</span>':'')+'</td>'+
-              '<td><code style="font-size:12px;color:var(--muted)">'+escHtml(p.sku||'')+'</code></td>'+
+              '<td><code style="font-size:12px;color:var(--muted)">'+escHtml(p.sku||'')+'</code> <button type="button" class="btn-product-history" data-pid="'+p.id+'" title="היסטוריה של המוצר" style="font-size:11px;padding:2px 6px;background:#ddd6fe;border:1px solid #c4b5fd;border-radius:4px;cursor:pointer;">📋</button></td>'+
               '<td>'+chip(qty, p.needs_recount)+'</td>'+
               '<td style="text-align:center;font-size:13px">'+getAvg4wHtml(p.id)+'</td>'+
               '<td style="text-align:center">'+getSlowBadge(p.id)+'</td>'+
@@ -1513,7 +1513,7 @@ function openGeneratePoModal(supplierCode, vendorId){
       '<td>' + buildSuggestedQtyCell(it, i) + '</td>'+
       '<td><input type="number" min="0" step="0.01" data-bind="cost" value="'+it.cost_unit.toFixed(2)+'"></td>'+
       '<td class="line-total" style="text-align:left;font-weight:700">$'+(it.suggested * it.cost_unit).toFixed(2)+'</td>'+
-      '<td><button type="button" class="po-line-del" data-i="'+i+'" title="הסר שורה">✕</button></td>'+
+      '<td><button type="button" class="po-line-history btn-history" data-pid="'+it.product_id+'" title="היסטוריה של המוצר" style="font-size:11px;padding:3px 6px;background:#ddd6fe;border:1px solid #c4b5fd;border-radius:4px;cursor:pointer;margin-left:4px;">📋</button><button type="button" class="po-line-del" data-i="'+i+'" title="הסר שורה">✕</button></td>'+
     '</tr>';
   }).join('');
   var sumCost = items.reduce(function(a,it){return a + it.suggested * it.cost_unit;}, 0);
@@ -1533,6 +1533,14 @@ function openGeneratePoModal(supplierCode, vendorId){
       '</div>'+
     '</div>';
   document.body.appendChild(modal);
+
+  // 📋 History button — opens product history modal
+  modal.addEventListener('click', function(e){
+    if (!e.target.matches('.po-line-history') && !e.target.closest('.po-line-history')) return;
+    var btn = e.target.matches('.po-line-history') ? e.target : e.target.closest('.po-line-history');
+    var pid = btn.dataset.pid;
+    if (pid) openProductHistory(pid);
+  });
 
   // Snap-to-Threshold: lets Lauren one-click copy OCTOPOS threshold into qty (this order only)
   modal.addEventListener('click', function(e){
@@ -3063,6 +3071,14 @@ function getEventMultiplier(productId){
 }
 
 // Build the Wizard qty input cell — Lauren approves manually. Tooltip explains the math.
+// Global delegated click handler for 📋 history buttons outside the Wizard modal
+document.addEventListener('click', function(e){
+  var t = e.target.matches('.btn-product-history') ? e.target : (e.target.closest && e.target.closest('.btn-product-history'));
+  if (!t) return;
+  var pid = t.dataset.pid;
+  if (pid && typeof openProductHistory === 'function') openProductHistory(pid);
+});
+
 function buildSuggestedQtyCell(it, idx){
   var rec = getSlowRecord(it.product_id) || {};
   var rule = (typeof PRODUCT_RULES !== 'undefined' && PRODUCT_RULES.rules) ? (PRODUCT_RULES.rules[it.product_id] || {}) : {};
@@ -3109,6 +3125,213 @@ function buildSuggestedQtyCell(it, idx){
          'title="' + tipText.replace(/"/g, '&quot;') + '" ' +
          'style="width:65px;padding:6px 8px;border:1.5px solid ' + borderColor + ';background:' + bg + ';font-weight:700;font-size:13px;text-align:center;">';
 }
+
+
+// 📋 Per-product history modal — universal. Triggered from any row's 📋 button.
+// Combines live OCTOPOS read (recount events + current state) with cached history
+// from slow_movers.json + octopos_products.json + inventory_orders.json.
+async function openProductHistory(productId){
+  var rec = getSlowRecord(productId) || {};
+  var profitRec = getProfitRecord(productId) || {};
+  var rule = (typeof PRODUCT_RULES !== 'undefined' && PRODUCT_RULES.rules) ? (PRODUCT_RULES.rules[productId] || {}) : {};
+
+  // Find product in OCTOPOS cache
+  var prod = null, vendorName = "";
+  for (var code in (OCTOPOS.vendors || {})) {
+    var arr = OCTOPOS.vendors[code].products || [];
+    for (var j=0;j<arr.length;j++){
+      if (arr[j].id == productId) { prod = arr[j]; vendorName = OCTOPOS.vendors[code].octopos_name || code; break; }
+    }
+    if (!prod) {
+      var iarr = OCTOPOS.vendors[code].inactive_products || [];
+      for (var k=0;k<iarr.length;k++){
+        if (iarr[k].id == productId) { prod = iarr[k]; vendorName = OCTOPOS.vendors[code].octopos_name || code; break; }
+      }
+    }
+    if (prod) break;
+  }
+  if (!prod) { toast('לא נמצא מוצר ' + productId, 'error'); return; }
+
+  var modal = document.createElement('div');
+  modal.className = 'po-modal-backdrop';
+  modal.innerHTML =
+    '<div class="po-modal" style="max-width:900px;width:96%;max-height:90vh;overflow-y:auto">' +
+      '<h2>📋 ' + escHtml(prod.name||'') + '</h2>' +
+      '<div class="modal-sub">SKU: <code>' + escHtml(prod.sku||'') + '</code> · ספק: <b>' + escHtml(vendorName) + '</b></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0;font-size:13px;">' +
+        '<div style="background:#fafafa;padding:10px;border-radius:6px;text-align:center;"><div style="color:var(--muted);font-size:11px;">מלאי כרגע</div><div style="font-weight:700;font-size:18px;">' + (prod.in_stock_qty||0) + '</div></div>' +
+        '<div style="background:#fafafa;padding:10px;border-radius:6px;text-align:center;"><div style="color:var(--muted);font-size:11px;">Threshold</div><div style="font-weight:700;font-size:18px;">' + (prod.threshold||0) + '</div></div>' +
+        '<div style="background:#fafafa;padding:10px;border-radius:6px;text-align:center;"><div style="color:var(--muted);font-size:11px;">מחיר מכירה</div><div style="font-weight:700;font-size:18px;">$' + (prod.sale_price||0) + '</div></div>' +
+        '<div style="background:#fafafa;padding:10px;border-radius:6px;text-align:center;"><div style="color:var(--muted);font-size:11px;">עלות</div><div style="font-weight:700;font-size:18px;">$' + (prod.unit_cost||0) + '</div></div>' +
+      '</div>' +
+      // Section: recent events (event_signals_history)
+      '<div class="card" style="margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:8px;">' +
+        '<h3 style="margin:0 0 10px;font-size:15px;">📅 6 אירועים אחרונים — מכירות + סיגנל</h3>' +
+        '<div id="ph-events">' + buildEventsHistory(rec) + '</div>' +
+      '</div>' +
+      // Section: weekly sales history
+      '<div class="card" style="margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:8px;">' +
+        '<h3 style="margin:0 0 10px;font-size:15px;">📊 היסטוריית מכירות שבועית</h3>' +
+        '<div id="ph-weekly">' + buildWeeklyHistory(rec) + '</div>' +
+      '</div>' +
+      // Section: recount events (loaded asynchronously)
+      '<div class="card" style="margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:8px;">' +
+        '<h3 style="margin:0 0 10px;font-size:15px;">🔢 ספירות אחרונות (RECOUNT events)</h3>' +
+        '<div id="ph-recounts" style="color:var(--muted);font-size:13px;">⏳ טוען...</div>' +
+      '</div>' +
+      // Section: purchase orders
+      '<div class="card" style="margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:8px;">' +
+        '<h3 style="margin:0 0 10px;font-size:15px;">📦 הזמנות אחרונות לספק</h3>' +
+        '<div id="ph-pos">' + buildPOHistory(productId) + '</div>' +
+      '</div>' +
+      // Section: stockouts (timeseries-based)
+      '<div class="card" style="margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:8px;">' +
+        '<h3 style="margin:0 0 10px;font-size:15px;">⛔ ימים שיצא מהמלאי (qty=0)</h3>' +
+        '<div id="ph-stockouts" style="color:var(--muted);font-size:13px;">⏳ טוען...</div>' +
+      '</div>' +
+      // Section: missing on receive
+      '<div class="card" style="margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:8px;">' +
+        '<h3 style="margin:0 0 10px;font-size:15px;">📉 הזמנות שלא הגיעו במלואן</h3>' +
+        '<div id="ph-missing">' + buildMissingHistory(productId) + '</div>' +
+      '</div>' +
+      '<div class="modal-actions" style="margin-top:14px;">' +
+        '<button data-action="close">סגור</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('click', function(e){
+    if (e.target === modal || e.target.matches('[data-action="close"]')) { modal.remove(); }
+  });
+
+  // Async load recount events + stockouts (the slow parts)
+  loadRecountEventsFor(productId).then(function(html){
+    var el = document.getElementById('ph-recounts');
+    if (el) el.innerHTML = html;
+  });
+  loadStockoutsFor(productId).then(function(html){
+    var el = document.getElementById('ph-stockouts');
+    if (el) el.innerHTML = html;
+  });
+}
+
+function buildEventsHistory(rec){
+  var events = rec.event_signals_history || [];
+  if (!events.length) return '<div style="color:var(--muted);font-size:13px;">עוד אין נתונים — מתחיל להתמלא אחרי האירוע הראשון.</div>';
+  var rows = events.slice(-6).reverse().map(function(e){
+    var sig = e.signal || '—';
+    var sigLabel = ({stockout_friday:"🔴 נגמר שישי", stockout_saturday:"🟠 נגמר שבת", overstock_heavy:"⚫ יתרה כבדה", overstock_light:"🟡 יתרה קלה", normal:"🟢 רגיל", low_base:"📊 בסיס דק"})[sig] || sig;
+    var sold = (e.raw_sold !== undefined) ? e.raw_sold : "—";
+    var normalized = (e.normalized_sold !== undefined) ? e.normalized_sold : "—";
+    var stren = (e.strength_index !== undefined) ? e.strength_index.toFixed(2) : "—";
+    return '<tr><td>' + e.evkey + '</td><td style="text-align:center;font-weight:700;">' + sold + '</td><td style="text-align:center;color:var(--muted);font-size:11px;">×' + stren + '</td><td style="text-align:center;">' + normalized + '</td><td>' + sigLabel + '</td></tr>';
+  });
+  return '<table style="width:100%;font-size:13px;"><thead><tr><th style="text-align:right;color:var(--muted);font-size:11px;">אירוע</th><th style="text-align:center;color:var(--muted);font-size:11px;">נמכר</th><th style="text-align:center;color:var(--muted);font-size:11px;">חוזק</th><th style="text-align:center;color:var(--muted);font-size:11px;">מנורמל</th><th style="text-align:right;color:var(--muted);font-size:11px;">סיגנל</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+}
+
+function buildWeeklyHistory(rec){
+  var hist = rec.history || [];
+  if (!hist.length) return '<div style="color:var(--muted);font-size:13px;">עוד אין נתונים — מתחיל יום ראשון הבא.</div>';
+  var rows = hist.slice(-8).reverse().map(function(h){
+    var bandClr = ({healthy:"#16a34a",watch:"#854d0e",slow:"#9a3412",discontinuing:"#991b1b"})[h.band] || "#444";
+    return '<tr><td>' + (h.week||'') + '</td><td style="text-align:center;">' + (h.sold || 0) + '</td><td style="text-align:center;">' + (h.in_stock || 0) + '</td><td style="text-align:center;color:' + bandClr + ';font-weight:700;">' + (h.band||'—') + '</td><td style="text-align:center;">' + (h.score !== undefined ? h.score : '—') + '</td></tr>';
+  });
+  return '<table style="width:100%;font-size:13px;"><thead><tr><th style="text-align:right;color:var(--muted);font-size:11px;">שבוע</th><th style="text-align:center;color:var(--muted);font-size:11px;">נמכר</th><th style="text-align:center;color:var(--muted);font-size:11px;">מלאי</th><th style="text-align:center;color:var(--muted);font-size:11px;">Band</th><th style="text-align:center;color:var(--muted);font-size:11px;">ציון</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+}
+
+function buildPOHistory(productId){
+  var rows = [];
+  for (var code in (OCTOPOS.vendors || {})) {
+    var v = OCTOPOS.vendors[code];
+    var pos = (v.purchase_orders_received || []).concat(v.purchase_orders_generated || []);
+    pos.forEach(function(po){
+      (po.items || []).forEach(function(it){
+        if (it.product_id == productId) {
+          rows.push({date: po.received_date || po.created_date || "?", qty: it.quantity, status: po.order_received ? "✓ הגיע" : "⏳ ממתין", po_id: po.id, vendor_invoice: po.vendor_invoice_number || "—"});
+        }
+      });
+    });
+  }
+  if (!rows.length) return '<div style="color:var(--muted);font-size:13px;">אין רשומות של הזמנות עבור המוצר בנתונים שנשמרו.</div>';
+  rows.sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
+  var html = '<table style="width:100%;font-size:13px;"><thead><tr><th style="text-align:right;color:var(--muted);font-size:11px;">תאריך</th><th style="text-align:center;color:var(--muted);font-size:11px;">כמות</th><th style="text-align:center;color:var(--muted);font-size:11px;">סטטוס</th><th style="text-align:center;color:var(--muted);font-size:11px;">PO #</th><th style="text-align:right;color:var(--muted);font-size:11px;">חשבונית ספק</th></tr></thead><tbody>';
+  rows.slice(0,8).forEach(function(r){
+    html += '<tr><td>' + r.date + '</td><td style="text-align:center;font-weight:700;">' + r.qty + '</td><td style="text-align:center;">' + r.status + '</td><td style="text-align:center;color:var(--muted);">#' + r.po_id + '</td><td>' + r.vendor_invoice + '</td></tr>';
+  });
+  return html + '</tbody></table>';
+}
+
+function buildMissingHistory(productId){
+  // Cross-reference inventory_orders.json for any "missing" rows mentioning this product
+  if (typeof RECEIVE_STATE === 'undefined' || !RECEIVE_STATE) {
+    return '<div style="color:var(--muted);font-size:13px;">עוד אין נתונים מסונכרנים על קבלות. ירשם אחרי הקבלה הבאה.</div>';
+  }
+  var missing = [];
+  for (var evkey in RECEIVE_STATE) {
+    var entries = (RECEIVE_STATE[evkey] || {}).entries || [];
+    entries.forEach(function(e){
+      var diff = (e.diff || []);
+      diff.forEach(function(d){
+        if (d.kind === 'missing' && d.po_line && d.po_line.product_id == productId) {
+          missing.push({evkey: evkey, qty_ordered: d.po_line.quantity, supplier: e.supplier_name || "?"});
+        }
+      });
+    });
+  }
+  if (!missing.length) return '<div style="color:#16a34a;font-size:13px;">✓ אין הזמנות שלא הגיעו עבור המוצר.</div>';
+  return '<table style="width:100%;font-size:13px;"><thead><tr><th>אירוע</th><th>הוזמן</th><th>ספק</th></tr></thead><tbody>' +
+    missing.map(function(m){ return '<tr><td>' + m.evkey + '</td><td style="text-align:center;">' + m.qty_ordered + '</td><td>' + m.supplier + '</td></tr>'; }).join('') + '</tbody></table>';
+}
+
+async function loadRecountEventsFor(productId){
+  // Filter the cached snapshot if available
+  if (window._RECOUNT_CACHE_PRODUCT == productId && window._RECOUNT_CACHE_DATA) {
+    return renderRecounts(window._RECOUNT_CACHE_DATA);
+  }
+  try {
+    var resp = await fetch("../state/octopos_recount.json?_=" + Date.now(), {cache:"no-store"});
+    if (!resp.ok) throw new Error("no state");
+    var data = await resp.json();
+    var allCounted = [];
+    for (var evkey in (data.events || {})) {
+      var ev = data.events[evkey];
+      var pids = ev.counted_pids_real || [];
+      if (pids.indexOf(Number(productId)) >= 0) {
+        allCounted.push({evkey: evkey, when: ev.generated_at, window: ev.window || {}});
+      }
+    }
+    if (!allCounted.length) return '<div style="color:var(--muted);font-size:13px;">המוצר לא נספר באף אירוע שיש לנו רשומות עליו (החל מ-2026-05-15).</div>';
+    allCounted.sort(function(a,b){ return (b.when||'').localeCompare(a.when||''); });
+    return '<table style="width:100%;font-size:13px;"><thead><tr><th>אירוע</th><th>חלון</th><th>נספר ב</th></tr></thead><tbody>' +
+      allCounted.slice(0,8).map(function(r){ return '<tr><td>' + r.evkey + '</td><td>' + (r.window.start||'?') + '→' + (r.window.end||'?') + '</td><td style="color:var(--muted);font-size:12px;">' + (r.when || '').slice(0,10) + '</td></tr>'; }).join('') + '</tbody></table>';
+  } catch(e) {
+    return '<div style="color:var(--muted);font-size:13px;">שגיאה בטעינת היסטוריית ספירות.</div>';
+  }
+}
+
+async function loadStockoutsFor(productId){
+  try {
+    var resp = await fetch("../state/octopos_stock_timeseries.json?_=" + Date.now(), {cache:"no-store"});
+    if (!resp.ok) throw new Error("no timeseries");
+    var data = await resp.json();
+    var snaps = data.snapshots || {};
+    var zeros = [];
+    var pid = String(productId);
+    var sorted = Object.keys(snaps).sort();
+    for (var i=0;i<sorted.length;i++){
+      var d = sorted[i];
+      var q = snaps[d][pid];
+      if (q !== undefined && q !== null && Number(q) <= 0) {
+        zeros.push(d);
+      }
+    }
+    if (!zeros.length) return '<div style="color:#16a34a;font-size:13px;">✓ לא יצא מהמלאי באף יום (החל מההיסטוריה שנאספה).</div>';
+    return '<div style="font-size:13px;">המוצר היה ב-qty=0 בימים: <code>' + zeros.slice(-10).join(", ") + '</code></div>';
+  } catch(e) {
+    return '<div style="color:var(--muted);font-size:13px;">עוד אין מספיק היסטוריה (timeseries מתחיל להתמלא היום).</div>';
+  }
+}
+
+function renderRecounts(d){ return d; }
 
 function getSuggestedPriceCell(productId){
   var rec = getProfitRecord(productId);
