@@ -2413,20 +2413,27 @@ function openReviewModal(){
             '</div>' +
             // 💡 הצעת המערכת — clickable, replaces qty input on click; tooltip = qtyTip (full math)
             (function(){
-              var sameAsThr = (r.suggested === r.threshold);
+              // BASELINE = what the simple 'fill to threshold' logic would order,
+              // rounded to case_size. If the system's suggestion equals this baseline,
+              // it's expected behavior (green). Yellow when system applied non-trivial
+              // adjustments (MOQ snap, min_display override, event multiplier, max cap).
+              var rawGap = Math.max(0, (r.threshold || 0) - (r.in_stock || 0));
+              var cs = r.case_size || 12;
+              var baselineExpected = Math.round(rawGap / cs) * cs;
+              if (baselineExpected === 0 && rawGap > 0) baselineExpected = cs;   // min 1 case if gap>0
+              var diff = r.suggested - baselineExpected;
+              var sameAsBaseline = (Math.abs(diff) < 0.5);
               var bg, color, border;
-              if (sameAsThr) {
-                // הצעה זהה ל-Threshold — אין הפתעה, ירוק רגוע
-                bg = '#f0fdf4'; color = '#15803d'; border = '#bbf7d0';
+              if (sameAsBaseline) {
+                bg = '#f0fdf4'; color = '#15803d'; border = '#bbf7d0';   // green — system matches baseline
               } else {
-                // הצעה שונה מה-Threshold הקיים — צהוב שיבלוט
-                bg = '#fef9c3'; color = '#854d0e'; border = '#fde68a';
+                bg = '#fef9c3'; color = '#854d0e'; border = '#fde68a';   // yellow — system adjusted
               }
               var arrow = '';
-              if (!sameAsThr && r.threshold) {
-                arrow = r.suggested > r.threshold ? ' <span style="font-size:10px">↑</span>' : ' <span style="font-size:10px">↓</span>';
+              if (!sameAsBaseline) {
+                arrow = diff > 0 ? ' <span style="font-size:10px">↑</span>' : ' <span style="font-size:10px">↓</span>';
               }
-              return '<div class="suggest-cell" data-suggested="' + r.suggested + '" title="' + qtyTip + '" style="text-align:center;font-weight:700;color:' + color + ';background:' + bg + ';border-radius:6px;padding:4px 6px;cursor:pointer;border:1px solid ' + border + ';" data-pid="' + r.product_id + '">' + r.suggested + arrow + '</div>';
+              return '<div class="suggest-cell" data-suggested="' + r.suggested + '" data-baseline="' + baselineExpected + '" title="' + qtyTip + '" style="text-align:center;font-weight:700;color:' + color + ';background:' + bg + ';border-radius:6px;padding:4px 6px;cursor:pointer;border:1px solid ' + border + ';" data-pid="' + r.product_id + '">' + r.suggested + arrow + '</div>';
             })() +
             // 📦 Display column — clickable inline editor (max=display_capacity / min=min_display)
             (function(){
