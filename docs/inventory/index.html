@@ -227,7 +227,7 @@
   .rev-lane.lane-order h3{color:#15803d}
   .rev-lane.lane-borderline h3{color:#b45309}
   .rev-lane.lane-skip h3{color:#b91c1c}
-  .rev-row{display:grid;grid-template-columns:minmax(220px,1fr) 50px 65px 50px 70px 55px 65px 175px;gap:6px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
+  .rev-row{display:grid;grid-template-columns:minmax(200px,1fr) 45px 60px 70px 45px 60px 50px 55px 60px 175px;gap:5px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
   .rev-row .gap-cell{text-align:center;font-weight:700}
   .rev-row .gap-cell.gap-pos{color:#b45309}
   .rev-row .gap-cell.gap-neg{color:#15803d}
@@ -2322,10 +2322,12 @@ function openReviewModal(){
           '<div>מוצר</div>' +
           '<div title="כמה יש במלאי כרגע">מלאי</div>' +
           '<div title="Threshold — הסף המינימלי שהגדרת ב-OCTOPOS">Thr</div>' +
+          '<div title="📦 max = כמות מקסימלית שנכנסת בדיספליי · min = כמות מינ׳ לתחילת אירוע (display_min)">📦 max/min</div>' +
           '<div title="GAP = Thr − מלאי. כמה חסר כדי להגיע ל-Threshold. חיובי = צריך להזמין · שלילי = יש יותר ממה שצריך">Gap (?)</div>' +
           '<div>כמות</div>' +
           '<div>$/יח׳</div>' +
           '<div>סה״כ</div>' +
+          '<div title="🔢 לחיצה תסמן/תוריד תג RECOUNT ב-OCTOPOS">🔢</div>' +
           '<div></div>' +
         '</div>' +
         items.map(function(r, ri){
@@ -2408,10 +2410,39 @@ function openReviewModal(){
                 '</span>' +
               '</span>' +
             '</div>' +
+            // 📦 Display column — show max + min
+            (function(){
+              var rule_d = r.rule || {};
+              var maxD = rule_d.display_capacity;
+              var minD = rule_d.min_display;
+              if (!maxD && !minD) return '<div style="color:var(--muted);font-size:11px;text-align:center;">—</div>';
+              var maxPart = maxD ? '<span style="color:#1e40af">' + maxD + '</span>' : '<span style="color:var(--muted)">?</span>';
+              var minPart = minD ? '<span style="color:#9a3412">' + minD + '</span>' : '<span style="color:var(--muted)">?</span>';
+              return '<div style="font-size:11px;text-align:center;line-height:1.4;"><span title="מקסימום בדיספליי">' + maxPart + '</span><span style="color:var(--muted);"> / </span><span title="מינ׳ לתחילת אירוע">' + minPart + '</span></div>';
+            })() +
             '<div class="gap-cell ' + (gap > 0 ? 'gap-pos' : (gap < 0 ? 'gap-neg' : '')) + '">' + (gap > 0 ? '+' : '') + gap + '</div>' +
             '<input type="number" min="0" step="' + r.case_size + '" data-bind="qty" value="' + r.qty + '" title="' + qtyTip + '">' +
             '<div>$' + (r.unit_cost || 0).toFixed(2) + '</div>' +
             '<div class="rev-line-total">$' + (r.qty * r.unit_cost).toFixed(2) + '</div>' +
+            // 🔢 RECOUNT toggle — current state derived from product.categories; click PUTs to OCTOPOS
+            (function(){
+              var hasRecount = false;
+              try {
+                var prod_r = null;
+                for (var cc in (OCTOPOS.vendors || {})) {
+                  var arr_r = OCTOPOS.vendors[cc].products || [];
+                  for (var jj=0;jj<arr_r.length;jj++){ if (arr_r[jj].id == r.product_id) { prod_r = arr_r[jj]; break; }}
+                  if (prod_r) break;
+                }
+                if (prod_r && prod_r.categories) {
+                  hasRecount = prod_r.categories.some(function(c){ return (c.name||'').toLowerCase() === 'recount'; });
+                }
+              } catch(_){}
+              var icon = hasRecount ? '☑️' : '☐';
+              var title = hasRecount ? 'מסומן RECOUNT — לחיצה תוריד את התג' : 'לחיצה תוסיף תג RECOUNT ב-OCTOPOS';
+              var color = hasRecount ? '#7c3aed' : '#9ca3af';
+              return '<div style="text-align:center;"><button class="qty-btn" data-action="toggle-recount" data-pid="' + r.product_id + '" data-has="' + (hasRecount?1:0) + '" title="' + title + '" style="font-size:14px;padding:2px 6px;color:' + color + ';border:1px solid ' + (hasRecount?'#c4b5fd':'var(--line)') + ';background:' + (hasRecount?'#ede9fe':'var(--panel)') + ';">' + icon + '</button></div>';
+            })() +
             '<div class="qty-controls">' +
               '<button class="qty-btn" data-action="show-history" data-pid="' + r.product_id + '" title="📋 היסטוריה של המוצר">📋</button>' +
               '<button class="qty-btn" data-action="snap-to-thr-rev" data-thr="' + (r.threshold || 0) + '" title="↩ קבעי כמות = Threshold (להזמנה זו בלבד)">↩</button>' +
@@ -2459,6 +2490,60 @@ function openReviewModal(){
       e.stopPropagation();
       var pid = histBtn.dataset.pid;
       if (pid && typeof openProductHistory === 'function') openProductHistory(pid);
+      return;
+    }
+
+    // 🔢 RECOUNT toggle — add/remove Recount tag (cat_id=14) via PUT category_ids
+    var recountBtn = e.target.closest('[data-action="toggle-recount"]');
+    if (recountBtn) {
+      e.stopPropagation();
+      var pidRC = recountBtn.dataset.pid;
+      var hasRC = recountBtn.dataset.has === '1';
+      var octRC = (localStorage.getItem('lauren_octopos_token') || '').trim();
+      if (!octRC) { toast('⚠️ צריך OCTOPOS token', 'error'); return; }
+      // Find product in OCTOPOS cache to get current categories
+      var prodRC = null;
+      for (var cR in (OCTOPOS.vendors || {})) {
+        var aRC = OCTOPOS.vendors[cR].products || [];
+        for (var jR=0;jR<aRC.length;jR++){ if (aRC[jR].id == pidRC) { prodRC = aRC[jR]; break; }}
+        if (prodRC) break;
+      }
+      if (!prodRC) { toast('⚠️ לא נמצא מוצר', 'error'); return; }
+      var currentCats = (prodRC.categories || []).map(function(c){ return c.id; });
+      var RECOUNT_CAT_ID = 14;
+      var newCats;
+      if (hasRC) {
+        newCats = currentCats.filter(function(id){ return id !== RECOUNT_CAT_ID; });
+      } else {
+        newCats = currentCats.slice();
+        if (newCats.indexOf(RECOUNT_CAT_ID) === -1) newCats.push(RECOUNT_CAT_ID);
+      }
+      recountBtn.disabled = true;
+      fetch('https://themakeup.octoretail.com/api/v2/products/' + pidRC, {
+        method: 'PUT',
+        headers: {'Authorization': octRC, 'Content-Type':'application/json', 'Accept':'application/json'},
+        body: JSON.stringify({'category_ids': newCats})
+      }).then(function(rsRC){
+        if (!rsRC.ok) throw new Error('HTTP ' + rsRC.status);
+        toast(hasRC ? '✓ תג RECOUNT הוסר' : '✓ תויג RECOUNT', 'success');
+        // Update local cache categories
+        if (hasRC) {
+          prodRC.categories = (prodRC.categories || []).filter(function(c){ return c.id !== RECOUNT_CAT_ID; });
+        } else {
+          prodRC.categories = (prodRC.categories || []).concat([{id: RECOUNT_CAT_ID, name: 'Recount'}]);
+        }
+        // Update button state in-place
+        recountBtn.dataset.has = hasRC ? '0' : '1';
+        recountBtn.textContent = hasRC ? '☐' : '☑️';
+        recountBtn.style.color = hasRC ? '#9ca3af' : '#7c3aed';
+        recountBtn.style.background = hasRC ? 'var(--panel)' : '#ede9fe';
+        recountBtn.style.borderColor = hasRC ? 'var(--line)' : '#c4b5fd';
+        recountBtn.title = hasRC ? 'לחיצה תוסיף תג RECOUNT ב-OCTOPOS' : 'מסומן RECOUNT — לחיצה תוריד';
+        recountBtn.disabled = false;
+      }).catch(function(err){
+        toast('⚠️ נכשל: ' + err.message, 'error');
+        recountBtn.disabled = false;
+      });
       return;
     }
 
