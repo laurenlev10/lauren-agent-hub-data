@@ -64,6 +64,7 @@
   .band-pill.watch   { background:#fef3c7; color:#854d0e; }
   .band-pill.slow    { background:#fed7aa; color:#9a3412; }
   .band-pill.discontinuing { background:#fee2e2; color:#991b1b; }
+  .band-pill.new { background:#dbeafe; color:#1e40af; }
   .score-bar { display:inline-block; width:60px; height:8px; background:#f3f4f6; border-radius:4px; overflow:hidden; vertical-align:middle; margin-left:6px; }
   .score-bar > span { display:block; height:100%; background:var(--accent); }
   .decision-select { font-size:11px; padding:3px 6px; border-radius:6px; border:1px solid var(--line); background:#fff; }
@@ -157,6 +158,7 @@
 
     <div class="card" id="slow-list-card" style="display:none;">
       <div class="filter-row" style="margin-bottom:12px;">
+        <label><input type="checkbox" id="sf-new" checked> 🆕 חדשים (<span id="cnt-new">0</span>)</label>
         <label><input type="checkbox" id="sf-discontinuing" checked> 🪦 לסגירה (<span id="cnt-discontinuing">0</span>)</label>
         <label><input type="checkbox" id="sf-slow" checked> 🐢 איטיים (<span id="cnt-slow">0</span>)</label>
         <label><input type="checkbox" id="sf-watch"> 👀 לעקוב (<span id="cnt-watch">0</span>)</label>
@@ -422,15 +424,19 @@
       return;
     }
     sumEl.innerHTML = "ריצה אחרונה: <b>" + lastRun.week + "</b> · " +
-      "💚 " + (lastRun.n_healthy||0) + " · 👀 " + (lastRun.n_watch||0) +
+      "🆕 " + (lastRun.n_new||0) + " · 💚 " + (lastRun.n_healthy||0) + " · 👀 " + (lastRun.n_watch||0) +
       " · 🐢 " + (lastRun.n_slow||0) + " · 🪦 " + (lastRun.n_discontinuing||0);
 
     document.getElementById("slow-empty-card").style.display = "none";
     document.getElementById("slow-list-card").style.display = "";
 
     // Counts
-    var byBand = {healthy:0, watch:0, slow:0, discontinuing:0};
-    prods.forEach(p => { if (byBand[p.score_band] !== undefined) byBand[p.score_band]++; });
+    var byBand = {new:0, healthy:0, watch:0, slow:0, discontinuing:0};
+    prods.forEach(p => {
+      var b = (p.is_new || p.score_band === "new") ? "new" : p.score_band;
+      if (byBand[b] !== undefined) byBand[b]++;
+    });
+    document.getElementById("cnt-new").textContent = byBand.new;
     document.getElementById("cnt-healthy").textContent = byBand.healthy;
     document.getElementById("cnt-watch").textContent = byBand.watch;
     document.getElementById("cnt-slow").textContent = byBand.slow;
@@ -449,6 +455,7 @@
 
   function renderSlowTable(){
     var prods = Object.values((SLOW_STATE || {}).products || {});
+    var fN = document.getElementById("sf-new").checked;
     var fH = document.getElementById("sf-healthy").checked;
     var fW = document.getElementById("sf-watch").checked;
     var fS = document.getElementById("sf-slow").checked;
@@ -457,7 +464,8 @@
     var decision = document.getElementById("sf-decision").value;
 
     var rows = prods.filter(p => {
-      var b = p.score_band;
+      var b = (p.is_new || p.score_band === "new") ? "new" : p.score_band;
+      if (b === "new" && !fN) return false;
       if (b === "healthy" && !fH) return false;
       if (b === "watch" && !fW) return false;
       if (b === "slow" && !fS) return false;
@@ -470,15 +478,16 @@
       return true;
     });
 
-    var rank = {discontinuing:0, slow:1, watch:2, healthy:3};
+    var rank = {discontinuing:0, slow:1, watch:2, healthy:3, "new":4};
     rows.sort((a,b) => (rank[a.score_band]||9) - (rank[b.score_band]||9) || (a.score||0) - (b.score||0));
 
     var tbody = document.getElementById("slow-body");
     tbody.innerHTML = "";
     rows.forEach(p => {
       var tr = document.createElement("tr");
-      var bandLabel = ({healthy:"💚 בריא", watch:"👀 לעקוב", slow:"🐢 איטי", discontinuing:"🪦 לסגירה"})[p.score_band] || p.score_band;
-      var reasons = (p.reason_codes || []).join(", ") || "—";
+      var effectiveBand = (p.is_new || p.score_band === "new") ? "new" : p.score_band;
+      var bandLabel = ({new:"🆕 חדש", healthy:"💚 בריא", watch:"👀 לעקוב", slow:"🐢 איטי", discontinuing:"🪦 לסגירה"})[effectiveBand] || effectiveBand;
+      var reasons = (p.reason_codes || []).join(", ") || (effectiveBand === "new" ? "אוסף נתונים (פחות מ-4 שבועות)" : "—");
       var dec = p.lauren_decision || "";
       tr.innerHTML =
         '<td>' + escapeHtml(p.sku || "") + '</td>' +
@@ -489,7 +498,7 @@
         '<td class="qty-cell">' + (p.avg_sold_per_event_week_alltime !== undefined ? p.avg_sold_per_event_week_alltime.toFixed(1) : "—") + '</td>' +
         '<td class="qty-cell">' + (p.current_threshold ?? "—") + (p.lauren_threshold_locked ? ' <span title="נעול לעדכון אוטומטי">🔒</span>' : '') + '</td>' +
         '<td class="qty-cell">' + renderSuggestedThresholdCell(p) + '</td>' +
-        '<td><span class="band-pill ' + p.score_band + '">' + bandLabel + '</span></td>' +
+        '<td><span class="band-pill ' + effectiveBand + '">' + bandLabel + '</span></td>' +
         '<td>' + (p.score ?? "—") + '<span class="score-bar"><span style="width:' + (p.score||0) + '%"></span></span></td>' +
         '<td>' + (p.weeks_in_band ?? "—") + '</td>' +
         '<td style="font-size:11px;">' + escapeHtml(reasons) + '</td>' +
@@ -503,6 +512,7 @@
     });
   }
 
+  document.getElementById("sf-new").addEventListener("change", renderSlowTable);
   document.getElementById("sf-discontinuing").addEventListener("change", renderSlowTable);
   document.getElementById("sf-slow").addEventListener("change", renderSlowTable);
   document.getElementById("sf-watch").addEventListener("change", renderSlowTable);
@@ -513,6 +523,9 @@
 
 
   function renderSuggestedThresholdCell(p){
+    if (p.is_new || p.score_band === "new") {
+      return '<span style="color:#1e40af;font-size:11px;">🆕 חדש</span>';
+    }
     if (p.suggested_threshold === undefined || p.suggested_threshold === null) return "—";
     if (p.event_weeks_seen !== undefined && p.event_weeks_seen < 4) {
       return '<span style="color:var(--muted);font-size:11px;">אוסף נתונים…</span>';
