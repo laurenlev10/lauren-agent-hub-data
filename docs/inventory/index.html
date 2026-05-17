@@ -2412,7 +2412,22 @@ function openReviewModal(){
               '</span>' +
             '</div>' +
             // 💡 הצעת המערכת — clickable, replaces qty input on click; tooltip = qtyTip (full math)
-            '<div class="suggest-cell" data-suggested="' + r.suggested + '" title="' + qtyTip + '" style="text-align:center;font-weight:700;color:#15803d;background:#f0fdf4;border-radius:6px;padding:4px 6px;cursor:pointer;border:1px solid #bbf7d0;" data-pid="' + r.product_id + '">' + r.suggested + '</div>' +
+            (function(){
+              var sameAsThr = (r.suggested === r.threshold);
+              var bg, color, border;
+              if (sameAsThr) {
+                // הצעה זהה ל-Threshold — אין הפתעה, ירוק רגוע
+                bg = '#f0fdf4'; color = '#15803d'; border = '#bbf7d0';
+              } else {
+                // הצעה שונה מה-Threshold הקיים — צהוב שיבלוט
+                bg = '#fef9c3'; color = '#854d0e'; border = '#fde68a';
+              }
+              var arrow = '';
+              if (!sameAsThr && r.threshold) {
+                arrow = r.suggested > r.threshold ? ' <span style="font-size:10px">↑</span>' : ' <span style="font-size:10px">↓</span>';
+              }
+              return '<div class="suggest-cell" data-suggested="' + r.suggested + '" title="' + qtyTip + '" style="text-align:center;font-weight:700;color:' + color + ';background:' + bg + ';border-radius:6px;padding:4px 6px;cursor:pointer;border:1px solid ' + border + ';" data-pid="' + r.product_id + '">' + r.suggested + arrow + '</div>';
+            })() +
             // 📦 Display column — show max + min
             (function(){
               var rule_d = r.rule || {};
