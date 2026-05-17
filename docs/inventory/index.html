@@ -2821,6 +2821,29 @@ var RECV_STATE = { _updated_at: null, skipped_pos: [], aliases: {}, supplier_dis
 var RECV_STATE_URL = "../state/inventory_receive_state.json";
 var RECV_STATE_REPO_FILE = "docs/state/inventory_receive_state.json";
 
+var OCTOPOS_DEPTS = [{id:1, name:"Accessories"}];   // populated by loadDepartments()
+async function loadDepartments(){
+  // Loads OCTOPOS departments once per session; cached in module scope.
+  if (OCTOPOS_DEPTS.length > 1) return;
+  var token = (localStorage.getItem("lauren_octopos_token") || "").trim();
+  if (!token) return;
+  try{
+    var r = await fetch("https://themakeup.octoretail.com/api/v2/departments", {
+      headers: {"Authorization": token, "Accept": "application/json"}
+    });
+    if (!r.ok) return;
+    var j = await r.json();
+    var list = (j.data || []).filter(function(d){return d.active !== false;});
+    list.sort(function(a,b){return (a.name||"").localeCompare(b.name||"");});
+    if (list.length) OCTOPOS_DEPTS = list;
+  } catch(e){ console.warn("loadDepartments failed:", e); }
+}
+function buildDeptOptions(){
+  return OCTOPOS_DEPTS.map(function(d){
+    return '<option value="' + d.id + '">' + (d.name || ("dept " + d.id)) + '</option>';
+  }).join("");
+}
+
 async function loadReceiveState(){
   try{
     var r = await fetch(RECV_STATE_URL + "?_=" + Date.now(), { cache: "no-store" });
@@ -2835,6 +2858,7 @@ async function loadReceiveState(){
       if (!RECV_STATE.supplier_ignore_patterns || typeof RECV_STATE.supplier_ignore_patterns !== 'object') RECV_STATE.supplier_ignore_patterns = {};
     }
   } catch(e){ console.warn("loadReceiveState failed:", e); }
+  loadDepartments();
 }
 
 // Serialize saveReceiveState calls — autosave + apply-time saves can race
@@ -4383,7 +4407,10 @@ function openNewProductModal(key){
       '<div style="color:var(--muted);font-size:13px;margin-bottom:14px">המוצר הזה מופיע בחשבונית אבל לא קיים באוקטופוס. מלאי את הפרטים — נוצר בעת לחיצה על "✅ עדכן את ההזמנה".</div>' +
       '<div class="field"><label>שם המוצר</label><input type="text" id="npName" value="' + escHtml(row.inv_line.name || row.name || '') + '"></div>' +
       '<div class="field"><label>SKU</label><input type="text" id="npSku" value="' + escHtml(row.inv_line.sku||'') + '"></div>' +
+      '<div class="field"><label>ברקוד (אופציונלי — אם ריק יומר מ-SKU)</label><input type="text" id="npBarcode" placeholder="אלפא-נומרי בלבד" value="' + escHtml(row.inv_line.barcode||'') + '"></div>' +
       '<div class="field"><label>מחיר ליחידה ($)</label><input type="number" step="0.01" min="0" id="npCost" value="' + (row.inv_line.price||0) + '"></div>' +
+      '<div class="field"><label>מחיר מכירה ($ — אופציונלי, ברירת מחדל ×5 מהמחיר)</label><input type="number" step="0.01" min="0" id="npSalePrice" placeholder="ריק = cost × 5"></div>' +
+      '<div class="field"><label>מחלקה (department)</label><select id="npDept">' + buildDeptOptions() + '</select></div>' +
       '<div class="field"><label>ספק (vendor_id באוקטופוס)</label><input type="text" id="npVendor" value="' + (RECV_CTX.rec.octopos_vendor_id||'') + '" readonly></div>' +
       '<div class="field"><label>סף מינימום במלאי</label><input type="number" min="0" id="npThr" value="0"></div>' +
       '<div class="actions">' +
@@ -4399,10 +4426,20 @@ function openNewProductModal(key){
     renderDiffTable();
   });
   modal.querySelector('[data-save]').addEventListener('click', function(){
+    var npCost = Number(modal.querySelector('#npCost').value);
+    var npSaleVal = modal.querySelector('#npSalePrice').value.trim();
+    var npBarcodeVal = modal.querySelector('#npBarcode').value.trim();
+    var npSku = modal.querySelector('#npSku').value.trim();
+    // Auto-derive barcode from SKU if blank; OCTOPOS rejects special chars in barcode.
+    var cleanedBarcode = (npBarcodeVal || npSku).replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
+    if (!cleanedBarcode) cleanedBarcode = 'AUTO' + Date.now();
     row.new_product = {
       name:   modal.querySelector('#npName').value.trim(),
-      sku:    modal.querySelector('#npSku').value.trim(),
-      cost:   Number(modal.querySelector('#npCost').value),
+      sku:    npSku,
+      barcode: cleanedBarcode,
+      cost:   npCost,
+      sale_price: npSaleVal === '' ? Number((npCost * 5).toFixed(2)) : Number(npSaleVal),
+      department_id: Number(modal.querySelector('#npDept').value) || 1,
       vendor_id: Number(modal.querySelector('#npVendor').value) || RECV_CTX.rec.octopos_vendor_id,
       threshold: Number(modal.querySelector('#npThr').value) || 0
     };
@@ -4923,29 +4960,48 @@ async function applyChangesToOctopos(){
   for (var i = 0; i < creates.length; i++){
     var c = creates[i];
     try{
+      var createBody = {
+        name: c.new_product.name,
+        sku: c.new_product.sku,
+        barcode: c.new_product.barcode,                   // required
+        sale_price: c.new_product.sale_price,             // required
+        cost: c.new_product.cost,
+        unit_cost: c.new_product.cost,
+        threshold: c.new_product.threshold,
+        department_id: c.new_product.department_id,       // required
+        use_department_attributes: false,                 // required
+        vendor_ids: [c.new_product.vendor_id],
+        location_ids: [2],                                // plural per CLAUDE.md
+        active: true,
+        in_stock_qty: 0
+      };
       var pr = await fetch("https://themakeup.octoretail.com/api/v2/products", {
         method: "POST",
         headers: {"Authorization": token, "Content-Type": "application/json", "Accept": "application/json"},
-        body: JSON.stringify({
-          name: c.new_product.name,
-          sku: c.new_product.sku,
-          cost: c.new_product.cost,
-          unit_cost: c.new_product.cost,
-          threshold: c.new_product.threshold,
-          vendor_ids: [c.new_product.vendor_id],
-          location_id: 2,
-          active: true,
-          in_stock_qty: 0
-        })
+        body: JSON.stringify(createBody)
       });
       if (pr.ok){
         var j = await pr.json();
         var pid = (j.data && j.data.id) || j.id;
         c._created_product_id = pid;
+        // POST doesn't reliably attach vendors — explicit PUT here is verified to set them.
+        if (pid && c.new_product.vendor_id){
+          try{
+            await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
+              method: "PUT",
+              headers: {"Authorization": token, "Content-Type": "application/json", "Accept": "application/json"},
+              body: JSON.stringify({
+                vendors: [{id: c.new_product.vendor_id, is_default: true, item_code: c.new_product.sku}]
+              })
+            });
+          } catch(eV){ /* non-fatal — product exists, vendor can be set in UI */ }
+        }
         log.push({ok: true, msg: '🆕 נוצר מוצר: ' + c.new_product.sku + ' → #' + pid});
       } else {
         var txt = await pr.text();
-        log.push({ok: false, msg: 'יצירת מוצר נכשלה (' + c.new_product.sku + '): HTTP ' + pr.status + ' — ' + txt.slice(0, 150)});
+        var errMsg = txt.slice(0, 250);
+        try{ var je = JSON.parse(txt); errMsg = JSON.stringify(je.error && je.error.message || je); } catch(_){}
+        log.push({ok: false, msg: 'יצירת מוצר נכשלה (' + c.new_product.sku + '): HTTP ' + pr.status + ' — ' + errMsg});
       }
     } catch(e){
       log.push({ok: false, msg: 'יצירת מוצר נכשלה: ' + e.message});
