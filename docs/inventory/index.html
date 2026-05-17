@@ -1194,6 +1194,7 @@ function renderSupplierCard(sup, s, idx){
               '<h3>📊 OCTOPOS — מלאי פעיל <span style="color:var(--muted);font-weight:500">('+summary.count+' מוצרים · '+summary.in_stock_count+' במלאי · '+Math.round(summary.total_units)+' יחידות'+lastSync+')</span>'+
               (summary.needs_recount ? ' <span class="recount-pill">🔢 ' + summary.needs_recount + ' לספירה חוזרת</span>' : '') +
               (summary.total_to_order > 0 ? ' <span class="to-order-summary">🛒 ' + Math.round(summary.total_to_order) + ' יחידות להזמין</span>' : '') +
+              (summary.needs_recount > 0 ? ' <button type="button" class="btn-tag-negatives" data-supplier-code="' + sup.code + '" title="לסמן את כל מוצרי המינוס של הספק הזה ב-RECOUNT (PUT ל-OCTOPOS, כולל לסיגנל לאירוע הבא לספירה)" style="font-size:11px;padding:3px 8px;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;border-radius:6px;cursor:pointer;margin-right:6px;">🔢 סמן ' + summary.needs_recount + ' מינוסים כ-RECOUNT</button>' : '') +
               '</h3>'+
               filterEl +
             '</div>'+
@@ -3620,6 +3621,54 @@ document.addEventListener('click', function(e){
   if (!t) return;
   var pid = t.dataset.pid;
   if (pid && typeof openProductHistory === 'function') openProductHistory(pid);
+});
+
+// 🔢 Bulk tag all negatives of a supplier as RECOUNT (Lauren 2026-05-17 PM late)
+document.addEventListener('click', async function(e){
+  var btn = e.target.matches('.btn-tag-negatives') ? e.target : (e.target.closest && e.target.closest('.btn-tag-negatives'));
+  if (!btn) return;
+  var code = btn.dataset.supplierCode;
+  var oct = (OCTOPOS.vendors || {})[code];
+  if (!oct) return;
+  var negatives = (oct.products || []).filter(function(p){
+    try { return Number(p.in_stock_qty) < 0 && p.active !== false; }
+    catch(_) { return false; }
+  });
+  if (!negatives.length) { toast('אין מוצרי מינוס לספק הזה', ''); return; }
+  // Filter to those NOT already tagged Recount
+  var toTag = negatives.filter(function(p){
+    return !(p.categories || []).some(function(c){ return (c.name || '').toLowerCase() === 'recount'; });
+  });
+  if (!toTag.length) { toast('כל המינוסים כבר מסומנים RECOUNT', ''); return; }
+  if (!confirm('לסמן ' + toTag.length + ' מוצרי מינוס של ' + (oct.octopos_name || code) + ' כ-RECOUNT?\n\nהמוצרים האלה ייכללו ברשימת הספירה לאירוע הבא.')) return;
+
+  var octToken = (localStorage.getItem('lauren_octopos_token') || '').trim();
+  if (!octToken) { toast('⚠️ צריך OCTOPOS token', 'error'); return; }
+  btn.disabled = true;
+  btn.textContent = '...מסמן ' + toTag.length;
+  var RECOUNT_CAT_ID = 14;
+  var success = 0, failed = 0;
+  for (var i=0;i<toTag.length;i++){
+    var p = toTag[i];
+    var newCats = (p.categories || []).map(function(c){return c.id;}).concat([RECOUNT_CAT_ID]);
+    try {
+      var resp = await fetch('https://themakeup.octoretail.com/api/v2/products/' + p.id, {
+        method: 'PUT',
+        headers: {'Authorization': octToken, 'Content-Type':'application/json', 'Accept':'application/json'},
+        body: JSON.stringify({category_ids: newCats})
+      });
+      if (resp.ok) {
+        success++;
+        p.categories = (p.categories || []).concat([{id: RECOUNT_CAT_ID, name: 'Recount'}]);
+      } else {
+        failed++;
+      }
+    } catch(err){ failed++; }
+  }
+  toast('✓ סומנו ' + success + ' מוצרים' + (failed ? ' (נכשלו: ' + failed + ')' : ''), success ? 'success' : 'error');
+  btn.disabled = false;
+  btn.textContent = '✓ סומנו ' + success;
+  setTimeout(function(){ btn.style.opacity = '0.5'; }, 1500);
 });
 
 function buildSuggestedQtyCell(it, idx){

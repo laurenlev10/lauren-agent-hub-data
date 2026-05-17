@@ -407,6 +407,57 @@ def main():
     out_path.write_text(json.dumps(snapshot, indent=2, ensure_ascii=False))
     print(f"\n✓ wrote {out_path}  ({out_path.stat().st_size:,} bytes)")
 
+    # ── Auto-tag negative-qty products with RECOUNT ───────────────────────
+    # Lauren 2026-05-17 PM late: any product with negative qty should get a
+    # Recount tag automatically so the next event's count includes it.
+    # Idempotent — skips products already tagged.
+    RECOUNT_CAT_ID = 14
+    auto_tagged_count = 0
+    auto_tagged_names = []
+    already_tagged = 0
+    for prod in products:
+        try:
+            qty_now = float(prod.get("in_stock_qty") or 0)
+        except (TypeError, ValueError):
+            continue
+        if qty_now >= 0:
+            continue
+        if not prod.get("active"):
+            continue
+        # Check current categories
+        cats = prod.get("categories") or []
+        has_recount = any((c.get("name") or "").lower() == "recount" for c in cats)
+        if has_recount:
+            already_tagged += 1
+            continue
+        # Add Recount tag: keep existing categories + 14
+        cat_ids = [c.get("id") for c in cats if c.get("id")] + [RECOUNT_CAT_ID]
+        try:
+            code, resp = _request("PUT", f"/products/{prod['id']}", token=token,
+                                  body={"category_ids": cat_ids})
+            if code == 200:
+                auto_tagged_count += 1
+                auto_tagged_names.append(prod.get("name") or f"#{prod['id']}")
+            else:
+                print(f"  ⚠ failed to tag id={prod['id']}: HTTP {code} {resp}")
+        except Exception as e:
+            print(f"  ⚠ exception tagging id={prod['id']}: {e}")
+    print(f"✓ auto-tagged {auto_tagged_count} negative products with RECOUNT (already tagged: {already_tagged})")
+
+    # SMS Lauren if a large batch was tagged (warning of widespread inventory issues)
+    if auto_tagged_count >= 5:
+        try:
+            from lauren_sms import send_sms
+            lauren_phone = os.environ.get("LAUREN_PHONE", "4243547625")
+            body = (f"@inventory 🚨 {auto_tagged_count} מוצרים נכנסו למינוס וסומנו אוטומטית RECOUNT לאירוע הבא:\n"
+                    + "\n".join(f"• {n}" for n in auto_tagged_names[:8])
+                    + (f"\n…ועוד {auto_tagged_count - 8}" if auto_tagged_count > 8 else "")
+                    + "\n\nhttps://laurenlev10.github.io/lauren-agent-hub-data/recount/")
+            send_sms(lauren_phone, body)
+            print("✓ SMS sent to Lauren about auto-tagged negatives")
+        except Exception as e:
+            print(f"  (SMS send failed: {e})")
+
     # Also append today's qty snapshot to the timeseries for @event-yield analyzer.
     # Schema: {snapshots: {YYYY-MM-DD: {product_id_str: in_stock_qty}}}. 60-day rolling history.
     from datetime import date, datetime as _dt, timezone as _tz, timedelta as _td
