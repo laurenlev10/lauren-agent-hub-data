@@ -180,6 +180,8 @@
               <th>מלאי</th>
               <th>ממ׳ 4 שבועות</th>
               <th>ממ׳ מאז ומעולם</th>
+              <th>סף נוכחי</th>
+              <th>🎯 סף מומלץ</th>
               <th>Band</th>
               <th>ציון</th>
               <th>שבועות</th>
@@ -485,6 +487,8 @@
         '<td class="qty-cell">' + (p.history && p.history.length ? p.history[p.history.length-1].in_stock : "—") + '</td>' +
         '<td class="qty-cell">' + (p.avg_sold_per_event_week_4w !== undefined ? p.avg_sold_per_event_week_4w.toFixed(1) : "—") + '</td>' +
         '<td class="qty-cell">' + (p.avg_sold_per_event_week_alltime !== undefined ? p.avg_sold_per_event_week_alltime.toFixed(1) : "—") + '</td>' +
+        '<td class="qty-cell">' + (p.current_threshold ?? "—") + (p.lauren_threshold_locked ? ' <span title="נעול לעדכון אוטומטי">🔒</span>' : '') + '</td>' +
+        '<td class="qty-cell">' + renderSuggestedThresholdCell(p) + '</td>' +
         '<td><span class="band-pill ' + p.score_band + '">' + bandLabel + '</span></td>' +
         '<td>' + (p.score ?? "—") + '<span class="score-bar"><span style="width:' + (p.score||0) + '%"></span></span></td>' +
         '<td>' + (p.weeks_in_band ?? "—") + '</td>' +
@@ -505,6 +509,62 @@
   document.getElementById("sf-healthy").addEventListener("change", renderSlowTable);
   document.getElementById("sf-supplier").addEventListener("change", renderSlowTable);
   document.getElementById("sf-decision").addEventListener("change", renderSlowTable);
+
+
+
+  function renderSuggestedThresholdCell(p){
+    if (p.suggested_threshold === undefined || p.suggested_threshold === null) return "—";
+    if (p.event_weeks_seen !== undefined && p.event_weeks_seen < 4) {
+      return '<span style="color:var(--muted);font-size:11px;">אוסף נתונים…</span>';
+    }
+    var curr = p.current_threshold;
+    var sugg = p.suggested_threshold;
+    if (curr === sugg) {
+      return '<span style="color:var(--muted);">' + sugg + ' (ללא שינוי)</span>';
+    }
+    var dir = sugg > curr ? '↑' : '↓';
+    var color = sugg > curr ? '#16a34a' : '#dc2626';
+    var disabled = p.lauren_threshold_locked ? ' disabled title="נעול"' : '';
+    return '<span style="color:' + color + ';font-weight:700;">' + sugg + ' ' + dir + '</span>' +
+           ' <button class="decision-select apply-thresh-btn" data-pid="' + p.id + '" data-new-thresh="' + sugg + '"' + disabled + '>✓ עדכן</button>';
+  }
+
+  // Apply button handler — Phase 1.5: writes new suggested threshold into slow_movers.json
+  // as a "lauren_approved" override. Phase 2 will additionally PUT to OCTOPOS.
+  document.getElementById("slow-body").addEventListener("click", function(e){
+    if (!e.target.matches(".apply-thresh-btn")) return;
+    var pid = e.target.dataset.pid;
+    var newThresh = parseInt(e.target.dataset.newThresh, 10);
+    var token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+    if (!token) { showToast("⚠️ צריך GitHub token"); return; }
+    if (!SLOW_STATE.products[pid]) return;
+
+    var rec = SLOW_STATE.products[pid];
+    var fromVal = rec.current_threshold;
+    rec.current_threshold = newThresh;   // optimistic local update
+    rec.threshold_history = (rec.threshold_history || []).concat([{
+      week: "manual-" + new Date().toISOString().slice(0,10),
+      from: fromVal, to: newThresh,
+      reason: "Lauren approved suggested threshold via 💤 tab",
+      applied_by: "lauren-manual",
+      applied_at: new Date().toISOString()
+    }]);
+    SLOW_STATE._updated_at = new Date().toISOString();
+
+    var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/slow_movers.json";
+    fetch(url + "?ref=main", {headers:{Authorization:"token "+token, Accept:"application/vnd.github+json"}})
+      .then(r => r.json()).then(info => {
+        var content = JSON.stringify(SLOW_STATE, null, 2);
+        var body = {message: "@slow-movers: lauren applied threshold[" + pid + "] " + fromVal + "→" + newThresh,
+                    content: btoa(unescape(encodeURIComponent(content))), branch:"main", sha: info.sha};
+        return fetch(url, {method:"PUT",
+          headers:{Authorization:"token "+token, Accept:"application/vnd.github+json", "Content-Type":"application/json"},
+          body: JSON.stringify(body)});
+      })
+      .then(r => { if (r.ok) { showToast("✓ סף עודכן ל-" + newThresh); renderSlowTable(); }
+                   else showToast("⚠️ שמירה נכשלה"); })
+      .catch(() => showToast("⚠️ שמירה נכשלה"));
+  });
 
   // Decision change handler — writes back to docs/state/slow_movers.json via GitHub Contents API.
   // PAT pattern follows IRON RULE #7 (localStorage.lauren_gh_token_v1).
