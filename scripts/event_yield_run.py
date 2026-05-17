@@ -187,10 +187,46 @@ def main():
     all_pids = set(snap_fri.keys()) | set(snap_sat.keys()) | set(snap_sun.keys()) | set(snap_mon.keys())
     print(f"Products evaluated: {len(all_pids)}")
 
+    # ── Event-strength normalization (added 2026-05-17 PM late per Lauren) ───
+    # Sum raw_sold across all products = this event's total units sold.
+    # Compare to median of historical events to compute strength_index.
+    event_total_units = 0.0
+    raw_sold_by_pid = {}
+    for pid_str in all_pids:
+        qf = snap_fri.get(pid_str)
+        qm = snap_mon.get(pid_str)
+        if qf is None or qm is None: continue
+        try:
+            sold = max(0.0, float(qf) - float(qm))   # PO_received correction would refine; Phase 1 skip
+            raw_sold_by_pid[pid_str] = sold
+            event_total_units += sold
+        except (TypeError, ValueError):
+            continue
+    print(f"Event total units sold: {event_total_units:.0f}")
+
     # Load + update slow_movers.json
     sm_path = REPO_ROOT / "docs/state/slow_movers.json"
     sm = json.loads(sm_path.read_text(encoding="utf-8"))
     products = sm.setdefault("products", {})
+
+    # Compute strength_index using median of last N events (including this one)
+    es = sm.setdefault("_event_strengths", {})
+    es[evkey] = {
+        "total_units_sold": round(event_total_units, 1),
+        "computed_at": dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    historical_totals = sorted([v.get("total_units_sold", 0) for v in es.values() if v.get("total_units_sold")])
+    if historical_totals:
+        median_units = historical_totals[len(historical_totals) // 2]
+    else:
+        median_units = event_total_units
+    strength_index = (event_total_units / median_units) if median_units > 0 else 1.0
+    es[evkey]["strength_index"] = round(strength_index, 3)
+    sm["_event_strength_median_units"] = round(median_units, 0)
+    # Phase 0 prediction = median of last 4 strength indexes (defaults to 1.0 with one event)
+    recent_strengths = [v.get("strength_index", 1.0) for v in list(es.values())[-4:]]
+    sm["_next_event_predicted_strength"] = round(sum(recent_strengths) / max(len(recent_strengths), 1), 2)
+    print(f"strength_index for {evkey}: {strength_index:.3f}  (median {median_units:.0f}, predicted next {sm['_next_event_predicted_strength']})")
 
     counts = {k: 0 for k in BASE_MULTIPLIER}
     for pid_str in all_pids:
@@ -202,6 +238,9 @@ def main():
         signal, mult = classify(qty_fri, qty_sat, qty_sun, qty_mon)
         counts[signal] = counts.get(signal, 0) + 1
 
+        raw_sold = raw_sold_by_pid.get(pid_str, 0)
+        normalized = (raw_sold / max(strength_index, 0.1)) if strength_index > 0 else raw_sold
+
         rec = products.setdefault(pid_str, {"id": int(pid_str)})
         rec["last_event_signal"] = signal
         rec["last_event_signal_at"] = local.isoformat()
@@ -211,9 +250,18 @@ def main():
         history.append({
             "evkey": evkey, "signal": signal,
             "qty_fri": qty_fri, "qty_sat": qty_sat, "qty_sun": qty_sun, "qty_mon": qty_mon,
+            "raw_sold": round(raw_sold, 1),
+            "strength_index": round(strength_index, 3),
+            "normalized_sold": round(normalized, 2),
             "ended_at": local.isoformat(),
         })
         rec["event_signals_history"] = history[-6:]   # cap at 6 events
+
+        # Compute rolling avg_normalized_sold (last 4 entries)
+        recent = rec["event_signals_history"][-4:]
+        if recent:
+            rec["avg_normalized_sold_per_event"] = round(
+                sum(h.get("normalized_sold", 0) for h in recent) / len(recent), 2)
 
     sm["_updated_at"] = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     sm_path.write_text(json.dumps(sm, indent=2, ensure_ascii=False), encoding="utf-8")

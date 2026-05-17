@@ -3067,6 +3067,8 @@ function buildSuggestedQtyCell(it, idx){
   var rec = getSlowRecord(it.product_id) || {};
   var rule = (typeof PRODUCT_RULES !== 'undefined' && PRODUCT_RULES.rules) ? (PRODUCT_RULES.rules[it.product_id] || {}) : {};
   var avg4w = rec.avg_sold_per_event_week_4w;
+  var avgNorm = rec.avg_normalized_sold_per_event;     // event-strength normalized
+  var nextStrength = (SLOW_STATE && SLOW_STATE._next_event_predicted_strength) || 1.0;
   var sig = rec.last_event_signal;
   var mult = rec.suggested_qty_multiplier || 1.0;
   var minDisplay = rule.min_display;
@@ -3075,8 +3077,13 @@ function buildSuggestedQtyCell(it, idx){
 
   // Build tooltip string — multi-line, human-readable
   var why = ['📊 חישוב הכמות:'];
-  if (avg4w !== undefined && avg4w !== null) {
+  if (avgNorm !== undefined && avgNorm !== null) {
+    var expected = (avgNorm * nextStrength).toFixed(1);
+    why.push('• ממוצע מנורמל לפי חוזק אירוע: ' + avgNorm.toFixed(2) + ' / 1.0 baseline');
+    why.push('• 🔥 חוזק אירוע צפוי: ×' + nextStrength.toFixed(2) + ' → צפוי להימכר ' + expected);
+  } else if (avg4w !== undefined && avg4w !== null) {
     why.push('• ממוצע 4 שבועות: ' + avg4w.toFixed(1) + ' לאירוע');
+    why.push('• (נורמליזציה לחוזק אירוע — תופעל אחרי 4+ אירועים)');
   } else {
     why.push('• ממוצע: אין נתונים עדיין (אוסף מתחיל יום ראשון הבא)');
   }
