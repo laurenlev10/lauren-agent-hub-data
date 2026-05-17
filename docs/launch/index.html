@@ -346,6 +346,7 @@
   .btn-summary-row{background:linear-gradient(180deg,#0891b2,#155e75)}
   .btn-metaads-row{background:linear-gradient(180deg,#1f2937,#0f172a)} /* black per Lauren's spec — flips green via .done */
   .btn-inventory-row{background:linear-gradient(180deg,#d97706,#92400e)} /* brown-gold per Lauren's spec — flips green via .done */
+  .btn-recount-row{background:linear-gradient(180deg,#7c3aed,#5b21b6)} /* purple per recount landing accent — flips green via .done */
   /* 'needs-summary' — past event without a published summary yet (call-to-action,
      Lauren 2026-05-05: 'הפעילות הכי חשובה לעשות כשאירוע נגמר'). Pulsing
      orange/red gradient grabs attention until the agent runs and the button
@@ -586,6 +587,10 @@ const META_CAMPAIGNS = {
 // Owner: inventory-orders — entry: { total_usd, suppliers_ordered, suppliers_received, href, generated_at }   (added 2026-05-12)
 // Done state: when at least one supplier has status != "pending", button flips green showing "$<total> · <ordered>/15".
 const INVENTORY_ORDERS = {};
+
+// Owner: octopos-recount — entry: { worklist_size, n_negative, n_stale, n_counted, window: {start, end}, href, generated_at }   (added 2026-05-17)
+// Done state: when the agent has built a worklist for this event window, button flips green showing the worklist size.
+const OCTOPOS_RECOUNT = {};
 
 // Owner: eventbrite-setup — entry: { eventbrite: {url, eventId, generated_at} | null, smslist: {list_id, list_name, generated_at} | null }
 // Both fields can populate independently — the agent reports per-service result.
@@ -1856,6 +1861,24 @@ End date: </div>
               venue: ev.venue || "", address: ev.address || ""
             }).toString();
             rowBtn += '<a class="btn-agent-row btn-inventory-row" href="../inventory/?' + invParams + '" target="_blank" rel="noopener" title="Open Inventory Orders pre-filled with this event">📦 Inventory</a>';
+          }
+
+          // 🔢 OCTOPOS Recount — per-event recount list (added 2026-05-17)
+          // Owner: octopos-recount. Schema: OCTOPOS_RECOUNT[evKey] = { worklist_size, n_negative, n_stale, n_counted, window:{start,end}, href, generated_at }
+          // Run state: opens /recount/?evkey=... pre-filled with this event's Fri→Sun window.
+          // Done state: when a worklist exists for this event, button flips green showing the count.
+          const rec = (typeof OCTOPOS_RECOUNT !== "undefined") ? OCTOPOS_RECOUNT[evKey] : null;
+          if (rec) {
+            const recTip = "רשימת ספירה · " + (rec.worklist_size||0) + " מוצרים · " + (rec.generated_at||"").slice(0,10);
+            const recHref = rec.href || ("../recount/?evkey=" + evKey);
+            rowBtn += '<a class="btn-agent-row btn-recount-row done" href="' + recHref + '" target="_blank" rel="noopener" title="' + escapeHtml(recTip) + '">🔢 Recount ' + (rec.worklist_size||0) + '</a>';
+          } else {
+            const recParams = new URLSearchParams({
+              evkey: evKey, city: _evCity, state: _evState,
+              start_date: ev.start_date, end_date: ev.end_date,
+              venue: ev.venue || "", address: ev.address || ""
+            }).toString();
+            rowBtn += '<a class="btn-agent-row btn-recount-row" href="../recount/?' + recParams + '" target="_blank" rel="noopener" title="פתחי רשימת ספירה לאירוע — חלון: שישי-ראשון של האירוע">🔢 Recount</a>';
           }
 
           // 📊 Post-event summary — past events ONLY (Lauren 2026-05-05: can't summarize an event

@@ -5,90 +5,291 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>🔢 OCTOPOS Recount — Lauren</title>
 <style>
-  :root { --bg:#f6f7fb; --card:#fff; --text:#1f2937; --muted:#6b7280; --accent:#7c3aed; --line:#e5e7eb; }
+  :root { --bg:#f6f7fb; --card:#fff; --text:#1f2937; --muted:#6b7280; --accent:#7c3aed; --accent-dark:#5b21b6; --line:#e5e7eb; --neg:#dc2626; --stale:#d97706; --counted:#16a34a; }
   * { box-sizing:border-box; }
-  body { margin:0; padding:32px 20px 60px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Heebo",Roboto,sans-serif; background:var(--bg); color:var(--text); }
-  header { max-width:880px; margin:0 auto 24px; }
-  header h1 { font-size:30px; margin:0 0 6px; }
+  body { margin:0; padding:24px 16px 60px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Heebo",Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width:980px; margin:0 auto; }
+  header { margin:0 auto 20px; }
+  header h1 { font-size:26px; margin:0 0 4px; letter-spacing:-0.4px; }
   header .sub { color:var(--muted); font-size:14px; }
-  .card { max-width:880px; margin:0 auto 20px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:22px; box-shadow:0 2px 6px rgba(0,0,0,0.04); }
-  .card h2 { margin:0 0 10px; font-size:18px; }
-  .card p { margin:6px 0; line-height:1.7; }
+  .top-actions { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .back { color:var(--muted); font-size:13px; text-decoration:none; }
+  .back:hover { color:var(--text); }
   .pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:0.4px; }
   .pill.empty { background:#f3f4f6; color:#6b7280; }
   .pill.new { background:#ede9fe; color:#5b21b6; }
-  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:14px; }
-  @media (max-width:760px){ .grid3 { grid-template-columns:1fr; } }
-  .stat { background:#fafbff; border:1px solid var(--line); border-radius:12px; padding:14px; text-align:center; }
-  .stat .num { font-size:28px; font-weight:800; color:var(--accent); }
-  .stat .lbl { font-size:12px; color:var(--muted); margin-top:4px; }
-  .btn { display:inline-block; background:var(--accent); color:#fff; padding:10px 18px; border-radius:10px; font-weight:700; text-decoration:none; }
-  .btn:hover { background:#6d28d9; }
-  ul.steps { margin:8px 0 0 20px; padding:0; }
-  ul.steps li { margin:4px 0; line-height:1.7; }
-  .muted-box { background:#f9fafb; border:1px dashed var(--line); border-radius:10px; padding:12px 14px; color:var(--muted); font-size:13px; line-height:1.7; }
+  .pill.done { background:#dcfce7; color:#166534; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; box-shadow:0 2px 6px rgba(0,0,0,0.04); margin-bottom:16px; }
+  .card h2 { margin:0 0 10px; font-size:16px; }
+  .card p { margin:6px 0; line-height:1.7; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  @media (max-width:680px){ .grid3 { grid-template-columns:1fr; } }
+  .stat { background:#fafbff; border:1px solid var(--line); border-radius:10px; padding:14px; text-align:center; }
+  .stat .num { font-size:28px; font-weight:800; }
+  .stat .num.neg { color:var(--neg); }
+  .stat .num.stale { color:var(--stale); }
+  .stat .num.counted { color:var(--counted); }
+  .stat .num.final { color:var(--accent); }
+  .stat .lbl { font-size:11px; color:var(--muted); margin-top:4px; letter-spacing:0.4px; }
+  .btn { display:inline-flex; align-items:center; gap:6px; background:var(--accent); color:#fff; padding:9px 16px; border-radius:9px; font-weight:700; text-decoration:none; border:0; cursor:pointer; font-size:13px; font-family:inherit; }
+  .btn:hover { background:var(--accent-dark); }
+  .btn.ghost { background:#fff; color:var(--text); border:1px solid var(--line); }
+  .btn.ghost:hover { background:#f9fafb; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:right; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; }
+  tbody tr:hover { background:#fafbff; }
+  td.reason-neg { color:var(--neg); font-weight:700; }
+  td.reason-stale { color:var(--stale); font-weight:700; }
+  td.reason-preexisting { color:var(--muted); }
+  td.qty-cell { font-variant-numeric:tabular-nums; }
+  .empty-state { text-align:center; padding:40px 20px; color:var(--muted); }
+  .empty-state .big { font-size:48px; margin-bottom:8px; }
+  .cmd { background:#f9fafb; border:1px dashed var(--line); border-radius:8px; padding:10px 12px; font-family:"SF Mono",Menaco,Consolas,monospace; font-size:11px; line-height:1.5; direction:ltr; text-align:left; word-break:break-all; }
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:#1f2937; color:#fff; padding:10px 20px; border-radius:8px; font-size:13px; opacity:0; transition:all 0.3s ease; pointer-events:none; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .filter-row { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center; }
+  .filter-row label { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:5px; cursor:pointer; }
+  .copy-area { position:absolute; left:-9999px; }
 </style>
 </head>
 <body>
+<div class="wrap">
 
-<header>
-  <h1>🔢 רשימת ספירה — OCTOPOS Recount <span class="pill new">חדש</span></h1>
-  <div class="sub">בונה רשימת מוצרים לספירה מחדש על בסיס מה שקרה בוויקנד האחרון</div>
-</header>
+  <header>
+    <a class="back" href="../launch/">← חזרה ל-Event Launch</a>
+    <h1 id="page-title">🔢 רשימת ספירה <span class="pill new" id="event-pill" style="display:none;"></span></h1>
+    <div class="sub" id="page-sub">בונה רשימת מוצרים לספירה מחדש על בסיס מה שקרה בוויקנד האחרון</div>
+  </header>
 
-<div class="card">
-  <h2>מה הסוכן עושה</h2>
-  <ul class="steps">
-    <li>מתחבר ל-OCTOPOS API.</li>
-    <li>מאתר מוצרים <b>שנספרו בוויקנד האחרון</b> (לפי "physical count" adjustments) — מסיר מהם את התג <b>RECOUNT</b>.</li>
-    <li>מאתר מוצרים <b>במינוס</b> (qty &lt; 0) — מוסיף להם תג <b>RECOUNT</b>.</li>
-    <li>מאתר מוצרים <b>שלא זזו</b> בוויקנד האחרון <b>ולא ב-0</b> — מוסיף להם תג <b>RECOUNT</b> (כי הכמות יכולה להיות שגויה).</li>
-    <li>מפיק רשימה מסוננת — רק מה שעדיין מתויג RECOUNT <b>אחרי</b> ההסרה של מה שכבר נספר.</li>
-  </ul>
+  <div class="card" id="summary-card">
+    <h2>סיכום</h2>
+    <div id="summary-content">
+      <div class="empty-state">
+        <div class="big">⏳</div>
+        <p>טוען נתונים...</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="list-card" style="display:none;">
+    <h2 style="display:flex; align-items:center; justify-content:space-between;">
+      <span>🔢 רשימת מוצרים לספירה</span>
+      <span style="display:flex; gap:8px;">
+        <button class="btn ghost" id="btn-copy-text" type="button">📋 העתק כטקסט</button>
+        <button class="btn ghost" id="btn-copy-csv" type="button">📋 העתק כ-CSV</button>
+        <button class="btn ghost" id="btn-print" type="button">🖨️ הדפס</button>
+      </span>
+    </h2>
+    <div class="filter-row">
+      <label><input type="checkbox" id="f-neg" checked> 🔴 מינוס</label>
+      <label><input type="checkbox" id="f-stale" checked> 💤 לא זזו</label>
+      <label><input type="checkbox" id="f-preexisting" checked> 🔵 קיים מקודם</label>
+    </div>
+    <div style="overflow-x:auto;">
+      <table id="worklist-table">
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>שם מוצר</th>
+            <th>ספק</th>
+            <th>כמות נוכחית</th>
+            <th>מכירות בחלון</th>
+            <th>סיבה</th>
+          </tr>
+        </thead>
+        <tbody id="worklist-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" id="run-card" style="display:none;">
+    <h2>הפעלת הסוכן</h2>
+    <p>הסוכן עדיין לא רץ עבור החלון הזה. הפעילי אותו דרך Cowork chat:</p>
+    <div class="cmd" id="run-cmd"></div>
+    <p style="margin-top:10px;"><button class="btn" id="btn-copy-cmd" type="button">📋 העתק פקודה</button></p>
+    <p class="sub" style="margin-top:14px;">לאחר הריצה הדף יתעדכן אוטומטית. החזרי לטעון את הדף או לחצי על הכפתור הירוק בשורת האירוע ב-Event Launch.</p>
+  </div>
+
+  <div class="card">
+    <h2>מה הסוכן עושה</h2>
+    <ul style="margin:8px 20px 0 0; padding:0; line-height:1.8;">
+      <li>מסיר תג <b>RECOUNT</b> ממוצרים שנספרו פיזית בחלון הזה (לפי inventory adjustments).</li>
+      <li>מוסיף <b>RECOUNT</b> למוצרים במינוס (qty &lt; 0).</li>
+      <li>מוסיף <b>RECOUNT</b> למוצרים עם qty &gt; 0 שלא זזו בחלון <b>ולא נספרו</b> — כי הכמות עלולה להיות שגויה.</li>
+      <li>הרשימה למטה = כל מה שעדיין מתויג RECOUNT אחרי השינויים, בניכוי מה שנספר עכשיו.</li>
+    </ul>
+  </div>
+
 </div>
 
-<div class="card" id="last-run-card">
-  <h2>הרצה אחרונה</h2>
-  <div id="last-run-content">
-    <span class="pill empty">טרם רץ</span>
-    <p>הסוכן עוד לא רץ בפעם הראשונה. לחצי על הכפתור למטה כדי לבנות רשימה.</p>
-  </div>
-  <div class="grid3" id="stats-grid" style="display:none;">
-    <div class="stat"><div class="num" id="stat-neg">—</div><div class="lbl">🔴 במינוס</div></div>
-    <div class="stat"><div class="num" id="stat-stale">—</div><div class="lbl">💤 לא זזו</div></div>
-    <div class="stat"><div class="num" id="stat-final">—</div><div class="lbl">🔢 רשימת ספירה</div></div>
-  </div>
-</div>
-
-<div class="card">
-  <h2>הפעלת הסוכן</h2>
-  <p>הסוכן הוא <b>on-demand</b> — אין הפעלה אוטומטית. הפעילי דרך Cowork chat:</p>
-  <div class="muted-box" style="margin-top:8px; font-family:monospace; font-size:12px; direction:ltr; text-align:left;">
-    Run the octopos-recount skill
-  </div>
-  <p style="margin-top:14px;">או דרך הספרייה:</p>
-  <p><a class="btn" href="../library/?cat=after">📚 פתחי את ספריית הסוכנים</a></p>
-</div>
+<div class="toast" id="toast">הועתק ל-clipboard ✓</div>
+<textarea class="copy-area" id="copy-buffer"></textarea>
 
 <script>
-(function loadStats() {
+(function() {
+  const params = new URLSearchParams(location.search);
+  const evkey = params.get("evkey") || "";
+  const city = params.get("city") || "";
+  const state = params.get("state") || "";
+  const start_date = params.get("start_date") || params.get("start") || "";
+  const end_date = params.get("end_date") || params.get("end") || "";
+  const venue = params.get("venue") || "";
+
+  // Per-event mode vs global mode
+  const isPerEvent = evkey || (city && start_date);
+
+  // Update header
+  if (isPerEvent) {
+    const eventLabel = (city || evkey) + (state ? ", " + state : "") + (start_date ? " · " + start_date : "");
+    document.getElementById("event-pill").textContent = eventLabel;
+    document.getElementById("event-pill").style.display = "";
+    document.getElementById("page-sub").textContent = "חלון ספירה: " + (start_date || "?") + " → " + (end_date || "?");
+  }
+
+  // Build the run command (used when no cached data)
+  const cmdParams = [];
+  if (evkey) cmdParams.push("event=" + evkey);
+  else if (start_date && end_date) cmdParams.push("start=" + start_date, "end=" + end_date);
+  const cmdSuffix = cmdParams.length ? " (חלון: " + cmdParams.join(", ") + ")" : "";
+  const runCmd = "Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\octopos-recount\\SKILL.md` — it is the orchestrator for @recount. Run for" + cmdSuffix + ".";
+  document.getElementById("run-cmd").textContent = runCmd;
+
+  // Fetch state
   fetch("../state/octopos_recount.json?_=" + Date.now(), { cache: "no-store" })
     .then(r => r.ok ? r.json() : Promise.reject())
-    .then(data => {
-      if (!data || !data._updated_at) return;
-      const lastDate = new Date(data._updated_at);
-      const lastStr = lastDate.toLocaleString("he-IL", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
-      const win = data.last_window || {};
-      document.getElementById("last-run-content").innerHTML =
-        '<p><b>' + lastStr + '</b></p>' +
-        '<p class="sub">חלון: ' + (win.start || "—") + ' → ' + (win.end || "—") + '</p>';
-      const s = data.stats || {};
-      document.getElementById("stat-neg").textContent = s.added_recount_negative ?? "—";
-      document.getElementById("stat-stale").textContent = s.added_recount_stale ?? "—";
-      document.getElementById("stat-final").textContent = s.final_worklist_size ?? "—";
-      document.getElementById("stats-grid").style.display = "";
-    })
-    .catch(() => { /* keep "טרם רץ" state */ });
+    .then(data => render(data))
+    .catch(() => render(null));
+
+  function render(data) {
+    // In per-event mode, look for events[evkey]; in global mode, use top-level
+    let slice = null;
+    if (isPerEvent && data && data.events && evkey) {
+      slice = data.events[evkey];
+    } else if (!isPerEvent && data) {
+      // Global mode — use top-level stats
+      slice = {
+        worklist: data.worklist || [],
+        stats: data.stats || {},
+        window: data.last_window || {},
+        generated_at: data._updated_at
+      };
+    }
+
+    if (!slice || (!slice.worklist && !slice.stats)) {
+      // No cached data — show "run the agent" prompt
+      document.getElementById("summary-content").innerHTML = '<div class="empty-state"><div class="big">⏳</div><p>הסוכן עוד לא רץ עבור החלון הזה.</p></div>';
+      document.getElementById("run-card").style.display = "";
+      return;
+    }
+
+    // Render summary stats
+    const s = slice.stats || {};
+    const win = slice.window || {};
+    const generated = slice.generated_at ? new Date(slice.generated_at).toLocaleString("he-IL", { weekday:"long", day:"numeric", month:"long", hour:"2-digit", minute:"2-digit" }) : "—";
+    document.getElementById("summary-content").innerHTML =
+      '<p><b>הרצה אחרונה:</b> ' + generated + '</p>' +
+      '<p class="sub">חלון: ' + (win.start || start_date || "—") + ' → ' + (win.end || end_date || "—") + '</p>' +
+      '<div class="grid3" style="margin-top:14px;">' +
+        '<div class="stat"><div class="num neg">' + (s.added_recount_negative ?? "—") + '</div><div class="lbl">🔴 מינוס</div></div>' +
+        '<div class="stat"><div class="num stale">' + (s.added_recount_stale ?? "—") + '</div><div class="lbl">💤 לא זזו</div></div>' +
+        '<div class="stat"><div class="num counted">' + (s.removed_recount_tag ?? "—") + '</div><div class="lbl">✅ הוסר תג (נספרו)</div></div>' +
+      '</div>' +
+      '<div class="stat" style="margin-top:12px;"><div class="num final">' + (s.final_worklist_size ?? (slice.worklist||[]).length) + '</div><div class="lbl">🔢 רשימת ספירה</div></div>';
+
+    // Render the worklist table
+    const worklist = slice.worklist || [];
+    if (worklist.length > 0) {
+      document.getElementById("list-card").style.display = "";
+      window._WORKLIST = worklist;
+      renderTable();
+    }
+  }
+
+  function renderTable() {
+    const wl = window._WORKLIST || [];
+    const fNeg = document.getElementById("f-neg").checked;
+    const fStale = document.getElementById("f-stale").checked;
+    const fPre = document.getElementById("f-preexisting").checked;
+    const tbody = document.getElementById("worklist-body");
+    tbody.innerHTML = "";
+    wl.filter(p => {
+      if (p.reason === "negative") return fNeg;
+      if (p.reason === "stale") return fStale;
+      return fPre;
+    }).forEach(p => {
+      const tr = document.createElement("tr");
+      const reason = p.reason === "negative" ? "🔴 מינוס" : p.reason === "stale" ? "💤 לא זז" : "🔵 קיים מקודם";
+      const reasonCls = "reason-" + (p.reason || "preexisting");
+      tr.innerHTML =
+        '<td>' + escapeHtml(p.sku || "") + '</td>' +
+        '<td>' + escapeHtml(p.name || "") + '</td>' +
+        '<td>' + escapeHtml(p.supplier || "—") + '</td>' +
+        '<td class="qty-cell">' + (p.qty ?? "—") + '</td>' +
+        '<td class="qty-cell">' + (p.sold_in_window ?? 0) + '</td>' +
+        '<td class="' + reasonCls + '">' + reason + '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById("f-neg").addEventListener("change", renderTable);
+  document.getElementById("f-stale").addEventListener("change", renderTable);
+  document.getElementById("f-preexisting").addEventListener("change", renderTable);
+
+  // Copy handlers
+  function getVisibleWorklist() {
+    const wl = window._WORKLIST || [];
+    const fNeg = document.getElementById("f-neg").checked;
+    const fStale = document.getElementById("f-stale").checked;
+    const fPre = document.getElementById("f-preexisting").checked;
+    return wl.filter(p => {
+      if (p.reason === "negative") return fNeg;
+      if (p.reason === "stale") return fStale;
+      return fPre;
+    });
+  }
+  function showToast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 2000);
+  }
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => showToast("הועתק ל-clipboard ✓")).catch(fallback);
+    } else { fallback(); }
+    function fallback() {
+      const ta = document.getElementById("copy-buffer");
+      ta.value = text;
+      ta.select();
+      try { document.execCommand("copy"); showToast("הועתק ל-clipboard ✓"); }
+      catch(e) { showToast("העתקה נכשלה — סמני ידנית"); }
+    }
+  }
+  document.getElementById("btn-copy-text").addEventListener("click", () => {
+    const list = getVisibleWorklist();
+    const lines = list.map((p,i) => {
+      const reasonLabel = p.reason === "negative" ? "[מינוס]" : p.reason === "stale" ? "[לא זז]" : "[קיים מקודם]";
+      return (i+1) + ". " + (p.sku || "?") + " · " + (p.name || "") + " · " + (p.supplier || "") + " · qty: " + (p.qty ?? "?") + " " + reasonLabel;
+    });
+    const header = "רשימת ספירה — " + (city || "Global") + (start_date ? " · " + start_date : "") + " (" + list.length + " מוצרים)";
+    copyToClipboard(header + "\n\n" + lines.join("\n"));
+  });
+  document.getElementById("btn-copy-csv").addEventListener("click", () => {
+    const list = getVisibleWorklist();
+    const header = "SKU,Name,Supplier,Qty,Sold_In_Window,Reason";
+    const rows = list.map(p => [p.sku||"", p.name||"", p.supplier||"", p.qty??"", p.sold_in_window??0, p.reason||""].map(v => {
+      const s = String(v).replace(/"/g, '""');
+      return /[",\n]/.test(s) ? '"' + s + '"' : s;
+    }).join(","));
+    copyToClipboard(header + "\n" + rows.join("\n"));
+  });
+  document.getElementById("btn-print").addEventListener("click", () => window.print());
+  document.getElementById("btn-copy-cmd").addEventListener("click", () => copyToClipboard(runCmd));
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
 })();
 </script>
 
