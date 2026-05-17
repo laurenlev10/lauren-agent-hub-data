@@ -1,0 +1,68 @@
+name: slow-movers — weekly slow-product scan
+
+# Phase 0 (2026-05-17 PM) — scaffold only. The actual scoring algorithm is documented in
+# Scheduled/NEW/slow-movers/scoring.md but is NOT yet implemented. This workflow exists so
+# the scheduled-runs.json registry has a real cron target (LATE detection + agent_hub status
+# tile activate the moment this is registered). When Phase 1 ships, replace the placeholder
+# step with: python3 scripts/slow_movers_run.py
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Sunday 23:00 PT = Monday 06:00 UTC (winter PT-8 → 07:00 UTC; cron set for standard time)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Phase 0 — log + skip
+        run: |
+          echo "@slow-movers Phase 0 — scaffold only, no scoring yet."
+          echo "See Scheduled/NEW/slow-movers/SKILL.md for the algorithm."
+          echo "First real run pending: OCTOPOS sales endpoint verification + scripts/slow_movers_run.py."
+
+      - name: Update scheduled-runs.json lastRunAt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          p = "docs/scheduled-runs.json"
+          d = json.load(open(p))
+          now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in d.get("tasks", []):
+              if t.get("id") == "slow-movers":
+                  t["lastRunAt"] = now
+                  break
+          d["_updated_at"] = now
+          json.dump(d, open(p, "w"), indent=2, ensure_ascii=False)
+          print(f"Bumped slow-movers lastRunAt → {now}")
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump slow-movers lastRunAt"
+            git pull --rebase origin main
+            git push origin main
+          fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py

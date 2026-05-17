@@ -51,6 +51,23 @@
   .filter-row { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center; }
   .filter-row label { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:5px; cursor:pointer; }
   .copy-area { position:absolute; left:-9999px; }
+
+  /* Tabs — added 2026-05-17 PM for @slow-movers integration */
+  .tabs { display:flex; gap:4px; border-bottom:2px solid var(--line); margin-bottom:18px; }
+  .tab-btn { background:none; border:0; padding:10px 18px; font-size:14px; font-weight:700; color:var(--muted); cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; font-family:inherit; }
+  .tab-btn:hover { color:var(--text); }
+  .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .tab-pane.hidden { display:none; }
+  /* Slow-movers band colors */
+  .band-pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+  .band-pill.healthy { background:#dcfce7; color:#166534; }
+  .band-pill.watch   { background:#fef3c7; color:#854d0e; }
+  .band-pill.slow    { background:#fed7aa; color:#9a3412; }
+  .band-pill.discontinuing { background:#fee2e2; color:#991b1b; }
+  .score-bar { display:inline-block; width:60px; height:8px; background:#f3f4f6; border-radius:4px; overflow:hidden; vertical-align:middle; margin-left:6px; }
+  .score-bar > span { display:block; height:100%; background:var(--accent); }
+  .decision-select { font-size:11px; padding:3px 6px; border-radius:6px; border:1px solid var(--line); background:#fff; }
+
 </style>
 </head>
 <body>
@@ -62,6 +79,12 @@
     <div class="sub" id="page-sub">בונה רשימת מוצרים לספירה מחדש על בסיס מה שקרה בוויקנד האחרון</div>
   </header>
 
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="recount" type="button">🔢 רשימת ספירה</button>
+    <button class="tab-btn" data-tab="slow" type="button">💤 מוצרים שלא זזים <span id="slow-count-badge" style="font-size:10px;color:var(--muted);"></span></button>
+  </nav>
+
+  <div class="tab-pane" id="tab-recount">
   <div class="card" id="summary-card">
     <h2>סיכום</h2>
     <div id="summary-content">
@@ -122,6 +145,73 @@
   </div>
 
 </div>
+
+
+  </div><!-- /tab-recount -->
+
+  <div class="tab-pane hidden" id="tab-slow">
+    <div class="card">
+      <h2>💤 מוצרים שלא זזים — סקירה שבועית</h2>
+      <p class="sub" id="slow-summary">טוען נתונים...</p>
+    </div>
+
+    <div class="card" id="slow-list-card" style="display:none;">
+      <div class="filter-row" style="margin-bottom:12px;">
+        <label><input type="checkbox" id="sf-discontinuing" checked> 🪦 לסגירה (<span id="cnt-discontinuing">0</span>)</label>
+        <label><input type="checkbox" id="sf-slow" checked> 🐢 איטיים (<span id="cnt-slow">0</span>)</label>
+        <label><input type="checkbox" id="sf-watch"> 👀 לעקוב (<span id="cnt-watch">0</span>)</label>
+        <label><input type="checkbox" id="sf-healthy"> 💚 בריאים (<span id="cnt-healthy">0</span>)</label>
+        <select id="sf-supplier" class="decision-select"><option value="">כל הספקים</option></select>
+        <select id="sf-decision" class="decision-select">
+          <option value="">כל המוצרים</option>
+          <option value="undecided">בלי החלטה</option>
+          <option value="discontinue">סימנת לסגור</option>
+          <option value="keep">סימנת להמשיך</option>
+          <option value="promote">סימנת לקדם</option>
+        </select>
+      </div>
+      <div style="overflow-x:auto;">
+        <table id="slow-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>שם</th>
+              <th>ספק</th>
+              <th>מלאי</th>
+              <th>ממ׳ 4 שבועות</th>
+              <th>ממ׳ מאז ומעולם</th>
+              <th>Band</th>
+              <th>ציון</th>
+              <th>שבועות</th>
+              <th>סיבות</th>
+              <th>החלטה</th>
+            </tr>
+          </thead>
+          <tbody id="slow-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" id="slow-empty-card" style="display:none;">
+      <div class="empty-state">
+        <div class="big">💤</div>
+        <p><b>הסוכן עוד לא רץ.</b></p>
+        <p>הריצה הראשונה תהיה ביום ראשון הבא בלילה (23:00 PT). בכל שבוע נצטבר עוד מידע ונוכל לזהות אילו מוצרים לא נמכרים מספיק.</p>
+        <p style="margin-top:14px; font-size:12px;">סוכן: <code>@slow-movers</code> · קובץ: <code>docs/state/slow_movers.json</code></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>מה הסוכן הזה עושה</h2>
+      <ul style="margin:8px 20px 0 0; padding:0; line-height:1.8;">
+        <li>סורק את כל המוצרים הפעילים ב-OCTOPOS פעם בשבוע (יום ראשון בלילה).</li>
+        <li>נותן לכל מוצר ציון 0-100 לפי velocity (מהירות מכירה), stock health, וטרנד.</li>
+        <li>מסווג ל-4 רמות: 💚 healthy · 👀 watch · 🐢 slow · 🪦 discontinuing.</li>
+        <li>שומר היסטוריה של 26 שבועות לכל מוצר → אפשר לראות מגמה.</li>
+        <li>את מסמנת החלטה לכל מוצר (להמשיך / לסגור / לקדם) → @recount ו-@inventory-orders מתאימים את עצמם.</li>
+      </ul>
+    </div>
+  </div><!-- /tab-slow -->
 
 <div class="toast" id="toast">הועתק ל-clipboard ✓</div>
 <textarea class="copy-area" id="copy-buffer"></textarea>
@@ -290,6 +380,158 @@
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   }
+
+
+  // ── @slow-movers tab — added 2026-05-17 PM ────────────────────────────
+  var SLOW_STATE = null;
+
+  function showTab(name){
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+    document.querySelectorAll(".tab-pane").forEach(p => p.classList.toggle("hidden", p.id !== "tab-" + name));
+    try { history.replaceState(null, "", "?" + (function(){
+      var u = new URLSearchParams(location.search); u.set("tab", name); return u.toString();
+    })()); } catch(e){}
+  }
+  document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
+  if ((params.get("tab") || "recount") === "slow") showTab("slow");
+
+  function loadSlowMovers(){
+    fetch("../state/slow_movers.json?_=" + Date.now(), { cache: "no-store" })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(s => { SLOW_STATE = s; renderSlow(); })
+      .catch(() => { SLOW_STATE = {products:{}, weekly_runs:[]}; renderSlow(); });
+  }
+  loadSlowMovers();
+
+  function renderSlow(){
+    var s = SLOW_STATE || {};
+    var prods = Object.values(s.products || {});
+    // Update tab badge
+    var nFlagged = prods.filter(p => p.score_band === "slow" || p.score_band === "discontinuing").length;
+    document.getElementById("slow-count-badge").textContent = nFlagged ? "(" + nFlagged + ")" : "";
+
+    // Summary line
+    var lastRun = (s.weekly_runs || []).slice(-1)[0];
+    var sumEl = document.getElementById("slow-summary");
+    if (!lastRun || !prods.length) {
+      sumEl.textContent = "עוד אין נתונים. הסוכן ירוץ ביום ראשון הקרוב בלילה.";
+      document.getElementById("slow-empty-card").style.display = "";
+      document.getElementById("slow-list-card").style.display = "none";
+      return;
+    }
+    sumEl.innerHTML = "ריצה אחרונה: <b>" + lastRun.week + "</b> · " +
+      "💚 " + (lastRun.n_healthy||0) + " · 👀 " + (lastRun.n_watch||0) +
+      " · 🐢 " + (lastRun.n_slow||0) + " · 🪦 " + (lastRun.n_discontinuing||0);
+
+    document.getElementById("slow-empty-card").style.display = "none";
+    document.getElementById("slow-list-card").style.display = "";
+
+    // Counts
+    var byBand = {healthy:0, watch:0, slow:0, discontinuing:0};
+    prods.forEach(p => { if (byBand[p.score_band] !== undefined) byBand[p.score_band]++; });
+    document.getElementById("cnt-healthy").textContent = byBand.healthy;
+    document.getElementById("cnt-watch").textContent = byBand.watch;
+    document.getElementById("cnt-slow").textContent = byBand.slow;
+    document.getElementById("cnt-discontinuing").textContent = byBand.discontinuing;
+
+    // Supplier dropdown
+    var suppliers = Array.from(new Set(prods.map(p => p.supplier).filter(Boolean))).sort();
+    var sup = document.getElementById("sf-supplier");
+    if (sup.options.length <= 1) {
+      suppliers.forEach(name => {
+        var o = document.createElement("option"); o.value = name; o.textContent = name; sup.appendChild(o);
+      });
+    }
+    renderSlowTable();
+  }
+
+  function renderSlowTable(){
+    var prods = Object.values((SLOW_STATE || {}).products || {});
+    var fH = document.getElementById("sf-healthy").checked;
+    var fW = document.getElementById("sf-watch").checked;
+    var fS = document.getElementById("sf-slow").checked;
+    var fD = document.getElementById("sf-discontinuing").checked;
+    var supplier = document.getElementById("sf-supplier").value;
+    var decision = document.getElementById("sf-decision").value;
+
+    var rows = prods.filter(p => {
+      var b = p.score_band;
+      if (b === "healthy" && !fH) return false;
+      if (b === "watch" && !fW) return false;
+      if (b === "slow" && !fS) return false;
+      if (b === "discontinuing" && !fD) return false;
+      if (supplier && p.supplier !== supplier) return false;
+      if (decision) {
+        if (decision === "undecided" && p.lauren_decision) return false;
+        if (decision !== "undecided" && p.lauren_decision !== decision) return false;
+      }
+      return true;
+    });
+
+    var rank = {discontinuing:0, slow:1, watch:2, healthy:3};
+    rows.sort((a,b) => (rank[a.score_band]||9) - (rank[b.score_band]||9) || (a.score||0) - (b.score||0));
+
+    var tbody = document.getElementById("slow-body");
+    tbody.innerHTML = "";
+    rows.forEach(p => {
+      var tr = document.createElement("tr");
+      var bandLabel = ({healthy:"💚 בריא", watch:"👀 לעקוב", slow:"🐢 איטי", discontinuing:"🪦 לסגירה"})[p.score_band] || p.score_band;
+      var reasons = (p.reason_codes || []).join(", ") || "—";
+      var dec = p.lauren_decision || "";
+      tr.innerHTML =
+        '<td>' + escapeHtml(p.sku || "") + '</td>' +
+        '<td>' + escapeHtml(p.name || "") + '</td>' +
+        '<td>' + escapeHtml(p.supplier || "—") + '</td>' +
+        '<td class="qty-cell">' + (p.history && p.history.length ? p.history[p.history.length-1].in_stock : "—") + '</td>' +
+        '<td class="qty-cell">' + (p.avg_sold_per_event_week_4w !== undefined ? p.avg_sold_per_event_week_4w.toFixed(1) : "—") + '</td>' +
+        '<td class="qty-cell">' + (p.avg_sold_per_event_week_alltime !== undefined ? p.avg_sold_per_event_week_alltime.toFixed(1) : "—") + '</td>' +
+        '<td><span class="band-pill ' + p.score_band + '">' + bandLabel + '</span></td>' +
+        '<td>' + (p.score ?? "—") + '<span class="score-bar"><span style="width:' + (p.score||0) + '%"></span></span></td>' +
+        '<td>' + (p.weeks_in_band ?? "—") + '</td>' +
+        '<td style="font-size:11px;">' + escapeHtml(reasons) + '</td>' +
+        '<td><select class="decision-select" data-pid="' + p.id + '" data-decision-for>' +
+          '<option value=""' + (dec === "" ? " selected" : "") + '>—</option>' +
+          '<option value="keep"' + (dec === "keep" ? " selected" : "") + '>להמשיך</option>' +
+          '<option value="discontinue"' + (dec === "discontinue" ? " selected" : "") + '>לסגור</option>' +
+          '<option value="promote"' + (dec === "promote" ? " selected" : "") + '>לקדם</option>' +
+        '</select></td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById("sf-discontinuing").addEventListener("change", renderSlowTable);
+  document.getElementById("sf-slow").addEventListener("change", renderSlowTable);
+  document.getElementById("sf-watch").addEventListener("change", renderSlowTable);
+  document.getElementById("sf-healthy").addEventListener("change", renderSlowTable);
+  document.getElementById("sf-supplier").addEventListener("change", renderSlowTable);
+  document.getElementById("sf-decision").addEventListener("change", renderSlowTable);
+
+  // Decision change handler — writes back to docs/state/slow_movers.json via GitHub Contents API.
+  // PAT pattern follows IRON RULE #7 (localStorage.lauren_gh_token_v1).
+  document.getElementById("slow-body").addEventListener("change", function(e){
+    if (!e.target.matches("[data-decision-for]")) return;
+    var pid = e.target.dataset.pid;
+    var value = e.target.value || null;
+    var token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+    if (!token) { showToast("⚠️ צריך GitHub token כדי לסנכרן"); return; }
+
+    if (!SLOW_STATE.products[pid]) return;
+    SLOW_STATE.products[pid].lauren_decision = value;
+    SLOW_STATE.products[pid].lauren_decided_at = new Date().toISOString();
+    SLOW_STATE._updated_at = new Date().toISOString();
+
+    var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/slow_movers.json";
+    fetch(url + "?ref=main", {headers:{Authorization:"token "+token, Accept:"application/vnd.github+json"}})
+      .then(r => r.json()).then(info => {
+        var sha = info.sha;
+        var content = JSON.stringify(SLOW_STATE, null, 2);
+        var body = {message: "@slow-movers: lauren_decision[" + pid + "]=" + (value||"null"), content: btoa(unescape(encodeURIComponent(content))), branch:"main", sha: sha};
+        return fetch(url, {method:"PUT", headers:{Authorization:"token "+token, Accept:"application/vnd.github+json", "Content-Type":"application/json"}, body: JSON.stringify(body)});
+      })
+      .then(r => { showToast(r.ok ? "✓ נשמר ב-GitHub" : "⚠️ שמירה נכשלה"); })
+      .catch(() => showToast("⚠️ שמירה נכשלה"));
+  });
+
 })();
 </script>
 
