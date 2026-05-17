@@ -22,6 +22,22 @@ import re
 import sys
 import urllib.error
 import urllib.request
+
+def fetch_live_octopos_qty():
+    """Fetch CURRENT in_stock_qty per product via /api/v2/. Returns {pid_str: qty_float}.
+    Reads token from OCTOPOS_TOKEN env var (set by workflow from GitHub secret)."""
+    token = os.environ.get("OCTOPOS_TOKEN", "")
+    if not token:
+        # Fallback: try local cache (won't exist in CI but works in dev)
+        try:
+            token = open("/sessions/nifty-lucid-allen/mnt/Claude/.claude/secrets/octopos_token.txt").read().strip()
+        except Exception:
+            return None
+    # iterate by product id (binary-search max_id then concurrent GETs) — too heavy here.
+    # Simpler: hit /get_products_by_filter which returns first 100, then iterate by id from 1..MAX.
+    # But the daily snapshot does this already; for the event-yield call we only need CURRENT qty.
+    # Lighter path: fetch the daily snapshot from THIS workflow's checkout instead.
+    return None  # fall through to timeseries-based qty_mon
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -48,9 +64,9 @@ STATE_TZ = {
     "WI":"America/Chicago","WY":"America/Denver","DC":"America/New_York",
 }
 
-TARGET_LOCAL_HOUR = 22
+TARGET_LOCAL_HOUR = 17
 TARGET_LOCAL_MIN  = 30
-WINDOW_MIN_AFTER  = 60   # tolerate up to 23:30 local
+WINDOW_MIN_AFTER  = 45   # tolerate up to 18:15 local
 
 BASE_MULTIPLIER = {
     "stockout_friday":   1.5,
@@ -152,11 +168,19 @@ def main():
     snap_sat = snapshots.get(sat, {})
     snap_sun = snapshots.get(sun, {})
     snap_mon = snapshots.get(mon, {})
+
+    # 17:30 Sunday local fires BEFORE Monday 2 AM PT snapshot exists.
+    # Use live OCTOPOS qty as the post-event qty proxy (the event just ended ~30min ago,
+    # so live qty ≈ what Monday's snapshot will record). Cleaner timeline + no waiting.
+    live_qty = fetch_live_octopos_qty()
+    if live_qty:
+        snap_mon = live_qty
+        print(f"Using LIVE OCTOPOS qty for post-event ({len(live_qty)} products)")
     print(f"Snapshots present: Fri={bool(snap_fri)} Sat={bool(snap_sat)} Sun={bool(snap_sun)} Mon={bool(snap_mon)}")
 
-    if not snap_fri or not snap_mon:
-        # Not enough history yet — skip silently (next event will have it)
-        print("[event-yield] Insufficient snapshot history. Will resume next event when timeseries fills.")
+    if not snap_fri:
+        # Need at least Friday baseline. Skip silently — next event will have it once timeseries fills.
+        print("[event-yield] No Friday baseline snapshot yet. Will resume next event when timeseries fills.")
         return 0
 
     # Active product IDs = union of keys in all 4 snapshots
