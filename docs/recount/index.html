@@ -167,7 +167,10 @@
 
     <div class="card" id="slow-list-card" style="display:none;">
       <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:13px; line-height:1.6;">
-        💡 <b>שתי עמודות סף:</b> <b>"סף OCTOPOS (שלך)"</b> — מה שהגדרת ידנית, לעולם לא נוגעים. <b>"🎯 סף מומלץ (שלנו)"</b> — מה שהמערכת מחשבת לפי הממוצע השבועי. ה-Wizard של ההזמנות משתמש ב-<b>"שלנו"</b> כברירת מחדל. שתי הגישות חיות זו לצד זו.
+        💡 <b>2 עמודות סף + עדכון ידני אופציונלי:</b><br>
+        <b>סף OCTOPOS (שלך)</b> — מה שכתוב היום באוקטופוס. לעולם לא משתנה אוטומטית.<br>
+        <b>🎯 סף מומלץ (שלנו)</b> — המלצת המערכת לפי הממוצע השבועי. ה-Wizard של ההזמנות משתמש בה כברירת מחדל.<br>
+        <b>עדכון ידני ל-OCTOPOS:</b> רוצה לדחוף את ההמלצה (או מספר אחר שאת בוחרת) ל-OCTOPOS עצמו? הקלידי מספר בתיבה (ריק = השתמשי בהמלצה) ולחצי <code>עדכן THR</code>. רק לחיצה יזומה שלך משנה את OCTOPOS — לעולם לא אוטומטית.
       </div>
       <div class="filter-row" style="margin-bottom:12px;">
         <label><input type="checkbox" id="sf-new" checked> 🆕 חדשים (<span id="cnt-new">0</span>)</label>
@@ -636,25 +639,95 @@
     if (p.is_new || p.score_band === "new") {
       return '<span style="color:#1e40af;font-size:11px;">🆕 חדש</span>';
     }
-    if (p.suggested_threshold === undefined || p.suggested_threshold === null) return "—";
     if (p.event_weeks_seen !== undefined && p.event_weeks_seen < 4) {
       return '<span style="color:var(--muted);font-size:11px;">אוסף נתונים…</span>';
     }
-    var curr = p.current_threshold;
     var sugg = p.suggested_threshold;
-    if (curr === sugg || (curr === undefined && sugg === undefined)) {
-      return '<span style="color:var(--muted);">' + (sugg ?? "—") + '</span>';
+    var curr = p.current_threshold;
+    var placeholder = (sugg !== undefined && sugg !== null) ? sugg : (curr ?? "");
+    var dir = "";
+    if (sugg !== undefined && sugg !== null && curr !== undefined && curr !== null && sugg !== curr) {
+      var arrow = sugg > curr ? '↑' : '↓';
+      var color = sugg > curr ? '#16a34a' : '#dc2626';
+      dir = '<span style="color:' + color + ';font-size:11px;font-weight:700;">' + arrow + sugg + '</span> ';
+    } else if (sugg !== undefined && sugg !== null && (curr === undefined || curr === null || curr === 0)) {
+      dir = '<span style="color:#1e40af;font-size:11px;">' + sugg + ' (חסר ב-OCTOPOS)</span> ';
     }
-    var dir = sugg > (curr || 0) ? '↑' : '↓';
-    var color = sugg > (curr || 0) ? '#16a34a' : '#dc2626';
-    var note = (curr === undefined || curr === null || curr === 0) ? ' <span style="color:var(--muted);font-size:10px;">(OCTOPOS ריק)</span>' : '';
-    return '<span style="color:' + color + ';font-weight:700;">' + sugg + ' ' + dir + '</span>' + note;
+    var appliedBadge = p._threshold_applied_at ? '<span style="color:#16a34a;font-size:10px;">✓ ' + p._threshold_applied_at.slice(0,10) + '</span>' : '';
+    return '<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">' +
+      dir +
+      '<input type="number" step="1" min="0" class="thresh-new-val" data-pid="' + p.id + '" placeholder="' + placeholder + '" value="" style="width:55px;padding:3px 5px;font-size:12px;border:1px solid var(--line);border-radius:6px;">' +
+      '<button class="btn-apply-thresh decision-select" data-pid="' + p.id + '" data-current-thr="' + (curr || 0) + '" data-suggested-thr="' + (sugg || 0) + '" style="background:#7c3aed;color:#fff;border:0;cursor:pointer;font-size:11px;padding:4px 8px;">עדכן THR</button>' +
+      appliedBadge +
+    '</div>';
   }
 
-  // (apply-thresh-btn handler removed per Lauren architecture B 2026-05-17 PM late:
-  //  OCTOPOS threshold is read-only baseline — never overwritten. Our system's
-  //  suggested_threshold is the recommendation, used by the Wizard for reorder math.
-  //  Both columns coexist in the 💤 tab. No PUT-to-OCTOPOS path.)
+  // Manual THRESHOLD-apply handler — Lauren 2026-05-17 PM late: only on explicit click.
+  // 'תן לי אפשרות ללחוץ על כפתור עדכן THRESHOULD ... רק כלחיצה יזומה שלי'.
+  document.getElementById("slow-body").addEventListener("click", async function(e){
+    if (!e.target.matches(".btn-apply-thresh")) return;
+    var btn = e.target;
+    var pid = btn.dataset.pid;
+    var currentThr = parseFloat(btn.dataset.currentThr) || 0;
+    var suggestedThr = parseFloat(btn.dataset.suggestedThr) || 0;
+    var row = btn.closest("tr");
+    var inp = row.querySelector(".thresh-new-val");
+    var typed = inp.value.trim();
+    var newThr;
+    if (typed === "") {
+      newThr = suggestedThr;
+      if (!newThr) { showToast("⚠️ אין המלצה כרגע, הקלידי מספר"); return; }
+    } else {
+      newThr = parseFloat(typed);
+      if (isNaN(newThr) || newThr < 0) { showToast("⚠️ מספר לא חוקי"); return; }
+    }
+    var pname = (SLOW_STATE.products[pid] || {}).name || "מוצר";
+    if (Math.abs(newThr - currentThr) < 0.5) { showToast("⚠️ הסף זהה לנוכחי"); return; }
+    if (!confirm("לעדכן threshold של\n" + pname + "\nמ-" + currentThr + " ל-" + newThr + " ב-OCTOPOS?")) return;
+
+    var octToken = (localStorage.getItem("lauren_octopos_token") || "").trim();
+    if (!octToken) { showToast("⚠️ צריך OCTOPOS token — היכנסי לדשבורד המלאי תחילה"); return; }
+    btn.disabled = true;
+    btn.textContent = "...מעדכן";
+    try{
+      var r = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
+        method: "PUT",
+        headers: {"Authorization": octToken, "Content-Type":"application/json", "Accept":"application/json"},
+        body: JSON.stringify({"threshold_qty": newThr})
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      showToast("✓ Threshold עודכן ב-OCTOPOS: " + newThr);
+      var ghToken = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+      if (ghToken && SLOW_STATE.products[pid]) {
+        var rec = SLOW_STATE.products[pid];
+        rec.current_threshold = newThr;
+        rec._threshold_applied_at = new Date().toISOString();
+        rec.threshold_history = (rec.threshold_history || []).concat([{
+          week: "manual-" + new Date().toISOString().slice(0,10),
+          from: currentThr, to: newThr,
+          reason: typed === "" ? "Lauren accepted suggested" : "Lauren typed custom value",
+          applied_by: "lauren-manual-via-dashboard",
+          applied_at: new Date().toISOString()
+        }]);
+        SLOW_STATE._updated_at = new Date().toISOString();
+        var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/slow_movers.json";
+        var info = await fetch(url + "?ref=main", {headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json"}}).then(r=>r.json());
+        var content = JSON.stringify(SLOW_STATE, null, 2);
+        await fetch(url, {method:"PUT",
+          headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json", "Content-Type":"application/json"},
+          body: JSON.stringify({message:"@slow-movers: lauren applied threshold["+pid+"] "+currentThr+"→"+newThr,
+                                content: btoa(unescape(encodeURIComponent(content))), branch:"main", sha: info.sha})});
+      }
+      btn.textContent = "✓ עודכן";
+      btn.style.background = "#86efac";
+      btn.style.color = "#14532d";
+      inp.value = "";
+    } catch(err){
+      showToast("⚠️ נכשל: " + err.message);
+      btn.disabled = false;
+      btn.textContent = "עדכן THR";
+    }
+  });
 
   // Decision change handler — writes back to docs/state/slow_movers.json via GitHub Contents API.
   // PAT pattern follows IRON RULE #7 (localStorage.lauren_gh_token_v1).
