@@ -166,6 +166,9 @@
     </div>
 
     <div class="card" id="slow-list-card" style="display:none;">
+      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:13px; line-height:1.6;">
+        💡 <b>שתי עמודות סף:</b> <b>"סף OCTOPOS (שלך)"</b> — מה שהגדרת ידנית, לעולם לא נוגעים. <b>"🎯 סף מומלץ (שלנו)"</b> — מה שהמערכת מחשבת לפי הממוצע השבועי. ה-Wizard של ההזמנות משתמש ב-<b>"שלנו"</b> כברירת מחדל. שתי הגישות חיות זו לצד זו.
+      </div>
       <div class="filter-row" style="margin-bottom:12px;">
         <label><input type="checkbox" id="sf-new" checked> 🆕 חדשים (<span id="cnt-new">0</span>)</label>
         <label><input type="checkbox" id="sf-discontinuing" checked> 🪦 לסגירה (<span id="cnt-discontinuing">0</span>)</label>
@@ -194,8 +197,8 @@
               <th>סופ"שים ללא זוז</th>
               <th title="סיגנל מהאירוע האחרון — 🔴 נגמר שישי · 🟠 נגמר שבת · 🟡 יתרה קלה · ⚫ יתרה כבדה · 🟢 רגיל">🚨 סיגנל אחרון</th>
               <th title="מכפיל הכמות באירוע הבא לפי סיגנל">×מכפיל</th>
-              <th>סף נוכחי</th>
-              <th>🎯 סף מומלץ</th>
+              <th title="הסף שאת הגדרת ב-OCTOPOS — קריאה בלבד, לעולם לא נדרסת ע&quot;י המערכת">סף OCTOPOS (שלך)</th>
+              <th title="ההמלצה של המערכת לפי הממוצע השבועי — ה-Wizard משתמש בזה כברירת מחדל">🎯 סף מומלץ (שלנו)</th>
               <th>Band</th>
               <th>ציון</th>
               <th>שבועות</th>
@@ -640,52 +643,19 @@
     }
     var curr = p.current_threshold;
     var sugg = p.suggested_threshold;
-    if (curr === sugg) {
-      return '<span style="color:var(--muted);">' + sugg + ' (ללא שינוי)</span>';
+    if (curr === sugg || (curr === undefined && sugg === undefined)) {
+      return '<span style="color:var(--muted);">' + (sugg ?? "—") + '</span>';
     }
-    var dir = sugg > curr ? '↑' : '↓';
-    var color = sugg > curr ? '#16a34a' : '#dc2626';
-    var disabled = p.lauren_threshold_locked ? ' disabled title="נעול"' : '';
-    return '<span style="color:' + color + ';font-weight:700;">' + sugg + ' ' + dir + '</span>' +
-           ' <button class="decision-select apply-thresh-btn" data-pid="' + p.id + '" data-new-thresh="' + sugg + '"' + disabled + '>✓ עדכן</button>';
+    var dir = sugg > (curr || 0) ? '↑' : '↓';
+    var color = sugg > (curr || 0) ? '#16a34a' : '#dc2626';
+    var note = (curr === undefined || curr === null || curr === 0) ? ' <span style="color:var(--muted);font-size:10px;">(OCTOPOS ריק)</span>' : '';
+    return '<span style="color:' + color + ';font-weight:700;">' + sugg + ' ' + dir + '</span>' + note;
   }
 
-  // Apply button handler — Phase 1.5: writes new suggested threshold into slow_movers.json
-  // as a "lauren_approved" override. Phase 2 will additionally PUT to OCTOPOS.
-  document.getElementById("slow-body").addEventListener("click", function(e){
-    if (!e.target.matches(".apply-thresh-btn")) return;
-    var pid = e.target.dataset.pid;
-    var newThresh = parseInt(e.target.dataset.newThresh, 10);
-    var token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
-    if (!token) { showToast("⚠️ צריך GitHub token"); return; }
-    if (!SLOW_STATE.products[pid]) return;
-
-    var rec = SLOW_STATE.products[pid];
-    var fromVal = rec.current_threshold;
-    rec.current_threshold = newThresh;   // optimistic local update
-    rec.threshold_history = (rec.threshold_history || []).concat([{
-      week: "manual-" + new Date().toISOString().slice(0,10),
-      from: fromVal, to: newThresh,
-      reason: "Lauren approved suggested threshold via 💤 tab",
-      applied_by: "lauren-manual",
-      applied_at: new Date().toISOString()
-    }]);
-    SLOW_STATE._updated_at = new Date().toISOString();
-
-    var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/slow_movers.json";
-    fetch(url + "?ref=main", {headers:{Authorization:"token "+token, Accept:"application/vnd.github+json"}})
-      .then(r => r.json()).then(info => {
-        var content = JSON.stringify(SLOW_STATE, null, 2);
-        var body = {message: "@slow-movers: lauren applied threshold[" + pid + "] " + fromVal + "→" + newThresh,
-                    content: btoa(unescape(encodeURIComponent(content))), branch:"main", sha: info.sha};
-        return fetch(url, {method:"PUT",
-          headers:{Authorization:"token "+token, Accept:"application/vnd.github+json", "Content-Type":"application/json"},
-          body: JSON.stringify(body)});
-      })
-      .then(r => { if (r.ok) { showToast("✓ סף עודכן ל-" + newThresh); renderSlowTable(); }
-                   else showToast("⚠️ שמירה נכשלה"); })
-      .catch(() => showToast("⚠️ שמירה נכשלה"));
-  });
+  // (apply-thresh-btn handler removed per Lauren architecture B 2026-05-17 PM late:
+  //  OCTOPOS threshold is read-only baseline — never overwritten. Our system's
+  //  suggested_threshold is the recommendation, used by the Wizard for reorder math.
+  //  Both columns coexist in the 💤 tab. No PUT-to-OCTOPOS path.)
 
   // Decision change handler — writes back to docs/state/slow_movers.json via GitHub Contents API.
   // PAT pattern follows IRON RULE #7 (localStorage.lauren_gh_token_v1).
