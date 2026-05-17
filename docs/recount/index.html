@@ -192,6 +192,8 @@
               <th>ממ׳ 4 שבועות</th>
               <th>ממ׳ מאז ומעולם</th>
               <th>סופ"שים ללא זוז</th>
+              <th title="סיגנל מהאירוע האחרון — 🔴 נגמר שישי · 🟠 נגמר שבת · 🟡 יתרה קלה · ⚫ יתרה כבדה · 🟢 רגיל">🚨 סיגנל אחרון</th>
+              <th title="מכפיל הכמות באירוע הבא לפי סיגנל">×מכפיל</th>
               <th>סף נוכחי</th>
               <th>🎯 סף מומלץ</th>
               <th>Band</th>
@@ -566,6 +568,8 @@
         '<td class="qty-cell">' + (p.avg_sold_per_event_week_4w !== undefined ? p.avg_sold_per_event_week_4w.toFixed(1) : "—") + '</td>' +
         '<td class="qty-cell">' + (p.avg_sold_per_event_week_alltime !== undefined ? p.avg_sold_per_event_week_alltime.toFixed(1) : "—") + '</td>' +
         '<td class="qty-cell">' + renderWeeksDeadCell(p) + '</td>' +
+        '<td style="text-align:center">' + renderEventSignalCell(p) + '</td>' +
+        '<td class="qty-cell" style="font-weight:700">' + renderMultiplierCell(p) + '</td>' +
         '<td class="qty-cell">' + (p.current_threshold ?? "—") + (p.lauren_threshold_locked ? ' <span title="נעול לעדכון אוטומטי">🔒</span>' : '') + '</td>' +
         '<td class="qty-cell">' + renderSuggestedThresholdCell(p) + '</td>' +
         '<td><span class="band-pill ' + effectiveBand + '">' + bandLabel + '</span></td>' +
@@ -591,6 +595,30 @@
   document.getElementById("sf-decision").addEventListener("change", renderSlowTable);
 
 
+
+  function renderEventSignalCell(p){
+    var sig = p.last_event_signal;
+    if (!sig || sig === "no_history") return '<span style="color:var(--muted);font-size:11px">—</span>';
+    var map = {
+      "stockout_friday":   {emoji:"🔴", label:"נגמר שישי",  color:"#991b1b", bg:"#fee2e2"},
+      "stockout_saturday": {emoji:"🟠", label:"נגמר שבת",   color:"#9a3412", bg:"#fed7aa"},
+      "overstock_heavy":   {emoji:"⚫", label:"יתרה כבדה",   color:"#fff",    bg:"#1f2937"},
+      "overstock_light":   {emoji:"🟡", label:"יתרה קלה",    color:"#854d0e", bg:"#fef3c7"},
+      "normal":            {emoji:"🟢", label:"רגיל",         color:"#166534", bg:"#dcfce7"},
+      "low_base":          {emoji:"📊", label:"בסיס דק",     color:"#4b5563", bg:"#f3f4f6"},
+      "new_product":       {emoji:"🆕", label:"חדש",          color:"#1e40af", bg:"#dbeafe"},
+      "data_issue":        {emoji:"⚠️", label:"בעיית נתונים", color:"#991b1b", bg:"#fee2e2"}
+    };
+    var s = map[sig] || {emoji:"❓", label:sig, color:"#444", bg:"#f3f4f6"};
+    return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:'+s.bg+';color:'+s.color+'">'+s.emoji+' '+s.label+'</span>';
+  }
+
+  function renderMultiplierCell(p){
+    var m = p.suggested_qty_multiplier;
+    if (m === undefined || m === null || m === 1.0) return '<span style="color:var(--muted)">1.0×</span>';
+    var color = m > 1.0 ? "#16a34a" : "#dc2626";
+    return '<span style="color:'+color+'">' + m.toFixed(2) + '×</span>';
+  }
 
   function renderWeeksDeadCell(p){
     if (p.is_new || p.score_band === "new") return "—";

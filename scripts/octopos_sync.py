@@ -407,6 +407,32 @@ def main():
     out_path.write_text(json.dumps(snapshot, indent=2, ensure_ascii=False))
     print(f"\n✓ wrote {out_path}  ({out_path.stat().st_size:,} bytes)")
 
+    # Also append today's qty snapshot to the timeseries for @event-yield analyzer.
+    # Schema: {snapshots: {YYYY-MM-DD: {product_id_str: in_stock_qty}}}. 60-day rolling history.
+    from datetime import date, datetime as _dt, timezone as _tz, timedelta as _td
+    ts_path = Path("docs/state/octopos_stock_timeseries.json")
+    if ts_path.exists():
+        ts = json.loads(ts_path.read_text())
+    else:
+        ts = {"_about": "Daily in_stock_qty per product. Consumed by @event-yield.", "_schema_version": 1, "_retention_days": 60, "snapshots": {}}
+    today = date.today().isoformat()
+    today_snap = {}
+    for p in products:
+        pid = p.get("id")
+        try:
+            qty = float(p.get("in_stock_qty") or 0)
+        except (TypeError, ValueError):
+            qty = 0.0
+        if pid is not None:
+            today_snap[str(pid)] = qty
+    ts.setdefault("snapshots", {})[today] = today_snap
+    # Roll off snapshots older than retention_days
+    cutoff = (date.today() - _td(days=int(ts.get("_retention_days", 60)))).isoformat()
+    ts["snapshots"] = {d: v for d, v in ts["snapshots"].items() if d >= cutoff}
+    ts["_updated_at"] = _dt.now(_tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts_path.write_text(json.dumps(ts, indent=2, ensure_ascii=False))
+    print(f"✓ appended today's snapshot to {ts_path} ({len(today_snap)} products, {len(ts['snapshots'])} days retained)")
+
 
 if __name__ == "__main__":
     main()

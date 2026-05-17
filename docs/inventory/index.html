@@ -1088,6 +1088,7 @@ function renderSupplierCard(sup, s, idx){
               '<td>'+chip(qty, p.needs_recount)+'</td>'+
               '<td style="text-align:center;font-size:13px">'+getAvg4wHtml(p.id)+'</td>'+
               '<td style="text-align:center">'+getSlowBadge(p.id)+'</td>'+
+              '<td style="text-align:center">'+getEventSignalBadge(p.id)+'</td>'+
               '<td style="text-align:center">'+getMarginBadge(p.id)+'</td>'+
               '<td style="text-align:center;font-size:13px">'+getSuggestedPriceCell(p.id)+'</td>'+
               '<td><input type="number" min="0" step="1" class="row-edit row-edit-thr" data-field="threshold" value="'+thrShow+'"></td>'+
@@ -1105,6 +1106,7 @@ function renderSupplierCard(sup, s, idx){
           '<th>מלאי</th>'+
           '<th title="ממוצע מכירות לשבוע-אירוע ב-4 השבועות האחרונים — מעודכן כל יום ראשון">ממ׳ 4w</th>'+
           '<th title="באנד מ-@slow-movers — 🏆 בסט סלר · 💚 בריא · 👀 לעקוב · 🐢 איטי · 🪦 לשקול סגירה · 🆕 חדש">דירוג</th>'+
+          '<th title="סיגנל אירוע אחרון — 🔴 נגמר שישי · 🟠 נגמר שבת · ⚫ יתרה כבדה · 🟡 יתרה קלה">סיגנל</th>'+
           '<th title="רווחיות מ-@profit-pulse — 🟢 ≥3× · 🟡 ok · 💸 <2× · ⚠ <1.5× · ⚫ הפסד">רווח</th>'+
           '<th title="מחיר מומלץ מ-@profit-pulse (target 3× — מעוגל לרמה סטנדרטית $1/$2/$3/$5/$7/$10/$15/$20)">🎯 מחיר</th>'+
           '<th title="Threshold — שינוי ידחף ל-OCTOPOS">THR ✏️</th>'+
@@ -1475,7 +1477,11 @@ function openGeneratePoModal(supplierCode, vendorId){
     var qty = Number(p.in_stock_qty||0);
     var thr = Number(p.threshold||0);
     var gap = Math.max(0, thr - qty);
-    return { product_id: p.id, product_name: p.name, product_sku: p.sku, in_stock: qty, threshold: thr, suggested: gap, cost_unit: Number(p.unit_cost||0) };
+    // Apply event-yield multiplier from @slow-movers signal (stockout → bump up; overstock → trim down)
+    var eventMult = getEventMultiplier(p.id);
+    var suggested = Math.round(gap * eventMult);
+    if (suggested < 0) suggested = 0;
+    return { product_id: p.id, product_name: p.name, product_sku: p.sku, in_stock: qty, threshold: thr, suggested: suggested, cost_unit: Number(p.unit_cost||0), event_mult: eventMult };
   }).filter(function(it){ return it.suggested > 0; });
   if (items.length === 0){ toast('אין מה להזמין לספק הזה', ''); return; }
 
@@ -1486,6 +1492,7 @@ function openGeneratePoModal(supplierCode, vendorId){
       '<td style="text-align:center">'+it.threshold+'</td>'+
       '<td style="text-align:center;font-size:13px">'+getAvg4wHtml(it.product_id)+'</td>'+
       '<td style="text-align:center">'+getSlowBadge(it.product_id)+'</td>'+
+      '<td style="text-align:center">'+getEventSignalBadge(it.product_id)+'</td>'+
       '<td style="text-align:center">'+getMarginBadge(it.product_id)+'</td>'+
       '<td style="text-align:center;font-size:13px">'+getSuggestedPriceCell(it.product_id)+'</td>'+
       '<td><input type="number" min="0" step="1" data-bind="qty" value="'+it.suggested+'"></td>'+
@@ -1502,7 +1509,7 @@ function openGeneratePoModal(supplierCode, vendorId){
     '<div class="po-modal">'+
       '<h2>✨ צרי Purchase Order חדש</h2>'+
       '<div class="modal-sub">ספק: <b>'+escHtml(oct.octopos_name || supplierCode)+'</b> (OCTOPOS vendor #'+vendorId+') · '+items.length+' פריטים</div>'+
-      '<table class="products"><thead><tr><th style="width:28%">מוצר</th><th>במלאי</th><th>Thr</th><th title="ממוצע מכירות לשבוע — מעודכן ע״י @slow-movers">ממ׳ 4w</th><th title="דירוג מ-@slow-movers">דירוג</th><th title="רווחיות מ-@profit-pulse">רווח</th><th title="מחיר מומלץ מ-@profit-pulse">🎯</th><th>כמות</th><th>מחיר ליחידה</th><th>סה"כ</th><th></th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'+
+      '<table class="products"><thead><tr><th style="width:28%">מוצר</th><th>במלאי</th><th>Thr</th><th title="ממוצע מכירות לשבוע — מעודכן ע״י @slow-movers">ממ׳ 4w</th><th title="דירוג מ-@slow-movers">דירוג</th><th title="סיגנל אירוע אחרון">🚨</th><th title="רווחיות מ-@profit-pulse">רווח</th><th title="מחיר מומלץ מ-@profit-pulse">🎯</th><th>כמות</th><th>מחיר ליחידה</th><th>סה"כ</th><th></th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'+
       '<div style="text-align:left;margin-top:10px;font-size:15px;font-weight:700">סה"כ הזמנה: <span class="po-grand-total">$'+sumCost.toFixed(2)+'</span></div>'+
       '<div class="modal-actions">'+
         '<button type="button" data-action="cancel">בטל</button>'+
@@ -2925,6 +2932,33 @@ function getMarginBadge(productId){
   if (band === 'low')      return '<span class="margin-badge mb-low" title="מתחת ל-2× (מטרה 3×) — לבדוק מחיר">💸 ' + mk + '</span>';
   if (band === 'strong')   return '<span class="margin-badge mb-strong" title="מעל ל-3× — מצוין">🟢 ' + mk + '</span>';
   return ''; // 'ok' = neutral
+}
+
+function getEventSignalBadge(productId){
+  var rec = getSlowRecord(productId);
+  if (!rec) return '';
+  var sig = rec.last_event_signal;
+  if (!sig || sig === "normal" || sig === "no_history" || sig === "low_base") return '';
+  var map = {
+    "stockout_friday":   {emoji:"🔴", title:"נגמר ביום שישי באירוע האחרון — מומלץ להזמין יותר"},
+    "stockout_saturday": {emoji:"🟠", title:"נגמר ביום שבת באירוע האחרון — מומלץ להזמין יותר"},
+    "overstock_heavy":   {emoji:"⚫", title:"נשארה יתרה גדולה אחרי האירוע — מומלץ להזמין פחות"},
+    "overstock_light":   {emoji:"🟡", title:"נשארה יתרה קלה אחרי האירוע"}
+  };
+  var s = map[sig];
+  if (!s) return '';
+  var m = rec.suggested_qty_multiplier;
+  return '<span title="' + s.title + (m ? ' (×' + m.toFixed(2) + ')' : '') + '" style="font-size:13px;cursor:help">' + s.emoji + '</span>';
+}
+
+// Returns the multiplier to apply to suggested order qty. Safety-bounded [0.5, 2.0].
+function getEventMultiplier(productId){
+  var rec = getSlowRecord(productId);
+  if (!rec) return 1.0;
+  var m = rec.suggested_qty_multiplier;
+  if (typeof m !== "number") return 1.0;
+  if (m < 0.5 || m > 2.0) return 1.0;
+  return m;
 }
 
 function getSuggestedPriceCell(productId){
