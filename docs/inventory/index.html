@@ -183,6 +183,11 @@
   .slow-badge.sb-disc   { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; }
   .slow-badge.sb-new    { background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; }
   .slow-badge.sb-promo  { background:#fae8ff; color:#86198f; border:1px solid #f0abfc; }
+  .margin-badge { display:inline-block; padding:2px 7px; border-radius:999px; font-size:11px; font-weight:700; vertical-align:middle; font-variant-numeric:tabular-nums; }
+  .margin-badge.mb-strong   { background:#dcfce7; color:#166534; }
+  .margin-badge.mb-low      { background:#fed7aa; color:#9a3412; border:1px solid #fdba74; }
+  .margin-badge.mb-critical { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; }
+  .margin-badge.mb-loss     { background:#1f2937; color:#fff; }
   .btn-order-wizard{font-size:15px;font-weight:800;padding:11px 22px;background:linear-gradient(180deg,#b45309,#78350f);color:#fff;border:none;border-radius:10px;cursor:pointer;box-shadow:0 1px 3px rgba(180,83,9,.4)}
   .btn-order-wizard:hover{filter:brightness(1.08)}
   .btn-refresh-octopos{font-size:13px;font-weight:700;padding:9px 16px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;cursor:pointer}
@@ -993,6 +998,8 @@ function renderSupplierCard(sup, s, idx){
           '<label>OCTOPOS sync</label>'+
           (function(){
   loadSlowMoversState();
+  loadProfitState();
+  loadProfitState();
             var oct_ = getOctoposForSupplier(sup.code);
             if (!oct_) return '<span class="octopos-chip" style="background:#fee2e2;color:#7f1d1d;border-color:#fca5a5">⚠️ אין נתוני OCTOPOS</span>';
             var n = (oct_.products||[]).length;
@@ -1081,6 +1088,8 @@ function renderSupplierCard(sup, s, idx){
               '<td>'+chip(qty, p.needs_recount)+'</td>'+
               '<td style="text-align:center;font-size:13px">'+getAvg4wHtml(p.id)+'</td>'+
               '<td style="text-align:center">'+getSlowBadge(p.id)+'</td>'+
+              '<td style="text-align:center">'+getMarginBadge(p.id)+'</td>'+
+              '<td style="text-align:center;font-size:13px">'+getSuggestedPriceCell(p.id)+'</td>'+
               '<td><input type="number" min="0" step="1" class="row-edit row-edit-thr" data-field="threshold" value="'+thrShow+'"></td>'+
               '<td><input type="number" min="0" step="1" class="row-edit row-edit-moq' + (moqVal?" edited":"") + '" data-field="moq" value="'+moqVal+'" placeholder="—"></td>'+
               '<td>'+toOrderHtml+'</td>'+
@@ -1096,6 +1105,8 @@ function renderSupplierCard(sup, s, idx){
           '<th>מלאי</th>'+
           '<th title="ממוצע מכירות לשבוע-אירוע ב-4 השבועות האחרונים — מעודכן כל יום ראשון">ממ׳ 4w</th>'+
           '<th title="באנד מ-@slow-movers — 🏆 בסט סלר · 💚 בריא · 👀 לעקוב · 🐢 איטי · 🪦 לשקול סגירה · 🆕 חדש">דירוג</th>'+
+          '<th title="רווחיות מ-@profit-pulse — 🟢 ≥3× · 🟡 ok · 💸 <2× · ⚠ <1.5× · ⚫ הפסד">רווח</th>'+
+          '<th title="מחיר מומלץ מ-@profit-pulse (target 3× — מעוגל לרמה סטנדרטית $1/$2/$3/$5/$7/$10/$15/$20)">🎯 מחיר</th>'+
           '<th title="Threshold — שינוי ידחף ל-OCTOPOS">THR ✏️</th>'+
           '<th title="מינ\' הזמנה מצד הספק">MOQ ✏️</th>'+
           '<th title="כמה צריך להזמין (threshold - מלאי)">להזמין</th>'+
@@ -1475,6 +1486,8 @@ function openGeneratePoModal(supplierCode, vendorId){
       '<td style="text-align:center">'+it.threshold+'</td>'+
       '<td style="text-align:center;font-size:13px">'+getAvg4wHtml(it.product_id)+'</td>'+
       '<td style="text-align:center">'+getSlowBadge(it.product_id)+'</td>'+
+      '<td style="text-align:center">'+getMarginBadge(it.product_id)+'</td>'+
+      '<td style="text-align:center;font-size:13px">'+getSuggestedPriceCell(it.product_id)+'</td>'+
       '<td><input type="number" min="0" step="1" data-bind="qty" value="'+it.suggested+'"></td>'+
       '<td><input type="number" min="0" step="0.01" data-bind="cost" value="'+it.cost_unit.toFixed(2)+'"></td>'+
       '<td class="line-total" style="text-align:left;font-weight:700">$'+(it.suggested * it.cost_unit).toFixed(2)+'</td>'+
@@ -1489,7 +1502,7 @@ function openGeneratePoModal(supplierCode, vendorId){
     '<div class="po-modal">'+
       '<h2>✨ צרי Purchase Order חדש</h2>'+
       '<div class="modal-sub">ספק: <b>'+escHtml(oct.octopos_name || supplierCode)+'</b> (OCTOPOS vendor #'+vendorId+') · '+items.length+' פריטים</div>'+
-      '<table class="products"><thead><tr><th style="width:32%">מוצר</th><th>במלאי</th><th>Thr</th><th title="ממוצע מכירות לשבוע — מעודכן ע״י @slow-movers">ממ׳ 4w</th><th title="דירוג מ-@slow-movers">דירוג</th><th>כמות</th><th>מחיר ליחידה</th><th>סה"כ</th><th></th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'+
+      '<table class="products"><thead><tr><th style="width:28%">מוצר</th><th>במלאי</th><th>Thr</th><th title="ממוצע מכירות לשבוע — מעודכן ע״י @slow-movers">ממ׳ 4w</th><th title="דירוג מ-@slow-movers">דירוג</th><th title="רווחיות מ-@profit-pulse">רווח</th><th title="מחיר מומלץ מ-@profit-pulse">🎯</th><th>כמות</th><th>מחיר ליחידה</th><th>סה"כ</th><th></th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'+
       '<div style="text-align:left;margin-top:10px;font-size:15px;font-weight:700">סה"כ הזמנה: <span class="po-grand-total">$'+sumCost.toFixed(2)+'</span></div>'+
       '<div class="modal-actions">'+
         '<button type="button" data-action="cancel">בטל</button>'+
@@ -2886,6 +2899,39 @@ function getSlowBadge(productId){
   if (band === 'healthy')
     return '<span title="בריא — זז סטבילי" class="slow-badge sb-healthy">💚</span>';
   return '';
+}
+
+var PROFIT_STATE = null;
+async function loadProfitState(){
+  try{
+    var r = await fetch("../state/profit_pulse.json?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok) PROFIT_STATE = await r.json();
+    else      PROFIT_STATE = {products:{}};
+  } catch(e){ PROFIT_STATE = {products:{}}; }
+}
+
+function getProfitRecord(productId){
+  if (!PROFIT_STATE || !PROFIT_STATE.products) return null;
+  return PROFIT_STATE.products[String(productId)] || null;
+}
+
+function getMarginBadge(productId){
+  var rec = getProfitRecord(productId);
+  if (!rec) return '';
+  var band = rec.profit_band;
+  var mk = rec.markup !== undefined ? rec.markup.toFixed(1) + 'x' : '?';
+  if (band === 'loss')     return '<span class="margin-badge mb-loss" title="הפסד — בודקי נתונים">⚫ הפסד</span>';
+  if (band === 'critical') return '<span class="margin-badge mb-critical" title="מתחת ל-1.5× — לבדוק מחיר">⚠ ' + mk + '</span>';
+  if (band === 'low')      return '<span class="margin-badge mb-low" title="מתחת ל-2× (מטרה 3×) — לבדוק מחיר">💸 ' + mk + '</span>';
+  if (band === 'strong')   return '<span class="margin-badge mb-strong" title="מעל ל-3× — מצוין">🟢 ' + mk + '</span>';
+  return ''; // 'ok' = neutral
+}
+
+function getSuggestedPriceCell(productId){
+  var rec = getProfitRecord(productId);
+  if (!rec || !rec.suggested_price) return '—';
+  if (rec.suggested_price === rec.sale_price) return '<span style="color:var(--muted);font-size:11px">בסדר</span>';
+  return '<span style="color:#16a34a;font-weight:700">$' + rec.suggested_price + '</span>';
 }
 
 var OCTOPOS_DEPTS = [{id:1, name:"Accessories"}];   // populated by loadDepartments()

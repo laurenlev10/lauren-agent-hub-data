@@ -65,6 +65,14 @@
   .band-pill.slow    { background:#fed7aa; color:#9a3412; }
   .band-pill.discontinuing { background:#fee2e2; color:#991b1b; }
   .band-pill.new { background:#dbeafe; color:#1e40af; }
+  .band-pill.strong   { background:#dcfce7; color:#166534; }
+  .band-pill.ok       { background:#fef3c7; color:#854d0e; }
+  .band-pill.low      { background:#fed7aa; color:#9a3412; }
+  .band-pill.critical { background:#fee2e2; color:#991b1b; }
+  .band-pill.loss     { background:#1f2937; color:#fff; }
+  .markup-cell { font-weight:700; font-variant-numeric:tabular-nums; }
+  .suggested-price-cell { color:#16a34a; font-weight:700; }
+  .price-noop { color:var(--muted); font-size:11px; }
   .score-bar { display:inline-block; width:60px; height:8px; background:#f3f4f6; border-radius:4px; overflow:hidden; vertical-align:middle; margin-left:6px; }
   .score-bar > span { display:block; height:100%; background:var(--accent); }
   .decision-select { font-size:11px; padding:3px 6px; border-radius:6px; border:1px solid var(--line); background:#fff; }
@@ -83,6 +91,7 @@
   <nav class="tabs">
     <button class="tab-btn active" data-tab="recount" type="button">🔢 רשימת ספירה</button>
     <button class="tab-btn" data-tab="slow" type="button">💤 מוצרים שלא זזים <span id="slow-count-badge" style="font-size:10px;color:var(--muted);"></span></button>
+    <button class="tab-btn" data-tab="profit" type="button">💰 רווחים <span id="profit-count-badge" style="font-size:10px;color:var(--muted);"></span></button>
   </nav>
 
   <div class="tab-pane" id="tab-recount">
@@ -217,6 +226,65 @@
       </ul>
     </div>
   </div><!-- /tab-slow -->
+
+  <div class="tab-pane hidden" id="tab-profit">
+    <div class="card">
+      <h2>💰 ניטור רווחיות — סקירה דו-שבועית</h2>
+      <p class="sub" id="profit-summary">טוען נתונים...</p>
+    </div>
+
+    <div class="card" id="profit-list-card" style="display:none;">
+      <div class="filter-row" style="margin-bottom:12px;">
+        <label><input type="checkbox" id="pf-loss" checked> ⚫ הפסד (<span id="pcnt-loss">0</span>)</label>
+        <label><input type="checkbox" id="pf-critical" checked> 🔴 קריטי (<span id="pcnt-critical">0</span>)</label>
+        <label><input type="checkbox" id="pf-low" checked> 🟠 נמוך (<span id="pcnt-low">0</span>)</label>
+        <label><input type="checkbox" id="pf-ok"> 🟡 בסדר (<span id="pcnt-ok">0</span>)</label>
+        <label><input type="checkbox" id="pf-strong"> 🟢 חזק (<span id="pcnt-strong">0</span>)</label>
+        <select id="pf-supplier" class="decision-select"><option value="">כל הספקים</option></select>
+      </div>
+      <div style="overflow-x:auto;">
+        <table id="profit-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>שם</th>
+              <th>ספק</th>
+              <th>עלות</th>
+              <th>מחיר נוכחי</th>
+              <th>×Markup</th>
+              <th>מרג'ין %</th>
+              <th>Band</th>
+              <th>🎯 מומלץ</th>
+              <th>פעולה</th>
+            </tr>
+          </thead>
+          <tbody id="profit-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" id="profit-empty-card" style="display:none;">
+      <div class="empty-state">
+        <div class="big">💰</div>
+        <p><b>הסוכן עוד לא רץ.</b></p>
+        <p>הריצה הראשונה תהיה ביום ראשון הבא בלילה (22:00 PT). הסוכן רץ דו-שבועית — לא צריך לבדוק כל יום.</p>
+        <p style="margin-top:14px; font-size:12px;">סוכן: <code>@profit-pulse</code> · קובץ: <code>docs/state/profit_pulse.json</code></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>מה הסוכן הזה עושה</h2>
+      <ul style="margin:8px 20px 0 0; padding:0; line-height:1.8;">
+        <li>סורק את כל המוצרים הפעילים ב-OCTOPOS דו-שבועית (יום ראשון 22:00 PT).</li>
+        <li>מחשב לכל מוצר: <b>markup = sale_price / unit_cost</b> ו-<b>מרג'ין % = (sale - cost) / sale</b>.</li>
+        <li>המטרה: ×3 מהעלות (markup ≥ 3.0 = מרג'ין ≥ 67%).</li>
+        <li>מוצרים מתחת ל-3× → מסומנים 🟠 או 🔴, עם הצעת מחיר חדש מעוגלת לרמה הסטנדרטית ($1/$2/$3/$5/$7/$10/$15/$20/$25/$30/$50).</li>
+        <li>את מאשרת/דוחה כל הצעה דרך הטבלה. ה-Wizard של ההזמנות מתאים את עצמו אוטומטית.</li>
+        <li>Phase 2: מחירים שאישרת יידחפו אוטומטית ל-OCTOPOS.</li>
+      </ul>
+    </div>
+  </div><!-- /tab-profit -->
+
 
 <div class="toast" id="toast">הועתק ל-clipboard ✓</div>
 <textarea class="copy-area" id="copy-buffer"></textarea>
@@ -612,6 +680,146 @@
         var content = JSON.stringify(SLOW_STATE, null, 2);
         var body = {message: "@slow-movers: lauren_decision[" + pid + "]=" + (value||"null"), content: btoa(unescape(encodeURIComponent(content))), branch:"main", sha: sha};
         return fetch(url, {method:"PUT", headers:{Authorization:"token "+token, Accept:"application/vnd.github+json", "Content-Type":"application/json"}, body: JSON.stringify(body)});
+      })
+      .then(r => { showToast(r.ok ? "✓ נשמר ב-GitHub" : "⚠️ שמירה נכשלה"); })
+      .catch(() => showToast("⚠️ שמירה נכשלה"));
+  });
+
+
+
+  // ── 💰 @profit-pulse tab — added 2026-05-17 PM ─────────────────────────
+  var PROFIT_STATE = null;
+
+  function loadProfitState(){
+    fetch("../state/profit_pulse.json?_=" + Date.now(), { cache: "no-store" })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(s => { PROFIT_STATE = s; renderProfit(); })
+      .catch(() => { PROFIT_STATE = {products:{}, biweekly_runs:[]}; renderProfit(); });
+  }
+  loadProfitState();
+  if ((params.get("tab") || "recount") === "profit") showTab("profit");
+
+  function renderProfit(){
+    var s = PROFIT_STATE || {};
+    var prods = Object.values(s.products || {});
+
+    var lastRun = (s.biweekly_runs || []).slice(-1)[0];
+    var sumEl = document.getElementById("profit-summary");
+    var nFlagged = prods.filter(p => p.profit_band === "low" || p.profit_band === "critical" || p.profit_band === "loss").length;
+    document.getElementById("profit-count-badge").textContent = nFlagged ? "(" + nFlagged + ")" : "";
+
+    if (!lastRun || !prods.length) {
+      sumEl.textContent = "עוד אין נתונים. הסוכן ירוץ ביום ראשון הקרוב (22:00 PT).";
+      document.getElementById("profit-empty-card").style.display = "";
+      document.getElementById("profit-list-card").style.display = "none";
+      return;
+    }
+
+    sumEl.innerHTML = "ריצה אחרונה: <b>" + lastRun.iso_biweek + "</b> · " +
+      "🟢 " + (lastRun.n_strong||0) + " · 🟡 " + (lastRun.n_ok||0) +
+      " · 🟠 " + (lastRun.n_low||0) + " · 🔴 " + (lastRun.n_critical||0) +
+      (lastRun.n_data_issue ? " · 🚨 " + lastRun.n_data_issue : "");
+
+    document.getElementById("profit-empty-card").style.display = "none";
+    document.getElementById("profit-list-card").style.display = "";
+
+    var byBand = {strong:0, ok:0, low:0, critical:0, loss:0};
+    prods.forEach(p => { if (byBand[p.profit_band] !== undefined) byBand[p.profit_band]++; });
+    document.getElementById("pcnt-strong").textContent = byBand.strong;
+    document.getElementById("pcnt-ok").textContent = byBand.ok;
+    document.getElementById("pcnt-low").textContent = byBand.low;
+    document.getElementById("pcnt-critical").textContent = byBand.critical;
+    document.getElementById("pcnt-loss").textContent = byBand.loss;
+
+    var suppliers = Array.from(new Set(prods.map(p => p.supplier).filter(Boolean))).sort();
+    var sup = document.getElementById("pf-supplier");
+    if (sup.options.length <= 1) {
+      suppliers.forEach(name => { var o = document.createElement("option"); o.value = name; o.textContent = name; sup.appendChild(o); });
+    }
+    renderProfitTable();
+  }
+
+  function renderProfitTable(){
+    var prods = Object.values((PROFIT_STATE || {}).products || {});
+    var fStrong = document.getElementById("pf-strong").checked;
+    var fOk = document.getElementById("pf-ok").checked;
+    var fLow = document.getElementById("pf-low").checked;
+    var fCrit = document.getElementById("pf-critical").checked;
+    var fLoss = document.getElementById("pf-loss").checked;
+    var supplier = document.getElementById("pf-supplier").value;
+
+    var rows = prods.filter(p => {
+      var b = p.profit_band;
+      if (b === "strong" && !fStrong) return false;
+      if (b === "ok" && !fOk) return false;
+      if (b === "low" && !fLow) return false;
+      if (b === "critical" && !fCrit) return false;
+      if (b === "loss" && !fLoss) return false;
+      if (supplier && p.supplier !== supplier) return false;
+      return true;
+    });
+
+    var rank = {loss:0, critical:1, low:2, ok:3, strong:4};
+    rows.sort((a,b) => (rank[a.profit_band]||9) - (rank[b.profit_band]||9) || (a.markup||0) - (b.markup||0));
+
+    var tbody = document.getElementById("profit-body");
+    tbody.innerHTML = "";
+    rows.forEach(p => {
+      var tr = document.createElement("tr");
+      var bandLabel = ({strong:"🟢 חזק", ok:"🟡 בסדר", low:"🟠 נמוך", critical:"🔴 קריטי", loss:"⚫ הפסד"})[p.profit_band] || p.profit_band;
+      var sugg = p.suggested_price;
+      var showSugg = (sugg && sugg !== p.sale_price) ? '<span class="suggested-price-cell">$' + sugg + '</span>' : '<span class="price-noop">—</span>';
+      var dec = p.lauren_decision || "";
+      tr.innerHTML =
+        '<td>' + escapeHtml(p.sku || "") + '</td>' +
+        '<td>' + escapeHtml(p.name || "") + '</td>' +
+        '<td>' + escapeHtml(p.supplier || "—") + '</td>' +
+        '<td class="qty-cell">$' + (p.unit_cost !== undefined ? p.unit_cost.toFixed(2) : "—") + '</td>' +
+        '<td class="qty-cell">$' + (p.sale_price !== undefined ? p.sale_price.toFixed(2) : "—") + '</td>' +
+        '<td class="markup-cell">' + (p.markup !== undefined ? p.markup.toFixed(2) + "x" : "—") + '</td>' +
+        '<td class="qty-cell">' + (p.margin_pct !== undefined ? p.margin_pct.toFixed(0) + "%" : "—") + '</td>' +
+        '<td><span class="band-pill ' + p.profit_band + '">' + bandLabel + '</span></td>' +
+        '<td>' + showSugg + '</td>' +
+        '<td><select class="decision-select" data-pid="' + p.id + '" data-profit-decision>' +
+          '<option value=""' + (dec === "" ? " selected" : "") + '>—</option>' +
+          '<option value="accept_raise"' + (dec === "accept_raise" ? " selected" : "") + '>✓ העלאת מחיר</option>' +
+          '<option value="keep_price"' + (dec === "keep_price" ? " selected" : "") + '>שמרי מחיר</option>' +
+          '<option value="discount"' + (dec === "discount" ? " selected" : "") + '>הוזל</option>' +
+          '<option value="drop"' + (dec === "drop" ? " selected" : "") + '>הוריד מהמערכת</option>' +
+        '</select></td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById("pf-strong").addEventListener("change", renderProfitTable);
+  document.getElementById("pf-ok").addEventListener("change", renderProfitTable);
+  document.getElementById("pf-low").addEventListener("change", renderProfitTable);
+  document.getElementById("pf-critical").addEventListener("change", renderProfitTable);
+  document.getElementById("pf-loss").addEventListener("change", renderProfitTable);
+  document.getElementById("pf-supplier").addEventListener("change", renderProfitTable);
+
+  // Decision change handler — writes back to profit_pulse.json via GitHub Contents API
+  document.getElementById("profit-body").addEventListener("change", function(e){
+    if (!e.target.matches("[data-profit-decision]")) return;
+    var pid = e.target.dataset.pid;
+    var value = e.target.value || null;
+    var token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+    if (!token) { showToast("⚠️ צריך GitHub token"); return; }
+    if (!PROFIT_STATE.products[pid]) return;
+
+    PROFIT_STATE.products[pid].lauren_decision = value;
+    PROFIT_STATE.products[pid].lauren_decided_at = new Date().toISOString();
+    PROFIT_STATE._updated_at = new Date().toISOString();
+
+    var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/profit_pulse.json";
+    fetch(url + "?ref=main", {headers:{Authorization:"token "+token, Accept:"application/vnd.github+json"}})
+      .then(r => r.json()).then(info => {
+        var content = JSON.stringify(PROFIT_STATE, null, 2);
+        var body = {message: "@profit-pulse: lauren_decision[" + pid + "]=" + (value||"null"),
+                    content: btoa(unescape(encodeURIComponent(content))), branch:"main", sha: info.sha};
+        return fetch(url, {method:"PUT",
+          headers:{Authorization:"token "+token, Accept:"application/vnd.github+json", "Content-Type":"application/json"},
+          body: JSON.stringify(body)});
       })
       .then(r => { showToast(r.ok ? "✓ נשמר ב-GitHub" : "⚠️ שמירה נכשלה"); })
       .catch(() => showToast("⚠️ שמירה נכשלה"));
