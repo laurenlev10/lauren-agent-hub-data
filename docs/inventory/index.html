@@ -1489,13 +1489,28 @@ function openGeneratePoModal(supplierCode, vendorId){
     return '<tr data-i="'+i+'">' +
       '<td>'+escHtml(it.product_name||'')+'<div style="color:var(--muted);font-size:12px"><code>'+escHtml(it.product_sku||'')+'</code></div></td>'+
       '<td style="text-align:center">'+it.in_stock+'</td>'+
-      '<td style="text-align:center">'+it.threshold+'</td>'+
       '<td style="text-align:center;font-size:13px">'+getAvg4wHtml(it.product_id)+'</td>'+
       '<td style="text-align:center">'+getSlowBadge(it.product_id)+'</td>'+
       '<td style="text-align:center">'+getEventSignalBadge(it.product_id)+'</td>'+
       '<td style="text-align:center">'+getMarginBadge(it.product_id)+'</td>'+
       '<td style="text-align:center;font-size:13px">'+getSuggestedPriceCell(it.product_id)+'</td>'+
-      '<td><input type="number" min="0" step="1" data-bind="qty" value="'+it.suggested+'"></td>'+
+      '<td class="thr-edit-cell" style="text-align:center;font-weight:700;background:#fafafa;min-width:90px" data-pid="'+it.product_id+'" data-current-thr="'+it.threshold+'">' +
+        '<span class="thr-view" style="display:flex;flex-direction:column;align-items:center;gap:3px;">' +
+          '<span class="thr-value">'+it.threshold+'</span>' +
+          '<span style="display:flex;gap:2px;">' +
+            '<button type="button" class="thr-edit-btn" title="עדכני את ה-Threshold ב-OCTOPOS עצמו (לפעמים הבאות)" style="font-size:10px;padding:2px 6px;background:#ddd6fe;border:1px solid #c4b5fd;border-radius:4px;cursor:pointer">✏️ שני</button>' +
+            '<button type="button" class="snap-to-thr-btn" data-i="'+i+'" data-thr="'+it.threshold+'" title="העתיקי את הסף ל-קמות (להזמנה הזו בלבד)" style="font-size:10px;padding:2px 6px;background:#e5e7eb;border:1px solid #d1d5db;border-radius:4px;cursor:pointer">↩ העתק לכמות</button>' +
+          '</span>' +
+        '</span>' +
+        '<span class="thr-edit-mode" style="display:none;flex-direction:column;align-items:center;gap:3px;">' +
+          '<input type="number" min="0" step="1" class="thr-new-val" value="'+it.threshold+'" style="width:60px;padding:3px 5px;font-size:12px;border:1px solid #c4b5fd;border-radius:4px;text-align:center;">' +
+          '<span style="display:flex;gap:2px;">' +
+            '<button type="button" class="thr-save-btn" title="לחצי כדי לעדכן ב-OCTOPOS" style="font-size:10px;padding:2px 6px;background:#7c3aed;color:#fff;border:0;border-radius:4px;cursor:pointer">💾 ל-OCTOPOS</button>' +
+            '<button type="button" class="thr-cancel-btn" title="ביטול" style="font-size:10px;padding:2px 6px;background:#e5e7eb;border:1px solid #d1d5db;border-radius:4px;cursor:pointer">✕</button>' +
+          '</span>' +
+        '</span>' +
+      '</td>'+
+      '<td>' + buildSuggestedQtyCell(it, i) + '</td>'+
       '<td><input type="number" min="0" step="0.01" data-bind="cost" value="'+it.cost_unit.toFixed(2)+'"></td>'+
       '<td class="line-total" style="text-align:left;font-weight:700">$'+(it.suggested * it.cost_unit).toFixed(2)+'</td>'+
       '<td><button type="button" class="po-line-del" data-i="'+i+'" title="הסר שורה">✕</button></td>'+
@@ -1509,7 +1524,7 @@ function openGeneratePoModal(supplierCode, vendorId){
     '<div class="po-modal">'+
       '<h2>✨ צרי Purchase Order חדש</h2>'+
       '<div class="modal-sub">ספק: <b>'+escHtml(oct.octopos_name || supplierCode)+'</b> (OCTOPOS vendor #'+vendorId+') · '+items.length+' פריטים</div>'+
-      '<table class="products"><thead><tr><th style="width:28%">מוצר</th><th>במלאי</th><th>Thr</th><th title="ממוצע מכירות לשבוע — מעודכן ע״י @slow-movers">ממ׳ 4w</th><th title="דירוג מ-@slow-movers">דירוג</th><th title="סיגנל אירוע אחרון">🚨</th><th title="רווחיות מ-@profit-pulse">רווח</th><th title="מחיר מומלץ מ-@profit-pulse">🎯</th><th>כמות</th><th>מחיר ליחידה</th><th>סה"כ</th><th></th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'+
+      '<table class="products"><thead><tr><th style="width:24%">מוצר</th><th>במלאי</th><th title="ממוצע מכירות לשבוע — מעודכן ע״י @slow-movers">ממ׳ 4w</th><th title="דירוג מ-@slow-movers">דירוג</th><th title="סיגנל אירוע אחרון">🚨</th><th title="רווחיות מ-@profit-pulse">רווח</th><th title="מחיר מומלץ מ-@profit-pulse">🎯</th><th title="Threshold הקיים ב-OCTOPOS — הבסיס ההיסטורי שלך, להשוואה">Thr (OCTOPOS)</th><th title="הצעת המערכת — תאשרי כאן ידנית או שני את המספר">📝 כמות לאישור</th><th>מחיר ליחידה</th><th>סה"כ</th><th></th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'+
       '<div style="text-align:left;margin-top:10px;font-size:15px;font-weight:700">סה"כ הזמנה: <span class="po-grand-total">$'+sumCost.toFixed(2)+'</span></div>'+
       '<div class="modal-actions">'+
         '<button type="button" data-action="cancel">בטל</button>'+
@@ -1518,6 +1533,92 @@ function openGeneratePoModal(supplierCode, vendorId){
       '</div>'+
     '</div>';
   document.body.appendChild(modal);
+
+  // Snap-to-Threshold: lets Lauren one-click copy OCTOPOS threshold into qty (this order only)
+  modal.addEventListener('click', function(e){
+    if (!e.target.matches('.snap-to-thr-btn')) return;
+    var idx = e.target.dataset.i;
+    var thr = parseFloat(e.target.dataset.thr) || 0;
+    var qtyInput = modal.querySelector('tr[data-i="' + idx + '"] input[data-bind="qty"]');
+    if (qtyInput) {
+      qtyInput.value = thr;
+      qtyInput.dispatchEvent(new Event('input', {bubbles:true}));
+      qtyInput.style.borderColor = '#10b981';
+      qtyInput.style.background = '#ecfdf5';
+      setTimeout(function(){ qtyInput.style.background = '#fff'; }, 1500);
+    }
+  });
+
+  // ✏️ שני — switch the Thr cell into edit mode
+  modal.addEventListener('click', function(e){
+    if (!e.target.matches('.thr-edit-btn')) return;
+    var cell = e.target.closest('.thr-edit-cell');
+    cell.querySelector('.thr-view').style.display = 'none';
+    cell.querySelector('.thr-edit-mode').style.display = 'flex';
+    cell.querySelector('.thr-new-val').focus();
+    cell.querySelector('.thr-new-val').select();
+  });
+
+  // ✕ ביטול — back to view mode
+  modal.addEventListener('click', function(e){
+    if (!e.target.matches('.thr-cancel-btn')) return;
+    var cell = e.target.closest('.thr-edit-cell');
+    cell.querySelector('.thr-view').style.display = 'flex';
+    cell.querySelector('.thr-edit-mode').style.display = 'none';
+    cell.querySelector('.thr-new-val').value = cell.dataset.currentThr;
+  });
+
+  // 💾 ל-OCTOPOS — PUT threshold_qty to OCTOPOS for THIS product. Persists for future orders.
+  modal.addEventListener('click', async function(e){
+    if (!e.target.matches('.thr-save-btn')) return;
+    var btn = e.target;
+    var cell = btn.closest('.thr-edit-cell');
+    var pid = cell.dataset.pid;
+    var oldThr = parseFloat(cell.dataset.currentThr) || 0;
+    var newThr = parseFloat(cell.querySelector('.thr-new-val').value);
+    if (isNaN(newThr) || newThr < 0) { toast('⚠️ מספר לא חוקי', 'error'); return; }
+    if (Math.abs(newThr - oldThr) < 0.5) { toast('⚠️ הסף זהה לנוכחי', ''); return; }
+    var pname = '';
+    try {
+      var row = btn.closest('tr');
+      pname = row.querySelector('td').textContent.trim().split('\n')[0];
+    } catch(_){}
+    if (!confirm('לעדכן Threshold של\n' + pname + '\nמ-' + oldThr + ' ל-' + newThr + ' ב-OCTOPOS?\n(נשמר לפעמים הבאות)')) return;
+
+    var octToken = (localStorage.getItem('lauren_octopos_token') || '').trim();
+    if (!octToken) { toast('⚠️ צריך OCTOPOS token — היכנסי לדשבורד תחילה', 'error'); return; }
+    btn.disabled = true;
+    btn.textContent = '...מעדכן';
+    try {
+      var r = await fetch('https://themakeup.octoretail.com/api/v2/products/' + pid, {
+        method: 'PUT',
+        headers: {'Authorization': octToken, 'Content-Type':'application/json', 'Accept':'application/json'},
+        body: JSON.stringify({'threshold_qty': newThr})
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      toast('✓ Threshold עודכן ב-OCTOPOS: ' + newThr, 'success');
+      // Update display + snap-button data
+      cell.dataset.currentThr = newThr;
+      cell.querySelector('.thr-value').textContent = newThr;
+      var snapBtn = cell.querySelector('.snap-to-thr-btn');
+      if (snapBtn) snapBtn.dataset.thr = newThr;
+      cell.querySelector('.thr-view').style.display = 'flex';
+      cell.querySelector('.thr-edit-mode').style.display = 'none';
+      // Update the corresponding OCTOPOS snapshot in memory (optimistic; daily sync will reconcile)
+      try {
+        for (var code in (OCTOPOS.vendors || {})) {
+          var arr = OCTOPOS.vendors[code].products || [];
+          for (var j=0;j<arr.length;j++){
+            if (arr[j].id == pid) { arr[j].threshold = newThr; break; }
+          }
+        }
+      } catch(_){}
+    } catch(err) {
+      toast('⚠️ נכשל: ' + err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = '💾 ל-OCTOPOS';
+    }
+  });
 
   function recalc(){
     var rows = modal.querySelectorAll('tbody tr');
@@ -2959,6 +3060,47 @@ function getEventMultiplier(productId){
   if (typeof m !== "number") return 1.0;
   if (m < 0.5 || m > 2.0) return 1.0;
   return m;
+}
+
+// Build the Wizard qty input cell — Lauren approves manually. Tooltip explains the math.
+function buildSuggestedQtyCell(it, idx){
+  var rec = getSlowRecord(it.product_id) || {};
+  var rule = (typeof PRODUCT_RULES !== 'undefined' && PRODUCT_RULES.rules) ? (PRODUCT_RULES.rules[it.product_id] || {}) : {};
+  var avg4w = rec.avg_sold_per_event_week_4w;
+  var sig = rec.last_event_signal;
+  var mult = rec.suggested_qty_multiplier || 1.0;
+  var minDisplay = rule.min_display;
+  var moq = rule.moq;
+  var caseSize = rule.multiple_of;
+
+  // Build tooltip string — multi-line, human-readable
+  var why = ['📊 חישוב הכמות:'];
+  if (avg4w !== undefined && avg4w !== null) {
+    why.push('• ממוצע 4 שבועות: ' + avg4w.toFixed(1) + ' לאירוע');
+  } else {
+    why.push('• ממוצע: אין נתונים עדיין (אוסף מתחיל יום ראשון הבא)');
+  }
+  why.push('• Threshold OCTOPOS: ' + it.threshold);
+  if (minDisplay) why.push('• מינ\' לתחילת אירוע (שלך): ' + minDisplay + (minDisplay > it.threshold ? ' ← גובר' : ''));
+  if (sig && sig !== 'normal' && sig !== 'no_history') {
+    var sigLabel = ({stockout_friday:'נגמר שישי',stockout_saturday:'נגמר שבת',overstock_heavy:'יתרה כבדה',overstock_light:'יתרה קלה'})[sig] || sig;
+    why.push('• סיגנל אירוע אחרון: ' + sigLabel + ' → ×' + mult.toFixed(2));
+  }
+  if (moq) why.push('• MOQ של הספק: ' + moq + ' (מינ\' להזמנה)');
+  if (caseSize) why.push('• case_size: כפולה של ' + caseSize);
+  why.push('');
+  why.push('→ הצעת המערכת: ' + it.suggested);
+  why.push('(תוכלי לאשר או לשנות למספר אחר)');
+  var tipText = why.join('\n');
+
+  // Yellow nudge if suggested differs from threshold by >30%
+  var deltaPct = it.threshold > 0 ? Math.abs(it.suggested - it.threshold) / it.threshold : 0;
+  var borderColor = deltaPct > 0.3 ? '#f59e0b' : 'var(--line)';
+  var bg = deltaPct > 0.3 ? '#fffbeb' : '#fff';
+  return '<input type="number" min="0" step="1" data-bind="qty" value="' + it.suggested + '" ' +
+         'data-suggested="' + it.suggested + '" ' +
+         'title="' + tipText.replace(/"/g, '&quot;') + '" ' +
+         'style="width:65px;padding:6px 8px;border:1.5px solid ' + borderColor + ';background:' + bg + ';font-weight:700;font-size:13px;text-align:center;">';
 }
 
 function getSuggestedPriceCell(productId){
