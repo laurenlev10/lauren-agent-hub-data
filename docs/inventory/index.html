@@ -2428,15 +2428,25 @@ function openReviewModal(){
               }
               return '<div class="suggest-cell" data-suggested="' + r.suggested + '" title="' + qtyTip + '" style="text-align:center;font-weight:700;color:' + color + ';background:' + bg + ';border-radius:6px;padding:4px 6px;cursor:pointer;border:1px solid ' + border + ';" data-pid="' + r.product_id + '">' + r.suggested + arrow + '</div>';
             })() +
-            // 📦 Display column — show max + min
+            // 📦 Display column — clickable inline editor (max=display_capacity / min=min_display)
             (function(){
               var rule_d = r.rule || {};
-              var maxD = rule_d.display_capacity;
-              var minD = rule_d.min_display;
-              if (!maxD && !minD) return '<div style="color:var(--muted);font-size:11px;text-align:center;">—</div>';
+              var maxD = rule_d.display_capacity || '';
+              var minD = rule_d.min_display || '';
               var maxPart = maxD ? '<span style="color:#1e40af">' + maxD + '</span>' : '<span style="color:var(--muted)">?</span>';
               var minPart = minD ? '<span style="color:#9a3412">' + minD + '</span>' : '<span style="color:var(--muted)">?</span>';
-              return '<div style="font-size:11px;text-align:center;line-height:1.4;"><span title="מקסימום בדיספליי">' + maxPart + '</span><span style="color:var(--muted);"> / </span><span title="מינ׳ לתחילת אירוע">' + minPart + '</span></div>';
+              var viewHtml = (maxD || minD) ? (maxPart + '<span style="color:var(--muted);"> / </span>' + minPart) : '—';
+              return '<div class="dispmax-cell" data-pid="' + r.product_id + '" data-max="' + maxD + '" data-min="' + minD + '" style="font-size:11px;text-align:center;line-height:1.4;">' +
+                '<span class="dispmax-view" style="cursor:pointer;display:inline-block;padding:2px 4px;border-radius:4px;" title="לחיצה לעריכה — max=מקסימום בדיספליי · min=מינ\' לתחילת אירוע">' + viewHtml + ' <span style="color:#7c3aed;font-size:9px;">✏️</span></span>' +
+                '<span class="dispmax-edit" style="display:none;flex-direction:column;align-items:center;gap:2px;">' +
+                  '<input type="number" min="0" step="1" class="dispmax-max" placeholder="max" value="' + maxD + '" style="width:42px;padding:2px 3px;font-size:10px;text-align:center;border:1px solid #93c5fd;border-radius:3px;" title="max">' +
+                  '<input type="number" min="0" step="1" class="dispmax-min" placeholder="min" value="' + minD + '" style="width:42px;padding:2px 3px;font-size:10px;text-align:center;border:1px solid #fdba74;border-radius:3px;" title="min">' +
+                  '<span style="display:flex;gap:1px;">' +
+                    '<button class="qty-btn" data-action="dispmax-save" style="font-size:9px;padding:1px 4px;background:#7c3aed;color:#fff;border:0;">💾</button>' +
+                    '<button class="qty-btn" data-action="dispmax-cancel" style="font-size:9px;padding:1px 4px;">✕</button>' +
+                  '</span>' +
+                '</span>' +
+              '</div>';
             })() +
             '<div class="gap-cell ' + (gap > 0 ? 'gap-pos' : (gap < 0 ? 'gap-neg' : '')) + '">' + (gap > 0 ? '+' : '') + gap + '</div>' +
             '<input type="number" min="0" step="' + r.case_size + '" data-bind="qty" value="' + r.qty + '" title="' + qtyTip + '">' +
@@ -2505,6 +2515,77 @@ function openReviewModal(){
       e.stopPropagation();
       var pid = histBtn.dataset.pid;
       if (pid && typeof openProductHistory === 'function') openProductHistory(pid);
+      return;
+    }
+
+    // 📦 Display max/min — click view to open editor
+    var dispView = e.target.closest('.dispmax-view');
+    if (dispView) {
+      e.stopPropagation();
+      var dCell = dispView.closest('.dispmax-cell');
+      dCell.querySelector('.dispmax-view').style.display = 'none';
+      dCell.querySelector('.dispmax-edit').style.display = 'flex';
+      dCell.querySelector('.dispmax-max').focus();
+      return;
+    }
+
+    // ✕ Cancel display edit
+    var dispCancel = e.target.closest('[data-action="dispmax-cancel"]');
+    if (dispCancel) {
+      e.stopPropagation();
+      var dCellC = dispCancel.closest('.dispmax-cell');
+      dCellC.querySelector('.dispmax-view').style.display = 'inline-block';
+      dCellC.querySelector('.dispmax-edit').style.display = 'none';
+      dCellC.querySelector('.dispmax-max').value = dCellC.dataset.max || '';
+      dCellC.querySelector('.dispmax-min').value = dCellC.dataset.min || '';
+      return;
+    }
+
+    // 💾 Save display max/min via saveProductRule
+    var dispSave = e.target.closest('[data-action="dispmax-save"]');
+    if (dispSave) {
+      e.stopPropagation();
+      var dCellS = dispSave.closest('.dispmax-cell');
+      var pidDM = dCellS.dataset.pid;
+      var newMax = Number(dCellS.querySelector('.dispmax-max').value) || 0;
+      var newMin = Number(dCellS.querySelector('.dispmax-min').value) || 0;
+      // Build/merge rule: preserve existing fields, update display_capacity + min_display
+      var existing = (typeof getRuleFor === 'function') ? (getRuleFor(pidDM) || {}) : {};
+      var rule = Object.assign({}, existing);
+      if (newMax > 0) rule.display_capacity = newMax; else delete rule.display_capacity;
+      if (newMin > 0) rule.min_display = newMin; else delete rule.min_display;
+      dispSave.disabled = true; dispSave.textContent = '...';
+      saveProductRule(pidDM, Object.keys(rule).length ? rule : null).then(function(ok){
+        if (!ok) { toast('⚠️ שמירה נכשלה', 'error'); dispSave.disabled = false; dispSave.textContent = '💾'; return; }
+        toast('✓ נשמר', 'success');
+        // Update local row data
+        try {
+          if (REVIEW_DATA && REVIEW_DATA.suppliers) {
+            REVIEW_DATA.suppliers.forEach(function(s){
+              ['order','borderline','skip'].forEach(function(L){
+                (s.lanes[L] || []).forEach(function(rr){
+                  if (rr.product_id == pidDM) { rr.rule = rule; }
+                });
+              });
+            });
+          }
+        } catch(_){}
+        // Update the cell's data attributes + view HTML
+        dCellS.dataset.max = newMax || '';
+        dCellS.dataset.min = newMin || '';
+        var maxPartU = newMax ? '<span style="color:#1e40af">' + newMax + '</span>' : '<span style="color:var(--muted)">?</span>';
+        var minPartU = newMin ? '<span style="color:#9a3412">' + newMin + '</span>' : '<span style="color:var(--muted)">?</span>';
+        var viewHtmlU = (newMax || newMin) ? (maxPartU + '<span style="color:var(--muted);"> / </span>' + minPartU) : '—';
+        var viewEl = dCellS.querySelector('.dispmax-view');
+        viewEl.innerHTML = viewHtmlU + ' <span style="color:#7c3aed;font-size:9px;">✏️</span>';
+        viewEl.style.display = 'inline-block';
+        dCellS.querySelector('.dispmax-edit').style.display = 'none';
+        dispSave.disabled = false;
+        dispSave.textContent = '💾';
+      }).catch(function(err){
+        toast('⚠️ נכשל: ' + err.message, 'error');
+        dispSave.disabled = false; dispSave.textContent = '💾';
+      });
       return;
     }
 
