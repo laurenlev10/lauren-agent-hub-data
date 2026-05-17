@@ -260,7 +260,7 @@
               <th>מרג'ין %</th>
               <th>Band</th>
               <th>🎯 מומלץ</th>
-              <th>פעולה</th>
+              <th title="הכניסי מחיר חדש ולחצי \"עדכן\" כדי לדחוף לאוקטופוס. ההמלצה מופיעה כ-placeholder.">מחיר חדש + עדכן</th>
             </tr>
           </thead>
           <tbody id="profit-body"></tbody>
@@ -283,9 +283,8 @@
         <li>סורק את כל המוצרים הפעילים ב-OCTOPOS דו-שבועית (יום ראשון 22:00 PT).</li>
         <li>מחשב לכל מוצר: <b>markup = sale_price / unit_cost</b> ו-<b>מרג'ין % = (sale - cost) / sale</b>.</li>
         <li>המטרה: ×3 מהעלות (markup ≥ 3.0 = מרג'ין ≥ 67%).</li>
-        <li>מוצרים מתחת ל-3× → מסומנים 🟠 או 🔴, עם הצעת מחיר חדש מעוגלת לרמה הסטנדרטית ($1/$2/$3/$5/$7/$10/$15/$20/$25/$30/$50).</li>
-        <li>את מאשרת/דוחה כל הצעה דרך הטבלה. ה-Wizard של ההזמנות מתאים את עצמו אוטומטית.</li>
-        <li>Phase 2: מחירים שאישרת יידחפו אוטומטית ל-OCTOPOS.</li>
+        <li>מוצרים מתחת ל-3× → מסומנים 🟠 או 🔴, עם הצעת מחיר חדש מעוגלת לרמה הסטנדרטית ($1/$2/$3/$5/$7/$10/$15/$20).</li>
+        <li><b>הסוכן לעולם לא משנה מחירים אוטומטית.</b> את מקבלת המלצה, ובוחרת אם להעלות. כדי לעדכן מחיר ב-OCTOPOS: הכניסי את המחיר החדש בעמודה "מחיר חדש + עדכן" ולחצי על הכפתור — המערכת תאשר ותעדכן את OCTOPOS תוך 1-2 שניות.</li>
       </ul>
     </div>
   </div><!-- /tab-profit -->
@@ -778,13 +777,11 @@
         '<td class="qty-cell">' + (p.margin_pct !== undefined ? p.margin_pct.toFixed(0) + "%" : "—") + '</td>' +
         '<td><span class="band-pill ' + p.profit_band + '">' + bandLabel + '</span></td>' +
         '<td>' + showSugg + '</td>' +
-        '<td><select class="decision-select" data-pid="' + p.id + '" data-profit-decision>' +
-          '<option value=""' + (dec === "" ? " selected" : "") + '>—</option>' +
-          '<option value="accept_raise"' + (dec === "accept_raise" ? " selected" : "") + '>✓ העלאת מחיר</option>' +
-          '<option value="keep_price"' + (dec === "keep_price" ? " selected" : "") + '>שמרי מחיר</option>' +
-          '<option value="discount"' + (dec === "discount" ? " selected" : "") + '>הוזל</option>' +
-          '<option value="drop"' + (dec === "drop" ? " selected" : "") + '>הוריד מהמערכת</option>' +
-        '</select></td>';
+        '<td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
+          '<input type="number" step="0.01" min="0" class="profit-new-price" data-pid="' + p.id + '" placeholder="' + (sugg || p.sale_price || "") + '" value="' + (p._lauren_new_price ?? "") + '" style="width:70px;padding:4px 6px;font-size:12px;border:1px solid var(--line);border-radius:6px;">' +
+          '<button class="btn-apply-price decision-select" data-pid="' + p.id + '" data-current-price="' + (p.sale_price || 0) + '" style="background:#16a34a;color:#fff;border:0;cursor:pointer;font-size:11px;padding:5px 10px;">✓ עדכן OCTOPOS</button>' +
+          (p._applied_at_octopos ? '<span style="color:#16a34a;font-size:11px;">✓ עודכן ' + p._applied_at_octopos.slice(0,10) + '</span>' : '') +
+        '</td>';
       tbody.appendChild(tr);
     });
   }
@@ -796,31 +793,63 @@
   document.getElementById("pf-loss").addEventListener("change", renderProfitTable);
   document.getElementById("pf-supplier").addEventListener("change", renderProfitTable);
 
-  // Decision change handler — writes back to profit_pulse.json via GitHub Contents API
-  document.getElementById("profit-body").addEventListener("change", function(e){
-    if (!e.target.matches("[data-profit-decision]")) return;
-    var pid = e.target.dataset.pid;
-    var value = e.target.value || null;
-    var token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
-    if (!token) { showToast("⚠️ צריך GitHub token"); return; }
-    if (!PROFIT_STATE.products[pid]) return;
+  // Apply-price handler — Lauren's architecture: she types a new price, clicks "עדכן OCTOPOS",
+  // browser PUTs to /api/v2/products/{id} with her OCTOPOS token (stored in localStorage from earlier
+  // inventory dashboard login). NO auto-apply ever. Confirmation toast + audit to profit_pulse.json.
+  document.getElementById("profit-body").addEventListener("click", async function(e){
+    if (!e.target.matches(".btn-apply-price")) return;
+    var btn = e.target;
+    var pid = btn.dataset.pid;
+    var row = btn.closest("tr");
+    var inp = row.querySelector(".profit-new-price");
+    var newPrice = parseFloat(inp.value);
+    if (!newPrice || newPrice <= 0) { showToast("⚠️ הכניסי מחיר חוקי"); return; }
+    var currentPrice = parseFloat(btn.dataset.currentPrice) || 0;
+    if (Math.abs(newPrice - currentPrice) < 0.01) { showToast("⚠️ המחיר זהה לנוכחי"); return; }
+    if (!confirm("לעדכן " + (PROFIT_STATE.products[pid] || {}).name + " מ-$" + currentPrice.toFixed(2) + " ל-$" + newPrice.toFixed(2) + " ב-OCTOPOS?")) return;
 
-    PROFIT_STATE.products[pid].lauren_decision = value;
-    PROFIT_STATE.products[pid].lauren_decided_at = new Date().toISOString();
-    PROFIT_STATE._updated_at = new Date().toISOString();
-
-    var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/profit_pulse.json";
-    fetch(url + "?ref=main", {headers:{Authorization:"token "+token, Accept:"application/vnd.github+json"}})
-      .then(r => r.json()).then(info => {
+    var octToken = (localStorage.getItem("lauren_octopos_token") || "").trim();
+    if (!octToken) { showToast("⚠️ צריך OCTOPOS token — היכנסי לדשבורד המלאי תחילה"); return; }
+    btn.disabled = true;
+    btn.textContent = "...מעדכן";
+    try{
+      var r = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
+        method: "PUT",
+        headers: {"Authorization": octToken, "Content-Type":"application/json", "Accept":"application/json"},
+        body: JSON.stringify({"sale_price": newPrice})
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      showToast("✓ עודכן ב-OCTOPOS: $" + newPrice.toFixed(2));
+      // Audit to profit_pulse.json via GitHub Contents API
+      var ghToken = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+      if (ghToken && PROFIT_STATE.products[pid]) {
+        var rec = PROFIT_STATE.products[pid];
+        rec.lauren_decision = "accept_raise";
+        rec.lauren_decided_at = new Date().toISOString();
+        rec._applied_at_octopos = new Date().toISOString();
+        rec.price_history = (rec.price_history || []).concat([{
+          changed_at: new Date().toISOString(),
+          from: currentPrice, to: newPrice,
+          by: "lauren-manual-via-dashboard"
+        }]);
+        rec.sale_price = newPrice;  // optimistic local update
+        PROFIT_STATE._updated_at = new Date().toISOString();
+        var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/profit_pulse.json";
+        var info = await fetch(url + "?ref=main", {headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json"}}).then(r=>r.json());
         var content = JSON.stringify(PROFIT_STATE, null, 2);
-        var body = {message: "@profit-pulse: lauren_decision[" + pid + "]=" + (value||"null"),
-                    content: btoa(unescape(encodeURIComponent(content))), branch:"main", sha: info.sha};
-        return fetch(url, {method:"PUT",
-          headers:{Authorization:"token "+token, Accept:"application/vnd.github+json", "Content-Type":"application/json"},
-          body: JSON.stringify(body)});
-      })
-      .then(r => { showToast(r.ok ? "✓ נשמר ב-GitHub" : "⚠️ שמירה נכשלה"); })
-      .catch(() => showToast("⚠️ שמירה נכשלה"));
+        await fetch(url, {method:"PUT",
+          headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json", "Content-Type":"application/json"},
+          body: JSON.stringify({message:"@profit-pulse: lauren applied price["+pid+"] $"+currentPrice+"→$"+newPrice,
+                                content: btoa(unescape(encodeURIComponent(content))), branch:"main", sha: info.sha})});
+      }
+      btn.textContent = "✓ עודכן";
+      btn.style.background = "#86efac";
+      btn.style.color = "#14532d";
+    } catch(err){
+      showToast("⚠️ נכשל: " + err.message);
+      btn.disabled = false;
+      btn.textContent = "✓ עדכן OCTOPOS";
+    }
   });
 
 })();

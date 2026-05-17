@@ -185,13 +185,52 @@ def main():
     counted_pids = sorted(set(int(r["product_id"]) for r in events))
     print(f"OCTOPOS returned {len(events)} recount events → {len(counted_pids)} unique product ids")
 
+    # Auto-cleanup: REMOVE the "Recount" tag (category_id=14) from every counted product
+    # that still has it. Approved by Lauren 2026-05-17 PM late.
+    # Uses PUT /api/v2/products/{id} with raw v2 token (Lauren architecture: this is the
+    # ONE place we DO mutate OCTOPOS — clearing tags after positive count evidence).
+    v2_token = os.environ.get("OCTOPOS_TOKEN") or ""
+    cleaned_count = 0
+    failed_count = 0
+    if v2_token and counted_pids:
+        for pid in counted_pids:
+            try:
+                # Read current categories
+                rr = urllib.request.Request(f"{OCTO_BASE}/api/v2/products/{pid}",
+                    headers={"Authorization": v2_token, "Accept": "application/json"})
+                with urllib.request.urlopen(rr, timeout=8) as r:
+                    prod = json.loads(r.read())
+                cats = prod.get("categories") or []
+                has_recount = any((c.get("name") or "").strip().lower() == "recount" for c in cats)
+                if not has_recount:
+                    continue  # nothing to clean
+                # PUT with category_ids minus Recount
+                new_cat_ids = [c["id"] for c in cats if (c.get("name") or "").strip().lower() != "recount"]
+                pr = urllib.request.Request(f"{OCTO_BASE}/api/v2/products/{pid}",
+                    data=json.dumps({"category_ids": new_cat_ids}).encode(),
+                    headers={"Authorization": v2_token, "Content-Type": "application/json",
+                             "Accept": "application/json"}, method="PUT")
+                with urllib.request.urlopen(pr, timeout=8) as r:
+                    if r.status == 200:
+                        cleaned_count += 1
+                    else:
+                        failed_count += 1
+            except Exception as e:
+                failed_count += 1
+                print(f"  cleanup err id={pid}: {e}")
+        print(f"Auto-cleanup: removed RECOUNT tag from {cleaned_count} products (failed: {failed_count})")
+    elif not v2_token:
+        print("OCTOPOS_TOKEN env var not set — skipping auto-cleanup (read-only run)")
+
     # Bump @recount state — minimal slice; full worklist recompute lives in the Cowork
-    # session. The cron's job is to (a) prove freshness, (b) save the audit trail.
+    # session. The cron job: (a) prove freshness, (b) save the audit trail, (c) clear tags.
     state_path = REPO_ROOT / "docs/state/octopos_recount.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))
     state.setdefault("events", {}).setdefault(evkey, {})
     state["events"][evkey]["counted_pids_real"] = counted_pids
     state["events"][evkey]["recount_events_count"] = len(events)
+    state["events"][evkey]["auto_cleanup_removed_recount_tag"] = cleaned_count
+    state["events"][evkey]["auto_cleanup_failed"] = failed_count
     state["events"][evkey]["last_cron_fire_at"] = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     state["events"][evkey]["last_cron_fire_local"] = local.strftime("%Y-%m-%d %H:%M %Z")
     state["events"][evkey]["window"] = {"start": start, "end": end}
@@ -199,10 +238,12 @@ def main():
     state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Wrote state slice for {evkey}")
 
+    cleanup_line = f"🧹 הוסרתי תג RECOUNT מ-{cleaned_count} מוצרים" if cleaned_count else ""
     body = (
         f"@recount ✓ סיימתי סריקה אוטומטית של {city}, {state} ({local.strftime('%H:%M %Z')}).\n"
-        f"📊 {len(events)} תנועות ספירה · {len(counted_pids)} מוצרים יחודיים נספרו.\n\n"
-        f"https://laurenlev10.github.io/lauren-agent-hub-data/recount/?evkey={evkey}"
+        f"📊 {len(events)} תנועות ספירה · {len(counted_pids)} מוצרים יחודיים נספרו.\n"
+        + (cleanup_line + "\n" if cleanup_line else "")
+        + f"\nhttps://laurenlev10.github.io/lauren-agent-hub-data/recount/?evkey={evkey}"
     )
     sms_lauren(body)
     print("Done.")
