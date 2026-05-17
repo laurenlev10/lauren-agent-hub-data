@@ -2471,7 +2471,7 @@ function openReviewModal(){
             '<div class="rev-line-total">$' + (r.qty * r.unit_cost).toFixed(2) + '</div>' +
             // 🔢 RECOUNT toggle — current state derived from product.categories; click PUTs to OCTOPOS
             (function(){
-              var hasRecount = false;
+              var hasRecountReal = false;   // actual OCTOPOS state
               try {
                 var prod_r = null;
                 for (var cc in (OCTOPOS.vendors || {})) {
@@ -2480,13 +2480,28 @@ function openReviewModal(){
                   if (prod_r) break;
                 }
                 if (prod_r && prod_r.categories) {
-                  hasRecount = prod_r.categories.some(function(c){ return (c.name||'').toLowerCase() === 'recount'; });
+                  hasRecountReal = prod_r.categories.some(function(c){ return (c.name||'').toLowerCase() === 'recount'; });
                 }
               } catch(_){}
-              var icon = hasRecount ? '☑️' : '☐';
-              var title = hasRecount ? 'מסומן RECOUNT — לחיצה תוריד את התג' : 'לחיצה תוסיף תג RECOUNT ב-OCTOPOS';
-              var color = hasRecount ? '#7c3aed' : '#9ca3af';
-              return '<div style="text-align:center;"><button class="qty-btn" data-action="toggle-recount" data-pid="' + r.product_id + '" data-has="' + (hasRecount?1:0) + '" title="' + title + '" style="font-size:14px;padding:2px 6px;color:' + color + ';border:1px solid ' + (hasRecount?'#c4b5fd':'var(--line)') + ';background:' + (hasRecount?'#ede9fe':'var(--panel)') + ';">' + icon + '</button></div>';
+              // Visual: any negative-qty product should display ☑️ as a 'policy nudge'.
+              // The auto-tag cron will catch it on the next 2 AM run; clicking the checkbox NOW
+              // will tag it immediately (since data-has=0, the toggle handler ADDS the tag).
+              var isNegative = (r.in_stock || 0) < 0;
+              var showAsChecked = hasRecountReal || isNegative;
+              var icon = showAsChecked ? '☑️' : '☐';
+              var pendingMark = (isNegative && !hasRecountReal) ? '<sup style="color:#f59e0b;font-size:9px;">*</sup>' : '';
+              var title;
+              if (hasRecountReal) {
+                title = 'מסומן RECOUNT — לחיצה תוריד את התג';
+              } else if (isNegative) {
+                title = '🚨 מינוס במלאי — מדיניות: סימון אוטומטי. לחיצה תוסיף את התג ל-OCTOPOS עכשיו (במקום להמתין לסנכרון של 2 בלילה).';
+              } else {
+                title = 'לחיצה תוסיף תג RECOUNT ב-OCTOPOS';
+              }
+              var color = showAsChecked ? (hasRecountReal ? '#7c3aed' : '#f59e0b') : '#9ca3af';
+              var border = showAsChecked ? (hasRecountReal ? '#c4b5fd' : '#fcd34d') : 'var(--line)';
+              var bg = showAsChecked ? (hasRecountReal ? '#ede9fe' : '#fef3c7') : 'var(--panel)';
+              return '<div style="text-align:center;"><button class="qty-btn" data-action="toggle-recount" data-pid="' + r.product_id + '" data-has="' + (hasRecountReal?1:0) + '" title="' + title + '" style="font-size:14px;padding:2px 6px;color:' + color + ';border:1px solid ' + border + ';background:' + bg + ';">' + icon + pendingMark + '</button></div>';
             })() +
             '<div class="qty-controls">' +
               '<button class="qty-btn" data-action="show-history" data-pid="' + r.product_id + '" title="📋 היסטוריה של המוצר">📋</button>' +
