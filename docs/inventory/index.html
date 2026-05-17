@@ -2393,6 +2393,15 @@ function openReviewModal(){
       renderTab();
       return;
     }
+    // 📋 History button — open product history modal (works from any row)
+    var histBtn = e.target.closest('[data-action="show-history"]');
+    if (histBtn) {
+      e.stopPropagation();
+      var pid = histBtn.dataset.pid;
+      if (pid && typeof openProductHistory === 'function') openProductHistory(pid);
+      return;
+    }
+
     const row = e.target.closest('.rev-row');
     if (!row) {
       // Handle action buttons (send PO / SMS)
