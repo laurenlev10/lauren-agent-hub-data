@@ -999,6 +999,7 @@ function renderSupplierCard(sup, s, idx){
           (function(){
   loadSlowMoversState();
   loadProfitState();
+  loadAllEvents();
   loadProfitState();
             var oct_ = getOctoposForSupplier(sup.code);
             if (!oct_) return '<span class="octopos-chip" style="background:#fee2e2;color:#7f1d1d;border-color:#fca5a5">⚠️ אין נתוני OCTOPOS</span>';
@@ -1150,8 +1151,11 @@ function renderSupplierCard(sup, s, idx){
                      '<td>$'+fmtNum(it.cost_unit)+'</td>'+
                      '<td>$'+fmtNum(it.line_total)+'</td></tr>';
             }).join('');
+            var linkedEv = findEventForPO(po);
+            var evChip = linkedEv ? ' · <span style="background:#ddd6fe;color:#5b21b6;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;">📍 לאירוע ' + escHtml(linkedEv.city||'') + ' ' + (linkedEv.start_date||'').slice(5) + '</span>' : '';
             return '<details class="po-row"><summary>📋 PO #'+po.id+' · <b>'+items.length+' פריטים</b> · '+fmtNum(po.total_qty)+' יחידות · <b>$'+fmtNum(po.total_cost)+'</b>' +
                    (po.vendor_invoice_number ? ' · חשבונית '+escHtml(po.vendor_invoice_number) : '') +
+                   evChip +
                    '</summary>'+
                    '<table class="products" style="margin:8px 0"><thead><tr><th>מוצר</th><th>SKU</th><th>כמות</th><th>מחיר ליחידה</th><th>סה"כ</th></tr></thead><tbody>'+rows+'</tbody></table>'+
                    '</details>';
@@ -3018,6 +3022,55 @@ function getSlowBadge(productId){
 }
 
 var PROFIT_STATE = null;
+var ALL_EVENTS = [];   // [{city, state, start_date, end_date}, ...] — populated by loadAllEvents
+async function loadAllEvents(){
+  try{
+    // Fetch the launch HTML and extract SCHEDULE const via regex.
+    var r = await fetch("../launch/index.html?_=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return;
+    var html = await r.text();
+    var m = html.match(/const SCHEDULE\s*=\s*(\[[\s\S]*?\])\s*;\s*\n/);
+    if (m) {
+      try { ALL_EVENTS = JSON.parse(m[1]); }
+      catch(e) { console.warn("loadAllEvents JSON parse failed"); ALL_EVENTS = []; }
+    }
+  } catch(e){ console.warn("loadAllEvents failed:", e); }
+}
+
+// Find the event a PO was most likely meant for: closest event whose start_date is
+// within 21 days AFTER the PO's received_date (or created_date as fallback). If a PO
+// arrived AFTER an event by <3 days, link it to that event (late arrival).
+function findEventForPO(po){
+  if (!ALL_EVENTS || !ALL_EVENTS.length) return null;
+  var poDateStr = po.received_date || po.created_date || "";
+  if (!poDateStr) return null;
+  var poDate = new Date(poDateStr);
+  if (isNaN(poDate.getTime())) return null;
+  var best = null;
+  var bestDelta = 99999;
+  ALL_EVENTS.forEach(function(ev){
+    var sd = new Date(ev.start_date);
+    if (isNaN(sd.getTime())) return;
+    var ed = new Date(ev.end_date || ev.start_date);
+    var deltaToStart = (sd - poDate) / (1000*60*60*24);   // positive = PO arrived BEFORE event
+    var deltaToEnd   = (poDate - ed) / (1000*60*60*24);   // positive = PO arrived AFTER event end
+    var score = 99999;
+    if (deltaToStart >= -3 && deltaToStart <= 21) {
+      // PO arrived 0-21 days before event (or up to 3 days late) — strong link
+      score = Math.abs(deltaToStart);
+    } else if (deltaToStart > 21 && deltaToStart < 60) {
+      // PO arrived 3-8 weeks before — possible link, weaker
+      score = deltaToStart * 0.5;
+    } else {
+      return;
+    }
+    if (score < bestDelta) {
+      bestDelta = score;
+      best = ev;
+    }
+  });
+  return best;
+}
 async function loadProfitState(){
   try{
     var r = await fetch("../state/profit_pulse.json?_=" + Date.now(), { cache: "no-store" });
@@ -3253,9 +3306,11 @@ function buildPOHistory(productId){
   }
   if (!rows.length) return '<div style="color:var(--muted);font-size:13px;">אין רשומות של הזמנות עבור המוצר בנתונים שנשמרו.</div>';
   rows.sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
-  var html = '<table style="width:100%;font-size:13px;"><thead><tr><th style="text-align:right;color:var(--muted);font-size:11px;">תאריך</th><th style="text-align:center;color:var(--muted);font-size:11px;">כמות</th><th style="text-align:center;color:var(--muted);font-size:11px;">סטטוס</th><th style="text-align:center;color:var(--muted);font-size:11px;">PO #</th><th style="text-align:right;color:var(--muted);font-size:11px;">חשבונית ספק</th></tr></thead><tbody>';
+  var html = '<table style="width:100%;font-size:13px;"><thead><tr><th style="text-align:right;color:var(--muted);font-size:11px;">תאריך</th><th style="text-align:center;color:var(--muted);font-size:11px;">כמות</th><th style="text-align:center;color:var(--muted);font-size:11px;">סטטוס</th><th style="text-align:center;color:var(--muted);font-size:11px;">PO #</th><th style="text-align:right;color:var(--muted);font-size:11px;">📍 לאירוע</th><th style="text-align:right;color:var(--muted);font-size:11px;">חשבונית ספק</th></tr></thead><tbody>';
   rows.slice(0,8).forEach(function(r){
-    html += '<tr><td>' + r.date + '</td><td style="text-align:center;font-weight:700;">' + r.qty + '</td><td style="text-align:center;">' + r.status + '</td><td style="text-align:center;color:var(--muted);">#' + r.po_id + '</td><td>' + r.vendor_invoice + '</td></tr>';
+    var ev = findEventForPO({received_date: r.date, created_date: r.date, id: r.po_id}) || null;
+    var evCell = ev ? '📍 ' + (ev.city||'') + ' ' + (ev.start_date||'').slice(5) : '<span style="color:var(--muted)">—</span>';
+    html += '<tr><td>' + r.date + '</td><td style="text-align:center;font-weight:700;">' + r.qty + '</td><td style="text-align:center;">' + r.status + '</td><td style="text-align:center;color:var(--muted);">#' + r.po_id + '</td><td style="font-size:11px;">' + evCell + '</td><td>' + r.vendor_invoice + '</td></tr>';
   });
   return html + '</tbody></table>';
 }
