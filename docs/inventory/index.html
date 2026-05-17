@@ -1000,6 +1000,7 @@ function renderSupplierCard(sup, s, idx){
   loadSlowMoversState();
   loadProfitState();
   loadAllEvents();
+  loadOctoposPendingEdits().then(function(){ if (typeof OCTOPOS !== 'undefined' && OCTOPOS.vendors) applyOctoposPendingEdits(); });
   loadProfitState();
             var oct_ = getOctoposForSupplier(sup.code);
             if (!oct_) return '<span class="octopos-chip" style="background:#fee2e2;color:#7f1d1d;border-color:#fca5a5">⚠️ אין נתוני OCTOPOS</span>';
@@ -1986,6 +1987,8 @@ document.addEventListener("change", function(e){
 async function savePerRowEdit(productId, field, val, inp){
   try {
     if (field === 'threshold'){
+      // Persist override so the daily-snapshot lag doesn't revert visible value
+      if (typeof persistOctoposOverride === 'function') persistOctoposOverride(productId, 'threshold', num);
       const num = Number(val || 0);
       if (num <= 0){ toast('Threshold חייב להיות חיובי', 'error'); inp.classList.remove('saving'); return; }
       const ok = await pushOctoposProductFields(productId, { threshold: num });
@@ -2788,6 +2791,8 @@ function openReviewModal(){
         cellS.querySelector('.thr-value-rev').textContent = newT;
         cellS.querySelector('.thr-view-rev').style.display = 'flex';
         cellS.querySelector('.thr-edit-mode-rev').style.display = 'none';
+        // Persist override so the value survives page refresh (until next daily octopos_sync reconciles)
+        if (typeof persistOctoposOverride === 'function') persistOctoposOverride(pidS, 'threshold', newT);
         try {
           for (var c in (OCTOPOS.vendors || {})) {
             var aa = OCTOPOS.vendors[c].products || [];
@@ -3436,6 +3441,71 @@ function getSlowBadge(productId){
 }
 
 var PROFIT_STATE = null;
+var OCTOPOS_PENDING_EDITS = null;   // {overrides: {pid: {field: value, edited_at}}} — overlay over OCTOPOS snapshot
+async function loadOctoposPendingEdits(){
+  try {
+    var r = await fetch("../state/octopos_pending_edits.json?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok) OCTOPOS_PENDING_EDITS = await r.json();
+    else OCTOPOS_PENDING_EDITS = {overrides: {}};
+  } catch(e) { OCTOPOS_PENDING_EDITS = {overrides: {}}; }
+}
+
+// Apply pending overrides on top of the loaded OCTOPOS snapshot (in-place mutation).
+function applyOctoposPendingEdits(){
+  if (!OCTOPOS_PENDING_EDITS || !OCTOPOS_PENDING_EDITS.overrides) return;
+  var oo = OCTOPOS_PENDING_EDITS.overrides;
+  for (var pidS in oo) {
+    var fields = oo[pidS];
+    for (var code in (OCTOPOS.vendors || {})) {
+      var arr = (OCTOPOS.vendors[code].products || []).concat(OCTOPOS.vendors[code].inactive_products || []);
+      for (var j=0;j<arr.length;j++){
+        if (arr[j].id == pidS) {
+          for (var k in fields) {
+            if (k.startsWith("_") || k === "edited_at") continue;
+            arr[j][k] = fields[k];
+          }
+          break;
+        }
+      }
+    }
+  }
+}
+
+// Persist a single field override after a successful OCTOPOS PUT.
+// Atomically merges into the JSON via GitHub Contents API (IRON RULE #7).
+async function persistOctoposOverride(productId, field, value){
+  var ghToken = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+  if (!ghToken) return false;
+  var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/octopos_pending_edits.json";
+  try {
+    var info = await fetch(url + "?ref=main", {headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json"}}).then(r=>r.json());
+    var content = info.content ? JSON.parse(atob(info.content.replace(/\n/g, ""))) : {overrides:{}};
+    content.overrides = content.overrides || {};
+    content.overrides[String(productId)] = Object.assign({}, content.overrides[String(productId)] || {}, {
+      [field]: value,
+      edited_at: new Date().toISOString()
+    });
+    content._updated_at = new Date().toISOString();
+    var newContentStr = JSON.stringify(content, null, 2);
+    var put = await fetch(url, {
+      method: "PUT",
+      headers: {Authorization:"token "+ghToken, Accept:"application/vnd.github+json", "Content-Type":"application/json"},
+      body: JSON.stringify({
+        message: "octopos pending edit: pid=" + productId + " " + field + "=" + value,
+        content: btoa(unescape(encodeURIComponent(newContentStr))),
+        branch: "main",
+        sha: info.sha
+      })
+    });
+    // Also update in-memory state so the rest of the session sees it
+    OCTOPOS_PENDING_EDITS = OCTOPOS_PENDING_EDITS || {overrides:{}};
+    OCTOPOS_PENDING_EDITS.overrides = OCTOPOS_PENDING_EDITS.overrides || {};
+    OCTOPOS_PENDING_EDITS.overrides[String(productId)] = OCTOPOS_PENDING_EDITS.overrides[String(productId)] || {};
+    OCTOPOS_PENDING_EDITS.overrides[String(productId)][field] = value;
+    return put.ok;
+  } catch(e) { console.warn("persistOctoposOverride failed:", e); return false; }
+}
+
 var ALL_EVENTS = [];   // [{city, state, start_date, end_date}, ...] — populated by loadAllEvents
 async function loadAllEvents(){
   try{
