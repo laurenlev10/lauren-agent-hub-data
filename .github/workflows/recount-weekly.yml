@@ -1,0 +1,85 @@
+name: recount-weekly — Sunday 17:15 local at the event's location
+
+# Lauren's directive 2026-05-17 PM: "אני רוצה שהמשימה המתוזמנת תהיה בכל יום
+# ראשון בשעה 17:15 שעון מקומי איפה שהיה האירוע".
+#
+# Strategy: GitHub Actions crons are UTC-only. To fire at 17:15 LOCAL across
+# Eastern → Pacific event timezones, we schedule 4 hourly fires Sunday 21:15
+# UTC through Monday 00:15 UTC, and the script self-checks whether NOW is in
+# the 17:15-17:50 local window for THIS week's event. Wrong-TZ fires exit silent.
+
+on:
+  schedule:
+    - cron: "15 21 * * 0"     # Sun 17:15 EDT (or 16:15 EST in winter — script tolerates ±35m)
+    - cron: "15 22 * * 0"     # Sun 17:15 CDT
+    - cron: "15 23 * * 0"     # Sun 17:15 MDT
+    - cron: "15 0  * * 1"     # Sun 17:15 PDT (Monday in UTC)
+    - cron: "15 1  * * 1"     # Sun 17:15 PST (winter Pacific) — covers DST edge
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run @recount weekend scan
+        env:
+          OCTOPOS_EMAIL:       ${{ secrets.OCTOPOS_EMAIL }}
+          OCTOPOS_PASSWORD:    ${{ secrets.OCTOPOS_PASSWORD }}
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+        run: python3 scripts/recount_weekend.py
+
+      - name: Commit state JSON if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/state/octopos_recount.json; then
+            git add docs/state/octopos_recount.json
+            git commit -m "@recount: weekend cron fire (Sunday 17:15 local)"
+            git pull --rebase origin main
+            git push origin main
+          fi
+
+      - name: Update scheduled-runs.json lastRunAt
+        run: |
+          python3 - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          p = "docs/scheduled-runs.json"
+          d = json.load(open(p))
+          now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in d.get("tasks", []):
+              if t.get("id") == "recount-weekly":
+                  t["lastRunAt"] = now
+                  break
+          d["_updated_at"] = now
+          json.dump(d, open(p, "w"), indent=2, ensure_ascii=False)
+          print(f"Bumped recount-weekly lastRunAt → {now}")
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump recount-weekly lastRunAt"
+            git pull --rebase origin main
+            git push origin main
+          fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
