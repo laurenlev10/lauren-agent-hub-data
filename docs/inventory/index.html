@@ -2343,18 +2343,78 @@ function openReviewModal(){
             toggleTitle = r.kept ? 'דלג' : 'כלל בחזרה';
           }
           var ruleHints = (r.ruleHints || []).map(function(h){ return '<span class="rule-hint">'+escHtml(h)+'</span>'; }).join(' ');
+
+          // ── Enrich row with all the new signals ────────────────────────
+          var slowRec = (typeof getSlowRecord === 'function') ? getSlowRecord(r.product_id) : null;
+          var profitRec = (typeof getProfitRecord === 'function') ? getProfitRecord(r.product_id) : null;
+          var avg4w = slowRec ? slowRec.avg_sold_per_event_week_4w : null;
+          var slowBadgeRev = (typeof getSlowBadge === 'function') ? getSlowBadge(r.product_id) : '';
+          var eventBadgeRev = (typeof getEventSignalBadge === 'function') ? getEventSignalBadge(r.product_id) : '';
+          var marginBadgeRev = (typeof getMarginBadge === 'function') ? getMarginBadge(r.product_id) : '';
+          var badgesLine = '';
+          if (avg4w !== null && avg4w !== undefined) {
+            badgesLine += '<span style="background:#f3f4f6;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;color:#374151;">ממ\' 4w: ' + avg4w.toFixed(1) + '</span> ';
+          }
+          if (slowBadgeRev)   badgesLine += slowBadgeRev + ' ';
+          if (eventBadgeRev)  badgesLine += eventBadgeRev + ' ';
+          if (marginBadgeRev) badgesLine += marginBadgeRev + ' ';
+          if (profitRec && profitRec.suggested_price && profitRec.suggested_price !== profitRec.sale_price) {
+            badgesLine += '<span title="@profit-pulse ממליץ להעלות מחיר מכירה" style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;">🎯 $' + profitRec.suggested_price + '</span> ';
+          }
+
+          // Tooltip on qty — explains the math
+          var rule = r.rule || {};
+          var mult = slowRec ? (slowRec.suggested_qty_multiplier || 1.0) : 1.0;
+          var nextStr = (typeof SLOW_STATE !== 'undefined' && SLOW_STATE && SLOW_STATE._next_event_predicted_strength) || 1.0;
+          var avgNorm = slowRec ? slowRec.avg_normalized_sold_per_event : null;
+          var sigVal = slowRec ? slowRec.last_event_signal : null;
+          var whyLines = ['📊 חישוב הכמות:'];
+          if (avgNorm !== null && avgNorm !== undefined) {
+            whyLines.push('• ממ\' מנורמל: ' + avgNorm.toFixed(2) + ' / baseline');
+            whyLines.push('• 🔥 חוזק אירוע צפוי: ×' + nextStr.toFixed(2) + ' → צפוי ' + (avgNorm * nextStr).toFixed(1));
+          } else if (avg4w !== null && avg4w !== undefined) {
+            whyLines.push('• ממ\' 4 שבועות: ' + avg4w.toFixed(1));
+          } else {
+            whyLines.push('• אין נתוני מכירות עדיין');
+          }
+          whyLines.push('• Threshold: ' + r.threshold);
+          if (rule.min_display) whyLines.push('• מינ\' לדיספליי: ' + rule.min_display + (rule.min_display > r.threshold ? ' ← גובר' : ''));
+          if (sigVal && sigVal !== 'normal' && sigVal !== 'no_history' && mult !== 1.0) {
+            var sigLbl = ({stockout_friday:'נגמר שישי',stockout_saturday:'נגמר שבת',overstock_heavy:'יתרה כבדה',overstock_light:'יתרה קלה'})[sigVal] || sigVal;
+            whyLines.push('• סיגנל: ' + sigLbl + ' → ×' + mult.toFixed(2));
+          }
+          if (rule.moq) whyLines.push('• MOQ: ' + rule.moq);
+          whyLines.push('→ הצעה: ' + r.suggested + ' (תאשרי או שני)');
+          var qtyTip = whyLines.join('\n').replace(/"/g, '&quot;');
+
           return '<div class="rev-row' + laneClass + '" data-i="' + ri + '" data-lane="' + L + '">' +
             '<div class="nm">' + escHtml(r.name) + '<span class="sku">' + escHtml(r.sku) + ' · מלאי ' + r.in_stock + ' · thr ' + r.threshold + '</span>' +
+              (badgesLine ? '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">' + badgesLine + '</div>' : '') +
               (ruleHints ? '<div class="lane-hints">' + ruleHints + '</div>' : '') +
               (r.note ? '<div class="lane-note">' + escHtml(r.note) + '</div>' : '') +
             '</div>' +
             '<div>' + (r.in_stock || 0) + '</div>' +
-            '<div>' + (r.threshold || 0) + '</div>' +
+            // Thr cell — inline editable with ✏️ → 💾/✕ pattern
+            '<div class="thr-cell-rev" data-pid="' + r.product_id + '" data-current-thr="' + (r.threshold||0) + '" style="min-width:60px;">' +
+              '<span class="thr-view-rev" style="display:flex;flex-direction:column;align-items:center;gap:2px;">' +
+                '<span class="thr-value-rev" style="font-weight:700;">' + (r.threshold || 0) + '</span>' +
+                '<button class="qty-btn" data-action="thr-edit" title="עדכני Threshold ב-OCTOPOS" style="font-size:9px;padding:1px 4px;background:#ede9fe;border:1px solid #c4b5fd;">✏️</button>' +
+              '</span>' +
+              '<span class="thr-edit-mode-rev" style="display:none;flex-direction:column;align-items:center;gap:2px;">' +
+                '<input type="number" min="0" step="1" class="thr-new-val-rev" value="' + (r.threshold||0) + '" style="width:50px;padding:2px 4px;font-size:11px;border:1px solid #c4b5fd;border-radius:4px;text-align:center;">' +
+                '<span style="display:flex;gap:1px;">' +
+                  '<button class="qty-btn" data-action="thr-save" title="שמור ב-OCTOPOS" style="font-size:9px;padding:1px 4px;background:#7c3aed;color:#fff;border:0;">💾</button>' +
+                  '<button class="qty-btn" data-action="thr-cancel" title="ביטול" style="font-size:9px;padding:1px 4px;">✕</button>' +
+                '</span>' +
+              '</span>' +
+            '</div>' +
             '<div class="gap-cell ' + (gap > 0 ? 'gap-pos' : (gap < 0 ? 'gap-neg' : '')) + '">' + (gap > 0 ? '+' : '') + gap + '</div>' +
-            '<input type="number" min="0" step="' + r.case_size + '" data-bind="qty" value="' + r.qty + '" title="חצי מקלדת / גלגלת עכבר קופצים ב-' + r.case_size + ' (אפשר גם להקליד ידנית)">' +
+            '<input type="number" min="0" step="' + r.case_size + '" data-bind="qty" value="' + r.qty + '" title="' + qtyTip + '">' +
             '<div>$' + (r.unit_cost || 0).toFixed(2) + '</div>' +
             '<div class="rev-line-total">$' + (r.qty * r.unit_cost).toFixed(2) + '</div>' +
             '<div class="qty-controls">' +
+              '<button class="qty-btn" data-action="show-history" data-pid="' + r.product_id + '" title="📋 היסטוריה של המוצר">📋</button>' +
+              '<button class="qty-btn" data-action="snap-to-thr-rev" data-thr="' + (r.threshold || 0) + '" title="↩ קבעי כמות = Threshold (להזמנה זו בלבד)">↩</button>' +
               '<button class="qty-btn" data-action="edit-rule" title="📝 הערות וכללים למוצר">📝</button>' +
               '<button class="qty-btn" data-action="case-up" title="הגדל">↑</button>' +
               '<button class="qty-btn" data-action="case-down" title="הקטן">↓</button>' +
@@ -2399,6 +2459,85 @@ function openReviewModal(){
       e.stopPropagation();
       var pid = histBtn.dataset.pid;
       if (pid && typeof openProductHistory === 'function') openProductHistory(pid);
+      return;
+    }
+
+    // ↩ Snap qty to threshold (this row only)
+    var snapBtnR = e.target.closest('[data-action="snap-to-thr-rev"]');
+    if (snapBtnR) {
+      e.stopPropagation();
+      var thrV = parseFloat(snapBtnR.dataset.thr) || 0;
+      var rowR = snapBtnR.closest('.rev-row');
+      if (rowR) {
+        var qI = rowR.querySelector('input[data-bind="qty"]');
+        if (qI) { qI.value = thrV; qI.dispatchEvent(new Event('input', {bubbles:true})); qI.style.background='#ecfdf5'; setTimeout(function(){qI.style.background='';},1500); }
+      }
+      return;
+    }
+
+    // ✏️ Thr inline edit toggle
+    var thrEditBtnR = e.target.closest('[data-action="thr-edit"]');
+    if (thrEditBtnR) {
+      e.stopPropagation();
+      var cellE = thrEditBtnR.closest('.thr-cell-rev');
+      cellE.querySelector('.thr-view-rev').style.display = 'none';
+      cellE.querySelector('.thr-edit-mode-rev').style.display = 'flex';
+      var inpE = cellE.querySelector('.thr-new-val-rev'); inpE.focus(); inpE.select();
+      return;
+    }
+
+    // ✕ Cancel Thr edit
+    var thrCancelBtnR = e.target.closest('[data-action="thr-cancel"]');
+    if (thrCancelBtnR) {
+      e.stopPropagation();
+      var cellC = thrCancelBtnR.closest('.thr-cell-rev');
+      cellC.querySelector('.thr-view-rev').style.display = 'flex';
+      cellC.querySelector('.thr-edit-mode-rev').style.display = 'none';
+      cellC.querySelector('.thr-new-val-rev').value = cellC.dataset.currentThr;
+      return;
+    }
+
+    // 💾 Save new Thr to OCTOPOS via PUT /api/v2/products/{id} threshold_qty
+    var thrSaveBtnR = e.target.closest('[data-action="thr-save"]');
+    if (thrSaveBtnR) {
+      e.stopPropagation();
+      var cellS = thrSaveBtnR.closest('.thr-cell-rev');
+      var pidS = cellS.dataset.pid;
+      var oldT = parseFloat(cellS.dataset.currentThr) || 0;
+      var newT = parseFloat(cellS.querySelector('.thr-new-val-rev').value);
+      if (isNaN(newT) || newT < 0) { toast('⚠️ מספר לא חוקי', 'error'); return; }
+      if (Math.abs(newT - oldT) < 0.5) { toast('⚠️ ערך זהה לנוכחי', ''); return; }
+      if (!confirm('לעדכן Threshold מ-' + oldT + ' ל-' + newT + ' ב-OCTOPOS?\n(נשמר לפעמים הבאות)')) return;
+      var octT = (localStorage.getItem('lauren_octopos_token') || '').trim();
+      if (!octT) { toast('⚠️ צריך OCTOPOS token', 'error'); return; }
+      thrSaveBtnR.disabled = true; thrSaveBtnR.textContent = '...';
+      fetch('https://themakeup.octoretail.com/api/v2/products/' + pidS, {
+        method: 'PUT',
+        headers: {'Authorization': octT, 'Content-Type':'application/json', 'Accept':'application/json'},
+        body: JSON.stringify({'threshold_qty': newT})
+      }).then(function(rs){
+        if (!rs.ok) throw new Error('HTTP ' + rs.status);
+        toast('✓ Threshold עודכן ב-OCTOPOS: ' + newT, 'success');
+        cellS.dataset.currentThr = newT;
+        cellS.querySelector('.thr-value-rev').textContent = newT;
+        cellS.querySelector('.thr-view-rev').style.display = 'flex';
+        cellS.querySelector('.thr-edit-mode-rev').style.display = 'none';
+        try {
+          for (var c in (OCTOPOS.vendors || {})) {
+            var aa = OCTOPOS.vendors[c].products || [];
+            for (var jj=0;jj<aa.length;jj++){ if (aa[jj].id == pidS) { aa[jj].threshold = newT; break; }}
+          }
+          var rowS = cellS.closest('.rev-row');
+          if (rowS) {
+            var sb = rowS.querySelector('[data-action="snap-to-thr-rev"]');
+            if (sb) sb.dataset.thr = newT;
+          }
+        } catch(_){}
+        thrSaveBtnR.disabled = false; thrSaveBtnR.textContent = '💾';
+      }).catch(function(err){
+        toast('⚠️ נכשל: ' + err.message, 'error');
+        thrSaveBtnR.disabled = false; thrSaveBtnR.textContent = '💾';
+      });
       return;
     }
 
