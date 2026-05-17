@@ -2009,7 +2009,7 @@ function buildSupplierOrder(supplierCode){
     if (rule.skip) suggested = 0;
     const lane = rule.skip ? 'skip' : classifyLane({in_stock_qty: stock, threshold: thr}, suggested);
     const ruleHints = [];
-    if (rule.min_display > thrBase) ruleHints.push(`📌 min_display=${rule.min_display}`);
+    if (rule.min_display > thrBase) ruleHints.push(`📦 display-min=${rule.min_display}`);
     if (rule.moq) ruleHints.push(`🛡 moq=${rule.moq}`);
     if (rule.multiple_of) ruleHints.push(`📦 כפולה ${rule.multiple_of}`);
     if (rule.max) ruleHints.push(`🚦 מקס ${rule.max}`);
@@ -2649,7 +2649,7 @@ function openRuleEditor(product, onSave){
       '<div style="margin-top:10px"><label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Tags (Recount / Check) — שינוי נשמר מיד באוקטופוס</label>' +
       '<div id="rTags" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">' + (tagsHtml || '<span style="color:var(--muted);font-size:12px">אין categories זמינות עדיין</span>') + '</div></div>' +
       '<div class="row" style="margin-top:12px">' +
-        '<div class="field"><label>min_display (דורס את ה-threshold אם גבוה יותר)</label><input type="number" min="0" id="rMinDisplay" value="' + (existing.min_display||'') + '" placeholder="ריק = משתמש ב-' + (product.threshold||0) + '"></div>' +
+        '<div class="field"><label>📦 כמות מינ׳ לתחילת אירוע (Display Minimum)</label><div style="font-size:11px;color:var(--muted);margin:-4px 0 4px">המוצר חייב להופיע על השולחן עם לפחות כמות זו, אחרת נראה ריק. אם גבוה מ-threshold → מנצח.</div><input type="number" min="0" id="rMinDisplay" value="' + (existing.min_display||'') + '" placeholder="ריק = משתמש ב-' + (product.threshold||0) + '"></div>' +
         '<div class="field"><label>moq (מינ. יחידות שספק מוכר)</label><input type="number" min="0" id="rMoq" value="' + (existing.moq||'') + '" placeholder="ריק = ללא מינימום"></div>' +
       '</div>' +
       '<div class="row">' +
@@ -2657,7 +2657,7 @@ function openRuleEditor(product, onSave){
         '<div class="field"><label>max (לא יותר מ-)</label><input type="number" min="0" id="rMax" value="' + (existing.max||'') + '" placeholder="ריק = ללא מקסימום"></div>' +
       '</div>' +
       '<div class="row" style="margin-top:10px">' +
-        '<div class="field"><label>📦 כמות בדיספליי (לתכנון רענון מלאי)</label><input type="number" min="0" id="rDisplayCap" value="' + (existing.display_capacity||'') + '" placeholder="ריק = ללא"></div>' +
+        '<div class="field"><label>🪑 כמות מקסימלית שנכנסת בדיספליי</label><div style="font-size:11px;color:var(--muted);margin:-4px 0 4px">כמה יחידות מהמוצר נכנסות במקום על השולחן (לתכנון רענון מלאי, לא מבצע כרגע).</div><input type="number" min="0" id="rDisplayCap" value="' + (existing.display_capacity||'') + '" placeholder="ריק = ללא"></div>' +
         '<div class="field"><label>🔢 יח׳ לכל שורת חשבונית (דורס pack_size של הספק)</label><input type="number" min="1" id="rPackSize" value="' + (existing.pack_size||'') + '" placeholder="ריק = כמו הספק"></div>' +
       '</div>' +
       '<div style="margin-top:10px"><label style="font-size:13px"><input type="checkbox" id="rSkip" ' + (existing.skip ? "checked" : "") + '> דלג תמיד על המוצר הזה בהזמנות אוטומטיות</label></div>' +
