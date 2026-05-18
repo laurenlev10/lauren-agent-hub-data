@@ -753,6 +753,39 @@ async function loadState(){
   }
   if (!STATE || typeof STATE !== "object") STATE = { _updated_at: null, events: {} };
   if (!STATE.events) STATE.events = {};
+
+  // Defensive merge: if the cloud copy has local_orders we missed (e.g. when
+  // local cache wins), union them in so a restoration is never lost again.
+  // Composite key = supplier_code + saved_at (or restored_from + supplier_code).
+  try {
+    var _cloudCopy = null;
+    try {
+      var _r2 = await fetch(STATE_URL + "?_=" + (Date.now()+1), { cache: "no-store" });
+      if (_r2.ok) _cloudCopy = await _r2.json();
+    } catch(_){}
+    if (_cloudCopy && _cloudCopy.events) {
+      Object.keys(_cloudCopy.events).forEach(function(evk){
+        var cloudSlice = _cloudCopy.events[evk] || {};
+        var cloudOrders = cloudSlice.local_orders || [];
+        if (!cloudOrders.length) return;
+        if (!STATE.events[evk]) STATE.events[evk] = cloudSlice;
+        var localSlice = STATE.events[evk];
+        if (!Array.isArray(localSlice.local_orders)) localSlice.local_orders = [];
+        var seen = {};
+        localSlice.local_orders.forEach(function(o){
+          var k = (o.supplier_code||"") + "|" + (o.saved_at||o.restored_from||"");
+          seen[k] = true;
+        });
+        cloudOrders.forEach(function(o){
+          var k = (o.supplier_code||"") + "|" + (o.saved_at||o.restored_from||"");
+          if (!seen[k]) {
+            localSlice.local_orders.push(o);
+            console.log("[loadState] merged cloud order into local:", evk, o.supplier_code);
+          }
+        });
+      });
+    }
+  } catch(e){ console.warn("loadState merge failed (non-fatal):", e); }
 }
 
 function scheduleSave(){
