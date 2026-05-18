@@ -1118,8 +1118,11 @@ function renderSupplierCard(sup, s, idx){
     : '<span style="color:var(--muted)">—</span>';
   const carrierOpts = ["ups","usps","fedex","dhl","other"];
   // Inline 'הזמנה חדשה' + 'הוספת חשבונית' buttons on pending rows (Lauren 2026-05-18 PM late)
-  // Both hide once the supplier has either a saved order OR a confirmed invoice.
-  var _hasOrderOrInvoice = _hasLocalOrder || _invoiceCompared;
+  // Both hide once the supplier has either a saved order, a confirmed invoice,
+  // OR an uploaded invoice with totals > 0 (Lauren 2026-05-18 PM late late —
+  // even before clicking ✅ עדכן קבלת סחורה, the upload counts as 'done').
+  var _hasUploadedInvoice = _rowInvoiceTotal > 0;
+  var _hasOrderOrInvoice = _hasLocalOrder || _invoiceCompared || _hasUploadedInvoice;
   var newOrderBtn = '';
   if (!_hasOrderOrInvoice) {
     newOrderBtn =
@@ -1138,7 +1141,16 @@ function renderSupplierCard(sup, s, idx){
             if (_hasLocalOrder) {
               lbl = '✅ נשלחה הזמנה' + (_lastWhenDisplay ? ' <span style="opacity:.75;font-weight:500;font-size:11px;margin-right:4px">· ' + _lastWhenDisplay + '</span>' : '');
             } else {
-              lbl = '✅ הוזמן ידנית' + (_invoiceComparedAt ? ' <span style="opacity:.75;font-weight:500;font-size:11px;margin-right:4px">· ' + _fmtMMDDHHMM(_invoiceComparedAt) + '</span>' : '');
+              // Invoice uploaded (with or without confirm click). Use compared timestamp if available.
+              var _invTs = _invoiceComparedAt;
+              if (!_invTs && _hasUploadedInvoice) {
+                // No confirm timestamp — try _pending_invoice.parsed_at, else leave blank
+                try {
+                  var pi_ = (s && s._pending_invoice) || null;
+                  if (pi_ && pi_.parsed_at) _invTs = pi_.parsed_at;
+                } catch(_){}
+              }
+              lbl = '✅ חשבונית עודכנה במערכת' + (_invTs ? ' <span style="opacity:.75;font-weight:500;font-size:11px;margin-right:4px">· ' + _fmtMMDDHHMM(_invTs) + '</span>' : '');
             }
             var pills = '<div class="status ordered">' + lbl + '</div>';
             // Yellow pill: order estimate total
@@ -1168,7 +1180,7 @@ function renderSupplierCard(sup, s, idx){
         '<div class="field">'+
           '<label>סטטוס</label>'+
           '<select data-bind="status">'+
-            Object.entries(STATUS_LABELS).map(([k,v]) => '<option value="'+k+'" '+((_hasLocalOrder ? (k==="ordered") : (s.status===k))?"selected":"")+'>'+v+'</option>').join("")+
+            Object.entries(STATUS_LABELS).map(([k,v]) => '<option value="'+k+'" '+(((_hasLocalOrder || _hasUploadedInvoice || _invoiceCompared) ? (k==="ordered") : (s.status===k))?"selected":"")+'>'+v+'</option>').join("")+
           '</select>'+
         '</div>'+
         '<div class="field">'+
