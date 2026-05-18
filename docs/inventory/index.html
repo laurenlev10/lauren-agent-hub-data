@@ -2028,14 +2028,16 @@ async function savePerRowEdit(productId, field, val, inp){
    ================================================================ */
 
 /* ---- Constants for the algorithm ---- */
-const MULT_SMALL = 1.0;
-const MULT_MEDIUM = 1.3;
-const MULT_LARGE = 1.6;
-const TWO_EVENTS_BUMP = 1.5;   // applied on top of size multiplier when two events
+// Coverage multipliers — Lauren 2026-05-17 PM late simplified the Wizard prompt.
+// One question instead of two (events count + hall size). The number = how many
+// 'threshold-fills' worth of stock to bring to the event.
+const COVERAGE_1_EVENT  = 1.0;   // השלמה ל-Threshold (single event, exact fill)
+const COVERAGE_1_5      = 1.5;   // אירוע וחצי — מינימום + 50% (safety buffer)
+const COVERAGE_2_EVENTS = 2.0;   // כפל מינימום (two-event cycle, double the threshold)
 const DEFAULT_CASE_SIZE = 12;  // ALWAYS step by 12 unless rule.multiple_of overrides (Lauren 2026-05-13)
 const BUDGET_DEFAULT_PCT = 0.175;  // 17.5% of last event's sales
 
-let WIZARD_STATE = { events: 1, size: 'medium', useBudget: false, budgetAmount: 0, anchorEvent: null };
+let WIZARD_STATE = { coverage: '1', useBudget: false, budgetAmount: 0, anchorEvent: null };  // coverage: '1' | '1.5' | '2'
 let REVIEW_DATA = null;  // { suppliers: [{code, name, vid, lanes: {order, borderline, skip}}], totals }
 let SUMMARIES_BY_EVKEY = null;  // populated lazily from launch dashboard
 
@@ -2067,9 +2069,15 @@ function mostRecentSummaries(){
 
 /* ---- Algorithm ---- */
 function eventMultiplier(){
-  let m = WIZARD_STATE.size === 'small' ? MULT_SMALL : (WIZARD_STATE.size === 'large' ? MULT_LARGE : MULT_MEDIUM);
-  if (WIZARD_STATE.events === 2) m *= TWO_EVENTS_BUMP;
-  return m;
+  if (WIZARD_STATE.coverage === '2')   return COVERAGE_2_EVENTS;
+  if (WIZARD_STATE.coverage === '1.5') return COVERAGE_1_5;
+  return COVERAGE_1_EVENT;
+}
+
+function coverageLabel(){
+  if (WIZARD_STATE.coverage === '2')   return '2 אירועים (×2.0)';
+  if (WIZARD_STATE.coverage === '1.5') return 'אירוע וחצי (×1.5)';
+  return 'אירוע אחד (×1.0)';
 }
 function roundToCase(qty, multiple, dir){
   if (qty <= 0) return 0;
@@ -2195,22 +2203,15 @@ async function openOrderWizard(){
     '<div class="wiz-card">' +
       '<h2>✨ צרי הזמנות לאירוע</h2>' +
       '<div class="wiz-q">' +
-        '<div class="qlabel">1) מספר אירועים?</div>' +
-        '<div class="wiz-opts" data-q="events">' +
-          '<button data-val="1" class="active">🎯 אירוע אחד</button>' +
-          '<button data-val="2">🎯🎯 שני אירועים (+50%)</button>' +
+        '<div class="qlabel">1) כמה כיסוי להזמין לאירוע?</div>' +
+        '<div class="wiz-opts" data-q="coverage">' +
+          '<button data-val="1" class="active">🎯 אירוע אחד · השלמה ל-Threshold (×1.0)</button>' +
+          '<button data-val="1.5">🎯+ אירוע וחצי · Threshold + חצי (×1.5)</button>' +
+          '<button data-val="2">🎯🎯 שני אירועים · כפל Threshold (×2.0)</button>' +
         '</div>' +
       '</div>' +
       '<div class="wiz-q">' +
-        '<div class="qlabel">2) גודל האולם?</div>' +
-        '<div class="wiz-opts" data-q="size">' +
-          '<button data-val="small">🏠 קטן (1.0×)</button>' +
-          '<button data-val="medium" class="active">🏬 בינוני (1.3×)</button>' +
-          '<button data-val="large">🏟️ גדול (1.6×)</button>' +
-        '</div>' +
-      '</div>' +
-      '<div class="wiz-q">' +
-        '<div class="qlabel">3) תקציב מקסימלי? (אופציונלי)</div>' +
+        '<div class="qlabel">2) תקציב מקסימלי? (אופציונלי)</div>' +
         '<div class="wiz-budget">' +
           '<label style="font-size:14px"><input type="checkbox" id="wizUseBudget"> הגבל לסכום</label>' +
           '<input type="number" id="wizBudget" min="0" step="100" value="' + defaultBudget + '" style="width:120px" disabled>' +
