@@ -7671,6 +7671,35 @@ function renderCompareDiff(){
     if (m) return Number(m[1]);
     return '';
   }
+  // Strip "(...)" pack-size parentheticals and other noise from product names
+  function _cleanInvoiceName(name){
+    if (!name) return '';
+    var s = String(name);
+    // Remove parenthetical groups containing pack size patterns
+    s = s.replace(/\s*\([^)]*(?:pcs?|pack|pk|set)[^)]*\)/gi, '');
+    // Remove leftover empty parens
+    s = s.replace(/\s*\(\s*\)\s*/g, ' ');
+    return s.replace(/\s+/g, ' ').trim();
+  }
+  // Derive a brand prefix from the supplier code/name
+  var BRAND_PREFIX = (function(){
+    if (!CMP_CTX || !CMP_CTX.supplier_code) return '';
+    var map = {
+      'she-makeup':'SHE', 'mystery-box':'', 'amuse-cosmetics':'Amuse',
+      'nabi':'Nabi', 'bb-and-w':'BB&W', 'prolux':'Prolux',
+      'ebs-perfumes':'EBS', 'rude':'Rude', 'xime-beauty':'Xime',
+      'feral-edge':'Feral', 'lurella':'Lurella', 'kara-beauty':'Kara',
+      'romantic-beauty':'Romantic', 'beauty-creations':'BC'
+    };
+    return map[CMP_CTX.supplier_code] || '';
+  })();
+  function _withBrand(name){
+    if (!BRAND_PREFIX || !name) return name;
+    // Don't double-prefix if already there (case-insensitive)
+    var lower = name.toLowerCase();
+    if (lower.indexOf(BRAND_PREFIX.toLowerCase()) === 0) return name;
+    return BRAND_PREFIX + ' ' + name;
+  }
 
   var html = totalsHtml +
     '<div class="cmp-summary">' +
@@ -7683,25 +7712,28 @@ function renderCompareDiff(){
     '<table class="cmp-diff-table" style="font-size:12px">' +
       '<thead><tr>' +
         '<th style="width:30px">סט\'</th>' +
-        '<th style="text-align:right;min-width:220px">שם המוצר</th>' +
+        '<th style="text-align:right;min-width:200px">שם המוצר</th>' +
         '<th style="text-align:center;width:120px">SKU</th>' +
-        '<th style="text-align:center;width:80px">כמות</th>' +
-        '<th style="text-align:center;width:85px">$/יח\'</th>' +
-        '<th style="text-align:center;width:70px">📦 מינ\'</th>' +
+        '<th style="text-align:center;width:70px">כמות</th>' +
+        '<th style="text-align:center;width:75px" title="מחיר עלות מהחשבונית">עלות $</th>' +
+        '<th style="text-align:center;width:85px" title="מחיר מכירה ללקוח">💰 מכירה $</th>' +
+        '<th style="text-align:center;width:60px" title="מינ\' לדיספליי">📦 מינ\'</th>' +
+        '<th style="text-align:center;width:50px" title="מוצר זה גם נמצא בגראג\'">🏪</th>' +
+        '<th style="text-align:center;width:50px" title="מוצר לסגירה — Clearance">🚫</th>' +
         '<th style="text-align:center;width:40px" title="לסמן/י כדי להוסיף את המוצר למערכת">✓</th>' +
       '</tr></thead><tbody>';
   var statusEmoji = { 'match': '✅', 'qty-diff': '⚠️', 'missing': '❌', 'extra': '➕' };
   // Style for editable cells
   var inpBase = 'width:100%;padding:4px 6px;font-size:12px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-family:inherit;';
   rows.forEach(function(r, ri){
-    // For 'extra' (new product) rows + 'missing' (no invoice), expose editing on the invoice line.
-    // For 'match' / 'qty-diff', read-only display.
-    var src = r.inv || r.exp || {};
-    var name = src.name || '';
-    var sku  = src.sku || '';
+    var srcL = r.inv || r.exp || {};
+    var rawName = srcL.name || '';
+    var name = _withBrand(_cleanInvoiceName(rawName));
+    var sku  = srcL.sku || '';
     var qty  = r.inv ? r.invQ : (r.exp ? r.expQ : 0);
-    var price = src.price || (src.cost_unit || 0);
-    var dispMin = _extractDisplayMin(name) || '';
+    var price = Number(srcL.price || srcL.cost_unit || 0);
+    var dispMin = _extractDisplayMin(rawName) || '';
+    var salePrice = '';  // Lauren fills manually
     // Apply any previous edits
     var ov = CMP_CTX.line_edits[ri] || {};
     if (ov.name !== undefined) name = ov.name;
@@ -7709,16 +7741,35 @@ function renderCompareDiff(){
     if (ov.qty !== undefined) qty = ov.qty;
     if (ov.price !== undefined) price = ov.price;
     if (ov.display_min !== undefined) dispMin = ov.display_min;
-    if (ov.add_to_system !== undefined) /* read later */;
+    if (ov.sale_price !== undefined) salePrice = ov.sale_price;
+    // Look up existing OCTOPOS data if SKU matches — pre-fill sale_price + in_garage + clearance
+    var existingRule = {};
+    var existingProd = null;
+    try {
+      Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
+        var v = OCTOPOS.vendors[c] || {};
+        (v.products || []).concat(v.inactive_products || []).forEach(function(p){
+          if (!existingProd && p.sku && sku && String(p.sku).toUpperCase() === String(sku).toUpperCase()) {
+            existingProd = p;
+            existingRule = (PRODUCT_RULES.rules && PRODUCT_RULES.rules[String(p.id)]) || {};
+          }
+        });
+      });
+    } catch(_){}
+    if (existingProd && !salePrice) salePrice = Number(existingProd.sale_price || 0) || '';
+    var inGarageDefault = ov.in_garage !== undefined ? ov.in_garage : !!(existingRule.in_garage);
+    var clearanceDefault = ov.clearance !== undefined ? ov.clearance
+                         : ((existingProd && /^clearance!/i.test(existingProd.name||'')) || !!existingRule.skip);
 
-    var isEditable = (r.status === 'extra' || r.status === 'qty-diff' || r.status === 'match');
-    // missing = expected in order but not in invoice — read-only
     if (r.status === 'missing') {
       html += '<tr class="'+r.status+'">' +
         '<td style="font-size:14px;text-align:center">'+statusEmoji[r.status]+'</td>' +
         '<td>'+escHtml(name)+'</td>' +
         '<td style="text-align:center;color:var(--muted)">'+escHtml(sku||'—')+'</td>' +
         '<td style="text-align:center;font-weight:700">'+qty+'</td>' +
+        '<td style="text-align:center;color:var(--muted)">—</td>' +
+        '<td style="text-align:center;color:var(--muted)">—</td>' +
+        '<td style="text-align:center;color:var(--muted)">—</td>' +
         '<td style="text-align:center;color:var(--muted)">—</td>' +
         '<td style="text-align:center;color:var(--muted)">—</td>' +
         '<td style="text-align:center;color:var(--muted)">—</td>' +
@@ -7733,7 +7784,10 @@ function renderCompareDiff(){
         '<td><input type="text" data-edit="sku" data-ri="'+ri+'" value="'+escHtml(sku)+'" style="'+inpBase+'text-align:center"></td>' +
         '<td><input type="number" data-edit="qty" data-ri="'+ri+'" min="0" step="1" value="'+qty+'" style="'+inpBase+'text-align:center;font-weight:700"></td>' +
         '<td><input type="number" data-edit="price" data-ri="'+ri+'" min="0" step="0.01" value="'+(Number(price)||0).toFixed(2)+'" style="'+inpBase+'text-align:center"></td>' +
+        '<td><input type="number" data-edit="sale_price" data-ri="'+ri+'" min="0" step="0.50" value="'+(salePrice ? Number(salePrice).toFixed(2) : '')+'" placeholder="—" style="'+inpBase+'text-align:center;color:#15803d;font-weight:700"></td>' +
         '<td><input type="number" data-edit="display_min" data-ri="'+ri+'" min="0" step="1" value="'+dispMin+'" placeholder="24" style="'+inpBase+'text-align:center"></td>' +
+        '<td style="text-align:center"><input type="checkbox" data-edit="in_garage" data-ri="'+ri+'" '+(inGarageDefault?'checked':'')+' title="גם בגראג\'" style="width:16px;height:16px;cursor:pointer"></td>' +
+        '<td style="text-align:center"><input type="checkbox" data-edit="clearance" data-ri="'+ri+'" '+(clearanceDefault?'checked':'')+' title="Clearance — סגירת המוצר" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"></td>' +
         '<td style="text-align:center"><input type="checkbox" data-edit="add_to_system" data-ri="'+ri+'" '+defaultChecked+' title="הוסף למערכת בעדכון" style="width:16px;height:16px;cursor:pointer"></td>' +
       '</tr>';
     }
