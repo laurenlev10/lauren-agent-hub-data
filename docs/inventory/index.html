@@ -7748,6 +7748,32 @@ async function confirmInvoiceCompared(){
         });
       } catch(_){}
     }
+    // Pass 4 (NEW — Lauren 2026-05-18 PM late): if the invoice line's SKU matches an item
+    // in CMP_CTX.expected (saved order), use that item's product_id to find in OCTOPOS.
+    // This handles the case where the saved order has the product but the OCTOPOS snapshot
+    // has slightly different SKU formatting that exact/stripped/fuzzy lookups missed.
+    if (!existing && sku) {
+      var skuU = sku.toUpperCase().trim();
+      var expMatch = null;
+      (CMP_CTX.expected || []).forEach(function(e){
+        if (e.sku && String(e.sku).toUpperCase().trim() === skuU) {
+          if (!expMatch) expMatch = e;
+        }
+      });
+      if (expMatch && expMatch.product_id) {
+        try {
+          Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
+            var v = OCTOPOS.vendors[c] || {};
+            (v.products || []).concat(v.inactive_products || []).forEach(function(p){
+              if (!existing && String(p.id) === String(expMatch.product_id)) {
+                existing = p;
+                existingMatchedBy = 'expected-pid';
+              }
+            });
+          });
+        } catch(_){}
+      }
+    }
     if (existing) {
       // Existing product — adjust stock + sale_price + clearance + rules
       if (addToSystem && qty > 0) {
