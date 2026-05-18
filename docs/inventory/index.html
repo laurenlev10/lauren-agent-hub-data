@@ -7819,13 +7819,26 @@ async function confirmInvoiceCompared(){
   // Render preview modal
   var summary = { create: 0, stock: 0, sale_price: 0, clearance: 0, rule_update: 0 };
   actions.forEach(function(a){ summary[a.type] = (summary[a.type]||0) + 1; });
+  var createList = actions.filter(function(a){ return a.type === 'create'; });
   var previewHtml = '<div style="padding:14px;background:#fff;border-radius:10px"><h3 style="margin:0 0 10px;font-size:15px;color:#0f172a">תכנית פעולה לעדכון OCTOPOS:</h3><ul style="margin:0;padding-right:18px;font-size:13px">';
-  if (summary.create) previewHtml += '<li><b>🆕 ' + summary.create + ' מוצרים חדשים</b> ייווצרו (barcode = שם המוצר)</li>';
+  if (summary.create) previewHtml += '<li><b>🆕 ' + summary.create + ' מוצרים חדשים</b> ייווצרו (barcode = שם המוצר):<ul style="margin-top:4px;padding-right:18px;font-size:12px;color:#a16207">' + createList.map(function(a){ return '<li>' + escHtml(a.name||a.sku) + '</li>'; }).join('') + '</ul></li>';
   if (summary.stock) previewHtml += '<li><b>📦 ' + summary.stock + ' עדכוני מלאי</b> (קליטת סחורה למוצרים קיימים)</li>';
   if (summary.sale_price) previewHtml += '<li><b>💰 ' + summary.sale_price + ' מחירי מכירה</b> יעודכנו</li>';
   if (summary.clearance) previewHtml += '<li><b>🚫 ' + summary.clearance + ' מוצרים</b> יסומנו Clearance!</li>';
   if (summary.rule_update) previewHtml += '<li><b>📝 ' + summary.rule_update + ' product_rules</b> (in_garage / display_min)</li>';
   previewHtml += '</ul></div>';
+
+  // EXPLICIT CONFIRMATION if there are creates (irreversible — POST to OCTOPOS)
+  if (summary.create > 0) {
+    var confirmMsg = '⚠️ עומדות להיווצר ' + summary.create + ' מוצרים חדשים ב-OCTOPOS:\n\n' +
+      createList.map(function(a){ return '• ' + (a.name || a.sku); }).join('\n') +
+      '\n\nהאם להמשיך? (אם לא — עצרי ובטלי את ה-✓ מהשורות שלא רוצה ליצור)';
+    if (!confirm(confirmMsg)) {
+      if (btn){ btn.disabled = false; btn.textContent = '✅ עדכן קבלת סחורה'; }
+      toast('בוטל — עדכני את הסימונים ונסי שוב', '');
+      return;
+    }
+  }
 
   // Show progress modal
   var progBox = document.getElementById('cmpResult');
