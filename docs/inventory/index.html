@@ -476,6 +476,35 @@
   .supplier .hdr.has-local-order{background:#f0fdf4;border-right:4px solid #16a34a}
   .supplier .hdr.has-local-order .name{color:#14532d}
   .supplier .hdr.has-local-order .status{color:#fff !important;background:#16a34a !important;border-color:#14532d !important}
+
+  /* Compare-invoice button + modal (added 2026-05-18 PM) */
+  .btn-compare-invoice{font-size:12px;font-weight:700;padding:7px 12px;background:linear-gradient(180deg,#3b82f6,#1d4ed8);color:#fff;border:none;border-radius:8px;cursor:pointer;box-shadow:0 1px 2px rgba(59,130,246,.25);white-space:nowrap}
+  .btn-compare-invoice:hover{filter:brightness(1.08)}
+  .cmp-modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;z-index:9999;padding:24px;overflow-y:auto}
+  .cmp-modal{background:#fff;border-radius:16px;max-width:1100px;width:100%;box-shadow:0 25px 70px rgba(0,0,0,.35);padding:24px;direction:rtl}
+  .cmp-modal h2{margin:0 0 8px;font-size:20px;color:#0f172a}
+  .cmp-modal .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .cmp-modal .close-x{float:left;background:#f1f5f9;border:1px solid var(--line);width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:16px;font-weight:700;color:#475569}
+  .cmp-modal .close-x:hover{background:#e2e8f0}
+  .cmp-drop{border:2px dashed #93c5fd;border-radius:12px;padding:34px 20px;text-align:center;background:#eff6ff;cursor:pointer;transition:.18s}
+  .cmp-drop:hover, .cmp-drop.dragover{background:#dbeafe;border-color:#3b82f6}
+  .cmp-drop .ico{font-size:36px;margin-bottom:8px}
+  .cmp-drop .ttl{font-weight:700;color:#1e3a8a;font-size:15px;margin-bottom:4px}
+  .cmp-drop .sub{color:var(--muted);font-size:12px}
+  .cmp-drop input[type=file]{display:none}
+  .cmp-diff-table{width:100%;margin-top:16px;font-size:13px;border-collapse:collapse}
+  .cmp-diff-table th{background:#f8fafc;border-bottom:1px solid var(--line);padding:8px;text-align:right;font-size:11px;color:var(--muted);font-weight:600}
+  .cmp-diff-table td{padding:8px;border-bottom:1px solid #f1f5f9}
+  .cmp-diff-table tr.match td{background:#f0fdf4}
+  .cmp-diff-table tr.qty-diff td{background:#fef3c7}
+  .cmp-diff-table tr.missing td{background:#fee2e2}
+  .cmp-diff-table tr.extra td{background:#dbeafe}
+  .cmp-summary{display:flex;gap:12px;margin:12px 0;flex-wrap:wrap}
+  .cmp-summary .pill{padding:6px 12px;border-radius:999px;font-size:12px;font-weight:700}
+  .cmp-summary .pill.match{background:#dcfce7;color:#14532d}
+  .cmp-summary .pill.qty-diff{background:#fef3c7;color:#854d0e}
+  .cmp-summary .pill.missing{background:#fee2e2;color:#7f1d1d}
+  .cmp-summary .pill.extra{background:#dbeafe;color:#1e3a8a}
 </style>
 </head>
 <body>
@@ -584,6 +613,23 @@
 </div>
 
 <div id="toast" class="toast fade"></div>
+
+<!-- Compare-invoice modal (added 2026-05-18 PM, Phase 1) -->
+<div id="cmpModalBg" class="cmp-modal-bg" style="display:none">
+  <div class="cmp-modal">
+    <button type="button" class="close-x" id="cmpClose" title="סגירה">✕</button>
+    <h2 id="cmpTitle">📋 השוואת חשבונית</h2>
+    <div class="sub" id="cmpSub">בחרי את החשבונית של הספק כדי להשוות מול ההזמנה השמורה.</div>
+    <div id="cmpExpectedBlock" style="margin-bottom:16px"></div>
+    <div id="cmpDrop" class="cmp-drop">
+      <div class="ico">📄</div>
+      <div class="ttl">גררי לכאן את החשבונית מהספק (PDF / תמונה)</div>
+      <div class="sub">או לחצי לבחור קובץ · תומך ב-PDF טקסטואלי וגם תמונות (JPG/PNG/HEIC). תמונות עוברות OCR אוטומטי.</div>
+      <input type="file" id="cmpFile" accept="application/pdf,.pdf,.txt,image/*,.png,.jpg,.jpeg,.webp,.heic">
+    </div>
+    <div id="cmpResult" style="margin-top:16px"></div>
+  </div>
+</div>
 
 <script>
 /* ============================================================
@@ -1214,11 +1260,13 @@ function renderSupplierCard(sup, s, idx){
         var genBtn = canGenerate
           ? '<button type="button" class="btn-generate-po" data-supplier-code="'+sup.code+'" data-vendor-id="'+(sup.octopos_vendor_ids[0])+'">✨ צרי PO חדש ('+toOrderItems.length+' פריטים · $'+fmtNum(toOrderItems.reduce(function(a,x){var g=Math.max(0,Number(x.threshold||0)-Number(x.in_stock_qty||0));return a+g*Number(x.unit_cost||0);},0))+')</button>'
           : '<span style="color:var(--muted);font-size:13px">אין מה להזמין (threshold ≥ stock)</span>';
+        // "השוואת חשבונית" button — Phase 1 (added 2026-05-18 PM)
+        var cmpBtn = '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'">📋 השוואת חשבונית</button>';
         var posSectionHtml =
           '<div class="po-section">'+
             '<div class="ps-hdr">'+
               '<h3>📋 Purchase Orders <span style="color:var(--muted);font-weight:500">('+poGen.length+' פתוחות · '+poRec.length+' שהגיעו)</span></h3>'+
-              genBtn +
+              '<div style="display:flex;gap:8px;align-items:center">' + cmpBtn + genBtn + '</div>'+
             '</div>'+
             poGenHtml +
             poRecHtml +
@@ -6954,6 +7002,205 @@ document.addEventListener("DOMContentLoaded", init);
 window.addEventListener("beforeunload", () => {
   if (PENDING_SAVE){ clearTimeout(PENDING_SAVE); PENDING_SAVE = null; pushToGitHub(); }
 });
+
+/* ---- Compare-Invoice modal (Phase 1, 2026-05-18 PM) ---- */
+var CMP_CTX = null;  // { supplier_code, supplier_name, expected: [{name, sku, qty}], invoice_lines: [] }
+
+function openCompareInvoiceModal(supplierCode, supplierName){
+  // Aggregate items from this supplier's local_orders for this event
+  if (typeof CURRENT_EVKEY === "undefined" || !CURRENT_EVKEY) { toast("אין אירוע פעיל", "error"); return; }
+  var slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || {};
+  var localOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === supplierCode; });
+  var aggMap = {};  // sku|name -> {name, sku, qty, cost_unit}
+  localOrders.forEach(function(o){
+    (o.items || []).forEach(function(it){
+      var k = (it.product_sku || "").trim().toUpperCase() + "|" + (it.product_name || "").toLowerCase();
+      if (!aggMap[k]) aggMap[k] = { name: it.product_name || "", sku: it.product_sku || "", qty: 0, cost_unit: Number(it.cost_unit || 0) };
+      aggMap[k].qty += Number(it.quantity || 0);
+    });
+  });
+  var expected = Object.values(aggMap);
+
+  CMP_CTX = {
+    supplier_code: supplierCode,
+    supplier_name: supplierName,
+    expected: expected,
+    invoice_lines: []
+  };
+
+  // Render expected block
+  var expHtml = expected.length === 0
+    ? '<div style="padding:12px;background:#fef3c7;border-radius:8px;color:#854d0e;font-size:13px">⚠️ אין הזמנה שמורה לספק הזה — אפשר עדיין להעלות חשבונית, היא תוצג רק כרשימה ללא השוואה.</div>'
+    : '<details style="background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px 14px">'+
+        '<summary style="cursor:pointer;font-weight:700;color:#0f172a">📋 ההזמנה השמורה: '+expected.length+' פריטים · '+expected.reduce(function(a,e){return a+e.qty},0)+' יח׳</summary>'+
+        '<table style="width:100%;font-size:12px;margin-top:8px"><thead><tr><th style="text-align:right;color:var(--muted);padding:4px">מוצר</th><th style="text-align:center;color:var(--muted);padding:4px">SKU</th><th style="text-align:center;color:var(--muted);padding:4px">כמות</th></tr></thead><tbody>'+
+        expected.map(function(e){ return '<tr><td style="padding:4px">'+escHtml(e.name)+'</td><td style="text-align:center;padding:4px"><code style="color:var(--muted)">'+escHtml(e.sku||"—")+'</code></td><td style="text-align:center;padding:4px;font-weight:700">'+e.qty+'</td></tr>'; }).join("")+
+        '</tbody></table>'+
+      '</details>';
+
+  $("#cmpTitle").textContent = "📋 השוואת חשבונית · " + supplierName;
+  $("#cmpExpectedBlock").innerHTML = expHtml;
+  $("#cmpResult").innerHTML = '';
+  $("#cmpFile").value = '';
+  $("#cmpModalBg").style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeCompareInvoiceModal(){
+  $("#cmpModalBg").style.display = 'none';
+  document.body.style.overflow = '';
+  CMP_CTX = null;
+}
+
+// Wire compare button (event delegation)
+document.addEventListener("click", function(e){
+  var btn = e.target.closest('.btn-compare-invoice');
+  if (btn){
+    e.preventDefault(); e.stopPropagation();
+    openCompareInvoiceModal(btn.dataset.supplierCode, btn.dataset.supplierName);
+    return;
+  }
+  if (e.target.id === 'cmpClose' || e.target.id === 'cmpModalBg'){
+    closeCompareInvoiceModal();
+  }
+});
+
+// Wire upload area
+document.addEventListener("DOMContentLoaded", function(){
+  var dropEl = document.getElementById('cmpDrop');
+  var fileEl = document.getElementById('cmpFile');
+  if (!dropEl || !fileEl) return;
+  dropEl.addEventListener('click', function(){ fileEl.click(); });
+  dropEl.addEventListener('dragover', function(ev){ ev.preventDefault(); dropEl.classList.add('dragover'); });
+  dropEl.addEventListener('dragleave', function(){ dropEl.classList.remove('dragover'); });
+  dropEl.addEventListener('drop', function(ev){
+    ev.preventDefault();
+    dropEl.classList.remove('dragover');
+    var f = ev.dataTransfer.files && ev.dataTransfer.files[0];
+    if (f) handleCompareInvoiceFile(f);
+  });
+  fileEl.addEventListener('change', function(){
+    if (fileEl.files && fileEl.files[0]) handleCompareInvoiceFile(fileEl.files[0]);
+  });
+});
+
+async function handleCompareInvoiceFile(file){
+  if (!CMP_CTX){ toast("לא נבחר ספק", "error"); return; }
+  var isImage = (file.type && file.type.indexOf('image/') === 0) || /\.(png|jpe?g|webp|heic|heif)$/i.test(file.name);
+  $("#cmpResult").innerHTML = '<div style="padding:20px;background:#f0f9ff;border-radius:10px;text-align:center;color:#0c4a6e">' + (isImage ? '🖼️ מנתח את התמונה (OCR)... זה יכול לקחת 15-30 שניות' : '📄 מנתח את הקובץ...') + '</div>';
+  try{
+    var lines = [];
+    if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)){
+      var ok = await ensurePdfJs();
+      if (!ok){ $("#cmpResult").innerHTML = '<div style="color:#b91c1c">שגיאה בטעינת PDF.js — בדקי חיבור</div>'; return; }
+      lines = await parseInvoicePdf(file);
+    } else if (isImage){
+      var okOcr = await ensureTesseract();
+      if (!okOcr){ $("#cmpResult").innerHTML = '<div style="color:#b91c1c">שגיאה בטעינת Tesseract — בדקי חיבור</div>'; return; }
+      lines = await parseInvoiceImage(file);
+    } else {
+      var txt = await file.text();
+      lines = parseInvoiceText(txt);
+    }
+    if (typeof filterIgnoredLines === 'function') {
+      lines = filterIgnoredLines(lines, CMP_CTX.supplier_code);
+    }
+    CMP_CTX.invoice_lines = lines || [];
+    renderCompareDiff();
+  } catch(e){
+    console.error(e);
+    $("#cmpResult").innerHTML = '<div style="color:#b91c1c;padding:14px;background:#fee2e2;border-radius:10px">שגיאה בניתוח: ' + escHtml(e.message||String(e)) + '</div>';
+  }
+}
+
+function renderCompareDiff(){
+  if (!CMP_CTX){ return; }
+  var expected = CMP_CTX.expected || [];
+  var invoice = CMP_CTX.invoice_lines || [];
+  if (!invoice.length){
+    $("#cmpResult").innerHTML = '<div style="padding:14px;background:#fef3c7;border-radius:10px;color:#854d0e">לא הצלחתי לזהות שורות בחשבונית. נסי קובץ ברור יותר.</div>';
+    return;
+  }
+
+  var rows = [];
+  var usedInv = {};
+  // Match each expected against invoice — SKU first, then name similarity
+  expected.forEach(function(exp){
+    var idx = -1; var matchedBy = null;
+    if (exp.sku){
+      for (var i = 0; i < invoice.length; i++){
+        if (usedInv[i]) continue;
+        if (typeof skusEqual === 'function' ? skusEqual(invoice[i].sku, exp.sku) : ((invoice[i].sku||'').toUpperCase() === (exp.sku||'').toUpperCase())){
+          idx = i; matchedBy = 'sku'; break;
+        }
+      }
+    }
+    if (idx === -1){
+      var bestScore = 0, bestIdx = -1;
+      for (var j = 0; j < invoice.length; j++){
+        if (usedInv[j]) continue;
+        var sim = (typeof nameSimilarity === 'function') ? nameSimilarity(exp.name||'', invoice[j].name||'') : 0;
+        if (sim >= 0.4 && sim > bestScore){ bestScore = sim; bestIdx = j; }
+      }
+      if (bestIdx !== -1){ idx = bestIdx; matchedBy = 'name'; }
+    }
+    if (idx !== -1){
+      usedInv[idx] = true;
+      var inv = invoice[idx];
+      var expQ = Number(exp.qty||0), invQ = Number(inv.qty||0);
+      var status = (expQ === invQ) ? 'match' : 'qty-diff';
+      rows.push({ status: status, exp: exp, inv: inv, matchedBy: matchedBy, expQ: expQ, invQ: invQ });
+    } else {
+      rows.push({ status: 'missing', exp: exp, inv: null, matchedBy: null, expQ: Number(exp.qty||0), invQ: 0 });
+    }
+  });
+  // Extra invoice lines not in expected
+  for (var k = 0; k < invoice.length; k++){
+    if (!usedInv[k]){
+      rows.push({ status: 'extra', exp: null, inv: invoice[k], matchedBy: null, expQ: 0, invQ: Number(invoice[k].qty||0) });
+    }
+  }
+
+  // Summary counts
+  var counts = { match: 0, "qty-diff": 0, missing: 0, extra: 0 };
+  rows.forEach(function(r){ counts[r.status]++; });
+
+  var html =
+    '<div class="cmp-summary">' +
+      '<span class="pill match">✅ תאמו: ' + counts.match + '</span>' +
+      '<span class="pill qty-diff">⚠️ פערי כמות: ' + counts['qty-diff'] + '</span>' +
+      '<span class="pill missing">❌ חסר בחשבונית: ' + counts.missing + '</span>' +
+      '<span class="pill extra">➕ עודף בחשבונית: ' + counts.extra + '</span>' +
+    '</div>' +
+    '<table class="cmp-diff-table">' +
+      '<thead><tr>' +
+        '<th>סטטוס</th>' +
+        '<th style="text-align:right">מוצר (הזמנה)</th>' +
+        '<th style="text-align:center">SKU</th>' +
+        '<th style="text-align:center">צפוי</th>' +
+        '<th style="text-align:center">בחשבונית</th>' +
+        '<th style="text-align:right">שורה בחשבונית</th>' +
+      '</tr></thead><tbody>';
+  var statusEmoji = { 'match': '✅', 'qty-diff': '⚠️', 'missing': '❌', 'extra': '➕' };
+  rows.forEach(function(r){
+    var expName = r.exp ? escHtml(r.exp.name) : '<span style="color:var(--muted)">—</span>';
+    var expSku  = r.exp && r.exp.sku ? '<code>'+escHtml(r.exp.sku)+'</code>' : '<span style="color:var(--muted)">—</span>';
+    var invName = r.inv ? escHtml(r.inv.name||'') : '<span style="color:var(--muted)">—</span>';
+    var invSku  = r.inv && r.inv.sku ? ' · <code>'+escHtml(r.inv.sku)+'</code>' : '';
+    html += '<tr class="'+r.status+'">' +
+      '<td style="font-size:16px">'+statusEmoji[r.status]+'</td>' +
+      '<td>'+expName+'</td>' +
+      '<td style="text-align:center">'+expSku+'</td>' +
+      '<td style="text-align:center;font-weight:700">'+(r.exp ? r.expQ : '—')+'</td>' +
+      '<td style="text-align:center;font-weight:700;'+(r.expQ !== r.invQ && r.exp ? 'color:#dc2626' : '')+'">'+(r.inv ? r.invQ : '—')+'</td>' +
+      '<td>'+invName+invSku+'</td>' +
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  html += '<div style="margin-top:14px;color:var(--muted);font-size:12px">💡 Phase 1: ההשוואה מוצגת בלבד. בעתיד נוסיף שמירת התאמות לזיכרון + סימון פריטים שהתקבלו.</div>';
+  $("#cmpResult").innerHTML = html;
+}
+
 </script>
 </body>
 </html>
