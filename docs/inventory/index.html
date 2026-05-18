@@ -1202,22 +1202,44 @@ function renderSupplierCard(sup, s, idx){
             inactiveHtml +
           '</div>';
       })()+
-      '<div class="contact-section">'+
-        '<h3>📞 פרטי הספק</h3>'+
-        '<div class="row">'+
-          '<div class="field"><label>שם איש קשר</label><input type="text" data-bind="contact.name" value="'+escHtml(s.contact && s.contact.name||"")+'"></div>'+
-          '<div class="field"><label>טלפון</label><input type="tel" data-bind="contact.phone" value="'+escHtml(s.contact && s.contact.phone||"")+'"></div>'+
-          '<div class="field"><label>אימייל</label><input type="email" data-bind="contact.email" value="'+escHtml(s.contact && s.contact.email||"")+'"></div>'+
-          '<div class="field"><label>כתובת מחסן / משרד</label><input type="text" data-bind="contact.address" value="'+escHtml(s.contact && s.contact.address||"")+'"></div>'+
-        '</div>'+
-      '</div>'+
-      '<div class="row full" style="margin-top:14px">'+
-        '<div class="field">'+
-          '<label>הערות פנימיות</label>'+
-          '<textarea data-bind="notes" placeholder="לדוגמה: דיברתי עם רון, מבטיח לשלוח ביום חמישי">'+escHtml(s.notes||"")+'</textarea>'+
-        '</div>'+
-      '</div>'+
-    '</div>';
+      renderLocalOrdersForSupplier(sup.code) +
+      '</div>';
+}
+
+function renderLocalOrdersForSupplier(supplierCode){
+  if (typeof CURRENT_EVKEY === 'undefined' || !CURRENT_EVKEY) return '';
+  var slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || {};
+  var localOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === supplierCode; });
+  if (!localOrders.length) return '';
+  var html = '<div class="local-orders-section" style="margin-top:18px;padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">' +
+    '<h3 style="margin:0 0 10px;font-size:15px;color:#166534;">📋 הזמנות שמורות לספק הזה (' + localOrders.length + ')</h3>';
+  localOrders.forEach(function(o, oi){
+    var when = (o.saved_at || '').slice(0, 16).replace('T', ' ');
+    var rows = (o.items || []).map(function(it){
+      var qty = it.quantity || 0;
+      var cu = Number(it.cost_unit || 0);
+      var lt = Number(it.line_total || qty * cu);
+      return '<tr><td>' + escHtml(it.product_name || ('#' + it.product_id)) + '</td>' +
+        '<td style="text-align:center;color:var(--muted);font-size:11px"><code>' + escHtml(it.product_sku || '') + '</code></td>' +
+        '<td style="text-align:center;font-weight:700">' + qty + '</td>' +
+        '<td style="text-align:center;color:var(--muted)">$' + cu.toFixed(2) + '</td>' +
+        '<td style="text-align:left;color:#15803d;font-weight:600">$' + lt.toFixed(2) + '</td></tr>';
+    }).join('');
+    html += '<details' + (oi === 0 ? ' open' : '') + ' style="margin-bottom:10px;padding:8px;background:#fff;border:1px solid #d1fae5;border-radius:6px;">' +
+      '<summary style="cursor:pointer;font-weight:600;">' +
+        '💾 הזמנה #' + (oi+1) + ' · ' + (o.items || []).length + ' פריטים · ' +
+        '<b>' + (o.total_qty || 0) + ' pcs</b> · <b>$' + Number(o.total_cost || 0).toFixed(2) + '</b>' +
+        ' <span style="color:var(--muted);font-size:11px;font-weight:400;margin-right:8px;">נשמר ' + when + '</span>' +
+        (o.restored_from ? ' <span style="color:#92400e;font-size:11px;font-weight:400;">· משוחזרת מ-SMS</span>' : '') +
+      '</summary>' +
+      '<table style="width:100%;font-size:12px;margin-top:8px;">' +
+        '<thead><tr><th style="text-align:right;color:var(--muted);font-size:11px;">מוצר</th><th style="text-align:center;color:var(--muted);font-size:11px;">SKU</th><th style="text-align:center;color:var(--muted);font-size:11px;">כמות</th><th style="text-align:center;color:var(--muted);font-size:11px;">$/יח׳</th><th style="text-align:left;color:var(--muted);font-size:11px;">סה"כ</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+    '</details>';
+  });
+  html += '</div>';
+  return html;
 }
 
 function renderProductRows(s){
