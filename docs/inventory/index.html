@@ -5330,10 +5330,26 @@ function parseInvoiceRows(rowStrings){
       .replace(new RegExp('\\b' + (typeof found.price === 'number' ? found.price : '').toString().replace('.', '\\.') + '\\b'), ' ')
       .replace(new RegExp('\\b' + (typeof found.total === 'number' ? found.total : '').toString().replace('.', '\\.') + '\\b'), ' ')
       .replace(/\s+/g, ' ').trim();
+    // Detect unit-of-measure indicators in the row.
+    // 'DZ' / 'DOZ' / 'DOZEN' → multiply qty by 12 (1 dozen = 12 pieces).
+    // 'GR' / 'GROSS' → multiply qty by 144 (rare).
+    // Lauren 2026-05-18 PM late: Amuse invoices use DZ for everything.
+    var finalQty = found.qty;
+    var unitNote = '';
+    var rowUpper = row.toUpperCase();
+    if (/\b(DZ|DOZ|DOZEN)\b/.test(rowUpper)) {
+      finalQty = found.qty * 12;
+      unitNote = found.qty + '×DZ';
+    } else if (/\bGROSS\b/.test(rowUpper)) {
+      finalQty = found.qty * 144;
+      unitNote = found.qty + '×GROSS';
+    }
     lines.push({
       sku: sku,
       name: nameRaw,
-      qty: found.qty,
+      qty: finalQty,
+      raw_qty: found.qty,
+      unit_note: unitNote,
       price: found.price,
       total: found.total
     });
