@@ -3035,18 +3035,18 @@ function openSmsForSupplier(s){
   if (items.length === 0){ toast('אין פריטים בהזמנה', 'error'); return; }
 
   function buildText(dayLabel){
-    let body = 'Good morning, please see new order to ship out ' + dayLabel + ':\n\n';
+    let body = 'Hi how are you? please see new order to ship out ' + dayLabel + ':\n\n';
     items.forEach(r => {
       body += r.name + ' / ' + (r.sku || '#'+r.product_id) + ' / ' + r.qty + '\tpcs\n';
     });
     const totalQty = items.reduce((a,r)=>a+r.qty,0);
-    const totalCost = items.reduce((a,r)=>a+r.qty*r.unit_cost,0);
-    body += '\nTotal: ' + totalQty + ' pcs / $' + totalCost.toFixed(2);
+    body += '\nTotal: ' + totalQty + ' pcs';
     body += '\nThanks!';
     return body;
   }
 
   const dayOptions = [
+    {v: 'TOMORROW',  label: 'TOMORROW (מחר) — ברירת מחדל'},
     {v: 'TODAY',     label: 'TODAY (היום)'},
     {v: 'MONDAY',    label: 'MONDAY'},
     {v: 'TUESDAY',   label: 'TUESDAY'},
@@ -3062,7 +3062,7 @@ function openSmsForSupplier(s){
       '<div class="sms-sub">' + items.length + ' פריטים · סה"כ $' + items.reduce((a,r)=>a+r.qty*r.unit_cost,0).toFixed(2) + '</div>' +
       '<label style="font-size:13px;color:var(--muted);margin-left:6px">יום משלוח:</label> ' +
       '<select id="smsDay">' + dayOptions.map(o => '<option value="' + o.v + '">' + o.label + '</option>').join('') + '</select>' +
-      '<textarea id="smsBody" spellcheck="false">' + buildText('TODAY') + '</textarea>' +
+      '<textarea id="smsBody" spellcheck="false">' + buildText('TOMORROW') + '</textarea>' +
       '<div class="sms-actions">' +
         '<button data-action="close">סגור</button>' +
         '<button class="primary" data-action="copy">📋 העתיקי לקליפבורד</button>' +
