@@ -1159,16 +1159,23 @@ function renderSupplierCard(sup, s, idx){
             return '<tr'+rcCls+' data-product-id="'+p.id+'" data-qty="'+qty+'" data-thr="'+thr+'">'+
               '<td>'+escHtml(p.name||'')+(p.department?' <span style="color:var(--muted);font-size:12px">· '+escHtml(p.department)+'</span>':'')+'</td>'+
               (function(){
+              var inGarageFlag = !!(rule_ && rule_.in_garage);
               var routedTo = (rule_ && rule_.route_to) ? String(rule_.route_to) : '';
               var routeBtn;
               if (sup.code === 'mystery-box') {
-                // In GARAGE view: if this product was rerouted here, show '↩ חזרה' to remove
-                routeBtn = routedTo === 'mystery-box'
-                  ? '<button type="button" class="btn-route-toggle" data-pid="'+p.id+'" data-target="" title="החזירי לספק המקורי" style="font-size:11px;padding:2px 6px;background:#fef3c7;border:1px solid #fde68a;border-radius:4px;cursor:pointer;margin-right:4px">↩</button>'
-                  : '';
+                // In GARAGE view: if rerouted here or in_garage flag is on, show '↩ הסר' to remove
+                if (routedTo === 'mystery-box' || inGarageFlag) {
+                  routeBtn = '<button type="button" class="btn-garage-toggle" data-pid="'+p.id+'" data-action="remove" title="הסר את המוצר מרשימת GARAGE (לא נוגע במוצר עצמו)" style="font-size:11px;padding:2px 6px;background:#fef3c7;border:1px solid #fde68a;border-radius:4px;cursor:pointer;margin-right:4px">↩ הסר מ-GARAGE</button>';
+                } else {
+                  routeBtn = '';
+                }
               } else {
-                // In other supplier view: '📦→GARAGE' to move
-                routeBtn = '<button type="button" class="btn-route-toggle" data-pid="'+p.id+'" data-target="mystery-box" title="העבירי את המוצר לתצוגת GARAGE (לא נוגע ב-OCTOPOS)" style="font-size:11px;padding:2px 6px;background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;cursor:pointer;margin-right:4px">📦→GARAGE</button>';
+                // In other supplier view: toggle in_garage flag (additive — stays here AND appears in GARAGE)
+                if (inGarageFlag) {
+                  routeBtn = '<button type="button" class="btn-garage-toggle" data-pid="'+p.id+'" data-action="remove" title="המוצר ברשימת GARAGE. לחיצה תסיר" style="font-size:11px;padding:2px 6px;background:#dcfce7;border:1px solid #86efac;border-radius:4px;cursor:pointer;margin-right:4px;color:#166534;font-weight:700">📦✓ בגראג</button>';
+                } else {
+                  routeBtn = '<button type="button" class="btn-garage-toggle" data-pid="'+p.id+'" data-action="add" title="סמנ/י שמוצר זה גם נמצא בגראג — יופיע ברשימת המוצרים בהזמנה ל-GARAGE" style="font-size:11px;padding:2px 6px;background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;cursor:pointer;margin-right:4px">📦+ לגראג</button>';
+                }
               }
               return '<td><code style="font-size:12px;color:var(--muted)">'+escHtml(p.sku||'')+'</code> '+
                 '<button type="button" class="btn-product-history" data-pid="'+p.id+'" title="היסטוריה של המוצר" style="font-size:11px;padding:2px 6px;background:#ddd6fe;border:1px solid #c4b5fd;border-radius:4px;cursor:pointer;">📋</button>' +
@@ -1609,18 +1616,33 @@ function getOctoposForSupplier(code){
     });
     return s;
   }
+  function ruleInGarage(pid){
+    var r = rules[String(pid)] || rules[pid] || null;
+    return !!(r && r.in_garage);
+  }
   if (code === 'mystery-box') {
-    // Aggregate native + everyone routed here
+    // Aggregate native + everyone routed here (route_to=move) + everyone added (in_garage=add)
     var act = (base.products || []).slice();
     var inact = (base.inactive_products || []).slice();
+    var seenIds = {};
+    act.forEach(function(p){ seenIds[String(p.id)] = true; });
+    inact.forEach(function(p){ seenIds[String(p.id)] = true; });
     Object.keys(OCTOPOS.vendors).forEach(function(otherCode){
       if (otherCode === 'mystery-box') return;
       var other = OCTOPOS.vendors[otherCode] || {};
       (other.products || []).forEach(function(p){
-        if (ruleRoute(p.id) === 'mystery-box') act.push(p);
+        if (seenIds[String(p.id)]) return;
+        if (ruleRoute(p.id) === 'mystery-box' || ruleInGarage(p.id)) {
+          act.push(p);
+          seenIds[String(p.id)] = true;
+        }
       });
       (other.inactive_products || []).forEach(function(p){
-        if (ruleRoute(p.id) === 'mystery-box') inact.push(p);
+        if (seenIds[String(p.id)]) return;
+        if (ruleRoute(p.id) === 'mystery-box' || ruleInGarage(p.id)) {
+          inact.push(p);
+          seenIds[String(p.id)] = true;
+        }
       });
     });
     return Object.assign({}, base, { products: act, inactive_products: inact, summary: recomputeSummary(act, inact) });
@@ -1650,25 +1672,26 @@ document.addEventListener("click", function(e){
     openGeneratePoModal(btn.dataset.supplierCode, parseInt(btn.dataset.vendorId, 10));
     return;
   }
-  // Route-toggle button (📦→GARAGE / ↩ חזרה) — added 2026-05-18 PM late
-  var rt = e.target.closest('.btn-route-toggle');
-  if (rt){
+  // 📦+ לגראג / ↩ הסר — additive in_garage flag (added 2026-05-18 PM late)
+  var gt = e.target.closest('.btn-garage-toggle');
+  if (gt){
     e.preventDefault(); e.stopPropagation();
-    var pid = String(rt.dataset.pid || '');
-    var target = String(rt.dataset.target || '');
+    var pid = String(gt.dataset.pid || '');
+    var action = String(gt.dataset.action || '');
     if (!pid) return;
     var existing = (PRODUCT_RULES.rules && PRODUCT_RULES.rules[pid]) || {};
     var rule = Object.assign({}, existing);
-    if (target) {
-      rule.route_to = target;
+    if (action === 'add') {
+      rule.in_garage = true;
     } else {
-      delete rule.route_to;
+      // remove — clears both in_garage AND any legacy route_to=mystery-box
+      delete rule.in_garage;
+      if (rule.route_to === 'mystery-box') delete rule.route_to;
     }
-    toast(target === 'mystery-box' ? '⏳ מעבירה ל-GARAGE...' : '⏳ מחזירה לספק המקורי...', '');
+    toast(action === 'add' ? '⏳ מוסיפה לגראג...' : '⏳ מסירה מגראג...', '');
     saveProductRule(pid, rule).then(function(ok){
       if (ok){
-        toast(target === 'mystery-box' ? '✓ הועבר ל-GARAGE' : '✓ הוחזר לספק המקורי', 'success');
-        // Re-render the whole supplier list so the product moves between cards
+        toast(action === 'add' ? '✓ נוסף לגראג — יופיע בהזמנת GARAGE' : '✓ הוסר מגראג', 'success');
         try { renderSuppliersWithBindings(); } catch(_){}
       } else {
         toast('⚠️ שמירה נכשלה — בדקי את ה-GitHub token', 'error');
@@ -3455,7 +3478,7 @@ async function _saveProductRuleNow(productId, rule){
   // every known field so single-field rules (like just display_capacity) are kept.
   function ruleIsEmpty(r){
     if (!r) return true;
-    var keys = ['min_display','moq','multiple_of','max','skip','note','display_capacity','pack_size','route_to'];
+    var keys = ['min_display','moq','multiple_of','max','skip','note','display_capacity','pack_size','route_to','in_garage'];
     for (var i = 0; i < keys.length; i++){
       var v = r[keys[i]];
       if (v !== undefined && v !== null && v !== '' && v !== 0 && v !== false) return false;
