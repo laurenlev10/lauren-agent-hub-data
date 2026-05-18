@@ -8142,13 +8142,15 @@ async function confirmInvoiceCompared(){
         });
         if (r.ok) {
           var resp = await r.json();
-          log('  ✓ נוצר: ' + a.name + ' (id ' + resp.id + ')', true);
+          // Response shape varies: direct, .data.id, or .product.id
+          var newId = resp.id || (resp.data && resp.data.id) || (resp.product && resp.product.id) || null;
+          log('  ✓ נוצר: ' + a.name + (newId ? ' (id ' + newId + ')' : ''), true);
           // Save product_rules for the new product
-          if (a.displayMin || a.inGarage) {
+          if (newId && (a.displayMin || a.inGarage)) {
             var rule = {};
             if (a.displayMin) rule.min_display = a.displayMin;
             if (a.inGarage) rule.in_garage = true;
-            try { await saveProductRule(String(resp.id), rule); } catch(_){}
+            try { await saveProductRule(String(newId), rule); } catch(_){}
           }
           _markCompleted(a);
           results.ok++;
