@@ -7412,11 +7412,58 @@ async function handleCompareInvoiceFile(file){
       lines = filterIgnoredLines(lines, CMP_CTX.supplier_code);
     }
     CMP_CTX.invoice_lines = lines || [];
+    // Compute totals and shipping (Lauren 2026-05-18 PM late)
+    try {
+      computeInvoiceTotalsAndApply();
+    } catch(e){ console.warn('computeInvoiceTotalsAndApply failed:', e); }
     renderCompareDiff();
   } catch(e){
     console.error(e);
     $("#cmpResult").innerHTML = '<div style="color:#b91c1c;padding:14px;background:#fee2e2;border-radius:10px">שגיאה בניתוח: ' + escHtml(e.message||String(e)) + '</div>';
   }
+}
+
+function computeInvoiceTotalsAndApply(){
+  if (!CMP_CTX) return;
+  var lines = CMP_CTX.invoice_lines || [];
+  // Sum line totals — fall back to qty*price if 'total' isn't set
+  var lineSubtotal = 0;
+  lines.forEach(function(L){
+    var tot = Number(L.total || 0);
+    if (!tot && Number(L.qty || 0) > 0 && Number(L.price || 0) > 0) {
+      tot = Number(L.qty) * Number(L.price);
+    }
+    if (tot > 0) lineSubtotal += tot;
+  });
+
+  // Try to detect a shipping line from raw row strings if exposed.
+  // Look at the original file text or fall back to scanning the diff context.
+  var shippingDetected = 0;
+  try {
+    // Heuristic: scan any 'name' in invoice_lines for shipping keywords; if found,
+    // use its 'total' value as shipping. Common variants: shipping, freight, delivery, משלוח.
+    var SHIP_RE = /\b(shipping|shipment|freight|delivery|carriage|handling|משלוח|הובלה)\b/i;
+    lines.forEach(function(L){
+      if (SHIP_RE.test(L.name || '') || SHIP_RE.test(L.sku || '')) {
+        var amt = Number(L.total || L.price || 0);
+        if (amt > 0) shippingDetected = Math.max(shippingDetected, amt);
+      }
+    });
+  } catch(_){}
+
+  // Persist to STATE.events[evkey].suppliers[supplierCode]
+  try {
+    if (typeof CURRENT_EVKEY !== 'undefined' && CURRENT_EVKEY && CMP_CTX.supplier_code) {
+      var slice = (STATE.events && STATE.events[CURRENT_EVKEY]) || null;
+      if (slice && slice.suppliers && slice.suppliers[CMP_CTX.supplier_code]) {
+        var supState = slice.suppliers[CMP_CTX.supplier_code];
+        if (lineSubtotal > 0) supState.invoice_total_usd = Math.round(lineSubtotal * 100) / 100;
+        if (shippingDetected > 0) supState.shipping_cost_usd = Math.round(shippingDetected * 100) / 100;
+        // Use the normal autosave path so the change reaches GitHub
+        if (typeof scheduleSave === 'function') scheduleSave();
+      }
+    }
+  } catch(e){ console.warn('apply invoice totals failed:', e); }
 }
 
 function renderCompareDiff(){
@@ -7471,7 +7518,35 @@ function renderCompareDiff(){
   var counts = { match: 0, "qty-diff": 0, missing: 0, extra: 0 };
   rows.forEach(function(r){ counts[r.status]++; });
 
-  var html =
+  // Detected invoice totals (subtotal + shipping)
+  var _lineSubtotal = 0;
+  invoice.forEach(function(L){
+    var t = Number(L.total||0);
+    if (!t && Number(L.qty||0) > 0 && Number(L.price||0) > 0) t = Number(L.qty)*Number(L.price);
+    if (t > 0) _lineSubtotal += t;
+  });
+  var _shipping = 0;
+  try {
+    var _SHIP_RE = /\b(shipping|shipment|freight|delivery|carriage|handling|משלוח|הובלה)\b/i;
+    invoice.forEach(function(L){
+      if (_SHIP_RE.test(L.name || '') || _SHIP_RE.test(L.sku || '')) {
+        var amt = Number(L.total || L.price || 0);
+        if (amt > 0) _shipping = Math.max(_shipping, amt);
+      }
+    });
+  } catch(_){}
+  var _grand = _lineSubtotal + _shipping;
+  var totalsHtml = '';
+  if (_lineSubtotal > 0) {
+    totalsHtml = '<div style="margin-bottom:12px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;display:flex;gap:24px;flex-wrap:wrap;font-size:13px">' +
+      '<div><b style="color:#166534">סכום פריטים:</b> <span style="font-weight:700;color:#15803d">$' + _lineSubtotal.toFixed(2) + '</span></div>' +
+      (_shipping > 0 ? '<div><b style="color:#166534">משלוח:</b> <span style="font-weight:700;color:#15803d">$' + _shipping.toFixed(2) + '</span></div>' : '') +
+      '<div style="margin-right:auto"><b style="color:#166534">סה"כ:</b> <span style="font-weight:800;color:#14532d;font-size:15px">$' + _grand.toFixed(2) + '</span></div>' +
+      '<div style="color:var(--muted);font-size:11px;width:100%">✓ הסכומים האלו כבר עודכנו בשורת הספק (סה"כ חשבונית + הוצאות משלוח). יישמרו אוטומטית.</div>' +
+    '</div>';
+  }
+
+  var html = totalsHtml +
     '<div class="cmp-summary">' +
       '<span class="pill match">✅ תאמו: ' + counts.match + '</span>' +
       '<span class="pill qty-diff">⚠️ פערי כמות: ' + counts['qty-diff'] + '</span>' +
