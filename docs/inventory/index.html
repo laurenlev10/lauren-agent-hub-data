@@ -8306,6 +8306,65 @@ async function handleCompareInvoiceFile(file){
     }
     CMP_CTX.invoice_lines = lines || [];
     CMP_CTX.line_edits = CMP_CTX.line_edits || {};
+
+    // NABI-specific bundle expansion (Lauren 2026-05-18 PM late):
+    // NABI ships gel polishes as a single line 'NG NEW GEL NAIL POLISH 9.5'
+    // with breakdown in description: '#24,35,81-0.5DZ/EACH #18,17-1DZ/EACH'.
+    // Auto-expand into individual color rows.
+    try {
+      if (CMP_CTX.supplier_code === 'nabi') {
+        var origLines = CMP_CTX.invoice_lines;
+        var expandedLines = [];
+        origLines.forEach(function(L){
+          var name = String(L.name || '');
+          // Look for the bundle pattern in name OR adjacent text
+          var bundleRe = /#([0-9,]+)\s*[-=]\s*([\d.]+)\s*DZ\s*\/?\s*EACH/gi;
+          var matches = [];
+          var m;
+          while ((m = bundleRe.exec(name)) !== null) {
+            var codes = m[1].split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+            var perDz = Number(m[2]);
+            matches.push({ codes: codes, perDz: perDz });
+          }
+          if (matches.length === 0) {
+            expandedLines.push(L);
+            return;
+          }
+          // It IS a bundle — expand each color into a synthetic line
+          matches.forEach(function(group){
+            group.codes.forEach(function(code){
+              expandedLines.push({
+                sku: 'NG' + code.replace(/^0+/, ''),  // 'NG' + numeric without leading zero (e.g., '02' → 'NG2'? or 'NG02' — depends)
+                name: 'NG ' + code,
+                qty: Math.round(group.perDz * 12),  // DZ to pieces
+                price: L.price || 0,
+                total: 0,
+                _expanded_from: 'NABI bundle: ' + (L.name||'').slice(0, 60),
+              });
+              // Also try with leading zero variant in case OCTOPOS uses NG02
+              if (code.length === 1 || (code.length > 1 && code[0] === '0')) {
+                expandedLines.push({
+                  sku: 'NG' + code,  // Keep as-is
+                  name: 'NG ' + code,
+                  qty: 0,  // duplicate marker, will be skipped if dedup'd
+                  price: L.price || 0,
+                  total: 0,
+                  _expanded_from: 'NABI bundle alt-sku',
+                });
+              }
+            });
+          });
+          // Mark the original bundle row as informational (exclude from event, qty 0)
+          // Push it but with a note
+          var bundleNote = Object.assign({}, L, { _is_bundle: true });
+          expandedLines.push(bundleNote);
+          console.log('[NABI bundle] expanded into', matches.reduce(function(a,g){return a + g.codes.length;}, 0), 'color rows');
+        });
+        if (expandedLines.length > origLines.length) {
+          CMP_CTX.invoice_lines = expandedLines;
+        }
+      }
+    } catch(e){ console.warn('NABI bundle expansion failed:', e); }
     // Compute totals and shipping (Lauren 2026-05-18 PM late)
     try {
       computeInvoiceTotalsAndApply();
