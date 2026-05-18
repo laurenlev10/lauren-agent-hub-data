@@ -8058,17 +8058,20 @@ function renderCompareDiff(){
                          : ((existingProd && /^clearance!/i.test(existingProd.name||'')) || !!existingRule.skip);
 
     if (r.status === 'missing') {
-      html += '<tr class="'+r.status+'">' +
+      // Missing-in-invoice row: the product exists in saved order (and likely in OCTOPOS).
+      // Allow Lauren to flag it: 🏪 in_garage, 🚫 clearance, 🗑️ exclude — but name/SKU/qty
+      // stay read-only (they're known from the saved order, not from any invoice line).
+      html += '<tr class="'+r.status+'" data-ri="'+ri+'">' +
         '<td style="font-size:14px;text-align:center">'+statusEmoji[r.status]+'</td>' +
         '<td>'+escHtml(name)+'</td>' +
-        '<td style="text-align:center;color:var(--muted)">'+escHtml(sku||'—')+'</td>' +
+        '<td style="text-align:center;color:var(--muted);font-size:11px">'+escHtml(sku||'—')+'</td>' +
         '<td style="text-align:center;font-weight:700">'+qty+'</td>' +
         '<td style="text-align:center;color:var(--muted)">—</td>' +
         '<td style="text-align:center;color:var(--muted)">—</td>' +
         '<td style="text-align:center;color:var(--muted)">—</td>' +
-        '<td style="text-align:center;color:var(--muted)">—</td>' +
-        '<td style="text-align:center;color:var(--muted)">—</td>' +
-        '<td style="text-align:center;color:var(--muted)">—</td>' +
+        '<td style="text-align:center"><input type="checkbox" data-edit="in_garage" data-ri="'+ri+'" '+(inGarageDefault?'checked':'')+' title="גם בגראג\'" style="width:16px;height:16px;cursor:pointer"></td>' +
+        '<td style="text-align:center"><input type="checkbox" data-edit="clearance" data-ri="'+ri+'" '+(clearanceDefault?'checked':'')+' title="Clearance — סגירת המוצר" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"></td>' +
+        '<td style="text-align:center"><input type="checkbox" data-edit="exclude_from_event" data-ri="'+ri+'" '+(!!(ov.exclude_from_event)?'checked':'')+' title="לא לאירוע הזה" style="width:16px;height:16px;cursor:pointer;accent-color:#7f1d1d"></td>' +
         '<td style="text-align:center;color:var(--muted)">—</td>' +
       '</tr>';
     } else {
