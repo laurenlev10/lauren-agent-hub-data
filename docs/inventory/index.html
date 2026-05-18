@@ -1153,7 +1153,23 @@ function renderSupplierCard(sup, s, idx){
             var noteVal = rule_.note || '';
             return '<tr'+rcCls+' data-product-id="'+p.id+'" data-qty="'+qty+'" data-thr="'+thr+'">'+
               '<td>'+escHtml(p.name||'')+(p.department?' <span style="color:var(--muted);font-size:12px">· '+escHtml(p.department)+'</span>':'')+'</td>'+
-              '<td><code style="font-size:12px;color:var(--muted)">'+escHtml(p.sku||'')+'</code> <button type="button" class="btn-product-history" data-pid="'+p.id+'" title="היסטוריה של המוצר" style="font-size:11px;padding:2px 6px;background:#ddd6fe;border:1px solid #c4b5fd;border-radius:4px;cursor:pointer;">📋</button></td>'+
+              (function(){
+              var routedTo = (rule_ && rule_.route_to) ? String(rule_.route_to) : '';
+              var routeBtn;
+              if (sup.code === 'mystery-box') {
+                // In GARAGE view: if this product was rerouted here, show '↩ חזרה' to remove
+                routeBtn = routedTo === 'mystery-box'
+                  ? '<button type="button" class="btn-route-toggle" data-pid="'+p.id+'" data-target="" title="החזירי לספק המקורי" style="font-size:11px;padding:2px 6px;background:#fef3c7;border:1px solid #fde68a;border-radius:4px;cursor:pointer;margin-right:4px">↩</button>'
+                  : '';
+              } else {
+                // In other supplier view: '📦→GARAGE' to move
+                routeBtn = '<button type="button" class="btn-route-toggle" data-pid="'+p.id+'" data-target="mystery-box" title="העבירי את המוצר לתצוגת GARAGE (לא נוגע ב-OCTOPOS)" style="font-size:11px;padding:2px 6px;background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;cursor:pointer;margin-right:4px">📦→GARAGE</button>';
+              }
+              return '<td><code style="font-size:12px;color:var(--muted)">'+escHtml(p.sku||'')+'</code> '+
+                '<button type="button" class="btn-product-history" data-pid="'+p.id+'" title="היסטוריה של המוצר" style="font-size:11px;padding:2px 6px;background:#ddd6fe;border:1px solid #c4b5fd;border-radius:4px;cursor:pointer;">📋</button>' +
+                routeBtn +
+              '</td>';
+            })()+
               '<td>'+chip(qty, p.needs_recount)+'</td>'+
               '<td style="text-align:center;font-size:13px">'+getAvg4wHtml(p.id)+'</td>'+
               '<td style="text-align:center">'+getSlowBadge(p.id)+'</td>'+
@@ -1553,7 +1569,65 @@ async function loadOctopos(){
 }
 
 function getOctoposForSupplier(code){
-  return (OCTOPOS && OCTOPOS.vendors && OCTOPOS.vendors[code]) || null;
+  if (!OCTOPOS || !OCTOPOS.vendors) return null;
+  var base = OCTOPOS.vendors[code];
+  if (!base) return null;
+  var rules = (typeof PRODUCT_RULES !== 'undefined' && PRODUCT_RULES.rules) ? PRODUCT_RULES.rules : {};
+  function ruleRoute(pid){
+    var r = rules[String(pid)] || rules[pid] || null;
+    return r && r.route_to ? String(r.route_to) : null;
+  }
+  function recomputeSummary(active, inactive){
+    var s = { count: 0, in_stock_count: 0, total_units: 0, inactive_count: 0,
+              inactive_in_stock_count: 0, inactive_total_units: 0,
+              needs_recount: 0, total_threshold: 0, total_to_order: 0 };
+    active.forEach(function(p){
+      var q = Number(p.in_stock_qty||0), t = Number(p.threshold||0);
+      s.count++;
+      if (q > 0) s.in_stock_count++;
+      s.total_units += q;
+      if (p.needs_recount || q < 0) s.needs_recount++;
+      s.total_threshold += t;
+      s.total_to_order += Math.max(0, t - Math.max(0, q));
+    });
+    inactive.forEach(function(p){
+      var q = Number(p.in_stock_qty||0);
+      s.inactive_count++;
+      if (q > 0) s.inactive_in_stock_count++;
+      s.inactive_total_units += q;
+    });
+    return s;
+  }
+  if (code === 'mystery-box') {
+    // Aggregate native + everyone routed here
+    var act = (base.products || []).slice();
+    var inact = (base.inactive_products || []).slice();
+    Object.keys(OCTOPOS.vendors).forEach(function(otherCode){
+      if (otherCode === 'mystery-box') return;
+      var other = OCTOPOS.vendors[otherCode] || {};
+      (other.products || []).forEach(function(p){
+        if (ruleRoute(p.id) === 'mystery-box') act.push(p);
+      });
+      (other.inactive_products || []).forEach(function(p){
+        if (ruleRoute(p.id) === 'mystery-box') inact.push(p);
+      });
+    });
+    return Object.assign({}, base, { products: act, inactive_products: inact, summary: recomputeSummary(act, inact) });
+  } else {
+    // Exclude products routed elsewhere
+    var act = (base.products || []).filter(function(p){
+      var rt = ruleRoute(p.id);
+      return !rt || rt === code;
+    });
+    var inact = (base.inactive_products || []).filter(function(p){
+      var rt = ruleRoute(p.id);
+      return !rt || rt === code;
+    });
+    if (act.length === (base.products || []).length && inact.length === (base.inactive_products || []).length) {
+      return base;  // nothing rerouted away — return original
+    }
+    return Object.assign({}, base, { products: act, inactive_products: inact, summary: recomputeSummary(act, inact) });
+  }
 }
 
 
@@ -1563,6 +1637,33 @@ document.addEventListener("click", function(e){
   if (btn){
     e.preventDefault();
     openGeneratePoModal(btn.dataset.supplierCode, parseInt(btn.dataset.vendorId, 10));
+    return;
+  }
+  // Route-toggle button (📦→GARAGE / ↩ חזרה) — added 2026-05-18 PM late
+  var rt = e.target.closest('.btn-route-toggle');
+  if (rt){
+    e.preventDefault(); e.stopPropagation();
+    var pid = String(rt.dataset.pid || '');
+    var target = String(rt.dataset.target || '');
+    if (!pid) return;
+    var existing = (PRODUCT_RULES.rules && PRODUCT_RULES.rules[pid]) || {};
+    var rule = Object.assign({}, existing);
+    if (target) {
+      rule.route_to = target;
+    } else {
+      delete rule.route_to;
+    }
+    toast(target === 'mystery-box' ? '⏳ מעבירה ל-GARAGE...' : '⏳ מחזירה לספק המקורי...', '');
+    saveProductRule(pid, rule).then(function(ok){
+      if (ok){
+        toast(target === 'mystery-box' ? '✓ הועבר ל-GARAGE' : '✓ הוחזר לספק המקורי', 'success');
+        // Re-render the whole supplier list so the product moves between cards
+        try { renderSuppliersWithBindings(); } catch(_){}
+      } else {
+        toast('⚠️ שמירה נכשלה — בדקי את ה-GitHub token', 'error');
+      }
+    });
+    return;
   }
 });
 
@@ -3310,7 +3411,7 @@ async function _saveProductRuleNow(productId, rule){
   // every known field so single-field rules (like just display_capacity) are kept.
   function ruleIsEmpty(r){
     if (!r) return true;
-    var keys = ['min_display','moq','multiple_of','max','skip','note','display_capacity','pack_size'];
+    var keys = ['min_display','moq','multiple_of','max','skip','note','display_capacity','pack_size','route_to'];
     for (var i = 0; i < keys.length; i++){
       var v = r[keys[i]];
       if (v !== undefined && v !== null && v !== '' && v !== 0 && v !== false) return false;
