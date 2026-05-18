@@ -7673,10 +7673,22 @@ async function confirmInvoiceCompared(){
     try {
       if (a.type === 'create') {
         // POST new product to OCTOPOS
+        // OCTOPOS rejects barcodes with special characters (+, $, %, &, *, (), ,, -, /, etc.)
+        // Lauren's directive (2026-05-18): use the product name as placeholder barcode,
+        // but we MUST sanitize it to alphanumeric+space only or OCTOPOS returns 400.
+        // Fallback to SKU then to a random alphanumeric token if the name strips to empty.
+        function _cleanBarcode(name, sku, productId){
+          var cleaned = String(name || '').normalize('NFKD').replace(/[^a-zA-Z0-9]/g, '').slice(0, 40);
+          if (cleaned) return cleaned;
+          cleaned = String(sku || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 40);
+          if (cleaned) return cleaned;
+          return 'TMP' + Date.now() + Math.floor(Math.random() * 10000);
+        }
+        var barcodeVal = _cleanBarcode(a.name, a.sku, null);
         var body = {
           name: a.name,
           sku: a.sku,
-          barcode: a.name,  // Lauren's directive: name as placeholder barcode
+          barcode: barcodeVal,
           cost: a.price,
           unit_cost: a.price,
           sale_price: a.salePrice || null,

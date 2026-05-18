@@ -481,6 +481,15 @@ _Last updated: 2026-05-12 PM (late) — clarified IRON RULE #7 after Lauren's fe
 
 ## OCTOPOS new-product creation — barcode is mandatory (Lauren 2026-05-18 PM)
 
+**OCTOPOS barcode constraints (verified 2026-05-18 PM late):**
+Special characters NOT allowed: `\` `[` `]` `^` `£` `$` `%` `&` `*` `(` `)` `@` `#` `=` `?` `<` `>` `_` `+` non-breaking-space em-dash `-` `/` `,` space `'` `"`.
+In practice: ONLY [a-zA-Z0-9]. So sanitize via:
+```js
+var cleaned = name.normalize('NFKD').replace(/[^a-zA-Z0-9]/g, '').slice(0, 40);
+if (!cleaned) cleaned = 'TMP' + Date.now();
+```
+The `_cleanBarcode()` helper inside `confirmInvoiceCompared` handles this.
+
 When the future Phase 2 of the invoice-compare flow auto-creates products in OCTOPOS (POST to `/api/v2/products`), the `barcode` field is **required by OCTOPOS or the create call fails**.
 
 Lauren's directive: **use the product NAME as the placeholder barcode value at creation time**. She'll manually update the real barcode in OCTOPOS afterwards.
