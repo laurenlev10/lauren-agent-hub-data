@@ -7491,6 +7491,14 @@ function openCompareInvoiceModal(supplierCode, supplierName){
         openLinkExistingPicker(riL);
         return;
       }
+      // 🔧 Auto-split a display-set row across matching base shades
+      var splitBtn = ev.target.closest('[data-action="split-display"]');
+      if (splitBtn) {
+        ev.preventDefault(); ev.stopPropagation();
+        var riS = Number(splitBtn.dataset.ri);
+        autoSplitDisplaySet(riS);
+        return;
+      }
       var btn = ev.target.closest('[data-action="force-received"]');
       if (!btn) return;
       ev.preventDefault(); ev.stopPropagation();
@@ -8110,7 +8118,8 @@ function renderCompareDiff(){
         var perShade = matches.length > 0 ? Math.floor(invQty / matches.length) : 0;
         hintHtml += '<br>📦 <b>' + escHtml(invSku) + '</b> (כמות ' + invQty + ') כנראה display של ' + matches.length + ' צבעים: ';
         hintHtml += matches.map(function(e){ return '<code>' + escHtml(e.sku) + '</code> (הזמנה: ' + e.qty + ')'; }).join(' · ');
-        hintHtml += '. <b>הצעה:</b> ' + invQty + ' חתיכות ÷ ' + matches.length + ' צבעים = ' + perShade + ' לכל צבע. אפשר לערוך את ה-SKU בשורה כדי לתאם, או להשאיר את הdisplay כשורה אחת.';
+        hintHtml += '. <b>הצעה:</b> ' + invQty + ' חתיכות ÷ ' + matches.length + ' צבעים = ' + perShade + ' לכל צבע. ';
+        hintHtml += '<button type="button" data-action="split-display" data-ri="' + ri + '" style="background:#15803d;color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:700;margin-right:8px;font-size:12px">🔧 פצל אוטומטית לכל צבע</button>';
       });
       hintHtml += '</div>';
       return hintHtml;
@@ -8268,6 +8277,79 @@ function renderCompareDiff(){
   if (cb) cb.style.display = 'block';
 }
 
+
+function autoSplitDisplaySet(ri){
+  if (!CMP_CTX || !CMP_CTX._lastRows) return;
+  var rows = CMP_CTX._lastRows;
+  var displayRow = rows[ri];
+  if (!displayRow || !displayRow.inv) return;
+  var displayQty = Number(displayRow.inv.qty || 0);  // e.g., 3 (3 displays)
+  // Build expected map by SKU
+  var expectedSet = {};
+  (CMP_CTX.expected || []).forEach(function(e){ if (e.sku) expectedSet[String(e.sku).toUpperCase()] = e; });
+  var invSku = String(displayRow.inv.sku || '').toUpperCase();
+  var baseSku = invSku.replace(/-D$/, '');
+  var matchedShades = Object.keys(expectedSet).filter(function(k){
+    return k !== invSku && (k.startsWith(baseSku + '-') || k.startsWith(baseSku + '/') || k.indexOf(baseSku) === 0);
+  }).map(function(k){ return expectedSet[k]; });
+  if (matchedShades.length === 0) {
+    toast('לא נמצאו צבעים מתאימים בהזמנה השמורה', 'error');
+    return;
+  }
+
+  // Compute per-shade qty.
+  // Look for 'Npcs of each shade' or 'total Npcs' patterns in the display description
+  var desc = String(displayRow.inv.name || '');
+  var perShadePerDisplay = 0;
+  var m;
+  // 'Npcs of each shade + Mpcs free testers' → N+M (or N+1 if 'each')
+  if (m = desc.match(/(\d+)\s*pcs?\s+of\s+each\s+shade\s*\+?\s*(\d+)?\s*\w*\s*tester/i)) {
+    perShadePerDisplay = Number(m[1]) + (m[2] ? Number(m[2]) : 1);
+  } else if (m = desc.match(/(\d+)\s*pcs?\s+of\s+each\s+shade/i)) {
+    perShadePerDisplay = Number(m[1]);
+  } else if (m = desc.match(/total\s+(\d+)\s*pcs/i)) {
+    // Total pcs ÷ num shades = per-shade
+    perShadePerDisplay = Math.floor(Number(m[1]) / matchedShades.length);
+  } else {
+    // Fallback: use saved-order's typical qty as per-shade-per-display
+    perShadePerDisplay = matchedShades[0].qty || 12;
+  }
+
+  var perShadeTotal = displayQty * perShadePerDisplay;
+
+  // Initialize line_edits
+  if (!CMP_CTX.line_edits) CMP_CTX.line_edits = {};
+
+  // 1. Mark the display row itself as excluded from event (its qty already counted via shades)
+  if (!CMP_CTX.line_edits[ri]) CMP_CTX.line_edits[ri] = {};
+  CMP_CTX.line_edits[ri].exclude_from_event = true;
+  CMP_CTX.line_edits[ri].add_to_system = false;  // don't create the -D as separate product
+
+  // 2. For each matched shade, find its row index in rows and apply force_received + qty
+  rows.forEach(function(r, ri2){
+    if (r.status !== 'missing' || !r.exp || !r.exp.sku) return;
+    var rSku = String(r.exp.sku).toUpperCase();
+    var hit = matchedShades.find(function(s){ return String(s.sku).toUpperCase() === rSku; });
+    if (!hit) return;
+    if (!CMP_CTX.line_edits[ri2]) CMP_CTX.line_edits[ri2] = {};
+    CMP_CTX.line_edits[ri2].force_received = true;
+    CMP_CTX.line_edits[ri2].name = r.exp.name || '';
+    CMP_CTX.line_edits[ri2].sku = r.exp.sku || '';
+    CMP_CTX.line_edits[ri2].qty = perShadeTotal;
+    CMP_CTX.line_edits[ri2].price = Number(r.exp.cost_unit || 0);
+  });
+
+  // 3. Persist + re-render
+  try {
+    var sup3 = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+    if (sup3 && sup3._pending_invoice) {
+      sup3._pending_invoice.line_edits = CMP_CTX.line_edits;
+      if (typeof scheduleSave === 'function') scheduleSave();
+    }
+  } catch(_){}
+  toast('✓ פוצל ל-' + matchedShades.length + ' צבעים · ' + perShadeTotal + ' חתיכות לכל צבע', 'success');
+  try { renderCompareDiff(); } catch(_){}
+}
 
 function openLinkExistingPicker(ri){
   if (!CMP_CTX || !CMP_CTX.supplier_code) return;
