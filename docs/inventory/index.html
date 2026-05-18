@@ -2218,11 +2218,20 @@ function buildSupplierOrder(supplierCode){
     const cost = Number(p.unit_cost || 0);
     // Default case_size = 12 (Lauren 2026-05-13 — always step in 12s unless rule overrides).
     // OCTOPOS case_size field is unreliable (e.g. GP20 shows case=84) — ignore unless explicitly overridden via rule.multiple_of.
-    const cs = Number(rule.multiple_of || 0) > 0 ? Number(rule.multiple_of) : DEFAULT_CASE_SIZE;
+    // min_display ALSO acts as the supplier pack size — Lauren 2026-05-18 PM:
+    //   "אם המינימום במוצר הוא 24 אז אי אפשר להציע רק 12 - תתקן"
+    // Priority: explicit rule.multiple_of → rule.min_display → DEFAULT_CASE_SIZE (12).
+    const minD = Number(rule.min_display || 0);
+    const cs = Number(rule.multiple_of || 0) > 0
+      ? Number(rule.multiple_of)
+      : (minD > 0 ? minD : DEFAULT_CASE_SIZE);
     let gap   = Math.max(0, thr - stockForGap) * mult;
     // MOQ: if base > 0 but below MOQ, snap up to MOQ
     if (gap > 0 && Number(rule.moq || 0) > 0 && gap < Number(rule.moq)) gap = Number(rule.moq);
     let suggested = roundToCase(gap, cs, 'nearest');  // Lauren 2026-05-13 — round to nearest, not always up
+    // If there's ANY need to order AND min_display is set, the order must be at least min_display.
+    // Uses gap>0 (not suggested>0) so that small gaps rounding down to 0 still get bumped to one pack.
+    if (gap > 0 && minD > 0 && suggested < minD) suggested = minD;
     // Max cap
     if (Number(rule.max || 0) > 0) suggested = Math.min(suggested, Number(rule.max));
     // Hard skip
