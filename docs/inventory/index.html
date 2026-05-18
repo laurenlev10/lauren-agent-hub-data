@@ -7750,8 +7750,6 @@ async function confirmInvoiceCompared(){
     }
     // Pass 4 (NEW — Lauren 2026-05-18 PM late): if the invoice line's SKU matches an item
     // in CMP_CTX.expected (saved order), use that item's product_id to find in OCTOPOS.
-    // This handles the case where the saved order has the product but the OCTOPOS snapshot
-    // has slightly different SKU formatting that exact/stripped/fuzzy lookups missed.
     if (!existing && sku) {
       var skuU = sku.toUpperCase().trim();
       var expMatch = null;
@@ -7773,6 +7771,53 @@ async function confirmInvoiceCompared(){
           });
         } catch(_){}
       }
+    }
+    // Pass 5 (NEW — Lauren 2026-05-18 PM late): aggressive suffix-strip prefix match
+    // EBS invoices have SKUs like EBC1330-3-00 but OCTOPOS has EBC1330-3 — the trailing
+    // -00, -A, -1, etc., needs to be stripped. Find OCTOPOS SKU that shares a long
+    // common prefix with the invoice SKU (≥6 chars or 80%+ of invoice SKU length).
+    if (!existing && sku) {
+      try {
+        var skuClean = sku.toUpperCase().trim().replace(/[^A-Z0-9-]/g, '');
+        // Try stripping trailing 1-4 char alphanumeric suffixes after a dash
+        var stripCandidates = [];
+        var parts = skuClean.split('-');
+        for (var pp = parts.length - 1; pp >= 1; pp--) {
+          stripCandidates.push(parts.slice(0, pp).join('-'));
+        }
+        var minLen = Math.max(6, Math.floor(skuClean.length * 0.7));
+        var candidates = [];
+        Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
+          var v = OCTOPOS.vendors[c] || {};
+          (v.products || []).concat(v.inactive_products || []).forEach(function(p){
+            var psk = (p.sku || '').toUpperCase().trim();
+            if (!psk) return;
+            // Check if any of our strip-candidates is a prefix of psk OR psk is a prefix of skuClean
+            for (var sc = 0; sc < stripCandidates.length; sc++) {
+              if (stripCandidates[sc].length >= minLen && (psk.startsWith(stripCandidates[sc]) || psk === stripCandidates[sc])) {
+                candidates.push({prod: p, score: stripCandidates[sc].length / psk.length, supplier: c});
+                break;
+              }
+            }
+          });
+        });
+        if (candidates.length > 0) {
+          // Filter to same-supplier matches first, then highest score
+          var sameSup = candidates.filter(function(o){ return o.supplier === supplierCode; });
+          var pool = sameSup.length > 0 ? sameSup : candidates;
+          // Tiebreaker by name similarity
+          var bestC = null, bestScore = 0;
+          pool.forEach(function(o){
+            var nameSim = (typeof nameSimilarity === 'function') ? nameSimilarity(name||'', o.prod.name||'') : 0;
+            var combined = o.score * 0.5 + nameSim * 0.5;
+            if (combined > bestScore) { bestScore = combined; bestC = o; }
+          });
+          if (bestC && bestScore >= 0.35) {
+            existing = bestC.prod;
+            existingMatchedBy = 'sku-prefix-fuzzy';
+          }
+        }
+      } catch(_){}
     }
     if (existing) {
       // Existing product — adjust stock + sale_price + clearance + rules
