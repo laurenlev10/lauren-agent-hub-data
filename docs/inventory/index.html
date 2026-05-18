@@ -1089,21 +1089,6 @@ function renderSupplierCard(sup, s, idx){
             carrierOpts.map(c => '<option value="'+c+'" '+(s.tracking_carrier===c?"selected":"")+'>'+c.toUpperCase()+'</option>').join("")+
           '</select>'+
         '</div>'+
-        '<div class="field">'+
-          '<label><input type="checkbox" data-bind="received" '+(s.received?"checked":"")+'> סחורה התקבלה במחסן</label>'+
-          '<span style="color:var(--muted);font-size:11px">'+(s.received_at ? "התקבל ב-" + s.received_at.slice(0,10) : "")+'</span>'+
-        '</div>'+
-        '<div class="field">'+
-          '<label>OCTOPOS sync</label>'+
-          (function(){
-            var oct_ = getOctoposForSupplier(sup.code);
-            if (!oct_) return '<span class="octopos-chip" style="background:#fee2e2;color:#7f1d1d;border-color:#fca5a5">⚠️ אין נתוני OCTOPOS</span>';
-            var n = (oct_.products||[]).length;
-            var toOrder = (oct_.summary && oct_.summary.total_to_order) || 0;
-            var lastSync = (OCTOPOS && OCTOPOS._updated_at) ? fmtLADateMMDD(OCTOPOS._updated_at) : '?';
-            return '<span class="octopos-chip" style="background:#dcfce7;color:#14532d;border-color:#86efac">✓ ' + n + ' מוצרים · 🛒 ' + Math.round(toOrder) + ' להזמין · עודכן ' + lastSync + '</span>';
-          })()+
-        '</div>'+
       '</div>'+
       // OCTOPOS overlay (added 2026-05-12, updated 2026-05-13 — split active/inactive, threshold col, to-order, stock filter, tag picker)
       (function(){
