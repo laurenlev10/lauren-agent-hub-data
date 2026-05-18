@@ -7416,6 +7416,14 @@ function openCompareInvoiceModal(supplierCode, supplierName){
           if (typeof scheduleSave === 'function') scheduleSave();
         }
       } catch(_){}
+      // Live recompute totals + supplier card when exclude/qty/price changes
+      if (field === 'exclude_from_event' || field === 'qty' || field === 'price') {
+        try { computeInvoiceTotalsAndApply(); } catch(_){}
+        // Re-render the diff to refresh totals banner + line-through
+        if (field === 'exclude_from_event') {
+          try { renderCompareDiff(); } catch(_){}
+        }
+      }
     };
     resBox.addEventListener('input', captureEdit);
     resBox.addEventListener('change', captureEdit);
@@ -7577,13 +7585,19 @@ async function handleCompareInvoiceFile(file){
 function computeInvoiceTotalsAndApply(){
   if (!CMP_CTX) return;
   var lines = CMP_CTX.invoice_lines || [];
-  // Sum line totals — fall back to qty*price if 'total' isn't set
+  var edits = CMP_CTX.line_edits || {};
+  // Sum line totals — fall back to qty*price if 'total' isn't set.
+  // EXCLUDE rows where line_edits[i].exclude_from_event is true.
   var lineSubtotal = 0;
-  lines.forEach(function(L){
+  lines.forEach(function(L, i){
+    var ovL = edits[i] || {};
+    if (ovL.exclude_from_event) return;  // skip — not for this event
+    // Use edited qty/price if present, otherwise the parsed L values
+    var q = (ovL.qty !== undefined ? Number(ovL.qty) : Number(L.qty || 0));
+    var p = (ovL.price !== undefined ? Number(ovL.price) : Number(L.price || 0));
     var tot = Number(L.total || 0);
-    if (!tot && Number(L.qty || 0) > 0 && Number(L.price || 0) > 0) {
-      tot = Number(L.qty) * Number(L.price);
-    }
+    if (ovL.qty !== undefined || ovL.price !== undefined) tot = q * p;
+    if (!tot && q > 0 && p > 0) tot = q * p;
     if (tot > 0) lineSubtotal += tot;
   });
 
@@ -7669,11 +7683,22 @@ function renderCompareDiff(){
   var counts = { match: 0, "qty-diff": 0, missing: 0, extra: 0 };
   rows.forEach(function(r){ counts[r.status]++; });
 
-  // Detected invoice totals (subtotal + shipping)
+  // Detected invoice totals (subtotal + shipping). Excluded lines don't count.
   var _lineSubtotal = 0;
-  invoice.forEach(function(L){
+  var _excludedCount = 0;
+  var _excludedSum = 0;
+  invoice.forEach(function(L, i){
+    var ovT = (CMP_CTX.line_edits || {})[i] || {};
+    var q = (ovT.qty !== undefined ? Number(ovT.qty) : Number(L.qty||0));
+    var p = (ovT.price !== undefined ? Number(ovT.price) : Number(L.price||0));
     var t = Number(L.total||0);
-    if (!t && Number(L.qty||0) > 0 && Number(L.price||0) > 0) t = Number(L.qty)*Number(L.price);
+    if (ovT.qty !== undefined || ovT.price !== undefined) t = q * p;
+    if (!t && q > 0 && p > 0) t = q*p;
+    if (ovT.exclude_from_event) {
+      _excludedCount++;
+      _excludedSum += (t > 0 ? t : 0);
+      return;
+    }
     if (t > 0) _lineSubtotal += t;
   });
   var _shipping = 0;
@@ -7688,11 +7713,12 @@ function renderCompareDiff(){
   } catch(_){}
   var _grand = _lineSubtotal + _shipping;
   var totalsHtml = '';
-  if (_lineSubtotal > 0) {
+  if (_lineSubtotal > 0 || _excludedCount > 0) {
     totalsHtml = '<div style="margin-bottom:12px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;display:flex;gap:24px;flex-wrap:wrap;font-size:13px">' +
-      '<div><b style="color:#166534">סכום פריטים:</b> <span style="font-weight:700;color:#15803d">$' + _lineSubtotal.toFixed(2) + '</span></div>' +
+      '<div><b style="color:#166534">סכום פריטים (לאירוע):</b> <span style="font-weight:700;color:#15803d">$' + _lineSubtotal.toFixed(2) + '</span></div>' +
       (_shipping > 0 ? '<div><b style="color:#166534">משלוח:</b> <span style="font-weight:700;color:#15803d">$' + _shipping.toFixed(2) + '</span></div>' : '') +
-      '<div style="margin-right:auto"><b style="color:#166534">סה"כ:</b> <span style="font-weight:800;color:#14532d;font-size:15px">$' + _grand.toFixed(2) + '</span></div>' +
+      '<div style="margin-right:auto"><b style="color:#166534">סה"כ (לאירוע):</b> <span style="font-weight:800;color:#14532d;font-size:15px">$' + _grand.toFixed(2) + '</span></div>' +
+      (_excludedCount > 0 ? '<div style="width:100%;color:#7f1d1d;font-size:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:6px 10px;margin-top:6px">🗑️ ' + _excludedCount + ' פריטים הוסרו מהאירוע · $' + _excludedSum.toFixed(2) + ' לא נכלל בסך</div>' : '') +
       '<div style="color:var(--muted);font-size:11px;width:100%">✓ הסכומים האלו כבר עודכנו בשורת הספק (סה"כ חשבונית + הוצאות משלוח). יישמרו אוטומטית.</div>' +
     '</div>';
   }
@@ -7757,6 +7783,7 @@ function renderCompareDiff(){
         '<th style="text-align:center;width:60px" title="מינ\' לדיספליי">📦 מינ\'</th>' +
         '<th style="text-align:center;width:50px" title="מוצר זה גם נמצא בגראג\'">🏪</th>' +
         '<th style="text-align:center;width:50px" title="מוצר לסגירה — Clearance">🚫</th>' +
+        '<th style="text-align:center;width:50px" title="לא לאירוע הזה — להוריד מסה\"כ החשבונית">🗑️</th>' +
         '<th style="text-align:center;width:40px" title="לסמן/י כדי להוסיף את המוצר למערכת">✓</th>' +
       '</tr></thead><tbody>';
   var statusEmoji = { 'match': '✅', 'qty-diff': '⚠️', 'missing': '❌', 'extra': '➕' };
@@ -7810,12 +7837,15 @@ function renderCompareDiff(){
         '<td style="text-align:center;color:var(--muted)">—</td>' +
         '<td style="text-align:center;color:var(--muted)">—</td>' +
         '<td style="text-align:center;color:var(--muted)">—</td>' +
+        '<td style="text-align:center;color:var(--muted)">—</td>' +
       '</tr>';
     } else {
       var defaultChecked = (r.status === 'extra') ? 'checked' : '';
       if (ov.add_to_system === false) defaultChecked = '';
       else if (ov.add_to_system === true) defaultChecked = 'checked';
-      html += '<tr class="'+r.status+'" data-ri="'+ri+'">' +
+      var excludedDefault = !!ov.exclude_from_event;
+      var rowStyle = excludedDefault ? 'opacity:.45;text-decoration:line-through' : '';
+      html += '<tr class="'+r.status+'" data-ri="'+ri+'" style="'+rowStyle+'">' +
         '<td style="font-size:14px;text-align:center">'+statusEmoji[r.status]+'</td>' +
         '<td><input type="text" data-edit="name" data-ri="'+ri+'" value="'+escHtml(name)+'" style="'+inpBase+'"></td>' +
         '<td><input type="text" data-edit="sku" data-ri="'+ri+'" value="'+escHtml(sku)+'" style="'+inpBase+'text-align:center"></td>' +
@@ -7825,6 +7855,7 @@ function renderCompareDiff(){
         '<td><input type="number" data-edit="display_min" data-ri="'+ri+'" min="0" step="1" value="'+dispMin+'" placeholder="24" style="'+inpBase+'text-align:center"></td>' +
         '<td style="text-align:center"><input type="checkbox" data-edit="in_garage" data-ri="'+ri+'" '+(inGarageDefault?'checked':'')+' title="גם בגראג\'" style="width:16px;height:16px;cursor:pointer"></td>' +
         '<td style="text-align:center"><input type="checkbox" data-edit="clearance" data-ri="'+ri+'" '+(clearanceDefault?'checked':'')+' title="Clearance — סגירת המוצר" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"></td>' +
+        '<td style="text-align:center"><input type="checkbox" data-edit="exclude_from_event" data-ri="'+ri+'" '+(excludedDefault?'checked':'')+' title="לא בחשבונית של האירוע — לא מחושב בסך" style="width:16px;height:16px;cursor:pointer;accent-color:#7f1d1d"></td>' +
         '<td style="text-align:center"><input type="checkbox" data-edit="add_to_system" data-ri="'+ri+'" '+defaultChecked+' title="הוסף למערכת בעדכון" style="width:16px;height:16px;cursor:pointer"></td>' +
       '</tr>';
     }
