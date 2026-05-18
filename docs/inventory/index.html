@@ -5330,19 +5330,44 @@ function parseInvoiceRows(rowStrings){
       .replace(new RegExp('\\b' + (typeof found.price === 'number' ? found.price : '').toString().replace('.', '\\.') + '\\b'), ' ')
       .replace(new RegExp('\\b' + (typeof found.total === 'number' ? found.total : '').toString().replace('.', '\\.') + '\\b'), ' ')
       .replace(/\s+/g, ' ').trim();
-    // Detect unit-of-measure indicators in the row.
-    // 'DZ' / 'DOZ' / 'DOZEN' → multiply qty by 12 (1 dozen = 12 pieces).
-    // 'GR' / 'GROSS' → multiply qty by 144 (rare).
-    // Lauren 2026-05-18 PM late: Amuse invoices use DZ for everything.
+    // Detect unit-of-measure / pack-size indicators in the row.
+    // Priority order:
+    //   1. Explicit 'total Npcs' → ×N (Kara: 'total 18pcs')
+    //   2. '(Npcs +M free tester)' → ×(N+M) → ×N+M like '12pcs +1 free' = 13. But Lauren
+    //      treats the tester as part of the display, so multiply by N+M.
+    //   3. '(N/CASE)' → ×N
+    //   4. '(Npc x Mpacks)' → ×N (display size, ignore packs count)
+    //   5. 'DZ' / 'DOZ' / 'DOZEN' → ×12
+    //   6. 'GROSS' → ×144
     var finalQty = found.qty;
     var unitNote = '';
     var rowUpper = row.toUpperCase();
-    if (/\b(DZ|DOZ|DOZEN)\b/.test(rowUpper)) {
+    // Order matters — try most specific patterns first
+    var packM;
+    if (packM = rowUpper.match(/TOTAL\s+(\d+)\s*PCS/)) {
+      finalQty = found.qty * Number(packM[1]);
+      unitNote = found.qty + '×' + packM[1] + 'pcs';
+    } else if (packM = rowUpper.match(/\((\d+)\s*PCS?\s*\+\s*(\d+)\s*FREE/)) {
+      var per = Number(packM[1]) + Number(packM[2]);
+      finalQty = found.qty * per;
+      unitNote = found.qty + '×' + per + 'pcs(+tester)';
+    } else if (packM = rowUpper.match(/\((\d+)\s*[\/]\s*CASE\)/)) {
+      finalQty = found.qty * Number(packM[1]);
+      unitNote = found.qty + '×' + packM[1] + '/case';
+    } else if (packM = rowUpper.match(/\((\d+)\s*PCS?\s*[X×*]\s*\d+\s*PACK/)) {
+      finalQty = found.qty * Number(packM[1]);
+      unitNote = found.qty + '×' + packM[1] + 'pc';
+    } else if (/\b(DZ|DOZ|DOZEN)\b/.test(rowUpper)) {
       finalQty = found.qty * 12;
       unitNote = found.qty + '×DZ';
     } else if (/\bGROSS\b/.test(rowUpper)) {
       finalQty = found.qty * 144;
       unitNote = found.qty + '×GROSS';
+    }
+    // Skip rows with zero quantity AND zero total — they're invoice noise
+    // (placeholder lines from supplier templates, out-of-stock items, etc.)
+    if (finalQty === 0 && (!found.total || found.total === 0)) {
+      return;
     }
     lines.push({
       sku: sku,
