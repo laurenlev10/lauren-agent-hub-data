@@ -1039,11 +1039,16 @@ function renderSupplierCard(sup, s, idx){
   const statusLabel = _hasLocalOrder ? "✅ נשלחה הזמנה" : (STATUS_LABELS[s.status]||STATUS_LABELS.pending);
   const totalDisp = Number(s.invoice_total_usd||0) > 0 ? fmtUsd(s.invoice_total_usd) : "—";
   const carrierOpts = ["ups","usps","fedex","dhl","other"];
+  // Inline 'הזמנה חדשה' button on pending rows (Lauren 2026-05-18 PM late)
+  var newOrderBtn = !_hasLocalOrder
+    ? '<button type="button" class="btn-new-order-row" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="פתח Wizard ליצירת הזמנה לספק הזה" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#3b82f6,#1d4ed8);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-left:6px">📝 הזמנה חדשה</button>'
+    : '';
   return ''+
     '<div class="hdr' + (_hasLocalOrder ? " has-local-order" : "") + '" data-toggle="1">'+
       '<div class="num">'+(idx+1)+'.</div>'+
       '<div class="name">'+escHtml(sup.name)+' <span class="cat">· '+escHtml(sup.category)+'</span></div>'+
       '<div class="status '+statusClass+'">'+statusLabel+'</div>'+
+      newOrderBtn+
       '<div class="total">'+totalDisp+'</div>'+
       '<div class="chev">▾</div>'+
     '</div>'+
@@ -2395,10 +2400,10 @@ function recomputeSupplierTotals(s){
 }
 
 /* ---- Wizard UI ---- */
-async function openOrderWizard(){
+async function openOrderWizard(scopeSupplierCode){
   await loadSummaries();
   const summaries = mostRecentSummaries();
-  WIZARD_STATE = { events: 1, size: 'medium', useBudget: false, budgetAmount: 0, anchorEvent: (summaries[0] || null) };
+  WIZARD_STATE = { events: 1, size: 'medium', useBudget: false, budgetAmount: 0, anchorEvent: (summaries[0] || null), scopeSupplier: scopeSupplierCode || null };
 
   const defaultBudget = summaries[0] ? Math.round(summaries[0].sales * BUDGET_DEFAULT_PCT) : 0;
   const summaryOpts = summaries.map(s => '<option value="'+s.evkey+'">' + s.evkey + ' — $' + (s.sales||0).toLocaleString() + '</option>').join('');
@@ -2407,7 +2412,7 @@ async function openOrderWizard(){
   modal.className = 'wiz-modal';
   modal.innerHTML =
     '<div class="wiz-card">' +
-      '<h2>✨ צרי הזמנות לאירוע</h2>' +
+      '<h2>✨ ' + (scopeSupplierCode ? 'הזמנה חדשה — ' + escHtml((SUPPLIERS.find(function(x){return x.code===scopeSupplierCode;})||{}).name||scopeSupplierCode) : 'צרי הזמנות לאירוע') + '</h2>' +
       '<div class="wiz-q">' +
         '<div class="qlabel">1) כמה כיסוי להזמין לאירוע?</div>' +
         '<div class="wiz-opts" data-q="coverage">' +
@@ -2467,7 +2472,11 @@ async function openOrderWizard(){
 
 /* ---- Calculation + open review modal ---- */
 function runOrderCalculation(){
-  const supplierResults = SUPPLIERS
+  const _scope = (WIZARD_STATE && WIZARD_STATE.scopeSupplier) || null;
+  const _supplierList = _scope
+    ? SUPPLIERS.filter(function(s){ return s.code === _scope; })
+    : SUPPLIERS;
+  const supplierResults = _supplierList
     .map(s => buildSupplierOrder(s.code))
     .filter(Boolean)
     .map(s => { recomputeSupplierTotals(s); return s; });
@@ -3344,6 +3353,13 @@ async function manualRefreshOctopos(btn){
 // Wire buttons
 document.addEventListener("click", function(e){
   if (e.target.matches('#btnOrderWizard')){ openOrderWizard(); }
+  // Per-row 'הזמנה חדשה' button (Lauren 2026-05-18 PM late)
+  var nob = e.target.closest('.btn-new-order-row');
+  if (nob){
+    e.preventDefault(); e.stopPropagation();
+    openOrderWizard(nob.dataset.supplierCode);
+    return;
+  }
   if (e.target.matches('#btnRefreshOctopos, #btnRefreshOctoposGlobal')){ manualRefreshOctopos(e.target); }
   if (e.target.closest('#btnOrderPhase')){
     // ORDER phase: scroll to the supplier list (already visible on this view)
