@@ -1535,8 +1535,7 @@ function openGeneratePoModal(supplierCode, vendorId){
       '<div style="text-align:left;margin-top:10px;font-size:15px;font-weight:700">סה"כ הזמנה: <span class="po-grand-total">$'+sumCost.toFixed(2)+'</span></div>'+
       '<div class="modal-actions">'+
         '<button type="button" data-action="cancel">בטל</button>'+
-        '<button type="button" class="local-only-btn" data-action="submit-local" title="ההזמנה נשמרת אצלנו ב-GitHub ולא נוצרת באוקטופוס. כשתגיע חשבונית - תתאימי אותה ותעדכני את המלאי דרך הדשבורד.">💾 שמור אצלנו (לא לאוקטופוס)</button>'+
-        '<button type="button" class="primary" data-action="submit">📤 שלח PO לאוקטופוס</button>'+
+        '<button type="button" class="primary" data-action="submit-local" title="ההזמנה נשמרת אצלנו ב-GitHub. כשתגיע החשבונית — Receive flow ישווה אותה לכאן ויעדכן את המלאי ב-OCTOPOS.">💾 שמור הזמנה</button>'+
       '</div>'+
     '</div>';
   document.body.appendChild(modal);
@@ -2309,7 +2308,7 @@ function openReviewModal(){
       '<div class="rev-body" id="revBody"></div>' +
       '<div class="rev-actions">' +
         '<button class="secondary" data-action="sms">📱 צור SMS לספק זה</button>' +
-        '<button class="primary"   data-action="send-po">📤 שלח PO לאוקטופוס</button>' +
+        '<button class="primary"   data-action="save-local">💾 שמור הזמנה</button>' +
       '</div>' +
     '</div>';
   document.body.appendChild(modal);
@@ -2857,8 +2856,8 @@ function openReviewModal(){
     const row = e.target.closest('.rev-row');
     if (!row) {
       // Handle action buttons (send PO / SMS)
-      if (e.target.matches('[data-action="send-po"]')){
-        sendPOForCurrentSupplier(data.suppliers[activeIdx], e.target);
+      if (e.target.matches('[data-action="save-local"]')){
+        saveSupplierOrderLocal(data.suppliers[activeIdx], e.target);
       }
       if (e.target.matches('[data-action="sms"]')){
         openSmsForSupplier(data.suppliers[activeIdx]);
@@ -2913,6 +2912,61 @@ function openReviewModal(){
 }
 
 /* ---- Submit PO to OCTOPOS ---- */
+async function saveSupplierOrderLocal(s, btn){
+  // Save the supplier's reviewed order LOCALLY (not to OCTOPOS).
+  // Receive flow handles OCTOPOS update when the invoice arrives.
+  var keptItems = [];
+  ['order','borderline'].forEach(function(L){
+    (s.lanes[L]||[]).forEach(function(r){
+      if (r.kept && r.qty > 0) {
+        keptItems.push({
+          product_id: r.product_id, product_name: r.name, product_sku: r.sku,
+          quantity: r.qty, cost_unit: r.unit_cost, line_total: r.qty * r.unit_cost
+        });
+      }
+    });
+  });
+  if (!keptItems.length){ toast('אין מה לשמור — אין שורות מסומנות', ''); return; }
+  // Determine evkey from CURRENT_EVENT
+  var evkey = (CURRENT_EVENT && CURRENT_EVENT.evkey) || ('event-' + new Date().toISOString().slice(0,10));
+  btn.disabled = true; btn.textContent = '...שומר';
+  try {
+    // Read inventory_orders.json, append a new local PO entry
+    var ghToken = (localStorage.getItem('lauren_gh_token_v1') || '').trim();
+    if (!ghToken) throw new Error('צריך GitHub token');
+    var url = 'https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/inventory_orders.json';
+    var info = await fetch(url + '?ref=main', {headers:{Authorization:'token '+ghToken, Accept:'application/vnd.github+json'}}).then(r=>r.json());
+    var data = info.content ? JSON.parse(atob(info.content.replace(/\n/g,''))) : {events:{}};
+    data.events = data.events || {};
+    data.events[evkey] = data.events[evkey] || {};
+    data.events[evkey].local_orders = data.events[evkey].local_orders || [];
+    data.events[evkey].local_orders.push({
+      supplier_code: s.code, supplier_name: s.name, vendor_id: s.vid,
+      items: keptItems,
+      total_qty: keptItems.reduce(function(a,it){return a + it.quantity;}, 0),
+      total_cost: keptItems.reduce(function(a,it){return a + it.line_total;}, 0),
+      saved_at: new Date().toISOString(),
+      is_local: true
+    });
+    data._updated_at = new Date().toISOString();
+    var newC = JSON.stringify(data, null, 2);
+    var put = await fetch(url, {
+      method: 'PUT',
+      headers:{Authorization:'token '+ghToken, Accept:'application/vnd.github+json', 'Content-Type':'application/json'},
+      body: JSON.stringify({message: 'inventory order saved locally: ' + s.name + ' (' + keptItems.length + ' items)',
+                            content: btoa(unescape(encodeURIComponent(newC))), branch:'main', sha: info.sha})
+    });
+    if (!put.ok) throw new Error('HTTP ' + put.status);
+    toast('✓ הזמנה נשמרה אצלנו: ' + s.name + ' (' + keptItems.length + ' פריטים, $' + keptItems.reduce(function(a,it){return a + it.line_total;}, 0).toFixed(2) + ')', 'success');
+    btn.textContent = '✓ נשמר';
+    btn.disabled = true;
+  } catch(err){
+    toast('⚠️ שמירה נכשלה: ' + err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = '💾 שמור הזמנה';
+  }
+}
+
 async function sendPOForCurrentSupplier(s, btn){
   // Collect kept items across all lanes
   const items = [];
