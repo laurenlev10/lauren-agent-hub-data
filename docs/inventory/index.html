@@ -3114,6 +3114,24 @@ function openReviewModal(){
     }
     renderTab();
   });
+  // 'input' fires on every keystroke — sync state immediately so manual values
+  // stick even if the user clicks something else before blurring (Lauren 2026-05-18 PM:
+  // 'כשאני בוחרת מספר אחר אז זה נשאר ולא מתחלף אוטומטית').
+  modal.addEventListener('input', function(e){
+    if (e.target.matches('[data-bind="qty"]')){
+      const row = e.target.closest('.rev-row');
+      if (!row) return;
+      const ri = Number(row.dataset.i);
+      const L = row.dataset.lane;
+      const r = data.suppliers[activeIdx].lanes[L][ri];
+      if (!r) return;
+      r.qty = Number(e.target.value || 0);
+      r.kept = r.qty > 0;
+      // Update only the line-total in this row — don't renderTab() here, would steal focus
+      var lineTotalCell = row.querySelector('.rev-line-total');
+      if (lineTotalCell) lineTotalCell.textContent = '$' + (r.qty * (r.unit_cost||0)).toFixed(2);
+    }
+  });
   modal.addEventListener('change', function(e){
     if (e.target.matches('[data-bind="qty"]')){
       const row = e.target.closest('.rev-row');
@@ -3122,7 +3140,7 @@ function openReviewModal(){
       const r = data.suppliers[activeIdx].lanes[L][ri];
       r.qty = Number(e.target.value || 0);
       r.kept = r.qty > 0;
-      renderTab();
+      renderTab();  // on blur, refresh full tab — qty values come from r.qty (authoritative)
     }
   });
 }
