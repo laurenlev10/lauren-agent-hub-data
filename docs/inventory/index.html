@@ -7866,16 +7866,44 @@ async function confirmInvoiceCompared(){
           return 'TMP' + Date.now() + Math.floor(Math.random() * 10000);
         }
         var barcodeVal = _cleanBarcode(a.name, a.sku, null);
+        // OCTOPOS requires non-null sale_price + department + use_department_attributes
+        // for product creation (verified 2026-05-18 PM late via failed POST):
+        //   ["Sale price field is required.","Department field is required.",
+        //    "Use department attributes field is required."]
+        // Fallback chain for sale_price: line input → cost × 3 (target markup) → cost → \$1.
+        var salePriceVal = a.salePrice && a.salePrice > 0 ? a.salePrice
+                         : (a.price > 0 ? Math.max(1, Math.round(a.price * 3 * 100) / 100) : 1);
+        // Department: try to find a typical department from this supplier's existing OCTOPOS products
+        var typicalDept = '';
+        try {
+          var supKey = Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).find(function(c){
+            var v = OCTOPOS.vendors[c] || {};
+            return (v.octopos_vendor_ids || []).indexOf(a.vendorId) !== -1;
+          });
+          if (supKey) {
+            var supProds = (OCTOPOS.vendors[supKey].products || []).concat(OCTOPOS.vendors[supKey].inactive_products || []);
+            // Pick the most common department from this supplier's products
+            var deptCounts = {};
+            supProds.forEach(function(p){ if (p.department) deptCounts[p.department] = (deptCounts[p.department]||0)+1; });
+            var bestDept = '';
+            var bestCount = 0;
+            Object.keys(deptCounts).forEach(function(d){ if (deptCounts[d] > bestCount){ bestCount = deptCounts[d]; bestDept = d; }});
+            typicalDept = bestDept;
+          }
+        } catch(_){}
         var body = {
           name: a.name,
           sku: a.sku,
           barcode: barcodeVal,
           cost: a.price,
           unit_cost: a.price,
-          sale_price: a.salePrice || null,
+          sale_price: salePriceVal,
           in_stock_qty: a.qty,
           threshold_qty: a.displayMin || 0,
-          vendor_ids: a.vendorId ? [a.vendorId] : []
+          vendor_ids: a.vendorId ? [a.vendorId] : [],
+          // OCTOPOS-required fields:
+          department: typicalDept ? { name: typicalDept } : null,
+          use_department_attributes: false
         };
         var r = await fetch('https://themakeup.octoretail.com/api/v2/products', {
           method:'POST', headers:{'Authorization':octToken,'Content-Type':'application/json','Accept':'application/json'},
