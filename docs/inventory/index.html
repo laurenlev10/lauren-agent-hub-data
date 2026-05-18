@@ -2331,7 +2331,7 @@ function openReviewModal(){
           '<div title="כמה יש במלאי כרגע">מלאי</div>' +
           '<div title="Threshold — הסף המינימלי שהגדרת ב-OCTOPOS">Thr</div>' +
           '<div title="💡 הצעת המערכת לכמות להזמין — מבוססת על ממוצע מנורמל × חוזק אירוע × מכפיל סיגנל. ריחוף יראה את חישוב המלא. לחיצה תחליף את ערך ה-\"כמות\" להצעה הזו.">💡 הצעה</div>' +
-          '<div title="📦 max = כמות מקסימלית שנכנסת בדיספליי · min = כמות מינ׳ לתחילת אירוע (display_min)">📦 max/min</div>' +
+          '<div title="📦 כמות מינ׳ לתחילת אירוע (display_min). לחיצה על המספר תעתיק אותו לעמודת \"כמות\". ✏️ לעריכה.">📦 מינ׳</div>' +
           '<div title="GAP = Thr − מלאי. כמה חסר כדי להגיע ל-Threshold. חיובי = צריך להזמין · שלילי = יש יותר ממה שצריך">Gap (?)</div>' +
           '<div>כמות</div>' +
           '<div>$/יח׳</div>' +
@@ -2445,19 +2445,23 @@ function openReviewModal(){
               }
               return '<div class="suggest-cell" data-suggested="' + r.suggested + '" data-baseline="' + baselineExpected + '" title="' + qtyTip + '" style="text-align:center;font-weight:700;color:' + color + ';background:' + bg + ';border-radius:6px;padding:4px 6px;cursor:pointer;border:1px solid ' + border + ';" data-pid="' + r.product_id + '">' + r.suggested + arrow + '</div>';
             })() +
-            // 📦 Display column — clickable inline editor (max=display_capacity / min=min_display)
+            // 📦 Min column — single min_display value, click number to copy to qty, ✏️ to edit
             (function(){
               var rule_d = r.rule || {};
-              var maxD = rule_d.display_capacity || '';
               var minD = rule_d.min_display || '';
-              var maxPart = maxD ? '<span style="color:#1e40af">' + maxD + '</span>' : '<span style="color:var(--muted)">?</span>';
-              var minPart = minD ? '<span style="color:#9a3412">' + minD + '</span>' : '<span style="color:var(--muted)">?</span>';
-              var viewHtml = (maxD || minD) ? (maxPart + '<span style="color:var(--muted);"> / </span>' + minPart) : '—';
-              return '<div class="dispmax-cell" data-pid="' + r.product_id + '" data-max="' + maxD + '" data-min="' + minD + '" style="font-size:11px;text-align:center;line-height:1.4;">' +
-                '<span class="dispmax-view" style="cursor:pointer;display:inline-block;padding:2px 4px;border-radius:4px;" title="לחיצה לעריכה — max=מקסימום בדיספליי · min=מינ\' לתחילת אירוע">' + viewHtml + ' <span style="color:#7c3aed;font-size:9px;">✏️</span></span>' +
+              var viewBody;
+              if (minD) {
+                viewBody = '<span class="dispmin-num" data-min="' + minD + '" title="לחיצה תעתיק את ' + minD + ' לעמודת \"כמות\"" style="color:#9a3412;font-weight:700;cursor:pointer;padding:2px 6px;border-radius:4px;background:#fef3c7;">' + minD + '</span>';
+              } else {
+                viewBody = '<span style="color:var(--muted)">—</span>';
+              }
+              return '<div class="dispmax-cell" data-pid="' + r.product_id + '" data-min="' + minD + '" style="font-size:12px;text-align:center;line-height:1.4;">' +
+                '<span class="dispmax-view" style="display:inline-flex;align-items:center;gap:3px;">' +
+                  viewBody +
+                  '<button class="qty-btn dispmin-edit-btn" data-action="dispmax-edit" title="✏️ ערוך את הסף" style="font-size:9px;padding:1px 4px;background:#ede9fe;border:1px solid #c4b5fd;">✏️</button>' +
+                '</span>' +
                 '<span class="dispmax-edit" style="display:none;flex-direction:column;align-items:center;gap:2px;">' +
-                  '<input type="number" min="0" step="1" class="dispmax-max" placeholder="max" value="' + maxD + '" style="width:42px;padding:2px 3px;font-size:10px;text-align:center;border:1px solid #93c5fd;border-radius:3px;" title="max">' +
-                  '<input type="number" min="0" step="1" class="dispmax-min" placeholder="min" value="' + minD + '" style="width:42px;padding:2px 3px;font-size:10px;text-align:center;border:1px solid #fdba74;border-radius:3px;" title="min">' +
+                  '<input type="number" min="0" step="1" class="dispmax-min" placeholder="min" value="' + minD + '" style="width:50px;padding:2px 4px;font-size:11px;text-align:center;border:1px solid #fdba74;border-radius:4px;" title="מינ\' לתחילת אירוע">' +
                   '<span style="display:flex;gap:1px;">' +
                     '<button class="qty-btn" data-action="dispmax-save" style="font-size:9px;padding:1px 4px;background:#7c3aed;color:#fff;border:0;">💾</button>' +
                     '<button class="qty-btn" data-action="dispmax-cancel" style="font-size:9px;padding:1px 4px;">✕</button>' +
@@ -2550,14 +2554,33 @@ function openReviewModal(){
       return;
     }
 
-    // 📦 Display max/min — click view to open editor
-    var dispView = e.target.closest('.dispmax-view');
-    if (dispView) {
+    // 📦 Min — click the displayed number to copy it to the qty input
+    var minNum = e.target.closest('.dispmin-num');
+    if (minNum) {
       e.stopPropagation();
-      var dCell = dispView.closest('.dispmax-cell');
-      dCell.querySelector('.dispmax-view').style.display = 'none';
-      dCell.querySelector('.dispmax-edit').style.display = 'flex';
-      dCell.querySelector('.dispmax-max').focus();
+      var minVal = parseFloat(minNum.dataset.min) || 0;
+      var rowMin = minNum.closest('.rev-row');
+      if (rowMin && minVal > 0) {
+        var qMin = rowMin.querySelector('input[data-bind="qty"]');
+        if (qMin) {
+          qMin.value = minVal;
+          qMin.dispatchEvent(new Event('input', {bubbles:true}));
+          qMin.style.background = '#fef3c7';
+          setTimeout(function(){ qMin.style.background = ''; }, 1500);
+        }
+      }
+      return;
+    }
+
+    // ✏️ Open inline editor (explicit edit button)
+    var dispEditBtn = e.target.closest('[data-action="dispmax-edit"]');
+    if (dispEditBtn) {
+      e.stopPropagation();
+      var dCellE = dispEditBtn.closest('.dispmax-cell');
+      dCellE.querySelector('.dispmax-view').style.display = 'none';
+      dCellE.querySelector('.dispmax-edit').style.display = 'flex';
+      var inpE = dCellE.querySelector('.dispmax-min');
+      inpE.focus(); inpE.select();
       return;
     }
 
@@ -2566,31 +2589,27 @@ function openReviewModal(){
     if (dispCancel) {
       e.stopPropagation();
       var dCellC = dispCancel.closest('.dispmax-cell');
-      dCellC.querySelector('.dispmax-view').style.display = 'inline-block';
+      dCellC.querySelector('.dispmax-view').style.display = 'inline-flex';
       dCellC.querySelector('.dispmax-edit').style.display = 'none';
-      dCellC.querySelector('.dispmax-max').value = dCellC.dataset.max || '';
       dCellC.querySelector('.dispmax-min').value = dCellC.dataset.min || '';
       return;
     }
 
-    // 💾 Save display max/min via saveProductRule
+    // 💾 Save min_display via saveProductRule (max removed per Lauren)
     var dispSave = e.target.closest('[data-action="dispmax-save"]');
     if (dispSave) {
       e.stopPropagation();
       var dCellS = dispSave.closest('.dispmax-cell');
       var pidDM = dCellS.dataset.pid;
-      var newMax = Number(dCellS.querySelector('.dispmax-max').value) || 0;
       var newMin = Number(dCellS.querySelector('.dispmax-min').value) || 0;
-      // Build/merge rule: preserve existing fields, update display_capacity + min_display
       var existing = (typeof getRuleFor === 'function') ? (getRuleFor(pidDM) || {}) : {};
       var rule = Object.assign({}, existing);
-      if (newMax > 0) rule.display_capacity = newMax; else delete rule.display_capacity;
       if (newMin > 0) rule.min_display = newMin; else delete rule.min_display;
+      // Note: we don't touch display_capacity (max) at all here — Lauren removed that field.
       dispSave.disabled = true; dispSave.textContent = '...';
       saveProductRule(pidDM, Object.keys(rule).length ? rule : null).then(function(ok){
         if (!ok) { toast('⚠️ שמירה נכשלה', 'error'); dispSave.disabled = false; dispSave.textContent = '💾'; return; }
         toast('✓ נשמר', 'success');
-        // Update local row data
         try {
           if (REVIEW_DATA && REVIEW_DATA.suppliers) {
             REVIEW_DATA.suppliers.forEach(function(s){
@@ -2602,15 +2621,16 @@ function openReviewModal(){
             });
           }
         } catch(_){}
-        // Update the cell's data attributes + view HTML
-        dCellS.dataset.max = newMax || '';
         dCellS.dataset.min = newMin || '';
-        var maxPartU = newMax ? '<span style="color:#1e40af">' + newMax + '</span>' : '<span style="color:var(--muted)">?</span>';
-        var minPartU = newMin ? '<span style="color:#9a3412">' + newMin + '</span>' : '<span style="color:var(--muted)">?</span>';
-        var viewHtmlU = (newMax || newMin) ? (maxPartU + '<span style="color:var(--muted);"> / </span>' + minPartU) : '—';
-        var viewEl = dCellS.querySelector('.dispmax-view');
-        viewEl.innerHTML = viewHtmlU + ' <span style="color:#7c3aed;font-size:9px;">✏️</span>';
-        viewEl.style.display = 'inline-block';
+        var viewElN = dCellS.querySelector('.dispmax-view');
+        var newBody;
+        if (newMin) {
+          newBody = '<span class="dispmin-num" data-min="' + newMin + '" title="לחיצה תעתיק את ' + newMin + ' לעמודת \"כמות\"" style="color:#9a3412;font-weight:700;cursor:pointer;padding:2px 6px;border-radius:4px;background:#fef3c7;">' + newMin + '</span>';
+        } else {
+          newBody = '<span style="color:var(--muted)">—</span>';
+        }
+        viewElN.innerHTML = newBody + '<button class="qty-btn dispmin-edit-btn" data-action="dispmax-edit" title="✏️ ערוך את הסף" style="font-size:9px;padding:1px 4px;background:#ede9fe;border:1px solid #c4b5fd;margin-right:3px;">✏️</button>';
+        viewElN.style.display = 'inline-flex';
         dCellS.querySelector('.dispmax-edit').style.display = 'none';
         dispSave.disabled = false;
         dispSave.textContent = '💾';
