@@ -35,7 +35,6 @@ MAPPING = {
     "nabi":             [14],
     "bb-and-w":         [3],
     "prolux":           [15],
-    "golden-touch":     [8],
     "ebs-perfumes":     [6],          # was "EBC" in early dashboard; renamed per Lauren 2026-05-12
     "rude":             [17],
     "xime-beauty":      [23],         # OCTOPOS: "Xime"
