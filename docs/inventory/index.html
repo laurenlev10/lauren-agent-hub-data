@@ -3318,9 +3318,13 @@ function openSmsForSupplier(s){
       '</div>' +
     '</div>';
   document.body.appendChild(modal);
-  modal.querySelector('#smsDay').addEventListener('change', function(e){
-    modal.querySelector('#smsBody').value = buildText(e.target.value);
-  });
+  function _refreshSmsBody(){
+    var d = modal.querySelector('#smsDay').value;
+    var m = modal.querySelector('#smsMode').value;
+    modal.querySelector('#smsBody').value = buildText(d, m);
+  }
+  modal.querySelector('#smsDay').addEventListener('change', _refreshSmsBody);
+  modal.querySelector('#smsMode').addEventListener('change', _refreshSmsBody);
   modal.addEventListener('click', function(e){
     if (e.target === modal || e.target.matches('[data-action="close"]')){ modal.remove(); return; }
     if (e.target.matches('[data-action="copy"]')){
@@ -7662,9 +7666,13 @@ function openResendSmsForSavedOrder(supplierCode, orderIndex){
       '</div>' +
     '</div>';
   document.body.appendChild(modal);
-  modal.querySelector('#smsDay').addEventListener('change', function(e){
-    modal.querySelector('#smsBody').value = buildText(e.target.value);
-  });
+  function _refreshSmsBody(){
+    var d = modal.querySelector('#smsDay').value;
+    var m = modal.querySelector('#smsMode').value;
+    modal.querySelector('#smsBody').value = buildText(d, m);
+  }
+  modal.querySelector('#smsDay').addEventListener('change', _refreshSmsBody);
+  modal.querySelector('#smsMode').addEventListener('change', _refreshSmsBody);
   modal.addEventListener('click', function(e){
     if (e.target === modal || e.target.matches('[data-action="close"]')){ modal.remove(); return; }
     if (e.target.matches('[data-action="copy"]')){
