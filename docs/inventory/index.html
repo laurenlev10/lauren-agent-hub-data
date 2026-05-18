@@ -248,7 +248,7 @@
   .rev-row .qty-btn.del{color:var(--red);border-color:#fca5a5}
   .rev-row > div:not(.nm):not(.qty-controls){text-align:center}
   .rev-row .rev-line-total{text-align:center;font-weight:700;color:var(--accent)}
-  .rev-row.skipped{opacity:.4;background:#f9fafb}
+  .rev-row.skipped{opacity:.65;background:#f9fafb}
   .rev-row .lane-note{font-size:11px;color:var(--muted);font-style:italic}
   .rev-actions{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
   .rev-actions button{padding:10px 16px;font-size:14px;font-weight:700;border-radius:8px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text)}
@@ -2582,7 +2582,7 @@ function openReviewModal(){
           // Treat negative stock as 0 (Lauren 2026-05-17 PM late) — negative isn't real debt
           var gap = (r.threshold||0) - Math.max(0, (r.in_stock||0));
           // Half-transparent ONLY for skip lane (and explicitly skipped rows in borderline)
-          var laneClass = (L === 'skip' || !r.kept) ? ' skipped' : '';
+          var laneClass = !r.kept ? ' skipped' : '';
           // For skip lane the toggle button reads 'הוסיפי לרשימה' / '+ הוסיפי' to make the
           // add-back affordance obvious. For order + borderline lanes it stays ✕/✓.
           var toggleLabel, toggleTitle;
