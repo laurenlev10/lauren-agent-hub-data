@@ -7557,7 +7557,12 @@ function openEditSavedOrderModal(supplierCode, orderIndex){
       var inGarageMatches = productPool.filter(function(p){
         if (existingIds.indexOf(String(p.id)) !== -1) return false;
         var r = rules[String(p.id)] || rules[p.id] || {};
-        return !!r.in_garage || r.route_to === 'mystery-box';
+        // Three sources of 'this product is in GARAGE':
+        //   1. native vendor 24/19 (mystery-box) — always in GARAGE by definition
+        //   2. rule.in_garage=true — Lauren flagged it manually (additive)
+        //   3. legacy rule.route_to='mystery-box' — older 'move' flag
+        var isNative = (!p._native_supplier) || p._native_supplier === 'mystery-box';
+        return isNative || !!r.in_garage || r.route_to === 'mystery-box';
       });
       if (inGarageMatches.length){
         box.innerHTML = '<div style="padding:8px 10px;background:#dcfce7;color:#166534;font-size:12px;font-weight:700;border-bottom:1px solid #86efac">📦 מוצרים שסימנת לגראג ולא בהזמנה הזו (' + inGarageMatches.length + ') — לחיצה תוסיף</div>' +
