@@ -7664,8 +7664,10 @@ async function confirmInvoiceCompared(){
       if (clearance && !/^clearance!/i.test(existing.name||'')) {
         actions.push({type:'clearance', productId: existing.id, name: existing.name, newName: 'Clearance! ' + existing.name});
       }
-      // product_rules updates (in_garage, display_min) — local only, batched
-      actions.push({type:'rule_update', productId: existing.id, name: name, in_garage: inGarage, display_min: displayMin});
+      // product_rules updates — only push action if there's something to change
+      if (inGarage || (displayMin !== null && displayMin > 0)) {
+        actions.push({type:'rule_update', productId: existing.id, name: name, in_garage: inGarage, display_min: displayMin});
+      }
     } else {
       // New product — POST
       if (addToSystem && sku && qty > 0 && price > 0) {
@@ -7785,6 +7787,14 @@ async function confirmInvoiceCompared(){
         if (a.in_garage) newRule.in_garage = true;
         else if (newRule.in_garage) delete newRule.in_garage;
         if (a.display_min !== null && a.display_min > 0) newRule.min_display = a.display_min;
+        // Skip GitHub write if nothing actually changed
+        var keysToCompare = ['min_display','in_garage','moq','multiple_of','max','skip','note','display_capacity','pack_size','route_to'];
+        var hasChange = keysToCompare.some(function(k){ return (existingRule[k] || '') !== (newRule[k] || ''); });
+        if (!hasChange) {
+          log('  ⏭ rule — אין שינוי, מדלגת');
+          results.ok++;
+          continue;
+        }
         var ok = await saveProductRule(String(a.productId), newRule);
         if (ok) { log('  ✓ rule', true); results.ok++; }
         else { log('  ✗ rule נכשל', false); results.fail++; }
