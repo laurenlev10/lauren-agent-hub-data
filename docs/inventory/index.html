@@ -8856,14 +8856,16 @@ function renderCompareDiff(){
         '</td>' +
         '<td><input type="text" data-edit="name" data-ri="'+ri+'" value="'+escHtml(name)+'" style="'+inpBase+'"></td>' +
         '<td><input type="text" data-edit="sku" data-ri="'+ri+'" value="'+escHtml(sku)+'" style="'+inpBase+'text-align:center"></td>' +
-        // qty cell — if there's a saved-order expected qty different from invoice qty, show a small badge
+        // 🛒 order-qty + 📦 received-qty side-by-side cells
         (function(){
           var expectedQty = (r.exp && Number(r.exp.qty || r.expQ || 0)) || null;
-          var hasMismatch = (r.status === 'qty-diff' && expectedQty !== null && expectedQty !== qty);
-          var badge = hasMismatch
-            ? '<div style="font-size:9px;color:#a16207;margin-top:1px;line-height:1.1" title="בהזמנה השמורה היה ' + expectedQty + '">📝 הזמנה: ' + expectedQty + '</div>'
-            : '';
-          return '<td><input type="number" data-edit="qty" data-ri="'+ri+'" min="0" step="1" value="'+qty+'" style="'+inpBase+'text-align:center;font-weight:700">' + badge + '</td>';
+          var orderCell = expectedQty !== null
+            ? '<td style="text-align:center;font-weight:700;color:#a16207;background:#fef9c3" title="כמות שהזמנת">' + expectedQty + '</td>'
+            : '<td style="text-align:center;color:var(--muted)">—</td>';
+          var qtyDiffer = (expectedQty !== null && expectedQty !== qty);
+          var qtyBg = qtyDiffer ? '#fff7ed' : '#fff';
+          var qtyColor = qtyDiffer ? '#a16207' : '#15803d';
+          return orderCell + '<td><input type="number" data-edit="qty" data-ri="'+ri+'" min="0" step="1" value="'+qty+'" style="'+inpBase+'background:'+qtyBg+';color:'+qtyColor+';text-align:center;font-weight:800"></td>';
         })() +
         '<td><input type="number" data-edit="price" data-ri="'+ri+'" min="0" step="0.01" value="'+(Number(price)||0).toFixed(2)+'" style="'+inpBase+'text-align:center"></td>' +
         '<td><input type="number" data-edit="sale_price" data-ri="'+ri+'" min="0" step="0.50" value="'+(salePrice ? Number(salePrice).toFixed(2) : '')+'" placeholder="—" style="'+inpBase+'text-align:center;color:#15803d;font-weight:700"></td>' +
