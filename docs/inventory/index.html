@@ -8130,7 +8130,11 @@ async function confirmInvoiceCompared(){
           // OCTOPOS-required fields (cloned from an existing supplier product):
           department: clonedDept || (typicalDept ? { name: typicalDept } : null),
           department_id: clonedDept && clonedDept.id ? clonedDept.id : null,
-          use_department_attributes: false
+          use_department_attributes: false,
+          // Location: MAKEUP BLOWOUT SALE GROUP INC = id 2 (CLAUDE.md OCTOPOS_AUTH.md)
+          location_id: 2,
+          location_ids: [2],
+          locations: [{ location_id: 2, in_stock_qty: a.qty, threshold_qty: a.displayMin || 0 }]
         };
         var r = await fetch('https://themakeup.octoretail.com/api/v2/products', {
           method:'POST', headers:{'Authorization':octToken,'Content-Type':'application/json','Accept':'application/json'},
