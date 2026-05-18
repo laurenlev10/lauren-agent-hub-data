@@ -8302,28 +8302,34 @@ function renderCompareDiff(){
         '<td style="text-align:center;color:var(--muted)">—</td>' +
       '</tr>';
     } else {
-      // Determine if this row's SKU matches an existing OCTOPOS product (3-pass fuzzy
-      // match: exact SKU → strip -D suffix → name similarity, same as confirm flow).
+      // Determine if this row's product is already known in our system.
+      // Priority:
+      //   1. r.exp is set (saved order has it) → it's existing — match/qty-diff rows always existing
+      //   2. r.product_id (from match logic) → existing
+      //   3. Manual 🔗 link → existing
+      //   4. SKU lookup in OCTOPOS (3-pass: exact → strip -D → similar)
       var rowIsExisting = false;
-      try {
-        var skuTry = (sku || '').toUpperCase().trim();
-        if (skuTry) {
-          var allP = [];
-          Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
-            var v = OCTOPOS.vendors[c] || {};
-            (v.products || []).concat(v.inactive_products || []).forEach(function(p){ allP.push(p); });
-          });
-          for (var pi3 = 0; pi3 < allP.length; pi3++) {
-            var psk = (allP[pi3].sku || '').toUpperCase().trim();
-            if (psk === skuTry || (skuTry.endsWith('-D') && (psk === skuTry.slice(0,-2) || psk.startsWith(skuTry.slice(0,-2) + '-')))) {
-              rowIsExisting = true;
-              break;
+      if (r.exp || r.product_id) rowIsExisting = true;
+      if (ov.linked_product_id) rowIsExisting = true;
+      if (!rowIsExisting) {
+        try {
+          var skuTry = (sku || '').toUpperCase().trim();
+          if (skuTry) {
+            var allP = [];
+            Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
+              var v = OCTOPOS.vendors[c] || {};
+              (v.products || []).concat(v.inactive_products || []).forEach(function(p){ allP.push(p); });
+            });
+            for (var pi3 = 0; pi3 < allP.length; pi3++) {
+              var psk = (allP[pi3].sku || '').toUpperCase().trim();
+              if (psk === skuTry || (skuTry.endsWith('-D') && (psk === skuTry.slice(0,-2) || psk.startsWith(skuTry.slice(0,-2) + '-')))) {
+                rowIsExisting = true;
+                break;
+              }
             }
           }
-        }
-        // Linked via 🔗 always counts as existing
-        if (ov.linked_product_id) rowIsExisting = true;
-      } catch(_){}
+        } catch(_){}
+      }
 
       // Existing product → 📦 default CHECKED (update stock)
       // New product → 🆕 default UNCHECKED (must opt-in to create)
