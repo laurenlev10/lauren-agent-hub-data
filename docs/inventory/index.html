@@ -7360,6 +7360,13 @@ function openEditSavedOrderModal(supplierCode, orderIndex){
         '<th style="text-align:left;padding:8px;background:#f8fafc;border-bottom:1px solid var(--line)">סה"כ</th>' +
         '<th style="padding:8px;background:#f8fafc;border-bottom:1px solid var(--line)"></th>' +
       '</tr></thead><tbody id="editOrderTbody">' + rowsHtml(workingItems) + '</tbody></table>' +
+      '<div id="editAddProductBox" style="margin-top:14px;padding:12px;background:#eff6ff;border:1px solid #93c5fd;border-radius:10px">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+          '<b style="color:#1e3a8a">+ הוסף מוצר להזמנה</b>' +
+          '<input type="text" id="editAddSearch" placeholder="חפש לפי שם / SKU..." style="flex:1;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">' +
+        '</div>' +
+        '<div id="editAddResults" style="max-height:180px;overflow:auto;background:#fff;border:1px solid #e2e8f0;border-radius:6px;display:none"></div>' +
+      '</div>' +
       '<div id="editOrderTotals" style="margin-top:14px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-weight:700">' +
         '<span id="editOrderSummary"></span>' +
       '</div>' +
@@ -7379,6 +7386,45 @@ function openEditSavedOrderModal(supplierCode, orderIndex){
   }
   recompute();
 
+  // Build the supplier's product pool for the "+ add product" picker.
+  // For GARAGE: include native mystery-box products + any rerouted here.
+  // For other suppliers: just the supplier's products.
+  function buildProductPool(){
+    var pool = [];
+    try {
+      var oct = getOctoposForSupplier(supplierCode);
+      if (oct){
+        (oct.products || []).concat(oct.inactive_products || []).forEach(function(p){
+          pool.push({ id: p.id, name: p.name || '', sku: p.sku || '', cost: Number(p.unit_cost || 0) });
+        });
+      }
+    } catch(e){ console.warn(e); }
+    return pool;
+  }
+  var productPool = buildProductPool();
+  function renderAddResults(query){
+    var box = modal.querySelector('#editAddResults');
+    if (!box) return;
+    var q = String(query || '').toLowerCase().trim();
+    if (!q){ box.style.display = 'none'; box.innerHTML = ''; return; }
+    var existingIds = workingItems.map(function(it){ return String(it.product_id); });
+    var matches = productPool.filter(function(p){
+      if (existingIds.indexOf(String(p.id)) !== -1) return false;
+      var hay = (p.name + ' ' + p.sku).toLowerCase();
+      return hay.indexOf(q) !== -1;
+    }).slice(0, 20);
+    if (!matches.length){
+      box.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:12px;text-align:center">לא נמצאו מוצרים מתאימים (אולי כבר ברשימה)</div>';
+    } else {
+      box.innerHTML = matches.map(function(p){
+        return '<div class="add-product-row" data-pid="' + p.id + '" data-pname="' + escHtml(p.name) + '" data-psku="' + escHtml(p.sku) + '" data-pcost="' + p.cost.toFixed(2) + '" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:13px">' +
+          '<b>' + escHtml(p.name) + '</b> <span style="color:var(--muted);font-size:11px">·</span> <code style="color:var(--muted);font-size:11px">' + escHtml(p.sku || '—') + '</code> <span style="color:var(--muted);font-size:11px">· $' + p.cost.toFixed(2) + '/יח׳</span>' +
+        '</div>';
+      }).join('');
+    }
+    box.style.display = 'block';
+  }
+
   modal.addEventListener('input', function(e){
     if (e.target.matches('input[data-bind="qty"]')){
       var tr = e.target.closest('tr');
@@ -7387,6 +7433,9 @@ function openEditSavedOrderModal(supplierCode, orderIndex){
       workingItems[i].line_total = workingItems[i].quantity * Number(workingItems[i].cost_unit || 0);
       tr.querySelector('.line-total').textContent = '$' + workingItems[i].line_total.toFixed(2);
       recompute();
+    }
+    if (e.target.id === 'editAddSearch'){
+      renderAddResults(e.target.value);
     }
   });
   modal.addEventListener('click', function(e){
@@ -7400,6 +7449,32 @@ function openEditSavedOrderModal(supplierCode, orderIndex){
       // re-render rows (re-index)
       modal.querySelector('#editOrderTbody').innerHTML = rowsHtml(workingItems);
       recompute();
+      return;
+    }
+    // Click a search result → add product to workingItems
+    var addRow = e.target.closest('.add-product-row');
+    if (addRow){
+      e.preventDefault();
+      var pid = addRow.dataset.pid;
+      var pname = addRow.dataset.pname;
+      var psku = addRow.dataset.psku;
+      var pcost = Number(addRow.dataset.pcost || 0);
+      // Default qty: rule.min_display if set, else 12
+      var defaultQty = 12;
+      try {
+        var r = (PRODUCT_RULES.rules && (PRODUCT_RULES.rules[pid] || PRODUCT_RULES.rules[String(pid)])) || {};
+        if (r.min_display && Number(r.min_display) > 0) defaultQty = Number(r.min_display);
+      } catch(_){}
+      workingItems.push({
+        product_id: pid, product_name: pname, product_sku: psku,
+        quantity: defaultQty, cost_unit: pcost, line_total: defaultQty * pcost
+      });
+      modal.querySelector('#editOrderTbody').innerHTML = rowsHtml(workingItems);
+      recompute();
+      // Clear search
+      var inp = modal.querySelector('#editAddSearch'); if (inp) inp.value = '';
+      var res = modal.querySelector('#editAddResults'); if (res){ res.style.display = 'none'; res.innerHTML = ''; }
+      toast('✓ נוסף: ' + pname + ' (כמות ' + defaultQty + ')', 'success');
       return;
     }
     if (e.target.matches('[data-action="save"]')){
