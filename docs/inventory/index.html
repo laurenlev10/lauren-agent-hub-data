@@ -7890,15 +7890,27 @@ async function confirmInvoiceCompared(){
   // E.g., 'ASWAD NOIR black' (create) duplicates 'Men Perfume-Asward Noir Black' (stock).
   // Lauren 2026-05-18 PM late.
   var stockNames = dedupedActions.filter(function(a){ return a.type === 'stock' && a.name; }).map(function(a){ return a.name.toLowerCase(); });
+  // Word-overlap for dedup. Returns 0 if fewer than 2 common 'significant' words —
+  // generic color/size words like 'pink', 'black', 'red' aren't enough on their own
+  // to consider two products the same. Lauren 2026-05-18 PM late.
+  var _GENERIC_WORDS = new Set(['the','and','for','men','women','100ml','85ml','35ml','24','48','72','96','144','288','oz','pink','black','white','red','blue','green','silver','gold','rose','purple','yellow','orange','brown','color','casepack','pack','set','box','mini','women','men','perfume','perfumes','spray','cream','powder','liquid','liner','lipstick','tester','testers','free']);
   function _wordOverlap(a, b){
     if (!a || !b) return 0;
     var wa = a.toLowerCase().split(/[\s\-,/()]+/).filter(function(w){ return w.length >= 3; });
     var wb = b.toLowerCase().split(/[\s\-,/()]+/).filter(function(w){ return w.length >= 3; });
     if (wa.length === 0 || wb.length === 0) return 0;
     var setB = new Set(wb);
-    var hits = 0;
-    wa.forEach(function(w){ if (setB.has(w)) hits++; });
-    return hits / Math.min(wa.length, wb.length);
+    var totalHits = 0;
+    var significantHits = 0;
+    wa.forEach(function(w){
+      if (setB.has(w)) {
+        totalHits++;
+        if (!_GENERIC_WORDS.has(w)) significantHits++;
+      }
+    });
+    // Require at least 2 SIGNIFICANT (non-generic) overlapping words
+    if (significantHits < 2) return 0;
+    return totalHits / Math.min(wa.length, wb.length);
   }
   dedupedActions = dedupedActions.filter(function(a){
     if (a.type !== 'create') return true;
