@@ -471,6 +471,11 @@
   @media(max-width:640px){
     .event-phase-buttons{grid-template-columns:1fr}
   }
+
+  /* Green supplier-row when an order has been saved for this event (added 2026-05-18 PM) */
+  .supplier .hdr.has-local-order{background:#f0fdf4;border-right:4px solid #16a34a}
+  .supplier .hdr.has-local-order .name{color:#14532d}
+  .supplier .hdr.has-local-order .status{color:#fff !important;background:#16a34a !important;border-color:#14532d !important}
 </style>
 </head>
 <body>
@@ -507,27 +512,9 @@
       <button id="btnRefreshOctopos" class="btn-refresh-octopos" title="הפעיל סנכרון מאוקטופוס עכשיו (לוקח כ-3 דקות)">🔄 רענני נתוני OCTOPOS עכשיו</button>
     </div>
 
-    <div class="summary-grid">
-      <div class="summary-card total">
-        <div class="label">סה"כ הזמנות</div>
-        <div class="value" id="sumTotal">$0</div>
-        <div class="delta" id="sumTotalDelta"></div>
-      </div>
-      <div class="summary-card ordered">
-        <div class="label">ספקים בהזמנה</div>
-        <div class="value" id="sumOrdered">0 / 15</div>
-        <div class="delta">פתחו הזמנה</div>
-      </div>
-      <div class="summary-card received">
-        <div class="label">ספקים שהגיעו</div>
-        <div class="value" id="sumReceived">0 / 15</div>
-        <div class="delta">סחורה במחסן</div>
-      </div>
-      <div class="summary-card pending">
-        <div class="label">ממתינים</div>
-        <div class="value" id="sumPending">15 / 15</div>
-        <div class="delta">עוד לא הוזמן</div>
-      </div>
+    <div class="summary-grid" style="display:none">
+      <div id="sumTotal"></div><div id="sumTotalDelta"></div>
+      <div id="sumOrdered"></div><div id="sumReceived"></div><div id="sumPending"></div>
     </div>
 
     <div class="controls">
@@ -935,14 +922,23 @@ function renderSuppliers(){
 }
 
 function renderSupplierCard(sup, s, idx){
-  const statusClass = s.status || "pending";
+  // Has the user saved an order for this supplier on this event?
+  var _hasLocalOrder = false;
+  try {
+    if (typeof CURRENT_EVKEY !== "undefined" && CURRENT_EVKEY && STATE && STATE.events && STATE.events[CURRENT_EVKEY]) {
+      var _los = STATE.events[CURRENT_EVKEY].local_orders || [];
+      _hasLocalOrder = _los.some(function(o){ return o.supplier_code === sup.code; });
+    }
+  } catch(e){ _hasLocalOrder = false; }
+  const statusClass = _hasLocalOrder ? "ordered" : (s.status || "pending");
+  const statusLabel = _hasLocalOrder ? "✅ נשלחה הזמנה" : (STATUS_LABELS[s.status]||STATUS_LABELS.pending);
   const totalDisp = Number(s.invoice_total_usd||0) > 0 ? fmtUsd(s.invoice_total_usd) : "—";
   const carrierOpts = ["ups","usps","fedex","dhl","other"];
   return ''+
-    '<div class="hdr" data-toggle="1">'+
+    '<div class="hdr' + (_hasLocalOrder ? " has-local-order" : "") + '" data-toggle="1">'+
       '<div class="num">'+(idx+1)+'.</div>'+
       '<div class="name">'+escHtml(sup.name)+' <span class="cat">· '+escHtml(sup.category)+'</span></div>'+
-      '<div class="status '+statusClass+'">'+(STATUS_LABELS[s.status]||STATUS_LABELS.pending)+'</div>'+
+      '<div class="status '+statusClass+'">'+statusLabel+'</div>'+
       '<div class="total">'+totalDisp+'</div>'+
       '<div class="chev">▾</div>'+
     '</div>'+
@@ -997,11 +993,6 @@ function renderSupplierCard(sup, s, idx){
         '<div class="field">'+
           '<label>OCTOPOS sync</label>'+
           (function(){
-  loadSlowMoversState();
-  loadProfitState();
-  loadAllEvents();
-  loadOctoposPendingEdits().then(function(){ if (typeof OCTOPOS !== 'undefined' && OCTOPOS.vendors) applyOctoposPendingEdits(); });
-  loadProfitState();
             var oct_ = getOctoposForSupplier(sup.code);
             if (!oct_) return '<span class="octopos-chip" style="background:#fee2e2;color:#7f1d1d;border-color:#fca5a5">⚠️ אין נתוני OCTOPOS</span>';
             var n = (oct_.products||[]).length;
