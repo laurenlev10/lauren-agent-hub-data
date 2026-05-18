@@ -8052,6 +8052,33 @@ async function confirmInvoiceCompared(){
     log('⏳ ' + (ai+1) + '/' + actions.length + ' — ' + a.type + ': ' + (a.name||a.sku||''));
     try {
       if (a.type === 'create') {
+        // Fetch an existing product from the same supplier to extract its real department object
+        // (department_id field). Our cached snapshot only has the department NAME, not the ID,
+        // and OCTOPOS rejects creates without a proper department.
+        var clonedDept = null;
+        try {
+          var supKey2 = Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).find(function(c){
+            var v = OCTOPOS.vendors[c] || {};
+            return (v.octopos_vendor_ids || []).indexOf(a.vendorId) !== -1;
+          });
+          if (supKey2) {
+            var supProds = (OCTOPOS.vendors[supKey2].products || []);
+            if (supProds.length > 0) {
+              var templateId = supProds[0].id;
+              var fetchR = await fetch('https://themakeup.octoretail.com/api/v2/products/' + templateId, {
+                headers: {'Authorization': octToken, 'Accept': 'application/json'}
+              });
+              if (fetchR.ok) {
+                var templateData = await fetchR.json();
+                if (templateData.department) {
+                  clonedDept = templateData.department;
+                  log('  📋 השתמשתי במחלקה מ-' + templateData.name, '');
+                }
+              }
+            }
+          }
+        } catch(e){ console.warn('Could not clone department:', e); }
+
         // POST new product to OCTOPOS
         // OCTOPOS rejects barcodes with special characters (+, $, %, &, *, (), ,, -, /, etc.)
         // Lauren's directive (2026-05-18): use the product name as placeholder barcode,
@@ -8100,8 +8127,9 @@ async function confirmInvoiceCompared(){
           in_stock_qty: a.qty,
           threshold_qty: a.displayMin || 0,
           vendor_ids: a.vendorId ? [a.vendorId] : [],
-          // OCTOPOS-required fields:
-          department: typicalDept ? { name: typicalDept } : null,
+          // OCTOPOS-required fields (cloned from an existing supplier product):
+          department: clonedDept || (typicalDept ? { name: typicalDept } : null),
+          department_id: clonedDept && clonedDept.id ? clonedDept.id : null,
           use_department_attributes: false
         };
         var r = await fetch('https://themakeup.octoretail.com/api/v2/products', {
