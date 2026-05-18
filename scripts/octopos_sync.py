@@ -203,13 +203,23 @@ def build_snapshot(vendors, products):
         }
 
     mapped = 0
+    # Mystery-box covers physical warehouse locations (Garage + Storage). Any product
+    # tagged with EITHER of these vendor_ids — even as a non-default co-vendor — should
+    # land in mystery-box, because Lauren manages those by physical location, not by
+    # original supplier. (Lauren 2026-05-18 PM — fixes "I'm missing GARAGE products".)
+    GARAGE_VIDS = {24, 19}
     for p in products:
         vendors_arr = p.get("vendors") or []
         if not vendors_arr:
             continue
-        default = next((v for v in vendors_arr if v.get("is_default")), vendors_arr[0])
-        vid = default.get("id")
-        code = VENDOR_TO_CODE.get(vid)
+        # Priority 1: any vendor association with Garage or Storage → mystery-box
+        product_vids = {v.get("id") for v in vendors_arr if v.get("id") is not None}
+        if product_vids & GARAGE_VIDS:
+            code = "mystery-box"
+        else:
+            default = next((v for v in vendors_arr if v.get("is_default")), vendors_arr[0])
+            vid = default.get("id")
+            code = VENDOR_TO_CODE.get(vid)
         if not code:
             continue
         try:
