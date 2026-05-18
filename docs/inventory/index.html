@@ -7885,6 +7885,32 @@ async function confirmInvoiceCompared(){
   Object.keys(groupedSale).forEach(function(k){ dedupedActions.push(groupedSale[k]); });
   Object.keys(groupedClearance).forEach(function(k){ dedupedActions.push(groupedClearance[k]); });
   Object.keys(groupedRule).forEach(function(k){ dedupedActions.push(groupedRule[k]); });
+
+  // Final pass: detect duplicate creates that match an existing stock action by name.
+  // E.g., 'ASWAD NOIR black' (create) duplicates 'Men Perfume-Asward Noir Black' (stock).
+  // Lauren 2026-05-18 PM late.
+  var stockNames = dedupedActions.filter(function(a){ return a.type === 'stock' && a.name; }).map(function(a){ return a.name.toLowerCase(); });
+  function _wordOverlap(a, b){
+    if (!a || !b) return 0;
+    var wa = a.toLowerCase().split(/[\s\-,/()]+/).filter(function(w){ return w.length >= 3; });
+    var wb = b.toLowerCase().split(/[\s\-,/()]+/).filter(function(w){ return w.length >= 3; });
+    if (wa.length === 0 || wb.length === 0) return 0;
+    var setB = new Set(wb);
+    var hits = 0;
+    wa.forEach(function(w){ if (setB.has(w)) hits++; });
+    return hits / Math.min(wa.length, wb.length);
+  }
+  dedupedActions = dedupedActions.filter(function(a){
+    if (a.type !== 'create') return true;
+    // Check against existing stock action names
+    for (var si = 0; si < stockNames.length; si++) {
+      if (_wordOverlap(a.name, stockNames[si]) >= 0.5) {
+        console.warn('[Phase 2] Dedup: removed create "' + a.name + '" — overlaps with existing stock action');
+        return false;
+      }
+    }
+    return true;
+  });
   actions = dedupedActions;
 
   // Render preview modal
