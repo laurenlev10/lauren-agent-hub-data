@@ -7878,7 +7878,15 @@ function renderCompareDiff(){
         '<td style="font-size:14px;text-align:center">'+statusEmoji[r.status]+'</td>' +
         '<td><input type="text" data-edit="name" data-ri="'+ri+'" value="'+escHtml(name)+'" style="'+inpBase+'"></td>' +
         '<td><input type="text" data-edit="sku" data-ri="'+ri+'" value="'+escHtml(sku)+'" style="'+inpBase+'text-align:center"></td>' +
-        '<td><input type="number" data-edit="qty" data-ri="'+ri+'" min="0" step="1" value="'+qty+'" style="'+inpBase+'text-align:center;font-weight:700"></td>' +
+        // qty cell — if there's a saved-order expected qty different from invoice qty, show a small badge
+        (function(){
+          var expectedQty = (r.exp && Number(r.exp.qty || r.expQ || 0)) || null;
+          var hasMismatch = (r.status === 'qty-diff' && expectedQty !== null && expectedQty !== qty);
+          var badge = hasMismatch
+            ? '<div style="font-size:9px;color:#a16207;margin-top:1px;line-height:1.1" title="בהזמנה השמורה היה ' + expectedQty + '">📝 הזמנה: ' + expectedQty + '</div>'
+            : '';
+          return '<td><input type="number" data-edit="qty" data-ri="'+ri+'" min="0" step="1" value="'+qty+'" style="'+inpBase+'text-align:center;font-weight:700">' + badge + '</td>';
+        })() +
         '<td><input type="number" data-edit="price" data-ri="'+ri+'" min="0" step="0.01" value="'+(Number(price)||0).toFixed(2)+'" style="'+inpBase+'text-align:center"></td>' +
         '<td><input type="number" data-edit="sale_price" data-ri="'+ri+'" min="0" step="0.50" value="'+(salePrice ? Number(salePrice).toFixed(2) : '')+'" placeholder="—" style="'+inpBase+'text-align:center;color:#15803d;font-weight:700"></td>' +
         '<td><input type="number" data-edit="display_min" data-ri="'+ri+'" min="0" step="1" value="'+dispMin+'" placeholder="24" style="'+inpBase+'text-align:center"></td>' +
