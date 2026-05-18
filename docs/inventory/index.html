@@ -7859,7 +7859,40 @@ async function confirmInvoiceCompared(){
     if (pb) pb.innerHTML += '<div style="color:' + (ok===false?'#b91c1c':(ok===true?'#15803d':'#475569')) + '">' + msg + '</div>';
   }
 
-  var results = { ok: 0, fail: 0, errors: [] };
+  // Skip actions already completed in a previous run (Lauren 2026-05-18 PM late —
+  // resume-after-partial-failure protection). We track completed keys on the
+  // supplier slice's _pending_invoice so a re-run won't double-apply stock updates.
+  function _actionKey(a){
+    if (a.type === 'create') return 'create:' + (a.sku || a.name || '').toUpperCase();
+    return a.type + ':' + (a.productId || '');
+  }
+  var supForCompletion = (STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers && STATE.events[CURRENT_EVKEY].suppliers[supplierCode]) || null;
+  if (supForCompletion && supForCompletion._pending_invoice) {
+    if (!Array.isArray(supForCompletion._pending_invoice.completed_action_keys)) {
+      supForCompletion._pending_invoice.completed_action_keys = [];
+    }
+  }
+  var completedKeys = (supForCompletion && supForCompletion._pending_invoice && supForCompletion._pending_invoice.completed_action_keys) || [];
+  var originalCount = actions.length;
+  actions = actions.filter(function(a){ return completedKeys.indexOf(_actionKey(a)) === -1; });
+  var skippedCount = originalCount - actions.length;
+  if (skippedCount > 0) {
+    log('⏭ דילגתי על ' + skippedCount + ' פעולות שכבר הצליחו בריצה קודמת');
+  }
+
+  var results = { ok: 0, fail: 0, errors: [], skipped: skippedCount };
+  function _markCompleted(action){
+    var key = _actionKey(action);
+    if (completedKeys.indexOf(key) === -1) {
+      completedKeys.push(key);
+      try {
+        if (supForCompletion && supForCompletion._pending_invoice) {
+          supForCompletion._pending_invoice.completed_action_keys = completedKeys;
+          if (typeof scheduleSave === 'function') scheduleSave();
+        }
+      } catch(_){}
+    }
+  }
   // Process actions sequentially
   for (var ai = 0; ai < actions.length; ai++) {
     var a = actions[ai];
@@ -7932,6 +7965,7 @@ async function confirmInvoiceCompared(){
             if (a.inGarage) rule.in_garage = true;
             try { await saveProductRule(String(resp.id), rule); } catch(_){}
           }
+          _markCompleted(a);
           results.ok++;
         } else {
           var errBody = await r.text();
@@ -7947,21 +7981,21 @@ async function confirmInvoiceCompared(){
           body: JSON.stringify({in_stock_qty: newStock})
         });
         var mergedHint = (a._mergedCount && a._mergedCount > 1) ? ' (אוחד מ-' + a._mergedCount + ' שורות)' : '';
-        if (r2.ok) { log('  ✓ מלאי: ' + a.currentStock + ' → ' + newStock + mergedHint, true); results.ok++; }
+        if (r2.ok) { log('  ✓ מלאי: ' + a.currentStock + ' → ' + newStock + mergedHint, true); _markCompleted(a); results.ok++; }
         else { log('  ✗ מלאי נכשל: ' + r2.status, false); results.fail++; results.errors.push({action:a,status:r2.status}); }
       } else if (a.type === 'sale_price') {
         var r3 = await fetch('https://themakeup.octoretail.com/api/v2/products/' + a.productId, {
           method:'PUT', headers:{'Authorization':octToken,'Content-Type':'application/json','Accept':'application/json'},
           body: JSON.stringify({sale_price: a.salePrice})
         });
-        if (r3.ok) { log('  ✓ מחיר מכירה: $' + a.salePrice, true); results.ok++; }
+        if (r3.ok) { log('  ✓ מחיר מכירה: $' + a.salePrice, true); _markCompleted(a); results.ok++; }
         else { log('  ✗ מחיר נכשל: ' + r3.status, false); results.fail++; results.errors.push({action:a,status:r3.status}); }
       } else if (a.type === 'clearance') {
         var r4 = await fetch('https://themakeup.octoretail.com/api/v2/products/' + a.productId, {
           method:'PUT', headers:{'Authorization':octToken,'Content-Type':'application/json','Accept':'application/json'},
           body: JSON.stringify({name: a.newName})
         });
-        if (r4.ok) { log('  ✓ Clearance!', true); results.ok++; }
+        if (r4.ok) { log('  ✓ Clearance!', true); _markCompleted(a); results.ok++; }
         else { log('  ✗ Clearance נכשל: ' + r4.status, false); results.fail++; results.errors.push({action:a,status:r4.status}); }
       } else if (a.type === 'rule_update') {
         var existingRule = (PRODUCT_RULES.rules && PRODUCT_RULES.rules[String(a.productId)]) || {};
@@ -7974,11 +8008,12 @@ async function confirmInvoiceCompared(){
         var hasChange = keysToCompare.some(function(k){ return (existingRule[k] || '') !== (newRule[k] || ''); });
         if (!hasChange) {
           log('  ⏭ rule — אין שינוי, מדלגת');
+          _markCompleted(a);
           results.ok++;
           continue;
         }
         var ok = await saveProductRule(String(a.productId), newRule);
-        if (ok) { log('  ✓ rule', true); results.ok++; }
+        if (ok) { log('  ✓ rule', true); _markCompleted(a); results.ok++; }
         else { log('  ✗ rule נכשל', false); results.fail++; }
       }
     } catch(e){
@@ -8002,8 +8037,11 @@ async function confirmInvoiceCompared(){
   } catch(_){}
 
   log('--- סיום ---');
-  log('✓ ' + results.ok + ' פעולות הצליחו · ✗ ' + results.fail + ' נכשלו', results.fail === 0);
-  toast(results.fail === 0 ? '✓ כל ' + results.ok + ' הפעולות הצליחו ב-OCTOPOS' : '⚠ ' + results.ok + ' הצליחו, ' + results.fail + ' נכשלו', results.fail === 0 ? 'success' : 'error');
+  log('✓ ' + results.ok + ' פעולות הצליחו · ✗ ' + results.fail + ' נכשלו' + (results.skipped > 0 ? ' · ⏭ ' + results.skipped + ' דולגו (כבר הצליחו)' : ''), results.fail === 0);
+  if (results.fail > 0) {
+    log('💡 הפעולות שהצליחו נשמרות — בלחיצה הבאה רק הנכשלות יורצו (אין כפילויות)');
+  }
+  toast(results.fail === 0 ? '✓ כל ' + results.ok + ' הפעולות הצליחו ב-OCTOPOS' : '⚠ ' + results.ok + ' הצליחו, ' + results.fail + ' נכשלו · בלחיצה הבאה רק הנכשלות ירוצו', results.fail === 0 ? 'success' : 'error');
   if (btn){ btn.disabled = false; btn.textContent = results.fail === 0 ? '✅ הסתיים' : '✅ נסי שוב'; }
   // Re-render supplier list
   try { renderSuppliersWithBindings(); } catch(_){}
