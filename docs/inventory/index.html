@@ -7880,6 +7880,25 @@ function renderCompareDiff(){
   var counts = { match: 0, "qty-diff": 0, missing: 0, extra: 0 };
   rows.forEach(function(r){ counts[r.status]++; });
 
+  // Display-set detection: when an invoice SKU ends in '-D' (display) or its name
+  // contains 'DISPLAY', look for saved-order SKUs with the same base prefix and
+  // expose them as hints. (Lauren 2026-05-18 PM late — Kara F3-37-D fix.)
+  var _displaySetHints = {};
+  try {
+    var expectedSet = {};
+    (CMP_CTX.expected || []).forEach(function(e){ if (e.sku) expectedSet[String(e.sku).toUpperCase()] = e; });
+    rows.forEach(function(r, ri){
+      if (r.status !== 'extra' || !r.inv || !r.inv.sku) return;
+      var invSku = String(r.inv.sku).toUpperCase();
+      if (!/-D$/.test(invSku) && !/DISPLAY/i.test(r.inv.name||'')) return;
+      var baseSku = invSku.replace(/-D$/, '');
+      var hits = Object.keys(expectedSet).filter(function(k){
+        return k !== invSku && (k.startsWith(baseSku + '-') || k.startsWith(baseSku + '/') || k.indexOf(baseSku) === 0);
+      });
+      if (hits.length > 0) _displaySetHints[ri] = hits.map(function(k){ return expectedSet[k]; });
+    });
+  } catch(e){ console.warn('display-set detection failed:', e); }
+
   // Detected invoice totals (subtotal + shipping). Excluded lines don't count.
   var _lineSubtotal = 0;
   var _excludedCount = 0;
