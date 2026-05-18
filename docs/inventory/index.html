@@ -858,6 +858,11 @@ function ensureSlice(evkey, eventMeta){
   const slice = STATE.events[evkey];
   if (!slice.po_ids) slice.po_ids = [];
   if (!slice.local_pos) slice.local_pos = [];
+  if (!slice.local_orders) slice.local_orders = [];
+  if (!slice.suppliers || typeof slice.suppliers !== "object") slice.suppliers = {};
+  if (!slice.summary || typeof slice.summary !== "object") slice.summary = { total_usd: 0, suppliers_ordered: 0, suppliers_received: 0, last_supplier_updated: null };
+  if (!slice.evkey) slice.evkey = evkey;
+  if (!slice.updated_at) slice.updated_at = nowIso();
   ["city","state","start_date","end_date","venue","address"].forEach(k => {
     if (eventMeta[k] && !slice[k]) slice[k] = eventMeta[k];
   });
