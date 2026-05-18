@@ -7378,6 +7378,22 @@ function openCompareInvoiceModal(supplierCode, supplierName){
   $("#cmpFile").value = '';
   var cb0 = document.getElementById('cmpConfirmBlock'); if (cb0) cb0.style.display = 'none';
   $("#cmpModalBg").style.display = 'flex';
+
+  // Try to restore a previously parsed invoice for this supplier (saved in supplier slice)
+  try {
+    var supState = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[supplierCode] : null;
+    var pending = supState && supState._pending_invoice;
+    if (pending && Array.isArray(pending.invoice_lines) && pending.invoice_lines.length) {
+      CMP_CTX.invoice_lines = pending.invoice_lines;
+      CMP_CTX.line_edits = pending.line_edits || {};
+      // Render diff with restored data — show banner explaining it's restored
+      var when = pending.parsed_at ? new Date(pending.parsed_at) : null;
+      var whenLabel = (when && !isNaN(when.getTime())) ? (when.toLocaleString('he-IL')) : '';
+      $("#cmpResult").innerHTML = '<div style="padding:10px 14px;background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;border-radius:8px;font-size:12px;margin-bottom:10px">📋 שוחזרה חשבונית קודמת שהועלתה' + (whenLabel ? ' · ' + escHtml(whenLabel) : '') + '. אפשר להמשיך לערוך, או להעלות קובץ חדש להחלפה.</div>';
+      // Defer renderCompareDiff to next tick so DOM is ready
+      setTimeout(function(){ renderCompareDiff(); }, 0);
+    }
+  } catch(e){ console.warn('restore _pending_invoice failed:', e); }
   // Capture edits on invoice rows (input + change events)
   var resBox = document.getElementById('cmpResult');
   if (resBox && !resBox._editListenerBound) {
@@ -7392,12 +7408,20 @@ function openCompareInvoiceModal(supplierCode, supplierName){
       else if (ev.target.type === 'number') val = Number(ev.target.value || 0);
       else val = ev.target.value;
       CMP_CTX.line_edits[ri][field] = val;
+      // Mirror into supplier slice so edits survive modal close/reopen
+      try {
+        var sup2 = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+        if (sup2 && sup2._pending_invoice) {
+          sup2._pending_invoice.line_edits = CMP_CTX.line_edits;
+          if (typeof scheduleSave === 'function') scheduleSave();
+        }
+      } catch(_){}
     };
     resBox.addEventListener('input', captureEdit);
     resBox.addEventListener('change', captureEdit);
     resBox._editListenerBound = true;
   }
-  CMP_CTX.line_edits = {};
+  if (!CMP_CTX.line_edits) CMP_CTX.line_edits = {};
   document.body.style.overflow = 'hidden';
 }
 
@@ -7526,10 +7550,23 @@ async function handleCompareInvoiceFile(file){
       lines = filterIgnoredLines(lines, CMP_CTX.supplier_code);
     }
     CMP_CTX.invoice_lines = lines || [];
+    CMP_CTX.line_edits = CMP_CTX.line_edits || {};
     // Compute totals and shipping (Lauren 2026-05-18 PM late)
     try {
       computeInvoiceTotalsAndApply();
     } catch(e){ console.warn('computeInvoiceTotalsAndApply failed:', e); }
+    // Persist to supplier slice so modal can be re-opened with the same data
+    try {
+      var sup = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+      if (sup) {
+        sup._pending_invoice = {
+          invoice_lines: CMP_CTX.invoice_lines,
+          line_edits: CMP_CTX.line_edits,
+          parsed_at: new Date().toISOString()
+        };
+        if (typeof scheduleSave === 'function') scheduleSave();
+      }
+    } catch(e){ console.warn('persist _pending_invoice failed:', e); }
     renderCompareDiff();
   } catch(e){
     console.error(e);
