@@ -719,13 +719,22 @@ $("#syncChip").addEventListener("click", () => {
 });
 
 async function loadState(){
+  function _safeParseLocal(){
+    try {
+      var raw = localStorage.getItem(LS_LOCAL);
+      return raw ? JSON.parse(raw) : null;
+    } catch(_){
+      // Corrupt localStorage — wipe it so it doesn't block future loads
+      try { localStorage.removeItem(LS_LOCAL); } catch(_2){}
+      return null;
+    }
+  }
   try{
     const r = await fetch(STATE_URL + "?_=" + Date.now(), { cache: "no-store" });
     if (r.ok){
       const cloud = await r.json();
       const cloudTs = new Date(cloud._updated_at||0).getTime();
-      const localRaw = localStorage.getItem(LS_LOCAL);
-      const local = localRaw ? JSON.parse(localRaw) : null;
+      const local = _safeParseLocal();
       const localTs = local ? new Date(local._localUpdatedAt||0).getTime() : 0;
       if (cloudTs >= localTs){
         if (PENDING_SAVE){ clearTimeout(PENDING_SAVE); PENDING_SAVE = null; }
@@ -740,9 +749,9 @@ async function loadState(){
     }
   } catch(e){
     console.warn("loadState failed, using local cache:", e);
-    const localRaw = localStorage.getItem(LS_LOCAL);
-    STATE = localRaw ? JSON.parse(localRaw) : { _updated_at: null, events: {} };
+    STATE = _safeParseLocal() || { _updated_at: null, events: {} };
   }
+  if (!STATE || typeof STATE !== "object") STATE = { _updated_at: null, events: {} };
   if (!STATE.events) STATE.events = {};
 }
 
@@ -6827,52 +6836,79 @@ function renderGlobalSupplierBody(sup, v){
 }
 
 async function init(){
-  setSyncChip();
-  setupModeSwitch();
-  await Promise.all([loadState(), loadOctopos(), loadProductRules(), loadReceiveState()]);
+  // Hard safety: force-hide loadingView after 8s no matter what.
+  // Better a broken page than an infinite spinner.
+  var _safetyTimer = setTimeout(function(){
+    var lv = document.getElementById("loadingView");
+    if (lv) lv.style.display = "none";
+    console.warn("[init] safety timer fired — loadingView force-hidden");
+  }, 8000);
 
-  if (MODE === 'global'){
-    $("#globalView").style.display = "";
-    $("#focusView").style.display = "none";
-    $("#overviewView").style.display = "none";
-    $("#loadingView").style.display = "none";
-    $("#sub").textContent = "· דשבורד ספקים מלא";
-    renderGlobalSummary();
-    renderGlobalSuppliers();
-    $("#gSearch").addEventListener("input", renderGlobalSuppliers);
-    $("#gFilter").addEventListener("change", renderGlobalSuppliers);
-    return;
-  }
+  try {
+    try { setSyncChip(); } catch(e){ console.warn("setSyncChip failed:", e); }
+    try { setupModeSwitch(); } catch(e){ console.warn("setupModeSwitch failed:", e); }
 
-  if (MODE === 'receive'){
-    initReceiveMode();
-    return;
-  }
+    // Each loader gets its own catch so a single rejection doesn't block the rest
+    await Promise.all([
+      loadState().catch(function(e){ console.warn("loadState rejected:", e); if (typeof STATE === "undefined" || !STATE) { STATE = { _updated_at: null, events: {} }; } }),
+      loadOctopos().catch(function(e){ console.warn("loadOctopos rejected:", e); if (typeof OCTOPOS === "undefined" || !OCTOPOS) { OCTOPOS = { vendors: {}, _updated_at: null }; } }),
+      loadProductRules().catch(function(e){ console.warn("loadProductRules rejected:", e); }),
+      loadReceiveState().catch(function(e){ console.warn("loadReceiveState rejected:", e); })
+    ]);
 
-  if (URL_EVKEY){
-    CURRENT_EVKEY = URL_EVKEY;
-    CURRENT_EVENT = {
-      city: URL_PARAMS.get("city") || "",
-      state: URL_PARAMS.get("state") || "",
-      start_date: URL_PARAMS.get("start_date") || "",
-      end_date: URL_PARAMS.get("end_date") || "",
-      venue: URL_PARAMS.get("venue") || "",
-      address: URL_PARAMS.get("address") || ""
-    };
-    ensureSlice(CURRENT_EVKEY, CURRENT_EVENT);
-    const slice = STATE.events[CURRENT_EVKEY];
-    CURRENT_EVENT = {
-      city: slice.city, state: slice.state, start_date: slice.start_date, end_date: slice.end_date, venue: slice.venue, address: slice.address
-    };
-    $("#focusView").style.display = "";
-    $("#overviewView").style.display = "none";
-    $("#loadingView").style.display = "none";
-    renderEventStrip();
-    renderSummary();
-    renderSuppliersWithBindings();
-  } else {
-    $("#loadingView").style.display = "none";
-    await renderOverview();
+    if (MODE === 'global'){
+      $("#globalView").style.display = "";
+      $("#focusView").style.display = "none";
+      $("#overviewView").style.display = "none";
+      $("#loadingView").style.display = "none";
+      $("#sub").textContent = "· דשבורד ספקים מלא";
+      try { renderGlobalSummary(); } catch(e){ console.warn("renderGlobalSummary:", e); }
+      try { renderGlobalSuppliers(); } catch(e){ console.warn("renderGlobalSuppliers:", e); }
+      $("#gSearch").addEventListener("input", renderGlobalSuppliers);
+      $("#gFilter").addEventListener("change", renderGlobalSuppliers);
+      return;
+    }
+
+    if (MODE === 'receive'){
+      try { initReceiveMode(); } catch(e){ console.error("initReceiveMode failed:", e); $("#loadingView").style.display = "none"; }
+      return;
+    }
+
+    if (URL_EVKEY){
+      CURRENT_EVKEY = URL_EVKEY;
+      CURRENT_EVENT = {
+        city: URL_PARAMS.get("city") || "",
+        state: URL_PARAMS.get("state") || "",
+        start_date: URL_PARAMS.get("start_date") || "",
+        end_date: URL_PARAMS.get("end_date") || "",
+        venue: URL_PARAMS.get("venue") || "",
+        address: URL_PARAMS.get("address") || ""
+      };
+      try { ensureSlice(CURRENT_EVKEY, CURRENT_EVENT); } catch(e){ console.error("ensureSlice failed:", e); }
+      const slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || CURRENT_EVENT;
+      CURRENT_EVENT = {
+        city: slice.city || CURRENT_EVENT.city, state: slice.state || CURRENT_EVENT.state,
+        start_date: slice.start_date || CURRENT_EVENT.start_date, end_date: slice.end_date || CURRENT_EVENT.end_date,
+        venue: slice.venue || CURRENT_EVENT.venue, address: slice.address || CURRENT_EVENT.address
+      };
+      $("#focusView").style.display = "";
+      $("#overviewView").style.display = "none";
+      $("#loadingView").style.display = "none";
+      try { renderEventStrip(); } catch(e){ console.error("renderEventStrip:", e); }
+      try { renderSummary(); } catch(e){ console.error("renderSummary:", e); }
+      try { renderSuppliersWithBindings(); } catch(e){ console.error("renderSuppliersWithBindings:", e); }
+    } else {
+      $("#loadingView").style.display = "none";
+      try { await renderOverview(); } catch(e){ console.error("renderOverview:", e); }
+    }
+  } catch(e){
+    console.error("[init] unexpected error:", e);
+    var lv = document.getElementById("loadingView");
+    if (lv) lv.innerHTML = '<h2 style="color:#dc2626">שגיאה בטעינה</h2><p>פתחי את הקונסולה (F12) ושלחי את הודעת השגיאה.</p><pre style="background:#fee2e2;padding:10px;border-radius:8px;max-width:600px;margin:14px auto;text-align:left;direction:ltr;font-size:11px;overflow:auto">'+ (e && (e.stack || e.message || String(e))) +'</pre>';
+  } finally {
+    clearTimeout(_safetyTimer);
+    var lv2 = document.getElementById("loadingView");
+    if (lv2 && lv2.style.display !== "none") lv2.style.display = "none";
   }
 }
 
