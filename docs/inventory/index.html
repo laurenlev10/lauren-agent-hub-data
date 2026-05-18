@@ -1171,6 +1171,12 @@ function renderSupplierCard(sup, s, idx){
             ? '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="לחיצה תפתח את החלון שוב" style="background:linear-gradient(180deg,#16a34a,#15803d);font-size:11px;padding:5px 10px;color:#fff">✓ קבלת סחורה עודכנה · '+_fmtMMDDHHMM(_invoiceComparedAt)+'</button>'
             : '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" style="font-size:11px;padding:5px 10px">📋 השוואת חשבונית</button>')
         : '')+
+      // 'עודכן ידנית' button — for suppliers where Lauren updated stock directly in OCTOPOS without going through compare flow
+      ((_hasLocalOrder && !_invoiceCompared)
+        ? (s.manually_updated_at
+            ? '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="סימנת כעודכן ידנית. לחיצה כדי להסיר את הסימון" style="background:linear-gradient(180deg,#7c3aed,#5b21b6);font-size:11px;padding:5px 10px;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-right:4px">✓ עודכן ידנית · '+_fmtMMDDHHMM(s.manually_updated_at)+'</button>'
+            : '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="לחצי כדי לסמן שעדכנת את ההזמנה ידנית ב-OCTOPOS" style="background:#ede9fe;color:#5b21b6;font-size:11px;padding:5px 10px;border:1px solid #c4b5fd;border-radius:6px;cursor:pointer;font-weight:700;margin-right:4px">✋ עודכן ידנית</button>')
+        : '')+
       newOrderBtn+
       '<div class="total">'+totalDisp+'</div>'+
       '<div class="chev">▾</div>'+
@@ -1849,6 +1855,30 @@ document.addEventListener("click", function(e){
     openGeneratePoModal(btn.dataset.supplierCode, parseInt(btn.dataset.vendorId, 10));
     return;
   }
+  // ✋ עודכן ידנית — supplier marked as manually updated in OCTOPOS
+  var muBtn = e.target.closest('.btn-manual-updated');
+  if (muBtn) {
+    e.preventDefault(); e.stopPropagation();
+    var muSupCode = muBtn.dataset.supplierCode;
+    var muSupName = muBtn.dataset.supplierName;
+    if (!CURRENT_EVKEY || !STATE.events[CURRENT_EVKEY] || !STATE.events[CURRENT_EVKEY].suppliers[muSupCode]) return;
+    var supSt = STATE.events[CURRENT_EVKEY].suppliers[muSupCode];
+    if (supSt.manually_updated_at) {
+      if (confirm('להסיר את הסימון "עודכן ידנית" עבור ' + muSupName + '?')) {
+        delete supSt.manually_updated_at;
+        if (typeof scheduleSave === 'function') scheduleSave();
+        toast('הסימון הוסר', '');
+        try { renderSuppliersWithBindings(); } catch(_){}
+      }
+    } else {
+      supSt.manually_updated_at = new Date().toISOString();
+      if (typeof scheduleSave === 'function') scheduleSave();
+      toast('✓ ' + muSupName + ' סומן כעודכן ידנית', 'success');
+      try { renderSuppliersWithBindings(); } catch(_){}
+    }
+    return;
+  }
+
   // 📦+ לגראג / ↩ הסר — additive in_garage flag (added 2026-05-18 PM late)
   var gt = e.target.closest('.btn-garage-toggle');
   if (gt){
