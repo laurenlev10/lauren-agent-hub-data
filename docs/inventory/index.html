@@ -541,9 +541,23 @@
       <button id="btnRefreshOctopos" class="btn-refresh-octopos" title="הפעיל סנכרון מאוקטופוס עכשיו (לוקח כ-3 דקות)">🔄 רענני נתוני OCTOPOS עכשיו</button>
     </div>
 
-    <div class="summary-grid" style="display:none">
-      <div id="sumTotal"></div><div id="sumTotalDelta"></div>
-      <div id="sumOrdered"></div><div id="sumReceived"></div><div id="sumPending"></div>
+    <div id="eventTotalBanner" style="margin:14px 0 18px;padding:18px 22px;background:linear-gradient(180deg,#dcfce7,#bbf7d0);border:1px solid #86efac;border-radius:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;box-shadow:0 1px 3px rgba(22,163,74,.15)">
+      <div>
+        <div style="font-size:12px;color:#15803d;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">💰 סה"כ הזמנות לאירוע</div>
+        <div id="sumTotal" style="font-size:32px;font-weight:800;color:#14532d;line-height:1">$0</div>
+      </div>
+      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+        <div style="text-align:center">
+          <div id="sumOrdered" style="font-size:20px;font-weight:800;color:#166534">0 / 14</div>
+          <div style="font-size:11px;color:#15803d;font-weight:600">ספקים בהזמנה</div>
+        </div>
+        <div style="text-align:center">
+          <div id="sumReceived" style="font-size:20px;font-weight:800;color:#166534">0 / 14</div>
+          <div style="font-size:11px;color:#15803d;font-weight:600">סחורה התקבלה</div>
+        </div>
+        <div id="sumPending" style="display:none"></div>
+        <div id="sumTotalDelta" style="display:none"></div>
+      </div>
     </div>
 
     <div style="display:none">
@@ -951,13 +965,25 @@ function recomputeSummary(evkey){
   const slice = STATE.events[evkey];
   if (!slice) return;
   let total = 0, ordered = 0, received = 0;
+  // Also count local_orders (orders saved via Wizard) as 'ordered'
+  const orderedCodes = new Set();
+  const receivedCodes = new Set();
+  (slice.local_orders || []).forEach(o => { if (o.supplier_code) orderedCodes.add(o.supplier_code); });
   SUPPLIERS.forEach(sup => {
     const s = slice.suppliers[sup.code];
     if (!s) return;
-    total += Number(s.invoice_total_usd||0);
-    if (s.status && s.status !== "pending" && s.status !== "cancelled") ordered++;
-    if (s.received || s.status === "received") received++;
+    // Sum invoice total + shipping for full event total
+    total += Number(s.invoice_total_usd||0) + Number(s.shipping_cost_usd||0);
+    if (s.invoice_compared_at) {
+      orderedCodes.add(sup.code);
+      receivedCodes.add(sup.code);
+    } else if (s.status && s.status !== "pending" && s.status !== "cancelled") {
+      orderedCodes.add(sup.code);
+    }
+    if (s.received || s.status === "received") receivedCodes.add(sup.code);
   });
+  ordered = orderedCodes.size;
+  received = receivedCodes.size;
   slice.summary = {
     total_usd: total,
     suppliers_ordered: ordered,
@@ -1060,7 +1086,11 @@ function renderSupplierCard(sup, s, idx){
   const statusLabel = _hasLocalOrder
     ? ('✅ נשלחה הזמנה' + (_lastWhenDisplay ? ' <span style="opacity:.75;font-weight:500;font-size:11px;margin-right:4px">· ' + _lastWhenDisplay + '</span>' : ''))
     : (STATUS_LABELS[s.status]||STATUS_LABELS.pending);
-  const totalDisp = Number(s.invoice_total_usd||0) > 0 ? fmtUsd(s.invoice_total_usd) : "—";
+  // Per-row total: invoice + shipping. When > 0, render in bold green; else dash placeholder.
+  var _rowGrand = Number(s.invoice_total_usd||0) + Number(s.shipping_cost_usd||0);
+  const totalDisp = _rowGrand > 0
+    ? '<span style="color:#15803d;font-weight:800">' + fmtUsd(_rowGrand) + '</span>'
+    : '<span style="color:var(--muted)">—</span>';
   const carrierOpts = ["ups","usps","fedex","dhl","other"];
   // Inline 'הזמנה חדשה' + 'הוספת חשבונית' buttons on pending rows (Lauren 2026-05-18 PM late)
   // Both hide once the supplier has either a saved order OR a confirmed invoice.
