@@ -7481,6 +7481,35 @@ function openCompareInvoiceModal(supplierCode, supplierName){
     };
     resBox.addEventListener('input', captureEdit);
     resBox.addEventListener('change', captureEdit);
+    // Click handler for '↩ הגיע' force-received button
+    resBox.addEventListener('click', function(ev){
+      var btn = ev.target.closest('[data-action="force-received"]');
+      if (!btn) return;
+      ev.preventDefault(); ev.stopPropagation();
+      var ri = Number(btn.dataset.ri);
+      if (!CMP_CTX.line_edits) CMP_CTX.line_edits = {};
+      if (!CMP_CTX.line_edits[ri]) CMP_CTX.line_edits[ri] = {};
+      // Pre-fill from the saved-order expected values
+      var rowExp = (CMP_CTX._lastRows || [])[ri];
+      if (rowExp && rowExp.exp) {
+        CMP_CTX.line_edits[ri].force_received = true;
+        if (CMP_CTX.line_edits[ri].name === undefined) CMP_CTX.line_edits[ri].name = rowExp.exp.name || '';
+        if (CMP_CTX.line_edits[ri].sku === undefined) CMP_CTX.line_edits[ri].sku = rowExp.exp.sku || '';
+        if (CMP_CTX.line_edits[ri].qty === undefined) CMP_CTX.line_edits[ri].qty = rowExp.exp.qty || 0;
+        if (CMP_CTX.line_edits[ri].price === undefined) CMP_CTX.line_edits[ri].price = rowExp.exp.cost_unit || 0;
+      } else {
+        CMP_CTX.line_edits[ri].force_received = true;
+      }
+      // Persist + re-render
+      try {
+        var sup3 = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+        if (sup3 && sup3._pending_invoice) {
+          sup3._pending_invoice.line_edits = CMP_CTX.line_edits;
+          if (typeof scheduleSave === 'function') scheduleSave();
+        }
+      } catch(_){}
+      try { renderCompareDiff(); } catch(_){}
+    });
     resBox._editListenerBound = true;
   }
   if (!CMP_CTX.line_edits) CMP_CTX.line_edits = {};
@@ -8022,6 +8051,20 @@ function renderCompareDiff(){
   // Style for editable cells
   var inpBase = 'width:100%;padding:4px 6px;font-size:12px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-family:inherit;';
   rows.forEach(function(r, ri){
+    // Allow Lauren to flip 'missing' rows into 'received' rows manually
+    // (e.g., when a display ships multiple SKUs in one package and the
+    //  invoice only lists the display SKU). Lauren 2026-05-18 PM late.
+    var lineOv = (CMP_CTX.line_edits || {})[ri] || {};
+    if (r.status === 'missing' && lineOv.force_received) {
+      r = Object.assign({}, r, {
+        status: 'qty-diff',
+        inv: { name: (lineOv.name || (r.exp && r.exp.name) || ''),
+               sku: (lineOv.sku || (r.exp && r.exp.sku) || ''),
+               qty: (lineOv.qty !== undefined ? Number(lineOv.qty) : 0),
+               price: (lineOv.price !== undefined ? Number(lineOv.price) : 0) },
+        invQ: (lineOv.qty !== undefined ? Number(lineOv.qty) : 0)
+      });
+    }
     var srcL = r.inv || r.exp || {};
     var rawName = srcL.name || '';
     var name = _withBrand(_cleanInvoiceName(rawName));
@@ -8061,8 +8104,12 @@ function renderCompareDiff(){
       // Missing-in-invoice row: the product exists in saved order (and likely in OCTOPOS).
       // Allow Lauren to flag it: 🏪 in_garage, 🚫 clearance, 🗑️ exclude — but name/SKU/qty
       // stay read-only (they're known from the saved order, not from any invoice line).
+      // The '↩' button flips this into a force_received editable row.
       html += '<tr class="'+r.status+'" data-ri="'+ri+'">' +
-        '<td style="font-size:14px;text-align:center">'+statusEmoji[r.status]+'</td>' +
+        '<td style="text-align:center;display:flex;align-items:center;gap:3px;justify-content:center">' +
+          '<span style="font-size:14px">'+statusEmoji[r.status]+'</span>' +
+          '<button type="button" data-action="force-received" data-ri="'+ri+'" title="בעצם הגיע — אפשר לערוך כמות ושדות" style="background:#f0fdf4;border:1px solid #86efac;color:#166534;border-radius:4px;padding:2px 5px;cursor:pointer;font-size:11px;font-weight:700">↩ הגיע</button>' +
+        '</td>' +
         '<td>'+escHtml(name)+'</td>' +
         '<td style="text-align:center;color:var(--muted);font-size:11px">'+escHtml(sku||'—')+'</td>' +
         '<td style="text-align:center;font-weight:700">'+qty+'</td>' +
@@ -8103,6 +8150,8 @@ function renderCompareDiff(){
       '</tr>';
     }
   });
+  // Cache rows for the force-received click handler
+  CMP_CTX._lastRows = rows;
   html += '</tbody></table>';
   // Note about Phase 1
   html += '<div style="margin-top:14px;color:var(--muted);font-size:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px">💡 הערך/י את המוצרים החדשים — מינ\' לדיספליי נחלץ אוטומטית מתיאור כמו "(24pc x 12packs)". בלחיצת "✅ עדכן קבלת סחורה" הנתונים יישמרו ב-product_rules למוצרים שיש להם כבר ID ב-OCTOPOS.<br>📝 <b>מוצרים חדשים</b> ייווצרו ב-OCTOPOS כאשר Phase 2 ייפרס. הברקוד הראשוני יהיה <b>שם המוצר</b> כי OCTOPOS דורש ברקוד — תוכלי לעדכן אותו ידנית לאחר מכן.</div>';
