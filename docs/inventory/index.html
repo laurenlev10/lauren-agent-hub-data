@@ -7616,9 +7616,27 @@ function openCompareInvoiceModal(supplierCode, supplierName){
       // Live recompute totals + supplier card when exclude/qty/price changes
       if (field === 'exclude_from_event' || field === 'qty' || field === 'price') {
         try { computeInvoiceTotalsAndApply(); } catch(_){}
-        // Re-render the diff to refresh totals banner + line-through
         if (field === 'exclude_from_event') {
           try { renderCompareDiff(); } catch(_){}
+        }
+        // LEARN qty multiplier: if user changed qty from raw_qty to a round multiple
+        if (field === 'qty') {
+          try {
+            var L2 = (CMP_CTX.invoice_lines || [])[ri];
+            if (L2 && L2.qty && val > 0 && !L2.unit_note) {
+              var origQty = Number(L2.raw_qty || L2.qty);
+              var ratio = val / origQty;
+              if (ratio !== 1 && ratio === Math.round(ratio) && ratio >= 2 && ratio <= 50) {
+                console.log('[supplier qty learn] detected ratio ' + ratio + ' on ' + (L2.name || L2.sku));
+                var sup = CMP_CTX && CMP_CTX.supplier_code;
+                if (sup && typeof saveSupplierQtyMultiplier === 'function') {
+                  saveSupplierQtyMultiplier(sup, ratio).then(function(ok){
+                    if (ok) toast('💡 המערכת למדה: בעתיד כמויות ב-' + sup + ' יוכפלו ×' + ratio, 'success');
+                  });
+                }
+              }
+            }
+          } catch(_){}
         }
       }
     };
