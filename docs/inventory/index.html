@@ -7504,46 +7504,189 @@ async function confirmInvoiceCompared(){
   if (!CMP_CTX || typeof CURRENT_EVKEY === 'undefined' || !CURRENT_EVKEY) { toast('שגיאה: אין הקשר', 'error'); return; }
   var supplierCode = CMP_CTX.supplier_code;
   var btn = document.getElementById('cmpConfirmBtn');
-  if (btn){ btn.disabled = true; btn.textContent = '⏳ שומר...'; }
-  var nowIso2 = new Date().toISOString();
-  // Update in-memory STATE first
-  try {
-    if (STATE.events[CURRENT_EVKEY].suppliers && STATE.events[CURRENT_EVKEY].suppliers[supplierCode]) {
-      STATE.events[CURRENT_EVKEY].suppliers[supplierCode].invoice_compared_at = nowIso2;
-    }
-  } catch(_){}
-  // Persist to GitHub
-  var ghToken = (localStorage.getItem('lauren_gh_token_v1') || '').trim();
-  if (!ghToken){ toast('צריך GitHub token', 'error'); if (btn){ btn.disabled = false; btn.textContent = '✅ עדכן קבלת סחורה'; } return; }
-  try {
-    var url = 'https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/inventory_orders.json';
-    var info = await fetch(url + '?ref=main', { headers:{Authorization:'token '+ghToken, Accept:'application/vnd.github+json'} }).then(function(r){return r.json();});
-    var data = info.content ? JSON.parse(atob(info.content.replace(/\n/g,''))) : {events:{}};
-    data.events = data.events || {};
-    data.events[CURRENT_EVKEY] = data.events[CURRENT_EVKEY] || {};
-    data.events[CURRENT_EVKEY].suppliers = data.events[CURRENT_EVKEY].suppliers || {};
-    data.events[CURRENT_EVKEY].suppliers[supplierCode] = data.events[CURRENT_EVKEY].suppliers[supplierCode] || {};
-    data.events[CURRENT_EVKEY].suppliers[supplierCode].invoice_compared_at = nowIso2;
-    data._updated_at = nowIso2;
-    var newC = JSON.stringify(data, null, 2);
-    var put = await fetch(url, {
-      method: 'PUT',
-      headers: {Authorization:'token '+ghToken, Accept:'application/vnd.github+json', 'Content-Type':'application/json'},
-      body: JSON.stringify({message:'inventory: invoice compared/confirmed for ' + supplierCode, content: btoa(unescape(encodeURIComponent(newC))), branch:'main', sha: info.sha})
-    });
-    if (put.ok){
-      toast('✓ קבלת סחורה עודכנה', 'success');
-      closeCompareInvoiceModal();
-      try { renderSuppliersWithBindings(); } catch(_){}
+  if (btn){ btn.disabled = true; btn.textContent = '⏳ מעבד...'; }
+
+  // ---- PHASE 2: Build action plan from invoice_lines + line_edits ----
+  var invoice = CMP_CTX.invoice_lines || [];
+  var edits = CMP_CTX.line_edits || {};
+  var sup = SUPPLIERS.find(function(s){ return s.code === supplierCode; }) || {};
+  var vendorId = (sup.octopos_vendor_ids && sup.octopos_vendor_ids[0]) || null;
+
+  var actions = []; // each: {type, line, sku, productId, ...}
+  invoice.forEach(function(L, i){
+    var ov = edits[i] || {};
+    if (ov.exclude_from_event) return; // skip excluded lines from system updates too
+    var addToSystem = (ov.add_to_system !== undefined) ? !!ov.add_to_system : true;
+    var sku = (ov.sku !== undefined ? ov.sku : L.sku || '').trim();
+    var name = (ov.name !== undefined ? ov.name : L.name || '').trim();
+    var qty = Number(ov.qty !== undefined ? ov.qty : (L.qty || 0));
+    var price = Number(ov.price !== undefined ? ov.price : (L.price || 0));
+    var salePrice = ov.sale_price !== undefined ? Number(ov.sale_price) : null;
+    var displayMin = ov.display_min !== undefined ? Number(ov.display_min) : null;
+    var inGarage = !!ov.in_garage;
+    var clearance = !!ov.clearance;
+
+    // Find existing product by SKU
+    var existing = null;
+    try {
+      Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
+        var v = OCTOPOS.vendors[c] || {};
+        (v.products || []).concat(v.inactive_products || []).forEach(function(p){
+          if (!existing && p.sku && sku && String(p.sku).toUpperCase() === sku.toUpperCase()) {
+            existing = p;
+          }
+        });
+      });
+    } catch(_){}
+
+    if (existing) {
+      // Existing product — adjust stock + sale_price + clearance + rules
+      if (addToSystem && qty > 0) {
+        actions.push({type:'stock', productId: existing.id, name: name, qty: qty, currentStock: Number(existing.in_stock_qty||0)});
+      }
+      if (salePrice !== null && salePrice > 0 && salePrice !== Number(existing.sale_price||0)) {
+        actions.push({type:'sale_price', productId: existing.id, name: name, salePrice: salePrice});
+      }
+      if (clearance && !/^clearance!/i.test(existing.name||'')) {
+        actions.push({type:'clearance', productId: existing.id, name: existing.name, newName: 'Clearance! ' + existing.name});
+      }
+      // product_rules updates (in_garage, display_min) — local only, batched
+      actions.push({type:'rule_update', productId: existing.id, name: name, in_garage: inGarage, display_min: displayMin});
     } else {
-      toast('⚠️ שמירה נכשלה (HTTP ' + put.status + ')', 'error');
-      if (btn){ btn.disabled = false; btn.textContent = '✅ עדכן קבלת סחורה'; }
+      // New product — POST
+      if (addToSystem && sku && qty > 0 && price > 0) {
+        actions.push({type:'create', sku: sku, name: name, qty: qty, price: price, salePrice: salePrice, displayMin: displayMin, inGarage: inGarage, clearance: clearance, vendorId: vendorId});
+      }
     }
-  } catch(e){
-    console.error('confirmInvoiceCompared failed:', e);
-    toast('⚠️ שגיאה: ' + e.message, 'error');
-    if (btn){ btn.disabled = false; btn.textContent = '✅ עדכן קבלת סחורה'; }
+  });
+
+  // Render preview modal
+  var summary = { create: 0, stock: 0, sale_price: 0, clearance: 0, rule_update: 0 };
+  actions.forEach(function(a){ summary[a.type] = (summary[a.type]||0) + 1; });
+  var previewHtml = '<div style="padding:14px;background:#fff;border-radius:10px"><h3 style="margin:0 0 10px;font-size:15px;color:#0f172a">תכנית פעולה לעדכון OCTOPOS:</h3><ul style="margin:0;padding-right:18px;font-size:13px">';
+  if (summary.create) previewHtml += '<li><b>🆕 ' + summary.create + ' מוצרים חדשים</b> ייווצרו (barcode = שם המוצר)</li>';
+  if (summary.stock) previewHtml += '<li><b>📦 ' + summary.stock + ' עדכוני מלאי</b> (קליטת סחורה למוצרים קיימים)</li>';
+  if (summary.sale_price) previewHtml += '<li><b>💰 ' + summary.sale_price + ' מחירי מכירה</b> יעודכנו</li>';
+  if (summary.clearance) previewHtml += '<li><b>🚫 ' + summary.clearance + ' מוצרים</b> יסומנו Clearance!</li>';
+  if (summary.rule_update) previewHtml += '<li><b>📝 ' + summary.rule_update + ' product_rules</b> (in_garage / display_min)</li>';
+  previewHtml += '</ul></div>';
+
+  // Show progress modal
+  var progBox = document.getElementById('cmpResult');
+  if (progBox) {
+    progBox.innerHTML = previewHtml + '<div id="cmpProgress" style="margin-top:14px;padding:14px;background:#f8fafc;border-radius:10px;font-size:13px;max-height:220px;overflow:auto"><div style="color:var(--muted)">מתחיל...</div></div>';
   }
+
+  // Acquire tokens
+  var ghToken = (localStorage.getItem('lauren_gh_token_v1') || '').trim();
+  var octToken = (localStorage.getItem('lauren_octopos_token') || '').trim();
+  if (!octToken && actions.some(function(a){ return a.type !== 'rule_update'; })) {
+    octToken = prompt('הדביקי טוקן OCTOPOS פעיל (יישמר ב-localStorage):');
+    if (octToken) localStorage.setItem('lauren_octopos_token', octToken.trim());
+  }
+
+  function log(msg, ok){
+    var pb = document.getElementById('cmpProgress');
+    if (pb) pb.innerHTML += '<div style="color:' + (ok===false?'#b91c1c':(ok===true?'#15803d':'#475569')) + '">' + msg + '</div>';
+  }
+
+  var results = { ok: 0, fail: 0, errors: [] };
+  // Process actions sequentially
+  for (var ai = 0; ai < actions.length; ai++) {
+    var a = actions[ai];
+    log('⏳ ' + (ai+1) + '/' + actions.length + ' — ' + a.type + ': ' + (a.name||a.sku||''));
+    try {
+      if (a.type === 'create') {
+        // POST new product to OCTOPOS
+        var body = {
+          name: a.name,
+          sku: a.sku,
+          barcode: a.name,  // Lauren's directive: name as placeholder barcode
+          cost: a.price,
+          unit_cost: a.price,
+          sale_price: a.salePrice || null,
+          in_stock_qty: a.qty,
+          threshold_qty: a.displayMin || 0,
+          vendor_ids: a.vendorId ? [a.vendorId] : []
+        };
+        var r = await fetch('https://themakeup.octoretail.com/api/v2/products', {
+          method:'POST', headers:{'Authorization':octToken,'Content-Type':'application/json','Accept':'application/json'},
+          body: JSON.stringify(body)
+        });
+        if (r.ok) {
+          var resp = await r.json();
+          log('  ✓ נוצר: ' + a.name + ' (id ' + resp.id + ')', true);
+          // Save product_rules for the new product
+          if (a.displayMin || a.inGarage) {
+            var rule = {};
+            if (a.displayMin) rule.min_display = a.displayMin;
+            if (a.inGarage) rule.in_garage = true;
+            try { await saveProductRule(String(resp.id), rule); } catch(_){}
+          }
+          results.ok++;
+        } else {
+          var errBody = await r.text();
+          log('  ✗ נכשל: ' + r.status + ' ' + (errBody||'').slice(0,150), false);
+          results.fail++;
+          results.errors.push({action:a, status:r.status, body:errBody});
+        }
+      } else if (a.type === 'stock') {
+        // Update existing product's in_stock_qty
+        var newStock = a.currentStock + a.qty;
+        var r2 = await fetch('https://themakeup.octoretail.com/api/v2/products/' + a.productId, {
+          method:'PUT', headers:{'Authorization':octToken,'Content-Type':'application/json','Accept':'application/json'},
+          body: JSON.stringify({in_stock_qty: newStock})
+        });
+        if (r2.ok) { log('  ✓ מלאי: ' + a.currentStock + ' → ' + newStock, true); results.ok++; }
+        else { log('  ✗ מלאי נכשל: ' + r2.status, false); results.fail++; results.errors.push({action:a,status:r2.status}); }
+      } else if (a.type === 'sale_price') {
+        var r3 = await fetch('https://themakeup.octoretail.com/api/v2/products/' + a.productId, {
+          method:'PUT', headers:{'Authorization':octToken,'Content-Type':'application/json','Accept':'application/json'},
+          body: JSON.stringify({sale_price: a.salePrice})
+        });
+        if (r3.ok) { log('  ✓ מחיר מכירה: $' + a.salePrice, true); results.ok++; }
+        else { log('  ✗ מחיר נכשל: ' + r3.status, false); results.fail++; results.errors.push({action:a,status:r3.status}); }
+      } else if (a.type === 'clearance') {
+        var r4 = await fetch('https://themakeup.octoretail.com/api/v2/products/' + a.productId, {
+          method:'PUT', headers:{'Authorization':octToken,'Content-Type':'application/json','Accept':'application/json'},
+          body: JSON.stringify({name: a.newName})
+        });
+        if (r4.ok) { log('  ✓ Clearance!', true); results.ok++; }
+        else { log('  ✗ Clearance נכשל: ' + r4.status, false); results.fail++; results.errors.push({action:a,status:r4.status}); }
+      } else if (a.type === 'rule_update') {
+        var existingRule = (PRODUCT_RULES.rules && PRODUCT_RULES.rules[String(a.productId)]) || {};
+        var newRule = Object.assign({}, existingRule);
+        if (a.in_garage) newRule.in_garage = true;
+        else if (newRule.in_garage) delete newRule.in_garage;
+        if (a.display_min !== null && a.display_min > 0) newRule.min_display = a.display_min;
+        var ok = await saveProductRule(String(a.productId), newRule);
+        if (ok) { log('  ✓ rule', true); results.ok++; }
+        else { log('  ✗ rule נכשל', false); results.fail++; }
+      }
+    } catch(e){
+      log('  ✗ שגיאה: ' + e.message, false);
+      results.fail++;
+      results.errors.push({action:a, error:e.message});
+    }
+  }
+
+  // Final state save — mark invoice_compared_at + clear _pending_invoice
+  var nowIso2 = new Date().toISOString();
+  try {
+    var sup2 = STATE.events[CURRENT_EVKEY].suppliers[supplierCode];
+    if (sup2) {
+      sup2.invoice_compared_at = nowIso2;
+      delete sup2._pending_invoice;  // clean up — invoice has been processed
+    }
+    if (typeof scheduleSave === 'function') scheduleSave();
+  } catch(_){}
+
+  log('--- סיום ---');
+  log('✓ ' + results.ok + ' פעולות הצליחו · ✗ ' + results.fail + ' נכשלו', results.fail === 0);
+  toast(results.fail === 0 ? '✓ כל ' + results.ok + ' הפעולות הצליחו ב-OCTOPOS' : '⚠ ' + results.ok + ' הצליחו, ' + results.fail + ' נכשלו', results.fail === 0 ? 'success' : 'error');
+  if (btn){ btn.disabled = false; btn.textContent = results.fail === 0 ? '✅ הסתיים' : '✅ נסי שוב'; }
+  // Re-render supplier list
+  try { renderSuppliersWithBindings(); } catch(_){}
 }
 
 // Wire upload area
