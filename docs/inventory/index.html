@@ -227,7 +227,7 @@
   .rev-lane.lane-order h3{color:#15803d}
   .rev-lane.lane-borderline h3{color:#b45309}
   .rev-lane.lane-skip h3{color:#b91c1c}
-  .rev-row{display:grid;grid-template-columns:minmax(210px,1fr) 46px 64px 72px 76px 46px 62px 50px 58px 58px 140px;gap:5px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
+  .rev-row{display:grid;grid-template-columns:minmax(210px,1fr) 46px 64px 72px 76px 46px 62px 50px 58px 58px 56px 140px;gap:5px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
   .rev-row .gap-cell{text-align:center;font-weight:700}
   .rev-row .gap-cell.gap-pos{color:#b45309}
   .rev-row .gap-cell.gap-neg{color:#15803d}
@@ -2568,6 +2568,7 @@ function openReviewModal(){
           '<div>$/יח׳</div>' +
           '<div>סה״כ</div>' +
           '<div title="🔢 לחיצה תסמן/תוריד תג RECOUNT ב-OCTOPOS">🔢</div>' +
+          '<div title="📦+ סמן/י שהמוצר נמצא בגראג — יופיע גם בהזמנת GARAGE">📦+</div>' +
           '<div></div>' +
         '</div>' +
         items.map(function(r, ri){
@@ -2737,6 +2738,17 @@ function openReviewModal(){
               var border = showAsChecked ? (hasRecountReal ? '#c4b5fd' : '#fcd34d') : 'var(--line)';
               var bg = showAsChecked ? (hasRecountReal ? '#ede9fe' : '#fef3c7') : 'var(--panel)';
               return '<div style="text-align:center;"><button class="qty-btn" data-action="toggle-recount" data-pid="' + r.product_id + '" data-has="' + (hasRecountReal?1:0) + '" title="' + title + '" style="font-size:14px;padding:2px 6px;color:' + color + ';border:1px solid ' + border + ';background:' + bg + ';">' + icon + pendingMark + '</button></div>';
+            })() +
+            (function(){
+              // 📦+ in_garage checkbox — toggles whether product appears in GARAGE
+              var rul = (typeof PRODUCT_RULES !== 'undefined' && PRODUCT_RULES.rules) ? (PRODUCT_RULES.rules[String(r.product_id)] || {}) : {};
+              var on = !!rul.in_garage || rul.route_to === 'mystery-box';
+              var btnColor = on ? '#166534' : '#9ca3af';
+              var btnBorder = on ? '#86efac' : 'var(--line)';
+              var btnBg = on ? '#dcfce7' : 'var(--panel)';
+              var btnIcon = on ? '📦✓' : '📦+';
+              var btnTitle = on ? 'בגראג — לחיצה להסיר' : 'סמן/י שהמוצר נמצא בגראג';
+              return '<div style="text-align:center;"><button class="qty-btn" data-action="toggle-garage-wizard" data-pid="' + r.product_id + '" data-on="' + (on?1:0) + '" title="' + btnTitle + '" style="font-size:11px;padding:2px 5px;color:' + btnColor + ';border:1px solid ' + btnBorder + ';background:' + btnBg + ';font-weight:700;">' + btnIcon + '</button></div>';
             })() +
             '<div class="qty-controls">' +
               '<button class="qty-btn" data-action="show-history" data-pid="' + r.product_id + '" title="📋 היסטוריה של המוצר">📋</button>' +
@@ -3112,6 +3124,39 @@ function openReviewModal(){
           recomputeSupplierTotals(newSup);
           data.suppliers[activeIdx].lanes = newSup.lanes;
           renderTab();
+        }
+      });
+      return;
+    }
+    if (e.target.matches('[data-action="toggle-garage-wizard"]')){
+      e.preventDefault(); e.stopPropagation();
+      var pid = e.target.dataset.pid;
+      var on = e.target.dataset.on === '1';
+      var existing = (PRODUCT_RULES.rules && PRODUCT_RULES.rules[String(pid)]) || {};
+      var rule = Object.assign({}, existing);
+      if (on) {
+        // Remove garage flag (both new and legacy)
+        delete rule.in_garage;
+        if (rule.route_to === 'mystery-box') delete rule.route_to;
+      } else {
+        rule.in_garage = true;
+      }
+      // Optimistic UI: toggle button immediately
+      var newOn = !on;
+      e.target.dataset.on = newOn ? '1' : '0';
+      e.target.textContent = newOn ? '📦✓' : '📦+';
+      e.target.title = newOn ? 'בגראג — לחיצה להסיר' : 'סמן/י שהמוצר נמצא בגראג';
+      e.target.style.color = newOn ? '#166534' : '#9ca3af';
+      e.target.style.borderColor = newOn ? '#86efac' : 'var(--line)';
+      e.target.style.background = newOn ? '#dcfce7' : 'var(--panel)';
+      saveProductRule(String(pid), rule).then(function(ok){
+        if (!ok){
+          // Revert optimistic
+          e.target.dataset.on = on ? '1' : '0';
+          e.target.textContent = on ? '📦✓' : '📦+';
+          toast('⚠️ שמירה נכשלה — בדקי GitHub token', 'error');
+        } else {
+          toast(newOn ? '✓ סומן כבגראג' : '✓ הוסר מגראג', 'success');
         }
       });
       return;
