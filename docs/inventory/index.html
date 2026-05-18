@@ -7483,6 +7483,14 @@ function openCompareInvoiceModal(supplierCode, supplierName){
     resBox.addEventListener('change', captureEdit);
     // Click handler for '↩ הגיע' force-received button
     resBox.addEventListener('click', function(ev){
+      // 🔗 Link to existing OCTOPOS product
+      var linkBtnE = ev.target.closest('[data-action="link-existing"]');
+      if (linkBtnE) {
+        ev.preventDefault(); ev.stopPropagation();
+        var riL = Number(linkBtnE.dataset.ri);
+        openLinkExistingPicker(riL);
+        return;
+      }
       var btn = ev.target.closest('[data-action="force-received"]');
       if (!btn) return;
       ev.preventDefault(); ev.stopPropagation();
@@ -7593,6 +7601,19 @@ async function confirmInvoiceCompared(){
       });
     } catch(_){}
 
+    // If Lauren manually linked this row to an existing product, use that as 'existing'
+    if (!existing && ov.linked_product_id) {
+      try {
+        Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
+          var v = OCTOPOS.vendors[c] || {};
+          (v.products || []).concat(v.inactive_products || []).forEach(function(p){
+            if (!existing && String(p.id) === String(ov.linked_product_id)) {
+              existing = p;
+            }
+          });
+        });
+      } catch(_){}
+    }
     if (existing) {
       // Existing product — adjust stock + sale_price + clearance + rules
       if (addToSystem && qty > 0) {
@@ -8127,8 +8148,32 @@ function renderCompareDiff(){
       else if (ov.add_to_system === true) defaultChecked = 'checked';
       var excludedDefault = !!ov.exclude_from_event;
       var rowStyle = excludedDefault ? 'opacity:.45;text-decoration:line-through' : '';
+      // For 'extra' (new product) rows — show '🔗' button to link to existing OCTOPOS product
+      var linkedId = ov.linked_product_id || null;
+      var linkBadge = '';
+      if (linkedId) {
+        // Find linked product name
+        try {
+          Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
+            var v = OCTOPOS.vendors[c] || {};
+            (v.products || []).concat(v.inactive_products || []).forEach(function(p){
+              if (!linkBadge && String(p.id) === String(linkedId)) {
+                linkBadge = '<div style="font-size:9px;color:#15803d;margin-top:1px" title="מחובר">🔗 ' + escHtml((p.name||'').slice(0,15)) + '</div>';
+              }
+            });
+          });
+        } catch(_){}
+      }
+      var linkBtn = (r.status === 'extra')
+        ? '<button type="button" data-action="link-existing" data-ri="'+ri+'" title="שייך/י למוצר קיים במערכת" style="background:#dbeafe;border:1px solid #93c5fd;color:#1e3a8a;border-radius:4px;padding:2px 5px;cursor:pointer;font-size:11px;font-weight:700;margin-top:2px">🔗</button>'
+        : '';
       html += '<tr class="'+r.status+'" data-ri="'+ri+'" style="'+rowStyle+'">' +
-        '<td style="font-size:14px;text-align:center">'+statusEmoji[r.status]+'</td>' +
+        '<td style="text-align:center">' +
+          '<div style="display:flex;flex-direction:column;align-items:center;gap:2px">' +
+            '<span style="font-size:14px">'+statusEmoji[r.status]+'</span>' +
+            linkBtn + linkBadge +
+          '</div>' +
+        '</td>' +
         '<td><input type="text" data-edit="name" data-ri="'+ri+'" value="'+escHtml(name)+'" style="'+inpBase+'"></td>' +
         '<td><input type="text" data-edit="sku" data-ri="'+ri+'" value="'+escHtml(sku)+'" style="'+inpBase+'text-align:center"></td>' +
         // qty cell — if there's a saved-order expected qty different from invoice qty, show a small badge
@@ -8161,6 +8206,108 @@ function renderCompareDiff(){
   if (cb) cb.style.display = 'block';
 }
 
+
+function openLinkExistingPicker(ri){
+  if (!CMP_CTX || !CMP_CTX.supplier_code) return;
+  var supplierCode = CMP_CTX.supplier_code;
+  var sup = SUPPLIERS.find(function(s){ return s.code === supplierCode; }) || {};
+  // Build pool from the supplier's OCTOPOS products
+  var pool = [];
+  try {
+    var oct = getOctoposForSupplier(supplierCode);
+    if (oct) {
+      (oct.products || []).concat(oct.inactive_products || []).forEach(function(p){
+        pool.push({ id: p.id, name: p.name || '', sku: p.sku || '', cost: Number(p.unit_cost || 0) });
+      });
+    }
+  } catch(e){}
+
+  // Get the invoice line context for hinting
+  var rowExp = (CMP_CTX._lastRows || [])[ri];
+  var invName = rowExp && rowExp.inv ? rowExp.inv.name : '';
+  var invSku = rowExp && rowExp.inv ? rowExp.inv.sku : '';
+
+  // Create a modal overlay
+  var bg = document.createElement('div');
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:flex-start;justify-content:center;z-index:10000;padding:30px;overflow-y:auto';
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:#fff;border-radius:14px;max-width:680px;width:100%;padding:20px;direction:rtl;max-height:80vh;display:flex;flex-direction:column';
+  modal.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">' +
+      '<h3 style="margin:0;font-size:16px;color:#0f172a">🔗 שייך למוצר קיים</h3>' +
+      '<button type="button" id="_lnkClose" style="background:#f1f5f9;border:1px solid var(--line);width:32px;height:32px;border-radius:50%;cursor:pointer;font-weight:700;color:#475569">✕</button>' +
+    '</div>' +
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:10px">בחר/י איזה מוצר קיים ב-' + escHtml(sup.name || supplierCode) + ' מתאים לשורת החשבונית: <b>' + escHtml(invName||invSku) + '</b></div>' +
+    '<input type="text" id="_lnkSearch" placeholder="חפש לפי שם / SKU..." value="' + escHtml(invName||invSku) + '" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;margin-bottom:10px;font-family:inherit">' +
+    '<div id="_lnkResults" style="flex:1;overflow:auto;border:1px solid var(--line);border-radius:8px"></div>';
+  bg.appendChild(modal);
+  document.body.appendChild(bg);
+
+  function renderResults(query){
+    var q = String(query || '').toLowerCase().trim();
+    var matches = pool;
+    if (q) {
+      var qWords = q.split(/\s+/);
+      matches = pool.filter(function(p){
+        var hay = (p.name + ' ' + p.sku).toLowerCase();
+        return qWords.every(function(w){ return hay.indexOf(w) !== -1; });
+      });
+    }
+    matches = matches.slice(0, 100);
+    var box = modal.querySelector('#_lnkResults');
+    if (!matches.length) {
+      box.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">לא נמצאו מוצרים מתאימים</div>';
+      return;
+    }
+    box.innerHTML = matches.map(function(p){
+      return '<div data-pid="' + p.id + '" data-pname="' + escHtml(p.name) + '" data-psku="' + escHtml(p.sku) + '" data-pcost="' + p.cost.toFixed(2) + '" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:13px;display:flex;justify-content:space-between;gap:10px" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'\'">' +
+        '<div><b>' + escHtml(p.name) + '</b><div style="color:var(--muted);font-size:11px;margin-top:2px">' + escHtml(p.sku||'(ללא SKU)') + ' · $' + p.cost.toFixed(2) + '/יח\'</div></div>' +
+        '<div style="color:#1e40af;font-weight:700;font-size:11px;align-self:center">בחר</div>' +
+      '</div>';
+    }).join('');
+  }
+  renderResults(invName || invSku || '');
+  modal.querySelector('#_lnkSearch').addEventListener('input', function(e){ renderResults(e.target.value); });
+  modal.querySelector('#_lnkSearch').focus();
+  modal.querySelector('#_lnkSearch').select();
+
+  bg.addEventListener('click', function(e){
+    if (e.target === bg || e.target.id === '_lnkClose') {
+      bg.remove();
+      return;
+    }
+    var pickRow = e.target.closest('[data-pid]');
+    if (!pickRow) return;
+    var pid = pickRow.dataset.pid;
+    var pname = pickRow.dataset.pname;
+    var psku = pickRow.dataset.psku;
+    var pcost = Number(pickRow.dataset.pcost || 0);
+    // Save the link in line_edits
+    if (!CMP_CTX.line_edits) CMP_CTX.line_edits = {};
+    if (!CMP_CTX.line_edits[ri]) CMP_CTX.line_edits[ri] = {};
+    CMP_CTX.line_edits[ri].linked_product_id = pid;
+    CMP_CTX.line_edits[ri].linked_product_name = pname;
+    CMP_CTX.line_edits[ri].linked_product_sku = psku;
+    // Pre-fill SKU + name with the linked product's values if not overridden
+    if (CMP_CTX.line_edits[ri].sku === undefined || CMP_CTX.line_edits[ri].sku === '') {
+      CMP_CTX.line_edits[ri].sku = psku;
+    }
+    if (CMP_CTX.line_edits[ri].name === undefined || CMP_CTX.line_edits[ri].name === '') {
+      CMP_CTX.line_edits[ri].name = pname;
+    }
+    // Persist + close + re-render
+    try {
+      var sup3 = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+      if (sup3 && sup3._pending_invoice) {
+        sup3._pending_invoice.line_edits = CMP_CTX.line_edits;
+        if (typeof scheduleSave === 'function') scheduleSave();
+      }
+    } catch(_){}
+    bg.remove();
+    toast('✓ שויך למוצר: ' + pname, 'success');
+    try { renderCompareDiff(); } catch(_){}
+  });
+}
 
 /* ---- Edit / Resend a saved local_order (Lauren 2026-05-18 PM late) ---- */
 function openEditSavedOrderModal(supplierCode, orderIndex){
