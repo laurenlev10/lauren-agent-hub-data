@@ -620,6 +620,10 @@
       <input type="file" id="cmpFile" accept="application/pdf,.pdf,.txt,image/*,.png,.jpg,.jpeg,.webp,.heic">
     </div>
     <div id="cmpResult" style="margin-top:16px"></div>
+    <div id="cmpConfirmBlock" style="margin-top:16px;text-align:left;display:none">
+      <button type="button" id="cmpConfirmBtn" style="padding:12px 24px;font-size:14px;font-weight:700;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:10px;cursor:pointer;box-shadow:0 2px 4px rgba(22,163,74,.25)">✅ עדכן קבלת סחורה</button>
+      <div style="margin-top:6px;color:var(--muted);font-size:12px">מסמן את הספק כ"קבלת סחורה עודכנה" — הכפתור בשורת הספק יהפוך לירוק.</div>
+    </div>
   </div>
 </div>
 
@@ -1034,17 +1038,24 @@ function renderSupplierCard(sup, s, idx){
       });
     }
   } catch(e){ _hasLocalOrder = false; }
-  // Format the timestamp as "MM-DD HH:mm" (compact)
-  var _lastWhenDisplay = '';
-  if (_lastWhenIso) {
+  // Check if invoice has been compared+confirmed for this supplier in this event
+  var _invoiceCompared = false;
+  var _invoiceComparedAt = '';
+  try {
+    if (s && s.invoice_compared_at) {
+      _invoiceCompared = true;
+      _invoiceComparedAt = s.invoice_compared_at;
+    }
+  } catch(_){}
+  function _fmtMMDDHHMM(iso){
     try {
-      var d = new Date(_lastWhenIso);
-      if (!isNaN(d.getTime())) {
-        var pad = function(n){ return n < 10 ? '0' + n : String(n); };
-        _lastWhenDisplay = pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-      }
-    } catch(_){}
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      var pad = function(n){ return n < 10 ? '0' + n : String(n); };
+      return pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    } catch(_){ return ''; }
   }
+  if (_lastWhenIso) _lastWhenDisplay = _fmtMMDDHHMM(_lastWhenIso);
   const statusClass = _hasLocalOrder ? "ordered" : (s.status || "pending");
   const statusLabel = _hasLocalOrder
     ? ('✅ נשלחה הזמנה' + (_lastWhenDisplay ? ' <span style="opacity:.75;font-weight:500;font-size:11px;margin-right:4px">· ' + _lastWhenDisplay + '</span>' : ''))
@@ -1060,21 +1071,18 @@ function renderSupplierCard(sup, s, idx){
       '<div class="num">'+(idx+1)+'.</div>'+
       '<div class="name">'+escHtml(sup.name)+' <span class="cat">· '+escHtml(sup.category)+'</span></div>'+
       (_hasLocalOrder ? '<div class="status '+statusClass+'">'+statusLabel+'</div>' : '')+
+      // Compare-invoice button — visible in header for suppliers with an order saved.
+      // Turns green '✓ קבלת סחורה עודכנה' once invoice has been compared + confirmed.
+      (_hasLocalOrder
+        ? (_invoiceCompared
+            ? '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="קבלת הסחורה עודכנה ב-'+_fmtMMDDHHMM(_invoiceComparedAt)+'. לחיצה תפתח שוב את החלון" style="background:linear-gradient(180deg,#16a34a,#15803d);font-size:11px;padding:5px 10px;color:#fff" onclick="event.stopPropagation()">✓ קבלת סחורה עודכנה</button>'
+            : '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" style="font-size:11px;padding:5px 10px" onclick="event.stopPropagation()">📋 השוואת חשבונית</button>')
+        : '')+
       newOrderBtn+
       '<div class="total">'+totalDisp+'</div>'+
       '<div class="chev">▾</div>'+
     '</div>'+
     '<div class="body">'+
-      // Prominent compare-invoice + saved-orders header (added 2026-05-18 PM)
-      (_hasLocalOrder
-        ? '<div style="margin:0 0 14px;padding:14px 18px;background:linear-gradient(180deg,#dbeafe,#bfdbfe);border:1px solid #93c5fd;border-radius:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">' +
-            '<div style="font-size:14px;color:#1e3a8a"><b>✅ הזמנה נשלחה לספק</b> · עכשיו אפשר להעלות את החשבונית שלהם כדי להשוות מול ההזמנה.</div>' +
-            '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" style="font-size:14px;padding:10px 18px">📋 השוואת חשבונית</button>' +
-          '</div>'
-        : '<div style="margin:0 0 14px;padding:10px 14px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">' +
-            '<div style="font-size:12px;color:var(--muted)">אפשר להעלות חשבונית גם בלי הזמנה שמורה — היא תוצג כרשימה.</div>' +
-            '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" style="font-size:12px;padding:6px 12px;background:#64748b">📋 השוואת חשבונית</button>' +
-          '</div>') +
       '<div class="row">'+
         '<div class="field">'+
           '<label>סטטוס</label>'+
@@ -7295,6 +7303,7 @@ function openCompareInvoiceModal(supplierCode, supplierName){
   $("#cmpExpectedBlock").innerHTML = expHtml;
   $("#cmpResult").innerHTML = '';
   $("#cmpFile").value = '';
+  var cb0 = document.getElementById('cmpConfirmBlock'); if (cb0) cb0.style.display = 'none';
   $("#cmpModalBg").style.display = 'flex';
   document.body.style.overflow = 'hidden';
 }
@@ -7315,8 +7324,59 @@ document.addEventListener("click", function(e){
   }
   if (e.target.id === 'cmpClose' || e.target.id === 'cmpModalBg'){
     closeCompareInvoiceModal();
+    return;
+  }
+  if (e.target.id === 'cmpConfirmBtn'){
+    confirmInvoiceCompared();
+    return;
   }
 });
+
+async function confirmInvoiceCompared(){
+  if (!CMP_CTX || typeof CURRENT_EVKEY === 'undefined' || !CURRENT_EVKEY) { toast('שגיאה: אין הקשר', 'error'); return; }
+  var supplierCode = CMP_CTX.supplier_code;
+  var btn = document.getElementById('cmpConfirmBtn');
+  if (btn){ btn.disabled = true; btn.textContent = '⏳ שומר...'; }
+  var nowIso2 = new Date().toISOString();
+  // Update in-memory STATE first
+  try {
+    if (STATE.events[CURRENT_EVKEY].suppliers && STATE.events[CURRENT_EVKEY].suppliers[supplierCode]) {
+      STATE.events[CURRENT_EVKEY].suppliers[supplierCode].invoice_compared_at = nowIso2;
+    }
+  } catch(_){}
+  // Persist to GitHub
+  var ghToken = (localStorage.getItem('lauren_gh_token_v1') || '').trim();
+  if (!ghToken){ toast('צריך GitHub token', 'error'); if (btn){ btn.disabled = false; btn.textContent = '✅ עדכן קבלת סחורה'; } return; }
+  try {
+    var url = 'https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/inventory_orders.json';
+    var info = await fetch(url + '?ref=main', { headers:{Authorization:'token '+ghToken, Accept:'application/vnd.github+json'} }).then(function(r){return r.json();});
+    var data = info.content ? JSON.parse(atob(info.content.replace(/\n/g,''))) : {events:{}};
+    data.events = data.events || {};
+    data.events[CURRENT_EVKEY] = data.events[CURRENT_EVKEY] || {};
+    data.events[CURRENT_EVKEY].suppliers = data.events[CURRENT_EVKEY].suppliers || {};
+    data.events[CURRENT_EVKEY].suppliers[supplierCode] = data.events[CURRENT_EVKEY].suppliers[supplierCode] || {};
+    data.events[CURRENT_EVKEY].suppliers[supplierCode].invoice_compared_at = nowIso2;
+    data._updated_at = nowIso2;
+    var newC = JSON.stringify(data, null, 2);
+    var put = await fetch(url, {
+      method: 'PUT',
+      headers: {Authorization:'token '+ghToken, Accept:'application/vnd.github+json', 'Content-Type':'application/json'},
+      body: JSON.stringify({message:'inventory: invoice compared/confirmed for ' + supplierCode, content: btoa(unescape(encodeURIComponent(newC))), branch:'main', sha: info.sha})
+    });
+    if (put.ok){
+      toast('✓ קבלת סחורה עודכנה', 'success');
+      closeCompareInvoiceModal();
+      try { renderSuppliersWithBindings(); } catch(_){}
+    } else {
+      toast('⚠️ שמירה נכשלה (HTTP ' + put.status + ')', 'error');
+      if (btn){ btn.disabled = false; btn.textContent = '✅ עדכן קבלת סחורה'; }
+    }
+  } catch(e){
+    console.error('confirmInvoiceCompared failed:', e);
+    toast('⚠️ שגיאה: ' + e.message, 'error');
+    if (btn){ btn.disabled = false; btn.textContent = '✅ עדכן קבלת סחורה'; }
+  }
+}
 
 // Wire upload area
 document.addEventListener("DOMContentLoaded", function(){
@@ -7450,8 +7510,11 @@ function renderCompareDiff(){
     '</tr>';
   });
   html += '</tbody></table>';
-  html += '<div style="margin-top:14px;color:var(--muted);font-size:12px">💡 Phase 1: ההשוואה מוצגת בלבד. בעתיד נוסיף שמירת התאמות לזיכרון + סימון פריטים שהתקבלו.</div>';
+  html += '<div style="margin-top:14px;color:var(--muted);font-size:12px">💡 השוואה מוצגת. לחצי "✅ עדכן קבלת סחורה" כדי לסמן את הספק.</div>';
   $("#cmpResult").innerHTML = html;
+  // Show the confirm button
+  var cb = document.getElementById('cmpConfirmBlock');
+  if (cb) cb.style.display = 'block';
 }
 
 
