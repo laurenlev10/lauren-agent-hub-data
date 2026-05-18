@@ -7937,16 +7937,60 @@ async function confirmInvoiceCompared(){
   if (summary.rule_update) previewHtml += '<li><b>📝 ' + summary.rule_update + ' product_rules</b> (in_garage / display_min)</li>';
   previewHtml += '</ul></div>';
 
-  // EXPLICIT CONFIRMATION if there are creates (irreversible — POST to OCTOPOS)
+  // EXPLICIT CONFIRMATION modal — Lauren can uncheck individual creates here
   if (summary.create > 0) {
-    var confirmMsg = '⚠️ עומדות להיווצר ' + summary.create + ' מוצרים חדשים ב-OCTOPOS:\n\n' +
-      createList.map(function(a){ return '• ' + (a.name || a.sku); }).join('\n') +
-      '\n\nהאם להמשיך? (אם לא — עצרי ובטלי את ה-✓ מהשורות שלא רוצה ליצור)';
-    if (!confirm(confirmMsg)) {
+    var keepResult = await new Promise(function(resolve){
+      var bgM = document.createElement('div');
+      bgM.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;z-index:10001;padding:30px';
+      var card = document.createElement('div');
+      card.style.cssText = 'background:#fff;border-radius:14px;max-width:600px;width:100%;padding:24px;direction:rtl;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.5)';
+      card.innerHTML =
+        '<h2 style="margin:0 0 8px;font-size:18px;color:#a16207">⚠️ אישור יצירת מוצרים חדשים ב-OCTOPOS</h2>' +
+        '<div style="color:var(--muted);font-size:13px;margin-bottom:14px">הסירי וי מכל מוצר שאת <b>לא</b> רוצה ליצור. רק המסומנים ייווצרו.</div>' +
+        '<div id="_createConfirmList" style="flex:1;overflow:auto;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px">' +
+          createList.map(function(a, idx){
+            return '<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;cursor:pointer;border-bottom:1px solid #fde68a;font-size:13px" data-idx="' + idx + '">' +
+              '<input type="checkbox" data-create-idx="' + idx + '" checked style="width:18px;height:18px;cursor:pointer;accent-color:#16a34a">' +
+              '<div style="flex:1"><b>' + escHtml(a.name || a.sku || '?') + '</b>' +
+              (a.sku ? '<div style="color:var(--muted);font-size:11px">SKU: ' + escHtml(a.sku) + '</div>' : '') +
+              '</div>' +
+            '</label>';
+          }).join('') +
+        '</div>' +
+        '<div style="margin-top:14px;display:flex;gap:10px;justify-content:flex-end">' +
+          '<button type="button" id="_createCancel" style="padding:10px 20px;background:#f1f5f9;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600">ביטול הכל</button>' +
+          '<button type="button" id="_createConfirm" style="padding:10px 20px;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">✅ צור את המסומנים</button>' +
+        '</div>';
+      bgM.appendChild(card);
+      document.body.appendChild(bgM);
+      bgM.addEventListener('click', function(e){
+        if (e.target === bgM) { bgM.remove(); resolve(null); return; }
+        if (e.target.id === '_createCancel') { bgM.remove(); resolve(null); return; }
+        if (e.target.id === '_createConfirm') {
+          var keepIdxs = [];
+          card.querySelectorAll('[data-create-idx]').forEach(function(cb){
+            if (cb.checked) keepIdxs.push(Number(cb.dataset.createIdx));
+          });
+          bgM.remove();
+          resolve(keepIdxs);
+        }
+      });
+    });
+    if (keepResult === null) {
       if (btn){ btn.disabled = false; btn.textContent = '✅ עדכן קבלת סחורה'; }
-      toast('בוטל — עדכני את הסימונים ונסי שוב', '');
+      toast('בוטל — לא נוצרו מוצרים', '');
       return;
     }
+    // Filter actions to keep only the approved creates + all non-create actions
+    var keepSet = new Set(keepResult);
+    var origCreateActions = actions.filter(function(a){ return a.type === 'create'; });
+    actions = actions.filter(function(a){
+      if (a.type !== 'create') return true;
+      var idx = origCreateActions.indexOf(a);
+      return keepSet.has(idx);
+    });
+    summary.create = keepResult.length;
+    log('✓ אישרת ' + keepResult.length + ' מתוך ' + createList.length + ' מוצרים חדשים');
   }
 
   // Show progress modal
