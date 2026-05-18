@@ -2929,7 +2929,12 @@ async function saveSupplierOrderLocal(s, btn){
   });
   if (!keptItems.length){ toast('אין מה לשמור — אין שורות מסומנות', ''); return; }
   // Determine evkey from CURRENT_EVENT
-  var evkey = (CURRENT_EVENT && CURRENT_EVENT.evkey) || ('event-' + new Date().toISOString().slice(0,10));
+  var evkey = (typeof CURRENT_EVKEY !== 'undefined' && CURRENT_EVKEY) || (CURRENT_EVENT && CURRENT_EVENT.evkey) || null;
+  if (!evkey) {
+    toast('⚠️ אין evkey לאירוע — לא ניתן לשמור. פתחי את האירוע מ-launch dashboard.', 'error');
+    btn.disabled = false; btn.textContent = '💾 שמור הזמנה';
+    return;
+  }
   btn.disabled = true; btn.textContent = '...שומר';
   try {
     // Read inventory_orders.json, append a new local PO entry
