@@ -1073,18 +1073,21 @@ function renderSupplierCard(sup, s, idx){
   // Has the user saved an order for this supplier on this event?
   var _hasLocalOrder = false;
   var _lastWhenIso = '';
+  var _orderEstimateSum = 0;  // sum of local_orders.total_cost for this supplier
   try {
     if (typeof CURRENT_EVKEY !== "undefined" && CURRENT_EVKEY && STATE && STATE.events && STATE.events[CURRENT_EVKEY]) {
       var _los = STATE.events[CURRENT_EVKEY].local_orders || [];
       _los.forEach(function(o){
         if (o.supplier_code !== sup.code) return;
         _hasLocalOrder = true;
-        // pick the most recent edit/save timestamp across all this supplier's orders
         var ts = o.last_edited_at || o.saved_at || '';
         if (ts && (!_lastWhenIso || ts > _lastWhenIso)) _lastWhenIso = ts;
+        _orderEstimateSum += Number(o.total_cost || 0);
       });
     }
   } catch(e){ _hasLocalOrder = false; }
+  // Per-row invoice total (items + shipping)
+  var _rowInvoiceTotal = Number(s.invoice_total_usd || 0) + Number(s.shipping_cost_usd || 0);
   // Check if invoice has been compared+confirmed for this supplier in this event
   var _invoiceCompared = false;
   var _invoiceComparedAt = '';
@@ -1127,17 +1130,25 @@ function renderSupplierCard(sup, s, idx){
     '<div class="hdr' + ((_hasLocalOrder || _invoiceCompared) ? " has-local-order" : "") + '" data-toggle="1">'+
       '<div class="num">'+(idx+1)+'.</div>'+
       '<div class="name">'+escHtml(sup.name)+' <span class="cat">· '+escHtml(sup.category)+'</span></div>'+
-      // Status pill — shows when supplier has a saved order OR confirmed invoice
+      // Status pill stack — green status + yellow estimate + green invoice (when set)
       ((_hasLocalOrder || _invoiceCompared)
         ? (function(){
             var lbl;
             if (_hasLocalOrder) {
               lbl = '✅ נשלחה הזמנה' + (_lastWhenDisplay ? ' <span style="opacity:.75;font-weight:500;font-size:11px;margin-right:4px">· ' + _lastWhenDisplay + '</span>' : '');
             } else {
-              // Invoice confirmed without a system order — manual order
               lbl = '✅ הוזמן ידנית' + (_invoiceComparedAt ? ' <span style="opacity:.75;font-weight:500;font-size:11px;margin-right:4px">· ' + _fmtMMDDHHMM(_invoiceComparedAt) + '</span>' : '');
             }
-            return '<div class="status ordered">' + lbl + '</div>';
+            var pills = '<div class="status ordered">' + lbl + '</div>';
+            // Yellow pill: order estimate total
+            if (_orderEstimateSum > 0) {
+              pills += '<div class="status" style="background:#fef3c7;color:#854d0e;border-color:#fde68a;margin-top:4px;font-size:11px"><b>הזמנה:</b> ' + fmtUsd(_orderEstimateSum) + '</div>';
+            }
+            // Green pill: invoice total (only after invoice confirmed AND total > 0)
+            if (_invoiceCompared && _rowInvoiceTotal > 0) {
+              pills += '<div class="status" style="background:#dcfce7;color:#14532d;border-color:#86efac;margin-top:4px;font-size:11px"><b>חשבונית:</b> ' + fmtUsd(_rowInvoiceTotal) + '</div>';
+            }
+            return '<div style="display:flex;flex-direction:column;gap:0;align-items:flex-end">' + pills + '</div>';
           })()
         : '')+
       // Compare-invoice button — visible for suppliers with an order saved or invoice confirmed.
