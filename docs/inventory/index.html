@@ -7969,6 +7969,22 @@ function renderCompareDiff(){
       '<span class="pill extra">➕ עודף בחשבונית (חדש): ' + counts.extra + '</span>' +
     '</div>' +
     '<div style="margin-bottom:8px;font-size:12px;color:var(--muted)">💡 שורות בכחול הן מוצרים חדשים. אפשר לערוך כל שדה — שם, SKU, כמות, מחיר עלות ומינ\' לדיספליי. הערכים יישמרו עם לחיצת "✅ עדכן קבלת סחורה".</div>' +
+    ((Object.keys(_displaySetHints).length > 0) ? (function(){
+      var hintHtml = '<div style="margin-bottom:10px;padding:10px 14px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#854d0e">';
+      hintHtml += '<b>🎁 זוהה display set!</b> ';
+      Object.keys(_displaySetHints).forEach(function(ri){
+        var invRow = rows[ri];
+        var matches = _displaySetHints[ri];
+        var invSku = (invRow.inv && invRow.inv.sku) || '';
+        var invQty = invRow.inv ? Number(invRow.inv.qty || 0) : 0;
+        var perShade = matches.length > 0 ? Math.floor(invQty / matches.length) : 0;
+        hintHtml += '<br>📦 <b>' + escHtml(invSku) + '</b> (כמות ' + invQty + ') כנראה display של ' + matches.length + ' צבעים: ';
+        hintHtml += matches.map(function(e){ return '<code>' + escHtml(e.sku) + '</code> (הזמנה: ' + e.qty + ')'; }).join(' · ');
+        hintHtml += '. <b>הצעה:</b> ' + invQty + ' חתיכות ÷ ' + matches.length + ' צבעים = ' + perShade + ' לכל צבע. אפשר לערוך את ה-SKU בשורה כדי לתאם, או להשאיר את הdisplay כשורה אחת.';
+      });
+      hintHtml += '</div>';
+      return hintHtml;
+    })() : '') +
     '<table class="cmp-diff-table" style="font-size:12px">' +
       '<thead><tr>' +
         '<th style="width:30px">סט\'</th>' +
