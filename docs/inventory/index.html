@@ -1062,18 +1062,36 @@ function renderSupplierCard(sup, s, idx){
     : (STATUS_LABELS[s.status]||STATUS_LABELS.pending);
   const totalDisp = Number(s.invoice_total_usd||0) > 0 ? fmtUsd(s.invoice_total_usd) : "—";
   const carrierOpts = ["ups","usps","fedex","dhl","other"];
-  // Inline 'הזמנה חדשה' button on pending rows (Lauren 2026-05-18 PM late)
-  var newOrderBtn = !_hasLocalOrder
-    ? '<button type="button" class="btn-new-order-row" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="פתח Wizard ליצירת הזמנה לספק הזה" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#3b82f6,#1d4ed8);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-left:6px">📝 הזמנה חדשה</button>'
-    : '';
+  // Inline 'הזמנה חדשה' + 'הוספת חשבונית' buttons on pending rows (Lauren 2026-05-18 PM late)
+  // Both hide once the supplier has either a saved order OR a confirmed invoice.
+  var _hasOrderOrInvoice = _hasLocalOrder || _invoiceCompared;
+  var newOrderBtn = '';
+  if (!_hasOrderOrInvoice) {
+    newOrderBtn =
+      '<button type="button" class="btn-new-order-row" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="פתח Wizard ליצירת הזמנה לספק הזה" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#3b82f6,#1d4ed8);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-left:6px">📝 הזמנה חדשה</button>' +
+      // Manual-order-then-invoice flow: skip the wizard, go directly to invoice upload
+      '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="להזמנות שבוצעו ידנית מחוץ למערכת — העלי את החשבונית והמערכת תעדכן את המלאי ישירות" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-left:6px">📋 הוספת חשבונית</button>';
+  }
   return ''+
-    '<div class="hdr' + (_hasLocalOrder ? " has-local-order" : "") + '" data-toggle="1">'+
+    '<div class="hdr' + ((_hasLocalOrder || _invoiceCompared) ? " has-local-order" : "") + '" data-toggle="1">'+
       '<div class="num">'+(idx+1)+'.</div>'+
       '<div class="name">'+escHtml(sup.name)+' <span class="cat">· '+escHtml(sup.category)+'</span></div>'+
-      (_hasLocalOrder ? '<div class="status '+statusClass+'">'+statusLabel+'</div>' : '')+
-      // Compare-invoice button — visible in header for suppliers with an order saved.
+      // Status pill — shows when supplier has a saved order OR confirmed invoice
+      ((_hasLocalOrder || _invoiceCompared)
+        ? (function(){
+            var lbl;
+            if (_hasLocalOrder) {
+              lbl = '✅ נשלחה הזמנה' + (_lastWhenDisplay ? ' <span style="opacity:.75;font-weight:500;font-size:11px;margin-right:4px">· ' + _lastWhenDisplay + '</span>' : '');
+            } else {
+              // Invoice confirmed without a system order — manual order
+              lbl = '✅ הוזמן ידנית' + (_invoiceComparedAt ? ' <span style="opacity:.75;font-weight:500;font-size:11px;margin-right:4px">· ' + _fmtMMDDHHMM(_invoiceComparedAt) + '</span>' : '');
+            }
+            return '<div class="status ordered">' + lbl + '</div>';
+          })()
+        : '')+
+      // Compare-invoice button — visible for suppliers with an order saved or invoice confirmed.
       // Turns green '✓ קבלת סחורה עודכנה' once invoice has been compared + confirmed.
-      (_hasLocalOrder
+      ((_hasLocalOrder || _invoiceCompared)
         ? (_invoiceCompared
             ? '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="לחיצה תפתח את החלון שוב" style="background:linear-gradient(180deg,#16a34a,#15803d);font-size:11px;padding:5px 10px;color:#fff">✓ קבלת סחורה עודכנה · '+_fmtMMDDHHMM(_invoiceComparedAt)+'</button>'
             : '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" style="font-size:11px;padding:5px 10px">📋 השוואת חשבונית</button>')
