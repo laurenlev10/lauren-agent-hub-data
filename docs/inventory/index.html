@@ -541,18 +541,26 @@
       <button id="btnRefreshOctopos" class="btn-refresh-octopos" title="הפעיל סנכרון מאוקטופוס עכשיו (לוקח כ-3 דקות)">🔄 רענני נתוני OCTOPOS עכשיו</button>
     </div>
 
-    <div id="eventTotalBanner" style="margin:14px 0 18px;padding:18px 22px;background:linear-gradient(180deg,#dcfce7,#bbf7d0);border:1px solid #86efac;border-radius:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;box-shadow:0 1px 3px rgba(22,163,74,.15)">
-      <div>
-        <div style="font-size:12px;color:#15803d;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">💰 סה"כ הזמנות לאירוע</div>
-        <div id="sumTotal" style="font-size:32px;font-weight:800;color:#14532d;line-height:1">$0</div>
-      </div>
-      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
-        <div style="text-align:center">
-          <div id="sumOrdered" style="font-size:20px;font-weight:800;color:#166534">0 / 14</div>
-          <div style="font-size:11px;color:#15803d;font-weight:600">ספקים בהזמנה</div>
+    <div id="eventTotalBanner" style="margin:14px 0 18px;display:flex;flex-direction:column;gap:10px">
+      <div style="padding:14px 18px;background:linear-gradient(180deg,#fef9c3,#fef08a);border:1px solid #fde047;border-radius:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;box-shadow:0 1px 3px rgba(202,138,4,.15)">
+        <div>
+          <div style="font-size:11px;color:#a16207;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">📋 הערכת הזמנות לאירוע</div>
+          <div id="sumEstimateTotal" style="font-size:28px;font-weight:800;color:#854d0e;line-height:1">$0</div>
+          <div id="sumEstimateSub" style="font-size:11px;color:#a16207;margin-top:3px">0 הזמנות שמורות</div>
         </div>
         <div style="text-align:center">
-          <div id="sumReceived" style="font-size:20px;font-weight:800;color:#166534">0 / 14</div>
+          <div id="sumOrdered" style="font-size:18px;font-weight:800;color:#a16207">0 / 14</div>
+          <div style="font-size:11px;color:#a16207;font-weight:600">ספקים בהזמנה</div>
+        </div>
+      </div>
+      <div style="padding:14px 18px;background:linear-gradient(180deg,#dcfce7,#bbf7d0);border:1px solid #86efac;border-radius:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;box-shadow:0 1px 3px rgba(22,163,74,.15)">
+        <div>
+          <div style="font-size:11px;color:#15803d;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">💰 סה"כ חשבוניות לאירוע</div>
+          <div id="sumTotal" style="font-size:28px;font-weight:800;color:#14532d;line-height:1">$0</div>
+          <div id="sumInvoiceSub" style="font-size:11px;color:#15803d;margin-top:3px">0 חשבוניות עודכנו</div>
+        </div>
+        <div style="text-align:center">
+          <div id="sumReceived" style="font-size:18px;font-weight:800;color:#166534">0 / 14</div>
           <div style="font-size:11px;color:#15803d;font-weight:600">סחורה התקבלה</div>
         </div>
         <div id="sumPending" style="display:none"></div>
@@ -964,19 +972,25 @@ function ensureSlice(evkey, eventMeta){
 function recomputeSummary(evkey){
   const slice = STATE.events[evkey];
   if (!slice) return;
-  let total = 0, ordered = 0, received = 0;
-  // Also count local_orders (orders saved via Wizard) as 'ordered'
+  let invoiceTotal = 0, estimateTotal = 0, ordered = 0, received = 0;
   const orderedCodes = new Set();
   const receivedCodes = new Set();
-  (slice.local_orders || []).forEach(o => { if (o.supplier_code) orderedCodes.add(o.supplier_code); });
+  const invoiceCodes = new Set();
+  // Estimate = sum of all local_orders.total_cost
+  (slice.local_orders || []).forEach(o => {
+    if (o.supplier_code) orderedCodes.add(o.supplier_code);
+    estimateTotal += Number(o.total_cost || 0);
+  });
   SUPPLIERS.forEach(sup => {
     const s = slice.suppliers[sup.code];
     if (!s) return;
-    // Sum invoice total + shipping for full event total
-    total += Number(s.invoice_total_usd||0) + Number(s.shipping_cost_usd||0);
+    // Invoice = sum of (invoice_total + shipping) for confirmed invoices
+    var invSum = Number(s.invoice_total_usd||0) + Number(s.shipping_cost_usd||0);
+    invoiceTotal += invSum;
     if (s.invoice_compared_at) {
       orderedCodes.add(sup.code);
       receivedCodes.add(sup.code);
+      invoiceCodes.add(sup.code);
     } else if (s.status && s.status !== "pending" && s.status !== "cancelled") {
       orderedCodes.add(sup.code);
     }
@@ -985,7 +999,10 @@ function recomputeSummary(evkey){
   ordered = orderedCodes.size;
   received = receivedCodes.size;
   slice.summary = {
-    total_usd: total,
+    total_usd: invoiceTotal,
+    estimate_total_usd: estimateTotal,
+    invoice_count: invoiceCodes.size,
+    order_count: (slice.local_orders || []).length,
     suppliers_ordered: ordered,
     suppliers_received: received,
     last_supplier_updated: slice.summary && slice.summary.last_supplier_updated || null
@@ -1018,10 +1035,14 @@ function renderSummary(){
   if (!slice) return;
   recomputeSummary(CURRENT_EVKEY);
   const s = slice.summary;
-  $("#sumTotal").textContent = fmtUsd(s.total_usd);
+  // Two totals: estimate (top yellow row) + invoice (bottom green row)
+  if ($("#sumEstimateTotal")) $("#sumEstimateTotal").textContent = fmtUsd(s.estimate_total_usd || 0);
+  if ($("#sumEstimateSub")) $("#sumEstimateSub").textContent = (s.order_count||0) + ' הזמנות שמורות';
+  $("#sumTotal").textContent = fmtUsd(s.total_usd || 0);
+  if ($("#sumInvoiceSub")) $("#sumInvoiceSub").textContent = (s.invoice_count||0) + ' חשבוניות עודכנו';
   $("#sumOrdered").textContent = s.suppliers_ordered + " / " + SUPPLIERS.length;
   $("#sumReceived").textContent = s.suppliers_received + " / " + SUPPLIERS.length;
-  $("#sumPending").textContent = (SUPPLIERS.length - s.suppliers_ordered) + " / " + SUPPLIERS.length;
+  var sp = $("#sumPending"); if (sp) sp.textContent = (SUPPLIERS.length - s.suppliers_ordered) + " / " + SUPPLIERS.length;
 }
 
 function refreshSummary(){ renderSummary(); }
