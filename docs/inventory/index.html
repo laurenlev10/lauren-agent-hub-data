@@ -1036,11 +1036,21 @@ function renderSupplierCard(sup, s, idx){
       '<div class="chev">▾</div>'+
     '</div>'+
     '<div class="body">'+
+      // Prominent compare-invoice + saved-orders header (added 2026-05-18 PM)
+      (_hasLocalOrder
+        ? '<div style="margin:0 0 14px;padding:14px 18px;background:linear-gradient(180deg,#dbeafe,#bfdbfe);border:1px solid #93c5fd;border-radius:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">' +
+            '<div style="font-size:14px;color:#1e3a8a"><b>✅ הזמנה נשלחה לספק</b> · עכשיו אפשר להעלות את החשבונית שלהם כדי להשוות מול ההזמנה.</div>' +
+            '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" style="font-size:14px;padding:10px 18px">📋 השוואת חשבונית</button>' +
+          '</div>'
+        : '<div style="margin:0 0 14px;padding:10px 14px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">' +
+            '<div style="font-size:12px;color:var(--muted)">אפשר להעלות חשבונית גם בלי הזמנה שמורה — היא תוצג כרשימה.</div>' +
+            '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" style="font-size:12px;padding:6px 12px;background:#64748b">📋 השוואת חשבונית</button>' +
+          '</div>') +
       '<div class="row">'+
         '<div class="field">'+
           '<label>סטטוס</label>'+
           '<select data-bind="status">'+
-            Object.entries(STATUS_LABELS).map(([k,v]) => '<option value="'+k+'" '+(s.status===k?"selected":"")+'>'+v+'</option>').join("")+
+            Object.entries(STATUS_LABELS).map(([k,v]) => '<option value="'+k+'" '+((_hasLocalOrder ? (k==="ordered") : (s.status===k))?"selected":"")+'>'+v+'</option>').join("")+
           '</select>'+
         '</div>'+
         '<div class="field">'+
@@ -3038,6 +3048,18 @@ async function saveSupplierOrderLocal(s, btn){
       saved_at: new Date().toISOString(),
       is_local: true
     });
+    // Also flip the supplier status to "ordered" so the row turns green immediately
+    if (data.events[evkey].suppliers && data.events[evkey].suppliers[s.code]) {
+      data.events[evkey].suppliers[s.code].status = "ordered";
+    }
+    // Mirror into in-memory STATE so the next render is correct without reload
+    try {
+      if (STATE && STATE.events && STATE.events[evkey] && STATE.events[evkey].suppliers && STATE.events[evkey].suppliers[s.code]) {
+        STATE.events[evkey].suppliers[s.code].status = "ordered";
+        if (!Array.isArray(STATE.events[evkey].local_orders)) STATE.events[evkey].local_orders = [];
+        STATE.events[evkey].local_orders.push(data.events[evkey].local_orders[data.events[evkey].local_orders.length-1]);
+      }
+    } catch(_){}
     data._updated_at = new Date().toISOString();
     var newC = JSON.stringify(data, null, 2);
     var put = await fetch(url, {
