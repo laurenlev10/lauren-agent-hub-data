@@ -7771,6 +7771,51 @@ async function confirmInvoiceCompared(){
     }
   });
 
+  // DEDUPLICATE actions by product_id (Lauren 2026-05-18 PM late):
+  // If multiple rows in the invoice reference the same OCTOPOS product,
+  // they would all fire stock updates → double-count. Group + merge.
+  // - stock: SUM qtys (currentStock comes from the first action's snapshot)
+  // - sale_price: LAST wins
+  // - clearance: applies if ANY row had clearance
+  // - rule_update: merge (in_garage OR-true, display_min max)
+  // - create: keep all (different new products even if names collide)
+  var dedupedActions = [];
+  var groupedStock = {};       // productId → merged stock action
+  var groupedSale = {};        // productId → merged sale_price action
+  var groupedClearance = {};   // productId → merged clearance action
+  var groupedRule = {};        // productId → merged rule_update action
+  actions.forEach(function(a){
+    if (a.type === 'create') { dedupedActions.push(a); return; }
+    var key = String(a.productId || '');
+    if (!key) { dedupedActions.push(a); return; }
+    if (a.type === 'stock') {
+      if (groupedStock[key]) {
+        groupedStock[key].qty += a.qty;
+        groupedStock[key]._mergedCount = (groupedStock[key]._mergedCount || 1) + 1;
+      } else {
+        groupedStock[key] = Object.assign({}, a);
+      }
+    } else if (a.type === 'sale_price') {
+      groupedSale[key] = a;  // last wins
+    } else if (a.type === 'clearance') {
+      groupedClearance[key] = a;
+    } else if (a.type === 'rule_update') {
+      if (!groupedRule[key]) {
+        groupedRule[key] = Object.assign({}, a);
+      } else {
+        if (a.in_garage) groupedRule[key].in_garage = true;
+        if (a.display_min && (!groupedRule[key].display_min || a.display_min > groupedRule[key].display_min)) {
+          groupedRule[key].display_min = a.display_min;
+        }
+      }
+    }
+  });
+  Object.keys(groupedStock).forEach(function(k){ dedupedActions.push(groupedStock[k]); });
+  Object.keys(groupedSale).forEach(function(k){ dedupedActions.push(groupedSale[k]); });
+  Object.keys(groupedClearance).forEach(function(k){ dedupedActions.push(groupedClearance[k]); });
+  Object.keys(groupedRule).forEach(function(k){ dedupedActions.push(groupedRule[k]); });
+  actions = dedupedActions;
+
   // Render preview modal
   var summary = { create: 0, stock: 0, sale_price: 0, clearance: 0, rule_update: 0 };
   actions.forEach(function(a){ summary[a.type] = (summary[a.type]||0) + 1; });
@@ -7860,7 +7905,8 @@ async function confirmInvoiceCompared(){
           method:'PUT', headers:{'Authorization':octToken,'Content-Type':'application/json','Accept':'application/json'},
           body: JSON.stringify({in_stock_qty: newStock})
         });
-        if (r2.ok) { log('  ✓ מלאי: ' + a.currentStock + ' → ' + newStock, true); results.ok++; }
+        var mergedHint = (a._mergedCount && a._mergedCount > 1) ? ' (אוחד מ-' + a._mergedCount + ' שורות)' : '';
+        if (r2.ok) { log('  ✓ מלאי: ' + a.currentStock + ' → ' + newStock + mergedHint, true); results.ok++; }
         else { log('  ✗ מלאי נכשל: ' + r2.status, false); results.fail++; results.errors.push({action:a,status:r2.status}); }
       } else if (a.type === 'sale_price') {
         var r3 = await fetch('https://themakeup.octoretail.com/api/v2/products/' + a.productId, {
