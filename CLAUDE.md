@@ -478,3 +478,25 @@ Default to **Hebrew** with Lauren — natural, conversational. Proper nouns / UR
 ---
 
 _Last updated: 2026-05-12 PM (late) — clarified IRON RULE #7 after Lauren's feedback: `lauren-agent-infra` is a BACKUP repo, not a forced source of truth. OneDrive remains the working source for memory.md + SKILLs + secrets; the GitHub copy is insurance against OneDrive's confirmed truncation bug. No change to Lauren's day-to-day flow. Earlier the same evening: added the "Per-event stats page — data shape" section documenting the new Paid Acquisition (Meta + TikTok) block on `events.themakeupblowout.com/events/<slug>/stats.html`. Companion commits: `themakeupblowout-events` a10107e (template), `lauren-agent-hub-data` 004b5ed (TikTok fetcher + slug matching) / 354b2b9 (CLAUDE.md restoration) / 220ad77 (original IRON RULE #7) / this commit (softened IRON RULE #7), `lauren-agent-infra` 5664b38 (initial backup).
+
+## OCTOPOS new-product creation — barcode is mandatory (Lauren 2026-05-18 PM)
+
+When the future Phase 2 of the invoice-compare flow auto-creates products in OCTOPOS (POST to `/api/v2/products`), the `barcode` field is **required by OCTOPOS or the create call fails**.
+
+Lauren's directive: **use the product NAME as the placeholder barcode value at creation time**. She'll manually update the real barcode in OCTOPOS afterwards.
+
+```python
+# Pseudocode for Phase 2 OCTOPOS create
+payload = {
+    "name": cleaned_name_with_brand_prefix,
+    "sku": invoice_sku,
+    "barcode": cleaned_name_with_brand_prefix,   # ← placeholder, Lauren updates later
+    "vendor_id": SUPPLIER_VENDOR_IDS.get(supplier_code),
+    "unit_cost": invoice_unit_cost,
+    "sale_price": lauren_sale_price_input,
+    "threshold": display_min_input,    # also save min_display to product_rules
+    # ... etc
+}
+```
+
+When Phase 2 ships, also save `_used_name_as_barcode: true` on the created product's product_rules entry so we know to remind Lauren during the next OCTOPOS sync that this product still needs a real barcode.
