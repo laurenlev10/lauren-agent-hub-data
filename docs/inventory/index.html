@@ -3646,6 +3646,61 @@ document.addEventListener("click", function(e){
 });
 
 
+/* ---- SKU Aliases (Lauren 2026-05-18 PM late) — learned manual links ---- */
+let SKU_ALIASES = { _updated_at: null, aliases: {} };
+const SKU_ALIASES_URL = "../state/sku_aliases.json";
+const SKU_ALIASES_REPO_FILE = "docs/state/sku_aliases.json";
+var _SKU_ALIASES_SHA = null;
+
+async function loadSkuAliases(){
+  try{
+    const r = await fetch(SKU_ALIASES_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok){
+      SKU_ALIASES = await r.json();
+      if (!SKU_ALIASES.aliases) SKU_ALIASES.aliases = {};
+    }
+  } catch(e){ console.warn("loadSkuAliases failed:", e); SKU_ALIASES = { aliases: {} }; }
+}
+
+async function saveSkuAlias(invoiceSku, productId, supplierCode){
+  if (!invoiceSku || !productId) return false;
+  var key = String(invoiceSku).toUpperCase().trim();
+  if (!key) return false;
+  SKU_ALIASES.aliases = SKU_ALIASES.aliases || {};
+  SKU_ALIASES.aliases[key] = {
+    product_id: productId,
+    supplier: supplierCode || '',
+    created_at: new Date().toISOString()
+  };
+  SKU_ALIASES._updated_at = new Date().toISOString();
+  const token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+  if (!token) return false;
+  async function attempt(useCached){
+    let sha = useCached ? _SKU_ALIASES_SHA : null;
+    if (!sha) {
+      const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + SKU_ALIASES_REPO_FILE + "?ref=main";
+      const getR = await fetch(getUrl, { headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
+      if (getR.ok){ const j = await getR.json(); sha = j.sha; }
+    }
+    const putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + SKU_ALIASES_REPO_FILE;
+    const content = JSON.stringify(SKU_ALIASES, null, 2);
+    const body = { message: "@inventory: learn SKU alias " + key + " → " + productId, content: btoa(unescape(encodeURIComponent(content))), branch: "main" };
+    if (sha) body.sha = sha;
+    const r = await fetch(putUrl, { method: "PUT", headers: {"Authorization":"token "+token,"Accept":"application/vnd.github+json","Content-Type":"application/json"}, body: JSON.stringify(body) });
+    if (r.ok) {
+      try { const j2 = await r.clone().json(); if (j2 && j2.content && j2.content.sha) _SKU_ALIASES_SHA = j2.content.sha; } catch(_){}
+      return true;
+    }
+    _SKU_ALIASES_SHA = null;
+    return false;
+  }
+  for (var i = 0; i < 4; i++) {
+    if (await attempt(i === 0)) return true;
+    await new Promise(function(r){ setTimeout(r, [200, 500, 1200, 2500][i]); });
+  }
+  return false;
+}
+
 /* ---- Product Rules (Phase 2, 2026-05-13) ---- */
 let PRODUCT_RULES = { _updated_at: null, rules: {} };
 const PRODUCT_RULES_URL = "../state/product_rules.json";
@@ -7414,7 +7469,8 @@ async function init(){
       loadState().catch(function(e){ console.warn("loadState rejected:", e); if (typeof STATE === "undefined" || !STATE) { STATE = { _updated_at: null, events: {} }; } }),
       loadOctopos().catch(function(e){ console.warn("loadOctopos rejected:", e); if (typeof OCTOPOS === "undefined" || !OCTOPOS) { OCTOPOS = { vendors: {}, _updated_at: null }; } }),
       loadProductRules().catch(function(e){ console.warn("loadProductRules rejected:", e); }),
-      loadReceiveState().catch(function(e){ console.warn("loadReceiveState rejected:", e); })
+      loadReceiveState().catch(function(e){ console.warn("loadReceiveState rejected:", e); }),
+      loadSkuAliases().catch(function(e){ console.warn("loadSkuAliases rejected:", e); })
     ]);
 
     if (MODE === 'global'){
@@ -7682,6 +7738,26 @@ async function confirmInvoiceCompared(){
     var displayMin = ov.display_min !== undefined ? Number(ov.display_min) : null;
     var inGarage = !!ov.in_garage;
     var clearance = !!ov.clearance;
+
+    // PASS 0: check learned SKU aliases first (Lauren 2026-05-18 PM late —
+    // learned from previous 🔗 clicks; high-confidence match).
+    try {
+      if (sku && SKU_ALIASES && SKU_ALIASES.aliases) {
+        var aliasKey = sku.toUpperCase().trim();
+        var alias = SKU_ALIASES.aliases[aliasKey];
+        if (alias && alias.product_id) {
+          Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
+            var v = OCTOPOS.vendors[c] || {};
+            (v.products || []).concat(v.inactive_products || []).forEach(function(p){
+              if (!existing && String(p.id) === String(alias.product_id)) {
+                existing = p;
+                existingMatchedBy = 'learned-alias';
+              }
+            });
+          });
+        }
+      }
+    } catch(_){}
 
     // Find existing product — fuzzy match strategy (Lauren 2026-05-18 PM late):
     //   Pass 1: exact SKU match (case-insensitive)
@@ -8718,6 +8794,13 @@ function renderCompareDiff(){
       var rowIsExisting = false;
       if (r.exp || r.product_id) rowIsExisting = true;
       if (ov.linked_product_id) rowIsExisting = true;
+      // Check learned aliases
+      if (!rowIsExisting && sku && SKU_ALIASES && SKU_ALIASES.aliases) {
+        var aliasU = sku.toUpperCase().trim();
+        if (SKU_ALIASES.aliases[aliasU] && SKU_ALIASES.aliases[aliasU].product_id) {
+          rowIsExisting = true;
+        }
+      }
       if (!rowIsExisting) {
         try {
           var skuTry = (sku || '').toUpperCase().trim();
@@ -8963,6 +9046,16 @@ function openLinkExistingPicker(ri){
     CMP_CTX.line_edits[ri].linked_product_id = pid;
     CMP_CTX.line_edits[ri].linked_product_name = pname;
     CMP_CTX.line_edits[ri].linked_product_sku = psku;
+    // Save as LEARNED ALIAS — next time this invoice SKU comes, auto-match
+    try {
+      var invRow0 = (CMP_CTX._lastRows || [])[ri];
+      var invSkuToSave = invRow0 && invRow0.inv && invRow0.inv.sku ? invRow0.inv.sku : (CMP_CTX.line_edits[ri].sku || '');
+      if (invSkuToSave) {
+        saveSkuAlias(invSkuToSave, pid, supplierCode).then(function(ok){
+          if (ok) console.log('[sku_alias] learned: ' + invSkuToSave + ' → ' + pid);
+        });
+      }
+    } catch(_){}
     // Pre-fill SKU + name with the linked product's values if not overridden
     if (CMP_CTX.line_edits[ri].sku === undefined || CMP_CTX.line_edits[ri].sku === '') {
       CMP_CTX.line_edits[ri].sku = psku;
