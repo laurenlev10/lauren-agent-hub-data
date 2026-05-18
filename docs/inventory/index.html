@@ -8225,7 +8225,7 @@ function renderCompareDiff(){
         '<th style="text-align:center;width:50px" title="מוצר זה גם נמצא בגראג\'">🏪</th>' +
         '<th style="text-align:center;width:50px" title="מוצר לסגירה — Clearance">🚫</th>' +
         '<th style="text-align:center;width:50px" title="לא לאירוע הזה — להוריד מסה\"כ החשבונית">🗑️</th>' +
-        '<th style="text-align:center;width:40px" title="לסמן/י כדי להוסיף את המוצר למערכת">✓</th>' +
+        '<th style="text-align:center;width:55px" title="מוצר קיים: ✓ = עדכן מלאי. מוצר חדש: ✓ = צור חדש ב-OCTOPOS">פעולה</th>' +
       '</tr></thead><tbody>';
   var statusEmoji = { 'match': '✅', 'qty-diff': '⚠️', 'missing': '❌', 'extra': '➕' };
   // Style for editable cells
@@ -8302,10 +8302,34 @@ function renderCompareDiff(){
         '<td style="text-align:center;color:var(--muted)">—</td>' +
       '</tr>';
     } else {
-      // Default UNCHECKED — Lauren must explicitly opt in to create a new product.
-      // (Lauren 2026-05-18 PM late: 'אני לא מייצרת פה מוצרים חדשים'.)
+      // Determine if this row's SKU matches an existing OCTOPOS product (3-pass fuzzy
+      // match: exact SKU → strip -D suffix → name similarity, same as confirm flow).
+      var rowIsExisting = false;
+      try {
+        var skuTry = (sku || '').toUpperCase().trim();
+        if (skuTry) {
+          var allP = [];
+          Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
+            var v = OCTOPOS.vendors[c] || {};
+            (v.products || []).concat(v.inactive_products || []).forEach(function(p){ allP.push(p); });
+          });
+          for (var pi3 = 0; pi3 < allP.length; pi3++) {
+            var psk = (allP[pi3].sku || '').toUpperCase().trim();
+            if (psk === skuTry || (skuTry.endsWith('-D') && (psk === skuTry.slice(0,-2) || psk.startsWith(skuTry.slice(0,-2) + '-')))) {
+              rowIsExisting = true;
+              break;
+            }
+          }
+        }
+        // Linked via 🔗 always counts as existing
+        if (ov.linked_product_id) rowIsExisting = true;
+      } catch(_){}
+
+      // Existing product → 📦 default CHECKED (update stock)
+      // New product → 🆕 default UNCHECKED (must opt-in to create)
       var defaultChecked = '';
       if (ov.add_to_system === true) defaultChecked = 'checked';
+      else if (ov.add_to_system === undefined && rowIsExisting) defaultChecked = 'checked';
       var excludedDefault = !!ov.exclude_from_event;
       var rowStyle = excludedDefault ? 'opacity:.45;text-decoration:line-through' : '';
       // For 'extra' (new product) rows — show '🔗' button to link to existing OCTOPOS product
@@ -8351,7 +8375,12 @@ function renderCompareDiff(){
         '<td style="text-align:center"><input type="checkbox" data-edit="in_garage" data-ri="'+ri+'" '+(inGarageDefault?'checked':'')+' title="גם בגראג\'" style="width:16px;height:16px;cursor:pointer"></td>' +
         '<td style="text-align:center"><input type="checkbox" data-edit="clearance" data-ri="'+ri+'" '+(clearanceDefault?'checked':'')+' title="Clearance — סגירת המוצר" style="width:16px;height:16px;cursor:pointer;accent-color:#dc2626"></td>' +
         '<td style="text-align:center"><input type="checkbox" data-edit="exclude_from_event" data-ri="'+ri+'" '+(excludedDefault?'checked':'')+' title="לא בחשבונית של האירוע — לא מחושב בסך" style="width:16px;height:16px;cursor:pointer;accent-color:#7f1d1d"></td>' +
-        '<td style="text-align:center"><input type="checkbox" data-edit="add_to_system" data-ri="'+ri+'" '+defaultChecked+' title="הוסף למערכת בעדכון" style="width:16px;height:16px;cursor:pointer"></td>' +
+        '<td style="text-align:center">' +
+          '<input type="checkbox" data-edit="add_to_system" data-ri="'+ri+'" '+defaultChecked+' title="' +
+            (rowIsExisting ? 'מסומן = יעדכן את המלאי של המוצר הקיים ב-OCTOPOS (מוסיף את הכמות שהתקבלה למלאי הנוכחי)' : 'מסומן = ייצור מוצר חדש ב-OCTOPOS (barcode = שם המוצר)') +
+          '" style="width:16px;height:16px;cursor:pointer;accent-color:' + (rowIsExisting ? '#15803d' : '#f59e0b') + '">' +
+          '<div style="font-size:9px;color:' + (rowIsExisting ? '#15803d' : '#a16207') + ';margin-top:1px;font-weight:700;line-height:1">' + (rowIsExisting ? '📦 עדכן' : '🆕 צור') + '</div>' +
+        '</td>' +
       '</tr>';
     }
   });
