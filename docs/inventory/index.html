@@ -3308,8 +3308,8 @@ function openSmsForSupplier(s){
   });
   if (items.length === 0){ toast('אין פריטים בהזמנה', 'error'); return; }
 
-  function buildText(dayLabel){
-    let body = 'Hi how are you? please see new order to ship out ' + dayLabel + ':\n\n';
+  function buildText(dayLabel, modeLabel){
+    let body = 'Hi how are you? please see new order to ' + (modeLabel || 'ship out') + ' ' + dayLabel + ':\n\n';
     items.forEach(r => {
       body += r.name + ' / ' + (r.sku || '#'+r.product_id) + ' / ' + r.qty + '\tpcs\n';
     });
@@ -3332,9 +3332,14 @@ function openSmsForSupplier(s){
     '<div class="sms-card">' +
       '<h2>📱 SMS לספק: ' + escHtml(s.name) + '</h2>' +
       '<div class="sms-sub">' + items.length + ' פריטים · סה"כ $' + items.reduce((a,r)=>a+r.qty*r.unit_cost,0).toFixed(2) + '</div>' +
-      '<label style="font-size:13px;color:var(--muted);margin-left:6px">יום משלוח:</label> ' +
+      '<label style="font-size:13px;color:var(--muted);margin-left:6px">יום:</label> ' +
       '<select id="smsDay">' + dayOptions.map(o => '<option value="' + o.v + '">' + o.label + '</option>').join('') + '</select>' +
-      '<textarea id="smsBody" spellcheck="false">' + buildText('TOMORROW') + '</textarea>' +
+      '<label style="font-size:13px;color:var(--muted);margin-right:12px;margin-left:6px">אופן:</label>' +
+      '<select id="smsMode">' +
+        '<option value="ship out">🚚 ship out (משלוח)</option>' +
+        '<option value="PICKUP">📦 PICKUP (איסוף)</option>' +
+      '</select>' +
+      '<textarea id="smsBody" spellcheck="false">' + buildText('TOMORROW', 'ship out') + '</textarea>' +
       '<div class="sms-actions">' +
         '<button data-action="close">סגור</button>' +
         '<button class="primary" data-action="copy">📋 העתיקי לקליפבורד</button>' +
@@ -7676,8 +7681,8 @@ function openResendSmsForSavedOrder(supplierCode, orderIndex){
   if (!order) { toast('ההזמנה לא נמצאה', 'error'); return; }
   var supName = order.supplier_name || supplierCode;
 
-  function buildText(dayLabel){
-    var body = 'Hi how are you? please see new order to ship out ' + dayLabel + ':\n\n';
+  function buildText(dayLabel, modeLabel){
+    var body = 'Hi how are you? please see new order to ' + (modeLabel || 'ship out') + ' ' + dayLabel + ':\n\n';
     (order.items || []).forEach(function(r){
       var qty = Number(r.quantity || 0); if (qty <= 0) return;
       body += (r.product_name || ('#' + r.product_id)) + ' / ' + (r.product_sku || '#' + r.product_id) + ' / ' + qty + '\tpcs\n';
@@ -7701,9 +7706,14 @@ function openResendSmsForSavedOrder(supplierCode, orderIndex){
     '<div class="sms-card">' +
       '<h2>📱 שלחי SMS שוב: ' + escHtml(supName) + '</h2>' +
       '<div class="sms-sub">הזמנה #' + (orderIndex+1) + ' · ' + (order.items||[]).length + ' פריטים · ' + (order.total_qty||0) + ' pcs</div>' +
-      '<label style="font-size:13px;color:var(--muted);margin-left:6px">יום משלוח:</label> ' +
+      '<label style="font-size:13px;color:var(--muted);margin-left:6px">יום:</label> ' +
       '<select id="smsDay">' + dayOptions.map(function(o){ return '<option value="' + o.v + '">' + o.label + '</option>'; }).join('') + '</select>' +
-      '<textarea id="smsBody" spellcheck="false">' + buildText('TOMORROW') + '</textarea>' +
+      '<label style="font-size:13px;color:var(--muted);margin-right:12px;margin-left:6px">אופן:</label>' +
+      '<select id="smsMode">' +
+        '<option value="ship out">🚚 ship out (משלוח)</option>' +
+        '<option value="PICKUP">📦 PICKUP (איסוף)</option>' +
+      '</select>' +
+      '<textarea id="smsBody" spellcheck="false">' + buildText('TOMORROW', 'ship out') + '</textarea>' +
       '<div class="sms-actions">' +
         '<button data-action="close">סגור</button>' +
         '<button class="primary" data-action="copy">📋 העתיקי לקליפבורד</button>' +
