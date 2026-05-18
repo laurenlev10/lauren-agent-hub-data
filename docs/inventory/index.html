@@ -3467,9 +3467,14 @@ function getRuleFor(productId){
 // Serialize saves so concurrent typing doesn't cause sha-conflict 409s
 var _SAVE_RULE_QUEUE = Promise.resolve();
 function saveProductRule(productId, rule){
-  // Chain onto the queue so saves run one at a time
-  var resultPromise = _SAVE_RULE_QUEUE.then(function(){ return _saveProductRuleNow(productId, rule); });
-  _SAVE_RULE_QUEUE = resultPromise.catch(function(){}); // swallow errors in the chain
+  // Chain onto the queue so saves run one at a time. Each save is independent
+  // — a failure in one shouldn't block the next. The queue is reset to resolved
+  // after each operation to prevent a broken chain from stalling future saves.
+  var resultPromise = _SAVE_RULE_QUEUE.then(
+    function(){ return _saveProductRuleNow(productId, rule); },
+    function(){ return _saveProductRuleNow(productId, rule); }  // recover if upstream rejected
+  );
+  _SAVE_RULE_QUEUE = resultPromise.then(function(){}, function(){});  // never reject
   return resultPromise;
 }
 
@@ -3511,21 +3516,37 @@ async function _saveProductRuleNow(productId, rule){
     return { ok: r.ok, status: r.status };
   }
   try{
-    var first = await attempt();
-    if (first.ok) return true;
-    if (first.status === 409){
-      console.warn('[product_rules] sha conflict — retrying');
-      await new Promise(function(res){ setTimeout(res, 250); });
-      var second = await attempt();
-      if (second.ok) return true;
-      console.error('[product_rules] retry also failed:', second.status);
+    // Try up to 4 times with backoff. Common failure modes:
+    //   409 — sha conflict (concurrent edit). Refetch sha, retry.
+    //   422 — invalid content (e.g., the sha is wrong). Refetch, retry.
+    //   5xx — GitHub transient. Backoff + retry.
+    //   401 — token expired. No retry, show toast.
+    var lastStatus = 0;
+    for (var attempts = 0; attempts < 4; attempts++) {
+      var resp = await attempt();
+      lastStatus = resp.status;
+      if (resp.ok) return true;
+      if (resp.status === 401) {
+        toast('GitHub token פג — לחצי על Sync כדי להזין מחדש', 'error');
+        return false;
+      }
+      if (resp.status !== 409 && resp.status !== 422 && resp.status < 500) {
+        // Non-retryable client error (400/403/404/...) — log and bail
+        console.error('[product_rules] non-retryable HTTP ' + resp.status);
+        toast('⚠️ שמירה נכשלה (HTTP ' + resp.status + ')', 'error');
+        return false;
+      }
+      // Retryable — wait then loop. Exponential backoff: 200ms, 500ms, 1200ms, 2500ms
+      var delay = [200, 500, 1200, 2500][attempts];
+      console.warn('[product_rules] HTTP ' + resp.status + ' on attempt ' + (attempts+1) + ' — retrying in ' + delay + 'ms');
+      await new Promise(function(res){ setTimeout(res, delay); });
     }
-    if (first.status === 401){
-      toast('GitHub token פג — לחצי על Sync כדי להזין מחדש', 'error');
-    }
+    console.error('[product_rules] all 4 attempts failed, last status:', lastStatus);
+    toast('⚠️ שמירה נכשלה אחרי 4 נסיונות (HTTP ' + lastStatus + ')', 'error');
     return false;
   } catch(e){
-    console.error("saveProductRule failed:", e);
+    console.error("saveProductRule threw:", e);
+    toast('⚠️ שגיאת רשת: ' + (e.message || e), 'error');
     return false;
   }
 }
