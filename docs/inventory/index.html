@@ -7378,6 +7378,26 @@ function openCompareInvoiceModal(supplierCode, supplierName){
   $("#cmpFile").value = '';
   var cb0 = document.getElementById('cmpConfirmBlock'); if (cb0) cb0.style.display = 'none';
   $("#cmpModalBg").style.display = 'flex';
+  // Capture edits on invoice rows (input + change events)
+  var resBox = document.getElementById('cmpResult');
+  if (resBox && !resBox._editListenerBound) {
+    var captureEdit = function(ev){
+      if (!ev.target.matches('[data-edit][data-ri]')) return;
+      var ri = Number(ev.target.dataset.ri);
+      var field = ev.target.dataset.edit;
+      if (!CMP_CTX || !CMP_CTX.line_edits) return;
+      if (!CMP_CTX.line_edits[ri]) CMP_CTX.line_edits[ri] = {};
+      var val;
+      if (ev.target.type === 'checkbox') val = ev.target.checked;
+      else if (ev.target.type === 'number') val = Number(ev.target.value || 0);
+      else val = ev.target.value;
+      CMP_CTX.line_edits[ri][field] = val;
+    };
+    resBox.addEventListener('input', captureEdit);
+    resBox.addEventListener('change', captureEdit);
+    resBox._editListenerBound = true;
+  }
+  CMP_CTX.line_edits = {};
   document.body.style.overflow = 'hidden';
 }
 
@@ -7397,6 +7417,20 @@ document.addEventListener("click", function(e){
   }
   if (e.target.id === 'cmpClose' || e.target.id === 'cmpModalBg'){
     closeCompareInvoiceModal();
+    return;
+  }
+  // Capture edits to invoice row inputs (text/number/checkbox)
+  if (e.target.matches('[data-edit][data-ri]')){
+    var ri = Number(e.target.dataset.ri);
+    var field = e.target.dataset.edit;
+    if (!CMP_CTX) return;
+    if (!CMP_CTX.line_edits) CMP_CTX.line_edits = {};
+    if (!CMP_CTX.line_edits[ri]) CMP_CTX.line_edits[ri] = {};
+    var val;
+    if (e.target.type === 'checkbox') val = e.target.checked;
+    else if (e.target.type === 'number') val = Number(e.target.value || 0);
+    else val = e.target.value;
+    CMP_CTX.line_edits[ri][field] = val;
     return;
   }
   if (e.target.id === 'cmpConfirmBtn'){
@@ -7626,39 +7660,87 @@ function renderCompareDiff(){
     '</div>';
   }
 
+  // Initialize CMP_CTX.line_edits — store per-line editable values keyed by index
+  if (!CMP_CTX.line_edits) CMP_CTX.line_edits = {};
+  // Auto-extract display_min from descriptions like "(24pc x 12packs)" or "(12 pcs)"
+  function _extractDisplayMin(name){
+    if (!name) return '';
+    var m = String(name).match(/\((\d+)\s*(pcs?|pc\.?)\b/i);
+    if (m) return Number(m[1]);
+    m = String(name).match(/(\d+)\s*pc\s*[x×*]/i);
+    if (m) return Number(m[1]);
+    return '';
+  }
+
   var html = totalsHtml +
     '<div class="cmp-summary">' +
       '<span class="pill match">✅ תאמו: ' + counts.match + '</span>' +
       '<span class="pill qty-diff">⚠️ פערי כמות: ' + counts['qty-diff'] + '</span>' +
       '<span class="pill missing">❌ חסר בחשבונית: ' + counts.missing + '</span>' +
-      '<span class="pill extra">➕ עודף בחשבונית: ' + counts.extra + '</span>' +
+      '<span class="pill extra">➕ עודף בחשבונית (חדש): ' + counts.extra + '</span>' +
     '</div>' +
-    '<table class="cmp-diff-table">' +
+    '<div style="margin-bottom:8px;font-size:12px;color:var(--muted)">💡 שורות בכחול הן מוצרים חדשים. אפשר לערוך כל שדה — שם, SKU, כמות, מחיר עלות ומינ\' לדיספליי. הערכים יישמרו עם לחיצת "✅ עדכן קבלת סחורה".</div>' +
+    '<table class="cmp-diff-table" style="font-size:12px">' +
       '<thead><tr>' +
-        '<th>סטטוס</th>' +
-        '<th style="text-align:right">מוצר (הזמנה)</th>' +
-        '<th style="text-align:center">SKU</th>' +
-        '<th style="text-align:center">צפוי</th>' +
-        '<th style="text-align:center">בחשבונית</th>' +
-        '<th style="text-align:right">שורה בחשבונית</th>' +
+        '<th style="width:30px">סט\'</th>' +
+        '<th style="text-align:right;min-width:220px">שם המוצר</th>' +
+        '<th style="text-align:center;width:100px">SKU</th>' +
+        '<th style="text-align:center;width:55px">כמות</th>' +
+        '<th style="text-align:center;width:75px">$/יח\'</th>' +
+        '<th style="text-align:center;width:70px">📦 מינ\'</th>' +
+        '<th style="text-align:center;width:40px" title="לסמן/י כדי להוסיף את המוצר למערכת">✓</th>' +
       '</tr></thead><tbody>';
   var statusEmoji = { 'match': '✅', 'qty-diff': '⚠️', 'missing': '❌', 'extra': '➕' };
-  rows.forEach(function(r){
-    var expName = r.exp ? escHtml(r.exp.name) : '<span style="color:var(--muted)">—</span>';
-    var expSku  = r.exp && r.exp.sku ? '<code>'+escHtml(r.exp.sku)+'</code>' : '<span style="color:var(--muted)">—</span>';
-    var invName = r.inv ? escHtml(r.inv.name||'') : '<span style="color:var(--muted)">—</span>';
-    var invSku  = r.inv && r.inv.sku ? ' · <code>'+escHtml(r.inv.sku)+'</code>' : '';
-    html += '<tr class="'+r.status+'">' +
-      '<td style="font-size:16px">'+statusEmoji[r.status]+'</td>' +
-      '<td>'+expName+'</td>' +
-      '<td style="text-align:center">'+expSku+'</td>' +
-      '<td style="text-align:center;font-weight:700">'+(r.exp ? r.expQ : '—')+'</td>' +
-      '<td style="text-align:center;font-weight:700;'+(r.expQ !== r.invQ && r.exp ? 'color:#dc2626' : '')+'">'+(r.inv ? r.invQ : '—')+'</td>' +
-      '<td>'+invName+invSku+'</td>' +
-    '</tr>';
+  // Style for editable cells
+  var inpBase = 'width:100%;padding:4px 6px;font-size:12px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-family:inherit;';
+  rows.forEach(function(r, ri){
+    // For 'extra' (new product) rows + 'missing' (no invoice), expose editing on the invoice line.
+    // For 'match' / 'qty-diff', read-only display.
+    var src = r.inv || r.exp || {};
+    var name = src.name || '';
+    var sku  = src.sku || '';
+    var qty  = r.inv ? r.invQ : (r.exp ? r.expQ : 0);
+    var price = src.price || (src.cost_unit || 0);
+    var dispMin = _extractDisplayMin(name) || '';
+    // Apply any previous edits
+    var ov = CMP_CTX.line_edits[ri] || {};
+    if (ov.name !== undefined) name = ov.name;
+    if (ov.sku !== undefined) sku = ov.sku;
+    if (ov.qty !== undefined) qty = ov.qty;
+    if (ov.price !== undefined) price = ov.price;
+    if (ov.display_min !== undefined) dispMin = ov.display_min;
+    if (ov.add_to_system !== undefined) /* read later */;
+
+    var isEditable = (r.status === 'extra' || r.status === 'qty-diff' || r.status === 'match');
+    // missing = expected in order but not in invoice — read-only
+    if (r.status === 'missing') {
+      html += '<tr class="'+r.status+'">' +
+        '<td style="font-size:14px;text-align:center">'+statusEmoji[r.status]+'</td>' +
+        '<td>'+escHtml(name)+'</td>' +
+        '<td style="text-align:center;color:var(--muted)">'+escHtml(sku||'—')+'</td>' +
+        '<td style="text-align:center;font-weight:700">'+qty+'</td>' +
+        '<td style="text-align:center;color:var(--muted)">—</td>' +
+        '<td style="text-align:center;color:var(--muted)">—</td>' +
+        '<td style="text-align:center;color:var(--muted)">—</td>' +
+      '</tr>';
+    } else {
+      var defaultChecked = (r.status === 'extra') ? 'checked' : '';
+      if (ov.add_to_system === false) defaultChecked = '';
+      else if (ov.add_to_system === true) defaultChecked = 'checked';
+      html += '<tr class="'+r.status+'" data-ri="'+ri+'">' +
+        '<td style="font-size:14px;text-align:center">'+statusEmoji[r.status]+'</td>' +
+        '<td><input type="text" data-edit="name" data-ri="'+ri+'" value="'+escHtml(name)+'" style="'+inpBase+'"></td>' +
+        '<td><input type="text" data-edit="sku" data-ri="'+ri+'" value="'+escHtml(sku)+'" style="'+inpBase+'text-align:center"></td>' +
+        '<td><input type="number" data-edit="qty" data-ri="'+ri+'" min="0" step="1" value="'+qty+'" style="'+inpBase+'text-align:center;font-weight:700"></td>' +
+        '<td><input type="number" data-edit="price" data-ri="'+ri+'" min="0" step="0.01" value="'+(Number(price)||0).toFixed(2)+'" style="'+inpBase+'text-align:center"></td>' +
+        '<td><input type="number" data-edit="display_min" data-ri="'+ri+'" min="0" step="1" value="'+dispMin+'" placeholder="24" style="'+inpBase+'text-align:center"></td>' +
+        '<td style="text-align:center"><input type="checkbox" data-edit="add_to_system" data-ri="'+ri+'" '+defaultChecked+' title="הוסף למערכת בעדכון" style="width:16px;height:16px;cursor:pointer"></td>' +
+      '</tr>';
+    }
   });
   html += '</tbody></table>';
-  html += '<div style="margin-top:14px;color:var(--muted);font-size:12px">💡 השוואה מוצגת. לחצי "✅ עדכן קבלת סחורה" כדי לסמן את הספק.</div>';
+  // Note about Phase 1
+  html += '<div style="margin-top:14px;color:var(--muted);font-size:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px">💡 הערך/י את המוצרים החדשים — מינ\' לדיספליי נחלץ אוטומטית מתיאור כמו "(24pc x 12packs)". בלחיצת "✅ עדכן קבלת סחורה" הנתונים יישמרו ב-product_rules למוצרים שיש להם כבר ID ב-OCTOPOS. <b>מוצרים חדשים לגמרי</b> יסומנו לקליטה ידנית ב-OCTOPOS (Phase 2).</div>';
   $("#cmpResult").innerHTML = html;
   // Show the confirm button
   var cb = document.getElementById('cmpConfirmBlock');
