@@ -7588,17 +7588,56 @@ async function confirmInvoiceCompared(){
     var inGarage = !!ov.in_garage;
     var clearance = !!ov.clearance;
 
-    // Find existing product by SKU
+    // Find existing product — fuzzy match strategy (Lauren 2026-05-18 PM late):
+    //   Pass 1: exact SKU match (case-insensitive)
+    //   Pass 2: invoice SKU has '-D'/'-DISPLAY' suffix → try stripped version (EM1-16-D → EM1-16)
+    //   Pass 3: name-similarity match (≥0.55) within the same supplier's products only
     var existing = null;
+    var existingMatchedBy = null;  // 'sku-exact' | 'sku-strip-d' | 'name-sim'
     try {
+      var allProds = [];
       Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
         var v = OCTOPOS.vendors[c] || {};
         (v.products || []).concat(v.inactive_products || []).forEach(function(p){
-          if (!existing && p.sku && sku && String(p.sku).toUpperCase() === sku.toUpperCase()) {
-            existing = p;
-          }
+          allProds.push({prod: p, supplierCode: c});
         });
       });
+      var skuUp = (sku || '').toUpperCase().trim();
+      // Pass 1: exact SKU
+      if (skuUp) {
+        for (var pi = 0; pi < allProds.length; pi++) {
+          if (allProds[pi].prod.sku && String(allProds[pi].prod.sku).toUpperCase().trim() === skuUp) {
+            existing = allProds[pi].prod;
+            existingMatchedBy = 'sku-exact';
+            break;
+          }
+        }
+      }
+      // Pass 2: strip -D / -DISPLAY suffix and retry
+      if (!existing && skuUp && /-D(ISPLAY)?$/.test(skuUp)) {
+        var skuStripped = skuUp.replace(/-D(ISPLAY)?$/, '');
+        for (var pi2 = 0; pi2 < allProds.length; pi2++) {
+          var psk = (allProds[pi2].prod.sku || '').toUpperCase().trim();
+          if (psk && (psk === skuStripped || psk.startsWith(skuStripped + '-') || psk.startsWith(skuStripped + '/'))) {
+            existing = allProds[pi2].prod;
+            existingMatchedBy = 'sku-strip-d';
+            break;
+          }
+        }
+      }
+      // Pass 3: name-similarity within the SAME supplier's products (avoid cross-supplier confusion)
+      if (!existing && name && typeof nameSimilarity === 'function') {
+        var sameSup = allProds.filter(function(o){ return o.supplierCode === supplierCode; });
+        var bestScore = 0, bestProd = null;
+        sameSup.forEach(function(o){
+          var sim = nameSimilarity(name, o.prod.name || '');
+          if (sim > bestScore && sim >= 0.55) { bestScore = sim; bestProd = o.prod; }
+        });
+        if (bestProd) {
+          existing = bestProd;
+          existingMatchedBy = 'name-sim';
+        }
+      }
     } catch(_){}
 
     // If Lauren manually linked this row to an existing product, use that as 'existing'
