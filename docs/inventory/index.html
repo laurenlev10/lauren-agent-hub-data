@@ -1406,7 +1406,78 @@ function renderSupplierCard(sup, s, idx){
           '</div>';
       })()+
       renderLocalOrdersForSupplier(sup.code) +
+      renderInvoiceDetailsForSupplier(sup.code) +
       '</div>';
+}
+
+function renderInvoiceDetailsForSupplier(supplierCode){
+  if (typeof CURRENT_EVKEY === 'undefined' || !CURRENT_EVKEY) return '';
+  var slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || {};
+  var supState = (slice.suppliers || {})[supplierCode] || {};
+  var pi = supState._pending_invoice;
+  if (!pi || !Array.isArray(pi.invoice_lines) || !pi.invoice_lines.length) return '';
+
+  var lines = pi.invoice_lines;
+  var edits = pi.line_edits || {};
+  var parsedAt = pi.parsed_at ? new Date(pi.parsed_at).toLocaleString('he-IL') : '';
+  var confirmedAt = pi.confirmed_at ? new Date(pi.confirmed_at).toLocaleString('he-IL') : '';
+
+  // Compute totals using same logic as the modal
+  var subtotal = 0;
+  var excludedCount = 0;
+  lines.forEach(function(L, i){
+    var ov = edits[i] || {};
+    if (ov.exclude_from_event) { excludedCount++; return; }
+    var q = (ov.qty !== undefined ? Number(ov.qty) : Number(L.qty||0));
+    var p = (ov.price !== undefined ? Number(ov.price) : Number(L.price||0));
+    var t = Number(L.total || 0);
+    if (ov.qty !== undefined || ov.price !== undefined) t = q * p;
+    if (!t && q > 0 && p > 0) t = q * p;
+    if (t > 0) subtotal += t;
+  });
+
+  var rows = lines.map(function(L, i){
+    var ov = edits[i] || {};
+    var excluded = !!ov.exclude_from_event;
+    var name = (ov.name !== undefined ? ov.name : L.name || '');
+    var sku  = (ov.sku !== undefined ? ov.sku : L.sku || '');
+    var qty  = (ov.qty !== undefined ? Number(ov.qty) : Number(L.qty || 0));
+    var price = (ov.price !== undefined ? Number(ov.price) : Number(L.price || 0));
+    var total = qty * price;
+    var clearance = !!ov.clearance;
+    var inGarage = !!ov.in_garage;
+    var rowStyle = excluded ? 'opacity:.4;text-decoration:line-through' : '';
+    return '<tr style="' + rowStyle + '">' +
+      '<td style="padding:5px;font-size:12px">' + escHtml(name) + (clearance ? ' <span style="background:#fee2e2;color:#7f1d1d;font-size:9px;padding:1px 4px;border-radius:3px;border:1px solid #fca5a5">🚫 Clearance</span>' : '') + (inGarage ? ' <span style="background:#dcfce7;color:#166534;font-size:9px;padding:1px 4px;border-radius:3px;border:1px solid #86efac">🏪</span>' : '') + '</td>' +
+      '<td style="padding:5px;text-align:center;color:var(--muted);font-size:11px">' + escHtml(sku||'—') + '</td>' +
+      '<td style="padding:5px;text-align:center;font-weight:600">' + qty + '</td>' +
+      '<td style="padding:5px;text-align:center;color:var(--muted);font-size:11px">$' + price.toFixed(2) + '</td>' +
+      '<td style="padding:5px;text-align:left;color:#15803d;font-weight:600">$' + total.toFixed(2) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div class="invoice-details-section" style="margin-top:18px;padding:14px;background:#f0f9ff;border:1px solid #93c5fd;border-radius:10px;">' +
+    '<details open>' +
+      '<summary style="cursor:pointer;font-weight:700;color:#1e3a8a;font-size:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+        '<span>📋 פרטי חשבונית · ' + lines.length + ' פריטים' + (excludedCount > 0 ? ' (' + excludedCount + ' לא לאירוע)' : '') + '</span>' +
+        '<span style="color:#0c4a6e">סכום: <b>$' + subtotal.toFixed(2) + '</b></span>' +
+      '</summary>' +
+      '<div style="margin-top:6px;font-size:11px;color:var(--muted)">' +
+        (parsedAt ? '📄 הועלתה: ' + escHtml(parsedAt) : '') +
+        (confirmedAt ? ' · ✅ אושרה: ' + escHtml(confirmedAt) : '') +
+      '</div>' +
+      '<table style="width:100%;font-size:12px;margin-top:10px;border-collapse:collapse">' +
+        '<thead><tr style="background:#dbeafe">' +
+          '<th style="padding:6px;text-align:right;font-size:11px;color:#1e3a8a">מוצר</th>' +
+          '<th style="padding:6px;text-align:center;font-size:11px;color:#1e3a8a">SKU</th>' +
+          '<th style="padding:6px;text-align:center;font-size:11px;color:#1e3a8a">כמות</th>' +
+          '<th style="padding:6px;text-align:center;font-size:11px;color:#1e3a8a">$/יח׳</th>' +
+          '<th style="padding:6px;text-align:left;font-size:11px;color:#1e3a8a">סה"כ</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+    '</details>' +
+  '</div>';
 }
 
 function renderLocalOrdersForSupplier(supplierCode){
@@ -7836,7 +7907,9 @@ async function confirmInvoiceCompared(){
     var sup2 = STATE.events[CURRENT_EVKEY].suppliers[supplierCode];
     if (sup2) {
       sup2.invoice_compared_at = nowIso2;
-      delete sup2._pending_invoice;  // clean up — invoice has been processed
+      // Keep _pending_invoice as the invoice audit record (Lauren 2026-05-18 PM late
+      // — she wants to see the invoice details in the supplier card afterwards).
+      if (sup2._pending_invoice) sup2._pending_invoice.confirmed_at = nowIso2;
     }
     if (typeof scheduleSave === 'function') scheduleSave();
   } catch(_){}
