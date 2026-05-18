@@ -2338,7 +2338,7 @@ function buildSupplierOrder(supplierCode){
     let gap   = Math.max(0, thr - stockForGap) * mult;
     // MOQ: if base > 0 but below MOQ, snap up to MOQ
     if (gap > 0 && Number(rule.moq || 0) > 0 && gap < Number(rule.moq)) gap = Number(rule.moq);
-    let suggested = roundToCase(gap, cs, 'nearest');  // Lauren 2026-05-13 — round to nearest, not always up
+    let suggested = roundToCase(gap, cs, 'down');  // Lauren 2026-05-18 PM — round DOWN (conservative); gap=72 cs=48 → 48 not 96. min_display floor below ensures we still order at least one pack when gap>0.
     // If there's ANY need to order AND min_display is set, the order must be at least min_display.
     // Uses gap>0 (not suggested>0) so that small gaps rounding down to 0 still get bumped to one pack.
     if (gap > 0 && minD > 0 && suggested < minD) suggested = minD;
