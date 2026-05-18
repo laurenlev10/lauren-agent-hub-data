@@ -3634,9 +3634,12 @@ function saveProductRule(productId, rule){
   return resultPromise;
 }
 
+// Module-level sha cache so consecutive saves don't race on GitHub eventual-consistency.
+// After a successful PUT, the response's content.sha is stored here; next save uses it
+// directly without a fresh GET (which would return the stale pre-commit sha).
+var _PRODUCT_RULES_SHA = null;
+
 async function _saveProductRuleNow(productId, rule){
-  // Determine if the rule is "empty" (all fields falsy/zero). Note: must include
-  // every known field so single-field rules (like just display_capacity) are kept.
   function ruleIsEmpty(r){
     if (!r) return true;
     var keys = ['min_display','moq','multiple_of','max','skip','note','display_capacity','pack_size','route_to','in_garage'];
@@ -3657,29 +3660,44 @@ async function _saveProductRuleNow(productId, rule){
     toast("שמור מקומית, צריך GitHub token כדי לסנכרן", "");
     return false;
   }
-  // Try with sha. If 409 conflict, refetch sha and retry once.
-  async function attempt(){
-    const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RULES_REPO_FILE + "?ref=main";
-    let sha = null;
-    const getR = await fetch(getUrl, { headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
-    if (getR.status === 401) return { ok: false, status: 401 };
-    if (getR.ok){ const j = await getR.json(); sha = j.sha; }
+  async function attempt(useCachedSha){
+    let sha = useCachedSha ? _PRODUCT_RULES_SHA : null;
+    if (!sha) {
+      const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RULES_REPO_FILE + "?ref=main";
+      const getR = await fetch(getUrl, { headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
+      if (getR.status === 401) return { ok: false, status: 401 };
+      if (getR.ok){ const j = await getR.json(); sha = j.sha; }
+    }
     const putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RULES_REPO_FILE;
     const content = JSON.stringify(PRODUCT_RULES, null, 2);
     const body = { message: "@inventory: update product_rules for product " + productId, content: btoa(unescape(encodeURIComponent(content))), branch: "main" };
     if (sha) body.sha = sha;
     const r = await fetch(putUrl, { method: "PUT", headers: {"Authorization":"token "+token,"Accept":"application/vnd.github+json","Content-Type":"application/json"}, body: JSON.stringify(body) });
-    return { ok: r.ok, status: r.status };
+    if (r.ok) {
+      // Cache the new sha for the next consecutive save
+      try {
+        const respJson = await r.clone().json();
+        if (respJson && respJson.content && respJson.content.sha) {
+          _PRODUCT_RULES_SHA = respJson.content.sha;
+        }
+      } catch(_){}
+      return { ok: true, status: r.status };
+    }
+    // On any failure, invalidate the cached sha so the next attempt fetches fresh
+    _PRODUCT_RULES_SHA = null;
+    return { ok: false, status: r.status };
   }
   try{
     // Try up to 4 times with backoff. Common failure modes:
-    //   409 — sha conflict (concurrent edit). Refetch sha, retry.
-    //   422 — invalid content (e.g., the sha is wrong). Refetch, retry.
+    //   409 — sha conflict (concurrent edit). Invalidate cache, refetch sha, retry.
+    //   422 — invalid content. Refetch, retry.
     //   5xx — GitHub transient. Backoff + retry.
     //   401 — token expired. No retry, show toast.
     var lastStatus = 0;
     for (var attempts = 0; attempts < 4; attempts++) {
-      var resp = await attempt();
+      // First attempt: use cached sha if we have one (faster, no GET).
+      // Retries: always fetch fresh (the cached one obviously didn't work).
+      var resp = await attempt(attempts === 0);
       lastStatus = resp.status;
       if (resp.ok) return true;
       if (resp.status === 401) {
@@ -3687,12 +3705,10 @@ async function _saveProductRuleNow(productId, rule){
         return false;
       }
       if (resp.status !== 409 && resp.status !== 422 && resp.status < 500) {
-        // Non-retryable client error (400/403/404/...) — log and bail
         console.error('[product_rules] non-retryable HTTP ' + resp.status);
         toast('⚠️ שמירה נכשלה (HTTP ' + resp.status + ')', 'error');
         return false;
       }
-      // Retryable — wait then loop. Exponential backoff: 200ms, 500ms, 1200ms, 2500ms
       var delay = [200, 500, 1200, 2500][attempts];
       console.warn('[product_rules] HTTP ' + resp.status + ' on attempt ' + (attempts+1) + ' — retrying in ' + delay + 'ms');
       await new Promise(function(res){ setTimeout(res, delay); });
