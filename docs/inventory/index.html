@@ -798,6 +798,19 @@ async function loadState(){
     STATE = _safeParseLocal() || { _updated_at: null, events: {} };
   }
   if (!STATE || typeof STATE !== "object") STATE = { _updated_at: null, events: {} };
+  // Always start with all supplier cards COLLAPSED on page load (Lauren 2026-05-18 PM)
+  try {
+    if (STATE && STATE.events) {
+      Object.keys(STATE.events).forEach(function(evk){
+        var slice = STATE.events[evk];
+        if (slice && slice.suppliers) {
+          Object.keys(slice.suppliers).forEach(function(sc){
+            if (slice.suppliers[sc]) slice.suppliers[sc]._expanded = false;
+          });
+        }
+      });
+    }
+  } catch(_){}
   if (!STATE.events) STATE.events = {};
 
   // Defensive merge: if the cloud copy has local_orders we missed (e.g. when
