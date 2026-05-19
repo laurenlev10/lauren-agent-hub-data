@@ -7699,6 +7699,18 @@ function openCompareInvoiceModal(supplierCode, supplierName){
         autoSplitDisplaySet(riS);
         return;
       }
+      // 📲 SMS לחוסרים
+      if (ev.target.id === '_smsMissing') {
+        ev.preventDefault(); ev.stopPropagation();
+        openDiscrepancySms('missing');
+        return;
+      }
+      // 💲 SMS פערי מחיר
+      if (ev.target.id === '_smsPriceDiff') {
+        ev.preventDefault(); ev.stopPropagation();
+        openDiscrepancySms('price');
+        return;
+      }
       var btn = ev.target.closest('[data-action="force-received"]');
       if (!btn) return;
       ev.preventDefault(); ev.stopPropagation();
@@ -8670,6 +8682,15 @@ function renderCompareDiff(){
     });
   } catch(_){}
   var _grand = _lineSubtotal + _shipping;
+  // Discrepancy detection — missing items + price mismatches
+  var _missingItems = rows.filter(function(r){ return r.status === 'missing' && r.exp; });
+  var _priceMismatches = rows.filter(function(r){
+    if (!r.inv || !r.exp) return false;
+    var invP = Number(r.inv.price || 0);
+    var expP = Number(r.exp.cost_unit || 0);
+    return invP > 0 && expP > 0 && Math.abs(invP - expP) >= 0.01;
+  });
+
   var totalsHtml = '';
   if (_lineSubtotal > 0 || _excludedCount > 0) {
     totalsHtml = '<div style="margin-bottom:12px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;display:flex;gap:24px;flex-wrap:wrap;font-size:13px">' +
@@ -8679,6 +8700,17 @@ function renderCompareDiff(){
       (_excludedCount > 0 ? '<div style="width:100%;color:#7f1d1d;font-size:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:6px 10px;margin-top:6px">🗑️ ' + _excludedCount + ' פריטים הוסרו מהאירוע · $' + _excludedSum.toFixed(2) + ' לא נכלל בסך</div>' : '') +
       '<div style="color:var(--muted);font-size:11px;width:100%">✓ הסכומים האלו כבר עודכנו בשורת הספק (סה"כ חשבונית + הוצאות משלוח). יישמרו אוטומטית.</div>' +
     '</div>';
+  }
+  // Discrepancy SMS buttons row
+  var discBtns = '';
+  if (_missingItems.length > 0) {
+    discBtns += '<button type="button" id="_smsMissing" style="background:#fef2f2;color:#7f1d1d;border:1px solid #fca5a5;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:700;font-size:12px;margin-left:8px">📲 SMS לחוסרים (' + _missingItems.length + ')</button>';
+  }
+  if (_priceMismatches.length > 0) {
+    discBtns += '<button type="button" id="_smsPriceDiff" style="background:#fffbeb;color:#854d0e;border:1px solid #fde68a;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:700;font-size:12px">💲 SMS פערי מחיר (' + _priceMismatches.length + ')</button>';
+  }
+  if (discBtns) {
+    totalsHtml += '<div style="margin-bottom:12px;text-align:left">' + discBtns + '</div>';
   }
 
   // Initialize CMP_CTX.line_edits — store per-line editable values keyed by index
@@ -8951,6 +8983,66 @@ function renderCompareDiff(){
   if (cb) cb.style.display = 'block';
 }
 
+
+function openDiscrepancySms(mode){
+  if (!CMP_CTX || !CMP_CTX._lastRows) return;
+  var supplierName = SUPPLIERS.find(function(s){ return s.code === CMP_CTX.supplier_code; });
+  var supName = (supplierName && supplierName.name) || CMP_CTX.supplier_code;
+  var rows = CMP_CTX._lastRows;
+
+  var body = '';
+  if (mode === 'missing') {
+    var missing = rows.filter(function(r){ return r.status === 'missing' && r.exp; });
+    body = 'Hi! We received the invoice but the following items from our order are missing from the shipment:\n\n';
+    missing.forEach(function(r){
+      body += '• ' + (r.exp.name || r.exp.sku) + ' (SKU: ' + (r.exp.sku || '?') + ') — ordered ' + (r.exp.qty || 0) + '\n';
+    });
+    body += '\nCan you please confirm shipping date for these items, or refund?\n\nThanks!';
+  } else if (mode === 'price') {
+    var priceDiffs = rows.filter(function(r){
+      if (!r.inv || !r.exp) return false;
+      var invP = Number(r.inv.price || 0);
+      var expP = Number(r.exp.cost_unit || 0);
+      return invP > 0 && expP > 0 && Math.abs(invP - expP) >= 0.01;
+    });
+    body = 'Hi! The invoice shows different prices than agreed for the following items:\n\n';
+    priceDiffs.forEach(function(r){
+      var invP = Number(r.inv.price || 0).toFixed(2);
+      var expP = Number(r.exp.cost_unit || 0).toFixed(2);
+      body += '• ' + (r.inv.name || r.exp.name || r.inv.sku) + ' (SKU: ' + (r.inv.sku || r.exp.sku || '?') + ') — agreed $' + expP + ', invoice $' + invP + '\n';
+    });
+    body += '\nCan you please review and adjust?\n\nThanks!';
+  }
+
+  // Render SMS modal
+  var bg = document.createElement('div');
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;z-index:10002;padding:30px';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;border-radius:14px;max-width:600px;width:100%;padding:24px;direction:rtl;max-height:80vh;display:flex;flex-direction:column';
+  card.innerHTML =
+    '<h2 style="margin:0 0 8px;font-size:16px;color:#0f172a">📲 SMS לספק: ' + escHtml(supName) + '</h2>' +
+    '<div style="color:var(--muted);font-size:12px;margin-bottom:12px">' + (mode === 'missing' ? '🔴 פניה לגבי פריטים חסרים' : '💲 פניה לגבי פערי מחיר') + '</div>' +
+    '<textarea id="_discSmsBody" style="width:100%;min-height:280px;padding:12px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;direction:ltr;text-align:left;line-height:1.5">' + escHtml(body) + '</textarea>' +
+    '<div style="margin-top:14px;display:flex;gap:10px;justify-content:flex-end">' +
+      '<button type="button" id="_discCancel" style="padding:10px 18px;background:#f1f5f9;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600">סגור</button>' +
+      '<button type="button" id="_discCopy" style="padding:10px 18px;background:linear-gradient(180deg,#0ea5e9,#0369a1);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">📋 העתיקי לקליפבורד</button>' +
+    '</div>';
+  bg.appendChild(card);
+  document.body.appendChild(bg);
+  bg.addEventListener('click', function(e){
+    if (e.target === bg || e.target.id === '_discCancel') { bg.remove(); return; }
+    if (e.target.id === '_discCopy') {
+      var ta = card.querySelector('#_discSmsBody');
+      ta.select();
+      try {
+        navigator.clipboard.writeText(ta.value).then(function(){ toast('הועתק! אפשר להדביק ב-WhatsApp', 'success'); });
+      } catch(_){
+        document.execCommand('copy');
+        toast('הועתק', 'success');
+      }
+    }
+  });
+}
 
 function autoSplitDisplaySet(ri){
   if (!CMP_CTX || !CMP_CTX._lastRows) return;
