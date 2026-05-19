@@ -5464,16 +5464,25 @@ function parseInvoiceRows(rowStrings){
           var tot = nums[k].val;
           var expected = qty * price;
           if (Math.abs(expected - tot) < Math.max(0.05, expected * 0.01)){
-            candidates.push({qty: Math.round(qty), price: price, total: tot});
+            candidates.push({qty: Math.round(qty), price: price, total: tot, qty_raw: nums[i].raw, price_raw: nums[j].raw, total_raw: nums[k].raw});
           }
         }
       }
     }
     if (!candidates.length) return;
-    // Pick the candidate with the largest total. Ties broken by largest price
-    // (avoids picking qty=N, price=1, total=N which is common false positive).
+    // Pick the candidate with the largest total. Tiebreakers:
+    //   1. Prefer candidate whose PRICE has decimal places (e.g., '4.00' > '12')
+    //      — Lauren's Xime case: parser saw {12, 4.00, 48.00}. Both (qty=12,
+    //      price=4) and (qty=4, price=12) match. Price '4.00' had decimal in raw;
+    //      'qty=4' was just '4' or '12' without. Picking decimal-bearing price
+    //      yields qty=12, price=4 — correct.
+    //   2. Then largest price (legacy fallback).
+    function _hasDecimal(raw){ return String(raw||'').indexOf('.') !== -1; }
     candidates.sort(function(a, b){
       if (b.total !== a.total) return b.total - a.total;
+      var aPriceDec = _hasDecimal(a.price_raw);
+      var bPriceDec = _hasDecimal(b.price_raw);
+      if (aPriceDec !== bPriceDec) return bPriceDec - aPriceDec;  // decimal price wins
       return b.price - a.price;
     });
     var found = candidates[0];
