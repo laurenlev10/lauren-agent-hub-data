@@ -79,22 +79,26 @@ jobs:
             git push origin main
           fi
 
-      # SMS Lauren on success — confirms the public QR landing page rotated to the new event.
+      # SMS Lauren + Eli on success — confirms the public QR landing page rotated to the new event.
       # Lauren 2026-05-11: 'כל יום שני תעדכן אותי בSMS'.
       # Lauren 2026-05-20: 'תשלח לי הודעת טקסט ברגע שהדף התעדכן אוטומטית? להודיע לי שהדף התעדכן בהצלחה?
-      # כולל לינק לדף?' — body now leads with QR LP confirmation + direct link to the page she actually
+      # כולל לינק לדף?' — body leads with QR LP confirmation + direct link to the page she actually
       # wants to verify (themakeupblowoutsale-group.com/subscribe-list/), not the events directory.
-      - name: SMS Lauren — QR LP refreshed
+      # Lauren 2026-05-20 #2: 'תוכל כל שבוע לשלוח את אותה הודעה גם לאלי?' — added ELI_PHONE as a
+      # co-recipient (per IRON RULE #4.C: weekly-digest-style content goes to Lauren + Eli, with
+      # fail-soft per recipient so one bad number can't block the other).
+      - name: SMS Lauren + Eli — QR LP refreshed
         if: success()
         env:
           SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
           LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          ELI_PHONE:           ${{ secrets.ELI_PHONE }}
         run: |
           python3 - <<'PY'
-          import json, sys
+          import json, os, sys
           from pathlib import Path
           sys.path.insert(0, "scripts")
-          from lauren_sms import send_sms, LAUREN_PHONE
+          from lauren_sms import send_sms
 
           tgt = json.loads(Path("docs/state/subscribe_target.json").read_text())
           upc_path = Path("docs/state/upcoming_events.json")
@@ -129,7 +133,21 @@ jobs:
 
           print("--- SMS body ---")
           print(body)
-          send_sms(LAUREN_PHONE, body)
+
+          # Multi-recipient (IRON RULE #4.C — weekly digest content goes to Lauren + Eli).
+          # Fail-soft per recipient: one missing/bad number must not block the other.
+          recipients = []
+          for env_key, label in [("LAUREN_PHONE", "Lauren"), ("ELI_PHONE", "Eli")]:
+              v = (os.environ.get(env_key) or "").strip()
+              if v: recipients.append((label, v))
+          if not recipients:
+              raise SystemExit("⚠ no recipients configured (both LAUREN_PHONE and ELI_PHONE are missing)")
+          for label, phone in recipients:
+              try:
+                  send_sms(phone, body)
+                  print(f"  ✓ sent to {label} ({phone})")
+              except Exception as e:
+                  print(f"  ✗ SMS to {label} ({phone}) failed: {e}")
           print("sent.")
           PY
 
