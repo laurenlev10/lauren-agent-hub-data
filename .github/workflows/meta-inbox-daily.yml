@@ -59,8 +59,17 @@ jobs:
         run: |
           ARGS=""
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            echo "Daily cron — LIVE Phase 2 auto-reply + SMS"
-            ARGS="--send-sms --reply-bucket-a"
+            # 2026-05-20 PM #4 — Lauren's directive: SMS once a day, not every 3h.
+            # Auto-reply runs every 3h (kept fast for Meta 24h window), but the
+            # SMS digest only fires on the 03:00 UTC run (= 8 PM PDT / 7 PM PST).
+            UTC_HOUR=$(date -u +%H)
+            if [ "$UTC_HOUR" = "03" ]; then
+              echo "Cron @ 03:00 UTC — LIVE auto-reply + SMS digest"
+              ARGS="--send-sms --reply-bucket-a"
+            else
+              echo "Cron @ $UTC_HOUR:00 UTC — LIVE auto-reply only (no SMS)"
+              ARGS="--reply-bucket-a"
+            fi
           else
             if [ "${{ inputs.force_send_replies }}" = "true" ]; then
               ARGS="$ARGS --reply-bucket-a"
@@ -92,6 +101,35 @@ jobs:
             echo "✓ pushed updates"
           else
             echo "no changes to commit"
+          fi
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PYIRON4'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "meta-inbox-check":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          PYIRON4
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump meta-inbox-check lastRunAt"
+            git pull --rebase origin main || true
+            git push origin main
           fi
 
       # IRON RULE (Lauren 2026-05-10): SMS Lauren if this workflow fails.
