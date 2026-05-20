@@ -1158,7 +1158,14 @@ footer{margin-top:40px;color:#666;font-size:12px;text-align:center}
 
 /* Inline reply layout (added 2026-05-08) */
 .attention-row{flex-direction:column;align-items:stretch}
-.attention-row .att-meta{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.attention-row .att-meta{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.attention-row .att-time{
+  font-size:11px;color:#a8a29e;font-weight:500;direction:ltr;
+  background:rgba(0,0,0,0.35);padding:3px 8px;border-radius:10px;
+  white-space:nowrap;flex:0 0 auto
+}
+.attention-row .att-time.fresh{color:#fde68a;background:rgba(251,191,36,0.18)}
+.attention-row .att-time.old{color:#f87171;background:rgba(248,113,113,0.15)}
 .attention-row .att-message{
   background:rgba(0,0,0,0.45);padding:10px 12px;border-radius:6px;
   color:#fde68a;font-size:14px;line-height:1.5;
@@ -1267,6 +1274,55 @@ def _format_la_time(iso_str: str) -> str:
     except Exception:
         return iso_str  # fallback to raw
 
+def _format_received(iso_str: str) -> tuple:
+    """Format a received-timestamp for the per-item display.
+
+    Returns (display_text, freshness_class) where freshness_class is one of
+    "fresh" (< 24h), "" (1-3 days), or "old" (> 3 days).
+
+    display_text is e.g. "May 16 · לפני 4 ימים" — short, LTR-friendly,
+    with a Hebrew relative-time tail.
+
+    Used by render_preview() to surface WHEN each Bucket-B item arrived,
+    so Lauren can prioritize the freshest threads (where the customer is
+    likely still waiting on the same screen).
+    """
+    import datetime as _dt
+    if not iso_str:
+        return ("", "")
+    try:
+        s = iso_str.rstrip("Z").split(".")[0].split("+")[0]
+        utc_dt = _dt.datetime.fromisoformat(s).replace(tzinfo=_dt.timezone.utc)
+        try:
+            from zoneinfo import ZoneInfo
+            la_dt = utc_dt.astimezone(ZoneInfo("America/Los_Angeles"))
+        except Exception:
+            la_dt = utc_dt.astimezone(_dt.timezone(_dt.timedelta(hours=-7)))
+        now = _dt.datetime.now(_dt.timezone.utc)
+        delta = now - utc_dt
+        secs = int(delta.total_seconds())
+        if secs < 0:
+            secs = 0
+        # Hebrew relative phrase
+        if   secs < 60:        rel = "ממש עכשיו"
+        elif secs < 3600:      rel = f"לפני {secs//60} דק'"
+        elif secs < 86400:
+            h = secs // 3600
+            rel = "לפני שעה" if h == 1 else f"לפני {h} שעות"
+        else:
+            d = secs // 86400
+            rel = "לפני יום" if d == 1 else f"לפני {d} ימים"
+        absolute = la_dt.strftime("%b %-d · %-I:%M %p")
+        if secs < 86400:
+            cls = "fresh"
+        elif secs < 3 * 86400:
+            cls = ""
+        else:
+            cls = "old"
+        return (f"{absolute} · {rel}", cls)
+    except Exception:
+        return (iso_str[:16], "")
+
 def _make_draft_reply(name: str, customer_text: str, channel: str) -> str:
     """Generate a friendly placeholder draft for Lauren to edit before sending."""
     display_name = (name or "").lstrip("@")
@@ -1323,6 +1379,7 @@ def render_preview(snapshot: dict, classified_messenger: list,
                 "dedup_key": m.get("dedup_key", ""),
                 "reply_kind": "messenger",
                 "target_id": m.get("customer_psid", ""),  # PSID for Send API
+                "received": m.get("updated_time", ""),
                 "draft":    m["cls"].get("reply") or _make_draft_reply(who, m.get("msg", ""), "messenger"),
             })
     for c in classified_fb_comments:
@@ -1339,6 +1396,7 @@ def render_preview(snapshot: dict, classified_messenger: list,
                 "dedup_key": c.get("dedup_key", ""),
                 "reply_kind": "fb_comment",
                 "target_id": c.get("comment_id") or c.get("id", ""),
+                "received": c.get("created_time", ""),
                 "draft":    c["cls"].get("reply") or _make_draft_reply(who_from, c.get("text", ""), "fb_comment"),
             })
     for c in classified_ig_comments:
@@ -1355,6 +1413,7 @@ def render_preview(snapshot: dict, classified_messenger: list,
                 "dedup_key": c.get("dedup_key", ""),
                 "reply_kind": "ig_comment",
                 "target_id": c.get("id", ""),
+                "received": c.get("timestamp", ""),
                 "draft":    c["cls"].get("reply") or _make_draft_reply(who_ig, c.get("text", ""), "ig_comment"),
             })
 
@@ -1378,7 +1437,10 @@ def render_preview(snapshot: dict, classified_messenger: list,
             kind = html.escape(item.get("reply_kind", ""))
             draft = html.escape(item.get("draft") or "")
             parts.append(f'<div class="attention-row" data-dedup-key="{dkey}" data-target-id="{tid}" data-reply-kind="{kind}">')
-            parts.append(f'<div class="att-meta"><span class="who">[{item["channel"]}] {html.escape(item["who"])}</span></div>')
+            recv_text, recv_cls = _format_received(item.get("received", ""))
+            time_html = (f'<span class="att-time {recv_cls}" data-iso="{html.escape(item.get("received","") or "")}">🕒 {html.escape(recv_text)}</span>'
+                         if recv_text else '')
+            parts.append(f'<div class="att-meta"><span class="who">[{item["channel"]}] {html.escape(item["who"])}</span>{time_html}</div>')
             # Full message text (no truncation — let CSS handle wrap)
             parts.append(f'<div class="att-message">💬 {html.escape(item["what"])}</div>')
             # Inline reply textarea + Send button
@@ -1650,6 +1712,7 @@ def main():
                 "post_msg": post_msg,
                 "from": cmt.get("from", {}).get("name", "?"),
                 "text": txt,
+                "created_time": cmt.get("created_time", ""),
                 "reply_url": post_permalink or f"https://www.facebook.com/{cmt.get('id','')}",
                 "cls": cls,
                 "sentiment": classify_sentiment(txt),
@@ -1678,6 +1741,7 @@ def main():
                 "media_caption": media_caption,
                 "username": cmt.get("username", "?"),
                 "text": txt,
+                "timestamp": cmt.get("timestamp", ""),
                 "reply_url": media_permalink,
                 "cls": cls,
                 "sentiment": classify_sentiment(txt),
