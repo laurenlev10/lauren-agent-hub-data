@@ -1,0 +1,93 @@
+# Daily Reel-shares digest — once-a-day SMS to Lauren + Eli summarizing
+# organic IG-Reel shares across the next upcoming events.
+#
+# Lauren's directive (2026-05-20 PM): "אני רוצה בימים שני שלישי רביעי וחמישי
+# פעם ביום בדיקה של SHARES ל4 האירועים הקרובים". Mon-Thu only because the
+# pre_event / event_live scanner (insta-reel-share-scan.yml) covers Tue-Sun
+# with per-event detail — this digest gives a quick cross-event overview.
+#
+# Companion to insta-reel-share-scan: that one is high-resolution (12/14/17
+# event-local on Fri-Sun + 12:00 local Tue-Thu); this one is daily breadth.
+
+name: daily-reel-shares-digest
+
+on:
+  schedule:
+    # Mon (1) Tue (2) Wed (3) Thu (4) at 16:00 UTC = 09:00 PDT / 08:00 PST.
+    - cron: '0 16 * * 1-4'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # to append digest scan records to notes.json
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Send daily Reel-shares digest SMS
+        env:
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_PAGE_TOKEN:        ${{ secrets.META_PAGE_TOKEN }}
+          META_IG_BUSINESS_ID:    ${{ secrets.META_IG_BUSINESS_ID }}
+          SIMPLETEXTING_TOKEN:    ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:           ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          ELI_PHONE:              ${{ secrets.ELI_PHONE }}
+        run: |
+          python3 scripts/daily_reel_shares_digest.py
+
+      - name: Commit + push notes.json if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name  "Lauren (via Actions)"
+          if ! git diff --quiet docs/launch/notes.json 2>/dev/null; then
+            git add docs/launch/notes.json
+            git commit -m "daily-reel-shares-digest: append digest scans $(date -u +%Y-%m-%dT%H:%MZ)"
+            git pull --rebase origin main || true
+            git push origin main
+          else
+            echo "No new digest records this run."
+          fi
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "daily-reel-shares-digest":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          print(f"updated lastRunAt = {now}")
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name  "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump daily-reel-shares-digest lastRunAt"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
+
+      # IRON RULE #3 (Lauren 2026-05-10): SMS Lauren if this workflow fails.
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
