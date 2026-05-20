@@ -346,6 +346,7 @@
   .btn-summary-row{background:linear-gradient(180deg,#0891b2,#155e75)}
   .btn-metaads-row{background:linear-gradient(180deg,#1f2937,#0f172a)} /* black per Lauren's spec — flips green via .done */
   .btn-inventory-row{background:linear-gradient(180deg,#d97706,#92400e)} /* brown-gold per Lauren's spec — flips green via .done */
+  .btn-qrlp-row{background:linear-gradient(180deg,#1f2937,#0f172a)} /* QR LP — black, flips green via .done when the public QR landing page (themakeupblowoutsale-group.com) currently points to this event. Lauren 2026-05-20. */
   .btn-recount-row{background:linear-gradient(180deg,#7c3aed,#5b21b6)} /* purple per recount landing accent — flips green via .done */
   /* 'needs-summary' — past event without a published summary yet (call-to-action,
      Lauren 2026-05-05: 'הפעילות הכי חשובה לעשות כשאירוע נגמר'). Pulsing
@@ -626,6 +627,11 @@ const STAFF_DEFAULTS = {"glendale-2026-01-09":{"team":"Mor Daniel Shai Dor Goni 
 // Key: same `${city-slug}-${start_date}` shape as the result maps above.
 // Value: any subset of the keys in MANUAL_TASK_DEFS below + updated_at + (optionally) team_override / image_override_url.
 let MANUAL_TASKS = {};   // mutable — populated from notes.json on load, written back on every checkbox toggle
+
+// Owner: update-subscribe-target.yml (weekly Monday 08:00 PT) — picks current/next event and writes docs/state/subscribe_target.json.
+// Read by the 🔳 QR LP button on each row: green if SUBSCRIBE_TARGET.event_key === evKey (i.e. the QR landing page is currently pointing here), black otherwise.
+// Populated by an async fetch in the init block at the bottom of this script. Lauren 2026-05-20.
+let SUBSCRIBE_TARGET = null;
 const MANUAL_TASK_DEFS = [
   // Redesigned 2026-05-03 PM (2 tasks: sms_scheduled + reel_v2_campaign).
   // 🔴 RETIRED 2026-05-08 PM (Lauren request: "תוריד את שתי המשימות האלו לגמרי. גם אין צורך בהם באירועים עתידיים").
@@ -1833,6 +1839,20 @@ End date: </div>
               address: ev.address || ""
             }).toString();
             rowBtn += '<a class="btn-agent-row btn-landing-row" href="../landing/?' + landingParams + '" target="_blank" rel="noopener" title="Open Landing Page Builder pre-filled with this event">🪧 Landing</a>';
+          }
+
+          // 🔳 QR LP — flips green when the public QR landing page (themakeupblowoutsale-group.com/subscribe-list/)
+          // is currently routing signups to THIS event. Owner: update-subscribe-target.yml (weekly Monday 08:00 PT).
+          // Lauren 2026-05-20: "כפתור QR LP שחור, וברגע שהדף הזה מתעדכן אוטומטית לאירוע הבא אז הוא הופך להיות ירוק".
+          const QR_LP_URL = "https://www.themakeupblowoutsale-group.com/subscribe-list/";
+          if (SUBSCRIBE_TARGET && SUBSCRIBE_TARGET.event_key === evKey) {
+            const qrUpd = (SUBSCRIBE_TARGET._updated_at || "").slice(0,10) || "?";
+            const qrTip = "QR LP פעיל לאירוע הזה · רענון אחרון " + qrUpd + " · לחצי לפתיחת הדף לבדיקה";
+            rowBtn += '<a class="btn-agent-row btn-qrlp-row done" href="' + QR_LP_URL + '" target="_blank" rel="noopener" title="' + escapeHtml(qrTip) + '">🔳 QR LP ✓</a>';
+          } else {
+            const tgtLabel = SUBSCRIBE_TARGET ? ((SUBSCRIBE_TARGET.city||"?") + " " + (SUBSCRIBE_TARGET.start_date||"")) : "ממתינה לרענון";
+            const qrTip = "QR LP מצביע כרגע על " + tgtLabel + " · יתעדכן אוטומטית ביום שני הבא";
+            rowBtn += '<a class="btn-agent-row btn-qrlp-row" href="' + QR_LP_URL + '" target="_blank" rel="noopener" title="' + escapeHtml(qrTip) + '">🔳 QR LP</a>';
           }
 
           // 🔮 / 📈 Forecast — flips when forecast result exists
@@ -3251,6 +3271,13 @@ End date: </div>
     MANUAL_TASKS = remote || {};
     renderSchedule();
   });
+
+  // Load subscribe_target.json (which event is currently active on the public QR landing page) and re-render
+  // so the 🔳 QR LP button flips green on the matching row. Updated weekly by update-subscribe-target.yml.
+  fetch("../state/subscribe_target.json?_=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => { SUBSCRIBE_TARGET = data; renderSchedule(); })
+    .catch(() => { /* fail-silent — button stays black */ });
 
   // Refresh the event-local-time chips every 60s so they stay accurate without re-rendering rows (Lauren 2026-05-10 PM)
   setInterval(() => {
