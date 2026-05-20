@@ -168,14 +168,14 @@ def fetch_media_insights(media_id: str, metrics: _Optional[list] = None,
     Fetch Instagram Graph API insights for a single media item (reel or post).
     Returns a flat dict of metric_name → integer value.
 
-    Default metrics for Reels: shares, plays, reach, likes, comments, saved.
+    Default metrics for Reels: shares, views, reach, likes, comments, saved (2026-05-20 — 'plays' deprecated in v22+).
     Note: not every metric is supported on every media_product_type. We
     request them individually and skip any that the API rejects (HTTP 400)
     so a single unsupported metric doesn't blank the whole result.
     """
     tok = token or get_insights_token()
     if metrics is None:
-        metrics = ["shares", "plays", "reach", "likes", "comments", "saved"]
+        metrics = ["shares", "views", "reach", "likes", "comments", "saved"]  # 2026-05-20 — 'plays' removed in v22+, replaced by 'views'
     out = {}
     # Try a single combined call first — usually works.
     try:

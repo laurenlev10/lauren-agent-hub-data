@@ -1,12 +1,16 @@
 """
 insta_reel_scan — IG Reel share-count scan for active event weekends.
 
-Triggered hourly on Fri/Sat/Sun by .github/workflows/insta-reel-share-scan.yml.
-For each event whose Friday-Sunday window contains today, computes the
-current event-local hour. If that hour ∈ {12, 14, 17}, fetches Instagram
-Graph insights for the configured Reel (manual override or auto-pinned)
-and appends a scan record to MANUAL_TASKS[evkey].insta_reel_scans in
-docs/launch/notes.json.
+Triggered hourly on Tue–Sun by .github/workflows/insta-reel-share-scan.yml.
+Two scan phases (2026-05-20):
+  • pre_event  — Tue/Wed/Thu in the 3 days leading up to an event.
+                 One scan per day at event-local 12:00 (organic baseline).
+  • event_live — Fri/Sat/Sun in the event's start–end window.
+                 Three scans per day at event-local 12/14/17.
+For each active event, computes the current event-local hour. If that hour
+is in the phase's slot set, fetches Instagram Graph insights for the
+configured Reel (manual override or auto-pinned) and appends a scan record
+to MANUAL_TASKS[evkey].insta_reel_scans in docs/launch/notes.json.
 
 Designed to fail soft — never crashes the workflow; missing tokens, no
 active events, or a single API failure all just produce a no-op log line.
@@ -54,7 +58,13 @@ STATE_TZ = {
 }
 
 # Hours (event-local) at which we scan.
-SCAN_HOURS = {12, 14, 17}
+# event_live days (Fri/Sat/Sun in event window) scan at 12/14/17 local.
+# pre_event days (Tue/Wed/Thu in the 3 days leading up to a Fri-Sun event)
+# scan once per day at 12 local — daily baseline so we capture the organic
+# share momentum BEFORE the event weekend (2026-05-20 — Lauren's directive).
+SCAN_HOURS_EVENT = {12, 14, 17}
+SCAN_HOURS_PRE   = {12}
+SCAN_HOURS = SCAN_HOURS_EVENT  # legacy alias
 
 
 def _slug(city: str, start_date: str) -> str:
@@ -159,8 +169,15 @@ def main() -> int:
     except ImportError:
         _ZI = None
 
+    # 2026-05-20 — TWO phases:
+    #   pre_event  → today is 1-3 calendar days BEFORE the event's start_date
+    #                (Tue/Wed/Thu before a Fri-Sun event). One scan per day at
+    #                event-local 12:00 — daily organic baseline.
+    #   event_live → today is in the event's [start_date, end_date] window
+    #                (Fri/Sat/Sun). Three scans per day at event-local 12/14/17.
+    PRE_EVENT_DAYS = 3
     events = _load_schedule()
-    active = []
+    active = []  # list of (ev, phase) tuples
     for ev in events:
         st = (ev.get("state") or "").upper()
         tz_name = STATE_TZ.get(st, "America/Los_Angeles")
@@ -171,15 +188,17 @@ def main() -> int:
                 local_today = _dt.date.today()
         else:
             local_today = _dt.date.today()
-        if local_today.weekday() not in (4, 5, 6):
-            continue
         try:
             sd = _dt.date.fromisoformat(ev["start_date"])
             ed = _dt.date.fromisoformat(ev["end_date"])
         except Exception:
             continue
         if sd <= local_today <= ed:
-            active.append(ev)
+            active.append((ev, "event_live"))
+        else:
+            days_until = (sd - local_today).days
+            if 1 <= days_until <= PRE_EVENT_DAYS:
+                active.append((ev, "pre_event"))
     # For the rest of the function, use UTC `today` as a logging label
     today = _dt.date.today()
     if not active:
@@ -190,8 +209,6 @@ def main() -> int:
     now_utc = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds")
     any_change = False
 
-    SCAN_SLOTS = sorted(SCAN_HOURS)   # [12, 14, 17]
-
     def _delta(cur_val, prev_val):
         if cur_val is None or prev_val is None:
             return ""
@@ -200,11 +217,15 @@ def main() -> int:
             return " (±0)"
         return f" ({'+' if d > 0 else ''}{d})"
 
-    for ev in active:
+    for ev, phase in active:
         city = ev.get("city", "?")
         state = ev.get("state", "")
         evkey = _slug(city, ev.get("start_date", ""))
         local_hour = _event_local_hour(state)
+
+        # Slot set depends on phase. Pre-event = one baseline at 12:00 local;
+        # event-live = three scans at 12/14/17 local (existing cadence).
+        SCAN_SLOTS = sorted(SCAN_HOURS_EVENT if phase == "event_live" else SCAN_HOURS_PRE)
 
         # Slot-based catch-up (Lauren 2026-05-10 PM bugfix).
         # GitHub Actions cron can lag 30-90 min; a strict `if local_hour not in
@@ -253,10 +274,11 @@ def main() -> int:
                 "scanned_at": now_utc,
                 "event_local_hour": slot,
                 "actual_local_hour": local_hour,
+                "phase":    phase,
                 "url_at_scan": reel_url,
                 "media_id": media_id,
                 "shares":   insights.get("shares"),
-                "plays":    insights.get("plays"),
+                "views":    insights.get("views"),   # 2026-05-20 — 'plays' deprecated in v22+
                 "reach":    insights.get("reach"),
                 "likes":    insights.get("likes"),
                 "comments": insights.get("comments"),
@@ -267,25 +289,27 @@ def main() -> int:
             notes[evkey]["insta_reel_scans"] = existing
             notes[evkey]["updated_at"] = now_utc
             any_change = True
-            print(f"[scan] {evkey}: appended slot {slot:02d}:00 (actual local {local_hour:02d}:00, catchup={scan_rec['catchup']}) → shares={scan_rec['shares']} plays={scan_rec['plays']} reach={scan_rec['reach']}")
+            print(f"[scan] {evkey}: appended slot {slot:02d}:00 phase={phase} (actual local {local_hour:02d}:00, catchup={scan_rec['catchup']}) → shares={scan_rec['shares']} views={scan_rec['views']} reach={scan_rec['reach']}")
 
             # SMS summary to Lauren + Eli — Hebrew, ends with the reel URL.
             try:
                 prev = existing[-2] if len(existing) >= 2 else None
-                sh, pl, re_, lk = scan_rec.get('shares'), scan_rec.get('plays'), scan_rec.get('reach'), scan_rec.get('likes')
+                sh, vw, re_, lk = scan_rec.get('shares'), scan_rec.get('views'), scan_rec.get('reach'), scan_rec.get('likes')
                 psh = prev.get('shares') if prev else None
-                ppl = prev.get('plays')  if prev else None
+                # Back-compat: legacy scans stored the metric under 'plays' (pre-v22).
+                pvw = (prev.get('views') if prev else None) or (prev.get('plays') if prev else None)
                 pre = prev.get('reach')  if prev else None
                 plk = prev.get('likes')  if prev else None
                 scan_num = len(existing)
                 ev_label = f"{city}, {state}"
                 catchup_note = "  ⚠ catch-up (cron איחור)" if scan_rec['catchup'] else ""
+                phase_label = "סריקה לפני-אירוע" if phase == "pre_event" else "סריקה בזמן אירוע"
                 sms_body = (
-                    f"📸 INSTA REEL · סריקה {scan_num}\n"
+                    f"📸 INSTA REEL · {phase_label} #{scan_num}\n"
                     f"{ev_label} · {ev.get('start_date','')} · סלוט {slot:02d}:00 מקומי{catchup_note}\n"
                     f"\n"
                     f"Shares: {sh if sh is not None else '—'}{_delta(sh, psh)}\n"
-                    f"Plays:  {pl if pl is not None else '—'}{_delta(pl, ppl)}\n"
+                    f"Views:  {vw if vw is not None else '—'}{_delta(vw, pvw)}\n"
                     f"Reach:  {re_ if re_ is not None else '—'}{_delta(re_, pre)}\n"
                     f"Likes:  {lk if lk is not None else '—'}{_delta(lk, plk)}\n"
                     f"\n"

@@ -2993,7 +2993,10 @@ End date: </div>
         return { txt: (d > 0 ? "▲ +" : "▼ ") + d, cls: d > 0 ? "pos" : "neg", n: d };
       }
       const dShares = delta(last, prev, "shares");
-      const dPlays  = delta(last, prev, "plays");
+      // 2026-05-20 — new scans store 'views' (v22+ API); legacy scans store 'plays'.
+      // Pick whichever the record has, label as "Views".
+      const viewsKey = (last.views != null) ? "views" : "plays";
+      const dPlays  = delta(last, prev, viewsKey);
       const dReach  = delta(last, prev, "reach");
       const dLikes  = delta(last, prev, "likes");
 
@@ -3106,7 +3109,7 @@ End date: </div>
       // Mini stats row (Plays / Reach / Likes)
       const miniHtml =
         '<div class="reel-stats-mini">' +
-          '<div class="reel-stat-mini"><div class="label">Plays</div><div class="value">' + (last.plays != null ? last.plays.toLocaleString() : "—") + '</div><div class="delta ' + dPlays.cls + '">' + dPlays.txt + '</div></div>' +
+          '<div class="reel-stat-mini"><div class="label">Views</div><div class="value">' + ((last.views ?? last.plays) != null ? (last.views ?? last.plays).toLocaleString() : "—") + '</div><div class="delta ' + dPlays.cls + '">' + dPlays.txt + '</div></div>' +
           '<div class="reel-stat-mini"><div class="label">Reach</div><div class="value">' + (last.reach != null ? last.reach.toLocaleString() : "—") + '</div><div class="delta ' + dReach.cls + '">' + dReach.txt + '</div></div>' +
           '<div class="reel-stat-mini"><div class="label">Likes</div><div class="value">' + (last.likes != null ? last.likes.toLocaleString() : "—") + '</div><div class="delta ' + dLikes.cls + '">' + dLikes.txt + '</div></div>' +
         '</div>';
@@ -3118,7 +3121,7 @@ End date: </div>
              '<div class="reel-day-grid">' + daysHtml + '</div>' +
              '<div class="reel-section-title">היסטוריית סריקות מלאה</div>' +
              '<div class="reel-history"><table>' +
-               '<thead><tr><th>סריקה</th><th>Slot</th><th>Shares</th><th>Plays</th><th>Reach</th><th>Likes</th></tr></thead>' +
+               '<thead><tr><th>סריקה</th><th>Slot</th><th>Shares</th><th>Views</th><th>Reach</th><th>Likes</th></tr></thead>' +
                '<tbody>' +
                  scans.map(s => {
                    const t = fmtLA(s.scanned_at || "");
@@ -3129,7 +3132,7 @@ End date: </div>
                             '<td class="scan-time">' + t + '</td>' +
                             '<td>' + catchup + slot + '</td>' +
                             '<td><b>' + (s.shares != null ? s.shares : "—") + '</b></td>' +
-                            '<td>' + (s.plays != null ? s.plays : "—") + '</td>' +
+                            '<td>' + ((s.views ?? s.plays) != null ? (s.views ?? s.plays) : "—") + '</td>' +
                             '<td>' + (s.reach != null ? s.reach : "—") + '</td>' +
                             '<td>' + (s.likes != null ? s.likes : "—") + '</td>' +
                           '</tr>';
