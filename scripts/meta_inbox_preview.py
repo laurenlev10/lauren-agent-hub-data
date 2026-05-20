@@ -280,6 +280,32 @@ def summarize_event_from_caption(caption: str):
     }
 
 
+def _enrich_event_info(info: dict, venues: list) -> dict:
+    """If `info` from summarize_event_from_caption has city/state but lacks
+    dates/address/venue (common when post caption is short), look up the
+    canonical schedule entry by city match and fill in the missing fields.
+
+    Returns the enriched dict (mutated). 2026-05-20 PM #2.
+    """
+    if not info or not info.get("city") or not venues:
+        return info
+    city_l = info["city"].strip().lower()
+    state_l = (info.get("state") or "").strip().upper()
+    for v in venues:
+        v_city_full = (v.get("city") or "").strip()
+        # "Overland Park, KS" → "overland park", "KS"
+        v_city = v_city_full.split(",")[0].strip().lower()
+        v_state = v_city_full.split(",")[1].strip().upper() if "," in v_city_full else ""
+        if v_city == city_l or city_l in v_city or v_city in city_l:
+            if state_l and v_state and state_l != v_state:
+                continue  # state mismatch (e.g., Roseville MN vs Roseville CA)
+            if not info.get("dates"):   info["dates"]   = v.get("dates")
+            if not info.get("address"): info["address"] = v.get("address")
+            if not info.get("venue"):   info["venue"]   = v.get("venue")
+            break
+    return info
+
+
 def event_status(dates_str: str, today: dt.date = None) -> str:
     """Returns 'live' / 'upcoming-soon' / 'upcoming' / 'past' / 'unknown'."""
     today = today or dt.date.today()
@@ -449,9 +475,24 @@ RELAXED_PLACE_PAT = re.compile(
     r"\b(?:come|back|return|visit|miss|love)\b[^A-Za-z]*?"
     r"\b(?:to|in|at|out\s+in)\s+"
     r"([A-Z][\w][\w\s.\-,/]{1,40}?)"
-    r"(?:[\?\.\!]|\b(?:soon|please|again|next|this|that|love|need|want|hope|thanks?)\b|$)",
+    # 2026-05-20 — added [^\w\s.\-,/] so emoji/symbol terminates (was failing on "Victorville🥲")
+    r"(?:[\?\.\!,]|\b(?:soon|please|again|next|this|that|love|need|want|hope|thanks?)\b|[^\w\s.\-,/]|$)",
     re.IGNORECASE,
 )
+
+# 2026-05-20 PM #2 — "Interested in this event" / "I'll be there" / "can't wait"
+# When this matches on a post with event context, draft an event-specific reply
+# with venue + dates + cute closing (per Lauren's directive — see memory.md).
+INTERESTED_PAT = re.compile(
+    r"\b(?:interested\s+(?:in|on)|i'?m\s+(?:interested|in|coming|going|there)|"
+    r"can'?t\s+wait|i'?ll\s+(?:be\s+there|come|attend|see\s+you)|"
+    r"i\s+(?:want|need|wanna)\s+(?:to\s+)?(?:come|go|attend|be\s+there)|"
+    r"sign\s+me\s+up|count\s+me\s+in|see\s+you\s+there|i'?m\s+going|"
+    r"this\s+is\s+(?:so\s+)?(?:cool|cute|exciting|amazing)|"
+    r"omg\s+(?:yes|yas+|i\s+need)|need\s+this|love\s+this\s+event)\b",
+    re.IGNORECASE,
+)
+
 
 
 def _normalize_place(s: str) -> str:
@@ -599,6 +640,37 @@ _PAST_SCHEDULE_TEMPLATES = [
     "wishlist 💄💕 Stay close on FB for the next announcement 👀",
     "Aww babe, you JUST missed us!! 😭 We were in {C} {D} 💔 We rotate cities "
     "every 1–2 years — but you're locked into our 2027 wishlist for sure 💄✨",
+]
+
+# 2026-05-20 PM #2 — Event-interest replies (per Lauren's directive)
+# For Bucket B items where customer expressed interest in a specific event
+# AND we identified the event from post context. Includes venue + dates + cute closing.
+_INTERESTED_LIVE_TEMPLATES = [
+    "Yesss come thru!! 💄✨ We're LIVE in {city}, {state} RIGHT NOW 📍 {address}. Open till 5pm today. Can't wait to see you 💕",
+    "OMG yay 🥳 We're happening NOW in {city}, {state} 📍 {address} (at {venue}). Til 5pm today — come thru gorgeous 💄💕",
+    "Babe we're LIVE 🎉 {city}, {state} 📍 {address}. Open today 10am-5pm — would LOVE to see you 💄✨",
+]
+_INTERESTED_UPCOMING_SOON_TEMPLATES = [
+    "Yay so happy you're interested!! 💄 {city}, {state} is coming up THIS weekend — {dates}, Fri-Sun 10am-5pm 📍 {address} (at {venue}). Can't wait to see you ✨💕",
+    "Aww yes!! 🎉 We're hitting {city}, {state} {dates}!! 📍 {address}. Fri-Sun 10am-5pm, free entry + parking. Would love to see you there 💄✨",
+    "OMG yay 💄 {city}, {state} is THIS weekend!! {dates} 📍 {address}. Mark your calendar — can't wait to see you 💕✨",
+]
+_INTERESTED_UPCOMING_TEMPLATES = [
+    "Yay so happy you're interested!! 💄 {city}, {state} is on for {dates} 📍 {address} (at {venue}). Fri-Sun 10am-5pm, free entry + parking. Can't wait to see you ✨💕",
+    "Aww yesss 🎉 {city}, {state} happens {dates}!! 📍 {address}. We'd love to see you there 💄✨",
+    "Babe yes!! 💕 We're coming to {city}, {state} {dates} 📍 {address} (at {venue}). Mark it on the cal — can't wait 💄✨",
+]
+_INTERESTED_PAST_TEMPLATES = [
+    "Aww babe, we were just in {city}, {state} {dates} 😭💔 The sale already wrapped — but we'll do our BEST to come back. Stay close on FB for the announcement 💄✨",
+    "Oof you JUST missed us!! 😩 {city}, {state} happened {dates}. We rotate cities every 1-2 years — putting {city} on the wishlist for 2027 💄💕",
+]
+
+# 2026-05-20 PM #2 — Messenger DM "Where is location?" with NO post context.
+# We can't know which event they're asking about, so soften with the
+# next-upcoming event + ask which city they meant. Lauren reviews/edits.
+_LOCATION_NO_CONTEXT_TEMPLATES = [
+    "Hi {first_word} 💜 So sorry — could you let me know which event city you're asking about? Our next stop is {next_city}, {next_state} on {next_dates} 📍 {next_address}. Can't wait to see you wherever you join us ✨💄",
+    "Hey {first_word} 💕 Happy to help! Which city were you asking about? Our next event is in {next_city}, {next_state} — {next_dates} 📍 {next_address}. We'd love to see you 💄✨",
 ]
 
 
@@ -884,6 +956,7 @@ def classify(text: str, kb: dict) -> dict:
     if post_ctx and WHERE_PAT.search(t):
         info = summarize_event_from_caption(post_ctx.get("caption", ""))
         if info:
+            info = _enrich_event_info(info, kb.get("_venues", []))
             seed = (kb.get("_seed", "") or "") + "where"
             status = event_status(info.get("dates", ""))
             address = info.get("address") or "(address tba)"
@@ -899,12 +972,16 @@ def classify(text: str, kb: dict) -> dict:
             elif status == "past":
                 tmpl = _seeded_pick(_WHERE_PAST_TEMPLATES, seed)
             else:
-                tmpl = None
+                # 2026-05-20 PM #2 — unknown date format; default to upcoming
+                tmpl = _seeded_pick(_WHERE_UPCOMING_TEMPLATES, seed)
+                status = "upcoming"
             if tmpl:
                 return {"bucket": "A",
                         "reason": f"'Where?' on event reel — status={status}, city={city}",
                         "reply": tmpl.format(city=city, state=state, dates=dates,
-                                             address=address, venue=venue)}
+                                             address=address, venue=venue),
+                        "event_chip": {"city": city, "state": state, "dates": dates,
+                                       "status": status, "confidence": "high"}}
 
     # Negative — never auto-reply
     if NEGATIVE_KEYWORDS.search(t):
@@ -957,6 +1034,8 @@ def classify(text: str, kb: dict) -> dict:
     post_ctx2 = kb.get("_post_context") if isinstance(kb, dict) else None
     if post_ctx2 and ADDRESS_PAT.search(t):
         info = summarize_event_from_caption(post_ctx2.get("caption", ""))
+        if info:
+            info = _enrich_event_info(info, kb.get("_venues", []))
         if info and info.get("address"):
             seed = (kb.get("_seed","") or "") + "addr"
             status = event_status(info.get("dates",""))
@@ -982,9 +1061,45 @@ def classify(text: str, kb: dict) -> dict:
             return {"bucket": "B", "reason": "keyword matched but no KB answer",
                     "reply": None}
 
+    # 2026-05-20 PM #2 — "Interested in this event" / "i'm going" with post context.
+    # Generates event-specific draft (Bucket B — Lauren reviews) with venue + dates.
+    post_ctx_int = kb.get("_post_context") if isinstance(kb, dict) else None
+    if post_ctx_int and INTERESTED_PAT.search(t):
+        info = summarize_event_from_caption(post_ctx_int.get("caption", ""))
+        if info:
+            info = _enrich_event_info(info, kb.get("_venues", []))
+            status = event_status(info.get("dates",""))
+            seed = (kb.get("_seed","") or "") + "interested"
+            if status == "live":          tmpl = _seeded_pick(_INTERESTED_LIVE_TEMPLATES, seed)
+            elif status == "upcoming-soon": tmpl = _seeded_pick(_INTERESTED_UPCOMING_SOON_TEMPLATES, seed)
+            elif status == "upcoming":      tmpl = _seeded_pick(_INTERESTED_UPCOMING_TEMPLATES, seed)
+            elif status == "past":          tmpl = _seeded_pick(_INTERESTED_PAST_TEMPLATES, seed)
+            else:
+                # status="unknown" — caption's date format was unparseable, but
+                # city/state/venue are valid. Default to "upcoming" template
+                # (best guess since the post is published = event is in future-ish).
+                tmpl = _seeded_pick(_INTERESTED_UPCOMING_TEMPLATES, seed)
+                status = "upcoming"
+            if tmpl:
+                reply = tmpl.format(
+                    city=info.get("city",""), state=info.get("state",""),
+                    dates=info.get("dates",""), address=info.get("address") or "(address TBA)",
+                    venue=info.get("venue") or "the venue",
+                )
+                # Bucket B → Lauren reviews before sending (per her preference for these).
+                return {"bucket": "B",
+                        "reason": f"Event interest — {info['city']}, {info['state']} ({status})",
+                        "reply": reply,
+                        "event_chip": {"city": info.get("city",""), "state": info.get("state",""),
+                                       "dates": info.get("dates",""), "status": status,
+                                       "confidence": "high"}}
+
     # City question intent — "when are you coming to X" / "sale in X"
     m_q = CITY_QUESTION_PAT.search(t)
-    m_b = BARE_PLACE_PAT.match(t) if not m_q else None
+    # 2026-05-20 — don't false-match BARE_PLACE_PAT on question phrases
+    # (was matching "Where is location?" as a place name).
+    _starts_with_qword = bool(re.match(r"^\s*(where|when|how|what|why|who|which|can\s+you|do\s+you)\b", t, re.IGNORECASE))
+    m_b = BARE_PLACE_PAT.match(t) if (not m_q and not _starts_with_qword) else None
     if m_q or m_b:
         place = (m_q.group(2) if m_q else m_b.group(1)).strip()
         hit = _find_in_schedule(place, kb["schedule"])
@@ -1019,16 +1134,46 @@ def classify(text: str, kb: dict) -> dict:
             if hit:
                 city_key, dates = hit
                 city_title = city_key.split(",")[0].strip().title()
+                # 2026-05-20 — derive state from city_key for the chip
+                _state = city_key.split(",")[1].strip().upper() if "," in city_key else ""
                 if _is_past(dates):
                     return {"bucket": "A",
                             "reason": f"Place mention ({place}) — was on schedule, past",
-                            "reply": city_past_reply(city_title, dates, seed=seed)}
+                            "reply": city_past_reply(city_title, dates, seed=seed),
+                            "event_chip": {"city": city_title, "state": _state,
+                                           "dates": dates, "status": "past", "confidence": "high"}}
                 return {"bucket": "A",
                         "reason": f"Place mention ({place}) — on upcoming schedule",
-                        "reply": city_on_schedule_reply(city_title, dates, seed=seed)}
+                        "reply": city_on_schedule_reply(city_title, dates, seed=seed),
+                        "event_chip": {"city": city_title, "state": _state,
+                                       "dates": dates, "status": "upcoming", "confidence": "high"}}
             return {"bucket": "A",
                     "reason": f"Place mention ({place}) — off-schedule rotation reply",
                     "reply": city_rotation_reply(place, seed=seed)}
+
+    # 2026-05-20 PM #2 — Messenger WHERE_PAT without post context.
+    # We can't pinpoint the event, so soften with next-upcoming + ask which city.
+    # Bucket B (Lauren reviews) with event_chip showing low-confidence next-event guess.
+    if WHERE_PAT.search(t) or re.search(r"\b(where|location|address|directions?|map)\b", t, re.IGNORECASE):
+        venues = kb.get("_venues", [])
+        nxt = find_next_event(venues)
+        if nxt:
+            cf = nxt["city"]
+            nxt_city = cf.split(",")[0].strip()
+            nxt_state = cf.split(",")[1].strip() if "," in cf else ""
+            seed = (kb.get("_seed","") or "") + "where-no-ctx"
+            tmpl = _seeded_pick(_LOCATION_NO_CONTEXT_TEMPLATES, seed)
+            reply = tmpl.format(
+                first_word="there",
+                next_city=nxt_city, next_state=nxt_state,
+                next_dates=nxt.get("dates",""), next_address=nxt.get("address","")
+            )
+            return {"bucket": "B",
+                    "reason": f"Location question without post context — soft fallback w/ next event ({nxt_city})",
+                    "reply": reply,
+                    "event_chip": {"city": nxt_city, "state": nxt_state,
+                                   "dates": nxt.get("dates",""), "status": "next-upcoming",
+                                   "confidence": "low"}}
 
     # Generic fallback
     return {"bucket": "B", "reason": "no KB pattern matched",
@@ -1166,6 +1311,14 @@ footer{margin-top:40px;color:#666;font-size:12px;text-align:center}
 }
 .attention-row .att-time.fresh{color:#fde68a;background:rgba(251,191,36,0.18)}
 .attention-row .att-time.old{color:#f87171;background:rgba(248,113,113,0.15)}
+.attention-row .att-event{
+  font-size:11px;font-weight:600;direction:ltr;
+  padding:3px 9px;border-radius:10px;white-space:nowrap;flex:0 0 auto;
+  background:rgba(251,191,36,0.18);color:#fde68a;
+  border:1px solid rgba(251,191,36,0.35)
+}
+.attention-row .att-event.low{background:rgba(148,148,148,0.18);color:#cbd5e1;border-color:rgba(148,148,148,0.35)}
+.attention-row .att-event.past{background:rgba(248,113,113,0.15);color:#fca5a5;border-color:rgba(248,113,113,0.35)}
 .attention-row .att-message{
   background:rgba(0,0,0,0.45);padding:10px 12px;border-radius:6px;
   color:#fde68a;font-size:14px;line-height:1.5;
@@ -1380,6 +1533,7 @@ def render_preview(snapshot: dict, classified_messenger: list,
                 "reply_kind": "messenger",
                 "target_id": m.get("customer_psid", ""),  # PSID for Send API
                 "received": m.get("updated_time", ""),
+                "event_chip": m["cls"].get("event_chip"),
                 "draft":    m["cls"].get("reply") or _make_draft_reply(who, m.get("msg", ""), "messenger"),
             })
     for c in classified_fb_comments:
@@ -1397,6 +1551,7 @@ def render_preview(snapshot: dict, classified_messenger: list,
                 "reply_kind": "fb_comment",
                 "target_id": c.get("comment_id") or c.get("id", ""),
                 "received": c.get("created_time", ""),
+                "event_chip": c["cls"].get("event_chip"),
                 "draft":    c["cls"].get("reply") or _make_draft_reply(who_from, c.get("text", ""), "fb_comment"),
             })
     for c in classified_ig_comments:
@@ -1414,6 +1569,7 @@ def render_preview(snapshot: dict, classified_messenger: list,
                 "reply_kind": "ig_comment",
                 "target_id": c.get("id", ""),
                 "received": c.get("timestamp", ""),
+                "event_chip": c["cls"].get("event_chip"),
                 "draft":    c["cls"].get("reply") or _make_draft_reply(who_ig, c.get("text", ""), "ig_comment"),
             })
 
@@ -1440,7 +1596,20 @@ def render_preview(snapshot: dict, classified_messenger: list,
             recv_text, recv_cls = _format_received(item.get("received", ""))
             time_html = (f'<span class="att-time {recv_cls}" data-iso="{html.escape(item.get("received","") or "")}">🕒 {html.escape(recv_text)}</span>'
                          if recv_text else '')
-            parts.append(f'<div class="att-meta"><span class="who">[{item["channel"]}] {html.escape(item["who"])}</span>{time_html}</div>')
+            # 2026-05-20 PM #2 — event chip: shows which event we matched (or guessed) for this item
+            ev = item.get("event_chip") or {}
+            if ev.get("city"):
+                ev_status = ev.get("status","")
+                ev_cls = ev.get("confidence","high")
+                if ev_status == "past": ev_cls = "past"
+                _ev_dates_short = (ev.get("dates","") or "")[:24]
+                event_html = (f'<span class="att-event {ev_cls}" '
+                              f'title="{html.escape(ev.get("status","") or "")}">'
+                              f'🎯 {html.escape(ev.get("city",""))}, {html.escape(ev.get("state",""))} · {html.escape(_ev_dates_short)}'
+                              f'</span>')
+            else:
+                event_html = ''
+            parts.append(f'<div class="att-meta"><span class="who">[{item["channel"]}] {html.escape(item["who"])}</span>{event_html}{time_html}</div>')
             # Full message text (no truncation — let CSS handle wrap)
             parts.append(f'<div class="att-message">💬 {html.escape(item["what"])}</div>')
             # Inline reply textarea + Send button
