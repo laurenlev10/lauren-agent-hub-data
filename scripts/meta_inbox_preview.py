@@ -1086,9 +1086,13 @@ def classify(text: str, kb: dict) -> dict:
                     dates=info.get("dates",""), address=info.get("address") or "(address TBA)",
                     venue=info.get("venue") or "the venue",
                 )
-                # Bucket B → Lauren reviews before sending (per her preference for these).
-                return {"bucket": "B",
-                        "reason": f"Event interest — {info['city']}, {info['state']} ({status})",
+                # 2026-05-20 PM #3 — Lauren's directive: "תידע לענות איך שהיא מקבלת את ההודעה
+                # ושלא תשלח לי לאישור אלא כמה שפחות". Flipped B→A: high-confidence event
+                # match with post_ctx is safe to auto-reply (post identifies the event).
+                # CRITICAL: auto-reply also gets us inside Meta's 24-hour Messenger window
+                # — items that sit in Bucket B for 4+ days can no longer be replied to.
+                return {"bucket": "A",
+                        "reason": f"Event interest auto-reply — {info['city']}, {info['state']} ({status})",
                         "reply": reply,
                         "event_chip": {"city": info.get("city",""), "state": info.get("state",""),
                                        "dates": info.get("dates",""), "status": status,

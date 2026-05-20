@@ -22,12 +22,16 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Send Meta reply
+        id: send-reply
         env:
           META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
           PAYLOAD_JSON:    ${{ toJSON(github.event.client_payload) }}
         run: |
           python3 - <<'PY'
-          import os, sys, json, datetime
+          # 2026-05-20 PM #3 — capture real Meta error body, retry timeouts,
+          # distinguish 24-hour-window errors. Writes ERROR_DETAIL to GITHUB_ENV
+          # so the failure-SMS step can include the specific reason.
+          import os, sys, json, datetime, time, urllib.error
           sys.path.insert(0, "scripts")
           from lauren_meta import reply_to_messenger, reply_to_comment
 
@@ -37,23 +41,87 @@ jobs:
           text   = payload.get("reply_text", "")
           dkey   = payload.get("dedup_key", "")
 
-          print(f"Received dispatch: kind={kind} target_id={tid[:20]}... text_len={len(text)}")
+          print(f"Received dispatch: kind={kind} target_id={tid[:20]}... text_len={len(text)} dkey={dkey}")
 
           if not (kind and tid and text):
               print("⚠ Missing kind/target_id/text — skipping")
               sys.exit(0)
 
-          try:
-              if kind == "messenger":
-                  resp = reply_to_messenger(tid, text)
-              elif kind in ("fb_comment", "ig_comment"):
-                  resp = reply_to_comment(tid, text)
-              else:
-                  print(f"⚠ Unknown reply_kind: {kind}")
-                  sys.exit(1)
-              print(f"✓ Reply sent: {resp}")
-          except Exception as e:
-              print(f"❌ Reply failed: {e}")
+          def _emit_error_detail(reason: str, hebrew: str):
+              """Write a one-line detail to GITHUB_ENV for the failure SMS."""
+              gh_env = os.environ.get("GITHUB_ENV", "")
+              if not gh_env: return
+              try:
+                  with open(gh_env, "a") as f:
+                      # Hebrew + dkey so Lauren can grep her dashboard
+                      f.write(f"ERROR_DETAIL<<EOF_DETAIL\n{hebrew}\nפריט: {dkey}\nEOF_DETAIL\n")
+                      f.write(f"ERROR_CATEGORY={reason}\n")
+              except Exception as e:
+                  print(f"⚠ couldn't write GITHUB_ENV: {e}")
+
+          def _classify_meta_error(body_text: str) -> tuple:
+              """Inspect the Meta API error body and return (category, hebrew_reason)."""
+              t = (body_text or "").lower()
+              if any(k in t for k in ["outside the allowed window", "24-hour", "24 hour", "messaging_type",
+                                      "this message is sent outside", "error code: 10", "code\":10"]):
+                  return ("24h_window",
+                          "❌ ההודעה ישנה מ-24 שעות. Meta לא מאפשרת לשלוח דרך API. פתחי ב-Meta וענה ידנית.")
+              if "permission" in t or "permissions" in t:
+                  return ("permission", "❌ חסרה הרשאה ל-Meta API. בדוק token.")
+              if "rate" in t or "limit" in t or "too many" in t:
+                  return ("rate_limit", "❌ rate limit ב-Meta. המתיני 10 דק'.")
+              if "invalid" in t and "recipient" in t:
+                  return ("bad_recipient", "❌ PSID לא תקין. נסי 'Open in Meta'.")
+              if "comment" in t and ("deleted" in t or "not exist" in t or "cannot be loaded" in t):
+                  return ("comment_gone", "❌ התגובה נמחקה ע\"י המשתמש לפני שהספקת לענות.")
+              # Default: surface a short slice of the body
+              clipped = (body_text or "")[:140].replace("\n", " ")
+              return ("unknown", f"❌ {clipped}")
+
+          # Retry loop — once on timeout, otherwise raise
+          last_err = None
+          for attempt in (1, 2):
+              try:
+                  if kind == "messenger":
+                      resp = reply_to_messenger(tid, text)
+                  elif kind in ("fb_comment", "ig_comment"):
+                      resp = reply_to_comment(tid, text)
+                  else:
+                      print(f"⚠ Unknown reply_kind: {kind}")
+                      sys.exit(1)
+                  print(f"✓ Reply sent (attempt {attempt}): {resp}")
+                  last_err = None
+                  break
+              except urllib.error.HTTPError as e:
+                  body_text = ""
+                  try:
+                      body_text = e.read().decode("utf-8", errors="replace")
+                  except Exception:
+                      pass
+                  category, hebrew = _classify_meta_error(body_text)
+                  print(f"❌ Meta HTTP {e.code} (attempt {attempt}, category={category})")
+                  print(f"   body: {body_text[:500]}")
+                  _emit_error_detail(category, hebrew)
+                  last_err = e
+                  # Don't retry on 4xx
+                  break
+              except (TimeoutError, OSError) as e:
+                  # network/timeout — retry once
+                  print(f"⚠ network/timeout on attempt {attempt}: {e}")
+                  if attempt == 1:
+                      time.sleep(3)
+                      continue
+                  _emit_error_detail("timeout",
+                                     f"⏱ Meta API לא ענה (timeout). נסי שוב, או 'Open in Meta'.")
+                  last_err = e
+                  break
+              except Exception as e:
+                  print(f"❌ unexpected error: {type(e).__name__}: {e}")
+                  _emit_error_detail("unexpected", f"❌ {type(e).__name__}: {str(e)[:120]}")
+                  last_err = e
+                  break
+
+          if last_err is not None:
               sys.exit(1)
 
           # Mark as handled in handled.json (defensive — JS already marks but workflow ensures consistency)
@@ -99,4 +167,7 @@ jobs:
           WORKFLOW_NAME:       ${{ github.workflow }}
           JOB_NAME:            ${{ github.job }}
           RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # 2026-05-20 PM #3 — forward the specific Meta error reason (set by send-reply step)
+          ERROR_DETAIL:        ${{ env.ERROR_DETAIL }}
+          ERROR_CATEGORY:      ${{ env.ERROR_CATEGORY }}
         run: python3 scripts/notify_failure.py

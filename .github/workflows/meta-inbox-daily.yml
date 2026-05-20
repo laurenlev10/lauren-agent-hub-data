@@ -1,7 +1,8 @@
 name: Daily @meta inbox triage (Phase 2 — Bucket A auto-reply LIVE)
 
-# Runs every day at 8 PM Lauren-local (PDT) — 03:00 UTC.
-# In PST (Nov–Mar) this becomes 7 PM local — accept the seasonal shift.
+# Runs EVERY 3 HOURS (was daily) so auto-replies happen within Meta's 24-hour
+# Messenger window. Lauren's directive 2026-05-20 PM #3: "תידע לענות איך
+# שהיא מקבלת את ההודעה ושלא תשלח לי לאישור אלא כמה שפחות".
 #
 # Phase 2 (since 2026-05-08) = AUTO-REPLY for Bucket A + preview Bucket B for Lauren. Generates the static preview page
 # at /meta/inbox-api-preview/ and SMSes Lauren a summary so she can review on
@@ -18,7 +19,10 @@ name: Daily @meta inbox triage (Phase 2 — Bucket A auto-reply LIVE)
 
 on:
   schedule:
-    - cron: "0 3 * * *"   # 03:00 UTC = 8 PM PDT (May–Oct) / 7 PM PST (Nov–Mar)
+    # 2026-05-20 PM #3 — every 3 hours so auto-replies fire well inside Meta's
+    # 24-hour Messenger window (was once-daily; new messages could sit up to 23
+    # hours before being auto-replied, dangerously close to the limit).
+    - cron: "0 */3 * * *"   # every 3 hours at :00 UTC
   workflow_dispatch:
     inputs:
       force_send_replies:
