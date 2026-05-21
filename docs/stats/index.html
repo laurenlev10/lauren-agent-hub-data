@@ -1,116 +1,277 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>📊 Marketing Stats — All Events</title>
-  <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;700;800&display=swap" rel="stylesheet">
+  <title>📊 דשבורד שיווק — כל האירועים</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;800;900&display=swap" rel="stylesheet">
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Josefin Sans',Helvetica,sans-serif;background:#0a0a14;color:#fff;
+    body{font-family:'Heebo',sans-serif;background:#0a0a14;color:#fff;
          min-height:100vh;padding:30px 20px}
-    .wrap{max-width:1200px;margin:0 auto}
-    h1{font-size:clamp(28px,5vw,44px);color:#f5e45b;margin-bottom:6px}
+    .wrap{max-width:1280px;margin:0 auto}
+    a.back{color:#aaa;text-decoration:none;font-size:13px;margin-bottom:14px;display:inline-block}
+    a.back:hover{color:#fff}
+    h1{font-size:clamp(28px,5vw,44px);color:#f5e45b;margin-bottom:6px;font-weight:900}
     .sub{color:#aaa;font-size:14px;margin-bottom:6px}
+    .sub code{background:#15151f;padding:2px 8px;border-radius:4px;color:#7c3aed;font-family:ui-monospace,monospace}
     .pulled{color:#666;font-size:11px;margin-bottom:24px;font-family:ui-monospace,monospace}
+
     .nodata{background:linear-gradient(135deg,#1a1a2a,#2a1a3a);border:1px solid #3a3a4a;
             border-radius:14px;padding:34px 22px;text-align:center;margin:30px 0}
     .nodata h2{color:#fbbf24;margin-bottom:8px;font-size:22px}
     .nodata p{color:#aaa;font-size:14px}
-    .nodata code{background:#0a0a14;padding:2px 6px;border-radius:4px;color:#fbbf24}
-    h2{color:#f01070;font-size:22px;margin:30px 0 14px}
-    .events-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
-    .event-card{background:#15151f;border-left:4px solid #7c3aed;border-radius:10px;
+
+    /* Group summary */
+    .summary{background:linear-gradient(135deg,#15151f,#1a1a2e);border:1px solid #2a2a3a;
+             border-radius:14px;padding:22px;margin-bottom:28px}
+    .summary h2{color:#f01070;font-size:18px;margin-bottom:14px;font-weight:800}
+    .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}
+    .summary-cell{background:#0d0d18;border-radius:8px;padding:12px 14px;text-align:center}
+    .summary-cell .lbl{color:#aaa;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+    .summary-cell .val{color:#f5e45b;font-size:22px;font-weight:800}
+    .summary-cell .val.pink{color:#f01070}
+    .summary-cell .val.green{color:#22c55e}
+    .summary-cell .val.red{color:#ef4444}
+    .summary-cell .sub-val{color:#888;font-size:11px;margin-top:4px}
+
+    h2.section{color:#f01070;font-size:22px;margin:30px 0 14px;font-weight:900}
+
+    /* Event card */
+    .events-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+    .event-card{background:#15151f;border-left:4px solid #7c3aed;border-radius:12px;
                 padding:18px 20px;text-decoration:none;color:inherit;display:block;
-                transition:transform .1s,border-left-color .1s}
-    .event-card:hover{transform:translateY(-2px);border-left-color:#f01070}
-    .event-card .city{font-size:18px;font-weight:800;color:#fff;margin-bottom:4px}
-    .event-card .when{color:#aaa;font-size:13px;margin-bottom:12px}
-    .event-card .row{display:flex;justify-content:space-between;font-size:13px;
-                     padding:4px 0;border-bottom:1px dashed #2a2a3a}
-    .event-card .row:last-of-type{border-bottom:none}
-    .event-card .row .lbl{color:#aaa}
-    .event-card .row .val{color:#f5e45b;font-weight:700}
-    .event-card .row .val.good{color:#22c55e}
-    .event-card .row .val.bad{color:#ef4444}
-    .event-card .anomaly{margin-top:10px;padding:8px;background:#2a1010;
-                          border:1px solid #d97706;border-radius:6px;color:#fde68a;
-                          font-size:11px}
-    a.back{color:#aaa;text-decoration:none;font-size:13px;margin-bottom:14px;display:inline-block}
-    a.back:hover{color:#fff}
+                transition:transform .12s ease,border-left-color .12s ease,box-shadow .12s ease;
+                position:relative;overflow:hidden}
+    .event-card:hover{transform:translateY(-3px);border-left-color:#f01070;box-shadow:0 6px 20px rgba(240,16,112,.18)}
+    .event-card.best{border-left-color:#22c55e}
+    .event-card.worst{border-left-color:#ef4444}
+    .event-card .badge{position:absolute;top:14px;left:14px;font-size:11px;font-weight:800;
+                       padding:3px 8px;border-radius:6px;letter-spacing:.5px}
+    .event-card .badge.best{background:#0d2818;color:#22c55e;border:1px solid #22c55e}
+    .event-card .badge.worst{background:#281010;color:#ef4444;border:1px solid #ef4444}
+    .event-card .city{font-size:20px;font-weight:800;color:#fff;margin-bottom:2px}
+    .event-card .when{color:#aaa;font-size:13px;margin-bottom:14px}
+
+    /* Shares — top, pink, prominent */
+    .shares-block{background:linear-gradient(135deg,#2a0e1c,#1a0a14);
+                  border:1px solid #f01070;border-radius:10px;padding:12px;margin-bottom:12px}
+    .shares-row{display:flex;justify-content:space-between;align-items:baseline}
+    .shares-row .shares-lbl{color:#f0a8c4;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+    .shares-row .shares-val{color:#f01070;font-size:28px;font-weight:900;line-height:1}
+    .shares-meta{color:#888;font-size:11px;margin-top:4px;font-family:ui-monospace,monospace}
+
+    .kv-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+    .kv{background:#0d0d18;border-radius:6px;padding:8px 10px}
+    .kv .lbl{color:#aaa;font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+    .kv .val{color:#f5e45b;font-size:16px;font-weight:700}
+    .kv .val.good{color:#22c55e}
+    .kv .val.bad{color:#ef4444}
+    .kv .sub-val{color:#666;font-size:10px;margin-top:2px}
+
+    .funnel{background:#0d0d18;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:12px;color:#bbb}
+    .funnel strong{color:#f5e45b}
+
+    .anomaly{margin-top:10px;padding:8px 10px;background:#2a1010;
+             border:1px solid #d97706;border-radius:6px;color:#fde68a;font-size:11px}
+    .footer-link{margin-top:10px;text-align:center;color:#7c3aed;font-size:12px;font-weight:700}
+    .event-card:hover .footer-link{color:#f01070}
+
+    @media (max-width:600px){
+      body{padding:18px 12px}
+      .events-grid{grid-template-columns:1fr}
+    }
   </style>
 </head>
 <body>
 <div class="wrap">
-  <a class="back" href="../">&larr; Back to Agent Hub</a>
-  <h1>📊 Marketing Stats — All Events</h1>
-  <div class="sub">Aggregated from GA4 + Meta Pixel + TikTok Pixel by <code style="background:#15151f;padding:2px 6px;border-radius:4px">@stats</code> agent.</div>
-  <div class="pulled" id="pulled-at">loading…</div>
+  <a class="back" href="../">&larr; חזרה ל-Agent Hub</a>
+  <h1>📊 דשבורד שיווק — כל האירועים</h1>
+  <div class="sub">צבירת נתונים מ-GA4 + Meta Ads + TikTok Ads ע"י <code>@stats</code>. מתעדכן כל 6 שעות.</div>
+  <div class="pulled" id="pulled-at">טוען…</div>
 
   <div id="nodata" class="nodata" style="display:none;">
-    <h2>⏳ No data flowing yet</h2>
-    <p>Pixels are installed in <code>events.themakeupblowout.com</code>. To activate stats, Lauren needs to add 5 GitHub Secrets to <code>lauren-agent-hub-data</code>:</p>
-    <p style="text-align:left;display:inline-block;margin-top:14px;font-family:ui-monospace,monospace;color:#22c55e">
-      GA4_PROPERTY_ID<br>
-      GA4_SERVICE_ACCOUNT_JSON<br>
-      META_AD_ACCOUNT_ID<br>
-      TIKTOK_ACCESS_TOKEN<br>
-      TIKTOK_ADVERTISER_ID
-    </p>
-    <p style="margin-top:14px">Then trigger <code>marketing-stats.yml</code> from the Actions tab.</p>
+    <h2>⏳ אין עדיין נתונים</h2>
+    <p>הקובץ <code>event_analytics.json</code> ב-<code>themakeupblowout-events/docs/state/</code> ריק או לא נגיש.</p>
+    <p style="margin-top:14px">הריצה הבאה של <code>marketing-stats.yml</code> אמורה לכתוב אותו.</p>
   </div>
 
   <div id="content" style="display:none;">
-    <h2>Active events</h2>
+    <div class="summary">
+      <h2>סיכום קבוצתי (7 ימים אחרונים)</h2>
+      <div class="summary-grid" id="summary-grid"></div>
+    </div>
+
+    <h2 class="section">אירועים פעילים</h2>
     <div class="events-grid" id="grid"></div>
   </div>
 </div>
 
 <script>
 (async function(){
-  let data;
-  try {
-    const r = await fetch("/conversion_history.json", { cache: "no-store" })
-            .catch(_=>fetch("../state/conversion_history.json",{cache:"no-store"}))
-            .catch(_=>fetch("./conversion_history.json",{cache:"no-store"}));
-    data = r && r.ok ? await r.json() : null;
-    if (!data) {
-      const r2 = await fetch("/state/conversion_history.json", { cache: "no-store" });
-      data = r2.ok ? await r2.json() : null;
-    }
-  } catch (e) { data = null; }
+  // Source-of-truth lives in themakeupblowout-events repo; try a few endpoints (GH Pages CORS=*).
+  var URLS = [
+    "https://raw.githubusercontent.com/laurenlev10/themakeupblowout-events/main/docs/state/event_analytics.json",
+    "https://events.themakeupblowout.com/state/event_analytics.json"
+  ];
+  var data = null;
+  for (var i=0; i<URLS.length; i++){
+    try {
+      var r = await fetch(URLS[i] + "?_=" + Date.now(), { cache: "no-store" });
+      if (r && r.ok) { data = await r.json(); if (data && data.events) break; }
+    } catch(e) { /* try next */ }
+  }
 
-  const events = data && data.events && Object.keys(data.events).length > 0 ? data.events : null;
+  var events = data && data.events && Object.keys(data.events).length > 0 ? data.events : null;
   if (!events) {
     document.getElementById("nodata").style.display = "block";
-    document.getElementById("pulled-at").textContent = "Last pull: not yet (no secrets / no first run)";
+    document.getElementById("pulled-at").textContent = "טרם נטען (אין נתונים)";
     return;
   }
+
   document.getElementById("content").style.display = "block";
-  document.getElementById("pulled-at").textContent = "Last pulled: " + new Date(data._updated_at).toLocaleString();
+  document.getElementById("pulled-at").textContent =
+    "נמשך לאחרונה: " + (data._updated_at ? new Date(data._updated_at).toLocaleString("he-IL") : "—");
 
-  const grid = document.getElementById("grid");
-  Object.entries(events).forEach(([slug, ev]) => {
-    const v = ev.views || {};
-    const c = ev.conversions || {};
-    const rate = v.total ? (c.total / v.total * 100) : 0;
-    const meta = ev.roas_by_source && ev.roas_by_source.meta || 0;
-    const tt = ev.roas_by_source && ev.roas_by_source.tiktok || 0;
-    const anomalies = ev.anomalies || [];
+  // ---------- Helpers ----------
+  function fmtMoney(n){ if (n == null || isNaN(n)) return "—"; return "$" + Math.round(n).toLocaleString(); }
+  function fmtMoneyCents(n){ if (n == null || isNaN(n)) return "—"; return "$" + Number(n).toFixed(2); }
+  function fmtInt(n){ if (n == null || isNaN(n)) return "—"; return Number(n).toLocaleString(); }
+  function fmtPct(n){ if (n == null || isNaN(n)) return "—"; return Number(n).toFixed(1) + "%"; }
+  function safeNum(n){ return (n == null || isNaN(n)) ? 0 : Number(n); }
+  function eventCity(slug){
+    // overland-ks-2026 → "Overland, KS"
+    var parts = slug.split("-");
+    var year = parts[parts.length-1];
+    var st = parts[parts.length-2];
+    var city = parts.slice(0, parts.length-2).join(" ");
+    return city.replace(/\b\w/g, function(c){ return c.toUpperCase(); }) + ", " + st.toUpperCase();
+  }
 
-    const card = document.createElement("a");
-    card.className = "event-card";
-    card.href = "https://events.themakeupblowout.com/events/" + slug + "/stats.html";
+  // ---------- Group summary ----------
+  var avg = data._averages || {};
+  var totalSpend = 0, totalLpv = 0, totalShares = 0, totalSmsReg = 0, totalEbReg = 0, totalCap = 0;
+  Object.values(events).forEach(function(ev){
+    totalSpend += safeNum(ev.meta && ev.meta.spend) + safeNum(ev.tiktok && ev.tiktok.spend);
+    totalLpv   += safeNum(ev.meta && ev.meta.landing_page_views) + safeNum(ev.tiktok && ev.tiktok.landing_page_views);
+    totalShares+= safeNum(ev.reel_shares && (ev.reel_shares.total_shares || ev.reel_shares.total));
+    totalSmsReg+= safeNum(ev.sms_registered);
+    totalEbReg += safeNum(ev.eventbrite_registered);
+    totalCap   += safeNum(ev.eventbrite_capacity);
+  });
+  var fillPct = totalCap > 0 ? (totalEbReg / totalCap * 100) : 0;
+
+  var sg = document.getElementById("summary-grid");
+  function summaryCell(lbl, val, cls, subVal){
+    var d = document.createElement("div");
+    d.className = "summary-cell";
+    var sub = subVal ? '<div class="sub-val">'+subVal+'</div>' : '';
+    d.innerHTML = '<div class="lbl">'+lbl+'</div><div class="val '+(cls||'')+'">'+val+'</div>'+sub;
+    sg.appendChild(d);
+  }
+  summaryCell("אירועים פעילים", String(avg.event_count || Object.keys(events).length));
+  summaryCell("📸 שיתופי ריל (סה\"כ)", fmtInt(totalShares), "pink");
+  summaryCell("הוצאה כוללת", fmtMoney(totalSpend));
+  summaryCell("LPV כולל", fmtInt(totalLpv));
+  summaryCell("CPL ממוצע", fmtMoneyCents(avg.mean_cpl));
+  summaryCell("🏆 הכי טוב", avg.best_event ? eventCity(avg.best_event) : "—", "green",
+              avg.best_cpl ? "CPL " + fmtMoneyCents(avg.best_cpl) : "");
+  summaryCell("⚠️ הכי גרוע", avg.worst_event ? eventCity(avg.worst_event) : "—", "red",
+              avg.worst_cpl ? "CPL " + fmtMoneyCents(avg.worst_cpl) : "");
+  summaryCell("מילוי Eventbrite", fmtPct(fillPct),
+              fillPct >= 50 ? "green" : (fillPct >= 25 ? "" : "red"),
+              fmtInt(totalEbReg) + " / " + fmtInt(totalCap));
+
+  // ---------- Per-event cards ----------
+  // Sort by CPL ascending (best first), events with zero spend go last
+  var entries = Object.entries(events).map(function(e){
+    var slug = e[0], ev = e[1];
+    var cpl = safeNum(ev.meta && ev.meta.cost_per_lpv);
+    var spend = safeNum(ev.meta && ev.meta.spend) + safeNum(ev.tiktok && ev.tiktok.spend);
+    return { slug: slug, ev: ev, cpl: cpl, spend: spend };
+  });
+  entries.sort(function(a, b){
+    if (a.spend < 100 && b.spend >= 100) return 1;
+    if (b.spend < 100 && a.spend >= 100) return -1;
+    if (a.cpl <= 0 && b.cpl > 0) return 1;
+    if (b.cpl <= 0 && a.cpl > 0) return -1;
+    return a.cpl - b.cpl;
+  });
+
+  var grid = document.getElementById("grid");
+  var bestSlug = avg.best_event, worstSlug = avg.worst_event;
+  var meanCpl = safeNum(avg.mean_cpl);
+
+  entries.forEach(function(entry){
+    var slug = entry.slug, ev = entry.ev;
+    var m = ev.meta || {}, t = ev.tiktok || {}, rs = ev.reel_shares || {};
+    var spend = safeNum(m.spend) + safeNum(t.spend);
+    var lpv   = safeNum(m.landing_page_views) + safeNum(t.landing_page_views);
+    var cpl   = safeNum(m.cost_per_lpv);
+    var cplCls= cpl > 0 ? (cpl <= meanCpl ? "good" : "bad") : "";
+    var shares = safeNum(rs.total_shares || rs.total);
+    var delta6 = safeNum(rs.delta_6h);
+    var rate   = safeNum(rs.rate_per_hour);
+    var fill   = safeNum(ev.eventbrite_capacity) > 0
+                 ? (safeNum(ev.eventbrite_registered) / safeNum(ev.eventbrite_capacity) * 100) : 0;
+    var anom   = (ev.anomalies && ev.anomalies.length) ? ev.anomalies[0] : null;
+
+    var isBest = slug === bestSlug;
+    var isWorst = slug === worstSlug;
+    var cardCls = "event-card" + (isBest ? " best" : "") + (isWorst ? " worst" : "");
+    var badge = isBest ? '<div class="badge best">🏆 הכי טוב</div>'
+              : isWorst ? '<div class="badge worst">⚠️ הכי גרוע</div>' : '';
+
+    var statsUrl = "https://events.themakeupblowout.com/events/" + slug + "/stats.html";
+
+    var sharesBlock =
+      '<div class="shares-block">' +
+        '<div class="shares-row">' +
+          '<div class="shares-lbl">📸 שיתופי ריל</div>' +
+          '<div class="shares-val">' + fmtInt(shares) + '</div>' +
+        '</div>' +
+        '<div class="shares-meta">' +
+          (delta6 ? "+" + delta6 + " ב-6ש " : "") +
+          (rate > 0 ? "· " + rate.toFixed(1) + "/שעה " : "") +
+          (rs.last_scan_at ? "· סריקה: " + new Date(rs.last_scan_at).toLocaleString("he-IL", {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"}) : "טרם נסרק") +
+        '</div>' +
+      '</div>';
+
+    var kvBlock =
+      '<div class="kv-grid">' +
+        '<div class="kv"><div class="lbl">הוצאה</div><div class="val">' + fmtMoney(spend) + '</div>' +
+          (t.spend > 0 ? '<div class="sub-val">Meta ' + fmtMoney(m.spend) + ' · TT ' + fmtMoney(t.spend) + '</div>' : '') +
+        '</div>' +
+        '<div class="kv"><div class="lbl">LPV</div><div class="val">' + fmtInt(lpv) + '</div></div>' +
+        '<div class="kv"><div class="lbl">CPL</div><div class="val ' + cplCls + '">' + (cpl > 0 ? fmtMoneyCents(cpl) : "—") + '</div>' +
+          (cpl > 0 && meanCpl > 0 ? '<div class="sub-val">ממוצע ' + fmtMoneyCents(meanCpl) + '</div>' : '') +
+        '</div>' +
+        '<div class="kv"><div class="lbl">CTR</div><div class="val">' + fmtPct(m.ctr) + '</div></div>' +
+      '</div>';
+
+    var funnelBlock =
+      '<div class="funnel">' +
+        'הרשמות: <strong>SMS ' + fmtInt(ev.sms_registered) + '</strong> · ' +
+        '<strong>Eventbrite ' + fmtInt(ev.eventbrite_registered) + '/' + fmtInt(ev.eventbrite_capacity) + '</strong>' +
+        (fill > 0 ? ' (' + fill.toFixed(0) + '%)' : '') +
+      '</div>';
+
+    var anomBlock = anom ? '<div class="anomaly">⚠️ ' + (anom.hypothesis || anom.metric || 'אנומליה') + '</div>' : '';
+
+    var card = document.createElement("a");
+    card.className = cardCls;
+    card.href = statsUrl;
     card.target = "_blank";
-    card.innerHTML = `
-      <div class="city">${slug.replace(/-/g," ").replace(/\b\w/g, l=>l.toUpperCase())}</div>
-      <div class="row"><span class="lbl">Views</span><span class="val">${(v.total||0).toLocaleString()}</span></div>
-      <div class="row"><span class="lbl">Conversions</span><span class="val">${(c.total||0).toLocaleString()}</span></div>
-      <div class="row"><span class="lbl">Conv rate</span><span class="val ${rate>10?'good':rate<5?'bad':''}">${rate.toFixed(1)}%</span></div>
-      <div class="row"><span class="lbl">Meta ROAS</span><span class="val ${meta>3?'good':meta<1.5?'bad':''}">${meta.toFixed(1)}x</span></div>
-      <div class="row"><span class="lbl">TikTok ROAS</span><span class="val ${tt>3?'good':tt<1.5?'bad':''}">${tt.toFixed(1)}x</span></div>
-      ${anomalies.length ? `<div class="anomaly">⚠ ${anomalies.length} anomalies</div>` : ''}
-    `;
+    card.rel = "noopener";
+    card.innerHTML =
+      badge +
+      '<div class="city">' + eventCity(slug) + '</div>' +
+      '<div class="when">' + slug + '</div>' +
+      sharesBlock +
+      kvBlock +
+      funnelBlock +
+      anomBlock +
+      '<div class="footer-link">פתח דוח מפורט ←</div>';
     grid.appendChild(card);
   });
 })();
