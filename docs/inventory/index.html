@@ -8665,13 +8665,31 @@ async function confirmInvoiceCompared(){
           }
         }
       }
-      // Pass 3: name-similarity within the SAME supplier's products (avoid cross-supplier confusion)
+      // Pass 3: name-similarity within the SAME supplier's products (avoid cross-supplier confusion).
+      // Lauren 2026-05-21 — threshold RAISED from 0.55 → 0.80 after the Romantic 5/18 invoice
+      // matched 6 NEW products to wrong existing ones (e.g. 'NOFILTER Eraser Flawless
+      // Concealer' → 'Flawless Precision Eyeliner' via 0.60 substring-fallback on shared
+      // brand word 'flawless'). Same-brand products legitimately share many tokens;
+      // require Jaccard ≥ 0.80 AND ≥3 significant non-generic word overlap to call it
+      // 'same product'. The substring-fallback caps at 0.95 in 0.1 increments — to trip
+      // 0.80 it now needs 4+ rare-word matches, not just one shared brand word.
       if (!existing && name && typeof nameSimilarity === 'function') {
         var sameSup = allProds.filter(function(o){ return o.supplierCode === supplierCode; });
         var bestScore = 0, bestProd = null;
+        // Helper: count significant non-generic word overlap
+        var GENERIC = new Set(['the','and','for','men','women','set','box','mini','color','pack','liquid','powder','spray','cream','primer','liner','lipstick','eyeliner','eyeshadow','blush','concealer','foundation','mascara','tester','testers','free','clearance','romantic','beauty']);
+        function sigOverlap(a, b){
+          function toks(s){ return new Set(String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(function(t){ return t.length >= 3 && !GENERIC.has(t); })); }
+          var A = toks(a), B = toks(b), n = 0;
+          A.forEach(function(t){ if (B.has(t)) n++; });
+          return n;
+        }
         sameSup.forEach(function(o){
           var sim = nameSimilarity(name, o.prod.name || '');
-          if (sim > bestScore && sim >= 0.55) { bestScore = sim; bestProd = o.prod; }
+          if (sim > bestScore && sim >= 0.80 && sigOverlap(name, o.prod.name || '') >= 3) {
+            bestScore = sim;
+            bestProd = o.prod;
+          }
         });
         if (bestProd) {
           existing = bestProd;
@@ -8757,7 +8775,10 @@ async function confirmInvoiceCompared(){
             var combined = o.score * 0.5 + nameSim * 0.5;
             if (combined > bestScore) { bestScore = combined; bestC = o; }
           });
-          if (bestC && bestScore >= 0.35) {
+          // Lauren 2026-05-21 — RAISED from 0.35 to 0.65 (same incident as Pass 3 tightening).
+          // SKU-prefix matches with score < 0.65 were giving false positives when invoice SKUs share
+          // a common 6-char prefix with an unrelated existing product.
+          if (bestC && bestScore >= 0.65) {
             existing = bestC.prod;
             existingMatchedBy = 'sku-prefix-fuzzy';
           }
