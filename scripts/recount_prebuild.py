@@ -164,6 +164,7 @@ def build_worklist(snapshot, counted_pids):
     worklist = []
     n_neg = n_stale = n_preexisting = 0
     n_excluded = 0
+    n_neg_skipped = 0  # negative items skipped because counted in prior window
     for code, vdata in (snapshot.get("vendors") or {}).items():
         supplier = vdata.get("display_name") or vdata.get("name") or code
         for p in (vdata.get("products") or []):
@@ -175,9 +176,18 @@ def build_worklist(snapshot, counted_pids):
             has_recount = "recount" in tags_raw
             pid = int(p.get("id") or 0)
             reason = None
-            if qty < 0:
+            # Lauren 2026-05-21 PM: skip negative-stock items that were physically
+            # counted in the prior event window (within ~7 days). Trust the recent
+            # count — the negative reflects post-count sales tracking, not a
+            # counting error. Without this filter, the SAME 5 negatives appear on
+            # every weekly recount even though Lauren just verified them.
+            if qty < 0 and pid not in counted_pids:
                 reason = "negative"
                 n_neg += 1
+            elif qty < 0 and pid in counted_pids:
+                # Negative but already counted in prior window — skip (Lauren 2026-05-21 PM)
+                n_neg_skipped += 1
+                continue
             elif has_recount and pid not in counted_pids:
                 reason = "preexisting"
                 n_preexisting += 1
@@ -209,6 +219,7 @@ def build_worklist(snapshot, counted_pids):
         "stale": n_stale,
         "preexisting": n_preexisting,
         "excluded_permanent": n_excluded,
+        "excluded_negative_recently_counted": n_neg_skipped,
         "counted_last_event": len(counted_pids),
         "final_worklist_size": len(worklist),
         "removed_recount_tag": None,  # tag-mutation not wired pre-event (cleanup runs Sunday)
