@@ -146,42 +146,91 @@ def is_permanent_exclude(p):
     return False
 
 
-def fetch_counted_pids(jwt, start_date, end_date):
-    """Pull counted_pids from OCTOPOS for the given window."""
+def fetch_ever_counted_pids(jwt, lookback_days=90):
+    """Pull recount-data over the last N days. Return set of pids that ever
+    appeared in a CR (physical count) row. Lauren 2026-05-21 PM #5 — a product
+    is 'never counted' if it has never been physically verified at ANY past
+    event, not just the most recent one. Used to flag new_unverified products."""
+    today = dt.date.today()
+    start = (today - dt.timedelta(days=lookback_days)).isoformat()
+    end   = today.isoformat()
+    code, resp = http_post(
+        f"{OCTO_BASE}/api/v1/get-recount-data",
+        {"location_id": 2, "start_date": start, "end_date": end,
+         "limit": 50000, "page": 1, "order": "id", "order_type": "desc", "filter": ""},
+        {"Authorization": f"Bearer {jwt}", "Permission": "report-inventary-recount"})
+    if code != 200 or not resp.get("flag"):
+        print(f"WARN: historical recount fetch failed (HTTP {code}) — proceeding with empty set", file=sys.stderr)
+        return set()
+    rows = resp.get("data", {}).get("data", [])
+    ever_counted = {int(r["product_id"]) for r in rows if r.get("type") == "CR"}
+    print(f"  historical CR pids (last {lookback_days}d): {len(ever_counted)}")
+    return ever_counted
+
+
+def fetch_activity_pids(jwt, start_date, end_date):
+    """Pull product activity from OCTOPOS for the given window.
+    Returns dict with two sets:
+      'sale_pids'  = pids that had a DR row (decrease, i.e. likely a POS sale)
+      'count_pids' = pids that had a CR row (credit, i.e. a physical recount adjustment)
+    Lauren 2026-05-21 PM #4 — to skip 'wasn't at last event' products we need to
+    distinguish 'was at event but not counted' (suspicious — list it) from
+    'wasn't at event at all' (skip — that's why it didn't move).
+    """
     code, resp = http_post(
         f"{OCTO_BASE}/api/v1/get-recount-data",
         {"location_id": 2, "start_date": start_date, "end_date": end_date,
          "limit": 5000, "page": 1, "order": "id", "order_type": "desc", "filter": ""},
         {"Authorization": f"Bearer {jwt}", "Permission": "report-inventary-recount"})
     if code != 200 or not resp.get("flag"):
-        print(f"WARN: get-recount-data failed (HTTP {code}) — proceeding with empty counted_pids", file=sys.stderr)
-        return set()
-    return {int(row["product_id"]) for row in resp.get("data", {}).get("data", [])}
+        print(f"WARN: get-recount-data failed (HTTP {code}) — proceeding with empty activity sets", file=sys.stderr)
+        return {"sale_pids": set(), "count_pids": set()}
+    sale_pids, count_pids = set(), set()
+    for row in resp.get("data", {}).get("data", []):
+        pid = int(row["product_id"])
+        if row.get("type") == "DR":
+            sale_pids.add(pid)
+        elif row.get("type") == "CR":
+            count_pids.add(pid)
+    return {"sale_pids": sale_pids, "count_pids": count_pids}
 
 
-def build_worklist(snapshot, counted_pids, prior_start, prior_end):
+def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids):
     """Iterate the OCTOPOS snapshot. Return enriched worklist entries.
 
-    Lauren 2026-05-21 PM #2 — 'stale' now requires no activity in the prior
-    event window. Activity = (a) appears in counted_pids OR (b) the product's
-    own updated_at falls inside the prior window. This catches both physical-
-    count events AND silent POS sales (which don't always surface in the
-    recount-data endpoint).
-    """
-    worklist = []
-    n_neg = n_stale = n_preexisting = n_new = 0
-    n_excluded = 0
-    n_moved_skipped = 0  # stale-candidate items skipped because updated in prior window
+    Lauren 2026-05-21 PM #4 — only list products that WERE at the prior event.
+    A product with zero activity in the prior window simply wasn't there to
+    sell or be counted — listing it on a recount is noise, not signal.
 
-    # Build the 'pids updated during prior window' set from snapshot's updated_at field.
-    # Treat ANY updated_at within [prior_start, prior_end] as a movement signal.
+    Categories on the list:
+      🔴 negative           = qty < 0 (always — strongest 'something is wrong')
+      🆕 new_unverified     = created AFTER prior event ended (never had a chance)
+      🔵 preexisting        = currently tagged 'Recount' in OCTOPOS
+      💤 moved_not_counted  = at the event (had DR sale OR updated_at change)
+                              BUT was not physically counted (no CR row)
+    Skipped (NOT on the list):
+      ❌ wasn't at last event (no activity at all) — Lauren's rule
+      ✅ moved AND counted — qty trustworthy
+    """
+    sale_pids   = activity.get("sale_pids")   or set()
+    count_pids  = activity.get("count_pids")  or set()
+
+    worklist = []
+    n_neg = n_sat_unsold = n_preexisting = n_new = 0
+    n_excluded = 0
+    n_not_at_event = 0       # qty>0 but no activity — wasn't at the event
+    n_already_counted = 0    # had CR row — trust the count, skip
+    n_sold = 0               # had DR row — sold, trust the qty, skip
+
+    # 'moved_pids' from snapshot updated_at — back-up signal in case OCTOPOS
+    # recount-data missed a sale (the API timing isn't perfectly synced).
     moved_pids = set()
     for code, vdata in (snapshot.get("vendors") or {}).items():
         for p in (vdata.get("products") or []):
             u = (p.get("updated_at") or "")[:10]
             if prior_start <= u <= prior_end:
                 moved_pids.add(int(p.get("id") or 0))
-    activity_pids = counted_pids | moved_pids  # 'didn't sell AND didn't get counted'
+    activity_pids = sale_pids | count_pids | moved_pids  # was at event (sold/counted/touched)
     for code, vdata in (snapshot.get("vendors") or {}).items():
         supplier = vdata.get("display_name") or vdata.get("name") or code
         for p in (vdata.get("products") or []):
@@ -200,29 +249,42 @@ def build_worklist(snapshot, counted_pids, prior_start, prior_end):
             # every weekly recount even though Lauren just verified them.
             created_at = (p.get("created_at") or "")[:10]
             is_new_since_prior = bool(created_at and created_at > prior_end)
-            in_activity = pid in activity_pids
+            was_at_event = pid in activity_pids
+            had_sale = pid in sale_pids
+            was_physically_counted = pid in count_pids
             if qty < 0:
-                # Lauren 2026-05-21 PM #3 — ALL negatives on the list, even if they were
-                # counted in the prior event. If a product is STILL negative after a
-                # physical count, the count itself was wrong OR sales corrupted the qty
-                # between count and now — both need physical re-verification.
+                # Lauren 2026-05-21 PM #3 — ALL negatives, regardless of recent count.
                 reason = "negative"
                 n_neg += 1
-            elif is_new_since_prior and qty > 0:
-                # Product created AFTER the prior event ended → never had a chance to be
-                # physically verified. Always include, even if recently updated.
-                reason = "new_unverified"
-                n_new += 1
-            elif has_recount and pid not in counted_pids:
+            elif has_recount:
+                # Lauren manually tagged with RECOUNT in OCTOPOS → always on list.
                 reason = "preexisting"
                 n_preexisting += 1
-            elif qty > 0 and not in_activity and not has_recount:
-                # 'stale' = positive stock, no sales AND no count in the prior window
-                reason = "stale"
-                n_stale += 1
-            elif qty > 0 and pid in moved_pids and pid not in counted_pids and not has_recount:
-                # Moved but not counted — explicitly skip (count tracking)
-                n_moved_skipped += 1
+            elif qty > 0 and is_new_since_prior and pid not in ever_counted_pids:
+                # Lauren 2026-05-21 PM #5: 'מוצרים חדשים שעוד לא נספרו אף פעם — אף פעם'.
+                # Requires BOTH: created_at after prior event ended (genuinely new),
+                # AND never appeared in CR rows (never physically counted). Without the
+                # 'is_new_since_prior' constraint, this catches 240+ old products that
+                # never went to a recount — way too noisy for a count list.
+                reason = "new_unverified"
+                n_new += 1
+            elif qty > 0 and was_physically_counted:
+                # Already counted at the prior event → trust the count, skip.
+                n_already_counted += 1
+                continue
+            elif qty > 0 and had_sale:
+                # Had a sale (DR) → trust the qty, skip.
+                n_sold += 1
+                continue
+            elif qty > 0 and was_at_event:
+                # Was at the event (proof via updated_at) but no DR and no CR →
+                # sat unsold and uncounted. THIS is the suspicious bucket.
+                reason = "sat_unsold"
+                n_sat_unsold += 1
+            else:
+                # qty > 0 + no activity at all → wasn't at the prior event. Skip
+                # (Lauren 2026-05-21 PM #4 — that's WHY it didn't move).
+                n_not_at_event += 1
                 continue
             if reason:
                 worklist.append({
@@ -242,15 +304,19 @@ def build_worklist(snapshot, counted_pids, prior_start, prior_end):
     stats = {
         "negative": n_neg,
         "new_unverified": n_new,
-        "stale": n_stale,
+        "sat_unsold": n_sat_unsold,
         "preexisting": n_preexisting,
         "excluded_permanent": n_excluded,
-        "excluded_moved_in_window": n_moved_skipped,
-        "counted_last_event": len(counted_pids),
+        "excluded_not_at_event": n_not_at_event,
+        "excluded_already_counted": n_already_counted,
+        "excluded_sold": n_sold,
+        "ever_counted_total": len(ever_counted_pids),
+        "sale_last_event": len(sale_pids),
+        "count_last_event": len(count_pids),
         "moved_last_event": len(moved_pids),
         "activity_last_event": len(activity_pids),
         "final_worklist_size": len(worklist),
-        "removed_recount_tag": None,  # tag-mutation not wired pre-event (cleanup runs Sunday)
+        "removed_recount_tag": None,  # tag-mutation handled by recount_weekend.py (Sunday)
     }
     return worklist, stats
 
@@ -303,11 +369,12 @@ def main():
 
     # Authenticate + fetch counted_pids
     jwt = octopos_jwt()
-    counted_pids = fetch_counted_pids(jwt, prior_start, prior_end)
-    print(f"Counted PIDs in prior window ({prior_start} → {prior_end}): {len(counted_pids)}")
+    activity = fetch_activity_pids(jwt, prior_start, prior_end)
+    ever_counted_pids = fetch_ever_counted_pids(jwt, lookback_days=90)
+    print(f"Activity in prior window ({prior_start} → {prior_end}): sale={len(activity['sale_pids'])} count={len(activity['count_pids'])}")
 
     # Build worklist
-    worklist, stats = build_worklist(snapshot, counted_pids, prior_start, prior_end)
+    worklist, stats = build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids)
     print(f"Worklist: {stats}")
 
     # Write to state
@@ -330,8 +397,8 @@ def main():
     sms_body = (
         f"@recount ✓ רשימת ספירה מוכנה ל-{city}, {state} ({upcoming_start} → {upcoming_end}).\n"
         f"📋 {len(worklist)} מוצרים לספירה:\n"
-        f"🔴 {stats['negative']} מינוס · 🆕 {stats['new_unverified']} חדשים שלא אומתו · "
-        f"💤 {stats['stale']} לא נספרו ולא נמכרו · 🔵 {stats['preexisting']} קיים מקודם.\n"
+        f"🔴 {stats['negative']} מינוס · 🔵 {stats['preexisting']} מתויגי RECOUNT · "
+        f"🆕 {stats['new_unverified']} חדשים · 💤 {stats['sat_unsold']} היו ולא נמכרו.\n"
         f"חלון נתונים מהאירוע הקודם: {prior_start} → {prior_end}\n"
         f"https://laurenlev10.github.io/lauren-agent-hub-data/recount/?evkey={upcoming_evkey}"
     )
