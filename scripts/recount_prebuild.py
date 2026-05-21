@@ -146,6 +146,60 @@ def is_permanent_exclude(p):
     return False
 
 
+def fetch_real_sales_pids(jwt, start_date, end_date):
+    """Call /api/v1/get-sales-by-vendor-product-report per vendor and union the
+    set of pids with units_sold > 0. This is the REAL sales signal — the DR
+    rows in get-recount-data are inventory adjustments, NOT POS sales.
+
+    Lauren 2026-05-21 PM #10 — confirmed via 'BC Kiss And Tell Duo Lip' which
+    had 12 units sold during Milwaukee (per OCTOPOS Analytics page) but was
+    flagged as sat_unsold because the DR-rows proxy missed it.
+    """
+    # Vendor IDs from scripts/octopos_sync.py MAPPING table
+    VENDORS = [
+        (8,  "She Makeup"), (9,  "Mystery Box"), (1,  "Amuse Cosmetics"),
+        (14, "Nabi"),       (3,  "BB and W"),    (15, "Prolux"),
+        (6,  "EBS Perfumes"),(17, "Rude"),       (23, "Xime Beauty"),
+        (7,  "Feral Edge"), (12, "Lurella"),     (10, "Kara Beauty"),
+        (16, "Romantic Beauty"), (4, "Beauty Creations"),
+    ]
+    # OCTOPOS expects dates as "MM/DD/YYYY HH:MM:SS"
+    df = dt.date.fromisoformat(start_date).strftime("%m/%d/%Y") + " 00:00:00"
+    dt_ = dt.date.fromisoformat(end_date).strftime("%m/%d/%Y") + " 23:59:59"
+    sold_pids = set()
+    sold_qty = {}  # pid -> units_sold (cumulative across vendors, but each pid is single-vendor anyway)
+    for vid, vname in VENDORS:
+        body = {
+            "data": {
+                "location": {"label": "THE MAKEUP BLOWOUT SALE GROUP INC",
+                             "value": {"id": 2, "name": "THE MAKEUP BLOWOUT SALE GROUP INC"}},
+                "departments": [], "categories": [],
+                "vendor": [{"id": vid, "name": vname}],
+                "dateFrom": df, "dateTo": dt_,
+            },
+            "query": {"limit": 5000, "page": 1, "order": "name", "order_type": "asc", "filter": ""}
+        }
+        try:
+            code, resp = http_post(
+                f"{OCTO_BASE}/api/v1/get-sales-by-vendor-product-report",
+                body,
+                {"Authorization": f"Bearer {jwt}", "Permission": "report-total-sales-vendor"})
+            if code != 200 or not resp.get("flag"):
+                print(f"  WARN: sales fetch for vendor {vname} HTTP {code}", file=sys.stderr)
+                continue
+            prods = (resp.get("data") or {}).get("products") or []
+            for p in prods:
+                u = int(p.get("units_sold") or 0)
+                if u > 0:
+                    pid = int(p["id"])
+                    sold_pids.add(pid)
+                    sold_qty[pid] = u
+        except Exception as e:
+            print(f"  WARN: vendor {vname} fetch error: {e}", file=sys.stderr)
+    print(f"  real sold pids ({start_date} → {end_date}): {len(sold_pids)}")
+    return sold_pids, sold_qty
+
+
 def fetch_ever_counted_pids(jwt, lookback_days=90):
     """Pull recount-data over the last N days. Return set of pids that ever
     appeared in a CR (physical count) row. Lauren 2026-05-21 PM #5 — a product
@@ -195,7 +249,7 @@ def fetch_activity_pids(jwt, start_date, end_date):
     return {"sale_pids": sale_pids, "count_pids": count_pids}
 
 
-def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids):
+def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids, real_sold_pids, real_sold_qty):
     """Iterate the OCTOPOS snapshot. Return enriched worklist entries.
 
     Lauren 2026-05-21 PM #4 — only list products that WERE at the prior event.
@@ -212,7 +266,9 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
       ❌ wasn't at last event (no activity at all) — Lauren's rule
       ✅ moved AND counted — qty trustworthy
     """
-    sale_pids   = activity.get("sale_pids")   or set()
+    # OLD: sale_pids from get-recount-data DR rows — that was INVENTORY ADJUSTMENTS,
+    # not POS sales. Replaced with real_sold_pids from get-sales-by-vendor-product-report.
+    sale_pids   = real_sold_pids or set()
     count_pids  = activity.get("count_pids")  or set()
 
     worklist = []
@@ -315,7 +371,7 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
                     "department": (p.get("department") or "").strip(),
                     "qty": qty,
                     "threshold": float(p.get("threshold") or 0),
-                    "sold_in_window": None,  # sales endpoint unverified — left null
+                    "sold_in_window": real_sold_qty.get(pid, 0),
                     "tags": [t for t in tags_raw if t],
                     "reason": reason,
                     "updated_at": p.get("updated_at") or "",
@@ -391,10 +447,11 @@ def main():
     jwt = octopos_jwt()
     activity = fetch_activity_pids(jwt, prior_start, prior_end)
     ever_counted_pids = fetch_ever_counted_pids(jwt, lookback_days=90)
+    real_sold_pids, real_sold_qty = fetch_real_sales_pids(jwt, prior_start, prior_end)
     print(f"Activity in prior window ({prior_start} → {prior_end}): sale={len(activity['sale_pids'])} count={len(activity['count_pids'])}")
 
     # Build worklist
-    worklist, stats = build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids)
+    worklist, stats = build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids, real_sold_pids, real_sold_qty)
     print(f"Worklist: {stats}")
 
     # Write to state
