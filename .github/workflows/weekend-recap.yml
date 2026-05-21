@@ -1,0 +1,103 @@
+name: weekend-recap
+
+# Lauren 2026-05-21 PM: post-event automation.
+# 1. Pulls weekend sales (stock_timeseries delta — sub for OCTOPOS sales API
+#    once fully decoded; see Scheduled/NEW/shared/OCTOPOS_AUTH.md).
+# 2. Manages RECOUNT tags (add for negative-stock + zero-movement; remove for
+#    post-count products).
+# 3. Builds order recommendations per supplier (median × 1.3, rounded up to 12).
+# 4. SMS Lauren Monday morning with a summary.
+
+on:
+  schedule:
+    # Monday 8 AM PT (16:00 UTC during PDT / 17:00 UTC during PST)
+    - cron: '0 16 * * 1'
+    # Backup: Tuesday 8 AM PT in case Monday cron missed
+    - cron: '0 16 * * 2'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  recap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Weekend recap (sales + RECOUNT mgmt)
+        env:
+          OCTOPOS_EMAIL:    ${{ secrets.OCTOPOS_EMAIL }}
+          OCTOPOS_PASSWORD: ${{ secrets.OCTOPOS_PASSWORD }}
+        run: python3 scripts/weekend_recap.py
+
+      - name: Build order recommendations
+        run: python3 scripts/compute_recommendations.py
+
+      - name: SMS Lauren the summary
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+        run: python3 scripts/sms_weekly_summary.py
+
+      - name: Commit weekend_sales.json + order_recommendations.json
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via weekend-recap)"
+          git add docs/state/weekend_sales.json docs/state/order_recommendations.json 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "weekend-recap: $(date -u +%Y-%m-%d) sales + recommendations refresh"
+            for attempt in 1 2 3; do
+              git pull --rebase origin main || true
+              if git push origin main; then echo "✓ pushed (attempt $attempt)"; break; fi
+              echo "push attempt $attempt failed, retrying..."; sleep $((attempt * 5))
+            done
+          else
+            echo "no changes"
+          fi
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists(): raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          found = False
+          for t in data.get("tasks", []):
+              if t.get("id") == "weekend-recap":
+                  t["lastRunAt"] = now; found = True; break
+          if not found:
+              data.setdefault("tasks", []).append({
+                  "id":"weekend-recap","label":"📊 סיכום שבועי + המלצות הזמנה",
+                  "frequency":"weekly","scheduleHuman":"Monday 8 AM PT",
+                  "cron":"0 16 * * 1","enabled":True,"lastRunAt":now,
+                  "agent":"weekend-recap","dashboard":"inventory/?mode=global"
+              })
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git add docs/scheduled-runs.json 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "scheduled-runs: bump weekend-recap lastRunAt"
+            for a in 1 2 3; do git pull --rebase origin main || true; git push origin main && break; sleep 5; done
+          fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
