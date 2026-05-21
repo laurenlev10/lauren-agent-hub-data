@@ -8211,9 +8211,19 @@ async function confirmInvoiceCompared(){
       } catch(_){}
     }
     if (existing) {
+      // Lauren 2026-05-20 PM #4 — the qty input shows pack-multiplied value
+      // (e.g., 2 displays × 12-unit pack = 24 units) since the Round 2 fix, but
+      // the SAVE was reading raw L.qty (=2) and adding only 2 to OCTOPOS stock
+      // instead of 24. If Lauren didn't manually override the input, apply the
+      // same pack-multiplication here so the saved qty matches what she saw.
+      var effQty = qty;
+      if (ov.qty === undefined && qty > 0 && typeof getEffectivePackForLine === 'function'){
+        var _packS = getEffectivePackForLine(supplierCode, existing.id);
+        if (_packS > 1) effQty = qty * _packS;
+      }
       // Existing product — adjust stock + sale_price + clearance + rules
-      if (addToSystem && qty > 0) {
-        actions.push({type:'stock', productId: existing.id, name: name, qty: qty, currentStock: Number(existing.in_stock_qty||0)});
+      if (addToSystem && effQty > 0) {
+        actions.push({type:'stock', productId: existing.id, name: name, qty: effQty, currentStock: Number(existing.in_stock_qty||0)});
       }
       if (salePrice !== null && salePrice > 0 && salePrice !== Number(existing.sale_price||0)) {
         actions.push({type:'sale_price', productId: existing.id, name: name, salePrice: salePrice});
@@ -8226,9 +8236,16 @@ async function confirmInvoiceCompared(){
         actions.push({type:'rule_update', productId: existing.id, name: name, in_garage: inGarage, display_min: displayMin});
       }
     } else {
-      // New product — POST
-      if (addToSystem && sku && qty > 0 && price > 0) {
-        actions.push({type:'create', sku: sku, name: name, qty: qty, price: price, salePrice: salePrice, displayMin: displayMin, inGarage: inGarage, clearance: clearance, vendorId: vendorId});
+      // New product — POST. Apply pack-size to qty here too if not manually
+      // overridden, using supplier default (no product_id yet for product-level
+      // override).
+      var effQtyNew = qty;
+      if (ov.qty === undefined && qty > 0 && typeof getEffectivePackForLine === 'function'){
+        var _packN = getEffectivePackForLine(supplierCode, null);
+        if (_packN > 1) effQtyNew = qty * _packN;
+      }
+      if (addToSystem && sku && effQtyNew > 0 && price > 0) {
+        actions.push({type:'create', sku: sku, name: name, qty: effQtyNew, price: price, salePrice: salePrice, displayMin: displayMin, inGarage: inGarage, clearance: clearance, vendorId: vendorId});
       }
     }
   });
