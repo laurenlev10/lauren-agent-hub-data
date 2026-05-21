@@ -4591,25 +4591,77 @@ function buildInvoiceArchiveHistory(productId){
   if (!rows.length){
     return '<div style="color:var(--muted);font-size:13px">אין הזמנות היסטוריות למוצר זה ב-OCTOPOS עדיין. הזמנות חדשות יופיעו כאן אוטומטית אחרי כל קבלת סחורה.</div>';
   }
-  // Summary: total units received, avg unit price, last received date
-  var totalUnits = 0, totalSpend = 0, weightedPrice = 0;
+  // ─ Compute insights from PO history ──────────────────────────────────────
+  var totalUnits = 0, totalSpend = 0;
   rows.forEach(function(r){ totalUnits += r.unit_qty || 0; totalSpend += r.total || 0; });
   var avgUnit = totalUnits > 0 ? (totalSpend / totalUnits) : 0;
-  var lastDate = rows[0].invoice_date;
-  // Days since last receive
-  var daysSince = '';
+  // rows already sorted newest-first by date (or PO id when dates are null)
+  var newest = rows[0];
+  var oldest = rows[rows.length - 1];
+  // Days-since-last (only if we have a real date — many OCTOPOS POs lack received_date)
+  var daysSince = null;
   try {
-    var d = new Date(lastDate + 'T00:00:00Z');
-    if (!isNaN(d)){
-      var diff = Math.round((Date.now() - d.getTime()) / 86400000);
-      daysSince = ' · ' + diff + ' ימים מאז';
+    if (newest.invoice_date && newest.invoice_date.length >= 8) {
+      var d = new Date(newest.invoice_date + 'T00:00:00Z');
+      if (!isNaN(d)) daysSince = Math.round((Date.now() - d.getTime()) / 86400000);
     }
   } catch(_){}
-  var html = '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:#0f172a">' +
-    '<div><b>סה"כ יחידות שהתקבלו:</b> ' + totalUnits + ' (מ-' + rows.length + ' חשבוניות)</div>' +
-    '<div><b>מחיר ממוצע ליחידה:</b> $' + avgUnit.toFixed(2) + '</div>' +
-    '<div><b>קבלה אחרונה:</b> ' + lastDate + daysSince + '</div>' +
-  '</div>';
+  // Qty trend: last 3 vs prior 3 POs (when ≥6 orders)
+  var qtyTrend = null;
+  if (rows.length >= 6){
+    var last3 = rows.slice(0, 3).reduce(function(a,r){return a+(r.unit_qty||0);}, 0) / 3;
+    var prev3 = rows.slice(3, 6).reduce(function(a,r){return a+(r.unit_qty||0);}, 0) / 3;
+    if (prev3 > 0){
+      var pct = ((last3 - prev3) / prev3) * 100;
+      qtyTrend = { last3: Math.round(last3), prev3: Math.round(prev3), pct: pct };
+    }
+  }
+  // Cost trend: latest vs avg (flag price changes)
+  var costTrend = null;
+  if (rows.length >= 3){
+    var latestCost = newest.unit_price || 0;
+    var priorCosts = rows.slice(1).map(function(r){return r.unit_price||0;}).filter(function(x){return x>0;});
+    if (priorCosts.length && latestCost > 0){
+      var avgPriorCost = priorCosts.reduce(function(a,b){return a+b;},0) / priorCosts.length;
+      var dpct = ((latestCost - avgPriorCost) / avgPriorCost) * 100;
+      if (Math.abs(dpct) >= 5) costTrend = { latest: latestCost, avgPrior: avgPriorCost, pct: dpct };
+    }
+  }
+  // Stale alert: no order in ≥90 days (only when we have a real date)
+  var stale = (daysSince != null && daysSince >= 90);
+  // Avg days between orders (when dates available)
+  var freqDays = null;
+  var datedRows = rows.filter(function(r){return r.invoice_date && r.invoice_date.length>=8;});
+  if (datedRows.length >= 3){
+    try {
+      var first = new Date(datedRows[datedRows.length-1].invoice_date + 'T00:00:00Z');
+      var last  = new Date(datedRows[0].invoice_date + 'T00:00:00Z');
+      var spanDays = (last - first) / 86400000;
+      if (spanDays > 0) freqDays = Math.round(spanDays / (datedRows.length - 1));
+    } catch(_){}
+  }
+  // ─ Render insights banner ────────────────────────────────────────────────
+  var insightChips = [];
+  insightChips.push('<span style="background:#fff;padding:4px 9px;border-radius:6px;border:1px solid #cbd5e1"><b>' + Math.round(totalUnits) + 'u</b> סך הכל · <b>$' + totalSpend.toFixed(2) + '</b> · ' + rows.length + ' הזמנות</span>');
+  insightChips.push('<span style="background:#fff;padding:4px 9px;border-radius:6px;border:1px solid #cbd5e1"><b>$' + avgUnit.toFixed(2) + '/יח׳</b> ממוצע</span>');
+  if (daysSince != null){
+    var styleS = stale ? 'background:#fef2f2;border-color:#fca5a5;color:#991b1b' : 'background:#fff;border-color:#cbd5e1';
+    insightChips.push('<span style="padding:4px 9px;border-radius:6px;border:1px solid;' + styleS + '">' + (stale?'⚠ ':'') + 'הזמנה אחרונה: לפני <b>' + daysSince + ' ימים</b></span>');
+  } else if (newest.po_id) {
+    insightChips.push('<span style="background:#fff;padding:4px 9px;border-radius:6px;border:1px solid #cbd5e1">הזמנה אחרונה: <b>PO #' + newest.po_id + '</b></span>');
+  }
+  if (freqDays) insightChips.push('<span style="background:#fff;padding:4px 9px;border-radius:6px;border:1px solid #cbd5e1">מוזמן <b>כל ~' + freqDays + ' ימים</b></span>');
+  if (qtyTrend){
+    var dir = qtyTrend.pct > 5 ? '📈' : (qtyTrend.pct < -5 ? '📉' : '➡');
+    var col = qtyTrend.pct > 5 ? '#15803d' : (qtyTrend.pct < -5 ? '#b91c1c' : '#475569');
+    insightChips.push('<span style="background:#fff;padding:4px 9px;border-radius:6px;border:1px solid #cbd5e1;color:' + col + '">' + dir + ' כמות: 3 אחרונות <b>' + qtyTrend.last3 + 'u</b> מול <b>' + qtyTrend.prev3 + 'u</b> קודם (' + (qtyTrend.pct>0?'+':'') + qtyTrend.pct.toFixed(0) + '%)</span>');
+  }
+  if (costTrend){
+    var dirP = costTrend.pct > 0 ? '⬆' : '⬇';
+    var colP = costTrend.pct > 0 ? '#b91c1c' : '#15803d';
+    insightChips.push('<span style="background:#fef3c7;padding:4px 9px;border-radius:6px;border:1px solid #fde68a;color:' + colP + '"><b>' + dirP + ' מחיר השתנה</b>: $' + costTrend.latest.toFixed(2) + ' אחרון מול $' + costTrend.avgPrior.toFixed(2) + ' ממוצע (' + (costTrend.pct>0?'+':'') + costTrend.pct.toFixed(0) + '%)</span>');
+  }
+  var html = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;font-size:12px">' + insightChips.join('') + '</div>';
   html += '<table style="width:100%;font-size:12px"><thead><tr>' +
     '<th style="text-align:right;color:var(--muted);padding:4px">תאריך</th>' +
     '<th style="text-align:right;color:var(--muted);padding:4px">חשבונית #</th>' +

@@ -35,13 +35,19 @@ jobs:
           OCTOPOS_PASSWORD: ${{ secrets.OCTOPOS_PASSWORD }}
         run: python3 scripts/octopos_sync.py
 
+      - name: Seed invoice archive from OCTOPOS POs
+        # Rebuilds docs/state/invoice_archive.json from every received PO
+        # so the per-product history on the dashboard stays current with
+        # the OCTOPOS source-of-truth (Lauren 2026-05-21).
+        run: python3 scripts/seed_archive_from_pos.py
+
       - name: Commit + push snapshot if changed
         run: |
           git config user.email "lauren@noreply.github.com"
           git config user.name "Lauren (via octopos-stock-poll)"
-          # Stage BOTH outputs of octopos_sync.py — otherwise the timeseries
-          # file sits as unstaged work and blocks `git pull --rebase`.
-          git add docs/state/octopos_products.json docs/state/octopos_stock_timeseries.json 2>/dev/null || true
+          # Stage BOTH outputs of octopos_sync.py + the seeded archive — otherwise
+          # they sit as unstaged work and block `git pull --rebase`.
+          git add docs/state/octopos_products.json docs/state/octopos_stock_timeseries.json docs/state/invoice_archive.json 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -m "octopos: refresh products snapshot"
             # Retry push up to 3 times to survive races with other workflows pushing to main.
