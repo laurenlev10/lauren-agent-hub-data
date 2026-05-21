@@ -4065,10 +4065,18 @@ function normalizeSku(s){ return String(s||"").toUpperCase().replace(/[^A-Z0-9]/
 function skuPartsSet(sku){
   if (!sku) return new Set();
   var raw = String(sku).toUpperCase();
-  var parts = raw.split(/[/\\, ;|\t\-]+/).map(function(p){ return p.replace(/[^A-Z0-9]/g,''); }).filter(function(p){ return p.length >= 3; });
-  // Also include the full normalized string as a part (for SKUs like "XS054" with no separator)
+  // Tighter filter — split parts must be >=5 chars OR contain a digit.
+  // Skips 3-4 letter brand prefixes (BBW, NAB, EBS, XB) that would otherwise
+  // false-positive across every SKU from the same vendor (added 2026-05-20 PM —
+  // before this, every BB&W-* SKU partial-matched every other BB&W-* SKU,
+  // causing Blush 3in1 to silently steal Lipliner's match etc.).
+  var parts = raw.split(/[/\\, ;|\t\-]+/).map(function(p){ return p.replace(/[^A-Z0-9]/g,''); }).filter(function(p){
+    return p.length >= 3 && (p.length >= 5 || /\d/.test(p));
+  });
+  // Full normalized string — same length/digit gate so 'BBW' alone (3 chars,
+  // no digit) doesn't sneak in as a match key.
   var full = raw.replace(/[^A-Z0-9]/g,'');
-  if (full.length >= 3) parts.push(full);
+  if (full.length >= 3 && (full.length >= 5 || /\d/.test(full))) parts.push(full);
   return new Set(parts);
 }
 
@@ -5852,7 +5860,22 @@ function nameSimilarity(a, b){
   if (A.size === 0 || B.size === 0) return 0;
   var inter = 0; A.forEach(function(x){ if (B.has(x)) inter++; });
   var uni = A.size + B.size - inter;
-  return uni ? inter/uni : 0;
+  var j = uni ? inter/uni : 0;
+  // Second-chance: drop-shadow-garbled names defeat token Jaccard. Check whether
+  // a 5+ char distinctive token from one side appears as a substring of the
+  // other side's normalized full string. Score = 0.4 + 0.1 per hit (capped 0.95).
+  // Solves "BB&W Precise Waterproof Gel Eyeliner - Black" ↔ "rpr erproof Gel Ey
+  // oof Gel Eyeliner eliner" (Jaccard 0.2 but "eyeliner" matches verbatim) and
+  // "BB&W Blush 3 in 1" ↔ "Blush 3in CB Blush 3in11" (added 2026-05-20 PM).
+  if (j < 0.4) {
+    var fullA = String(a||'').toLowerCase().replace(/[^a-z0-9]/g, '');
+    var fullB = String(b||'').toLowerCase().replace(/[^a-z0-9]/g, '');
+    var hits = 0;
+    A.forEach(function(t){ if (t.length >= 5 && fullB.indexOf(t) !== -1) hits++; });
+    B.forEach(function(t){ if (t.length >= 5 && fullA.indexOf(t) !== -1) hits++; });
+    if (hits > 0) return Math.max(j, Math.min(0.95, 0.4 + 0.1 * hits));
+  }
+  return j;
 }
 
 // ────────── Render diff table ──────────
