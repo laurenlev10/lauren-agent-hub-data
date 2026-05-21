@@ -4813,6 +4813,51 @@ function getEffectivePackForLine(supCode, productId){
   }
   return getSupplierPackSize(supCode);
 }
+
+// Look up the canonical OCTOPOS unit_cost for a product_id. Source-of-truth for
+// per-unit cost — invoices often quote display-level price ($24/display for a
+// 24-unit display) which is misleading without dividing by pack-size. OCTOPOS
+// has the correct per-unit cost on 829/910 products (added 2026-05-20 PM #3).
+// Returns null if not found OR cost is unset/zero.
+function getOctoposUnitCost(productId){
+  if (!productId || !OCTOPOS || !OCTOPOS.vendors) return null;
+  var pidStr = String(productId);
+  var hit = null;
+  Object.keys(OCTOPOS.vendors).forEach(function(code){
+    if (hit) return;
+    var v = OCTOPOS.vendors[code] || {};
+    (v.products || []).concat(v.inactive_products || []).forEach(function(p){
+      if (hit) return;
+      if (String(p.id) === pidStr) {
+        var c = Number(p.unit_cost || 0);
+        if (c > 0) hit = c;
+      }
+    });
+  });
+  return hit;
+}
+
+// Same lookup but by SKU (for rows where we matched via SKU but don't have the
+// product_id captured on r.exp). Walks the same OCTOPOS snapshot.
+function getOctoposUnitCostBySku(sku){
+  if (!sku || !OCTOPOS || !OCTOPOS.vendors) return null;
+  var skuU = String(sku).toUpperCase().trim();
+  if (!skuU) return null;
+  var hit = null;
+  Object.keys(OCTOPOS.vendors).forEach(function(code){
+    if (hit) return;
+    var v = OCTOPOS.vendors[code] || {};
+    (v.products || []).concat(v.inactive_products || []).forEach(function(p){
+      if (hit) return;
+      var psk = String(p.sku || '').toUpperCase().trim();
+      if (psk && psk === skuU) {
+        var c = Number(p.unit_cost || 0);
+        if (c > 0) hit = c;
+      }
+    });
+  });
+  return hit;
+}
 async function setSupplierPackSize(supCode, n){
   if (!supCode) return false;
   if (!RECV_STATE.supplier_pack_sizes) RECV_STATE.supplier_pack_sizes = {};
@@ -9034,6 +9079,29 @@ function renderCompareDiff(){
     var sku  = srcL.sku || '';
     var qty  = r.inv ? r.invQ : (r.exp ? r.expQ : 0);
     var price = Number(srcL.price || srcL.cost_unit || 0);
+    // Lauren 2026-05-20 PM #3 — invoices often show display-level price ($24 for
+    // a 24-unit display = $1/unit). Prefer OCTOPOS unit_cost (canonical per-unit
+    // cost) over the raw invoice number. Fallback chain: OCTOPOS by product_id →
+    // OCTOPOS by SKU → invoice raw ÷ pack-size → invoice raw.
+    var _priceSrc = 'invoice';
+    var _rawInvPrice = price;
+    var _octCost = null;
+    if (r.exp && r.exp.product_id) _octCost = getOctoposUnitCost(r.exp.product_id);
+    if (_octCost == null && sku) _octCost = getOctoposUnitCostBySku(sku);
+    if (_octCost != null && _octCost > 0){
+      price = _octCost;
+      _priceSrc = 'octopos';
+    } else if (price > 0 && CMP_CTX && CMP_CTX.supplier_code){
+      // No OCTOPOS cost → divide raw invoice by pack-size to get per-unit
+      var _pidFP = (r.exp && r.exp.product_id) || null;
+      var _pack = (typeof getEffectivePackForLine === 'function')
+        ? getEffectivePackForLine(CMP_CTX.supplier_code, _pidFP)
+        : 1;
+      if (_pack > 1){
+        price = price / _pack;
+        _priceSrc = 'invoice/' + _pack;
+      }
+    }
     var dispMin = _extractDisplayMin(rawName) || '';
     // Fallback: if no dispMin from the name parse, look up the PO line's product_id
     // and read its min_display from product_rules.json (set via the Order Wizard).
@@ -9173,7 +9241,10 @@ function renderCompareDiff(){
           var qtyColor = qtyDiffer ? '#a16207' : '#15803d';
           return orderCell + '<td><input type="number" data-edit="qty" data-ri="'+ri+'" min="0" step="1" value="'+qty+'" style="'+inpBase+'background:'+qtyBg+';color:'+qtyColor+';text-align:center;font-weight:800"></td>';
         })() +
-        '<td><input type="number" data-edit="price" data-ri="'+ri+'" min="0" step="0.01" value="'+(Number(price)||0).toFixed(2)+'" style="'+inpBase+'text-align:center"></td>' +
+        '<td>' +
+          '<input type="number" data-edit="price" data-ri="'+ri+'" min="0" step="0.01" value="'+(Number(price)||0).toFixed(2)+'" title="' + (_priceSrc === 'octopos' ? 'מחיר עלות מ-OCTOPOS (יחידה)' : (_priceSrc.indexOf('invoice/') === 0 ? 'מחיר חשבונית חולק ב-pack-size (' + _priceSrc.split('/')[1] + ')' : 'מחיר מהחשבונית')) + '" style="'+inpBase+'text-align:center' + (_priceSrc === 'octopos' ? ';background:#ecfdf5;border-color:#86efac' : (_priceSrc.indexOf('invoice/') === 0 ? ';background:#eff6ff;border-color:#93c5fd' : '')) + '">' +
+          (_priceSrc === 'octopos' ? '<div style="font-size:9px;color:#15803d;text-align:center;margin-top:1px" title="המקור">📦 OCTOPOS</div>' : (_priceSrc.indexOf('invoice/') === 0 ? '<div style="font-size:9px;color:#1d4ed8;text-align:center;margin-top:1px" title="מחיר חשבונית חולק ב-pack-size">÷' + _priceSrc.split('/')[1] + '</div>' : '')) +
+        '</td>' +
         '<td><input type="number" data-edit="sale_price" data-ri="'+ri+'" min="0" step="0.50" value="'+(salePrice ? Number(salePrice).toFixed(2) : '')+'" placeholder="—" style="'+inpBase+'text-align:center;color:#15803d;font-weight:700"></td>' +
         '<td><input type="number" data-edit="display_min" data-ri="'+ri+'" min="0" step="1" value="'+dispMin+'" placeholder="24" style="'+inpBase+'text-align:center"></td>' +
         '<td style="text-align:center"><input type="checkbox" data-edit="in_garage" data-ri="'+ri+'" '+(inGarageDefault?'checked':'')+' title="גם בגראג\'" style="width:16px;height:16px;cursor:pointer"></td>' +
