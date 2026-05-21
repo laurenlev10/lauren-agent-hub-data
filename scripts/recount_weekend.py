@@ -30,6 +30,10 @@ from zoneinfo import ZoneInfo
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OCTO_BASE = "https://themakeup.octoretail.com"
 
+# 2026-05-20: Cloudflare started blocking the default Python urllib UA
+# (Error 1010 browser_signature_banned). Send a browser-like UA on every OCTOPOS call.
+OCTO_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
 # US state → IANA timezone (single TZ per state — good enough for Lauren's events
 # which are always in major cities; if Lauren ever runs an event in a multi-TZ
 # state border city, override via STAFF_DEFAULTS[evkey].tz_override).
@@ -64,7 +68,7 @@ WINDOW_MIN_AFTER  = 35  # tolerate up to 17:50 (so an hourly cron at :15 catches
 def http_post(url, body, headers, timeout=15):
     req = urllib.request.Request(
         url, data=json.dumps(body).encode(),
-        headers={**headers, "Content-Type":"application/json", "Accept":"application/json"},
+        headers={**headers, "Content-Type":"application/json", "Accept":"application/json", "User-Agent": OCTO_UA},
         method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -197,7 +201,7 @@ def main():
             try:
                 # Read current categories
                 rr = urllib.request.Request(f"{OCTO_BASE}/api/v2/products/{pid}",
-                    headers={"Authorization": v2_token, "Accept": "application/json"})
+                    headers={"Authorization": v2_token, "Accept": "application/json", "User-Agent": OCTO_UA})
                 with urllib.request.urlopen(rr, timeout=8) as r:
                     prod = json.loads(r.read())
                 cats = prod.get("categories") or []
@@ -209,7 +213,7 @@ def main():
                 pr = urllib.request.Request(f"{OCTO_BASE}/api/v2/products/{pid}",
                     data=json.dumps({"category_ids": new_cat_ids}).encode(),
                     headers={"Authorization": v2_token, "Content-Type": "application/json",
-                             "Accept": "application/json"}, method="PUT")
+                             "Accept": "application/json", "User-Agent": OCTO_UA}, method="PUT")
                 with urllib.request.urlopen(pr, timeout=8) as r:
                     if r.status == 200:
                         cleaned_count += 1

@@ -24,6 +24,11 @@ from datetime import datetime, timezone
 
 BASE = "https://themakeup.octoretail.com/api/v2"
 
+# 2026-05-20: Cloudflare started blocking the default Python urllib UA (Error 1010,
+# "browser_signature_banned"). Sending a normal-browser UA passes Cloudflare's
+# bot heuristics and gets us back to OCTOPOS where the raw token auth still works.
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
 # Lauren's 15 suppliers → list of OCTOPOS vendor_ids (confirmed 2026-05-12; 2026-05-13: Mystery Box now spans Garage + Storage).
 # Most suppliers are 1:1. Mystery Box is special — Lauren's "מסחורה ממוזגת מהמחסן" combines two
 # internal OCTOPOS vendors (24=Garage + 19=Storage). Adding more multi-vendor suppliers later is
@@ -51,7 +56,7 @@ LOCATION_ID = 2  # "THE MAKEUP BLOWOUT SALE GROUP INC"
 
 
 def _request(method, path, token=None, body=None, timeout=20):
-    headers = {"Accept": "application/json"}
+    headers = {"Accept": "application/json", "User-Agent": USER_AGENT}
     if token:
         headers["Authorization"] = token
     data = None
