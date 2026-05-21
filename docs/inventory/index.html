@@ -590,6 +590,11 @@
     <h2 style="font-size:22px;font-weight:800;margin:6px 0 4px">📊 דשבורד ספקים מלא</h2>
     <p style="color:var(--muted);font-size:14px;margin:0 0 16px">כל 15 הספקים עם מלאי, הזמנות, POs, ו-tags מאוקטופוס. כאן את מנהלת את הספקים שלך באופן כללי — בלי תלות באירוע ספציפי.</p>
     <div class="summary-grid" id="gSummary"></div>
+    <!-- Order recommendations panel — Lauren 2026-05-21 -->
+    <details id="gRecsPanel" style="background:#ecfdf5;border:1px solid #86efac;border-radius:10px;padding:12px 14px;margin:14px 0">
+      <summary style="cursor:pointer;font-weight:800;color:#14532d;font-size:15px">📦 הזמנות מומלצות לאירוע הבא — <span id="gRecsHeader">טוען...</span></summary>
+      <div id="gRecsBody" style="margin-top:10px"></div>
+    </details>
     <div class="controls" style="margin-bottom:14px">
       <input type="text" class="search" id="gSearch" placeholder="חיפוש ספק / מוצר / SKU / מספר PO...">
       <button id="btnRefreshOctoposGlobal" class="btn-refresh-octopos" title="הפעיל סנכרון מאוקטופוס עכשיו">🔄 רענני נתונים</button>
@@ -7956,7 +7961,98 @@ function setupModeSwitch(){
   }
 }
 
+function renderRecommendationsPanel(){
+  var header = document.getElementById('gRecsHeader');
+  var body = document.getElementById('gRecsBody');
+  if (!header || !body) return;
+  if (!ORDER_RECS || !ORDER_RECS.suppliers || !Object.keys(ORDER_RECS.suppliers).length){
+    header.textContent = 'אין המלצות כרגע — תרוץ אוטומטית כל שני בבוקר';
+    body.innerHTML = '<div style="color:#475569;font-size:12px">הרצות אוטומטיות: שני 8:00 PT. ייצא לכאן רשימה לכל ספק לפי המכירות וההיסטוריה.</div>';
+    return;
+  }
+  var sups = [];
+  Object.keys(ORDER_RECS.suppliers).forEach(function(sc){
+    var info = ORDER_RECS.suppliers[sc];
+    sups.push({code: sc, total: info.total_usd || 0, lines: info.lines || []});
+  });
+  sups.sort(function(a,b){ return b.total - a.total; });
+  var totalUSD = sups.reduce(function(a,s){return a+s.total;}, 0);
+  var totalLines = sups.reduce(function(a,s){return a+s.lines.length;}, 0);
+  header.textContent = sups.length + ' ספקים · ' + totalLines + ' פריטים · $' + totalUSD.toFixed(0);
+  var html = '<table style="width:100%;font-size:13px"><thead><tr>' +
+    '<th style="text-align:right;padding:6px;color:#475569">ספק</th>' +
+    '<th style="text-align:center;padding:6px;color:#475569">פריטים</th>' +
+    '<th style="text-align:left;padding:6px;color:#475569">סה"כ</th>' +
+    '<th style="padding:6px"></th>' +
+  '</tr></thead><tbody>';
+  sups.forEach(function(s){
+    html += '<tr style="border-top:1px solid #d1fae5">' +
+      '<td style="padding:6px;font-weight:700">' + escHtml(s.code) + '</td>' +
+      '<td style="text-align:center;padding:6px;font-weight:700">' + s.lines.length + '</td>' +
+      '<td style="padding:6px;font-weight:800;color:#15803d">$' + s.total.toFixed(0) + '</td>' +
+      '<td style="padding:6px"><button data-action="show-supplier-recs" data-sup="' + escHtml(s.code) + '" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:5px 11px;font-weight:700;cursor:pointer;font-size:12px">📋 פרוט</button></td>' +
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  html += '<div style="font-size:11px;color:#475569;margin-top:8px">' +
+    'ההמלצות מבוססות על median × 1.3 מההיסטוריה. נתונים מתעדכנים כל שני בבוקר אוטומטית. נשלח לך SMS עם תקציר אחרי כל סיכום סופ"ש.</div>';
+  body.innerHTML = html;
+}
+
+function showSupplierRecsModal(supplierCode){
+  if (!ORDER_RECS || !ORDER_RECS.suppliers) return;
+  var info = ORDER_RECS.suppliers[supplierCode] || {};
+  var lines = (info.lines || []).slice().sort(function(a,b){return (b.line_total||0)-(a.line_total||0);});
+  var modal = document.createElement('div');
+  modal.className = 'modal-bg';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:flex-start;padding:40px 20px;z-index:9999;overflow-y:auto';
+  var rowsHtml = lines.map(function(L){
+    var thrSug = L.threshold_suggestion || {};
+    return '<tr>' +
+      '<td style="padding:6px"><b>' + escHtml(L.name || '') + '</b><div style="font-size:10px;color:var(--muted)">SKU: ' + escHtml(L.sku || '—') + '</div></td>' +
+      '<td style="text-align:center;padding:6px">' + Math.round(L.current_stock) + '</td>' +
+      '<td style="text-align:center;padding:6px">' + Math.round(L.threshold) + (thrSug.suggest ? '<div style="font-size:9px;color:#a16207">→' + thrSug.value + '</div>' : '') + '</td>' +
+      '<td style="text-align:center;padding:6px;font-weight:800;color:#15803d">' + L.recommended_qty + '</td>' +
+      '<td style="text-align:left;padding:6px">$' + (L.line_total||0).toFixed(2) + '</td>' +
+      '<td style="padding:6px;font-size:10px;color:var(--muted)">' + escHtml(L.reasoning || '') + '</td>' +
+    '</tr>';
+  }).join('');
+  modal.innerHTML = '<div class="modal-card" style="background:#fff;border-radius:12px;padding:20px;max-width:1100px;width:100%;max-height:90vh;overflow-y:auto">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">' +
+      '<h2 style="margin:0;font-size:18px">📦 המלצות הזמנה — ' + escHtml(supplierCode) + '</h2>' +
+      '<button data-action="close" style="background:none;border:none;font-size:24px;cursor:pointer">×</button>' +
+    '</div>' +
+    '<div style="margin-bottom:10px;color:#475569;font-size:13px">סה"כ: <b>' + lines.length + '</b> פריטים · <b>$' + (info.total_usd||0).toFixed(2) + '</b></div>' +
+    '<table style="width:100%;font-size:12px">' +
+      '<thead><tr style="background:#f1f5f9">' +
+        '<th style="text-align:right;padding:6px">מוצר</th>' +
+        '<th style="text-align:center;padding:6px">מלאי</th>' +
+        '<th style="text-align:center;padding:6px">Threshold</th>' +
+        '<th style="text-align:center;padding:6px">מומלץ להזמין</th>' +
+        '<th style="text-align:left;padding:6px">סה"כ</th>' +
+        '<th style="padding:6px">הנמקה</th>' +
+      '</tr></thead>' +
+      '<tbody>' + rowsHtml + '</tbody>' +
+    '</table>' +
+    '<div style="margin-top:14px;font-size:12px;color:#475569;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px">' +
+      'ההמלצות מבוססות על median (חציון, לא ממוצע) של 4-6 הזמנות אחרונות × 1.3 בטחון, מעוגל לכפולה של 12. ' +
+      'את יכולה ליצור PO ידני באוקטופוס לפי הרשימה הזו, או להגיע ליצירה אוטומטית כשנפתח את ה-API הנכון.' +
+    '</div>' +
+  '</div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('click', function(e){
+    if (e.target === modal || e.target.matches('[data-action="close"]')) modal.remove();
+  });
+}
+
+// Hook into global click delegate for show-supplier-recs buttons
+document.addEventListener('click', function(e){
+  var b = e.target.closest('[data-action="show-supplier-recs"]');
+  if (b){ showSupplierRecsModal(b.dataset.sup); }
+});
+
 function renderGlobalSummary(){
+  renderRecommendationsPanel();
   var totals = { suppliers: 0, products: 0, in_stock: 0, units: 0, to_order: 0, recount: 0, po_gen: 0 };
   var vendors = (OCTOPOS && OCTOPOS.vendors) || {};
   SUPPLIERS.forEach(function(sup){
