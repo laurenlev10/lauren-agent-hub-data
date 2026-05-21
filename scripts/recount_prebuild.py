@@ -159,12 +159,30 @@ def fetch_counted_pids(jwt, start_date, end_date):
     return {int(row["product_id"]) for row in resp.get("data", {}).get("data", [])}
 
 
-def build_worklist(snapshot, counted_pids):
-    """Iterate the OCTOPOS snapshot. Return enriched worklist entries."""
+def build_worklist(snapshot, counted_pids, prior_start, prior_end):
+    """Iterate the OCTOPOS snapshot. Return enriched worklist entries.
+
+    Lauren 2026-05-21 PM #2 — 'stale' now requires no activity in the prior
+    event window. Activity = (a) appears in counted_pids OR (b) the product's
+    own updated_at falls inside the prior window. This catches both physical-
+    count events AND silent POS sales (which don't always surface in the
+    recount-data endpoint).
+    """
     worklist = []
-    n_neg = n_stale = n_preexisting = 0
+    n_neg = n_stale = n_preexisting = n_new = 0
     n_excluded = 0
     n_neg_skipped = 0  # negative items skipped because counted in prior window
+    n_moved_skipped = 0  # stale-candidate items skipped because updated in prior window
+
+    # Build the 'pids updated during prior window' set from snapshot's updated_at field.
+    # Treat ANY updated_at within [prior_start, prior_end] as a movement signal.
+    moved_pids = set()
+    for code, vdata in (snapshot.get("vendors") or {}).items():
+        for p in (vdata.get("products") or []):
+            u = (p.get("updated_at") or "")[:10]
+            if prior_start <= u <= prior_end:
+                moved_pids.add(int(p.get("id") or 0))
+    activity_pids = counted_pids | moved_pids  # 'didn't sell AND didn't get counted'
     for code, vdata in (snapshot.get("vendors") or {}).items():
         supplier = vdata.get("display_name") or vdata.get("name") or code
         for p in (vdata.get("products") or []):
@@ -181,6 +199,9 @@ def build_worklist(snapshot, counted_pids):
             # count — the negative reflects post-count sales tracking, not a
             # counting error. Without this filter, the SAME 5 negatives appear on
             # every weekly recount even though Lauren just verified them.
+            created_at = (p.get("created_at") or "")[:10]
+            is_new_since_prior = bool(created_at and created_at > prior_end)
+            in_activity = pid in activity_pids
             if qty < 0 and pid not in counted_pids:
                 reason = "negative"
                 n_neg += 1
@@ -188,17 +209,22 @@ def build_worklist(snapshot, counted_pids):
                 # Negative but already counted in prior window — skip (Lauren 2026-05-21 PM)
                 n_neg_skipped += 1
                 continue
+            elif is_new_since_prior and qty > 0:
+                # Product created AFTER the prior event ended → never had a chance to be
+                # physically verified. Always include, even if recently updated.
+                reason = "new_unverified"
+                n_new += 1
             elif has_recount and pid not in counted_pids:
                 reason = "preexisting"
                 n_preexisting += 1
-            elif qty > 0 and pid not in counted_pids and not has_recount:
-                # Only flag as 'stale' if the product was created BEFORE the last event window
-                # (otherwise we'd flag everything that was just stocked).
-                # Use a heuristic: if 'created_at' is missing or older than the last counted
-                # window, include it. Most products in the snapshot lack created_at → fall
-                # back to including by default (the user can dismiss in dashboard).
+            elif qty > 0 and not in_activity and not has_recount:
+                # 'stale' = positive stock, no sales AND no count in the prior window
                 reason = "stale"
                 n_stale += 1
+            elif qty > 0 and pid in moved_pids and pid not in counted_pids and not has_recount:
+                # Moved but not counted — explicitly skip (count tracking)
+                n_moved_skipped += 1
+                continue
             if reason:
                 worklist.append({
                     "id": pid,
@@ -216,11 +242,15 @@ def build_worklist(snapshot, counted_pids):
                 })
     stats = {
         "negative": n_neg,
+        "new_unverified": n_new,
         "stale": n_stale,
         "preexisting": n_preexisting,
         "excluded_permanent": n_excluded,
         "excluded_negative_recently_counted": n_neg_skipped,
+        "excluded_moved_in_window": n_moved_skipped,
         "counted_last_event": len(counted_pids),
+        "moved_last_event": len(moved_pids),
+        "activity_last_event": len(activity_pids),
         "final_worklist_size": len(worklist),
         "removed_recount_tag": None,  # tag-mutation not wired pre-event (cleanup runs Sunday)
     }
@@ -279,7 +309,7 @@ def main():
     print(f"Counted PIDs in prior window ({prior_start} → {prior_end}): {len(counted_pids)}")
 
     # Build worklist
-    worklist, stats = build_worklist(snapshot, counted_pids)
+    worklist, stats = build_worklist(snapshot, counted_pids, prior_start, prior_end)
     print(f"Worklist: {stats}")
 
     # Write to state
@@ -301,7 +331,9 @@ def main():
     # SMS Lauren
     sms_body = (
         f"@recount ✓ רשימת ספירה מוכנה ל-{city}, {state} ({upcoming_start} → {upcoming_end}).\n"
-        f"📋 {len(worklist)} מוצרים לספירה: 🔴 {stats['negative']} מינוס · 💤 {stats['stale']} לא זזו · 🔵 {stats['preexisting']} קיים מקודם.\n"
+        f"📋 {len(worklist)} מוצרים לספירה:\n"
+        f"🔴 {stats['negative']} מינוס · 🆕 {stats['new_unverified']} חדשים שלא אומתו · "
+        f"💤 {stats['stale']} לא נספרו ולא נמכרו · 🔵 {stats['preexisting']} קיים מקודם.\n"
         f"חלון נתונים מהאירוע הקודם: {prior_start} → {prior_end}\n"
         f"https://laurenlev10.github.io/lauren-agent-hub-data/recount/?evkey={upcoming_evkey}"
     )

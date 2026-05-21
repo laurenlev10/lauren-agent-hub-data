@@ -587,11 +587,11 @@ const META_CAMPAIGNS = {
 
 // Owner: inventory-orders — entry: { total_usd, suppliers_ordered, suppliers_received, href, generated_at }   (added 2026-05-12)
 // Done state: when at least one supplier has status != "pending", button flips green showing "$<total> · <ordered>/15".
-const INVENTORY_ORDERS = {};
+let INVENTORY_ORDERS = {};  // populated from docs/state/inventory_orders.json at page load (Lauren 2026-05-21)
 
 // Owner: octopos-recount — entry: { worklist_size, n_negative, n_stale, n_counted, window: {start, end}, href, generated_at }   (added 2026-05-17)
 // Done state: when the agent has built a worklist for this event window, button flips green showing the worklist size.
-const OCTOPOS_RECOUNT = {"milwaukee-2026-05-15":{"worklist_size":97,"n_negative":20,"n_stale":75,"n_counted":18,"window":{"start":"2026-05-15","end":"2026-05-17"},"href":"../recount/?evkey=milwaukee-2026-05-15","generated_at":"2026-05-17T17:12:46Z"}};
+let OCTOPOS_RECOUNT = {};  // populated from docs/state/octopos_recount.json at page load (Lauren 2026-05-21). Static milwaukee entry removed — now sourced from the real state file written by recount_prebuild.py + recount_weekend.py.
 
 // Owner: eventbrite-setup — entry: { eventbrite: {url, eventId, generated_at} | null, smslist: {list_id, list_name, generated_at} | null }
 // Both fields can populate independently — the agent reports per-service result.
@@ -3277,6 +3277,78 @@ End date: </div>
   fetch("../state/subscribe_target.json?_=" + Date.now(), { cache: "no-store" })
     .then(r => r.ok ? r.json() : null)
     .then(data => { SUBSCRIBE_TARGET = data; renderSchedule(); })
+    .catch(() => { /* fail-silent — button stays black */ });
+
+  // Lauren 2026-05-21 PM — load OCTOPOS_RECOUNT dynamically so 🔢 Recount turns
+  // green the moment recount_prebuild.py writes a slice (Thursday cron pre-event
+  // OR recount_weekend.py post-event). Replaces the previous static map.
+  fetch("../state/octopos_recount.json?_=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data || !data.events) return;
+      const m = {};
+      Object.keys(data.events).forEach(evk => {
+        const slice = data.events[evk] || {};
+        const stats = slice.stats || {};
+        const wl = slice.worklist || [];
+        // Schema kept compatible with the renderer: worklist_size + n_negative/n_stale/n_counted
+        m[evk] = {
+          worklist_size: stats.final_worklist_size != null ? stats.final_worklist_size : wl.length,
+          n_negative: stats.negative || 0,
+          n_stale: stats.stale || 0,
+          n_new_unverified: stats.new_unverified || 0,
+          n_preexisting: stats.preexisting || 0,
+          n_counted: stats.counted_last_event || 0,
+          window: slice.window || {},
+          href: "../recount/?evkey=" + evk,
+          generated_at: slice.generated_at || "",
+          phase: slice.phase || "",
+        };
+      });
+      OCTOPOS_RECOUNT = m;
+      renderSchedule();
+    })
+    .catch(() => { /* fail-silent — button stays black */ });
+
+  // Lauren 2026-05-21 PM — load INVENTORY_ORDERS dynamically so 📦 Inventory
+  // turns green as soon as any supplier has activity (orders, invoices, etc.).
+  // Replaces the previous empty static map.
+  fetch("../state/inventory_orders.json?_=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data || !data.events) return;
+      const m = {};
+      Object.keys(data.events).forEach(evk => {
+        const ev = data.events[evk] || {};
+        const summary = ev.summary || {};
+        const suppliers = ev.suppliers || {};
+        // Compute counts from the suppliers slice (more reliable than the summary cache)
+        let nOrdered = 0, nReceived = 0;
+        Object.keys(suppliers).forEach(code => {
+          const s = suppliers[code] || {};
+          const hasInvoiceTotal = Number(s.invoice_total_usd || 0) > 0;
+          const hasPendingInvoice = s._pending_invoice && Array.isArray(s._pending_invoice.invoice_lines) && s._pending_invoice.invoice_lines.length > 0;
+          const status = (s.status || "").toLowerCase();
+          // 'Ordered' = any supplier with a non-pending status or any invoice activity
+          if (status && status !== "pending" || hasInvoiceTotal || hasPendingInvoice) nOrdered++;
+          if (s.received === true || status === "received" || status === "delivered") nReceived++;
+        });
+        const total = Number(summary.total_usd || summary.estimate_total_usd || 0);
+        // Only flip green if there's ACTUAL activity for this event (at least one supplier ordered).
+        // An empty suppliers map = event scaffolded but Lauren hasn't started → keep button black.
+        if (nOrdered > 0 || total > 0) {
+          m[evk] = {
+            total_usd: total,
+            suppliers_ordered: nOrdered,
+            suppliers_received: nReceived,
+            href: "../inventory/?evkey=" + evk,
+            generated_at: ev.updated_at || data._updated_at || "",
+          };
+        }
+      });
+      INVENTORY_ORDERS = m;
+      renderSchedule();
+    })
     .catch(() => { /* fail-silent — button stays black */ });
 
   // Refresh the event-local-time chips every 60s so they stay accurate without re-rendering rows (Lauren 2026-05-10 PM)

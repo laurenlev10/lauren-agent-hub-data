@@ -272,6 +272,7 @@ def build_snapshot(vendors, products):
             "needs_recount": needs_recount,
             "department": (p.get("department") or {}).get("name", ""),
             "updated_at": p.get("updated_at", ""),
+            "created_at": p.get("created_at", ""),  # Lauren 2026-05-21 PM #2 — recount_prebuild needs this for new_unverified branch
         }
         sv = snapshot["vendors"][code]
         sumkey = "summary"
