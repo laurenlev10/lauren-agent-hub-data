@@ -86,6 +86,72 @@ def main():
         # Sort newest-first by po_id desc (since dates are usually null)
         entries.sort(key=lambda e: -(e['po_id'] or 0))
         archive['invoices'][code] = entries
+
+    # ─── BACKORDERS: ordered but not delivered ─────────────────────────────────
+    # Source A: open Generated POs (status not "Received") — supplier has the
+    # order, hasn't shipped. After ~21 days these are likely backordered.
+    # Source B: CMP_CTX diff entries marked 'missing' from reconciled invoices
+    # (lines on Lauren's PO that didn't appear on the supplier's invoice).
+    backorders = {}  # supplier_code → list of {product_id, sku, name, qty, source, ref, date}
+    today = datetime.now(timezone.utc).date()
+    for code, vd in oct['vendors'].items():
+        sup_back = []
+        # Source A: open generated POs
+        for po in (vd.get('purchase_orders_generated') or []):
+            for it in (po.get('items') or []):
+                pid = str(it.get('product_id'))
+                if pid not in active_pids.get(code, set()): continue
+                sup_back.append({
+                    'product_id': int(it.get('product_id')) if it.get('product_id') else None,
+                    'sku': it.get('product_sku') or '',
+                    'name': it.get('product_name') or '',
+                    'qty_ordered': float(it.get('quantity') or 0),
+                    'unit_cost': float(it.get('cost_unit') or 0),
+                    'source': 'generated_po',
+                    'po_id': po.get('id'),
+                    'date': po.get('received_date'),   # usually null
+                    'note': f"PO #{po.get('id')} ב-OCTOPOS (סטטוס: Generated — לא קיבל ספק עדיין)",
+                })
+        if sup_back:
+            backorders[code] = sup_back
+    # Source B: read CMP_CTX 'missing' lines from inventory_orders.json
+    inv_orders_path = Path('docs/state/inventory_orders.json')
+    if inv_orders_path.exists():
+        try:
+            state = json.loads(inv_orders_path.read_text())
+            for evkey, ev in (state.get('events') or {}).items():
+                for sc, sd in (ev.get('suppliers') or {}).items():
+                    pi = sd.get('_pending_invoice')
+                    if not pi or not sd.get('invoice_compared_at'): continue
+                    # For each 'missing' kind in the diff — these are PO lines NOT on the invoice
+                    for diff_row in (pi.get('diff') or []):
+                        if diff_row.get('kind') != 'missing': continue
+                        po_line = diff_row.get('po_line') or {}
+                        pid = po_line.get('product_id')
+                        if not pid: continue
+                        # Active only
+                        if str(pid) not in active_pids.get(sc, set()): continue
+                        backorders.setdefault(sc, []).append({
+                            'product_id': pid,
+                            'sku': po_line.get('product_sku') or '',
+                            'name': po_line.get('product_name') or '',
+                            'qty_ordered': float(po_line.get('quantity') or 0),
+                            'unit_cost': float(po_line.get('cost_unit') or 0),
+                            'source': 'invoice_missing',
+                            'po_id': None,
+                            'date': sd.get('invoice_compared_at', '')[:10],
+                            'note': f"הוזמן באירוע {evkey}, לא הגיע בחשבונית של {sc}",
+                        })
+        except Exception as e: print(f"  ⚠ backorder source-B parse failed: {e}")
+    archive['backorders'] = backorders
+    total_back = sum(len(v) for v in backorders.values())
+    print(f"\n→ backorders: {total_back} entries across {len(backorders)} suppliers")
+    for sc, items in sorted(backorders.items(), key=lambda x: -len(x[1])):
+        srcs = {}
+        for i in items: srcs[i['source']] = srcs.get(i['source'], 0) + 1
+        src_str = ', '.join(f"{k}={v}" for k, v in srcs.items())
+        print(f"  {sc:<20} {len(items):>3} backorders ({src_str})")
+
     ARCH_PATH.write_text(json.dumps(archive, indent=2, ensure_ascii=False))
     print(f"✓ wrote {ARCH_PATH}")
     print(f"  {total_pos} POs across {len(archive['invoices'])} suppliers")

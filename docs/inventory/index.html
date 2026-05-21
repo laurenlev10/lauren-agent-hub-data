@@ -4524,7 +4524,9 @@ async function openProductHistory(productId){
         '<h3 style="margin:0 0 10px;font-size:15px;">📦 הזמנות אחרונות לספק</h3>' +
         '<div id="ph-pos">' + buildPOHistory(productId) + '</div>' +
       '</div>' +
-      // Section: invoice archive history (per-product) — NEW 2026-05-21
+      // Section: backorders (ordered but not delivered) — NEW 2026-05-21 PM
+      buildBackordersHistory(productId) +
+      // Section: invoice archive history (per-product)
       '<div class="card" style="margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:8px;background:#f0fdfa">' +
         '<h3 style="margin:0 0 10px;font-size:15px;">📋 היסטוריית הזמנות מ-OCTOPOS</h3>' +
         '<div id="ph-invoices">' + buildInvoiceArchiveHistory(productId) + '</div>' +
@@ -4561,6 +4563,49 @@ async function openProductHistory(productId){
 
 // Find all invoice-archive lines that matched the given product_id.
 // Returns [{invoice_date, invoice_number, supplier_code, unit_qty, unit_price, total, source_filename}]
+// Find all backorder entries (ordered but not delivered) for a product.
+// Sources: open Generated POs + 'missing' diff lines from past invoice reconciliations.
+function getBackordersForProduct(productId){
+  if (!INVOICE_ARCHIVE || !INVOICE_ARCHIVE.backorders) return [];
+  var pidStr = String(productId);
+  var out = [];
+  Object.keys(INVOICE_ARCHIVE.backorders).forEach(function(sup){
+    (INVOICE_ARCHIVE.backorders[sup] || []).forEach(function(b){
+      if (String(b.product_id) === pidStr){
+        out.push(Object.assign({supplier_code: sup}, b));
+      }
+    });
+  });
+  out.sort(function(a, b){ return (b.date || '').localeCompare(a.date || ''); });
+  return out;
+}
+
+function buildBackordersHistory(productId){
+  var rows = getBackordersForProduct(productId);
+  if (!rows.length) return '';   // no section rendered when empty
+  var totalQty = rows.reduce(function(a, r){ return a + (r.qty_ordered||0); }, 0);
+  var html = '<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:12px 14px;margin:12px 0">' +
+    '<h3 style="margin:0 0 8px;font-size:15px;color:#991b1b">🚫 הוזמן ולא הגיע (' + rows.length + ' פעמים, ' + Math.round(totalQty) + ' יח׳ סך הכל)</h3>' +
+    '<table style="width:100%;font-size:12px"><thead><tr>' +
+      '<th style="text-align:right;color:#7f1d1d;padding:4px">תאריך</th>' +
+      '<th style="text-align:right;color:#7f1d1d;padding:4px">מקור</th>' +
+      '<th style="text-align:center;color:#7f1d1d;padding:4px">כמות הוזמנה</th>' +
+      '<th style="text-align:right;color:#7f1d1d;padding:4px">סיבה</th>' +
+    '</tr></thead><tbody>';
+  rows.forEach(function(r){
+    var src = r.source === 'generated_po' ? '📋 PO פתוח' : '📄 חסר בחשבונית';
+    var date = r.date || (r.po_id ? 'PO #' + r.po_id : '?');
+    html += '<tr>' +
+      '<td style="padding:4px;font-weight:700">' + escHtml(date) + '</td>' +
+      '<td style="padding:4px">' + src + '</td>' +
+      '<td style="text-align:center;padding:4px;font-weight:700;color:#991b1b">' + Math.round(r.qty_ordered || 0) + '</td>' +
+      '<td style="padding:4px;color:#7f1d1d;font-size:11px">' + escHtml(r.note || '') + '</td>' +
+    '</tr>';
+  });
+  html += '</tbody></table></div>';
+  return html;
+}
+
 function getInvoiceArchiveForProduct(productId){
   if (!INVOICE_ARCHIVE || !INVOICE_ARCHIVE.invoices) return [];
   var pidStr = String(productId);
