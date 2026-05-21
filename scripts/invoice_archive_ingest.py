@@ -210,7 +210,8 @@ def match_product(line, supplier_code, octopos_vendors):
     name_candidates = []
     for code, vd in octopos_vendors.items():
         if code != supplier_code: continue
-        for p in (vd.get('products') or []) + (vd.get('inactive_products') or []):
+        # Active products only — Lauren 2026-05-21: "להתייחס רק למוצרים של ACTIVE"
+        for p in (vd.get('products') or []):
             psku = re.sub(r'[^A-Z0-9]', '', (p.get('sku') or '').upper())
             if sku_norm and psku and not sku_hit:
                 if psku == sku_norm:

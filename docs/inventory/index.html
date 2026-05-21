@@ -4922,7 +4922,8 @@ function getOctoposUnitCost(productId){
   Object.keys(OCTOPOS.vendors).forEach(function(code){
     if (hit) return;
     var v = OCTOPOS.vendors[code] || {};
-    (v.products || []).concat(v.inactive_products || []).forEach(function(p){
+    // Active products only — Lauren 2026-05-21
+    (v.products || []).forEach(function(p){
       if (hit) return;
       if (String(p.id) === pidStr) {
         var c = Number(p.unit_cost || 0);
@@ -4943,7 +4944,8 @@ function getOctoposUnitCostBySku(sku){
   Object.keys(OCTOPOS.vendors).forEach(function(code){
     if (hit) return;
     var v = OCTOPOS.vendors[code] || {};
-    (v.products || []).concat(v.inactive_products || []).forEach(function(p){
+    // Active products only — Lauren 2026-05-21
+    (v.products || []).forEach(function(p){
       if (hit) return;
       var psk = String(p.sku || '').toUpperCase().trim();
       if (psk && psk === skuU) {
