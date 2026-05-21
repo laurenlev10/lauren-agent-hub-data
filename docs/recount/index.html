@@ -114,7 +114,7 @@
         <button class="btn ghost" id="btn-print" type="button">🖨️ הדפס</button>
       </span>
     </h2>
-    <div class="filter-row">
+    <div class="filter-row" id="worklist-filters-row">
       <label><input type="checkbox" id="f-neg" checked> 🔴 מינוס</label>
       <label><input type="checkbox" id="f-stale" checked> 💤 לא זזו</label>
       <label><input type="checkbox" id="f-preexisting" checked> 🔵 קיים מקודם</label>
@@ -423,7 +423,7 @@
         '<td>' + escapeHtml(p.sku || "") + '</td>' +
         '<td>' + escapeHtml(p.name || "") + '</td>' +
         '<td>' + escapeHtml(p.supplier || "—") + '</td>' +
-        '<td class="qty-cell">' + (p.qty ?? "—") + '</td>' +
+        '<td class="qty-cell"><input type="number" class="inline-qty" data-pid="' + Number(p.id) + '" data-orig="' + Number(p.qty ?? 0) + '" value="' + Number(p.qty ?? 0) + '" step="1" style="width:70px;padding:4px 6px;text-align:center;font-weight:600;border:1px solid var(--line, #cbd5e1);border-radius:6px"></td>' +
         '<td class="qty-cell">' + (p.sold_in_window ?? 0) + '</td>' +
         '<td class="' + reasonCls + '">' + reasonLabel(p.reason) + '</td>' +
         '<td style="text-align:center;white-space:nowrap">' +
@@ -516,7 +516,110 @@
     }
   });
 
-  // Write the dismissed-pid to the state file via GitHub Contents API.
+  // Lauren 2026-05-21 PM #12 — inline qty editing.
+  // On change (blur or Enter), PUT /api/v2/products/{id} with new in_stock_qty.
+  // Skips if unchanged. Coloured feedback on the input.
+  async function commitQtyChange(input){
+    const pid = Number(input.dataset.pid);
+    const orig = Number(input.dataset.orig);
+    const next = Number(input.value);
+    if (!pid || !Number.isFinite(next) || next === orig) return;
+    let octoToken = (localStorage.getItem("lauren_octopos_token") || "").trim();
+    if (!octoToken) {
+      const t = prompt("לשינוי כמות צריך טוקן OCTOPOS פעיל (יישמר ב-localStorage):");
+      if (!t) { input.value = orig; return; }
+      localStorage.setItem("lauren_octopos_token", t.trim());
+      octoToken = t.trim();
+    }
+    input.disabled = true;
+    input.style.borderColor = "#f59e0b";
+    input.style.background = "#fef3c7";
+    try {
+      const r = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
+        method: "PUT",
+        headers: {"Authorization": octoToken, "Content-Type": "application/json", "Accept": "application/json"},
+        body: JSON.stringify({in_stock_qty: next})
+      });
+      if (!r.ok) {
+        const txt = await r.text();
+        throw new Error("HTTP " + r.status + " — " + txt.slice(0, 120));
+      }
+      input.dataset.orig = String(next);
+      input.style.borderColor = "#16a34a";
+      input.style.background = "#dcfce7";
+      // Fade back to neutral after a moment so multiple edits stay visible
+      setTimeout(() => {
+        input.style.borderColor = "var(--line, #cbd5e1)";
+        input.style.background = "";
+      }, 1800);
+    } catch (err) {
+      alert("עדכון כמות נכשל לפריט " + pid + ": " + err.message);
+      input.value = orig;
+      input.style.borderColor = "#dc2626";
+      input.style.background = "#fee2e2";
+      setTimeout(() => {
+        input.style.borderColor = "var(--line, #cbd5e1)";
+        input.style.background = "";
+      }, 2500);
+    } finally {
+      input.disabled = false;
+    }
+  }
+
+  document.addEventListener("change", function(e){
+    if (e.target && e.target.classList && e.target.classList.contains("inline-qty")) {
+      commitQtyChange(e.target);
+    }
+  });
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Enter" && e.target && e.target.classList && e.target.classList.contains("inline-qty")) {
+      e.preventDefault();
+      e.target.blur();  // triggers change handler
+    }
+  });
+
+  // Lauren 2026-05-21 PM #11 — dismiss does TWO things:
+  //   1. writes pid to events.<evkey>.lauren_dismissed_pids[] via GitHub Contents API
+  //   2. removes the 'Recount' category (id=14) from the product in OCTOPOS
+  //      so it doesn't get re-flagged on next agent run
+  const RECOUNT_CATEGORY_ID = 14;  // verified id from /api/v2/categories
+
+  async function removeRecountTagFromOctopos(pid){
+    let octoToken = (localStorage.getItem("lauren_octopos_token") || "").trim();
+    if (!octoToken) {
+      const t = prompt("להסרת תג RECOUNT צריך טוקן OCTOPOS — הדביקי כאן (יישמר ב-localStorage):");
+      if (!t) return {skipped: true};
+      localStorage.setItem("lauren_octopos_token", t.trim());
+      octoToken = t.trim();
+    }
+    try {
+      // Read current categories
+      const getR = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
+        headers: {"Authorization": octoToken, "Accept": "application/json"}
+      });
+      if (!getR.ok) return {ok: false, msg: "GET HTTP " + getR.status};
+      const prod = await getR.json();
+      const cats = prod.categories || [];
+      const hasRecount = cats.some(c => Number(c.id) === RECOUNT_CATEGORY_ID);
+      if (!hasRecount) return {ok: true, no_change: true};
+      const newCatIds = cats.filter(c => Number(c.id) !== RECOUNT_CATEGORY_ID).map(c => c.id);
+      const putR = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
+        method: "PUT",
+        headers: {"Authorization": octoToken, "Content-Type": "application/json", "Accept": "application/json"},
+        body: JSON.stringify({category_ids: newCatIds})
+      });
+      if (!putR.ok) {
+        const errText = await putR.text();
+        return {ok: false, msg: "PUT HTTP " + putR.status + " — " + errText.slice(0, 120)};
+      }
+      return {ok: true};
+    } catch (err) {
+      return {ok: false, msg: err.message};
+    }
+  }
+
+  // Write the dismissed-pid to the state file via GitHub Contents API,
+  // AND remove the RECOUNT tag in OCTOPOS.
   async function dismissPid(pid){
     const token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
     if (!token) {
@@ -528,10 +631,16 @@
       alert("לא מצאתי evkey ב-URL — לא יכולה לשמור.");
       return false;
     }
+    // Step 1: remove the Recount tag from OCTOPOS first (so it's gone even if GitHub fails)
+    const octResult = await removeRecountTagFromOctopos(pid);
+    if (octResult.skipped) {
+      // User declined to provide OCTOPOS token — abort
+      return false;
+    }
+    // Step 2: write to lauren_dismissed_pids in GitHub state
     const FILE = "docs/state/octopos_recount.json";
     const REPO = "laurenlev10/lauren-agent-hub-data";
     try {
-      // GET current file (with SHA)
       const getR = await fetch("https://api.github.com/repos/" + REPO + "/contents/" + FILE + "?ref=main", {
         headers: {"Authorization":"token " + token, "Accept":"application/vnd.github+json"}
       });
@@ -551,14 +660,18 @@
         method:"PUT",
         headers: {"Authorization":"token " + token, "Accept":"application/vnd.github+json", "Content-Type":"application/json"},
         body: JSON.stringify({
-          message: "@recount: dismiss pid=" + pid + " from " + evkey + " (Lauren manual)",
+          message: "@recount: dismiss pid=" + pid + " from " + evkey + " + remove Recount tag (Lauren manual)",
           content: newContent, sha: sha, branch: "main"
         })
       });
       if (!putR.ok) {
         const errBody = await putR.text();
-        alert("שגיאת PUT: HTTP " + putR.status + " — " + errBody.slice(0, 200));
+        alert("שגיאת PUT (GitHub): HTTP " + putR.status + " — " + errBody.slice(0, 200));
         return false;
+      }
+      if (octResult.ok === false) {
+        // GitHub succeeded but OCTOPOS failed — still considered partial success
+        alert("נשמר ב-GitHub אבל הסרת תג ב-OCTOPOS נכשלה: " + (octResult.msg||"") + " — חשוב להסיר ידנית");
       }
       return true;
     } catch (err) {
