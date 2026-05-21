@@ -39,14 +39,23 @@ jobs:
         run: |
           git config user.email "lauren@noreply.github.com"
           git config user.name "Lauren (via octopos-stock-poll)"
-          git add docs/state/octopos_products.json
+          # Stage BOTH outputs of octopos_sync.py — otherwise the timeseries
+          # file sits as unstaged work and blocks `git pull --rebase`.
+          git add docs/state/octopos_products.json docs/state/octopos_stock_timeseries.json 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -m "octopos: refresh products snapshot"
-            git pull --rebase origin main || true
-            git push origin main
-            echo "✓ pushed octopos_products.json"
+            # Retry push up to 3 times to survive races with other workflows pushing to main.
+            for attempt in 1 2 3; do
+              git pull --rebase origin main || true
+              if git push origin main; then
+                echo "✓ pushed octopos snapshot (attempt $attempt)"
+                break
+              fi
+              echo "push attempt $attempt failed, retrying..."
+              sleep $((attempt * 5))
+            done
           else
-            echo "no changes in octopos_products.json"
+            echo "no changes in octopos snapshot"
           fi
 
       - name: Update scheduled-runs.json (refresh lastRunAt)
@@ -74,8 +83,15 @@ jobs:
           if ! git diff --quiet docs/scheduled-runs.json; then
             git add docs/scheduled-runs.json
             git commit -m "scheduled-runs: bump octopos-stock-poll lastRunAt"
-            git pull --rebase origin main || true
-            git push origin main
+            for attempt in 1 2 3; do
+              git pull --rebase origin main || true
+              if git push origin main; then
+                echo "✓ pushed scheduled-runs bump (attempt $attempt)"
+                break
+              fi
+              echo "push attempt $attempt failed, retrying..."
+              sleep $((attempt * 5))
+            done
           fi
 
       # IRON RULE (Lauren 2026-05-10): SMS Lauren if this workflow fails.
