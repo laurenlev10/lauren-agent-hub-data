@@ -7670,12 +7670,14 @@ function openCompareInvoiceModal(supplierCode, supplierName){
   if (typeof CURRENT_EVKEY === "undefined" || !CURRENT_EVKEY) { toast("אין אירוע פעיל", "error"); return; }
   var slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || {};
   var localOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === supplierCode; });
-  var aggMap = {};  // sku|name -> {name, sku, qty, cost_unit}
+  var aggMap = {};  // sku|name -> {name, sku, qty, cost_unit, product_id}
   localOrders.forEach(function(o){
     (o.items || []).forEach(function(it){
       var k = (it.product_sku || "").trim().toUpperCase() + "|" + (it.product_name || "").toLowerCase();
-      if (!aggMap[k]) aggMap[k] = { name: it.product_name || "", sku: it.product_sku || "", qty: 0, cost_unit: Number(it.cost_unit || 0) };
+      if (!aggMap[k]) aggMap[k] = { name: it.product_name || "", sku: it.product_sku || "", qty: 0, cost_unit: Number(it.cost_unit || 0), product_id: it.product_id || null };
       aggMap[k].qty += Number(it.quantity || 0);
+      // product_id may appear on later items if first one missed it
+      if (!aggMap[k].product_id && it.product_id) aggMap[k].product_id = it.product_id;
     });
   });
   var expected = Object.values(aggMap);
@@ -8705,9 +8707,18 @@ function renderCompareDiff(){
     if (idx !== -1){
       usedInv[idx] = true;
       var inv = invoice[idx];
-      var expQ = Number(exp.qty||0), invQ = Number(inv.qty||0);
+      var expQ = Number(exp.qty||0);
+      var rawInvQ = Number(inv.qty||0);
+      // Multiply raw invoice qty by per-line pack-size (BBW ships in displays:
+      // invoice says "4" = 4 displays = 4×24 = 96 units; PO says 96 units).
+      // Use the same helper as the receive flow — falls back to r.min_display
+      // (which Lauren already set on 10+ BBW products), then to supplier default.
+      var packCmp = (typeof getEffectivePackForLine === 'function')
+        ? getEffectivePackForLine(CMP_CTX.supplier_code, exp.product_id)
+        : 1;
+      var invQ = rawInvQ * Math.max(1, packCmp);
       var status = (expQ === invQ) ? 'match' : 'qty-diff';
-      rows.push({ status: status, exp: exp, inv: inv, matchedBy: matchedBy, expQ: expQ, invQ: invQ });
+      rows.push({ status: status, exp: exp, inv: inv, matchedBy: matchedBy, expQ: expQ, invQ: invQ, rawInvQ: rawInvQ, packCmp: packCmp });
     } else {
       rows.push({ status: 'missing', exp: exp, inv: null, matchedBy: null, expQ: Number(exp.qty||0), invQ: 0 });
     }
@@ -8914,6 +8925,12 @@ function renderCompareDiff(){
     var qty  = r.inv ? r.invQ : (r.exp ? r.expQ : 0);
     var price = Number(srcL.price || srcL.cost_unit || 0);
     var dispMin = _extractDisplayMin(rawName) || '';
+    // Fallback: if no dispMin from the name parse, look up the PO line's product_id
+    // and read its min_display from product_rules.json (set via the Order Wizard).
+    if (dispMin === '' && r.exp && r.exp.product_id && typeof PRODUCT_RULES !== 'undefined' && PRODUCT_RULES.rules) {
+      var _rd = PRODUCT_RULES.rules[String(r.exp.product_id)] || {};
+      if (_rd.min_display && Number(_rd.min_display) > 0) dispMin = Number(_rd.min_display);
+    }
     var salePrice = '';  // Lauren fills manually
     // Apply any previous edits
     var ov = CMP_CTX.line_edits[ri] || {};
