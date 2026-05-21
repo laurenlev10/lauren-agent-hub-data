@@ -59,6 +59,8 @@ def is_contact_info_row(s):
     if re.match(r'^\s*\+?\d?\s*\(\d{3}\)\s*\d{3}[\s\-\.`]+\d{4}\s*$', s): return True
     if re.search(r'\$[\d.]+\s*/\s*(pc|piece|display|dozen|dz|box|case|pack)\b', s, re.I): return True
     if re.search(r'\bper\s+(piece|pc|display|dozen|pack)\b', s, re.I): return True
+    # Shipping / freight rows (BBW invoices end with a "UPS" or "Shipping" line)
+    if re.match(r'^\s*(ups|fedex|usps|dhl|shipping|freight|delivery|handling)\b', s, re.I): return True
     return False
 
 def parse_invoice_rows(row_strings):
@@ -238,10 +240,13 @@ def match_product(line, supplier_code, octopos_vendors):
                         if po_tail in inv_full:
                             j = max(j, 0.85); break
                 if j < 0.4:
-                    # 2nd-chance substring (capped 0.45 — weaker signal than tail)
-                    hits = sum(1 for t in inv_tokens if len(t) >= 5 and t in po_full)
-                    hits += sum(1 for t in po_tokens if len(t) >= 5 and t in inv_full)
-                    if hits: j = max(j, min(0.45, 0.4 + 0.025 * hits))
+                    # 2nd-chance: count UNIQUE shared distinctive tokens (5+ chars).
+                    # Counting hits bidirectionally would double-count the same shared
+                    # boilerplate word ("liner") as 2 hits — false-matching Love Deeply
+                    # to "Splashed Liner Vol 3". Set union dedupes correctly.
+                    shared = set(t for t in inv_tokens if len(t) >= 5 and t in po_full)
+                    shared |= set(t for t in po_tokens if len(t) >= 5 and t in inv_full)
+                    if len(shared) >= 2: j = max(j, min(0.45, 0.4 + 0.025 * len(shared)))
                 if j >= 0.4: name_candidates.append((j, p.get('id')))
     if sku_hit: return sku_hit
     if name_candidates:
