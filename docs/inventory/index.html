@@ -4796,6 +4796,12 @@ function getEffectivePackForLine(supCode, productId){
     if (r.pack_size && Number(r.pack_size) > 0){
       return Number(r.pack_size);
     }
+    // Fallback to min_display — same semantic ("units in one display/pack")
+    // already populated by Lauren via the Order Wizard for many BBW items
+    // (id 35, 36, 39, 40, 44, 617, 621, 623, 624, 925 and counting).
+    if (r.min_display && Number(r.min_display) > 0){
+      return Number(r.min_display);
+    }
   }
   return getSupplierPackSize(supCode);
 }
@@ -5271,6 +5277,69 @@ async function handleInvoiceFile(file){
   }
 }
 
+// ──────── BBW & friends: parser robustness helpers (added 2026-05-20) ────────
+// BBW (and some other suppliers) generate PDFs where bold headings are
+// rendered TWICE at near-identical (X, Y) — a faux-bold drop-shadow effect.
+// PDF.js extracts both copies as separate text items, which corrupts product
+// names ("BB&BB&WLL: LIPSTICK&LIPLINER" instead of "BB&W LL: LIPSTICK&LIPLINER")
+// and breaks both SKU extraction AND name similarity. We dedupe at two levels:
+//   1. Item-level: drop the second of two items with the same str at X-delta < 3.
+//   2. Row-string level: collapse repeated 1..8-word sequences ("X Y X Y" -> "X Y").
+function dedupDropShadowItems(items){
+  var sorted = items.slice().sort(function(a,b){ return a.x - b.x; });
+  var out = [];
+  for (var i = 0; i < sorted.length; i++){
+    var cur = sorted[i];
+    var skip = false;
+    for (var j = out.length - 1; j >= 0 && j >= out.length - 6; j--){
+      var prev = out[j];
+      if (prev.str === cur.str && Math.abs(prev.x - cur.x) < 3){ skip = true; break; }
+    }
+    if (!skip) out.push(cur);
+  }
+  return out;
+}
+function dedupRepeatedSequences(s){
+  if (!s) return s;
+  var prev;
+  do {
+    prev = s;
+    // 1-word duplicate, then 2..8-word duplicate phrases
+    s = s.replace(/\b(\S+)(?:\s+\1)\b/gi, '$1');
+    for (var n = 2; n <= 8; n++){
+      var pat = '((?:\\S+\\s+){' + (n-1) + '}\\S+)\\s+\\1\\b';
+      try { s = s.replace(new RegExp(pat, 'gi'), '$1'); } catch(e){}
+    }
+    // Intra-word doubling, prefix-style: "BB&BB&WLL" -> "BB&WLL", "CrCreamy" -> "Creamy",
+    // "BB&WBB&WCB" -> "BB&WCB". Greedy 2-6 char prefix repeat.
+    s = s.replace(/([A-Za-z&]{2,6})\1/g, '$1');
+  } while (s !== prev);
+  return s;
+}
+// Skip rows that are clearly contact/header info from the supplier letterhead
+// (e.g. BBW's "Business Number 323-491-3648" was being parsed as a fake product).
+function isContactInfoRow(s){
+  if (!s || s.length < 3) return false;
+  var u = String(s).toUpperCase();
+  if (/\bBUSINESS\s+NUMBER\b/.test(u)) return true;
+  if (/\bP\.?\s*O\.?\s*BOX\b/.test(u)) return true;
+  if (/(WWW\.|HTTPS?:\/\/)/i.test(s)) return true;
+  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(s)) return true;
+  if (/\b(PHONE|TEL|FAX|MOBILE|CELL)\b\s*[:#]?\s*\+?\d/i.test(s)) return true;
+  // US-style street + city + state ZIP — heuristic: a 5-digit ZIP after 2-letter state
+  if (/\b[A-Z]{2}\s+\d{5}(-\d{4})?\b/.test(u)) return true;
+  // Phone like "+1 (323)491-3648" with no qty/total context — needs ALL of: paren+area+separator+digits
+  if (/^\s*\+?\d?\s*\(\d{3}\)\s*\d{3}[\s\-\.`]+\d{4}\s*$/.test(s)) return true;
+  // BBW-style unit-price description sub-rows that sit under each product line in the
+  // invoice. These often have their own (qty, price, total) triple that's mathematically
+  // valid but NOT an actual line item (e.g. "12BOX X 24PCS = 288 PCS $1.05/pc $25.20/display $302.40").
+  // The "$X/pc", "$X/display", "per piece" signals are reliable markers — real line items
+  // don't repeat the unit-of-measure phrase.
+  if (/\$[\d.]+\s*\/\s*(pc|piece|display|dozen|dz|box|case|pack)\b/i.test(s)) return true;
+  if (/\bper\s+(piece|pc|display|dozen|pack)\b/i.test(s)) return true;
+  return false;
+}
+
 // PDF.js extraction with positional grouping (rows by Y coord)
 async function parseInvoicePdf(file){
   var ab = await file.arrayBuffer();
@@ -5290,8 +5359,9 @@ async function parseInvoicePdf(file){
   }
   rowLines.sort(function(a,b){ return b.y - a.y; });
   var rowStrings = rowLines.map(function(r){
-    r.items.sort(function(a,b){ return a.x - b.x; });
-    return r.items.map(function(i){return i.str;}).join(' ').replace(/\s+/g, ' ').trim();
+    var items = dedupDropShadowItems(r.items);
+    var raw = items.map(function(i){return i.str;}).join(' ').replace(/\s+/g, ' ').trim();
+    return dedupRepeatedSequences(raw);
   }).filter(function(s){return s.length > 0;});
 
   // Diagnostic — log first few rowStrings so Lauren can see what PDF.js extracted
@@ -5315,8 +5385,9 @@ async function parseInvoicePdf(file){
   });
   rowLines2.sort(function(a,b){ return (a.page - b.page) || (b.y - a.y); });
   var rowStrings2 = rowLines2.map(function(r){
-    r.items.sort(function(a,b){ return a.x - b.x; });
-    return r.items.map(function(i){return i.str;}).join(' ').replace(/\s+/g, ' ').trim();
+    var items = dedupDropShadowItems(r.items);
+    var raw = items.map(function(i){return i.str;}).join(' ').replace(/\s+/g, ' ').trim();
+    return dedupRepeatedSequences(raw);
   }).filter(function(s){return s.length > 0;});
   lines = parseInvoiceRows(rowStrings2);
   if (lines.length){
@@ -5419,6 +5490,9 @@ async function parseInvoiceImage(file){
 function parseInvoiceRows(rowStrings){
   var lines = [];
   rowStrings.forEach(function(row){
+    // Skip contact-info / letterhead rows (BBW's "Business Number 323-491-3648"
+    // was being parsed as a fake product line — added 2026-05-20).
+    if (typeof isContactInfoRow === 'function' && isContactInfoRow(row)) return;
     // Try to find a SKU-like token. Two passes:
     //   Pass A: letter-prefixed alphanumeric (XS-070, PRO-21, BB-W, etc.)
     //   Pass B: pure-numeric 4-7 digit codes (Rude's 88148, 38522, etc.) — only used
@@ -5426,13 +5500,17 @@ function parseInvoiceRows(rowStrings){
     // The (qty, price, total) heuristic below validates it's a real line either way.
     var sku = '';
     var skuMatch = null;
-    var skuRe = /\b([A-Z][A-Z0-9]*(?:[-\/][A-Z0-9]+)*)\b/g;
+    // Allow '&' in SKU body so BBW patterns (BB&WMW, BB&WCB, BB&W-LG01, BB&W-LL,
+    // BB&WGE-B) extract correctly. Accept SKUs containing '&' even without a
+    // digit — '&' alone is a strong brand-SKU signal (P&G, BB&W, AT&T context).
+    var skuRe = /\b([A-Z][A-Z0-9&]*(?:[-\/][A-Z0-9&]+)*)\b/g;
     var m_;
     while ((m_ = skuRe.exec(row.toUpperCase())) !== null){
       var cand = m_[1];
       var hasDigit = /\d/.test(cand);
+      var hasAmp = cand.indexOf('&') !== -1;
       var hasLetter = /[A-Z]/.test(cand);
-      if (cand.length >= 3 && hasDigit && hasLetter){
+      if (cand.length >= 3 && (hasDigit || hasAmp) && hasLetter){
         sku = cand;
         skuMatch = { 0: cand, index: m_.index };
         break;
@@ -5754,10 +5832,21 @@ function computeDiff(){
   RECV_CTX.diff = rows;
 }
 
-// Cheap name similarity: Jaccard over tokens of length >= 3
+// Cheap name similarity: Jaccard over tokens of length >= 3.
+// Normalization splits camelCase first so "HoneyBee" / "SneakyLink" /
+// "LoveDeeply" / "OnPoint" match their spaced counterparts "Honey Bee" /
+// "Sneaky Link" / "Love Deeply" / "On Point". Replaces '&' with ' and '.
 function nameSimilarity(a, b){
   function toks(s){
-    return String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(function(t){return t.length >= 3;});
+    return String(s||'')
+      .replace(/&/g, ' and ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')   // split camelCase BEFORE lowercase
+      .replace(/(\d)([a-zA-Z])/g, '$1 $2') // "3in1" -> "3 in 1"
+      .replace(/([a-zA-Z])(\d)/g, '$1 $2') // "vol3" -> "vol 3"
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]/g, ' ')
+      .split(/\s+/)
+      .filter(function(t){return t.length >= 3;});
   }
   var A = new Set(toks(a)), B = new Set(toks(b));
   if (A.size === 0 || B.size === 0) return 0;
