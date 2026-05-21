@@ -248,6 +248,7 @@
         <label><input type="checkbox" id="pf-low" checked> 🟠 נמוך (<span id="pcnt-low">0</span>)</label>
         <label><input type="checkbox" id="pf-ok"> 🟡 בסדר (<span id="pcnt-ok">0</span>)</label>
         <label><input type="checkbox" id="pf-strong"> 🟢 חזק (<span id="pcnt-strong">0</span>)</label>
+        <label style="margin-right:14px;border-right:1px solid var(--line);padding-right:14px;"><input type="checkbox" id="pf-dismissed"> 👍 בסדר ידני (<span id="pcnt-dismissed">0</span>)</label>
         <select id="pf-supplier" class="decision-select"><option value="">כל הספקים</option></select>
       </div>
       <div style="overflow-x:auto;">
@@ -264,6 +265,7 @@
               <th>Band</th>
               <th>🎯 מומלץ</th>
               <th title="הכניסי מחיר חדש ולחצי \"עדכן\" כדי לדחוף לאוקטופוס. ההמלצה מופיעה כ-placeholder.">מחיר חדש + עדכן</th>
+              <th title="לחיצה על בסדר מסירה את המוצר מהרשימה ושומרת שאישרת את המחיר כפי שהוא">פעולות</th>
             </tr>
           </thead>
           <tbody id="profit-body"></tbody>
@@ -813,12 +815,17 @@
     document.getElementById("profit-list-card").style.display = "";
 
     var byBand = {strong:0, ok:0, low:0, critical:0, loss:0};
-    prods.forEach(p => { if (byBand[p.profit_band] !== undefined) byBand[p.profit_band]++; });
+    var nDismissed = 0;
+    prods.forEach(p => {
+      if (p.lauren_decision === "keep_price") { nDismissed++; return; }
+      if (byBand[p.profit_band] !== undefined) byBand[p.profit_band]++;
+    });
     document.getElementById("pcnt-strong").textContent = byBand.strong;
     document.getElementById("pcnt-ok").textContent = byBand.ok;
     document.getElementById("pcnt-low").textContent = byBand.low;
     document.getElementById("pcnt-critical").textContent = byBand.critical;
     document.getElementById("pcnt-loss").textContent = byBand.loss;
+    document.getElementById("pcnt-dismissed").textContent = nDismissed;
 
     var suppliers = Array.from(new Set(prods.map(p => p.supplier).filter(Boolean))).sort();
     var sup = document.getElementById("pf-supplier");
@@ -835,9 +842,15 @@
     var fLow = document.getElementById("pf-low").checked;
     var fCrit = document.getElementById("pf-critical").checked;
     var fLoss = document.getElementById("pf-loss").checked;
+    var fDismissed = document.getElementById("pf-dismissed").checked;
     var supplier = document.getElementById("pf-supplier").value;
 
     var rows = prods.filter(p => {
+      var dismissed = p.lauren_decision === "keep_price";
+      // pf-dismissed view: show ONLY dismissed rows; band filters ignored.
+      if (fDismissed) return dismissed && (!supplier || p.supplier === supplier);
+      // Default view: hide dismissed rows entirely.
+      if (dismissed) return false;
       var b = p.profit_band;
       if (b === "strong" && !fStrong) return false;
       if (b === "ok" && !fOk) return false;
@@ -863,16 +876,26 @@
         '<td>' + escapeHtml(p.sku || "") + '</td>' +
         '<td>' + escapeHtml(p.name || "") + '</td>' +
         '<td>' + escapeHtml(p.supplier || "—") + '</td>' +
-        '<td class="qty-cell">$' + (p.unit_cost !== undefined ? p.unit_cost.toFixed(2) : "—") + '</td>' +
+        
+        '<td class="qty-cell" style="white-space:nowrap;">' +
+          '<input type="number" step="0.01" min="0" class="profit-new-cost" data-pid="' + p.id + '" data-current-cost="' + (p.unit_cost || 0) + '" placeholder="' + (p.unit_cost !== undefined ? p.unit_cost.toFixed(2) : "") + '" style="width:60px;padding:3px 5px;font-size:11px;border:1px solid var(--line);border-radius:4px;">' +
+          '<button class="btn-apply-cost" data-pid="' + p.id + '" title="עדכן עלות ב-OCTOPOS" style="background:#0ea5e9;color:#fff;border:0;cursor:pointer;font-size:10px;padding:3px 7px;border-radius:4px;margin-right:3px;">💾</button>' +
+        '</td>' +
         '<td class="qty-cell">$' + (p.sale_price !== undefined ? p.sale_price.toFixed(2) : "—") + '</td>' +
         '<td class="markup-cell">' + (p.markup !== undefined ? p.markup.toFixed(2) + "x" : "—") + '</td>' +
         '<td class="qty-cell">' + (p.margin_pct !== undefined ? p.margin_pct.toFixed(0) + "%" : "—") + '</td>' +
         '<td><span class="band-pill ' + p.profit_band + '">' + bandLabel + '</span></td>' +
         '<td>' + showSugg + '</td>' +
-        '<td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
+        '<td style="white-space:nowrap;">' +
           '<input type="number" step="0.01" min="0" class="profit-new-price" data-pid="' + p.id + '" placeholder="' + (sugg || p.sale_price || "") + '" value="' + (p._lauren_new_price ?? "") + '" style="width:70px;padding:4px 6px;font-size:12px;border:1px solid var(--line);border-radius:6px;">' +
-          '<button class="btn-apply-price decision-select" data-pid="' + p.id + '" data-current-price="' + (p.sale_price || 0) + '" style="background:#16a34a;color:#fff;border:0;cursor:pointer;font-size:11px;padding:5px 10px;">✓ עדכן OCTOPOS</button>' +
-          (p._applied_at_octopos ? '<span style="color:#16a34a;font-size:11px;">✓ עודכן ' + p._applied_at_octopos.slice(0,10) + '</span>' : '') +
+          '<button class="btn-apply-price decision-select" data-pid="' + p.id + '" data-current-price="' + (p.sale_price || 0) + '" style="background:#16a34a;color:#fff;border:0;cursor:pointer;font-size:11px;padding:5px 10px;margin-right:4px;">✓ עדכן OCTOPOS</button>' +
+          (p._applied_at_octopos ? '<span style="color:#16a34a;font-size:11px;display:block;margin-top:3px;">✓ עודכן ' + p._applied_at_octopos.slice(0,10) + '</span>' : '') +
+        '</td>' +
+        '<td style="white-space:nowrap;">' +
+          (dec === "keep_price"
+            ? '<button class="btn-restore-row" data-pid="' + p.id + '" style="background:#fff;color:#475569;border:1px solid #cbd5e1;cursor:pointer;font-size:11px;padding:5px 10px;border-radius:6px;" title="להחזיר לרשימה הפעילה">↩ החזר</button>'
+            : '<button class="btn-dismiss-row" data-pid="' + p.id + '" style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;cursor:pointer;font-size:11px;padding:5px 10px;border-radius:6px;" title="המוצר בסדר כפי שהוא — הסר מהרשימה">👍 בסדר</button>'
+          ) +
         '</td>';
       tbody.appendChild(tr);
     });
@@ -883,7 +906,121 @@
   document.getElementById("pf-low").addEventListener("change", renderProfitTable);
   document.getElementById("pf-critical").addEventListener("change", renderProfitTable);
   document.getElementById("pf-loss").addEventListener("change", renderProfitTable);
+  document.getElementById("pf-dismissed").addEventListener("change", renderProfitTable);
   document.getElementById("pf-supplier").addEventListener("change", renderProfitTable);
+
+  // Shared helper: save full PROFIT_STATE back to GitHub Contents API (IRON RULE #7).
+  async function saveProfitStateToGitHub(commitMsg){
+    var ghToken = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+    if (!ghToken) { showToast("⚠️ צריך GitHub token — היכנסי לדשבורד תחילה"); return false; }
+    try {
+      PROFIT_STATE._updated_at = new Date().toISOString();
+      var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/profit_pulse.json";
+      var info = await fetch(url + "?ref=main", {headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json"}}).then(r=>r.json());
+      var content = JSON.stringify(PROFIT_STATE, null, 2);
+      var r = await fetch(url, {method:"PUT",
+        headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json", "Content-Type":"application/json"},
+        body: JSON.stringify({message: commitMsg, content: btoa(unescape(encodeURIComponent(content))), branch:"main", sha: info.sha})});
+      return r.ok;
+    } catch(e) { console.error("saveProfitStateToGitHub failed:", e); return false; }
+  }
+
+  // 👍 בסדר — Lauren marks a row as "fine as-is", lauren_decision = keep_price.
+  document.getElementById("profit-body").addEventListener("click", async function(e){
+    if (!e.target.matches(".btn-dismiss-row")) return;
+    var btn = e.target;
+    var pid = btn.dataset.pid;
+    var rec = (PROFIT_STATE.products || {})[pid];
+    if (!rec) return;
+    btn.disabled = true; btn.textContent = "...שומר";
+    rec.lauren_decision = "keep_price";
+    rec.lauren_decided_at = new Date().toISOString();
+    rec.lauren_note = rec.lauren_note || "";
+    var ok = await saveProfitStateToGitHub("@profit-pulse: lauren dismissed " + pid + " (keep_price)");
+    if (ok) { showToast("👍 הוסר מהרשימה"); renderProfit(); }
+    else    { showToast("⚠️ שמירה נכשלה — לא הוסר"); btn.disabled = false; btn.textContent = "👍 בסדר";
+              rec.lauren_decision = null; rec.lauren_decided_at = null; }
+  });
+
+  // ↩ החזר — undo a previous dismissal (clears keep_price).
+  document.getElementById("profit-body").addEventListener("click", async function(e){
+    if (!e.target.matches(".btn-restore-row")) return;
+    var btn = e.target;
+    var pid = btn.dataset.pid;
+    var rec = (PROFIT_STATE.products || {})[pid];
+    if (!rec) return;
+    btn.disabled = true; btn.textContent = "...משחזר";
+    var prevDec = rec.lauren_decision, prevAt = rec.lauren_decided_at;
+    rec.lauren_decision = null;
+    rec.lauren_decided_at = null;
+    var ok = await saveProfitStateToGitHub("@profit-pulse: lauren restored " + pid);
+    if (ok) { showToast("↩ חזר לרשימה הפעילה"); renderProfit(); }
+    else    { showToast("⚠️ שמירה נכשלה"); btn.disabled = false; btn.textContent = "↩ החזר";
+              rec.lauren_decision = prevDec; rec.lauren_decided_at = prevAt; }
+  });
+
+  // 💾 עדכן עלות ב-OCTOPOS — Lauren fixes a wrong unit_cost. PUTs cost to /api/v2/products/{id},
+  // re-scores markup/band/suggested locally, audits to price_history with "by":"lauren-cost-fix".
+  document.getElementById("profit-body").addEventListener("click", async function(e){
+    if (!e.target.matches(".btn-apply-cost")) return;
+    var btn = e.target;
+    var pid = btn.dataset.pid;
+    var row = btn.closest("tr");
+    var inp = row.querySelector(".profit-new-cost");
+    var newCost = parseFloat(inp.value);
+    if (!newCost || newCost <= 0) { showToast("⚠️ הכניסי עלות חוקית"); return; }
+    var currentCost = parseFloat(inp.dataset.currentCost) || 0;
+    if (Math.abs(newCost - currentCost) < 0.001) { showToast("⚠️ העלות זהה לנוכחית"); return; }
+    var rec = (PROFIT_STATE.products || {})[pid];
+    if (!rec) return;
+    if (!confirm("לעדכן עלות של " + rec.name + " מ-$" + currentCost.toFixed(2) + " ל-$" + newCost.toFixed(2) + " ב-OCTOPOS?")) return;
+
+    var octToken = (localStorage.getItem("lauren_octopos_token") || "").trim();
+    if (!octToken) { showToast("⚠️ צריך OCTOPOS token — היכנסי לדשבורד המלאי תחילה"); return; }
+    btn.disabled = true; btn.textContent = "...";
+    try {
+      var r = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
+        method: "PUT",
+        headers: {"Authorization": octToken, "Content-Type":"application/json", "Accept":"application/json"},
+        body: JSON.stringify({"cost": newCost})
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      showToast("✓ עלות עודכנה ב-OCTOPOS: $" + newCost.toFixed(2));
+
+      // Update record locally + re-score (mirror profit_pulse_run.py logic)
+      var sale = rec.sale_price || 0;
+      var markup = sale / newCost;
+      var marginPct = (sale - newCost) / sale * 100;
+      var marginUsd = sale - newCost;
+      var band = markup < 1.0 ? "loss" : markup < 1.5 ? "critical" : markup < 2.0 ? "low" : markup < 3.0 ? "ok" : "strong";
+      // Standard event tiers from scoring.md
+      var TIERS = [1,2,3,5,7,10,15,20,25,30,50];
+      var target = newCost * 3.0;
+      var suggested = TIERS.find(t => t >= target);
+      if (!suggested) suggested = Math.ceil(target / 10) * 10;
+
+      rec.price_history = (rec.price_history || []).concat([{
+        changed_at: new Date().toISOString(),
+        field: "cost",
+        from: currentCost, to: newCost,
+        by: "lauren-cost-fix-via-dashboard"
+      }]);
+      rec.unit_cost = newCost;
+      rec.markup = Math.round(markup * 100) / 100;
+      rec.margin_pct = Math.round(marginPct * 10) / 10;
+      rec.margin_usd = Math.round(marginUsd * 100) / 100;
+      rec.profit_band = band;
+      rec.suggested_price = suggested;
+      rec.suggested_price_reason = "target = $" + newCost.toFixed(2) + " × 3.0 = $" + (newCost*3).toFixed(2) + "; rounded up to standard tier";
+
+      var ok = await saveProfitStateToGitHub("@profit-pulse: lauren fixed cost[" + pid + "] $" + currentCost + "→$" + newCost);
+      if (!ok) showToast("⚠️ עלות עודכנה ב-OCTOPOS אבל סנכרון GitHub נכשל");
+      renderProfit();
+    } catch(err) {
+      showToast("⚠️ נכשל: " + err.message);
+      btn.disabled = false; btn.textContent = "💾";
+    }
+  });
 
   // Apply-price handler — Lauren's architecture: she types a new price, clicks "עדכן OCTOPOS",
   // browser PUTs to /api/v2/products/{id} with her OCTOPOS token (stored in localStorage from earlier
