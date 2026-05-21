@@ -1,0 +1,84 @@
+name: recount-prebuild — Thursday morning pre-event worklist build
+
+# Lauren's directive 2026-05-21 PM: "אני אמורה להכין רשימה לספירה לצוות בזמן האירוע".
+# This workflow builds the @recount worklist BEFORE the upcoming weekend's event
+# so Lauren has it ready Thursday afternoon to share with staff Friday morning.
+#
+# Companion to recount-weekly.yml (which runs Sunday DURING the event for cleanup).
+#
+# Cron: Thursday 8 AM PT = 15:00 UTC (PDT) / 16:00 UTC (PST). The script self-checks
+# that an upcoming event exists within the next 1-7 days; exits silent otherwise.
+
+on:
+  schedule:
+    - cron: "0 15 * * 4"   # Thursday 08:00 PDT (DST, March-November)
+    - cron: "0 16 * * 4"   # Thursday 08:00 PST (winter)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run @recount pre-event worklist builder
+        env:
+          OCTOPOS_EMAIL:       ${{ secrets.OCTOPOS_EMAIL }}
+          OCTOPOS_PASSWORD:    ${{ secrets.OCTOPOS_PASSWORD }}
+          OCTOPOS_TOKEN:       ${{ secrets.OCTOPOS_TOKEN }}
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+        run: python3 scripts/recount_prebuild.py
+
+      - name: Commit state JSON if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/state/octopos_recount.json; then
+            git add docs/state/octopos_recount.json
+            git commit -m "@recount: pre-event worklist build (Thursday morning)"
+            git pull --rebase origin main
+            git push origin main
+          fi
+
+      - name: Update scheduled-runs.json lastRunAt
+        run: |
+          python3 - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          p = "docs/scheduled-runs.json"
+          d = json.load(open(p))
+          now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in d.get("tasks", []):
+              if t.get("id") == "recount-prebuild":
+                  t["lastRunAt"] = now
+                  break
+          d["_updated_at"] = now
+          json.dump(d, open(p, "w"), indent=2, ensure_ascii=False)
+          print(f"Bumped recount-prebuild lastRunAt → {now}")
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump recount-prebuild lastRunAt"
+            git pull --rebase origin main
+            git push origin main
+          fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
