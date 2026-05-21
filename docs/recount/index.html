@@ -909,9 +909,21 @@
   document.getElementById("pf-dismissed").addEventListener("change", renderProfitTable);
   document.getElementById("pf-supplier").addEventListener("change", renderProfitTable);
 
+  // Serialize concurrent saves — chain each one off the previous so rapid clicks don't race
+  // on the GitHub SHA. Each save in the queue does its own GET-SHA+PUT with the latest content.
+  var _ppSaveTail = Promise.resolve(true);
+  function queueSaveProfitStateToGitHub(commitMsg){
+    var next = _ppSaveTail
+      .catch(function(){ return true; })   // never let a prior failure block the next save
+      .then(function(){ return saveProfitStateToGitHub(commitMsg); });
+    _ppSaveTail = next.catch(function(){ return true; });
+    return next;
+  }
+
   // Shared helper: save full PROFIT_STATE back to GitHub Contents API (IRON RULE #7).
   // Returns true on success. On failure, logs full details to console + shows a specific toast.
-  // Handles SHA-conflict by retrying once with fresh SHA (race-safe when Lauren clicks multiple times in a row).
+  // Handles SHA-conflict by retrying once with fresh SHA (race-safe within a single call).
+  // For concurrent clicks, call queueSaveProfitStateToGitHub() — that serializes saves end-to-end.
   async function saveProfitStateToGitHub(commitMsg){
     var ghToken = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
     if (!ghToken) { showToast("⚠️ צריך GitHub token — היכנסי לדשבורד המלאי תחילה"); return false; }
@@ -997,7 +1009,7 @@
     rec.lauren_decision = "keep_price";
     rec.lauren_decided_at = new Date().toISOString();
     rec.lauren_note = rec.lauren_note || "";
-    var ok = await saveProfitStateToGitHub("@profit-pulse: lauren dismissed " + pid + " (keep_price)");
+    var ok = await queueSaveProfitStateToGitHub("@profit-pulse: lauren dismissed " + pid + " (keep_price)");
     if (ok) { showToast("👍 הוסר מהרשימה"); renderProfit(); }
     else    { showToast("⚠️ שמירה נכשלה — לא הוסר"); btn.disabled = false; btn.textContent = "👍 בסדר";
               rec.lauren_decision = null; rec.lauren_decided_at = null; }
@@ -1014,7 +1026,7 @@
     var prevDec = rec.lauren_decision, prevAt = rec.lauren_decided_at;
     rec.lauren_decision = null;
     rec.lauren_decided_at = null;
-    var ok = await saveProfitStateToGitHub("@profit-pulse: lauren restored " + pid);
+    var ok = await queueSaveProfitStateToGitHub("@profit-pulse: lauren restored " + pid);
     if (ok) { showToast("↩ חזר לרשימה הפעילה"); renderProfit(); }
     else    { showToast("⚠️ שמירה נכשלה"); btn.disabled = false; btn.textContent = "↩ החזר";
               rec.lauren_decision = prevDec; rec.lauren_decided_at = prevAt; }
@@ -1074,7 +1086,7 @@
       rec.suggested_price = suggested;
       rec.suggested_price_reason = "target = $" + newCost.toFixed(2) + " × 3.0 = $" + (newCost*3).toFixed(2) + "; rounded up to standard tier";
 
-      var ok = await saveProfitStateToGitHub("@profit-pulse: lauren fixed cost[" + pid + "] $" + currentCost + "→$" + newCost);
+      var ok = await queueSaveProfitStateToGitHub("@profit-pulse: lauren fixed cost[" + pid + "] $" + currentCost + "→$" + newCost);
       if (!ok) showToast("⚠️ עלות עודכנה ב-OCTOPOS אבל סנכרון GitHub נכשל");
       renderProfit();
     } catch(err) {
