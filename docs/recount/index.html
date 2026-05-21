@@ -118,6 +118,8 @@
       <label><input type="checkbox" id="f-neg" checked> 🔴 מינוס</label>
       <label><input type="checkbox" id="f-stale" checked> 💤 לא זזו</label>
       <label><input type="checkbox" id="f-preexisting" checked> 🔵 קיים מקודם</label>
+      <label><input type="checkbox" id="f-new_unverified" checked> 🆕 חדש שלא נספר</label>
+      <label><input type="checkbox" id="f-sat_unsold" checked> 💤 היה ולא נמכר</label>
     </div>
     <div style="overflow-x:auto;">
       <table id="worklist-table">
@@ -129,6 +131,7 @@
             <th>כמות נוכחית</th>
             <th>מכירות בחלון</th>
             <th>סיבה</th>
+            <th style="width:90px;text-align:center">פעולות</th>
           </tr>
         </thead>
         <tbody id="worklist-body"></tbody>
@@ -342,6 +345,7 @@
       // Global mode — use top-level stats
       slice = {
         worklist: data.worklist || [],
+        lauren_dismissed_pids: data.lauren_dismissed_pids || [],
         stats: data.stats || {},
         window: data.last_window || {},
         generated_at: data._updated_at
@@ -374,8 +378,26 @@
     if (worklist.length > 0) {
       document.getElementById("list-card").style.display = "";
       window._WORKLIST = worklist;
+      DISMISSED_PIDS = new Set((slice.lauren_dismissed_pids || []).map(Number));
       renderTable();
     }
+  }
+
+  // Lauren 2026-05-21 PM #6 — dismissed pids are stored per-event in the
+  // octopos_recount.json state file under events.<evkey>.lauren_dismissed_pids[].
+  // Browser owns this field; agent never writes it (per the cross-agent data-bus
+  // partition rules in CLAUDE.md).
+  var DISMISSED_PIDS = new Set();
+
+  function isDismissed(pid){ return DISMISSED_PIDS.has(Number(pid)); }
+
+  function reasonLabel(reason){
+    if (reason === "negative") return "🔴 מינוס";
+    if (reason === "stale") return "💤 לא זז";
+    if (reason === "sat_unsold") return "💤 היה ולא נמכר";
+    if (reason === "new_unverified") return "🆕 חדש שלא נספר";
+    if (reason === "moved_not_counted") return "💤 היה ולא נספר";
+    return "🔵 קיים מקודם";
   }
 
   function renderTable() {
@@ -383,15 +405,19 @@
     const fNeg = document.getElementById("f-neg").checked;
     const fStale = document.getElementById("f-stale").checked;
     const fPre = document.getElementById("f-preexisting").checked;
+    const fNew = (document.getElementById("f-new_unverified") || {checked:true}).checked;
+    const fSat = (document.getElementById("f-sat_unsold") || {checked:true}).checked;
     const tbody = document.getElementById("worklist-body");
     tbody.innerHTML = "";
     wl.filter(p => {
+      if (isDismissed(p.id)) return false;  // Lauren explicitly removed
       if (p.reason === "negative") return fNeg;
-      if (p.reason === "stale") return fStale;
+      if (p.reason === "stale" || p.reason === "moved_not_counted" || p.reason === "sat_unsold")
+        return p.reason === "sat_unsold" ? fSat : fStale;
+      if (p.reason === "new_unverified") return fNew;
       return fPre;
     }).forEach(p => {
       const tr = document.createElement("tr");
-      const reason = p.reason === "negative" ? "🔴 מינוס" : p.reason === "stale" ? "💤 לא זז" : "🔵 קיים מקודם";
       const reasonCls = "reason-" + (p.reason || "preexisting");
       tr.innerHTML =
         '<td>' + escapeHtml(p.sku || "") + '</td>' +
@@ -399,7 +425,8 @@
         '<td>' + escapeHtml(p.supplier || "—") + '</td>' +
         '<td class="qty-cell">' + (p.qty ?? "—") + '</td>' +
         '<td class="qty-cell">' + (p.sold_in_window ?? 0) + '</td>' +
-        '<td class="' + reasonCls + '">' + reason + '</td>';
+        '<td class="' + reasonCls + '">' + reasonLabel(p.reason) + '</td>' +
+        '<td style="text-align:center"><button type="button" class="btn-dismiss" data-pid="' + Number(p.id) + '" title="הורד את המוצר הזה מהרשימה הנוכחית" style="padding:4px 8px;font-size:11px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;font-weight:600">❌ הורד</button></td>';
       tbody.appendChild(tr);
     });
   }
@@ -407,6 +434,79 @@
   document.getElementById("f-neg").addEventListener("change", renderTable);
   document.getElementById("f-stale").addEventListener("change", renderTable);
   document.getElementById("f-preexisting").addEventListener("change", renderTable);
+  if (document.getElementById("f-new_unverified"))
+    document.getElementById("f-new_unverified").addEventListener("change", renderTable);
+  if (document.getElementById("f-sat_unsold"))
+    document.getElementById("f-sat_unsold").addEventListener("change", renderTable);
+
+  // Click handler for ❌ dismiss buttons
+  document.addEventListener("click", async function(e){
+    const btn = e.target.closest(".btn-dismiss");
+    if (!btn) return;
+    const pid = Number(btn.dataset.pid);
+    if (!pid) return;
+    btn.disabled = true;
+    btn.textContent = "⏳";
+    const ok = await dismissPid(pid);
+    if (ok) {
+      DISMISSED_PIDS.add(pid);
+      renderTable();
+    } else {
+      btn.disabled = false;
+      btn.textContent = "❌ הורד";
+    }
+  });
+
+  // Write the dismissed-pid to the state file via GitHub Contents API.
+  async function dismissPid(pid){
+    const token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+    if (!token) {
+      alert("חסר GitHub token — הוסיפי אחד דרך 🔑 בכל הדשבורדים השנייים, ולחצי שוב.");
+      return false;
+    }
+    const evkey = (new URLSearchParams(location.search)).get("evkey") || "";
+    if (!evkey) {
+      alert("לא מצאתי evkey ב-URL — לא יכולה לשמור.");
+      return false;
+    }
+    const FILE = "docs/state/octopos_recount.json";
+    const REPO = "laurenlev10/lauren-agent-hub-data";
+    try {
+      // GET current file (with SHA)
+      const getR = await fetch("https://api.github.com/repos/" + REPO + "/contents/" + FILE + "?ref=main", {
+        headers: {"Authorization":"token " + token, "Accept":"application/vnd.github+json"}
+      });
+      if (!getR.ok) { alert("שגיאת GET: HTTP " + getR.status); return false; }
+      const meta = await getR.json();
+      const sha = meta.sha;
+      const decoded = JSON.parse(atob(meta.content.replace(/\n/g, "")));
+      decoded.events = decoded.events || {};
+      decoded.events[evkey] = decoded.events[evkey] || {};
+      const arr = decoded.events[evkey].lauren_dismissed_pids || [];
+      if (arr.indexOf(pid) === -1) arr.push(pid);
+      decoded.events[evkey].lauren_dismissed_pids = arr;
+      decoded.events[evkey].lauren_dismissed_at = new Date().toISOString();
+      decoded._updated_at = new Date().toISOString();
+      const newContent = btoa(unescape(encodeURIComponent(JSON.stringify(decoded, null, 2))));
+      const putR = await fetch("https://api.github.com/repos/" + REPO + "/contents/" + FILE, {
+        method:"PUT",
+        headers: {"Authorization":"token " + token, "Accept":"application/vnd.github+json", "Content-Type":"application/json"},
+        body: JSON.stringify({
+          message: "@recount: dismiss pid=" + pid + " from " + evkey + " (Lauren manual)",
+          content: newContent, sha: sha, branch: "main"
+        })
+      });
+      if (!putR.ok) {
+        const errBody = await putR.text();
+        alert("שגיאת PUT: HTTP " + putR.status + " — " + errBody.slice(0, 200));
+        return false;
+      }
+      return true;
+    } catch (err) {
+      alert("שגיאה: " + err.message);
+      return false;
+    }
+  }
 
   // Copy handlers
   function getVisibleWorklist() {
