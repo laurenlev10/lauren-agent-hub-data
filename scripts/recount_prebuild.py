@@ -216,7 +216,8 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
     count_pids  = activity.get("count_pids")  or set()
 
     worklist = []
-    n_neg = n_sat_unsold = n_preexisting = n_new = 0
+    n_neg = n_sat_unsold = n_preexisting = 0
+    n_neg_skipped_counted = 0  # qty<0 but counted in prior window — skip
     n_excluded = 0
     n_not_at_event = 0       # qty>0 but no activity — wasn't at the event
     n_already_counted = 0    # had CR row — trust the count, skip
@@ -252,22 +253,27 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
             was_at_event = pid in activity_pids
             had_sale = pid in sale_pids
             was_physically_counted = pid in count_pids
-            if qty < 0:
-                # Lauren 2026-05-21 PM #3 — ALL negatives, regardless of recent count.
+            if qty < 0 and pid not in count_pids:
+                # Lauren 2026-05-21 PM #7 (final): negatives only if NOT counted at the
+                # prior event. If it was counted and is still negative, trust the count
+                # for now — the residual negative is post-count sales tracking, not a
+                # count error worth re-verifying.
                 reason = "negative"
                 n_neg += 1
+            elif qty < 0 and pid in count_pids:
+                # Negative but counted — skip
+                n_neg_skipped_counted += 1
+                continue
             elif has_recount:
                 # Lauren manually tagged with RECOUNT in OCTOPOS → always on list.
                 reason = "preexisting"
                 n_preexisting += 1
-            elif qty > 0 and is_new_since_prior and pid not in ever_counted_pids:
-                # Lauren 2026-05-21 PM #5: 'מוצרים חדשים שעוד לא נספרו אף פעם — אף פעם'.
-                # Requires BOTH: created_at after prior event ended (genuinely new),
-                # AND never appeared in CR rows (never physically counted). Without the
-                # 'is_new_since_prior' constraint, this catches 240+ old products that
-                # never went to a recount — way too noisy for a count list.
-                reason = "new_unverified"
-                n_new += 1
+            # Lauren 2026-05-21 PM #7 (final): new_unverified category REMOVED.
+            # Lauren's reasoning: a product that was added before the upcoming event but
+            # didn't have sales at the prior event is just-new-and-not-selling-yet, not
+            # a count problem. If it was created mid-cycle, she counted it manually when
+            # adding it to OCTOPOS.
+
             elif qty > 0 and was_physically_counted:
                 # Already counted at the prior event → trust the count, skip.
                 n_already_counted += 1
@@ -303,13 +309,13 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
                 })
     stats = {
         "negative": n_neg,
-        "new_unverified": n_new,
         "sat_unsold": n_sat_unsold,
         "preexisting": n_preexisting,
         "excluded_permanent": n_excluded,
         "excluded_not_at_event": n_not_at_event,
         "excluded_already_counted": n_already_counted,
         "excluded_sold": n_sold,
+        "excluded_neg_already_counted": n_neg_skipped_counted,
         "ever_counted_total": len(ever_counted_pids),
         "sale_last_event": len(sale_pids),
         "count_last_event": len(count_pids),
@@ -397,8 +403,8 @@ def main():
     sms_body = (
         f"@recount ✓ רשימת ספירה מוכנה ל-{city}, {state} ({upcoming_start} → {upcoming_end}).\n"
         f"📋 {len(worklist)} מוצרים לספירה:\n"
-        f"🔴 {stats['negative']} מינוס · 🔵 {stats['preexisting']} מתויגי RECOUNT · "
-        f"🆕 {stats['new_unverified']} חדשים · 💤 {stats['sat_unsold']} היו ולא נמכרו.\n"
+        f"🔴 {stats['negative']} מינוס (לא נספרו) · 🔵 {stats['preexisting']} מתויגי RECOUNT · "
+        f"💤 {stats['sat_unsold']} היו ולא נמכרו.\n"
         f"חלון נתונים מהאירוע הקודם: {prior_start} → {prior_end}\n"
         f"https://laurenlev10.github.io/lauren-agent-hub-data/recount/?evkey={upcoming_evkey}"
     )
