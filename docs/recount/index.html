@@ -910,19 +910,80 @@
   document.getElementById("pf-supplier").addEventListener("change", renderProfitTable);
 
   // Shared helper: save full PROFIT_STATE back to GitHub Contents API (IRON RULE #7).
+  // Returns true on success. On failure, logs full details to console + shows a specific toast.
+  // Handles SHA-conflict by retrying once with fresh SHA (race-safe when Lauren clicks multiple times in a row).
   async function saveProfitStateToGitHub(commitMsg){
     var ghToken = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
-    if (!ghToken) { showToast("⚠️ צריך GitHub token — היכנסי לדשבורד תחילה"); return false; }
+    if (!ghToken) { showToast("⚠️ צריך GitHub token — היכנסי לדשבורד המלאי תחילה"); return false; }
+    PROFIT_STATE._updated_at = new Date().toISOString();
+    var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/profit_pulse.json";
+    var content;
     try {
-      PROFIT_STATE._updated_at = new Date().toISOString();
-      var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/profit_pulse.json";
-      var info = await fetch(url + "?ref=main", {headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json"}}).then(r=>r.json());
-      var content = JSON.stringify(PROFIT_STATE, null, 2);
-      var r = await fetch(url, {method:"PUT",
-        headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json", "Content-Type":"application/json"},
-        body: JSON.stringify({message: commitMsg, content: btoa(unescape(encodeURIComponent(content))), branch:"main", sha: info.sha})});
-      return r.ok;
-    } catch(e) { console.error("saveProfitStateToGitHub failed:", e); return false; }
+      content = JSON.stringify(PROFIT_STATE, null, 2);
+    } catch(e) {
+      console.error("[profit-save] JSON.stringify failed:", e);
+      showToast("⚠️ JSON serialize failed: " + e.message);
+      return false;
+    }
+    // UTF-8-safe base64 — Hebrew product names survive
+    var b64;
+    try {
+      b64 = btoa(unescape(encodeURIComponent(content)));
+    } catch(e) {
+      console.error("[profit-save] btoa failed:", e);
+      showToast("⚠️ base64 encode failed: " + e.message);
+      return false;
+    }
+    for (var attempt = 1; attempt <= 2; attempt++) {
+      try {
+        // 1) GET current SHA (must be fresh — main may have advanced since page load)
+        var infoResp = await fetch(url + "?ref=main", {
+          headers: {Authorization: "token "+ghToken, Accept: "application/vnd.github+json"}
+        });
+        if (!infoResp.ok) {
+          var infoBody = await infoResp.text();
+          console.error("[profit-save] GET SHA failed", infoResp.status, infoBody);
+          if (infoResp.status === 401) { showToast("⚠️ GitHub token פג תוקף — צריך לחדש"); return false; }
+          if (infoResp.status === 403) { showToast("⚠️ GitHub rate limit / אין הרשאה"); return false; }
+          if (infoResp.status === 404) { showToast("⚠️ profit_pulse.json לא נמצא ב-repo"); return false; }
+          showToast("⚠️ GET SHA נכשל: HTTP " + infoResp.status);
+          return false;
+        }
+        var info = await infoResp.json();
+        if (!info || !info.sha) {
+          console.error("[profit-save] no sha in GET response", info);
+          showToast("⚠️ SHA חסר בתגובת GitHub");
+          return false;
+        }
+
+        // 2) PUT with current SHA
+        var putResp = await fetch(url, {
+          method: "PUT",
+          headers: {Authorization: "token "+ghToken, Accept: "application/vnd.github+json", "Content-Type": "application/json"},
+          body: JSON.stringify({message: commitMsg, content: b64, branch: "main", sha: info.sha})
+        });
+        if (putResp.ok) return true;
+
+        var putBody = await putResp.text();
+        console.error("[profit-save] PUT failed (attempt " + attempt + ")", putResp.status, putBody);
+
+        // 409/422 typically means SHA conflict — someone else pushed. Refetch SHA and retry once.
+        if ((putResp.status === 409 || putResp.status === 422) && attempt === 1) {
+          await new Promise(r => setTimeout(r, 800));   // tiny backoff
+          continue;
+        }
+        if (putResp.status === 401) { showToast("⚠️ GitHub token פג תוקף"); return false; }
+        if (putResp.status === 403) { showToast("⚠️ rate limit / אין הרשאה — נסי בעוד דקה"); return false; }
+        if (putResp.status === 413) { showToast("⚠️ קובץ גדול מדי ל-GitHub API (1MB max)"); return false; }
+        showToast("⚠️ PUT נכשל: HTTP " + putResp.status + (putBody ? " — " + putBody.slice(0,80) : ""));
+        return false;
+      } catch(e) {
+        console.error("[profit-save] network error attempt " + attempt, e);
+        if (attempt === 2) { showToast("⚠️ רשת: " + (e.message || "תקלת רשת")); return false; }
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+    return false;
   }
 
   // 👍 בסדר — Lauren marks a row as "fine as-is", lauren_decision = keep_price.
