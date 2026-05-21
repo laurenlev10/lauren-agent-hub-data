@@ -242,6 +242,11 @@ def build_snapshot(vendors, products):
             unit_cost = float(p.get("cost") or 0)
         except (TypeError, ValueError):
             unit_cost = 0.0
+        # sale_price comes back from OCTOPOS as a string like "6.00" — used by @profit-pulse for markup.
+        try:
+            sale_price = float(p.get("sale_price") or 0)
+        except (TypeError, ValueError):
+            sale_price = 0.0
         # OCTOPOS may expose `cost_calculator_base_units_in_a_case` — use as default case_size.
         # If absent / zero, dashboard falls back to 12 (smallest common case).
         try:
@@ -260,6 +265,7 @@ def build_snapshot(vendors, products):
             "in_stock_qty": qty,
             "threshold": threshold,
             "unit_cost": unit_cost,
+            "sale_price": sale_price,
             "case_size": case_size,
             "categories": cats,
             "active": is_active,

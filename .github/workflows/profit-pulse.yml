@@ -1,7 +1,8 @@
-name: profit-pulse — bi-weekly margin scan
+name: profit-pulse — weekly margin scan
 
-# Phase 0 (2026-05-17 PM) — scaffold only. Algorithm in Scheduled/NEW/profit-pulse/scoring.md.
-# Real scoring (Phase 1) replaces the placeholder step with: python3 scripts/profit_pulse_run.py
+# Phase 1 (2026-05-20) — real scoring. Algorithm spec: Scheduled/NEW/profit-pulse/scoring.md.
+# Reads docs/state/octopos_products.json (refreshed daily by octopos-stock-poll), scores every
+# active product, writes docs/state/profit_pulse.json. Lauren-decision fields are preserved.
 
 on:
   schedule:
@@ -18,15 +19,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Phase 0 — log + skip
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run profit-pulse margin scan
+        run: python3 scripts/profit_pulse_run.py
+
+      - name: Commit profit_pulse.json if changed
         run: |
-          echo "@profit-pulse Phase 0 — scaffold only, no scoring yet."
-          echo "See Scheduled/NEW/profit-pulse/SKILL.md for the algorithm."
-          echo "First real run pending: scripts/profit_pulse_run.py (next sprint)."
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via profit-pulse)"
+          git add docs/state/profit_pulse.json
+          if ! git diff --cached --quiet; then
+            git commit -m "@profit-pulse: refresh margin snapshot"
+            for attempt in 1 2 3; do
+              git pull --rebase origin main || true
+              if git push origin main; then
+                echo "✓ pushed profit_pulse.json (attempt $attempt)"
+                break
+              fi
+              echo "push attempt $attempt failed, retrying..."
+              sleep $((attempt * 5))
+            done
+          else
+            echo "no changes in profit_pulse.json"
+          fi
 
       - name: Update scheduled-runs.json lastRunAt
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 - <<'PY'
           import json
@@ -50,10 +71,18 @@ jobs:
           if ! git diff --quiet docs/scheduled-runs.json; then
             git add docs/scheduled-runs.json
             git commit -m "scheduled-runs: bump profit-pulse lastRunAt"
-            git pull --rebase origin main
-            git push origin main
+            for attempt in 1 2 3; do
+              git pull --rebase origin main || true
+              if git push origin main; then
+                echo "✓ pushed scheduled-runs bump (attempt $attempt)"
+                break
+              fi
+              echo "push attempt $attempt failed, retrying..."
+              sleep $((attempt * 5))
+            done
           fi
 
+      # IRON RULE #3 — SMS Lauren if this workflow fails.
       - name: SMS Lauren on failure
         if: failure()
         env:
