@@ -5348,6 +5348,88 @@ function isContactInfoRow(s){
   return false;
 }
 
+// Layout-split rescue: BBW (and similar suppliers) sometimes lay out invoice
+// items with the NAME mid-page and the rate/qty/amount columns as 3 vertical
+// stacks at the bottom. PDF.js extracts each cell at its own Y so the name-row
+// has no (qty,price,total) triple and gets dropped. parseInvoicePdf calls this
+// AFTER the normal parse to rescue those orphans (added 2026-05-20 PM #2).
+function tryLayoutSplitRescue(rowStrings){
+  if (!rowStrings || rowStrings.length < 6) return [];
+  // 1. Collect single-number rowStrings from the document tail (working back).
+  var KNOWN_HDR = /^(DESCRIPTION|RATE|QTY|AMOUNT|TOTAL|PRICE|SUBTOTAL|TAX|SHIPPING|ITEM|UNIT|EACH|COST|USD|EST\d*|DATE|ESTIMATE)$/i;
+  var singleNums = [];
+  for (var i = 0; i < rowStrings.length; i++){
+    var r = (rowStrings[i] || '').trim();
+    if (!r) continue;
+    if (/^[\$]?\s*\d+(?:\.\d{1,2})?\s*[\$]?$/.test(r)){
+      singleNums.push({i: i, val: Number(r.replace(/[^\d.]/g, ''))});
+    }
+  }
+  if (singleNums.length < 6) return [];
+  // 2. Pick the LARGEST contiguous tail-cluster (allow ≤3 row gap between members)
+  var clusterEnd = singleNums.length - 1, clusterStart = clusterEnd;
+  for (var s = clusterEnd - 1; s >= 0; s--){
+    if (singleNums[s + 1].i - singleNums[s].i <= 3) clusterStart = s;
+    else break;
+  }
+  var count = clusterEnd - clusterStart + 1;
+  if (count < 6 || count % 3 !== 0) return [];
+  var N = count / 3;
+  // 3. Find name-only rows BEFORE the cluster (no $, ≤1 number, has 4+ letters,
+  //    not a known header word like RATE/QTY/AMOUNT).
+  var clusterFirstRowIdx = singleNums[clusterStart].i;
+  var names = [];
+  for (var j = 0; j < clusterFirstRowIdx; j++){
+    var r2 = (rowStrings[j] || '').trim();
+    if (!r2) continue;
+    if (typeof isContactInfoRow === 'function' && isContactInfoRow(r2)) continue;
+    if (KNOWN_HDR.test(r2)) continue;
+    if (!/[a-zA-Z]{4,}/.test(r2)) continue;
+    if (/\$/.test(r2)) continue;
+    if ((r2.match(/\b\d+(?:\.\d+)?\b/g) || []).length > 1) continue;
+    names.push({i: j, name: r2});
+  }
+  if (names.length < N) return [];
+  var pairedNames = names.slice(-N);  // take the LAST N names — they're closest to the cluster
+  // 4. Slice into 3 columns
+  var col1 = singleNums.slice(clusterStart, clusterStart + N);
+  var col2 = singleNums.slice(clusterStart + N, clusterStart + 2 * N);
+  var col3 = singleNums.slice(clusterStart + 2 * N, clusterStart + 3 * N);
+  function fails(p, q, t){
+    var f = 0;
+    for (var k = 0; k < N; k++){
+      if (Math.abs(p[k].val * q[k].val - t[k].val) > Math.max(0.05, t[k].val * 0.01)) f++;
+    }
+    return f;
+  }
+  // BBW order is (price, qty, total). Try that first, then swap.
+  var f1 = fails(col1, col2, col3);
+  var priceCol = col1, qtyCol = col2, totalCol = col3, bestF = f1;
+  var f2 = fails(col2, col1, col3);
+  if (f2 < bestF){ priceCol = col2; qtyCol = col1; bestF = f2; }
+  if (bestF > Math.max(1, Math.floor(N * 0.2))){
+    console.warn('[layout-split] sanity check failed (' + bestF + '/' + N + ') — bailing');
+    return [];
+  }
+  // 5. Emit synthetic lines
+  var lines = [];
+  for (var x = 0; x < N; x++){
+    var nm = pairedNames[x].name.replace(/\s+/g, ' ').trim();
+    if (typeof dedupRepeatedSequences === 'function') nm = dedupRepeatedSequences(nm);
+    lines.push({
+      sku: '',
+      name: nm,
+      qty: qtyCol[x].val,
+      raw_qty: qtyCol[x].val,
+      unit_note: 'layout-split',
+      price: priceCol[x].val,
+      total: totalCol[x].val
+    });
+  }
+  console.log('[layout-split] rescued ' + lines.length + ' name-only rows from column-stack at page bottom');
+  return lines;
+}
+
 // PDF.js extraction with positional grouping (rows by Y coord)
 async function parseInvoicePdf(file){
   var ab = await file.arrayBuffer();
@@ -5379,6 +5461,11 @@ async function parseInvoicePdf(file){
   // Primary attempt
   var lines = parseInvoiceRows(rowStrings);
   if (lines.length){
+    // Layout-split rescue (BBW pattern): pair name-only rows with bottom column-stack
+    try {
+      var rescued = tryLayoutSplitRescue(rowStrings);
+      if (rescued && rescued.length) lines = lines.concat(rescued);
+    } catch(e){ console.warn('[layout-split] rescue threw:', e); }
     console.log('[recv] PDF parsed primary: ' + lines.length + ' lines from ' + rowStrings.length + ' rowStrings');
     return lines;
   }
