@@ -299,7 +299,16 @@ def main(argv):
     archive = {'_updated_at': None, '_about': 'Per-supplier invoice archive built by uploading PDFs.', 'invoices': {}}
     if ARCHIVE_PATH.exists(): archive = json.loads(ARCHIVE_PATH.read_text())
     octopos, rules, sps = load_state()
-    for pdf in pdf_paths: ingest_one(supplier_code, pdf, archive, octopos, rules, sps)
+    failures = []
+    for pdf in pdf_paths:
+        try:
+            ingest_one(supplier_code, pdf, archive, octopos, rules, sps)
+        except Exception as e:
+            print(f"  ✗ FAILED: {Path(pdf).name} — {e}")
+            failures.append((pdf, str(e)))
+    if failures:
+        print(f"\n⚠ {len(failures)} file(s) failed:")
+        for pdf, err in failures: print(f"  • {Path(pdf).name}: {err[:80]}")
     archive['_updated_at'] = datetime.now(timezone.utc).isoformat().replace('+00:00','Z')
     ARCHIVE_PATH.parent.mkdir(exist_ok=True, parents=True)
     ARCHIVE_PATH.write_text(json.dumps(archive, indent=2, ensure_ascii=False))
