@@ -591,9 +591,16 @@
     <p style="color:var(--muted);font-size:14px;margin:0 0 16px">כל 15 הספקים עם מלאי, הזמנות, POs, ו-tags מאוקטופוס. כאן את מנהלת את הספקים שלך באופן כללי — בלי תלות באירוע ספציפי.</p>
     <div class="summary-grid" id="gSummary"></div>
     <!-- Order recommendations panel — Lauren 2026-05-21 -->
-    <details id="gRecsPanel" style="background:#ecfdf5;border:1px solid #86efac;border-radius:10px;padding:12px 14px;margin:14px 0">
-      <summary style="cursor:pointer;font-weight:800;color:#14532d;font-size:15px">📦 הזמנות מומלצות לאירוע הבא — <span id="gRecsHeader">טוען...</span></summary>
-      <div id="gRecsBody" style="margin-top:10px"></div>
+    <details id="gRecsPanel" style="background:#ecfdf5;border:1px solid #86efac;border-radius:10px;padding:12px 14px;margin:14px 0" open>
+      <summary style="cursor:pointer;font-weight:800;color:#14532d;font-size:15px">
+        📦 הזמנות מומלצות לאירוע הבא — <span id="gRecsHeader">טוען...</span>
+      </summary>
+      <div style="display:flex;gap:8px;align-items:center;margin:10px 0;padding:8px 12px;background:#fff;border:1px solid #d1fae5;border-radius:8px">
+        <button id="btnRunRecapNow" type="button" style="background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:800;cursor:pointer;font-size:13px">▶️ הריצי עכשיו</button>
+        <div style="font-size:11px;color:#475569;flex:1">מריץ את כל 4 השלבים ברצף: סיכום סופ"ש → ניהול RECOUNT → המלצות הזמנה → SMS תקציר. תוצאות יופיעו כאן תוך 2-3 דקות.</div>
+        <span id="recapRunStatus" style="font-size:11px;color:#475569"></span>
+      </div>
+      <div id="gRecsBody"></div>
     </details>
     <div class="controls" style="margin-bottom:14px">
       <input type="text" class="search" id="gSearch" placeholder="חיפוש ספק / מוצר / SKU / מספר PO...">
@@ -8045,11 +8052,65 @@ function showSupplierRecsModal(supplierCode){
   });
 }
 
-// Hook into global click delegate for show-supplier-recs buttons
+// Hook into global click delegate for show-supplier-recs buttons + manual recap trigger
 document.addEventListener('click', function(e){
   var b = e.target.closest('[data-action="show-supplier-recs"]');
-  if (b){ showSupplierRecsModal(b.dataset.sup); }
+  if (b){ showSupplierRecsModal(b.dataset.sup); return; }
+  var runBtn = e.target.closest('#btnRunRecapNow');
+  if (runBtn){ runWeekendRecapNow(runBtn); return; }
 });
+
+async function runWeekendRecapNow(btn){
+  var statusEl = document.getElementById('recapRunStatus');
+  var token = (localStorage.getItem('lauren_gh_token_v1') || '').trim();
+  if (!token){
+    if (statusEl) statusEl.innerHTML = '<span style="color:#b91c1c">⚠ צריך GitHub token להפעלה ידנית</span>';
+    toast('הדביקי GitHub PAT דרך ⚙️ הגדרות לפני שאת מריצה ידנית', 'error');
+    return;
+  }
+  if (!confirm('הפעלת weekend-recap ידנית עכשיו?\nהסקריפט ירוץ ~2-3 דקות, יחשב סיכום סופ"ש, יעדכן RECOUNT, יבנה המלצות ויישלח אלייך SMS עם תקציר.')) return;
+  btn.disabled = true; btn.textContent = '⏳ מפעיל...';
+  if (statusEl) statusEl.innerHTML = '<span style="color:#1e40af">⏳ שולח בקשה ל-GitHub Actions...</span>';
+  try {
+    var resp = await fetch('https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/actions/workflows/weekend-recap.yml/dispatches', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'token ' + token,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ref: 'main'})
+    });
+    if (resp.status === 204){
+      btn.textContent = '✓ הופעל בהצלחה';
+      btn.style.background = '#16a34a';
+      var runsUrl = 'https://github.com/laurenlev10/lauren-agent-hub-data/actions/workflows/weekend-recap.yml';
+      if (statusEl) statusEl.innerHTML = '<a href="' + runsUrl + '" target="_blank" style="color:#15803d;font-weight:700;text-decoration:underline">👁 צפי בהרצה ב-GitHub</a> · יעודכן בדאשבורד תוך 2-3 דק׳';
+      toast('✓ workflow הופעל · רץ ברקע, הרענני בעוד כמה דקות', 'success');
+      // After 90s, refresh ORDER_RECS to show the new data
+      setTimeout(async function(){
+        await loadOrderRecs();
+        try { renderRecommendationsPanel(); } catch(_){}
+        toast('🔄 רענון נתוני המלצות נסיים', '');
+      }, 90000);
+    } else {
+      var err = await resp.text();
+      btn.textContent = '✗ שגיאה';
+      btn.style.background = '#b91c1c';
+      if (statusEl) statusEl.innerHTML = '<span style="color:#b91c1c">HTTP ' + resp.status + ': ' + err.slice(0,100) + '</span>';
+      toast('הפעלה נכשלה: HTTP ' + resp.status, 'error');
+    }
+  } catch(e){
+    btn.textContent = '✗ שגיאה';
+    if (statusEl) statusEl.innerHTML = '<span style="color:#b91c1c">' + e.message + '</span>';
+    toast('שגיאה: ' + e.message, 'error');
+  }
+  setTimeout(function(){
+    btn.disabled = false;
+    btn.textContent = '▶️ הריצי עכשיו';
+    btn.style.background = 'linear-gradient(180deg,#16a34a,#15803d)';
+  }, 120000);
+}
 
 function renderGlobalSummary(){
   renderRecommendationsPanel();
