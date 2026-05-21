@@ -171,7 +171,6 @@ def build_worklist(snapshot, counted_pids, prior_start, prior_end):
     worklist = []
     n_neg = n_stale = n_preexisting = n_new = 0
     n_excluded = 0
-    n_neg_skipped = 0  # negative items skipped because counted in prior window
     n_moved_skipped = 0  # stale-candidate items skipped because updated in prior window
 
     # Build the 'pids updated during prior window' set from snapshot's updated_at field.
@@ -202,13 +201,13 @@ def build_worklist(snapshot, counted_pids, prior_start, prior_end):
             created_at = (p.get("created_at") or "")[:10]
             is_new_since_prior = bool(created_at and created_at > prior_end)
             in_activity = pid in activity_pids
-            if qty < 0 and pid not in counted_pids:
+            if qty < 0:
+                # Lauren 2026-05-21 PM #3 — ALL negatives on the list, even if they were
+                # counted in the prior event. If a product is STILL negative after a
+                # physical count, the count itself was wrong OR sales corrupted the qty
+                # between count and now — both need physical re-verification.
                 reason = "negative"
                 n_neg += 1
-            elif qty < 0 and pid in counted_pids:
-                # Negative but already counted in prior window — skip (Lauren 2026-05-21 PM)
-                n_neg_skipped += 1
-                continue
             elif is_new_since_prior and qty > 0:
                 # Product created AFTER the prior event ended → never had a chance to be
                 # physically verified. Always include, even if recently updated.
@@ -246,7 +245,6 @@ def build_worklist(snapshot, counted_pids, prior_start, prior_end):
         "stale": n_stale,
         "preexisting": n_preexisting,
         "excluded_permanent": n_excluded,
-        "excluded_negative_recently_counted": n_neg_skipped,
         "excluded_moved_in_window": n_moved_skipped,
         "counted_last_event": len(counted_pids),
         "moved_last_event": len(moved_pids),
