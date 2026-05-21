@@ -218,6 +218,7 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
     worklist = []
     n_neg = n_sat_unsold = n_preexisting = 0
     n_neg_skipped_counted = 0  # qty<0 but counted in prior window — skip
+    n_preexisting_stale = 0  # tagged RECOUNT but counted in prior window (stale tag)
     n_excluded = 0
     n_not_at_event = 0       # qty>0 but no activity — wasn't at the event
     n_already_counted = 0    # had CR row — trust the count, skip
@@ -239,7 +240,12 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
                 n_excluded += 1
                 continue
             qty = float(p.get("in_stock_qty") or 0)
-            tags_raw = [(t.get("name") or "").strip().lower() for t in (p.get("tags") or [])]
+            # Lauren 2026-05-21 PM #8 — read from 'categories' (OCTOPOS's tag mechanism),
+            # NOT 'tags'. octopos_sync.py stores them under 'categories' since 2026-05-13.
+            # Previously was reading 'tags' which always returned empty → preexisting was
+            # ALWAYS 0 even though 71 products were tagged Recount in OCTOPOS. Bug since
+            # the script was first written.
+            tags_raw = [(c.get("name") or "").strip().lower() for c in (p.get("categories") or [])]
             has_recount = "recount" in tags_raw
             pid = int(p.get("id") or 0)
             reason = None
@@ -264,8 +270,15 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
                 # Negative but counted — skip
                 n_neg_skipped_counted += 1
                 continue
+            elif has_recount and pid in count_pids:
+                # Tagged Recount BUT was counted at the prior event — the tag is stale
+                # (recount_weekend.py's auto-cleanup endpoint isn't verified yet so the
+                # tag remains until Lauren removes it manually). Treat the count as proof
+                # of verification and skip. Lauren 2026-05-21 PM #8.
+                n_preexisting_stale += 1
+                continue
             elif has_recount:
-                # Lauren manually tagged with RECOUNT in OCTOPOS → always on list.
+                # Lauren manually tagged with RECOUNT in OCTOPOS, no recent count → on list.
                 reason = "preexisting"
                 n_preexisting += 1
             # Lauren 2026-05-21 PM #7 (final): new_unverified category REMOVED.
@@ -316,6 +329,7 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
         "excluded_already_counted": n_already_counted,
         "excluded_sold": n_sold,
         "excluded_neg_already_counted": n_neg_skipped_counted,
+        "excluded_preexisting_stale_tag": n_preexisting_stale,
         "ever_counted_total": len(ever_counted_pids),
         "sale_last_event": len(sale_pids),
         "count_last_event": len(count_pids),
