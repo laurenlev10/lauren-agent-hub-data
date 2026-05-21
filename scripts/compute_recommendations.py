@@ -36,6 +36,46 @@ def round_up_to_pack(qty, pack):
     if pack <= 1: return int(qty)
     return int(((int(qty) + pack - 1) // pack) * pack)
 
+def robust_threshold_suggestion(weekend_sales_list, po_history_list, current_threshold):
+    """
+    Lauren 2026-05-21: "צריך להיזהר... יכול להיות אירועים שיהיה הבדלים גדולים".
+    Robust to outliers:
+      - Use MEDIAN (not mean) — single bad event won't pull the recommendation
+      - Skip null/zero values (anomaly events: RECOUNT, missing display, etc.)
+      - Need at least 3 clean data points before suggesting a change
+      - Only suggest a RAISE (never lower threshold from a single weak event)
+      - Only flag if suggestion differs from current by ≥20%
+    Returns dict {suggest: bool, value, source, note} or {suggest: False}.
+    """
+    clean = sorted(x for x in (weekend_sales_list or []) if x and x > 0)
+    src = 'weekend_sales'
+    if len(clean) < 3:
+        # Fallback to PO history medians (also robust)
+        clean = sorted(x for x in (po_history_list or []) if x and x > 0)
+        src = 'po_history'
+    if len(clean) < 3:
+        return {'suggest': False, 'reason': f'only {len(clean)} clean data points (need ≥3)'}
+    # Median + 30% safety margin
+    n = len(clean)
+    median_val = clean[n // 2] if n % 2 else (clean[n // 2 - 1] + clean[n // 2]) / 2
+    suggested = int(round(median_val * 1.3))
+    # Only RAISE (Lauren's instruction — don't undermine safety stock from weak events)
+    if suggested <= current_threshold:
+        return {'suggest': False, 'reason': f'median {median_val:.0f}×1.3 = {suggested} ≤ current threshold {current_threshold:.0f}'}
+    # Only flag if ≥20% difference (avoid noise)
+    diff_pct = abs(suggested - current_threshold) / max(1, current_threshold) * 100
+    if diff_pct < 20:
+        return {'suggest': False, 'reason': f'suggested {suggested} only {diff_pct:.0f}% above current — under noise threshold'}
+    return {
+        'suggest': True,
+        'value': suggested,
+        'source': src,
+        'data_points': clean,
+        'median': round(median_val, 1),
+        'diff_pct': round(diff_pct, 0),
+        'note': f'median of {len(clean)} {src} = {median_val:.0f}, × 1.3 safety = {suggested} ({diff_pct:.0f}% מעל הנוכחי {int(current_threshold)})'
+    }
+
 def main():
     octopos = json.loads(OCT_PATH.read_text())
     wsales  = json.loads(WSALES_PATH.read_text()) if WSALES_PATH.exists() else {'products': {}}
@@ -82,6 +122,7 @@ def main():
             qty = round_up_to_pack(gap, pack)
             if qty <= 0: continue   # nothing to order
             reasoning.append(f"target={target:.0f} (max of thr {threshold:.0f} / avg×1.2 {avg_sales*1.2:.0f}), stock={stock:.0f}, gap={gap:.0f} → round up to pack-{pack} = {qty}")
+            thr_sugg = robust_threshold_suggestion(recent_sales, po_qty_by_pid.get(pid, []), threshold)
             sup_recs.append({
                 'product_id': p['id'], 'sku': p.get('sku'), 'name': p.get('name'),
                 'current_stock': stock, 'threshold': threshold,
@@ -90,6 +131,7 @@ def main():
                 'unit_cost': float(p.get('unit_cost') or 0),
                 'line_total': round(qty * float(p.get('unit_cost') or 0), 2),
                 'tier': tier, 'reasoning': ' · '.join(reasoning),
+                'threshold_suggestion': thr_sugg,
             })
             sum_recs += 1
         sup_recs.sort(key=lambda x: -x['line_total'])

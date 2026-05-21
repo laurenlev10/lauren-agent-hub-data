@@ -3753,6 +3753,33 @@ async function loadInvoiceArchive(){
   } catch(e){ console.warn("loadInvoiceArchive failed:", e); INVOICE_ARCHIVE = { invoices: {} }; }
 }
 
+// Order recommendations + threshold suggestions, computed weekly by
+// scripts/compute_recommendations.py from PO history + (eventually) weekend sales
+let ORDER_RECS = { _updated_at: null, suppliers: {} };
+const ORDER_RECS_URL = "../state/order_recommendations.json";
+async function loadOrderRecs(){
+  try {
+    const r = await fetch(ORDER_RECS_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok){
+      ORDER_RECS = await r.json();
+      if (!ORDER_RECS.suppliers) ORDER_RECS.suppliers = {};
+    }
+  } catch(e){ console.warn("loadOrderRecs failed:", e); ORDER_RECS = { suppliers: {} }; }
+}
+
+// Helper: find the recommendation entry for a product across all suppliers
+function getRecForProduct(productId){
+  if (!ORDER_RECS || !ORDER_RECS.suppliers) return null;
+  var pidNum = Number(productId);
+  for (var sup in ORDER_RECS.suppliers){
+    var lines = (ORDER_RECS.suppliers[sup] && ORDER_RECS.suppliers[sup].lines) || [];
+    for (var i = 0; i < lines.length; i++){
+      if (Number(lines[i].product_id) === pidNum) return lines[i];
+    }
+  }
+  return null;
+}
+
 
 async function loadProductRules(){
   try{
@@ -4524,7 +4551,9 @@ async function openProductHistory(productId){
         '<h3 style="margin:0 0 10px;font-size:15px;">📦 הזמנות אחרונות לספק</h3>' +
         '<div id="ph-pos">' + buildPOHistory(productId) + '</div>' +
       '</div>' +
-      // Section: backorders (ordered but not delivered) — NEW 2026-05-21 PM
+      // Section: recommendation + threshold suggestion (callouts at top)
+      buildThresholdSuggestion(productId) +
+      // Section: backorders (ordered but not delivered)
       buildBackordersHistory(productId) +
       // Section: invoice archive history (per-product)
       '<div class="card" style="margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:8px;background:#f0fdfa">' +
@@ -4547,7 +4576,17 @@ async function openProductHistory(productId){
     '</div>';
   document.body.appendChild(modal);
   modal.addEventListener('click', function(e){
-    if (e.target === modal || e.target.matches('[data-action="close"]')) { modal.remove(); }
+    if (e.target === modal || e.target.matches('[data-action="close"]')) { modal.remove(); return; }
+    var thrBtn = e.target.closest('[data-action="thr-accept"]');
+    if (thrBtn){
+      acceptThresholdSuggestion(thrBtn.dataset.pid, thrBtn.dataset.value);
+      return;
+    }
+    var dismissBtn = e.target.closest('[data-action="thr-dismiss"]');
+    if (dismissBtn){
+      dismissThresholdSuggestion(dismissBtn.dataset.pid);
+      return;
+    }
   });
 
   // Async load recount events + stockouts (the slow parts)
@@ -4565,6 +4604,71 @@ async function openProductHistory(productId){
 // Returns [{invoice_date, invoice_number, supplier_code, unit_qty, unit_price, total, source_filename}]
 // Find all backorder entries (ordered but not delivered) for a product.
 // Sources: open Generated POs + 'missing' diff lines from past invoice reconciliations.
+// Render an inline callout with the threshold suggestion + approve/dismiss buttons.
+// Lauren-controlled: nothing pushes to OCTOPOS without her explicit click.
+function buildThresholdSuggestion(productId){
+  var rec = getRecForProduct(productId);
+  if (!rec) return '';
+  var thrSug = rec.threshold_suggestion || {};
+  // Rec qty chip (always shown when we have a rec)
+  var recChip = '';
+  if (rec.recommended_qty && rec.recommended_qty > 0){
+    recChip = '<div style="background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;padding:10px 14px;margin:10px 0;color:#1e3a8a;font-size:13px">' +
+      '<div style="font-weight:700;margin-bottom:4px">🎯 הצעה ל-PO הבא: <span style="font-size:18px">' + rec.recommended_qty + '</span> יחידות</div>' +
+      '<div style="font-size:11px;color:#1e40af;opacity:.85">' + escHtml(rec.reasoning || '') + '</div>' +
+    '</div>';
+  }
+  // Threshold suggestion callout (only when suggest=true)
+  var thrCallout = '';
+  if (thrSug && thrSug.suggest){
+    var cap = Math.min(999, thrSug.diff_pct || 0);
+    thrCallout = '<div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin:10px 0;color:#78350f;font-size:13px">' +
+      '<div style="font-weight:700;margin-bottom:6px">🎯 הצעה לעדכון Threshold</div>' +
+      '<div>נוכחי: <b>' + Math.round(rec.threshold) + '</b> → מומלץ: <b style="color:#15803d">' + thrSug.value + '</b> ' +
+      '<span style="font-size:11px;color:#92400e">(+' + cap + '%)</span></div>' +
+      '<div style="font-size:11px;color:#92400e;margin:6px 0">' + escHtml(thrSug.note || '') + '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:8px">' +
+        '<button type="button" data-action="thr-accept" data-pid="' + productId + '" data-value="' + thrSug.value + '" ' +
+          'style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-weight:700;font-size:12px">✓ אשרי ועדכן ב-OCTOPOS</button>' +
+        '<button type="button" data-action="thr-dismiss" data-pid="' + productId + '" ' +
+          'style="background:#fff;color:#78350f;border:1px solid #fbbf24;border-radius:6px;padding:6px 14px;cursor:pointer;font-weight:700;font-size:12px">✗ דחי</button>' +
+      '</div>' +
+    '</div>';
+  }
+  return recChip + thrCallout;
+}
+
+// Apply / dismiss the threshold suggestion. Mutates OCTOPOS via existing helper.
+async function acceptThresholdSuggestion(productId, newValue){
+  try {
+    var ok = await pushOctoposProductFields(productId, { threshold: Number(newValue) });
+    if (ok){
+      toast('✓ Threshold עודכן ל-' + newValue + ' ב-OCTOPOS', 'success');
+      // Update local cached OCTOPOS data so the page reflects the new value
+      try {
+        Object.keys(OCTOPOS.vendors || {}).forEach(function(c){
+          var v = OCTOPOS.vendors[c] || {};
+          (v.products || []).forEach(function(p){
+            if (String(p.id) === String(productId)) p.threshold = Number(newValue);
+          });
+        });
+      } catch(_){}
+      // Remove the callout from the open modal
+      var card = document.querySelector('[data-action="thr-accept"][data-pid="' + productId + '"]');
+      if (card){ var parent = card.closest('div[style*="fef3c7"]'); if (parent) parent.remove(); }
+    } else {
+      toast('עדכון נכשל', 'error');
+    }
+  } catch(e){ toast('שגיאה: ' + e.message, 'error'); }
+}
+function dismissThresholdSuggestion(productId){
+  // Just hide for this session (suggestion will re-appear next compute cycle
+  // if the median moved further — Lauren can re-evaluate)
+  var card = document.querySelector('[data-action="thr-dismiss"][data-pid="' + productId + '"]');
+  if (card){ var parent = card.closest('div[style*="fef3c7"]'); if (parent) parent.remove(); }
+  toast('ההצעה נדחתה לעכשיו · תופיע שוב אם הממוצע ישתנה', '');
+}
+
 function getBackordersForProduct(productId){
   if (!INVOICE_ARCHIVE || !INVOICE_ARCHIVE.backorders) return [];
   var pidStr = String(productId);
@@ -7949,7 +8053,8 @@ async function init(){
       loadProductRules().catch(function(e){ console.warn("loadProductRules rejected:", e); }),
       loadReceiveState().catch(function(e){ console.warn("loadReceiveState rejected:", e); }),
       loadSkuAliases().catch(function(e){ console.warn("loadSkuAliases rejected:", e); }),
-      loadInvoiceArchive().catch(function(e){ console.warn("loadInvoiceArchive rejected:", e); })
+      loadInvoiceArchive().catch(function(e){ console.warn("loadInvoiceArchive rejected:", e); }),
+      loadOrderRecs().catch(function(e){ console.warn("loadOrderRecs rejected:", e); })
     ]);
 
     if (MODE === 'global'){
