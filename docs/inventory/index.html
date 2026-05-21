@@ -3736,6 +3736,24 @@ let PRODUCT_RULES = { _updated_at: null, rules: {} };
 const PRODUCT_RULES_URL = "../state/product_rules.json";
 const RULES_REPO_FILE = "docs/state/product_rules.json";
 
+// Invoice archive — built by Lauren uploading PDF invoices through
+// scripts/invoice_archive_ingest.py. Schema: { invoices: { <supplier>:
+// [{invoice_number, invoice_date, total_usd, lines: [{matched_product_id,
+// raw_qty, pack_size, unit_qty, unit_price, total}]}] } }
+// Used by buildInvoiceArchiveHistory() on the product detail page.
+let INVOICE_ARCHIVE = { _updated_at: null, invoices: {} };
+const INVOICE_ARCHIVE_URL = "../state/invoice_archive.json";
+async function loadInvoiceArchive(){
+  try {
+    const r = await fetch(INVOICE_ARCHIVE_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok){
+      INVOICE_ARCHIVE = await r.json();
+      if (!INVOICE_ARCHIVE.invoices) INVOICE_ARCHIVE.invoices = {};
+    }
+  } catch(e){ console.warn("loadInvoiceArchive failed:", e); INVOICE_ARCHIVE = { invoices: {} }; }
+}
+
+
 async function loadProductRules(){
   try{
     const r = await fetch(PRODUCT_RULES_URL + "?_=" + Date.now(), { cache: "no-store" });
@@ -4506,6 +4524,11 @@ async function openProductHistory(productId){
         '<h3 style="margin:0 0 10px;font-size:15px;">📦 הזמנות אחרונות לספק</h3>' +
         '<div id="ph-pos">' + buildPOHistory(productId) + '</div>' +
       '</div>' +
+      // Section: invoice archive history (per-product) — NEW 2026-05-21
+      '<div class="card" style="margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:8px;background:#f0fdfa">' +
+        '<h3 style="margin:0 0 10px;font-size:15px;">📋 חשבוניות שכללו את המוצר</h3>' +
+        '<div id="ph-invoices">' + buildInvoiceArchiveHistory(productId) + '</div>' +
+      '</div>' +
       // Section: stockouts (timeseries-based)
       '<div class="card" style="margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:8px;">' +
         '<h3 style="margin:0 0 10px;font-size:15px;">⛔ ימים שיצא מהמלאי (qty=0)</h3>' +
@@ -4534,6 +4557,79 @@ async function openProductHistory(productId){
     var el = document.getElementById('ph-stockouts');
     if (el) el.innerHTML = html;
   });
+}
+
+// Find all invoice-archive lines that matched the given product_id.
+// Returns [{invoice_date, invoice_number, supplier_code, unit_qty, unit_price, total, source_filename}]
+function getInvoiceArchiveForProduct(productId){
+  if (!INVOICE_ARCHIVE || !INVOICE_ARCHIVE.invoices) return [];
+  var pidStr = String(productId);
+  var out = [];
+  Object.keys(INVOICE_ARCHIVE.invoices).forEach(function(sup){
+    (INVOICE_ARCHIVE.invoices[sup] || []).forEach(function(inv){
+      (inv.lines || []).forEach(function(L){
+        if (String(L.matched_product_id) === pidStr){
+          out.push({
+            invoice_date: inv.invoice_date || '?',
+            invoice_number: inv.invoice_number || inv.source_filename || '?',
+            supplier_code: sup,
+            raw_qty: L.raw_qty, pack_size: L.pack_size,
+            unit_qty: L.unit_qty, unit_price: L.unit_price,
+            total: L.total,
+            source_filename: inv.source_filename
+          });
+        }
+      });
+    });
+  });
+  out.sort(function(a, b){ return (b.invoice_date || '').localeCompare(a.invoice_date || ''); });
+  return out;
+}
+
+function buildInvoiceArchiveHistory(productId){
+  var rows = getInvoiceArchiveForProduct(productId);
+  if (!rows.length){
+    return '<div style="color:var(--muted);font-size:13px">עוד אין חשבוניות בארכיון למוצר זה. העלי PDFs של חשבוניות מהספק דרך הסקריפט <code>invoice_archive_ingest.py</code> כדי לראות היסטוריה אמיתית כאן.</div>';
+  }
+  // Summary: total units received, avg unit price, last received date
+  var totalUnits = 0, totalSpend = 0, weightedPrice = 0;
+  rows.forEach(function(r){ totalUnits += r.unit_qty || 0; totalSpend += r.total || 0; });
+  var avgUnit = totalUnits > 0 ? (totalSpend / totalUnits) : 0;
+  var lastDate = rows[0].invoice_date;
+  // Days since last receive
+  var daysSince = '';
+  try {
+    var d = new Date(lastDate + 'T00:00:00Z');
+    if (!isNaN(d)){
+      var diff = Math.round((Date.now() - d.getTime()) / 86400000);
+      daysSince = ' · ' + diff + ' ימים מאז';
+    }
+  } catch(_){}
+  var html = '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:#0f172a">' +
+    '<div><b>סה"כ יחידות שהתקבלו:</b> ' + totalUnits + ' (מ-' + rows.length + ' חשבוניות)</div>' +
+    '<div><b>מחיר ממוצע ליחידה:</b> $' + avgUnit.toFixed(2) + '</div>' +
+    '<div><b>קבלה אחרונה:</b> ' + lastDate + daysSince + '</div>' +
+  '</div>';
+  html += '<table style="width:100%;font-size:12px"><thead><tr>' +
+    '<th style="text-align:right;color:var(--muted);padding:4px">תאריך</th>' +
+    '<th style="text-align:right;color:var(--muted);padding:4px">חשבונית #</th>' +
+    '<th style="text-align:center;color:var(--muted);padding:4px">דיספליי</th>' +
+    '<th style="text-align:center;color:var(--muted);padding:4px">יחידות</th>' +
+    '<th style="text-align:center;color:var(--muted);padding:4px">$ ליחידה</th>' +
+    '<th style="text-align:left;color:var(--muted);padding:4px">סה"כ</th>' +
+  '</tr></thead><tbody>';
+  rows.forEach(function(r){
+    html += '<tr>' +
+      '<td style="padding:4px;font-weight:700">' + escHtml(r.invoice_date) + '</td>' +
+      '<td style="padding:4px"><code style="font-family:inherit">' + escHtml(r.invoice_number) + '</code></td>' +
+      '<td style="text-align:center;padding:4px;color:var(--muted)">' + (r.raw_qty || 0) + '×' + (r.pack_size || 1) + '</td>' +
+      '<td style="text-align:center;padding:4px;font-weight:700;color:#15803d">' + (r.unit_qty || 0) + '</td>' +
+      '<td style="text-align:center;padding:4px">$' + (Number(r.unit_price) || 0).toFixed(2) + '</td>' +
+      '<td style="padding:4px"><b>$' + (Number(r.total) || 0).toFixed(2) + '</b></td>' +
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
 }
 
 function buildEventsHistory(rec){
@@ -7753,7 +7849,8 @@ async function init(){
       loadOctopos().catch(function(e){ console.warn("loadOctopos rejected:", e); if (typeof OCTOPOS === "undefined" || !OCTOPOS) { OCTOPOS = { vendors: {}, _updated_at: null }; } }),
       loadProductRules().catch(function(e){ console.warn("loadProductRules rejected:", e); }),
       loadReceiveState().catch(function(e){ console.warn("loadReceiveState rejected:", e); }),
-      loadSkuAliases().catch(function(e){ console.warn("loadSkuAliases rejected:", e); })
+      loadSkuAliases().catch(function(e){ console.warn("loadSkuAliases rejected:", e); }),
+      loadInvoiceArchive().catch(function(e){ console.warn("loadInvoiceArchive rejected:", e); })
     ]);
 
     if (MODE === 'global'){
