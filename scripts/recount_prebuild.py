@@ -146,23 +146,53 @@ def is_permanent_exclude(p):
     return False
 
 
+def fetch_all_vendors(jwt):
+    """Fetch the LIVE vendor list from OCTOPOS — single source of truth.
+    Lauren 2026-05-21 PM #15 — the hard-coded VENDORS list in scripts/octopos_sync.py
+    has 3 wrong IDs:
+      she-makeup=[8] but OCTOPOS id=8 is 'Golden Touch' (real She is id=18)
+      mystery-box=[9] but OCTOPOS id=9 is 'Joya Mia'
+      amuse-cosmetics=[1] but OCTOPOS id=1 is 'Amorus' (real Amuse is id=2)
+    Result: SHE Retractable Eye Lip Pencil sold 15 units at Milwaukee but
+    appeared in sat_unsold because fetch_real_sales never queried vendor 18.
+    Fix: pull the vendor list live + iterate ALL 23 vendors, not just a stale
+    subset.
+    """
+    req = urllib.request.Request(
+        f"{OCTO_BASE}/api/v1/get-attributes-for-sales-by-vendor-report",
+        headers={"Authorization": f"Bearer {jwt}", "Permission": "report-total-sales-vendor",
+                 "Accept":"application/json", "User-Agent": OCTO_UA}, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            d = json.loads(r.read().decode())
+        vendors = (d.get("data") or {}).get("vendor") or (d.get("data") or {}).get("vendors") or []
+        return [(int(v["id"]), v.get("name") or "") for v in vendors]
+    except Exception as e:
+        print(f"WARN: vendor list fetch failed: {e}", file=sys.stderr)
+        return []
+
+
 def fetch_real_sales_pids(jwt, start_date, end_date):
     """Call /api/v1/get-sales-by-vendor-product-report per vendor and union the
     set of pids with units_sold > 0. This is the REAL sales signal — the DR
     rows in get-recount-data are inventory adjustments, NOT POS sales.
 
-    Lauren 2026-05-21 PM #10 — confirmed via 'BC Kiss And Tell Duo Lip' which
-    had 12 units sold during Milwaukee (per OCTOPOS Analytics page) but was
-    flagged as sat_unsold because the DR-rows proxy missed it.
+    Lauren 2026-05-21 PM #10 — confirmed via 'BC Kiss And Tell Duo Lip' (sold 12)
+    Lauren 2026-05-21 PM #15 — extended via SHE retractable eye lip pencil-13 (sold 15)
+    Both were misclassified as sat_unsold; this function now queries the LIVE
+    vendor list (not a stale hard-coded subset) so no vendor is missed.
     """
-    # Vendor IDs from scripts/octopos_sync.py MAPPING table
-    VENDORS = [
-        (8,  "She Makeup"), (9,  "Mystery Box"), (1,  "Amuse Cosmetics"),
-        (14, "Nabi"),       (3,  "BB and W"),    (15, "Prolux"),
-        (6,  "EBS Perfumes"),(17, "Rude"),       (23, "Xime Beauty"),
-        (7,  "Feral Edge"), (12, "Lurella"),     (10, "Kara Beauty"),
-        (16, "Romantic Beauty"), (4, "Beauty Creations"),
-    ]
+    VENDORS = fetch_all_vendors(jwt)
+    if not VENDORS:
+        # Fallback to a minimal hardcoded list (best-effort), but warn loud
+        print("WARN: empty vendor list — using hardcoded fallback (some products will be missed)", file=sys.stderr)
+        VENDORS = [
+            (18, "She"), (2,  "Amuse"), (13, "Market"),
+            (14, "Nabi"),       (3,  "BB&W"),    (15, "Prolux"),
+            (6,  "EBS Perfumes"),(17, "Rude"),       (23, "Xime"),
+            (7,  "Feral Edge"), (12, "Lurella"),     (10, "Kara Beauty"),
+            (16, "Romantic Beauty"), (4, "Beauty Creations"),
+        ]
     # OCTOPOS expects dates as "MM/DD/YYYY HH:MM:SS"
     df = dt.date.fromisoformat(start_date).strftime("%m/%d/%Y") + " 00:00:00"
     dt_ = dt.date.fromisoformat(end_date).strftime("%m/%d/%Y") + " 23:59:59"
