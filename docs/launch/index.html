@@ -153,6 +153,15 @@
   .hall-photo-cell .hp-thumb .hp-overlay button,.hall-photo-cell .hp-thumb .hp-overlay a{background:rgba(255,255,255,.95);color:#1f2937;border:none;border-radius:5px;padding:3px 6px;font-size:11px;font-weight:700;cursor:pointer;text-decoration:none;line-height:1;transition:all .1s}
   .hall-photo-cell .hp-thumb .hp-overlay button:hover,.hall-photo-cell .hp-thumb .hp-overlay a:hover{background:#fff;transform:translateY(-1px)}
   .hall-photo-cell .hp-caption{font-size:10px;color:#94a3b8;margin-top:3px}
+  /* OCTOPOS live POS row — shown below hall photo on the live event's row (2026-05-22) */
+  .pos-live-row{display:flex;align-items:stretch;gap:12px;margin-top:8px;padding:10px 12px;background:linear-gradient(180deg,#fdf4ff,#f5f3ff);border:1.5px solid #c084fc;border-radius:10px;box-shadow:0 1px 3px rgba(168,85,247,.15);position:relative;animation:posLivePulse 2.4s ease-in-out infinite}
+  @keyframes posLivePulse{0%,100%{box-shadow:0 1px 3px rgba(168,85,247,.15)}50%{box-shadow:0 2px 12px rgba(168,85,247,.35)}}
+  .pos-live-stat{flex:1;text-align:center;padding:2px 4px;border-right:1px solid rgba(168,85,247,.25)}
+  .pos-live-stat:last-of-type{border-right:none}
+  .pos-live-value{font-size:22px;font-weight:900;color:#6b21a8;line-height:1.05;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+  .pos-live-label{font-size:10px;color:#7c3aed;font-weight:700;margin-top:2px;text-transform:uppercase;letter-spacing:.3px}
+  .pos-live-meta{position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:9.5px;color:#7c3aed;background:#fff;border:1px solid #c084fc;padding:1px 8px;border-radius:10px;font-weight:700;white-space:nowrap}
+  .pos-live-meta.stale{color:#b45309;border-color:#fbbf24;background:#fffbeb}
   /* Lightbox modal for full-size view + download */
   .hp-lightbox{position:fixed;inset:0;background:rgba(15,23,42,.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;animation:hpFadeIn .15s ease-out}
   @keyframes hpFadeIn{from{opacity:0}to{opacity:1}}
@@ -627,6 +636,7 @@ const STAFF_DEFAULTS = {"glendale-2026-01-09":{"team":"Mor Daniel Shai Dor Goni 
 // Key: same `${city-slug}-${start_date}` shape as the result maps above.
 // Value: any subset of the keys in MANUAL_TASK_DEFS below + updated_at + (optionally) team_override / image_override_url.
 let MANUAL_TASKS = {};   // mutable — populated from notes.json on load, written back on every checkbox toggle
+let OCTOPOS_LIVE = null;   // populated from docs/state/octopos_live.json on init; refreshed every 30 min by octopos-live-dashboard.yml during event weekends
 
 // Owner: update-subscribe-target.yml (weekly Monday 08:00 PT) — picks current/next event and writes docs/state/subscribe_target.json.
 // Read by the 🔳 QR LP button on each row: green if SUBSCRIBE_TARGET.event_key === evKey (i.e. the QR landing page is currently pointing here), black otherwise.
@@ -1492,7 +1502,40 @@ End date: </div>
             '</div>';
         }
       }
-      const statusBadge = (isNext ? '<span class="badge badge-next" style="margin-right:4px">🔜 Next</span>' : '') + badgeFor(eff);
+      // OCTOPOS live POS row — shown ONLY on the currently-live event row, when
+      // octopos_live.json has matching event_key + today's PT date_local.
+      // The agent refreshes this file every 30 min during Fri/Sat/Sun. (2026-05-22)
+      let posLiveHtml = '';
+      if (isLive && ev && OCTOPOS_LIVE && OCTOPOS_LIVE.event_key) {
+        const evKeyPOS = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
+        // PT date today — matches OCTOPOS aggregation
+        const ptToday = new Date().toLocaleDateString("en-CA", {timeZone:"America/Los_Angeles"}); // YYYY-MM-DD
+        if (OCTOPOS_LIVE.event_key === evKeyPOS && OCTOPOS_LIVE.date_local === ptToday) {
+          const tp = Number(OCTOPOS_LIVE.total_payments || 0);
+          const tc = Number(OCTOPOS_LIVE.transaction_count || 0);
+          const av = Number(OCTOPOS_LIVE.avg_transaction || 0);
+          const fmtUSD = (v, decimals) => '$' + v.toLocaleString('en-US', {minimumFractionDigits: decimals||0, maximumFractionDigits: decimals||0});
+          // Freshness — minutes since last fetch
+          let mins = null;
+          if (OCTOPOS_LIVE.fetched_at) {
+            const diff = Date.now() - new Date(OCTOPOS_LIVE.fetched_at).getTime();
+            mins = Math.max(0, Math.round(diff / 60000));
+          }
+          const stale = (mins !== null && mins > 60);
+          const metaTxt = (mins === null) ? '🐙 OCTOPOS' :
+                          (mins < 1) ? '🐙 OCTOPOS · עכשיו' :
+                          (mins < 60) ? `🐙 OCTOPOS · עודכן לפני ${mins} דק׳` :
+                          `🐙 OCTOPOS · עודכן לפני ${Math.round(mins/60)} שעות`;
+          posLiveHtml =
+            '<div class="pos-live-row" title="נתונים חיים מאוקטופוס · ' + escapeHtml(OCTOPOS_LIVE.date_local || '') + '">' +
+              '<div class="pos-live-stat"><div class="pos-live-value">' + fmtUSD(tp, 0) + '</div><div class="pos-live-label">סה״כ מכירות</div></div>' +
+              '<div class="pos-live-stat"><div class="pos-live-value">' + tc.toLocaleString('en-US') + '</div><div class="pos-live-label">עסקאות</div></div>' +
+              '<div class="pos-live-stat"><div class="pos-live-value">' + fmtUSD(av, 2) + '</div><div class="pos-live-label">ממוצע עסקה</div></div>' +
+              '<div class="pos-live-meta' + (stale ? ' stale' : '') + '">' + escapeHtml(metaTxt) + '</div>' +
+            '</div>';
+        }
+      }
+            const statusBadge = (isNext ? '<span class="badge badge-next" style="margin-right:4px">🔜 Next</span>' : '') + badgeFor(eff);
       // Per-row "🎟️ Eventbrite + List Setup" button — only when there is an event.
       // Replaced "📋 Copy launch" / "📋 Re-copy" on 2026-05-03 (Lauren feedback: those names were
       // ambiguous — agent does TWO things, Eventbrite event + SMS list creation).
@@ -1942,7 +1985,7 @@ End date: </div>
         eff: eff,
         hasEvent: !!ev,
         html: '<tr class="' + cls + '" data-iso="' + iso + '" data-period="' + periodTag + '">' +
-               '<td class="col-date">' + dateCell + liveBadge + localTimeHtml + hallPhotoHtml + '</td>' +
+               '<td class="col-date">' + dateCell + liveBadge + localTimeHtml + hallPhotoHtml + posLiveHtml + '</td>' +
                '<td class="col-city">' + escapeHtml(cityCell) + tierBadge + '</td>' +
                '<td class="col-venue">' + venueCell + '</td>' +
                '<td class="col-status"><div>' + statusBadge + '</div>' + rowBtn + '</td>' +
@@ -3278,6 +3321,13 @@ End date: </div>
     .then(r => r.ok ? r.json() : null)
     .then(data => { SUBSCRIBE_TARGET = data; renderSchedule(); })
     .catch(() => { /* fail-silent — button stays black */ });
+
+  // OCTOPOS live POS data — refreshed every 30 min during event weekends by octopos-live-dashboard.yml.
+  // Renders as the 3-big-numbers row below the hall photo on the live event row (2026-05-22).
+  fetch("../state/octopos_live.json?_=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => { OCTOPOS_LIVE = data; renderSchedule(); })
+    .catch(() => { /* fail-silent — row simply doesn't appear */ });
 
   // Lauren 2026-05-21 PM — load OCTOPOS_RECOUNT dynamically so 🔢 Recount turns
   // green the moment recount_prebuild.py writes a slice (Thursday cron pre-event

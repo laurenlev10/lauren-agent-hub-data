@@ -1,0 +1,94 @@
+# OCTOPOS live POS dashboard sync
+#
+# Lauren's request (2026-05-22): during a live event weekend, show the
+# OCTOPOS dashboard widgets (Total Payments, Number of Transactions,
+# Average Transaction Value) directly on the launch dashboard, just below
+# the live hall photo. Refresh every 30 minutes while the event is running.
+#
+# The script fetches today's sales via /api/v1/get-sales-report (Pacific
+# Time, matching OCTOPOS's web-dashboard aggregation), computes the three
+# widgets, and writes docs/state/octopos_live.json. The launch HTML reads
+# that file on page load and renders the row when evkey matches.
+#
+# Cadence: every 30 minutes on Fri (5), Sat (6), Sun (0) — UTC days.
+# This generously covers events across any US timezone (CDT/EDT/PDT/etc).
+# Between weekends the file goes stale; the dashboard hides the row when
+# the data's date doesn't match today in PT (handled client-side).
+
+name: octopos-live-dashboard
+
+on:
+  schedule:
+    - cron: '*/30 * * * 5,6,0'   # every 30 min Fri/Sat/Sun (UTC)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch OCTOPOS live POS metrics
+        env:
+          OCTOPOS_EMAIL:    ${{ secrets.OCTOPOS_EMAIL }}
+          OCTOPOS_PASSWORD: ${{ secrets.OCTOPOS_PASSWORD }}
+        run: |
+          python3 scripts/octopos_live_sync.py
+
+      - name: Commit + push state if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name  "Lauren (via Actions)"
+          if ! git diff --quiet docs/state/octopos_live.json 2>/dev/null; then
+            git add docs/state/octopos_live.json
+            git commit -m "octopos-live: refresh $(date -u +%Y-%m-%dT%H:%MZ)"
+            git pull --rebase origin main || true
+            git push origin main
+          else
+            echo "No change in octopos_live.json this run."
+          fi
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "octopos-live-dashboard":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          print(f"updated lastRunAt = {now}")
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name  "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump octopos-live-dashboard lastRunAt"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
+
+      # IRON RULE #3 — SMS Lauren on failure
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
