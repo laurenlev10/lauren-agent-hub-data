@@ -227,26 +227,45 @@ def main() -> int:
         # event-live = three scans at 12/14/17 local (existing cadence).
         SCAN_SLOTS = sorted(SCAN_HOURS_EVENT if phase == "event_live" else SCAN_HOURS_PRE)
 
-        # Slot-based catch-up (Lauren 2026-05-10 PM bugfix).
-        # GitHub Actions cron can lag 30-90 min; a strict `if local_hour not in
-        # [12,14,17]: skip` missed scans entirely when the cron landed at e.g.
-        # 15:32 instead of 14:00. New rule: for each scan slot S, if local_hour
-        # >= S AND no scan recorded for S today, do the scan now with
-        # event_local_hour = S (the slot label, not the actual hour). One
-        # delayed run can backfill multiple missed slots in a single pass, and
-        # idempotency by slot still holds.
+        # Slot logic — 2026-05-22 PM update.
+        # pre_event phase: still gates by slot (one scan/day at 12:00 local; backfills if cron lagged).
+        # event_live phase: NO slot constraint — every cron fire scans, with a 25-minute floor since the
+        # most recent event_live scan today to prevent doubled-up writes if a cron retries.
+        # Lauren's directive: during a live event she wants ~30 min cadence, not 3h. Cron is */30 on event days.
         notes.setdefault(evkey, {})
         existing = notes[evkey].get("insta_reel_scans") or []
         today_str = now_utc[:10]
-        done_slots = {
-            s.get("event_local_hour")
-            for s in existing
-            if (s.get("scanned_at", "")[:10] == today_str)
-        }
-        eligible_slots = [S for S in SCAN_SLOTS if local_hour >= S and S not in done_slots]
-        if not eligible_slots:
-            print(f"[scan] {evkey}: local hour {local_hour:02d} · slots done today {sorted(done_slots)}; nothing eligible.")
-            continue
+        if phase == "event_live":
+            # Rate-limit guard: skip if last event_live scan today was < 25 min ago.
+            last_today = None
+            for s in reversed(existing):
+                if (s.get("scanned_at", "")[:10] == today_str
+                        and s.get("phase") == "event_live"
+                        and not (s.get("source") or "").startswith("manual")):
+                    last_today = s; break
+            if last_today:
+                from datetime import datetime as _dt
+                try:
+                    last_dt = _dt.fromisoformat((last_today.get("scanned_at") or "").replace("Z", "+00:00"))
+                    age_min = (_dt.now(last_dt.tzinfo) - last_dt).total_seconds() / 60.0
+                    if age_min < 25:
+                        print(f"[scan] {evkey}: last event_live scan only {age_min:.0f} min ago; skip (25-min floor).")
+                        continue
+                except Exception:
+                    pass
+            # In event_live the "slot" concept doesn't apply — record the actual local hour.
+            eligible_slots = [local_hour]
+        else:
+            # pre_event — keep slot logic.
+            done_slots = {
+                s.get("event_local_hour")
+                for s in existing
+                if (s.get("scanned_at", "")[:10] == today_str and s.get("phase") == "pre_event")
+            }
+            eligible_slots = [S for S in SCAN_SLOTS if local_hour >= S and S not in done_slots]
+            if not eligible_slots:
+                print(f"[scan] {evkey}: local hour {local_hour:02d} · pre_event slots done today {sorted(done_slots)}; nothing eligible.")
+                continue
 
         reel_url, set_by, media_id = _resolve_reel(notes, evkey)
         if not reel_url or not media_id:
@@ -283,6 +302,7 @@ def main() -> int:
                 "likes":    insights.get("likes"),
                 "comments": insights.get("comments"),
                 "saved":    insights.get("saved"),
+                "total_interactions": insights.get("total_interactions"),
                 "catchup":  (local_hour != slot),
             }
             existing.append(scan_rec)
