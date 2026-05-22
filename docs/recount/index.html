@@ -743,20 +743,19 @@
     copyToClipboard(header + "\n" + rows.join("\n"));
   });
   document.getElementById("btn-copy-sms").addEventListener("click", () => {
-    // Lauren 2026-05-22 PM — SMS to the event-day manager. Hebrew body + English
-    // fallback line per Lauren's directive ("אם המוצר לא נמצא בכלל בחדר אז שיסמנו אותו כאפס").
+    // Lauren 2026-05-22 PM — SMS to the event-day manager. English-only body per
+    // Lauren's directive (the manager reads English). Footer instructs to mark 0
+    // if a product isn't in the room.
     const list = getVisibleWorklist();
-    const evName = (city ? city : "");
-    const evDate = (start_date || "");
-    const header = "בוקר טוב! 🌸 לפני פתיחת האירוע" + (evName ? " ב-" + evName : "") + (evDate ? " (" + evDate + ")" : "")
-                 + " — אנא ספרי את המוצרים הבאים מהרשימה:";
+    const header = "Hey! please see the RECOUNT list for this weekend:";
+    const separator = "------------";
     const lines = list.map((p, i) => {
-      const sku = p.sku || "(אין SKU)";
+      const sku = p.sku || "(no SKU)";
       const name = p.name || "";
       return (i + 1) + ". " + sku + " — " + name;
     });
-    const englishFooter = "\n\nIf a product is not found in the room at all, please mark it as 0. Thank you! 🙏";
-    const body = header + "\n\n" + lines.join("\n") + englishFooter;
+    const footer = "If a product is not found in the room at all, please mark it as 0. Thank you! 🙏\nGood luck this weekend!";
+    const body = header + "\n" + separator + "\n" + lines.join("\n") + "\n" + separator + "\n" + footer;
     copyToClipboard(body);
   });
   document.getElementById("btn-print").addEventListener("click", () => window.print());
