@@ -244,10 +244,9 @@ def main() -> int:
                         and not (s.get("source") or "").startswith("manual")):
                     last_today = s; break
             if last_today:
-                from datetime import datetime as _dt
                 try:
-                    last_dt = _dt.fromisoformat((last_today.get("scanned_at") or "").replace("Z", "+00:00"))
-                    age_min = (_dt.now(last_dt.tzinfo) - last_dt).total_seconds() / 60.0
+                    last_dt = _dt.datetime.fromisoformat((last_today.get("scanned_at") or "").replace("Z", "+00:00"))
+                    age_min = (_dt.datetime.now(last_dt.tzinfo) - last_dt).total_seconds() / 60.0
                     if age_min < 25:
                         print(f"[scan] {evkey}: last event_live scan only {age_min:.0f} min ago; skip (25-min floor).")
                         continue
