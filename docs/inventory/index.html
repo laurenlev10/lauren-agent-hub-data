@@ -1287,7 +1287,10 @@ function renderSupplierCard(sup, s, idx){
             // Read product_rules for editable inline cells
             var rule_ = getRuleFor(p.id) || {};
             var thrBase = Number(p.threshold || 0);
-            var thrShow = Math.max(thrBase, Number(rule_.min_display || 0));
+            // Lauren 2026-05-22: OCTOPOS = single source of truth for THR.
+            // min_display NO LONGER overrides the displayed threshold.
+            // (min_display still controls case_size / pack rounding only.)
+            var thrShow = thrBase;
             var moqVal  = rule_.moq ? Number(rule_.moq) : '';
             var noteVal = rule_.note || '';
             return '<tr'+rcCls+' data-product-id="'+p.id+'" data-qty="'+qty+'" data-thr="'+thr+'">'+
@@ -2575,9 +2578,11 @@ function buildSupplierOrder(supplierCode){
     // Negative qty isn't real debt — clamp to 0 for ordering math (Lauren 2026-05-17 PM late).
     // We still SHOW the negative value to her so she knows there's a data issue to recount.
     const stockForGap = Math.max(0, stock);
-    // min_display from rule DORS the OCTOPOS threshold if higher
+    // Lauren 2026-05-22: OCTOPOS = single source of truth for THR.
+    // min_display NO LONGER raises the threshold; it only controls
+    // case_size / pack rounding below (cs / minD usage).
     const thrBase = Number(p.threshold || 0);
-    const thr = Math.max(thrBase, Number(rule.min_display || 0));
+    const thr = thrBase;
     const cost = Number(p.unit_cost || 0);
     // Default case_size = 12 (Lauren 2026-05-13 — always step in 12s unless rule overrides).
     // OCTOPOS case_size field is unreliable (e.g. GP20 shows case=84) — ignore unless explicitly overridden via rule.multiple_of.
