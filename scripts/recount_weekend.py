@@ -141,14 +141,57 @@ def find_event_for_today():
 
 
 def fetch_recount_data(jwt, start, end, location_id=2):
-    code, resp = http_post(
-        f"{OCTO_BASE}/api/v1/get-recount-data",
-        {"location_id": location_id, "start_date": start, "end_date": end,
-         "limit": 5000, "page": 1, "order": "id", "order_type": "desc", "filter": ""},
-        {"Authorization": f"Bearer {jwt}", "Permission": "report-inventary-recount"})
-    if code != 200 or not resp.get("flag"):
-        raise SystemExit(f"get-recount-data failed: HTTP {code} {resp}")
-    return resp.get("data", {}).get("data", [])
+    """Pull recount/adjustment events from OCTOPOS that fall in [start, end].
+
+    🛑 Lauren 2026-05-22 PM #4 — TWO API quirks to defend against:
+      (1) /get-recount-data IGNORES start_date/end_date and returns the full YTD
+          set (~1262 rows, 586 unique pids in 2026). Before this fix the script
+          treated all of them as "counted at this event" — would have stripped
+          the Recount tag from products counted in January from any Sunday-after-
+          event cron fire. Fix: filter client-side by parsing created_at
+          (MM/DD/YYYY format) into the start/end window.
+      (2) The API DOES paginate (totalItems can exceed limit). Walk pages until
+          we have everything before client-side filtering.
+
+    Both rows of type DR and CR count as "physically counted" — see CLAUDE.md
+    IRON RULE #9 trap B (DR = count revealed shrinkage; CR = count revealed
+    overage; either way a human did the count).
+    """
+    all_rows = []
+    page = 1
+    while page < 20:
+        code, resp = http_post(
+            f"{OCTO_BASE}/api/v1/get-recount-data",
+            {"location_id": location_id, "start_date": start, "end_date": end,
+             "limit": 5000, "page": page, "order": "id", "order_type": "desc", "filter": ""},
+            {"Authorization": f"Bearer {jwt}", "Permission": "report-inventary-recount"})
+        if code != 200 or not resp.get("flag"):
+            if page == 1:
+                raise SystemExit(f"get-recount-data failed: HTTP {code} {resp}")
+            break
+        items = resp.get("data", {}).get("data", []) or []
+        if not items:
+            break
+        all_rows.extend(items)
+        total = (resp.get("data") or {}).get("totalItems") or len(all_rows)
+        if len(all_rows) >= total:
+            break
+        page += 1
+
+    # Client-side date filter — API ignores start_date/end_date.
+    def _in_window(row):
+        try:
+            ca = str(row.get("created_at") or "").split()[0]
+            d = dt.datetime.strptime(ca, "%m/%d/%Y").date()
+            s = dt.date.fromisoformat(start)
+            e = dt.date.fromisoformat(end)
+            return s <= d <= e
+        except Exception:
+            return False
+
+    filtered = [r for r in all_rows if _in_window(r)]
+    print(f"fetch_recount_data: {len(all_rows)} total rows returned by API, {len(filtered)} fall in window {start}..{end}")
+    return filtered
 
 
 def sms_lauren(body):
