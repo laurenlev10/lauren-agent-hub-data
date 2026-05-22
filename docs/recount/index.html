@@ -122,6 +122,7 @@
     <h2 style="display:flex; align-items:center; justify-content:space-between;">
       <span>🔢 רשימת מוצרים לספירה</span>
       <span style="display:flex; gap:8px;">
+        <button class="btn" id="btn-copy-sms" type="button" style="background:#FB6F92; color:white; border-color:#FB6F92;">📱 העתק להודעה למנהלת</button>
         <button class="btn ghost" id="btn-copy-text" type="button">📋 העתק כטקסט</button>
         <button class="btn ghost" id="btn-copy-csv" type="button">📋 העתק כ-CSV</button>
         <button class="btn ghost" id="btn-print" type="button">🖨️ הדפס</button>
@@ -740,6 +741,23 @@
       return /[",\n]/.test(s) ? '"' + s + '"' : s;
     }).join(","));
     copyToClipboard(header + "\n" + rows.join("\n"));
+  });
+  document.getElementById("btn-copy-sms").addEventListener("click", () => {
+    // Lauren 2026-05-22 PM — SMS to the event-day manager. Hebrew body + English
+    // fallback line per Lauren's directive ("אם המוצר לא נמצא בכלל בחדר אז שיסמנו אותו כאפס").
+    const list = getVisibleWorklist();
+    const evName = (city ? city : "");
+    const evDate = (start_date || "");
+    const header = "בוקר טוב! 🌸 לפני פתיחת האירוע" + (evName ? " ב-" + evName : "") + (evDate ? " (" + evDate + ")" : "")
+                 + " — אנא ספרי את המוצרים הבאים מהרשימה:";
+    const lines = list.map((p, i) => {
+      const sku = p.sku || "(אין SKU)";
+      const name = p.name || "";
+      return (i + 1) + ". " + sku + " — " + name;
+    });
+    const englishFooter = "\n\nIf a product is not found in the room at all, please mark it as 0. Thank you! 🙏";
+    const body = header + "\n\n" + lines.join("\n") + englishFooter;
+    copyToClipboard(body);
   });
   document.getElementById("btn-print").addEventListener("click", () => window.print());
   document.getElementById("btn-copy-cmd").addEventListener("click", () => copyToClipboard(runCmd));

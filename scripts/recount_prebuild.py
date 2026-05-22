@@ -475,6 +475,101 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
     return worklist, stats
 
 
+RECOUNT_CATEGORY_ID = 14  # OCTOPOS category id for "Recount" — verified 2026-05-22
+
+
+def sync_recount_tags(worklist, v2_token):
+    """Make OCTOPOS's "Recount" tag exactly match the current worklist.
+
+    Lauren's directive 2026-05-22 PM: "שיש לכל המוצרים האלו TAG RECOUNT — אלא
+    המוצרים היחידים שצריך שיהיה להם אלא אם כן אני אוסיף ידנית תג במערכת של אוקטופוס".
+    Interpretation: the agent owns the Recount tag set on OCTOPOS — it should
+    match the worklist exactly. If Lauren manually tags a product, the next
+    prebuild will see that product as has_recount → include it on the worklist
+    → sync keeps the tag. The closed loop just works.
+
+    Returns dict with counts: {added, removed, add_failed, remove_failed}.
+    """
+    if not v2_token:
+        print("OCTOPOS_TOKEN not set — skipping Recount tag sync")
+        return {"added": 0, "removed": 0, "add_failed": 0, "remove_failed": 0, "skipped": True}
+
+    worklist_pids = {int(it["id"]) for it in worklist}
+    print(f"Recount-tag sync: worklist has {len(worklist_pids)} products")
+
+    # Discover what's currently tagged Recount in OCTOPOS by reading the most
+    # recent local snapshot (octopos_sync.py runs daily). This avoids a
+    # full-catalog scan — the snapshot already has every product's categories.
+    snap_path = REPO_ROOT / "docs/state/octopos_products.json"
+    snapshot = json.loads(snap_path.read_text(encoding="utf-8"))
+    currently_tagged = set()
+    for vdata in (snapshot.get("vendors") or {}).values():
+        for p in (vdata.get("products") or []):
+            cats = [(c.get("name") or "").strip().lower() for c in (p.get("categories") or [])]
+            if "recount" in cats:
+                try: currently_tagged.add(int(p.get("id") or 0))
+                except (TypeError, ValueError): pass
+    currently_tagged.discard(0)
+    print(f"Recount-tag sync: OCTOPOS snapshot has {len(currently_tagged)} products currently tagged Recount")
+
+    to_add = worklist_pids - currently_tagged
+    to_remove = currently_tagged - worklist_pids
+    print(f"Recount-tag sync: +{len(to_add)} to add, -{len(to_remove)} to remove")
+
+    def _get_product(pid):
+        req = urllib.request.Request(f"{OCTO_BASE}/api/v2/products/{pid}",
+            headers={"Authorization": v2_token, "Accept": "application/json", "User-Agent": OCTO_UA})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read())
+
+    def _put_categories(pid, new_cat_ids):
+        req = urllib.request.Request(f"{OCTO_BASE}/api/v2/products/{pid}",
+            data=json.dumps({"category_ids": new_cat_ids}).encode(),
+            headers={"Authorization": v2_token, "Content-Type": "application/json",
+                     "Accept": "application/json", "User-Agent": OCTO_UA}, method="PUT")
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status
+
+    added = removed = add_failed = remove_failed = 0
+    for pid in sorted(to_add):
+        try:
+            p = _get_product(pid)
+            cat_ids = [c["id"] for c in (p.get("categories") or [])]
+            if RECOUNT_CATEGORY_ID in cat_ids:
+                # Snapshot was stale — product already tagged. Nothing to do.
+                continue
+            status = _put_categories(pid, cat_ids + [RECOUNT_CATEGORY_ID])
+            if status == 200:
+                added += 1
+            else:
+                add_failed += 1
+                print(f"  add pid={pid} returned HTTP {status}")
+        except Exception as e:
+            add_failed += 1
+            print(f"  add pid={pid} ERROR: {e}")
+
+    for pid in sorted(to_remove):
+        try:
+            p = _get_product(pid)
+            cat_ids = [c["id"] for c in (p.get("categories") or [])]
+            if RECOUNT_CATEGORY_ID not in cat_ids:
+                continue
+            new_ids = [cid for cid in cat_ids if cid != RECOUNT_CATEGORY_ID]
+            status = _put_categories(pid, new_ids)
+            if status == 200:
+                removed += 1
+            else:
+                remove_failed += 1
+                print(f"  remove pid={pid} returned HTTP {status}")
+        except Exception as e:
+            remove_failed += 1
+            print(f"  remove pid={pid} ERROR: {e}")
+
+    print(f"Recount-tag sync done: added={added} (failed {add_failed}), removed={removed} (failed {remove_failed})")
+    return {"added": added, "removed": removed, "add_failed": add_failed, "remove_failed": remove_failed,
+            "skipped": False}
+
+
 def sms_lauren(body):
     token = os.environ.get("SIMPLETEXTING_TOKEN", "")
     phone = os.environ.get("LAUREN_PHONE", "4243547625")
@@ -547,6 +642,14 @@ def main():
     state["_updated_at"] = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Wrote pre-event worklist for {upcoming_evkey}: {len(worklist)} items")
+
+    # Lauren 2026-05-22 PM — sync OCTOPOS Recount tag to match the worklist exactly.
+    # Add tag to worklist products that don't have it; remove from products that have
+    # the tag but aren't on the worklist. Gated by OCTOPOS_TOKEN env (v2 raw token).
+    v2_token = os.environ.get("OCTOPOS_TOKEN") or ""
+    tag_sync_stats = sync_recount_tags(worklist, v2_token)
+    state["events"][upcoming_evkey]["tag_sync"] = tag_sync_stats
+    state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # SMS Lauren
     sms_body = (
