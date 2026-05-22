@@ -50,12 +50,26 @@
   .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
   .filter-row { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center; }
   .filter-row label { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:5px; cursor:pointer; }
-  /* Lauren 2026-05-21 PM #13 — sticky filter checkboxes + sticky thead so column titles
-     stay visible while scrolling through 30-50 rows. The wrapper div needs overflow-y:visible
-     (not auto) for sticky to scope to the viewport. */
-  #worklist-filters-row { position:sticky; top:0; z-index:6; background:var(--card); padding:10px 14px; margin:0 -14px 6px; border-bottom:1px solid var(--line); }
-  #worklist-table thead { position:sticky; top:54px; z-index:5; }
-  #worklist-table thead th { background:var(--card); box-shadow:0 1px 0 var(--line); }
+  /* Lauren 2026-05-21 PM #14 — sticky filter checkboxes + sticky thead.
+     `position:sticky` goes on the TH cells directly (not on thead/tr) for the broadest
+     browser support. Each th has an explicit solid white background + bottom shadow so
+     the rows scrolling underneath don't bleed through. */
+  #worklist-filters-row {
+    position: sticky; top: 0; z-index: 7;
+    background: #fff;
+    padding: 10px 14px;
+    margin: 0 -14px 6px;
+    border-bottom: 1px solid var(--line);
+  }
+  #worklist-table thead th {
+    position: sticky;
+    top: 56px;   /* leaves room for the filters row above */
+    z-index: 6;
+    background: #fff;
+    color: var(--muted);
+    /* Two stacked box-shadows: top covers any gap above; bottom gives a thin divider line */
+    box-shadow: 0 -1px 0 #fff, 0 1px 0 var(--line);
+  }
   .copy-area { position:absolute; left:-9999px; }
 
   /* Tabs — added 2026-05-17 PM for @slow-movers integration */
