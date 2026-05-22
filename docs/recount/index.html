@@ -50,25 +50,18 @@
   .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
   .filter-row { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center; }
   .filter-row label { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:5px; cursor:pointer; }
-  /* Lauren 2026-05-21 PM #14 — sticky filter checkboxes + sticky thead.
-     `position:sticky` goes on the TH cells directly (not on thead/tr) for the broadest
-     browser support. Each th has an explicit solid white background + bottom shadow so
-     the rows scrolling underneath don't bleed through. */
-  #worklist-filters-row {
-    position: sticky; top: 0; z-index: 7;
-    background: #fff;
-    padding: 10px 14px;
-    margin: 0 -14px 6px;
-    border-bottom: 1px solid var(--line);
-  }
+  /* Lauren 2026-05-21 PM #15 — SIMPLE sticky: ONLY thead at top:0. The filter row
+     scrolls away naturally. Earlier attempts (v1+v2) had filter-row also sticky which
+     stacked at the top and produced visual overlap with the first data row. Trade-off:
+     filter checkboxes are no longer always visible when scrolling — but the column
+     headers are, and that's what Lauren actually wanted. */
   #worklist-table thead th {
     position: sticky;
-    top: 56px;   /* leaves room for the filters row above */
-    z-index: 6;
+    top: 0;
+    z-index: 5;
     background: #fff;
     color: var(--muted);
-    /* Two stacked box-shadows: top covers any gap above; bottom gives a thin divider line */
-    box-shadow: 0 -1px 0 #fff, 0 1px 0 var(--line);
+    border-bottom: 2px solid var(--line);
   }
   .copy-area { position:absolute; left:-9999px; }
 
