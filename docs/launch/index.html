@@ -162,6 +162,19 @@
   .pos-live-label{font-size:10px;color:#7c3aed;font-weight:700;margin-top:2px;text-transform:uppercase;letter-spacing:.3px}
   .pos-live-meta{position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:9.5px;color:#7c3aed;background:#fff;border:1px solid #c084fc;padding:1px 8px;border-radius:10px;font-weight:700;white-space:nowrap}
   .pos-live-meta.stale{color:#b45309;border-color:#fbbf24;background:#fffbeb}
+  /* Instagram Reel shares row — sits BELOW the POS row on the live event. Shares = Lauren's #1 metric (per CLAUDE.md). (2026-05-22) */
+  .reel-shares-row{display:flex;align-items:stretch;gap:12px;margin-top:8px;padding:10px 12px;background:linear-gradient(180deg,#fdf2f8,#ffe4e6);border:1.5px solid #f9a8d4;border-radius:10px;box-shadow:0 1px 3px rgba(236,72,153,.15);position:relative;animation:reelSharesPulse 2.4s ease-in-out infinite}
+  @keyframes reelSharesPulse{0%,100%{box-shadow:0 1px 3px rgba(236,72,153,.15)}50%{box-shadow:0 2px 12px rgba(236,72,153,.35)}}
+  .reel-shares-stat{flex:1;text-align:center;padding:2px 4px;border-right:1px solid rgba(236,72,153,.25)}
+  .reel-shares-stat:last-of-type{border-right:none}
+  .reel-shares-value{font-size:22px;font-weight:900;color:#9d174d;line-height:1.05;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+  .reel-shares-value.delta-pos{color:#15803d}
+  .reel-shares-value.delta-zero{color:#737373}
+  .reel-shares-label{font-size:10px;color:#be185d;font-weight:700;margin-top:2px;text-transform:uppercase;letter-spacing:.3px}
+  .reel-shares-meta{position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:9.5px;color:#be185d;background:#fff;border:1px solid #f9a8d4;padding:1px 8px;border-radius:10px;font-weight:700;white-space:nowrap;display:flex;align-items:center;gap:4px}
+  .reel-shares-meta.stale{color:#b45309;border-color:#fbbf24;background:#fffbeb}
+  .reel-shares-meta a{color:inherit;text-decoration:none}
+  .reel-shares-meta a:hover{text-decoration:underline}
   /* Lightbox modal for full-size view + download */
   .hp-lightbox{position:fixed;inset:0;background:rgba(15,23,42,.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;animation:hpFadeIn .15s ease-out}
   @keyframes hpFadeIn{from{opacity:0}to{opacity:1}}
@@ -1535,6 +1548,74 @@ End date: </div>
             '</div>';
         }
       }
+            // Instagram Reel shares row — sits below POS row on the LIVE event. (2026-05-22)
+      // Shares = Lauren's #1 metric (per CLAUDE.md "⭐ Business context"). Source: insta_reel_scans
+      // array on MANUAL_TASKS[evkey], appended by insta-reel-share-scan agent on Fri/Sat/Sun.
+      let reelSharesHtml = '';
+      if (isLive && ev) {
+        const evKeyRS = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
+        const noteRS = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKeyRS] || {}) : {};
+        const scans = Array.isArray(noteRS.insta_reel_scans) ? noteRS.insta_reel_scans : [];
+        if (scans.length >= 1) {
+          const latest = scans[scans.length - 1];
+          const prior = (scans.length >= 2) ? scans[scans.length - 2] : null;
+          const totalShares = Number(latest.shares || 0);
+          // Delta since previous scan (could be 0 — that's a real signal Lauren wants to see)
+          const delta = prior ? (totalShares - Number(prior.shares || 0)) : null;
+          // Avg per hour today — compare latest scan to first scan whose date matches latest's date
+          const latestDate = (latest.scanned_at || "").slice(0,10);
+          let firstToday = null;
+          for (let i = 0; i < scans.length; i++) {
+            if ((scans[i].scanned_at || "").slice(0,10) === latestDate) {
+              firstToday = scans[i]; break;
+            }
+          }
+          let avgPerHour = null;
+          if (firstToday && firstToday !== latest) {
+            const hrs = (new Date(latest.scanned_at).getTime() - new Date(firstToday.scanned_at).getTime()) / 3600000;
+            if (hrs > 0) {
+              avgPerHour = (totalShares - Number(firstToday.shares || 0)) / hrs;
+            }
+          }
+          // Format helpers
+          const fmtDelta = (d) => {
+            if (d === null || d === undefined) return '—';
+            if (d > 0) return '+' + d.toLocaleString('en-US');
+            if (d === 0) return '+0';
+            return d.toLocaleString('en-US');
+          };
+          const fmtRate = (r) => {
+            if (r === null || r === undefined) return '—';
+            if (r < 0.1 && r > 0) return r.toFixed(2);
+            if (r < 10) return r.toFixed(1);
+            return Math.round(r).toLocaleString('en-US');
+          };
+          // Freshness — minutes since latest scan
+          let scanMins = null;
+          if (latest.scanned_at) {
+            const diff = Date.now() - new Date(latest.scanned_at).getTime();
+            scanMins = Math.max(0, Math.round(diff / 60000));
+          }
+          // Stale = scan older than 2 hours during a live event (scanner runs every 1-3 hours)
+          const stale = (scanMins !== null && scanMins > 120);
+          const metaTxt = (scanMins === null) ? '📸 INSTA REEL' :
+                          (scanMins < 1) ? '📸 INSTA REEL · עכשיו' :
+                          (scanMins < 60) ? `📸 INSTA REEL · עודכן לפני ${scanMins} דק׳` :
+                          `📸 INSTA REEL · עודכן לפני ${Math.round(scanMins/60)} שעות`;
+          const deltaClass = (delta === null) ? '' : (delta > 0 ? ' delta-pos' : (delta === 0 ? ' delta-zero' : ''));
+          const reelLink = latest.url_at_scan || noteRS.insta_reel_url || '';
+          const metaContent = reelLink
+            ? '<a href="' + escapeHtml(reelLink) + '" target="_blank" rel="noopener" title="פתח את הריל באינסטגרם">' + escapeHtml(metaTxt) + '</a>'
+            : escapeHtml(metaTxt);
+          reelSharesHtml =
+            '<div class="reel-shares-row" title="שיתופים — המדד #1 לקמפיין. נסרק אוטומטית במהלך האירוע">' +
+              '<div class="reel-shares-stat"><div class="reel-shares-value">' + totalShares.toLocaleString('en-US') + '</div><div class="reel-shares-label">סה״כ שיתופים</div></div>' +
+              '<div class="reel-shares-stat"><div class="reel-shares-value' + deltaClass + '">' + fmtDelta(delta) + '</div><div class="reel-shares-label">מהסריקה האחרונה</div></div>' +
+              '<div class="reel-shares-stat"><div class="reel-shares-value">' + fmtRate(avgPerHour) + '</div><div class="reel-shares-label">ממוצע לשעה היום</div></div>' +
+              '<div class="reel-shares-meta' + (stale ? ' stale' : '') + '">' + metaContent + '</div>' +
+            '</div>';
+        }
+      }
             const statusBadge = (isNext ? '<span class="badge badge-next" style="margin-right:4px">🔜 Next</span>' : '') + badgeFor(eff);
       // Per-row "🎟️ Eventbrite + List Setup" button — only when there is an event.
       // Replaced "📋 Copy launch" / "📋 Re-copy" on 2026-05-03 (Lauren feedback: those names were
@@ -1985,7 +2066,7 @@ End date: </div>
         eff: eff,
         hasEvent: !!ev,
         html: '<tr class="' + cls + '" data-iso="' + iso + '" data-period="' + periodTag + '">' +
-               '<td class="col-date">' + dateCell + liveBadge + localTimeHtml + hallPhotoHtml + posLiveHtml + '</td>' +
+               '<td class="col-date">' + dateCell + liveBadge + localTimeHtml + hallPhotoHtml + posLiveHtml + reelSharesHtml + '</td>' +
                '<td class="col-city">' + escapeHtml(cityCell) + tierBadge + '</td>' +
                '<td class="col-venue">' + venueCell + '</td>' +
                '<td class="col-status"><div>' + statusBadge + '</div>' + rowBtn + '</td>' +
