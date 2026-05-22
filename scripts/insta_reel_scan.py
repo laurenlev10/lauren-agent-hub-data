@@ -129,6 +129,16 @@ def _event_local_hour(state: str) -> int:
     return _dt.datetime.now(ZoneInfo(tz)).hour
 
 
+def _event_local_now(state: str):
+    """Return the current datetime in the event's local timezone (or naive UTC fallback)."""
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        return _dt.datetime.utcnow()
+    tz = STATE_TZ.get((state or "").upper(), "America/Los_Angeles")
+    return _dt.datetime.now(ZoneInfo(tz))
+
+
 def _resolve_reel(notes: dict, evkey: str) -> tuple[str, str, str]:
     """
     Returns (reel_url, set_by, media_id_or_empty).
@@ -236,6 +246,16 @@ def main() -> int:
         existing = notes[evkey].get("insta_reel_scans") or []
         today_str = now_utc[:10]
         if phase == "event_live":
+            # 2026-05-22 PM Lauren directive — only scan during the actual event window:
+            # event-local 10:30 to 17:00 (event starts 10:00, first scan 30 min after open,
+            # last scan at close at 17:00). Outside that window: skip silently.
+            local_now = _event_local_now(state)
+            local_min_of_day = local_now.hour * 60 + local_now.minute
+            WINDOW_START = 10 * 60 + 30   # 10:30
+            WINDOW_END   = 17 * 60        # 17:00
+            if local_min_of_day < WINDOW_START or local_min_of_day > WINDOW_END:
+                print(f"[scan] {evkey}: outside event-local window 10:30-17:00 (local {local_now.hour:02d}:{local_now.minute:02d}); skip.")
+                continue
             # Rate-limit guard: skip if last event_live scan today was < 25 min ago.
             last_today = None
             for s in reversed(existing):
