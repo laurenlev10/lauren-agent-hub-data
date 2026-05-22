@@ -255,11 +255,24 @@ def fetch_ever_counted_pids(jwt, lookback_days=90):
 def fetch_activity_pids(jwt, start_date, end_date):
     """Pull product activity from OCTOPOS for the given window.
     Returns dict with two sets:
-      'sale_pids'  = pids that had a DR row (decrease, i.e. likely a POS sale)
-      'count_pids' = pids that had a CR row (credit, i.e. a physical recount adjustment)
-    Lauren 2026-05-21 PM #4 — to skip 'wasn't at last event' products we need to
-    distinguish 'was at event but not counted' (suspicious — list it) from
-    'wasn't at event at all' (skip — that's why it didn't move).
+      'sale_pids'  = (legacy, kept for back-compat) — left empty. Real sales come from
+                     fetch_real_sales_pids() / get-sales-by-vendor-product-report per IRON RULE #9.
+      'count_pids' = pids that had ANY inventory-adjustment row (DR OR CR) in the window —
+                     i.e. were physically counted during the event.
+
+    🛑 Lauren 2026-05-22 fix — TWO bugs were here:
+      (1) The OCTOPOS API ignores start_date/end_date on /get-recount-data — it returns
+          ALL rows YTD (1262 rows, 586 unique pids). The old code stuffed all of them
+          into the set, so count_pids reported "586 products counted at Milwaukee" when
+          really only ~120 products were counted in that 3-day window. Fix: filter
+          client-side by parsing the row's created_at (format MM/DD/YYYY HH:MM:SS).
+      (2) Both DR and CR rows are inventory ADJUSTMENT events. A physical count that
+          discovers SHRINKAGE writes a DR row (system says 191, real is 1 -> qty_delta=-190
+          → DR). The old code treated DR as 'sale' and only CR as 'count', so any product
+          counted-with-shrinkage-discovered (the common case for Lauren's events) was
+          mis-classified as 'sold but not counted'. Concrete victim: XB-789 Xime Go
+          Bananas Powder was counted at Milwaukee on 5/17 08:50 (DR -190 → 1) but the
+          prebuild flagged it as 🔵 קיים מקודם on the Roseville worklist.
     """
     code, resp = http_post(
         f"{OCTO_BASE}/api/v1/get-recount-data",
@@ -269,14 +282,49 @@ def fetch_activity_pids(jwt, start_date, end_date):
     if code != 200 or not resp.get("flag"):
         print(f"WARN: get-recount-data failed (HTTP {code}) — proceeding with empty activity sets", file=sys.stderr)
         return {"sale_pids": set(), "count_pids": set()}
-    sale_pids, count_pids = set(), set()
-    for row in resp.get("data", {}).get("data", []):
-        pid = int(row["product_id"])
-        if row.get("type") == "DR":
-            sale_pids.add(pid)
-        elif row.get("type") == "CR":
+
+    # Paginate — API ignores date filter but DOES paginate (totalItems can exceed limit).
+    all_rows = list(resp.get("data", {}).get("data", []))
+    total = (resp.get("data") or {}).get("totalItems") or len(all_rows)
+    page = 2
+    while len(all_rows) < total and page < 20:
+        c2, r2 = http_post(
+            f"{OCTO_BASE}/api/v1/get-recount-data",
+            {"location_id": 2, "start_date": start_date, "end_date": end_date,
+             "limit": 5000, "page": page, "order": "id", "order_type": "desc", "filter": ""},
+            {"Authorization": f"Bearer {jwt}", "Permission": "report-inventary-recount"})
+        if c2 != 200 or not r2.get("flag"): break
+        more = r2.get("data", {}).get("data", [])
+        if not more: break
+        all_rows.extend(more)
+        page += 1
+
+    # Client-side date filter — API ignores start_date/end_date.
+    from datetime import datetime as _dt
+    def _in_window(created_at):
+        try:
+            d = _dt.strptime(str(created_at).split()[0], "%m/%d/%Y").date()
+            s = _dt.fromisoformat(start_date).date()
+            e = _dt.fromisoformat(end_date).date()
+            return s <= d <= e
+        except Exception:
+            return False
+
+    count_pids = set()
+    for row in all_rows:
+        if not _in_window(row.get("created_at")):
+            continue
+        try:
+            pid = int(row.get("product_id") or 0)
+        except (TypeError, ValueError):
+            continue
+        if pid:
+            # Both DR and CR count as "physically counted". (DR = count revealed shrinkage,
+            # CR = count revealed overage.) Either way, a human counted it.
             count_pids.add(pid)
-    return {"sale_pids": sale_pids, "count_pids": count_pids}
+    # sale_pids kept as empty set for back-compat with the build_worklist signature.
+    # Real sales come from fetch_real_sales_pids() (sales-by-vendor-product report).
+    return {"sale_pids": set(), "count_pids": count_pids}
 
 
 def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids, real_sold_pids, real_sold_qty):
