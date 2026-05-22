@@ -170,7 +170,7 @@
   .reel-shares-value{font-size:15px;font-weight:900;color:#9d174d;line-height:1.05;letter-spacing:-.3px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .reel-shares-value.delta-pos{color:#15803d}
   .reel-shares-value.delta-zero{color:#737373}
-  .reel-shares-label{font-size:8.5px;color:#be185d;font-weight:700;margin-top:2px;letter-spacing:.1px;line-height:1.1;text-transform:none}
+  .reel-shares-label{font-size:9px;color:#be185d;font-weight:700;margin-top:2px;letter-spacing:.3px;line-height:1.1;text-transform:uppercase}
   .reel-shares-meta{position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:9.5px;color:#be185d;background:#fff;border:1px solid #f9a8d4;padding:1px 8px;border-radius:10px;font-weight:700;white-space:nowrap;display:flex;align-items:center;gap:4px}
   .reel-shares-meta.stale{color:#b45309;border-color:#fbbf24;background:#fffbeb}
   .reel-shares-meta a{color:inherit;text-decoration:none}
@@ -1536,14 +1536,14 @@ End date: </div>
           }
           const stale = (mins !== null && mins > 60);
           const metaTxt = (mins === null) ? '🐙 OCTOPOS' :
-                          (mins < 1) ? '🐙 OCTOPOS · עכשיו' :
-                          (mins < 60) ? `🐙 OCTOPOS · עודכן לפני ${mins} דק׳` :
-                          `🐙 OCTOPOS · עודכן לפני ${Math.round(mins/60)} שעות`;
+                          (mins < 1) ? '🐙 OCTOPOS · just now' :
+                          (mins < 60) ? `🐙 OCTOPOS · ${mins}m ago` :
+                          `🐙 OCTOPOS · ${Math.round(mins/60)}h ago`;
           posLiveHtml =
-            '<div class="pos-live-row" title="נתונים חיים מאוקטופוס · ' + escapeHtml(OCTOPOS_LIVE.date_local || '') + '">' +
-              '<div class="pos-live-stat"><div class="pos-live-value">' + fmtUSD(tp, 0) + '</div><div class="pos-live-label">סה״כ מכירות</div></div>' +
-              '<div class="pos-live-stat"><div class="pos-live-value">' + tc.toLocaleString('en-US') + '</div><div class="pos-live-label">עסקאות</div></div>' +
-              '<div class="pos-live-stat"><div class="pos-live-value">' + fmtUSD(av, 2) + '</div><div class="pos-live-label">ממוצע עסקה</div></div>' +
+            '<div class="pos-live-row" title="Live OCTOPOS data · ' + escapeHtml(OCTOPOS_LIVE.date_local || '') + '">' +
+              '<div class="pos-live-stat"><div class="pos-live-value">' + fmtUSD(tp, 0) + '</div><div class="pos-live-label">Sales</div></div>' +
+              '<div class="pos-live-stat"><div class="pos-live-value">' + tc.toLocaleString('en-US') + '</div><div class="pos-live-label">Txns</div></div>' +
+              '<div class="pos-live-stat"><div class="pos-live-value">' + fmtUSD(av, 2) + '</div><div class="pos-live-label">Avg Txn</div></div>' +
               '<div class="pos-live-meta' + (stale ? ' stale' : '') + '">' + escapeHtml(metaTxt) + '</div>' +
             '</div>';
         }
@@ -1599,20 +1599,20 @@ End date: </div>
           // Stale = scan older than 2 hours during a live event (scanner runs every 1-3 hours)
           const stale = (scanMins !== null && scanMins > 120);
           const metaTxt = (scanMins === null) ? '📸 INSTA REEL' :
-                          (scanMins < 1) ? '📸 INSTA REEL · עכשיו' :
-                          (scanMins < 60) ? `📸 INSTA REEL · עודכן לפני ${scanMins} דק׳` :
-                          `📸 INSTA REEL · עודכן לפני ${Math.round(scanMins/60)} שעות`;
+                          (scanMins < 1) ? '📸 INSTA REEL · just now' :
+                          (scanMins < 60) ? `📸 INSTA REEL · ${scanMins}m ago` :
+                          `📸 INSTA REEL · ${Math.round(scanMins/60)}h ago`;
           const deltaClass = (delta === null) ? '' : (delta > 0 ? ' delta-pos' : (delta === 0 ? ' delta-zero' : ''));
           const reelLink = latest.url_at_scan || noteRS.insta_reel_url || '';
           const metaContent = reelLink
-            ? '<a href="' + escapeHtml(reelLink) + '" target="_blank" rel="noopener" title="פתח את הריל באינסטגרם">' + escapeHtml(metaTxt) + '</a>'
+            ? '<a href="' + escapeHtml(reelLink) + '" target="_blank" rel="noopener" title="Open the Reel on Instagram">' + escapeHtml(metaTxt) + '</a>'
             : escapeHtml(metaTxt);
           reelSharesHtml =
-            '<div class="reel-shares-row" title="שיתופים — המדד #1 לקמפיין. נסרק אוטומטית במהלך האירוע">' +
-              '<div class="reel-shares-stat"><div class="reel-shares-value">' + totalShares.toLocaleString('en-US') + '</div><div class="reel-shares-label">סה״כ שיתופים</div></div>' +
-              '<div class="reel-shares-stat"><div class="reel-shares-value' + deltaClass + '">' + fmtDelta(delta) + '</div><div class="reel-shares-label">מהסריקה האחרונה</div></div>' +
-              '<div class="reel-shares-stat"><div class="reel-shares-value">' + fmtRate(avgPerHour) + '</div><div class="reel-shares-label">ממוצע לשעה היום</div></div>' +
-              '<div class="reel-shares-stat"><div class="reel-shares-value">' + (latest.total_interactions != null ? Number(latest.total_interactions).toLocaleString('en-US') : '—') + '</div><div class="reel-shares-label">התעניינות כוללת</div></div>' +
+            '<div class="reel-shares-row" title="Shares — the #1 campaign metric. Auto-scanned during the event">' +
+              '<div class="reel-shares-stat"><div class="reel-shares-value">' + totalShares.toLocaleString('en-US') + '</div><div class="reel-shares-label">Shares</div></div>' +
+              '<div class="reel-shares-stat"><div class="reel-shares-value' + deltaClass + '">' + fmtDelta(delta) + '</div><div class="reel-shares-label">Δ Last Scan</div></div>' +
+              '<div class="reel-shares-stat"><div class="reel-shares-value">' + fmtRate(avgPerHour) + '</div><div class="reel-shares-label">Per Hour</div></div>' +
+              '<div class="reel-shares-stat"><div class="reel-shares-value">' + (latest.total_interactions != null ? Number(latest.total_interactions).toLocaleString('en-US') : '—') + '</div><div class="reel-shares-label">Engagement</div></div>' +
               '<div class="reel-shares-meta' + (stale ? ' stale' : '') + '">' + metaContent + '</div>' +
             '</div>';
         }
