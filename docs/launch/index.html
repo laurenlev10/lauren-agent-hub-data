@@ -288,6 +288,9 @@
                            padding:7px 14px;border-radius:6px;cursor:pointer;
                            margin-top:6px;width:100%;font-family:inherit}
   .btn-reel-row{background:linear-gradient(180deg,#4f46e5,#3730a3)}
+  /* 📝 Caption — copy IG/FB Reel caption to clipboard (added 2026-05-23, per Lauren's IRON RULE on Reel caption landing URL) */
+  .btn-caption-row{background:linear-gradient(180deg,#a855f7,#7e22ce)}
+  .btn-caption-row.copied{background:#16a34a !important}
   /* INSTA REEL — separate from Canva Reel; tracks pinned IG reel + share scans (Lauren 2026-05-10) */
   .btn-insta-row{background:linear-gradient(135deg,#f58529 0%,#dd2a7b 50%,#8134af 100%)}
   .btn-insta-row.done{background:linear-gradient(180deg,#16a34a,#15803d) !important}
@@ -1801,6 +1804,22 @@ End date: </div>
           } else {
             rowBtn += '<a class="btn-agent-row btn-reel-row" href="../canva-reel/?' + params + '" target="_blank" rel="noopener" title="Open Canva Reel pre-filled with this event">🎬 Reel</a>';
           }
+
+          // 📝 Reel caption — copy a pre-built IG/FB Reel caption for this event to clipboard.
+          // Lauren's IRON RULE (2026-05-23): every IG Reel caption MUST embed the landing-page URL
+          // as plain text so IG auto-detects it as the post's natural CTA. That URL flows through to
+          // the FB cross-post and becomes the natural CTA of the @metaads Reel ad — avoids the
+          // recurring "Button couldn't be added — post has running ads associated" UI nag.
+          const captionEvJSON = JSON.stringify({
+            city: ev.city, state: ev.state,
+            start_date: ev.start_date, end_date: ev.end_date,
+            address: ev.address, venue: ev.venue
+          }).replace(/"/g, "&quot;");
+          const _lpForCaption = (typeof LANDING_PAGES !== "undefined") ? LANDING_PAGES[evKey] : null;
+          const captionTip = _lpForCaption
+            ? ("Copy IG/FB Reel caption — landing URL embedded for " + ev.city + ", " + ev.state)
+            : ("Copy IG/FB Reel caption — ⚠ no landing yet; URL predicted from city+state");
+          rowBtn += '<button class="btn-agent-row btn-caption-row" data-caption-ev="' + captionEvJSON + '" title="' + escapeHtml(captionTip) + '">📝 Caption</button>';
 
           // ─────────────────────────────────────────────
           // INSTA REEL button + manual URL paste chip (Lauren 2026-05-10)
@@ -4156,6 +4175,102 @@ window.copyLanding = async function(btn) {
   });
   document.addEventListener("keydown", function(e){
     if (e.key === "Escape" && document.getElementById("formid-modal-bg").classList.contains("open")) window.closeFormidModal();
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
+  // 📝 Reel caption — copy-to-clipboard helper + delegated click handler
+  // (Added 2026-05-23 per Lauren's IRON RULE on Reel caption landing URL.)
+  // Source-of-truth for the URL: LANDING_PAGES[evKey].url (per-event canonical).
+  // Fallback when LANDING_PAGES is missing: predicted slug `{city}-{st}-{yyyy}`.
+  // ────────────────────────────────────────────────────────────────────────
+  function _capOrd(n){
+    if (n>=11 && n<=13) return n+"th";
+    return n + ({1:"st",2:"nd",3:"rd"}[n%10] || "th");
+  }
+  function _capLandingUrl(ev){
+    var evKey = (ev.city||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
+    if (typeof LANDING_PAGES !== "undefined" && LANDING_PAGES[evKey] && LANDING_PAGES[evKey].url) {
+      var u = LANDING_PAGES[evKey].url.replace(/index\.html$/,"");
+      return u.endsWith("/") ? u : (u + "/");
+    }
+    var year = (ev.start_date||"").slice(0,4);
+    var slug = ((ev.city||"") + "-" + (ev.state||"") + "-" + year)
+                 .toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+    return "https://events.themakeupblowout.com/events/" + slug + "/";
+  }
+  // SCHEDULE truncates some multi-word cities ("Overland Park" → "Overland", "North Las Vegas" → "North"),
+  // but Lauren writes the full name in her captions. Extract the full form from the address when possible.
+  function _capCityFromAddress(ev){
+    var base = (ev.city||"").trim();
+    if (!base || !ev.address) return base;
+    var m = ev.address.match(/,\s*([^,]+?),\s*[A-Z]{2}(?:\s+\d{5})?/);
+    if (m) {
+      var fromAddr = m[1].trim();
+      if (fromAddr.toLowerCase().indexOf(base.toLowerCase()) === 0) return fromAddr;
+    }
+    return base;
+  }
+  window.buildReelCaption = function(ev){
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    var sd = (ev.start_date||"").split("-");
+    var ed = (ev.end_date||"").split("-");
+    var year = sd[0] || "";
+    var dateRange = "";
+    if (sd.length === 3 && ed.length === 3) {
+      var sm = months[parseInt(sd[1],10)-1] || "";
+      var em = months[parseInt(ed[1],10)-1] || "";
+      dateRange = sm + " " + _capOrd(parseInt(sd[2],10)) + " -" + em + " " + _capOrd(parseInt(ed[2],10)) + ", " + year;
+    }
+    var url = _capLandingUrl(ev);
+    var fullCity = _capCityFromAddress(ev);
+    var cs = fullCity + ", " + (ev.state||"");
+    return "\ud83c\udf89 Annual Makeup Blowout Sale in " + cs + "! \u2764\ufe0f\n" +
+           "\ud83d\udca5 FREE Fabulous Glitter when you arrive!\n" +
+           "Join us only this weekend for our HUGE annual sale on makeup, skincare, hair care, and more in " + year + "! \ud83d\ude0d\n" +
+           "\n" +
+           "\ud83d\uddd3\ufe0f When: " + dateRange + "\n" +
+           "\ud83d\udd59 Hours: 10 AM - 5 PM\n" +
+           "\ud83d\udccd Where: " + (ev.address||"") + ". At " + (ev.venue||"") + ".\n" +
+           "\n" +
+           "For more info & a FREE GIFT \ud83c\udf81 " + url + "\n" +
+           "\n" +
+           "\ud83d\udea8 Don\u2019t miss out on up to 75% OFF!\n" +
+           "\u2714\ufe0f Free Entrance \u2714\ufe0f Kids Welcome\n" +
+           "\u2714\ufe0f Cash & Cards Accepted\n" +
+           "\n" +
+           "Mark your calendars for this exciting annual event and grab your FREE Fabulous Glitter!\n" +
+           "\n" +
+           "#AnnualMakeupBlowout" + year + " #BeautyDeals";
+  };
+  document.addEventListener("click", async function(e){
+    var btn = e.target.closest && e.target.closest(".btn-caption-row");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var ev;
+    try { ev = JSON.parse(btn.getAttribute("data-caption-ev") || "{}"); }
+    catch(err){ alert("Bad event data: " + err.message); return; }
+    var caption = window.buildReelCaption(ev);
+    var ok = false;
+    try { await navigator.clipboard.writeText(caption); ok = true; }
+    catch(err){
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = caption; ta.style.position="fixed"; ta.style.left="-9999px";
+        document.body.appendChild(ta); ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        ok = true;
+      } catch(_) {}
+    }
+    if (ok) {
+      var orig = btn.textContent;
+      btn.textContent = "\u2713 \u05d4\u05e7\u05e4\u05e9\u05df \u05d4\u05d5\u05e2\u05ea\u05e7";
+      btn.classList.add("copied");
+      setTimeout(function(){ btn.textContent = orig; btn.classList.remove("copied"); }, 2400);
+    } else {
+      prompt("Caption (Cmd/Ctrl+C):", caption);
+    }
   });
 })();
 </script>
