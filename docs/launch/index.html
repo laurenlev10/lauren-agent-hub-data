@@ -4231,35 +4231,75 @@ window.copyLanding = async function(btn) {
   }
   window.buildReelCaption = function(ev){
     var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    var monthsEs = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
     var sd = (ev.start_date||"").split("-");
     var ed = (ev.end_date||"").split("-");
     var year = sd[0] || "";
-    var dateRange = "";
+    var dateRange = "", dateRangeEs = "";
     if (sd.length === 3 && ed.length === 3) {
       var sm = months[parseInt(sd[1],10)-1] || "";
       var em = months[parseInt(ed[1],10)-1] || "";
+      var smEs = monthsEs[parseInt(sd[1],10)-1] || "";
+      var emEs = monthsEs[parseInt(ed[1],10)-1] || "";
       dateRange = sm + " " + _capOrd(parseInt(sd[2],10)) + " -" + em + " " + _capOrd(parseInt(ed[2],10)) + ", " + year;
+      // Spanish: "17 de julio - 19 de julio de 2026" (numeric day, no ordinal — Spanish convention)
+      dateRangeEs = parseInt(sd[2],10) + " de " + smEs + " - " + parseInt(ed[2],10) + " de " + emEs + " de " + year;
     }
     var url = _capLandingUrl(ev);
+    // Spanish landing variant: /index-es.html. If URL ends with "/", insert index-es.html; else swap to ES form.
+    var urlEs = url;
+    if (url && url.indexOf("events.themakeupblowout.com") !== -1) {
+      // Append/replace to point at the Spanish sibling page
+      if (/\/$/.test(url)) urlEs = url + "index-es.html";
+      else if (/index\.html$/.test(url)) urlEs = url.replace(/index\.html$/, "index-es.html");
+      else urlEs = url.replace(/\/?$/, "/index-es.html");
+    }
     var fullCity = _capCityFromAddress(ev);
     var cs = fullCity + ", " + (ev.state||"");
-    return "\ud83c\udf89 Annual Makeup Blowout Sale in " + cs + "! \u2764\ufe0f\n" +
-           "\ud83d\udca5 FREE Fabulous Glitter when you arrive!\n" +
-           "Join us only this weekend for our HUGE annual sale on makeup, skincare, hair care, and more in " + year + "! \ud83d\ude0d\n" +
-           "\n" +
-           "\ud83d\uddd3\ufe0f When: " + dateRange + "\n" +
-           "\ud83d\udd59 Hours: 10 AM - 5 PM\n" +
-           "\ud83d\udccd Where: " + (ev.address||"") + ". At " + (ev.venue||"") + ".\n" +
-           "\n" +
-           "For more info & a FREE GIFT \ud83c\udf81 " + url + "\n" +
-           "\n" +
-           "\ud83d\udea8 Don\u2019t miss out on up to 75% OFF!\n" +
-           "\u2714\ufe0f Free Entrance \u2714\ufe0f Kids Welcome\n" +
-           "\u2714\ufe0f Cash & Cards Accepted\n" +
-           "\n" +
-           "Mark your calendars for this exciting annual event and grab your FREE Fabulous Glitter!\n" +
-           "\n" +
-           "#AnnualMakeupBlowout" + year + " #BeautyDeals";
+
+    var en = "\ud83c\udf89 Annual Makeup Blowout Sale in " + cs + "! \u2764\ufe0f\n" +
+             "\ud83d\udca5 FREE Fabulous Glitter when you arrive!\n" +
+             "Join us only this weekend for our HUGE annual sale on makeup, skincare, hair care, and more in " + year + "! \ud83d\ude0d\n" +
+             "\n" +
+             "\ud83d\uddd3\ufe0f When: " + dateRange + "\n" +
+             "\ud83d\udd59 Hours: 10 AM - 5 PM\n" +
+             "\ud83d\udccd Where: " + (ev.address||"") + ". At " + (ev.venue||"") + ".\n" +
+             "\n" +
+             "For more info & a FREE GIFT \ud83c\udf81 " + url + "\n" +
+             "\n" +
+             "\ud83d\udea8 Don\u2019t miss out on up to 75% OFF!\n" +
+             "\u2714\ufe0f Free Entrance \u2714\ufe0f Kids Welcome\n" +
+             "\u2714\ufe0f Cash & Cards Accepted\n" +
+             "\n" +
+             "Mark your calendars for this exciting annual event and grab your FREE Fabulous Glitter!\n" +
+             "\n" +
+             "#AnnualMakeupBlowout" + year + " #BeautyDeals";
+
+    // Spanish version (Lauren 2026-05-23 — match reference FB event 1584323025881834 format).
+    // Address line is intentionally kept in English ("At ...") to match Lauren's existing posts.
+    var es = "\ud83c\udf89 \u00a1Venta Anual de Maquillaje en " + cs + "! \u2764\ufe0f\n" +
+             "\ud83d\udca5 \u00a1Fabuloso Brillo GRATIS cuando llegues! \ud83d\udc47\n" +
+             "\u00a1\u00danete a nosotros ESTE fin de semana para nuestra GRAN venta anual de maquillaje, cuidado de la piel, cuidado del cabello y m\u00e1s en " + year + "! \ud83d\ude0d\n" +
+             "\n" +
+             "\ud83d\uddd3\ufe0f Cu\u00e1ndo: " + dateRangeEs + "\n" +
+             "\ud83d\udd59 Horas: 10 AM - 5 PM\n" +
+             "\ud83d\udccd D\u00f3nde: " + (ev.address||"") + ". At " + (ev.venue||"") + ".\n" +
+             "\n" +
+             "Para m\u00e1s informaci\u00f3n y un REGALO GRATIS \ud83c\udf81 haga clic aqu\u00ed:\n" +
+             urlEs + "\n" +
+             "\n" +
+             "\ud83d\udea8 \u00a1No te pierdas hasta 75% de DESCUENTO! \ud83d\udea8\n" +
+             "\u2714\ufe0f Entrada gratis\n" +
+             "\u2714\ufe0f Ni\u00f1os bienvenidos\n" +
+             "\u2714\ufe0f Se aceptan efectivo y tarjetas\n" +
+             "\n" +
+             "\u00a1Marca tu calendario para este emocionante evento anual y consigue tu Glitter Fabuloso GRATIS! \ud83d\udc47\n" +
+             "\n" +
+             "#VentaAnualDeMaquillaje" + year + " #OfertasDeBelleza";
+
+    // Bilingual output (Lauren 2026-05-23): EN block + divider line + ES block.
+    // Divider matches the convention from Lauren's reference FB event 1584323025881834.
+    return en + "\n_____________\n" + es;
   };
   document.addEventListener("click", async function(e){
     var btn = e.target.closest && e.target.closest(".btn-caption-row");
