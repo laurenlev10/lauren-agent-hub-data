@@ -1626,11 +1626,15 @@ End date: </div>
         }
       }
 
-            // Instagram Reel shares row — sits below POS row on the LIVE event. (2026-05-22)
+            // Instagram Reel shares row — sits below POS row. (2026-05-22)
+      // Lauren 2026-05-24: show on EVERY event row that already has scans in
+      // insta_reel_scans (not only the live event) — the scanner produces pre_event
+      // baselines on Tue/Wed/Thu before the weekend, so upcoming events with a
+      // posted Reel already have meaningful data Lauren wants to see at a glance.
       // Shares = Lauren's #1 metric (per CLAUDE.md "⭐ Business context"). Source: insta_reel_scans
       // array on MANUAL_TASKS[evkey], appended by insta-reel-share-scan agent on Fri/Sat/Sun.
       let reelSharesHtml = '';
-      if (isLive && ev) {
+      if (ev) {
         const evKeyRS = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
         const noteRS = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKeyRS] || {}) : {};
         const scans = Array.isArray(noteRS.insta_reel_scans) ? noteRS.insta_reel_scans : [];
@@ -1674,8 +1678,11 @@ End date: </div>
             const diff = Date.now() - new Date(latest.scanned_at).getTime();
             scanMins = Math.max(0, Math.round(diff / 60000));
           }
-          // Stale = scan older than 2 hours during a live event (scanner runs every 1-3 hours)
-          const stale = (scanMins !== null && scanMins > 120);
+          // Stale threshold adapts to scan cadence:
+          //   live event (every ~30 min during 10:30-17:00 local) → >120 min is stale
+          //   pre-event / past (once/day at 12:00 local or after the weekend) → >25h is stale
+          const _staleLimit = isLive ? 120 : (25 * 60);
+          const stale = (scanMins !== null && scanMins > _staleLimit);
           const metaTxt = (scanMins === null) ? '📸 INSTA REEL' :
                           (scanMins < 1) ? '📸 INSTA REEL · just now' :
                           (scanMins < 60) ? `📸 INSTA REEL · ${scanMins}m ago` :
