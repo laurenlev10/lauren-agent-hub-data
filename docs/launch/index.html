@@ -1610,12 +1610,26 @@ End date: </div>
             mins = Math.max(0, Math.round(diff / 60000));
           }
           const stale = (mins !== null && mins > 60);
-          const metaTxt = (mins === null) ? '🐙 OCTOPOS' :
+          // "Since open" — the sales window starts at event-doors-open (10:00 event-local),
+          // not midnight PT (Lauren's directive 2026-05-24). Compute elapsed time since
+          // OCTOPOS_LIVE.since_pt for an at-a-glance "since 4h ago / since 10:00" hint.
+          let sinceTxt = '';
+          if (OCTOPOS_LIVE.since_pt) {
+            const sinceMs = new Date(OCTOPOS_LIVE.since_pt).getTime();
+            const elapsedMin = Math.max(0, Math.round((Date.now() - sinceMs) / 60000));
+            if (elapsedMin < 60) sinceTxt = `from open · ${elapsedMin}m`;
+            else {
+              const h = Math.floor(elapsedMin / 60), m = elapsedMin % 60;
+              sinceTxt = m ? `from open · ${h}h ${m}m` : `from open · ${h}h`;
+            }
+          }
+          const baseMeta = (mins === null) ? '🐙 OCTOPOS' :
                           (mins < 1) ? '🐙 OCTOPOS · just now' :
                           (mins < 60) ? `🐙 OCTOPOS · ${mins}m ago` :
                           `🐙 OCTOPOS · ${Math.round(mins/60)}h ago`;
+          const metaTxt = sinceTxt ? `${baseMeta} · ${sinceTxt}` : baseMeta;
           posLiveHtml =
-            '<div class="pos-live-row" title="Live OCTOPOS data · ' + escapeHtml(OCTOPOS_LIVE.date_local || '') + '">' +
+            '<div class="pos-live-row" title="Live OCTOPOS data since event open · ' + escapeHtml(OCTOPOS_LIVE.date_local || '') + '">' +
               '<div class="pos-live-stat"><div class="pos-live-value">' + fmtUSD(tp, 0) + '</div><div class="pos-live-label">Sales</div></div>' +
               '<div class="pos-live-stat"><div class="pos-live-value">' + tc.toLocaleString('en-US') + '</div><div class="pos-live-label">Txns</div></div>' +
               '<div class="pos-live-stat"><div class="pos-live-value">' + fmtUSD(av, 2) + '</div><div class="pos-live-label">Avg Txn</div></div>' +
