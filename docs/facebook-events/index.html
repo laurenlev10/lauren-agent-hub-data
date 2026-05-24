@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📘 Facebook Events — Lauren</title>
+<style>
+  :root { --bg:#f6f7fb; --text:#1f2937; --muted:#6b7280; --fb:#1877f2; --green:#16a34a; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Heebo",Roboto,sans-serif; background:var(--bg); color:var(--text); padding:24px 16px 60px; min-height:100vh; }
+  header { max-width:980px; margin:0 auto 20px; }
+  header h1 { margin:0 0 6px; font-size:24px; }
+  header p { margin:0; color:var(--muted); font-size:13px; }
+  .nav { max-width:980px; margin:0 auto 16px; display:flex; gap:8px; }
+  .nav a { text-decoration:none; color:var(--muted); font-size:13px; padding:6px 12px; border-radius:8px; background:#fff; border:1px solid #e5e7eb; }
+  .nav a:hover { color:var(--fb); border-color:var(--fb); }
+  .grid { max-width:980px; margin:0 auto; display:grid; gap:12px; }
+  .card { background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,.06); display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; }
+  .card .left { display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .card .city { font-weight:700; font-size:16px; }
+  .card .meta { color:var(--muted); font-size:12px; }
+  .card .right { display:flex; gap:6px; flex-shrink:0; }
+  .btn { padding:8px 12px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:600; white-space:nowrap; }
+  .btn-fb { background:var(--fb); color:#fff; }
+  .btn-copy { background:#e5e7eb; color:#1f2937; cursor:pointer; border:none; font-family:inherit; }
+  .empty { text-align:center; padding:60px 20px; color:var(--muted); }
+  .empty .icon { font-size:48px; margin-bottom:12px; }
+  .empty h2 { margin:0 0 8px; font-size:18px; color:var(--text); }
+  .empty p { margin:0 0 4px; font-size:13px; line-height:1.6; }
+  .empty code { background:#fff; padding:2px 6px; border-radius:4px; font-size:11px; }
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#1f2937; color:#fff; padding:10px 18px; border-radius:8px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:1000; }
+  .toast.show { opacity:1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📘 דפי אירוע פייסבוק</h1>
+  <p>רשימת כל דפי האירוע שהסוכן <code>@fbevent</code> יצר. הנתונים נטענים בזמן אמת מ-<code>FB_EVENTS</code> שב-Event Launch.</p>
+</header>
+
+<div class="nav">
+  <a href="../">← Agent Hub</a>
+  <a href="../launch/">← Event Launch</a>
+</div>
+
+<div id="content" class="grid">
+  <div class="empty">
+    <div class="icon">⏳</div>
+    <p>טוען...</p>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(async function init(){
+  const out = document.getElementById("content");
+  // Fetch the live FB_EVENTS map by re-fetching launch/index.html and extracting
+  let fbEvents = {};
+  let schedule = [];
+  try {
+    const r = await fetch("../launch/index.html?_=" + Date.now(), { cache: "no-store" });
+    const txt = await r.text();
+    const mFb = txt.match(/const FB_EVENTS\s*=\s*(\{[^;]*?\});/s);
+    if (mFb) { try { fbEvents = JSON.parse(mFb[1]); } catch(e){} }
+    const mSc = txt.match(/const SCHEDULE\s*=\s*(\{[\s\S]*?\n\});/);
+    if (mSc) { try { schedule = JSON.parse(mSc[1]); } catch(e){} }
+  } catch (e) {
+    out.innerHTML = '<div class="empty"><div class="icon">⚠️</div><h2>לא ניתן לטעון נתונים</h2><p>נסי לרענן את הדף</p></div>';
+    return;
+  }
+
+  // Flatten schedule for lookup by evkey
+  const schedByKey = {};
+  if (schedule && typeof schedule === "object") {
+    for (const y of Object.keys(schedule)) {
+      const arr = schedule[y] || [];
+      for (const ev of arr) {
+        const slug = (ev.city||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+        const key = slug + "-" + ev.start_date;
+        schedByKey[key] = ev;
+      }
+    }
+  }
+
+  const entries = Object.entries(fbEvents);
+  if (!entries.length) {
+    out.innerHTML = `
+      <div class="empty">
+        <div class="icon">📘</div>
+        <h2>עדיין לא נוצרו דפי אירוע פייסבוק</h2>
+        <p>פתחי את <a href="../launch/">Event Launch</a> ולחצי על הכפתור השחור <code>📘 Facebook Event</code> בשורת אירוע.</p>
+        <p>הסוכן <code>@fbevent</code> יצור דף אירוע ציבורי בפייסבוק והכפתור יהפוך לירוק.</p>
+      </div>`;
+    return;
+  }
+
+  // Sort by created_at descending (newest first)
+  entries.sort((a,b) => (b[1].created_at||"").localeCompare(a[1].created_at||""));
+
+  out.innerHTML = entries.map(([evkey, fb]) => {
+    const ev = schedByKey[evkey] || {};
+    const city = ev.city || evkey.split("-").slice(0,-3).join(" ").replace(/\b\w/g,c=>c.toUpperCase()) || evkey;
+    const state = ev.state || "";
+    const dates = ev.start_date ? `${ev.start_date} → ${ev.end_date||ev.start_date}` : "";
+    const age = fb.created_at ? new Date(fb.created_at).toLocaleDateString("he-IL") : "";
+    const src = ({canva:"קאנווה","gh-pages":"GitHub Pages",manual:"ידני"})[fb.image_source] || fb.image_source || "—";
+    return `
+      <div class="card">
+        <div class="left">
+          <div class="city">${escapeHtml(city)} ${escapeHtml(state)}</div>
+          <div class="meta">${escapeHtml(dates)} · נוצר ${escapeHtml(age)} · תמונה: ${escapeHtml(src)} · ID ${escapeHtml(fb.fb_event_id||"")}</div>
+        </div>
+        <div class="right">
+          <a class="btn btn-fb" href="${fb.fb_url}" target="_blank" rel="noopener">📘 פתחי בפייסבוק</a>
+          <button class="btn btn-copy" data-url="${fb.fb_url}">🔗 העתקי</button>
+        </div>
+      </div>`;
+  }).join("");
+
+  // Wire copy buttons
+  out.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".btn-copy");
+    if (!btn) return;
+    try {
+      await navigator.clipboard.writeText(btn.dataset.url);
+      const t = document.getElementById("toast");
+      t.textContent = "✓ הועתק";
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 1500);
+    } catch (err) {
+      alert("העתקה נכשלה — " + (btn.dataset.url));
+    }
+  });
+
+  function escapeHtml(s){
+    return String(s||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+})();
+</script>
+
+</body>
+</html>

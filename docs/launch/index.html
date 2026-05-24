@@ -373,6 +373,7 @@
   .btn-inventory-row{background:linear-gradient(180deg,#d97706,#92400e)} /* brown-gold per Lauren's spec — flips green via .done */
   .btn-qrlp-row{background:linear-gradient(180deg,#1f2937,#0f172a)} /* QR LP — black, flips green via .done when the public QR landing page (themakeupblowoutsale-group.com) currently points to this event. Lauren 2026-05-20. */
   .btn-recount-row{background:linear-gradient(180deg,#7c3aed,#5b21b6)} /* purple per recount landing accent — flips green via .done */
+  .btn-fbevent-row{background:linear-gradient(180deg,#000000,#1c1e21)} /* Facebook Event — black per Lauren's spec 2026-05-23, flips green via .done when @fbevent has created the FB event */
   /* 'needs-summary' — past event without a published summary yet (call-to-action,
      Lauren 2026-05-05: 'הפעילות הכי חשובה לעשות כשאירוע נגמר'). Pulsing
      orange/red gradient grabs attention until the agent runs and the button
@@ -644,6 +645,7 @@ let INVENTORY_ORDERS = {};  // populated from docs/state/inventory_orders.json a
 // Owner: octopos-recount — entry: { worklist_size, n_negative, n_stale, n_counted, window: {start, end}, href, generated_at }   (added 2026-05-17)
 // Done state: when the agent has built a worklist for this event window, button flips green showing the worklist size.
 let OCTOPOS_RECOUNT = {};  // populated from docs/state/octopos_recount.json at page load (Lauren 2026-05-21). Static milwaukee entry removed — now sourced from the real state file written by recount_prebuild.py + recount_weekend.py.
+const FB_EVENTS = {};  // Owner: facebook-event. Schema: FB_EVENTS[evKey] = { fb_url, fb_event_id, created_at, image_source, status:'live' }. Upserted via clone+edit+push by @fbevent (IRON RULE #1 — never from local outputs/). Per-row button on each event row flips from black (run, links to /facebook-events/?...) to green (done, links to https://www.facebook.com/events/<id>). Added 2026-05-23 by agent-architect Mode A.
 
 // Owner: eventbrite-setup — entry: { eventbrite: {url, eventId, generated_at} | null, smslist: {list_id, list_name, generated_at} | null }
 // Both fields can populate independently — the agent reports per-service result.
@@ -2070,6 +2072,23 @@ End date: </div>
               venue: ev.venue || "", address: ev.address || ""
             }).toString();
             rowBtn += '<a class="btn-agent-row btn-recount-row" href="../recount/?' + recParams + '" target="_blank" rel="noopener" title="פתחי רשימת ספירה לאירוע — חלון: שישי-ראשון של האירוע">🔢 Recount</a>';
+          }
+
+          // 📘 Facebook Event — per-event public FB Page event (added 2026-05-23)
+          // Owner: facebook-event. Schema: FB_EVENTS[evKey] = { fb_url, fb_event_id, created_at, image_source, status }
+          // Run state: opens /facebook-events/?... pre-filled with this event so @fbevent can create on facebook.com/events/create/.
+          // Done state: when an FB event exists for this evKey, button flips green and links directly to facebook.com/events/<id>.
+          const fbev = (typeof FB_EVENTS !== "undefined") ? FB_EVENTS[evKey] : null;
+          if (fbev && fbev.fb_url) {
+            const fbTip = "Facebook event live · created " + (fbev.created_at||"").slice(0,10) + " · " + (fbev.image_source||"") + " image";
+            rowBtn += '<a class="btn-agent-row btn-fbevent-row done" href="' + fbev.fb_url + '" target="_blank" rel="noopener" title="' + escapeHtml(fbTip) + '">📘 Facebook Event</a>';
+          } else {
+            const fbParams = new URLSearchParams({
+              evkey: evKey, city: _evCity, state: _evState,
+              start_date: ev.start_date, end_date: ev.end_date,
+              venue: ev.venue || "", address: ev.address || ""
+            }).toString();
+            rowBtn += '<a class="btn-agent-row btn-fbevent-row" href="../facebook-events/?' + fbParams + '" target="_blank" rel="noopener" title="צרי דף אירוע בפייסבוק עבור האירוע — @fbevent יזין את פרטי האירוע, תמונה, וכיתוב דו-לשוני">📘 Facebook Event</a>';
           }
 
           // 📊 Post-event summary — past events ONLY (Lauren 2026-05-05: can't summarize an event
