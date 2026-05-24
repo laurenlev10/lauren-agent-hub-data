@@ -27,12 +27,6 @@
   .field .val{font-size:14px;color:var(--text);word-break:break-word;}
   .field .val.empty{color:#ef4444;font-style:italic;}
 
-  .cmd-box{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:14px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word;max-height:280px;overflow-y:auto;border:1px solid #1e293b;}
-  .copy-btn{display:inline-flex;align-items:center;gap:8px;background:var(--fb);color:#fff;border:none;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:12px;transition:background .15s;}
-  .copy-btn:hover{background:#1462c4;}
-  .copy-btn.done{background:var(--green);}
-  .copy-btn:active{transform:translateY(1px);}
-  .hint{margin-top:10px;font-size:12px;color:var(--muted);}
 
   .existing-banner{background:#dcfce7;border:1px solid #16a34a;border-radius:10px;padding:12px 14px;margin:12px 0;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
   .existing-banner .text{font-size:14px;color:#14532d;}
@@ -136,30 +130,8 @@
     const lp = LANDING_PAGES[evkey];
     const img = IMAGES[evkey];
 
-    // Build the Cowork copy command
-    const slug = (lp && lp.url) ? (lp.url.match(/events\/([^\/?#]+)/)?.[1] || "") : "";
     const cityName = city || (evkey.split("-").slice(0, -3).join(" ").replace(/\b\w/g, c => c.toUpperCase())) || "?";
     const stState  = state || "?";
-    const cmd = [
-      "Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\facebook-event\\SKILL.md` — it is the orchestrator for @fbevent.",
-      "",
-      "Target event (pre-resolved from per-row button on launch_dashboard):",
-      "- evkey:      " + evkey,
-      "- City:       " + cityName,
-      "- State:      " + stState,
-      "- Start date: " + start_date,
-      "- End date:   " + end_date,
-      "- Venue:      " + (venue || "(none — pull from SCHEDULE)"),
-      "- Address:    " + (address || "(none — pull from SCHEDULE)"),
-      "- Landing URL:" + (lp ? " " + lp.url : " (not yet — landing page comes after FB event; update later)"),
-      "- Main image: " + (img ? (img.canva_url || "GH Pages") : "(check Canva folder '2026 Main Picture' and local Documents/Claude/event-images/ before blocking)"),
-      "",
-      "Create the public Facebook Event for this event on \"The Makeup Blowout Sale Group\" Page.",
-      "Description = bilingual EN+ES caption identical to window.buildReelCaption(ev) (CLAUDE.md IRON RULE #10) with the direct events.themakeupblowout.com URL embedded as plain text.",
-      "NO bit.ly / shortener anywhere (CLAUDE.md IRON RULE #6).",
-      "Times: " + start_date + " 10:00 AM → " + end_date + " 5:00 PM venue-local TZ.",
-      "Privacy: Public. Host: The Makeup Blowout Sale Group Page (NOT Lauren's personal profile)."
-    ].join("\n");
 
     let html = '<div class="event-card">';
     html += '<h2>📘 ' + escapeHtml(cityName) + (stState !== "?" ? ' <span class="pill-state">' + escapeHtml(stState) + '</span>' : '');
@@ -192,13 +164,6 @@
     html += field("תמונה ראשית (אופציונלי)", img ? (img.canva_url || "GH Pages") : "הסוכן יחפש בקאנווה + בתיקייה המקומית");
     html += '</div>';
 
-    html += '<div style="margin-top:18px;">';
-    html += '<div style="font-weight:700;margin-bottom:8px;font-size:13px;">📋 פקודה ל-Cowork:</div>';
-    html += '<div class="cmd-box" id="cmd-box">' + escapeHtml(cmd) + '</div>';
-    html += '<button class="copy-btn" id="copy-cmd-btn">📋 העתקי פקודה ל-Cowork</button>';
-    html += '<div class="hint">העתיקי את הפקודה, פתחי Cowork, הדביקי בצ\'אט והסוכן יתחיל לפעול.</div>';
-    html += '</div>';
-
     html += '</div>';
 
     // Also show the full list below (collapsed-ish, just a header)
@@ -206,26 +171,6 @@
     html += renderListGrid(FB_EVENTS, SCHEDULE);
 
     out.innerHTML = html;
-
-    // Wire copy button
-    document.getElementById("copy-cmd-btn").addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(cmd);
-        toast("✓ הועתק! עכשיו הדביקי ב-Cowork");
-        const b = document.getElementById("copy-cmd-btn");
-        const orig = b.textContent;
-        b.textContent = "✓ הועתק";
-        b.classList.add("done");
-        setTimeout(() => { b.textContent = orig; b.classList.remove("done"); }, 2500);
-      } catch (e) {
-        // Fallback: select the command box
-        const range = document.createRange();
-        range.selectNode(document.getElementById("cmd-box"));
-        getSelection().removeAllRanges();
-        getSelection().addRange(range);
-        toast("⚠ נסי Ctrl+C");
-      }
-    });
 
     // Manual FB sync handler (Lauren 2026-05-23 — replaces cron, per her preference)
     const syncBtn = document.getElementById("sync-fb-btn");
@@ -294,46 +239,55 @@
           }
           syncBtn.innerHTML = "🔄 מעדכן את הדשבורד...";
 
-          // 4a. GET current launch/index.html SHA + content
+          // 4a+b. Retry loop — re-GET fresh SHA each attempt to win SHA-conflict races.
+          // GitHub returns 409/422 with "does not match" if main moved between GET and PUT
+          // (very common when multiple agents/syncs touch launch/index.html concurrently).
           const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/launch/index.html?ref=main";
-          const getR = await fetch(getUrl, { headers: {"Authorization":"token "+ghToken,"Accept":"application/vnd.github+json"}});
-          const getJ = await getR.json();
-          if (!getR.ok) { throw new Error("GitHub GET failed: " + (getJ.message||"")); }
-          const sha = getJ.sha;
-          // Decode base64 → text (UTF-8 safe)
-          const decoded = decodeURIComponent(escape(atob(getJ.content.replace(/\n/g, ""))));
-          // Find and update FB_EVENTS map
-          const reFb = /const FB_EVENTS\s*=\s*(\{[^;]*?\});/s;
-          const mFb = decoded.match(reFb);
-          if (!mFb) throw new Error("FB_EVENTS map not found in launch/index.html");
-          const fbMap = JSON.parse(mFb[1]);
-          fbMap[ek] = {
-            fb_url:       "https://www.facebook.com/events/" + match.id,
-            fb_event_id:  match.id,
-            created_at:   new Date().toISOString(),
-            image_source: "manual-sync",
-            status:       "live"
-          };
-          const newBlock = "const FB_EVENTS = " + JSON.stringify(fbMap) + ";";
-          const newSrc = decoded.replace(reFb, newBlock);
-          // Re-encode UTF-8 → base64
-          const newContent = btoa(unescape(encodeURIComponent(newSrc)));
-
-          // 4b. PUT
           const putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/launch/index.html";
-          const putBody = {
-            message: "FB_EVENTS: manual sync " + ek + " → " + match.id + " (Lauren clicked Sync from /facebook-events/)",
-            content: newContent,
-            sha: sha,
-            branch: "main"
-          };
-          const putR = await fetch(putUrl, {
-            method: "PUT",
-            headers: {"Authorization":"token "+ghToken,"Accept":"application/vnd.github+json","Content-Type":"application/json"},
-            body: JSON.stringify(putBody)
-          });
-          const putJ = await putR.json();
-          if (!putR.ok) throw new Error("GitHub PUT failed: " + (putJ.message||""));
+          let attempt = 0, lastErr = null;
+          while (attempt < 4) {
+            attempt++;
+            const getR = await fetch(getUrl + "&t=" + Date.now(), { headers: {"Authorization":"token "+ghToken,"Accept":"application/vnd.github+json"}, cache: "no-store"});
+            const getJ = await getR.json();
+            if (!getR.ok) { lastErr = "GitHub GET failed: " + (getJ.message||""); break; }
+            const sha = getJ.sha;
+            const decoded = decodeURIComponent(escape(atob(getJ.content.replace(/\n/g, ""))));
+            const reFb = /const FB_EVENTS\s*=\s*(\{[^;]*?\});/s;
+            const mFb = decoded.match(reFb);
+            if (!mFb) { lastErr = "FB_EVENTS map not found in launch/index.html"; break; }
+            const fbMap = JSON.parse(mFb[1]);
+            // Idempotency — if same fb_id is already there, treat as success
+            if (fbMap[ek] && fbMap[ek].fb_event_id === match.id) { lastErr = null; break; }
+            fbMap[ek] = {
+              fb_url:       "https://www.facebook.com/events/" + match.id,
+              fb_event_id:  match.id,
+              created_at:   new Date().toISOString(),
+              image_source: "manual-sync",
+              status:       "live"
+            };
+            const newBlock = "const FB_EVENTS = " + JSON.stringify(fbMap) + ";";
+            const newSrc = decoded.replace(reFb, newBlock);
+            const newContent = btoa(unescape(encodeURIComponent(newSrc)));
+            const putR = await fetch(putUrl, {
+              method: "PUT",
+              headers: {"Authorization":"token "+ghToken,"Accept":"application/vnd.github+json","Content-Type":"application/json"},
+              body: JSON.stringify({
+                message: "FB_EVENTS: manual sync " + ek + " → " + match.id + " (Lauren clicked Sync from /facebook-events/)",
+                content: newContent, sha: sha, branch: "main"
+              })
+            });
+            if (putR.ok) { lastErr = null; break; }
+            const putJ = await putR.json();
+            if (putR.status === 409 || (putJ.message||"").indexOf("does not match") !== -1) {
+              syncBtn.innerHTML = "🔄 ניסיון " + (attempt+1) + "/4...";
+              await new Promise(r => setTimeout(r, 400 * attempt));
+              lastErr = "PUT conflict (attempt " + attempt + ")";
+              continue;
+            }
+            lastErr = "GitHub PUT failed: " + (putJ.message||"");
+            break;
+          }
+          if (lastErr) throw new Error(lastErr);
 
           // 5. Show success + direct link
           setResult("ok",
