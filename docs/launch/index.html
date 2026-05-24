@@ -297,8 +297,42 @@
                            margin-top:6px;width:100%;font-family:inherit}
   .btn-reel-row{background:linear-gradient(180deg,#4f46e5,#3730a3)}
   /* 📝 Caption — copy IG/FB Reel caption to clipboard (added 2026-05-23, per Lauren's IRON RULE on Reel caption landing URL) */
+  /* 📝 Caption — purple when no caption saved; green (.done) once generated & saved (Lauren 2026-05-24). */
   .btn-caption-row{background:linear-gradient(180deg,#a855f7,#7e22ce)}
+  .btn-caption-row.done{background:linear-gradient(180deg,#16a34a,#15803d) !important;box-shadow:0 1px 2px rgba(22,163,74,.35) !important}
   .btn-caption-row.copied{background:#16a34a !important}
+  /* Caption modal — Lauren 2026-05-24, two-column EN/ES with quick-copy */
+  .cap-modal-bg{display:none;position:fixed;inset:0;background:rgba(15,23,42,.78);z-index:9999;align-items:center;justify-content:center;padding:18px}
+  .cap-modal-bg.open{display:flex}
+  .cap-modal{background:#fff;color:#1f2937;border-radius:14px;padding:18px 20px 14px;max-width:1080px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 14px 44px rgba(0,0,0,.45);direction:rtl;text-align:right}
+  .cap-modal h3{margin:0 0 4px;font-size:18px;color:#7e22ce;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .cap-modal .cap-sub{font-size:12px;color:#6b7280;margin:0 0 4px}
+  .cap-modal .cap-meta{font-size:11px;color:#9ca3af;margin:0 0 12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .cap-modal .cap-meta .cap-pill{padding:2px 8px;border-radius:10px;background:#f3f4f6;color:#374151;font-weight:600}
+  .cap-modal .cap-meta .cap-pill.auto{background:#ede9fe;color:#6d28d9}
+  .cap-modal .cap-meta .cap-pill.manual{background:#fef3c7;color:#92400e}
+  .cap-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px}
+  @media (max-width:780px){.cap-grid{grid-template-columns:1fr}}
+  .cap-col{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column}
+  .cap-col h4{margin:0 0 6px;font-size:13px;color:#374151;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .cap-col h4 .cap-flag{font-size:15px}
+  .cap-col h4 .cap-count{font-size:11px;color:#9ca3af;font-weight:400}
+  .cap-col textarea{width:100%;min-height:340px;flex:1;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;line-height:1.45;color:#1f2937;background:#fff;resize:vertical;direction:ltr;text-align:left;box-sizing:border-box;white-space:pre-wrap}
+  .cap-col textarea:focus{outline:none;border-color:#a855f7;box-shadow:0 0 0 3px rgba(168,85,247,.18)}
+  .cap-col .cap-copy{margin-top:8px;width:100%;padding:9px 12px;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:filter .12s}
+  .cap-col .cap-copy:hover{filter:brightness(1.07)}
+  .cap-col .cap-copy.copied{background:#0f766e}
+  .cap-footer{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;padding-top:8px;border-top:1px solid #e5e7eb}
+  .cap-footer .cap-btn{padding:8px 14px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;color:#fff}
+  .cap-footer .cap-save{background:linear-gradient(180deg,#0ea5e9,#0369a1)}
+  .cap-footer .cap-save:hover{filter:brightness(1.08)}
+  .cap-footer .cap-save.saved{background:#0f766e}
+  .cap-footer .cap-regen{background:linear-gradient(180deg,#a855f7,#7e22ce)}
+  .cap-footer .cap-regen:hover{filter:brightness(1.08)}
+  .cap-footer .cap-close{background:transparent;color:#374151;border:1px solid #d1d5db}
+  .cap-footer .cap-status{flex:1;font-size:12px;color:#6b7280;align-self:center;text-align:right}
+  .cap-footer .cap-status.ok{color:#16a34a}
+  .cap-footer .cap-status.err{color:#b91c1c}
   /* INSTA REEL — separate from Canva Reel; tracks pinned IG reel + share scans (Lauren 2026-05-10) */
   .btn-insta-row{background:linear-gradient(135deg,#f58529 0%,#dd2a7b 50%,#8134af 100%)}
   .btn-insta-row.done{background:linear-gradient(180deg,#16a34a,#15803d) !important}
@@ -1865,16 +1899,28 @@ End date: </div>
           // as plain text so IG auto-detects it as the post's natural CTA. That URL flows through to
           // the FB cross-post and becomes the natural CTA of the @metaads Reel ad — avoids the
           // recurring "Button couldn't be added — post has running ads associated" UI nag.
+          // 📝 Caption — modal upgrade (Lauren 2026-05-24).
+          // Black/purple by default; turns green + "✓" label once a caption is saved to
+          // MANUAL_TASKS[evKey].caption_en / .caption_es (synced via notes.json per IRON RULE #7).
+          // First click on black → generate via buildReelCaptionParts(ev), save to GitHub, flip green, open modal.
+          // Subsequent clicks → open modal with the SAVED text (not regenerated).
           const captionEvJSON = JSON.stringify({
             city: ev.city, state: ev.state,
             start_date: ev.start_date, end_date: ev.end_date,
-            address: ev.address, venue: ev.venue
+            address: ev.address, venue: ev.venue,
+            evKey: evKey
           }).replace(/"/g, "&quot;");
+          const _capNote = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKey] || {}) : {};
+          const _capReady = !!(_capNote.caption_en || _capNote.caption_es);
           const _lpForCaption = (typeof LANDING_PAGES !== "undefined") ? LANDING_PAGES[evKey] : null;
-          const captionTip = _lpForCaption
-            ? ("Copy IG/FB Reel caption — landing URL embedded for " + ev.city + ", " + ev.state)
-            : ("Copy IG/FB Reel caption — ⚠ no landing yet; URL predicted from city+state");
-          rowBtn += '<button class="btn-agent-row btn-caption-row" data-caption-ev="' + captionEvJSON + '" title="' + escapeHtml(captionTip) + '">📝 Caption</button>';
+          const captionTip = _capReady
+            ? ("✓ כיתוב מוכן — לחצי לפתיחה/העתקה · נוצר " + (_capNote.caption_generated_at||"").slice(0,10))
+            : (_lpForCaption
+              ? ("צרי כיתוב IG/FB Reel — URL דף נחיתה ישובץ אוטומטית · " + ev.city + ", " + ev.state)
+              : ("צרי כיתוב IG/FB Reel — ⚠ אין דף נחיתה עדיין; URL ינוחש מעיר+מדינה"));
+          const captionLabel = _capReady ? "📝 Caption ✓" : "📝 Caption";
+          const captionClass = _capReady ? "btn-agent-row btn-caption-row done" : "btn-agent-row btn-caption-row";
+          rowBtn += '<button class="' + captionClass + '" data-caption-ev="' + captionEvJSON + '" title="' + escapeHtml(captionTip) + '">' + captionLabel + '</button>';
 
           // ─────────────────────────────────────────────
           // INSTA REEL button + manual URL paste chip (Lauren 2026-05-10)
@@ -4288,7 +4334,7 @@ window.copyLanding = async function(btn) {
     }
     return base;
   }
-  window.buildReelCaption = function(ev){
+  window.buildReelCaptionParts = function(ev){
     var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     var monthsEs = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
     var sd = (ev.start_date||"").split("-");
@@ -4358,41 +4404,234 @@ window.copyLanding = async function(btn) {
 
     // Bilingual output (Lauren 2026-05-23): EN block + divider line + ES block.
     // Divider matches the convention from Lauren's reference FB event 1584323025881834.
-    return en + "\n_____________\n" + es;
+    // 2026-05-24 — return both parts AND combined so the Caption modal can show them
+    // in separate boxes for quick-copy (window.buildReelCaptionParts).
+    return { en: en, es: es, combined: en + "\n_____________\n" + es };
   };
-  document.addEventListener("click", async function(e){
+  // Back-compat: buildReelCaption returns the combined string (existing callers, IRON RULE #10).
+  window.buildReelCaption = function(ev){ return window.buildReelCaptionParts(ev).combined; };
+  // 📝 Caption click handler — opens the modal (Lauren 2026-05-24).
+  // The modal owns the generate/save/copy/regenerate flow; the button stays dumb.
+  document.addEventListener("click", function(e){
     var btn = e.target.closest && e.target.closest(".btn-caption-row");
     if (!btn) return;
     e.preventDefault();
     e.stopPropagation();
     var ev;
-    try { ev = JSON.parse(btn.getAttribute("data-caption-ev") || "{}"); }
+    try { ev = JSON.parse((btn.getAttribute("data-caption-ev") || "{}").replace(/&quot;/g,'"')); }
     catch(err){ alert("Bad event data: " + err.message); return; }
-    var caption = window.buildReelCaption(ev);
-    var ok = false;
-    try { await navigator.clipboard.writeText(caption); ok = true; }
-    catch(err){
-      try {
-        var ta = document.createElement("textarea");
-        ta.value = caption; ta.style.position="fixed"; ta.style.left="-9999px";
-        document.body.appendChild(ta); ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-        ok = true;
-      } catch(_) {}
-    }
-    if (ok) {
-      var orig = btn.textContent;
-      btn.textContent = "\u2713 \u05d4\u05e7\u05e4\u05e9\u05df \u05d4\u05d5\u05e2\u05ea\u05e7";
-      btn.classList.add("copied");
-      setTimeout(function(){ btn.textContent = orig; btn.classList.remove("copied"); }, 2400);
-    } else {
-      prompt("Caption (Cmd/Ctrl+C):", caption);
-    }
+    if (typeof window.openCaptionModal === "function") window.openCaptionModal(ev);
+    else alert("Caption modal not yet loaded — refresh the page.");
   });
 })();
 </script>
 <!-- ====== /form_id Add modal ====== -->
+
+<!-- ====== 📝 Caption modal (Lauren 2026-05-24) ====== -->
+<div class="cap-modal-bg" id="cap-modal-bg" onclick="if(event.target===this)window.closeCaptionModal()">
+  <div class="cap-modal" id="cap-modal" role="dialog" aria-modal="true" aria-labelledby="cap-modal-title">
+    <h3 id="cap-modal-title">📝 כיתוב לאירוע</h3>
+    <p class="cap-sub" id="cap-event-label">—</p>
+    <div class="cap-meta">
+      <span class="cap-pill" id="cap-source-pill">—</span>
+      <span id="cap-generated-at">—</span>
+    </div>
+    <div class="cap-grid">
+      <div class="cap-col">
+        <h4>
+          <span><span class="cap-flag">🇺🇸</span> English</span>
+          <span class="cap-count" id="cap-en-count">0 chars</span>
+        </h4>
+        <textarea id="cap-en-text" spellcheck="false" placeholder="(generating…)"></textarea>
+        <button class="cap-copy" id="cap-en-copy" type="button">📋 העתק טקסט באנגלית</button>
+      </div>
+      <div class="cap-col">
+        <h4>
+          <span><span class="cap-flag">🇪🇸</span> Español</span>
+          <span class="cap-count" id="cap-es-count">0 chars</span>
+        </h4>
+        <textarea id="cap-es-text" spellcheck="false" placeholder="(generating…)"></textarea>
+        <button class="cap-copy" id="cap-es-copy" type="button">📋 העתק טקסט בספרדית</button>
+      </div>
+    </div>
+    <div class="cap-footer">
+      <div class="cap-status" id="cap-status">&nbsp;</div>
+      <button class="cap-btn cap-regen" id="cap-regen-btn" type="button" title="צרי מחדש מהתבנית — דורס עריכות ידניות">🔄 צור מחדש מהתבנית</button>
+      <button class="cap-btn cap-save" id="cap-save-btn" type="button">💾 שמור שינויים</button>
+      <button class="cap-btn cap-close" type="button" onclick="window.closeCaptionModal()">סגור</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  // 📝 Caption modal logic (Lauren 2026-05-24).
+  // Persists to MANUAL_TASKS[evKey].caption_en / .caption_es via ManualTasksSync
+  // (same path used by manual-task checkboxes — docs/launch/notes.json).
+  // Fields written:
+  //   caption_en, caption_es                 — the bilingual caption strings
+  //   caption_generated_at                   — ISO timestamp of last save
+  //   caption_generated_by                   — "auto" (template) | "manual" (Lauren edited & saved)
+  //   updated_at                             — standard notes.json bump
+  // IRON RULE #7: state syncs through GitHub. NEVER store these in localStorage.
+  var _ctx = null;          // {city, state, start_date, end_date, address, venue, evKey}
+  var _initialEn = "";      // for "saved" comparison
+  var _initialEs = "";
+  function $(id){ return document.getElementById(id); }
+  function _cityFromCtx(c){
+    var base = (c.city||"").trim();
+    if (!base || !c.address) return base;
+    var m = c.address.match(/,\s*([^,]+?),\s*[A-Z]{2}(?:\s+\d{5})?/);
+    if (m) {
+      var fromAddr = m[1].trim();
+      if (fromAddr.toLowerCase().indexOf(base.toLowerCase()) === 0) return fromAddr;
+    }
+    return base;
+  }
+  function _updateCounts(){
+    var en = $("cap-en-text").value || "";
+    var es = $("cap-es-text").value || "";
+    $("cap-en-count").textContent = en.length + " chars";
+    $("cap-es-count").textContent = es.length + " chars";
+    // Dirty indicator on save button
+    var dirty = (en !== _initialEn) || (es !== _initialEs);
+    var saveBtn = $("cap-save-btn");
+    saveBtn.classList.toggle("saved", false);
+    saveBtn.textContent = dirty ? "💾 שמור שינויים" : "💾 שמור שינויים";
+  }
+  function _setStatus(text, kind){
+    var s = $("cap-status");
+    s.textContent = text || "";
+    s.classList.remove("ok","err");
+    if (kind) s.classList.add(kind);
+  }
+  function _renderMeta(note){
+    var pill = $("cap-source-pill");
+    var by = (note && note.caption_generated_by) || "auto";
+    pill.textContent = (by === "manual") ? "✏️ נערך ידנית" : "🤖 תבנית אוטומטית";
+    pill.classList.remove("auto","manual");
+    pill.classList.add(by === "manual" ? "manual" : "auto");
+    var when = (note && note.caption_generated_at) ? note.caption_generated_at.slice(0,16).replace("T"," ") : "—";
+    $("cap-generated-at").textContent = "נוצר/עודכן: " + when;
+  }
+  async function _persist(byTag){
+    if (!_ctx || !_ctx.evKey) return false;
+    var evKey = _ctx.evKey;
+    var en = $("cap-en-text").value || "";
+    var es = $("cap-es-text").value || "";
+    if (typeof MANUAL_TASKS === "undefined") return false;
+    if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
+    MANUAL_TASKS[evKey].caption_en = en;
+    MANUAL_TASKS[evKey].caption_es = es;
+    MANUAL_TASKS[evKey].caption_generated_at = new Date().toISOString();
+    MANUAL_TASKS[evKey].caption_generated_by = byTag || "manual";
+    MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+    _initialEn = en; _initialEs = es;
+    _renderMeta(MANUAL_TASKS[evKey]);
+    try {
+      if (typeof ManualTasksSync !== "undefined" && ManualTasksSync.save) {
+        ManualTasksSync.save(MANUAL_TASKS);
+      }
+      // Refresh the schedule so the per-row button flips green immediately.
+      if (typeof renderSchedule === "function") renderSchedule();
+      _setStatus("✓ נשמר ב-GitHub", "ok");
+      return true;
+    } catch(e){
+      _setStatus("⚠ שגיאת שמירה: " + e.message, "err");
+      return false;
+    }
+  }
+  function _generateInto(byTag){
+    if (!_ctx) return;
+    var parts;
+    try { parts = window.buildReelCaptionParts(_ctx); }
+    catch(e){ _setStatus("⚠ שגיאת תבנית: " + e.message, "err"); return; }
+    $("cap-en-text").value = parts.en || "";
+    $("cap-es-text").value = parts.es || "";
+    _updateCounts();
+    // Auto-save the freshly-generated text so the button flips green and the text persists.
+    _persist(byTag || "auto");
+  }
+  window.openCaptionModal = function(ev){
+    _ctx = ev || {};
+    var evKey = _ctx.evKey;
+    var cs = _cityFromCtx(_ctx) + ", " + (_ctx.state||"");
+    $("cap-modal-title").textContent = "📝 כיתוב — " + cs;
+    $("cap-event-label").textContent = cs + " · " + (_ctx.start_date||"") + " → " + (_ctx.end_date||"");
+    _setStatus("");
+    $("cap-en-text").value = "";
+    $("cap-es-text").value = "";
+    _initialEn = ""; _initialEs = "";
+    var note = (typeof MANUAL_TASKS !== "undefined" && evKey) ? (MANUAL_TASKS[evKey] || {}) : {};
+    var hasSaved = !!(note.caption_en || note.caption_es);
+    $("cap-modal-bg").classList.add("open");
+    setTimeout(function(){ $("cap-en-text").focus(); $("cap-en-text").setSelectionRange(0,0); }, 30);
+    if (hasSaved){
+      $("cap-en-text").value = note.caption_en || "";
+      $("cap-es-text").value = note.caption_es || "";
+      _initialEn = note.caption_en || "";
+      _initialEs = note.caption_es || "";
+      _renderMeta(note);
+      _updateCounts();
+      _setStatus("טקסט שמור נטען. ניתן להעתיק, לערוך או לייצר מחדש מהתבנית.");
+    } else {
+      _renderMeta({caption_generated_by:"auto", caption_generated_at:new Date().toISOString()});
+      _setStatus("⟳ יוצרת כיתוב חדש מהתבנית…");
+      _generateInto("auto");
+    }
+  };
+  window.closeCaptionModal = function(){
+    $("cap-modal-bg").classList.remove("open");
+    _ctx = null;
+  };
+  // Save button
+  $("cap-save-btn").addEventListener("click", async function(){
+    var ok = await _persist("manual");
+    if (ok){
+      var btn = $("cap-save-btn");
+      var orig = btn.textContent;
+      btn.textContent = "✓ נשמר";
+      btn.classList.add("saved");
+      setTimeout(function(){ btn.textContent = orig; btn.classList.remove("saved"); }, 1800);
+    }
+  });
+  // Regenerate button — wipes any manual edits and rebuilds from template.
+  $("cap-regen-btn").addEventListener("click", function(){
+    if (!_ctx) return;
+    var hadEdits = ($("cap-en-text").value !== _initialEn) || ($("cap-es-text").value !== _initialEs);
+    if (hadEdits && !confirm("יש לך שינויים שלא נשמרו. לייצר מחדש מהתבנית בכל זאת?")) return;
+    _setStatus("⟳ מייצרת מחדש מהתבנית…");
+    _generateInto("auto");
+  });
+  // Quick-copy buttons (EN + ES) — each copies just its own textarea content.
+  async function _copyFrom(textareaId, btnId){
+    var ta = $(textareaId);
+    var text = ta.value || "";
+    var ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; }
+    catch(e){
+      try { ta.focus(); ta.select(); document.execCommand("copy"); ok = true; } catch(_){}
+    }
+    var btn = $(btnId);
+    var orig = btn.textContent;
+    if (ok){
+      btn.textContent = "✓ הועתק";
+      btn.classList.add("copied");
+      setTimeout(function(){ btn.textContent = orig; btn.classList.remove("copied"); }, 1800);
+    } else {
+      _setStatus("⚠ העתקה נכשלה — בחרי ידנית את הטקסט (Cmd/Ctrl+C)", "err");
+    }
+  }
+  $("cap-en-copy").addEventListener("click", function(){ _copyFrom("cap-en-text","cap-en-copy"); });
+  $("cap-es-copy").addEventListener("click", function(){ _copyFrom("cap-es-text","cap-es-copy"); });
+  // Live char-count
+  $("cap-en-text").addEventListener("input", _updateCounts);
+  $("cap-es-text").addEventListener("input", _updateCounts);
+  // Esc closes
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && $("cap-modal-bg").classList.contains("open")) window.closeCaptionModal();
+  });
+})();
+</script>
 
 </body>
 </html>
