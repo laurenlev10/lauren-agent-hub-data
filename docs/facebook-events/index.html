@@ -38,6 +38,16 @@
   .existing-banner .text{font-size:14px;color:#14532d;}
   .existing-banner a{background:var(--fb);color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;white-space:nowrap;}
 
+  .sync-banner{background:#fef9c3;border:1px solid #ca8a04;border-radius:10px;padding:14px;margin:12px 0;}
+  .sync-banner .title{font-weight:700;color:#713f12;margin-bottom:6px;font-size:14px;}
+  .sync-banner .desc{color:#92400e;font-size:13px;margin-bottom:10px;line-height:1.55;}
+  .sync-btn{display:inline-flex;align-items:center;gap:8px;background:#ca8a04;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .sync-btn:hover{background:#a16207;}
+  .sync-btn:disabled{background:#a8a29e;cursor:wait;}
+  .sync-result{margin-top:10px;padding:10px;border-radius:8px;font-size:13px;}
+  .sync-result.ok{background:#dcfce7;color:#14532d;border:1px solid #16a34a;}
+  .sync-result.err{background:#fee2e2;color:#7f1d1d;border:1px solid #dc2626;}
+
   /* List mode */
   .section-label{max-width:980px;margin:24px auto 10px;font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);padding:0 4px;}
   .grid{max-width:980px;margin:0 auto;display:grid;gap:10px;}
@@ -161,6 +171,14 @@
       html += '<div class="text">✓ דף האירוע בפייסבוק כבר קיים לאירוע הזה. אין צורך להריץ את הסוכן שוב.</div>';
       html += '<a href="' + existing.fb_url + '" target="_blank" rel="noopener">📘 פתחי את הדף בפייסבוק</a>';
       html += '</div>';
+    } else {
+      // Manual sync banner — Lauren just created the FB event manually (API blocked), check the Page
+      html += '<div class="sync-banner">';
+      html += '<div class="title">🔄 כבר יצרת את האירוע ידנית בפייסבוק?</div>';
+      html += '<div class="desc">Meta חוסם יצירת אירועים דרך API, אז אם יצרת ידנית — לחצי כאן ואני אבדוק את דף העסקי שלך ב-Facebook ואסמן את הכפתור כירוק.</div>';
+      html += '<button class="sync-btn" id="sync-fb-btn" data-evkey="' + evkey + '" data-city="' + escapeHtml(cityName) + '" data-state="' + escapeHtml(stState) + '" data-start="' + escapeHtml(start_date) + '">🔄 בדקי בפייסבוק עכשיו</button>';
+      html += '<div id="sync-result" class="sync-result" style="display:none;"></div>';
+      html += '</div>';
     }
 
     html += '<div class="field-grid">';
@@ -208,6 +226,129 @@
         toast("⚠ נסי Ctrl+C");
       }
     });
+
+    // Manual FB sync handler (Lauren 2026-05-23 — replaces cron, per her preference)
+    const syncBtn = document.getElementById("sync-fb-btn");
+    if (syncBtn) {
+      syncBtn.addEventListener("click", async () => {
+        const result = document.getElementById("sync-result");
+        const setResult = (cls, msg) => { result.className = "sync-result " + cls; result.style.display = "block"; result.innerHTML = msg; };
+        const ek = syncBtn.dataset.evkey;
+        const cityN = syncBtn.dataset.city;
+        const stN = syncBtn.dataset.state;
+        const startN = syncBtn.dataset.start;
+
+        // 1. Get the Meta Page Token from localStorage (per IRON RULE #7 — tokens are localStorage-only)
+        let metaToken = (localStorage.getItem("lauren_meta_page_token") || "").trim();
+        if (!metaToken) {
+          metaToken = prompt("הדביקי כאן את ה-Meta Page Token (תישמר במחשב הזה — לא תצטרכי שוב):\n\nאת התוקן ניתן ליצור ב-Graph API Explorer של Meta או לבקש מהאסיסטנט.");
+          if (!metaToken) return;
+          localStorage.setItem("lauren_meta_page_token", metaToken.trim());
+        }
+
+        syncBtn.disabled = true;
+        syncBtn.innerHTML = "🔄 בודק...";
+        try {
+          // 2. Fetch all Page events
+          const PAGE_ID = "1748338862097117";
+          const apiUrl = `https://graph.facebook.com/v22.0/${PAGE_ID}/events?fields=id,name,start_time,is_canceled&limit=100&access_token=${encodeURIComponent(metaToken)}`;
+          const r = await fetch(apiUrl);
+          const data = await r.json();
+          if (data.error) {
+            setResult("err", "⚠ Graph API החזיר שגיאה: " + (data.error.message || "unknown") + "<br><small>אם זה שגיאת token, מחקי מ-localStorage ונסי שוב.</small>");
+            localStorage.removeItem("lauren_meta_page_token");
+            syncBtn.disabled = false;
+            syncBtn.innerHTML = "🔄 בדקי בפייסבוק עכשיו";
+            return;
+          }
+
+          // 3. Match: same state + same start_date, prefer city match
+          const events = (data.data || []).filter(e => !e.is_canceled && (e.start_time||"").slice(0,10) === startN);
+          let match = null;
+          for (const e of events) {
+            const nm = e.name || "";
+            // Name format: "City, ST - Makeup Blowout Sale Event!"
+            const mm = nm.match(/^\s*([^,]+),\s*([A-Z]{2})\s*[-—–]/);
+            if (mm) {
+              const cityM = mm[1].trim().toLowerCase();
+              const stM = mm[2];
+              if (stM === stN && (cityM.startsWith(cityN.toLowerCase().split(" ")[0]) || cityN.toLowerCase().startsWith(cityM))) {
+                match = e; break;
+              }
+            }
+          }
+          if (!match) {
+            setResult("err", "❌ לא מצאתי אירוע פייסבוק ל-" + cityN + " " + stN + " " + startN + ". בדקי שיצרת אותו על דף 'The Makeup Blowout Sale Group' (לא על הפרופיל הפרטי), ושהתאריך נכון.");
+            syncBtn.disabled = false;
+            syncBtn.innerHTML = "🔄 נסי שוב";
+            return;
+          }
+
+          // 4. Upsert into FB_EVENTS via GitHub Contents API (IRON RULE #7)
+          const ghToken = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+          if (!ghToken) {
+            setResult("err", "⚠ צריך GitHub token (lauren_gh_token_v1 ב-localStorage) כדי לעדכן את הדשבורד. בדקי הגדרות.");
+            syncBtn.disabled = false;
+            syncBtn.innerHTML = "🔄 נסי שוב";
+            return;
+          }
+          syncBtn.innerHTML = "🔄 מעדכן את הדשבורד...";
+
+          // 4a. GET current launch/index.html SHA + content
+          const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/launch/index.html?ref=main";
+          const getR = await fetch(getUrl, { headers: {"Authorization":"token "+ghToken,"Accept":"application/vnd.github+json"}});
+          const getJ = await getR.json();
+          if (!getR.ok) { throw new Error("GitHub GET failed: " + (getJ.message||"")); }
+          const sha = getJ.sha;
+          // Decode base64 → text (UTF-8 safe)
+          const decoded = decodeURIComponent(escape(atob(getJ.content.replace(/\n/g, ""))));
+          // Find and update FB_EVENTS map
+          const reFb = /const FB_EVENTS\s*=\s*(\{[^;]*?\});/s;
+          const mFb = decoded.match(reFb);
+          if (!mFb) throw new Error("FB_EVENTS map not found in launch/index.html");
+          const fbMap = JSON.parse(mFb[1]);
+          fbMap[ek] = {
+            fb_url:       "https://www.facebook.com/events/" + match.id,
+            fb_event_id:  match.id,
+            created_at:   new Date().toISOString(),
+            image_source: "manual-sync",
+            status:       "live"
+          };
+          const newBlock = "const FB_EVENTS = " + JSON.stringify(fbMap) + ";";
+          const newSrc = decoded.replace(reFb, newBlock);
+          // Re-encode UTF-8 → base64
+          const newContent = btoa(unescape(encodeURIComponent(newSrc)));
+
+          // 4b. PUT
+          const putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/launch/index.html";
+          const putBody = {
+            message: "FB_EVENTS: manual sync " + ek + " → " + match.id + " (Lauren clicked Sync from /facebook-events/)",
+            content: newContent,
+            sha: sha,
+            branch: "main"
+          };
+          const putR = await fetch(putUrl, {
+            method: "PUT",
+            headers: {"Authorization":"token "+ghToken,"Accept":"application/vnd.github+json","Content-Type":"application/json"},
+            body: JSON.stringify(putBody)
+          });
+          const putJ = await putR.json();
+          if (!putR.ok) throw new Error("GitHub PUT failed: " + (putJ.message||""));
+
+          // 5. Show success + direct link
+          setResult("ok",
+            "✓ עודכן! דף האירוע נמצא ונסנכרן.<br>" +
+            "<a href=\"https://www.facebook.com/events/" + match.id + "\" target=\"_blank\" rel=\"noopener\" style=\"display:inline-block;margin-top:8px;background:#1877f2;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:600;\">📘 פתחי את הדף בפייסבוק</a><br>" +
+            "<small style=\"color:#15803d;\">תוך ~30 שניות הכפתור 📘 בדף Event Launch יהפוך לירוק (GitHub Pages rebuild).</small>"
+          );
+          syncBtn.style.display = "none";
+        } catch (err) {
+          setResult("err", "⚠ שגיאה: " + err.message);
+          syncBtn.disabled = false;
+          syncBtn.innerHTML = "🔄 נסי שוב";
+        }
+      });
+    }
 
     wireListCopy(out);
     return;
