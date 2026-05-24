@@ -183,6 +183,19 @@
   .reel-shares-meta.stale{color:#b45309;border-color:#fbbf24;background:#fffbeb}
   .reel-shares-meta a{color:inherit;text-decoration:none}
   .reel-shares-meta a:hover{text-decoration:underline}
+  /* Eventbrite stats row — same shape as INSTA REEL card but Eventbrite-orange. Lauren 2026-05-24. */
+  .eb-stats-row{display:flex;align-items:stretch;gap:4px;margin-top:14px;padding:8px 6px;background:linear-gradient(180deg,#fff7ed,#ffedd5);border:1.5px solid #fdba74;border-radius:10px;box-shadow:0 1px 3px rgba(240,85,55,.15);position:relative;max-width:280px;box-sizing:border-box}
+  .eb-stats-stat{flex:1;text-align:center;padding:1px 2px;border-right:1px solid rgba(240,85,55,.25);min-width:0}
+  .eb-stats-stat:last-of-type{border-right:none}
+  .eb-stats-value{font-size:15px;font-weight:900;color:#9a3412;line-height:1.05;letter-spacing:-.3px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .eb-stats-value.delta-pos{color:#15803d}
+  .eb-stats-value.delta-neg{color:#b91c1c}
+  .eb-stats-value.delta-zero{color:#737373}
+  .eb-stats-label{font-size:9px;color:#c2410c;font-weight:700;margin-top:2px;letter-spacing:.3px;line-height:1.1;text-transform:uppercase}
+  .eb-stats-meta{position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:9.5px;color:#c2410c;background:#fff;border:1px solid #fdba74;padding:1px 8px;border-radius:10px;font-weight:700;white-space:nowrap;display:flex;align-items:center;gap:4px}
+  .eb-stats-meta.stale{color:#b45309;border-color:#fbbf24;background:#fffbeb}
+  .eb-stats-meta a{color:inherit;text-decoration:none}
+  .eb-stats-meta a:hover{text-decoration:underline}
   /* Lightbox modal for full-size view + download */
   .hp-lightbox{position:fixed;inset:0;background:rgba(15,23,42,.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;animation:hpFadeIn .15s ease-out}
   @keyframes hpFadeIn{from{opacity:0}to{opacity:1}}
@@ -1750,6 +1763,79 @@ End date: </div>
             '</div>';
         }
       }
+      // Eventbrite registration stats row — sits below the FB card. (Lauren 2026-05-24)
+      // Source: EVENTBRITE_STATS map (per-event registrations / capacity / history[]),
+      // refreshed every 6h by .github/workflows/registrations-6h.yml. Renders on EVERY
+      // event row with an entry — matches IRON RULE #2 (single render path, past + future).
+      // Delta-today computed from previous distinct date in history (workflow sometimes
+      // writes >1 entry/day; dedupe by date, last write wins). Delta-week walks back
+      // to the entry on or before latest-7d, falls back to earliest if history shorter.
+      let ebStatsHtml = '';
+      if (ev && typeof EVENTBRITE_STATS !== "undefined") {
+        const evKeyEB = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
+        const ebRow = EVENTBRITE_STATS[evKeyEB];
+        if (ebRow) {
+          const currentEB = Number(ebRow.registrations || 0);
+          const capEB = Number(ebRow.capacity || 0);
+          const histMap = new Map();
+          (Array.isArray(ebRow.history) ? ebRow.history : []).forEach(function(h){
+            if (h && h.date) histMap.set(h.date, Number(h.registrations || 0));
+          });
+          const sortedDates = Array.from(histMap.keys()).sort();
+          let todayDeltaEB = null;
+          if (sortedDates.length >= 2) {
+            const prev = histMap.get(sortedDates[sortedDates.length - 2]);
+            if (prev !== undefined) todayDeltaEB = currentEB - prev;
+          }
+          let weekDeltaEB = null;
+          if (sortedDates.length >= 2) {
+            const latestDate = sortedDates[sortedDates.length - 1];
+            const latestTs = new Date(latestDate + 'T00:00:00Z').getTime();
+            const weekAgoTs = latestTs - 7 * 24 * 3600000;
+            let weekAgoReg = null;
+            for (let i = 0; i < sortedDates.length; i++) {
+              const ts = new Date(sortedDates[i] + 'T00:00:00Z').getTime();
+              if (ts <= weekAgoTs) weekAgoReg = histMap.get(sortedDates[i]);
+              else break;
+            }
+            if (weekAgoReg === null || weekAgoReg === undefined) weekAgoReg = histMap.get(sortedDates[0]);
+            if (weekAgoReg !== null && weekAgoReg !== undefined) weekDeltaEB = currentEB - weekAgoReg;
+          }
+          const pctEB = capEB > 0 ? Math.round(100 * currentEB / capEB) : 0;
+          let hrsEB = null;
+          if (ebRow.updated_at) {
+            const diff = Date.now() - new Date(ebRow.updated_at).getTime();
+            hrsEB = Math.max(0, Math.round(diff / 3600000));
+          }
+          const staleEB = (hrsEB !== null && hrsEB > 12);
+          const metaTxtEB = (hrsEB === null) ? '🎫 EVENTBRITE' :
+                            (hrsEB < 1) ? '🎫 EVENTBRITE · <1h ago' :
+                            (hrsEB === 1) ? '🎫 EVENTBRITE · 1h ago' :
+                            '🎫 EVENTBRITE · ' + hrsEB + 'h ago';
+          const fmtDeltaEB = function(d){
+            if (d === null || d === undefined) return '—';
+            if (d > 0) return '+' + d.toLocaleString('en-US');
+            if (d === 0) return '+0';
+            return d.toLocaleString('en-US');
+          };
+          const dtCls = (todayDeltaEB === null) ? '' : (todayDeltaEB > 0 ? ' delta-pos' : (todayDeltaEB === 0 ? ' delta-zero' : ' delta-neg'));
+          const dwCls = (weekDeltaEB === null)  ? '' : (weekDeltaEB  > 0 ? ' delta-pos' : (weekDeltaEB  === 0 ? ' delta-zero' : ' delta-neg'));
+          const ebUrl = (typeof SETUPS !== "undefined" && SETUPS[evKeyEB] && SETUPS[evKeyEB].eventbrite && SETUPS[evKeyEB].eventbrite.url) ? SETUPS[evKeyEB].eventbrite.url : '';
+          const metaContentEB = ebUrl
+            ? '<a href="' + escapeHtml(ebUrl) + '" target="_blank" rel="noopener" title="Open Eventbrite event">' + escapeHtml(metaTxtEB) + '</a>'
+            : escapeHtml(metaTxtEB);
+          const fillValEB = capEB > 0 ? (pctEB + '%') : '—';
+          const fillLblEB = capEB > 0 ? ('Fill · /' + capEB.toLocaleString('en-US')) : 'Fill';
+          ebStatsHtml =
+            '<div class="eb-stats-row" title="Eventbrite registrations — auto-refreshed every 6h via registrations-6h.yml">' +
+              '<div class="eb-stats-stat"><div class="eb-stats-value">' + currentEB.toLocaleString('en-US') + '</div><div class="eb-stats-label">Registered</div></div>' +
+              '<div class="eb-stats-stat"><div class="eb-stats-value' + dtCls + '">' + fmtDeltaEB(todayDeltaEB) + '</div><div class="eb-stats-label">Δ Today</div></div>' +
+              '<div class="eb-stats-stat"><div class="eb-stats-value' + dwCls + '">' + fmtDeltaEB(weekDeltaEB) + '</div><div class="eb-stats-label">Δ Week</div></div>' +
+              '<div class="eb-stats-stat"><div class="eb-stats-value">' + fillValEB + '</div><div class="eb-stats-label">' + fillLblEB + '</div></div>' +
+              '<div class="eb-stats-meta' + (staleEB ? ' stale' : '') + '">' + metaContentEB + '</div>' +
+            '</div>';
+        }
+      }
             const statusBadge = (isNext ? '<span class="badge badge-next" style="margin-right:4px">🔜 Next</span>' : '') + badgeFor(eff);
       // Per-row "🎟️ Eventbrite + List Setup" button — only when there is an event.
       // Replaced "📋 Copy launch" / "📋 Re-copy" on 2026-05-03 (Lauren feedback: those names were
@@ -2245,7 +2331,7 @@ End date: </div>
         eff: eff,
         hasEvent: !!ev,
         html: '<tr class="' + cls + '" data-iso="' + iso + '" data-period="' + periodTag + '">' +
-               '<td class="col-date">' + dateCell + liveBadge + localTimeHtml + hallPhotoHtml + posLiveHtml + reelSharesHtml + fbStatsHtml + '</td>' +
+               '<td class="col-date">' + dateCell + liveBadge + localTimeHtml + hallPhotoHtml + posLiveHtml + reelSharesHtml + fbStatsHtml + ebStatsHtml + '</td>' +
                '<td class="col-city">' + escapeHtml(cityCell) + tierBadge + '</td>' +
                '<td class="col-venue">' + venueCell + '</td>' +
                '<td class="col-status"><div>' + statusBadge + '</div>' + rowBtn + '</td>' +
