@@ -116,10 +116,22 @@ def fetch_sales_today(jwt):
         code, resp = http_post(
             f"{OCTO_BASE}/api/v1/get-sales-report", body, headers
         )
+        # OCTOPOS responds 404 with message "There are no Total Sales By Day."
+        # BEFORE the first transaction of the day is logged. That's a valid
+        # "no sales yet" state — NOT an error. Treat as empty orders so the
+        # state file still gets written with today's date + zeros, and the
+        # dashboard renders "$0 / 0 txns" until the first sale comes in.
+        msg = (resp.get("message") or "") if isinstance(resp, dict) else ""
+        if code == 404 and "no Total Sales" in msg:
+            print(f"INFO: OCTOPOS reports no sales yet today ({today_mdy}) — returning zeros.")
+            break
         if code != 200:
             sys.exit(f"ERR: get-sales-report HTTP {code}: {resp}")
         d = resp.get("data") or {}
         orders_block = d.get("orders") or {}
+        # `orders` is "" (empty string) when no rows exist; treat as empty list.
+        if isinstance(orders_block, str):
+            break
         orders = orders_block.get("data") or []
         if not orders:
             break
