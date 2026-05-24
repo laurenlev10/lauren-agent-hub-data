@@ -3476,6 +3476,12 @@ End date: </div>
     .then(data => { OCTOPOS_LIVE = data; renderSchedule(); })
     .catch(() => { /* fail-silent — row simply doesn't appear */ });
 
+  // FB Event stats (Going/Interested per event) — refreshed every 6h by fb-event-stats.yml (Lauren 2026-05-23)
+  fetch("../state/fb_event_stats.json?_=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => { FB_EVENT_STATS = data; if (data) renderSchedule(); })
+    .catch(() => { /* fail-silent — stats card simply doesn't appear */ });
+
   // Lauren 2026-05-21 PM — load OCTOPOS_RECOUNT dynamically so 🔢 Recount turns
   // green the moment recount_prebuild.py writes a slice (Thursday cron pre-event
   // OR recount_weekend.py post-event). Replaces the previous static map.

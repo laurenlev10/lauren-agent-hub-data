@@ -1,0 +1,85 @@
+# fb-event-stats.yml — every 6 hours, fetch Going/Interested counts from FB Page
+# for every event in FB_EVENTS map. Writes docs/state/fb_event_stats.json which
+# the per-row card on launch_dashboard reads.
+#
+# Created 2026-05-23 — per Lauren: "אני רוצה להוסיף בחלק הזה מתחת על בסיס אותו
+# הרעיון: כמה GOING / INTERESTED" (matching the OCTOPOS + INSTA REEL boxes).
+#
+# Single batched Graph API call per run — cheap. Stays well under Meta rate limits.
+
+name: fb-event-stats
+
+on:
+  schedule:
+    # Every 6 hours at :42 (offset from registrations :15, meta-stats :30, octopos-live :00)
+    - cron: '42 */6 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch FB event stats (Going/Interested per event)
+        env:
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+        run: python3 scripts/fb_event_stats.py
+
+      - name: Commit fb_event_stats.json if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via fb-event-stats)"
+          if ! git diff --quiet docs/state/fb_event_stats.json; then
+            git add docs/state/fb_event_stats.json
+            git commit -m "fb-event-stats: refresh Going/Interested counts ($(date -u +%H:%M))"
+            git pull --rebase origin main || true
+            git push origin main
+            echo "✓ pushed updated fb_event_stats.json"
+          else
+            echo "no changes to fb_event_stats.json"
+          fi
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "fb-event-stats":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump fb-event-stats lastRunAt"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
+
+      # IRON RULE (Lauren 2026-05-10): SMS Lauren if this workflow fails.
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
