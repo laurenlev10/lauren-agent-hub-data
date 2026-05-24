@@ -3,40 +3,68 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>📘 Facebook Events — Lauren</title>
+<title>📘 Facebook Event — Lauren</title>
 <style>
-  :root { --bg:#f6f7fb; --text:#1f2937; --muted:#6b7280; --fb:#1877f2; --green:#16a34a; }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Heebo",Roboto,sans-serif; background:var(--bg); color:var(--text); padding:24px 16px 60px; min-height:100vh; }
-  header { max-width:980px; margin:0 auto 20px; }
-  header h1 { margin:0 0 6px; font-size:24px; }
-  header p { margin:0; color:var(--muted); font-size:13px; }
-  .nav { max-width:980px; margin:0 auto 16px; display:flex; gap:8px; }
-  .nav a { text-decoration:none; color:var(--muted); font-size:13px; padding:6px 12px; border-radius:8px; background:#fff; border:1px solid #e5e7eb; }
-  .nav a:hover { color:var(--fb); border-color:var(--fb); }
-  .grid { max-width:980px; margin:0 auto; display:grid; gap:12px; }
-  .card { background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,.06); display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; }
-  .card .left { display:flex; flex-direction:column; gap:4px; min-width:0; }
-  .card .city { font-weight:700; font-size:16px; }
-  .card .meta { color:var(--muted); font-size:12px; }
-  .card .right { display:flex; gap:6px; flex-shrink:0; }
-  .btn { padding:8px 12px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:600; white-space:nowrap; }
-  .btn-fb { background:var(--fb); color:#fff; }
-  .btn-copy { background:#e5e7eb; color:#1f2937; cursor:pointer; border:none; font-family:inherit; }
-  .empty { text-align:center; padding:60px 20px; color:var(--muted); }
-  .empty .icon { font-size:48px; margin-bottom:12px; }
-  .empty h2 { margin:0 0 8px; font-size:18px; color:var(--text); }
-  .empty p { margin:0 0 4px; font-size:13px; line-height:1.6; }
-  .empty code { background:#fff; padding:2px 6px; border-radius:4px; font-size:11px; }
-  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#1f2937; color:#fff; padding:10px 18px; border-radius:8px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:1000; }
-  .toast.show { opacity:1; }
+  :root { --bg:#f6f7fb; --text:#1f2937; --muted:#6b7280; --fb:#1877f2; --green:#16a34a; --border:#e5e7eb; }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Heebo",Roboto,sans-serif;background:var(--bg);color:var(--text);padding:24px 16px 60px;min-height:100vh;}
+  header{max-width:980px;margin:0 auto 14px;}
+  header h1{margin:0 0 6px;font-size:24px;}
+  header p{margin:0;color:var(--muted);font-size:13px;}
+  .nav{max-width:980px;margin:0 auto 18px;display:flex;gap:8px;flex-wrap:wrap;}
+  .nav a{text-decoration:none;color:var(--muted);font-size:13px;padding:6px 12px;border-radius:8px;background:#fff;border:1px solid var(--border);}
+  .nav a:hover{color:var(--fb);border-color:var(--fb);}
+
+  /* Per-event form-prefill mode */
+  .event-card{max-width:980px;margin:0 auto 18px;background:#fff;border-radius:14px;padding:22px;box-shadow:0 4px 16px rgba(0,0,0,.08);}
+  .event-card h2{margin:0 0 12px;font-size:20px;display:flex;align-items:center;gap:10px;}
+  .event-card .pill-state{font-size:12px;background:var(--fb);color:#fff;padding:3px 10px;border-radius:999px;font-weight:600;}
+  .event-card .pill-done{font-size:12px;background:var(--green);color:#fff;padding:3px 10px;border-radius:999px;font-weight:600;}
+  .field-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px 18px;margin:14px 0;}
+  @media(max-width:640px){.field-grid{grid-template-columns:1fr;}}
+  .field{display:flex;flex-direction:column;gap:2px;}
+  .field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;}
+  .field .val{font-size:14px;color:var(--text);word-break:break-word;}
+  .field .val.empty{color:#ef4444;font-style:italic;}
+
+  .cmd-box{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:14px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word;max-height:280px;overflow-y:auto;border:1px solid #1e293b;}
+  .copy-btn{display:inline-flex;align-items:center;gap:8px;background:var(--fb);color:#fff;border:none;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:12px;transition:background .15s;}
+  .copy-btn:hover{background:#1462c4;}
+  .copy-btn.done{background:var(--green);}
+  .copy-btn:active{transform:translateY(1px);}
+  .hint{margin-top:10px;font-size:12px;color:var(--muted);}
+
+  .existing-banner{background:#dcfce7;border:1px solid #16a34a;border-radius:10px;padding:12px 14px;margin:12px 0;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+  .existing-banner .text{font-size:14px;color:#14532d;}
+  .existing-banner a{background:var(--fb);color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;white-space:nowrap;}
+
+  /* List mode */
+  .section-label{max-width:980px;margin:24px auto 10px;font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);padding:0 4px;}
+  .grid{max-width:980px;margin:0 auto;display:grid;gap:10px;}
+  .row{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 2px 6px rgba(0,0,0,.05);display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;}
+  .row .left{display:flex;flex-direction:column;gap:3px;min-width:0;}
+  .row .city{font-weight:700;font-size:14px;}
+  .row .meta{color:var(--muted);font-size:11px;}
+  .row .right{display:flex;gap:6px;flex-shrink:0;}
+  .btn{padding:7px 12px;border-radius:7px;text-decoration:none;font-size:12px;font-weight:600;white-space:nowrap;}
+  .btn-fb{background:var(--fb);color:#fff;}
+  .btn-copy-url{background:#e5e7eb;color:#1f2937;cursor:pointer;border:none;font-family:inherit;}
+
+  .empty{text-align:center;padding:50px 20px;color:var(--muted);max-width:600px;margin:0 auto;}
+  .empty .icon{font-size:42px;margin-bottom:10px;}
+  .empty h2{margin:0 0 8px;font-size:16px;color:var(--text);}
+  .empty p{margin:0 0 4px;font-size:13px;line-height:1.6;}
+  .empty code{background:#fff;padding:2px 6px;border-radius:4px;font-size:11px;}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:1000;}
+  .toast.show{opacity:1;}
 </style>
 </head>
 <body>
 
 <header>
-  <h1>📘 דפי אירוע פייסבוק</h1>
-  <p>רשימת כל דפי האירוע שהסוכן <code>@fbevent</code> יצר. הנתונים נטענים בזמן אמת מ-<code>FB_EVENTS</code> שב-Event Launch.</p>
+  <h1>📘 Facebook Event</h1>
+  <p id="page-sub">סוכן <code>@fbevent</code> — יצירת דף אירוע פייסבוק לאירוע ספציפי על דף <b>The Makeup Blowout Sale Group</b>.</p>
 </header>
 
 <div class="nav">
@@ -44,11 +72,8 @@
   <a href="../launch/">← Event Launch</a>
 </div>
 
-<div id="content" class="grid">
-  <div class="empty">
-    <div class="icon">⏳</div>
-    <p>טוען...</p>
-  </div>
+<div id="content">
+  <div class="empty"><div class="icon">⏳</div><p>טוען…</p></div>
 </div>
 
 <div id="toast" class="toast"></div>
@@ -56,86 +81,195 @@
 <script>
 (async function init(){
   const out = document.getElementById("content");
-  // Fetch the live FB_EVENTS map by re-fetching launch/index.html and extracting
-  let fbEvents = {};
-  let schedule = [];
+  const sub = document.getElementById("page-sub");
+  const qs = new URLSearchParams(location.search);
+  const evkey = qs.get("evkey") || "";
+  const city = qs.get("city") || "";
+  const state = qs.get("state") || "";
+  const start_date = qs.get("start_date") || "";
+  const end_date = qs.get("end_date") || "";
+  const venue = qs.get("venue") || "";
+  const address = qs.get("address") || "";
+
+  // Fetch live FB_EVENTS + SCHEDULE + LANDING_PAGES + IMAGES from launch dashboard
+  let FB_EVENTS = {}, SCHEDULE = {}, LANDING_PAGES = {}, IMAGES = {};
   try {
     const r = await fetch("../launch/index.html?_=" + Date.now(), { cache: "no-store" });
     const txt = await r.text();
-    const mFb = txt.match(/const FB_EVENTS\s*=\s*(\{[^;]*?\});/s);
-    if (mFb) { try { fbEvents = JSON.parse(mFb[1]); } catch(e){} }
-    const mSc = txt.match(/const SCHEDULE\s*=\s*(\{[\s\S]*?\n\});/);
-    if (mSc) { try { schedule = JSON.parse(mSc[1]); } catch(e){} }
+    const grab = (name) => {
+      // Brace-balance starting from "const NAME = {"
+      const anchor = "const " + name + " = {";
+      const idx = txt.indexOf(anchor);
+      if (idx < 0) return {};
+      let i = txt.indexOf("{", idx), depth = 0, end = i;
+      while (end < txt.length) {
+        const c = txt[end];
+        if (c === "{") depth++;
+        else if (c === "}") { depth--; if (depth === 0) { end++; break; } }
+        end++;
+      }
+      try { return JSON.parse(txt.substring(i, end)); } catch(e){ return {}; }
+    };
+    FB_EVENTS    = grab("FB_EVENTS");
+    SCHEDULE     = grab("SCHEDULE");
+    LANDING_PAGES= grab("LANDING_PAGES");
+    IMAGES       = grab("IMAGES");
   } catch (e) {
-    out.innerHTML = '<div class="empty"><div class="icon">⚠️</div><h2>לא ניתן לטעון נתונים</h2><p>נסי לרענן את הדף</p></div>';
+    // Continue with what we have from URL params
+  }
+
+  // PER-EVENT MODE — URL has evkey
+  if (evkey) {
+    sub.textContent = "אירוע: " + (city || evkey) + (state ? ", " + state : "") + (start_date ? " · " + start_date : "");
+
+    const existing = FB_EVENTS[evkey];
+    const lp = LANDING_PAGES[evkey];
+    const img = IMAGES[evkey];
+
+    // Build the Cowork copy command
+    const slug = (lp && lp.url) ? (lp.url.match(/events\/([^\/?#]+)/)?.[1] || "") : "";
+    const cityName = city || (evkey.split("-").slice(0, -3).join(" ").replace(/\b\w/g, c => c.toUpperCase())) || "?";
+    const stState  = state || "?";
+    const cmd = [
+      "Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\facebook-event\\SKILL.md` — it is the orchestrator for @fbevent.",
+      "",
+      "Target event (pre-resolved from per-row button on launch_dashboard):",
+      "- evkey:      " + evkey,
+      "- City:       " + cityName,
+      "- State:      " + stState,
+      "- Start date: " + start_date,
+      "- End date:   " + end_date,
+      "- Venue:      " + (venue || "(none — pull from SCHEDULE)"),
+      "- Address:    " + (address || "(none — pull from SCHEDULE)"),
+      "- Landing URL:" + (lp ? " " + lp.url : " (missing — run @landing first)"),
+      "- Main image: " + (img ? (img.canva_url || "GH Pages") : "(missing — run @canva first)"),
+      "",
+      "Create the public Facebook Event for this event on \"The Makeup Blowout Sale Group\" Page.",
+      "Description = bilingual EN+ES caption identical to window.buildReelCaption(ev) (CLAUDE.md IRON RULE #10) with the direct events.themakeupblowout.com URL embedded as plain text.",
+      "NO bit.ly / shortener anywhere (CLAUDE.md IRON RULE #6).",
+      "Times: " + start_date + " 10:00 AM → " + end_date + " 5:00 PM venue-local TZ.",
+      "Privacy: Public. Host: The Makeup Blowout Sale Group Page (NOT Lauren's personal profile)."
+    ].join("\n");
+
+    let html = '<div class="event-card">';
+    html += '<h2>📘 ' + escapeHtml(cityName) + (stState !== "?" ? ' <span class="pill-state">' + escapeHtml(stState) + '</span>' : '');
+    if (existing && existing.fb_url) html += ' <span class="pill-done">🟢 כבר קיים</span>';
+    html += '</h2>';
+
+    if (existing && existing.fb_url) {
+      html += '<div class="existing-banner">';
+      html += '<div class="text">✓ דף האירוע בפייסבוק כבר קיים לאירוע הזה. אין צורך להריץ את הסוכן שוב.</div>';
+      html += '<a href="' + existing.fb_url + '" target="_blank" rel="noopener">📘 פתחי את הדף בפייסבוק</a>';
+      html += '</div>';
+    }
+
+    html += '<div class="field-grid">';
+    html += field("עיר", cityName);
+    html += field("מדינה", stState);
+    html += field("תאריך התחלה", start_date || "—");
+    html += field("תאריך סיום", end_date || "—");
+    html += field("מקום (Venue)", venue || "—", !venue);
+    html += field("כתובת", address || "—", !address);
+    html += field("דף נחיתה (לכיתוב)", lp ? lp.url : "❗ חסר — תריצי @landing קודם", !lp);
+    html += field("תמונה ראשית", img ? (img.canva_url || "GH Pages") : "❗ חסרה — תריצי @canva קודם", !img);
+    html += '</div>';
+
+    html += '<div style="margin-top:18px;">';
+    html += '<div style="font-weight:700;margin-bottom:8px;font-size:13px;">📋 פקודה ל-Cowork:</div>';
+    html += '<div class="cmd-box" id="cmd-box">' + escapeHtml(cmd) + '</div>';
+    html += '<button class="copy-btn" id="copy-cmd-btn">📋 העתקי פקודה ל-Cowork</button>';
+    html += '<div class="hint">העתיקי את הפקודה, פתחי Cowork, הדביקי בצ\'אט והסוכן יתחיל לפעול.</div>';
+    html += '</div>';
+
+    html += '</div>';
+
+    // Also show the full list below (collapsed-ish, just a header)
+    html += '<div class="section-label">כל דפי הפייסבוק שכבר נוצרו</div>';
+    html += renderListGrid(FB_EVENTS, SCHEDULE);
+
+    out.innerHTML = html;
+
+    // Wire copy button
+    document.getElementById("copy-cmd-btn").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(cmd);
+        toast("✓ הועתק! עכשיו הדביקי ב-Cowork");
+        const b = document.getElementById("copy-cmd-btn");
+        const orig = b.textContent;
+        b.textContent = "✓ הועתק";
+        b.classList.add("done");
+        setTimeout(() => { b.textContent = orig; b.classList.remove("done"); }, 2500);
+      } catch (e) {
+        // Fallback: select the command box
+        const range = document.createRange();
+        range.selectNode(document.getElementById("cmd-box"));
+        getSelection().removeAllRanges();
+        getSelection().addRange(range);
+        toast("⚠ נסי Ctrl+C");
+      }
+    });
+
+    wireListCopy(out);
     return;
   }
 
-  // Flatten schedule for lookup by evkey
-  const schedByKey = {};
-  if (schedule && typeof schedule === "object") {
-    for (const y of Object.keys(schedule)) {
-      const arr = schedule[y] || [];
-      for (const ev of arr) {
-        const slug = (ev.city||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
-        const key = slug + "-" + ev.start_date;
-        schedByKey[key] = ev;
+  // LIST MODE — no URL params
+  sub.textContent = "רשימה של כל דפי האירוע בפייסבוק שהסוכן יצר. לפתיחת אירוע חדש — לחצי על הכפתור 📘 בשורת אירוע בדף Event Launch.";
+  out.innerHTML = renderListGrid(FB_EVENTS, SCHEDULE);
+  wireListCopy(out);
+
+  // helpers
+  function field(label, val, isEmpty){
+    return '<div class="field"><label>' + escapeHtml(label) + '</label><div class="val' + (isEmpty ? ' empty' : '') + '">' + escapeHtml(val) + '</div></div>';
+  }
+  function renderListGrid(fbEvents, schedule){
+    const schedByKey = {};
+    if (schedule && typeof schedule === "object") {
+      for (const y of Object.keys(schedule)) {
+        if (y.startsWith("_")) continue;
+        const arr = schedule[y] || [];
+        for (const ev of arr) {
+          if (!ev || typeof ev !== "object") continue;
+          const sl = (ev.city||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+          schedByKey[sl + "-" + ev.start_date] = ev;
+        }
       }
     }
-  }
-
-  const entries = Object.entries(fbEvents);
-  if (!entries.length) {
-    out.innerHTML = `
-      <div class="empty">
-        <div class="icon">📘</div>
-        <h2>עדיין לא נוצרו דפי אירוע פייסבוק</h2>
-        <p>פתחי את <a href="../launch/">Event Launch</a> ולחצי על הכפתור השחור <code>📘 Facebook Event</code> בשורת אירוע.</p>
-        <p>הסוכן <code>@fbevent</code> יצור דף אירוע ציבורי בפייסבוק והכפתור יהפוך לירוק.</p>
-      </div>`;
-    return;
-  }
-
-  // Sort by created_at descending (newest first)
-  entries.sort((a,b) => (b[1].created_at||"").localeCompare(a[1].created_at||""));
-
-  out.innerHTML = entries.map(([evkey, fb]) => {
-    const ev = schedByKey[evkey] || {};
-    const city = ev.city || evkey.split("-").slice(0,-3).join(" ").replace(/\b\w/g,c=>c.toUpperCase()) || evkey;
-    const state = ev.state || "";
-    const dates = ev.start_date ? `${ev.start_date} → ${ev.end_date||ev.start_date}` : "";
-    const age = fb.created_at ? new Date(fb.created_at).toLocaleDateString("he-IL") : "";
-    const src = ({canva:"קאנווה","gh-pages":"GitHub Pages",manual:"ידני"})[fb.image_source] || fb.image_source || "—";
-    return `
-      <div class="card">
-        <div class="left">
-          <div class="city">${escapeHtml(city)} ${escapeHtml(state)}</div>
-          <div class="meta">${escapeHtml(dates)} · נוצר ${escapeHtml(age)} · תמונה: ${escapeHtml(src)} · ID ${escapeHtml(fb.fb_event_id||"")}</div>
-        </div>
-        <div class="right">
-          <a class="btn btn-fb" href="${fb.fb_url}" target="_blank" rel="noopener">📘 פתחי בפייסבוק</a>
-          <button class="btn btn-copy" data-url="${fb.fb_url}">🔗 העתקי</button>
-        </div>
-      </div>`;
-  }).join("");
-
-  // Wire copy buttons
-  out.addEventListener("click", async (e) => {
-    const btn = e.target.closest(".btn-copy");
-    if (!btn) return;
-    try {
-      await navigator.clipboard.writeText(btn.dataset.url);
-      const t = document.getElementById("toast");
-      t.textContent = "✓ הועתק";
-      t.classList.add("show");
-      setTimeout(() => t.classList.remove("show"), 1500);
-    } catch (err) {
-      alert("העתקה נכשלה — " + (btn.dataset.url));
+    const entries = Object.entries(fbEvents || {});
+    if (!entries.length) {
+      return '<div class="empty"><div class="icon">📘</div><h2>עדיין לא נוצרו דפי אירוע פייסבוק</h2><p>פתחי את <a href="../launch/">Event Launch</a> ולחצי על הכפתור השחור <code>📘 Facebook Event</code> בשורת אירוע.</p></div>';
     }
-  });
-
+    entries.sort((a,b) => (b[1].created_at||"").localeCompare(a[1].created_at||""));
+    return '<div class="grid">' + entries.map(([ek, fb]) => {
+      const ev = schedByKey[ek] || {};
+      const cityN = ev.city || ek.split("-").slice(0,-3).join(" ").replace(/\b\w/g,c=>c.toUpperCase()) || ek;
+      const stN = ev.state || "";
+      const dates = ev.start_date ? (ev.start_date + " → " + (ev.end_date||ev.start_date)) : "";
+      const age = fb.created_at ? new Date(fb.created_at).toLocaleDateString("he-IL") : "";
+      const src = ({canva:"קאנווה","gh-pages":"GitHub Pages",manual:"ידני",backfill:"ייבוא היסטורי"})[fb.image_source] || fb.image_source || "—";
+      return '<div class="row"><div class="left"><div class="city">' + escapeHtml(cityN) + ' ' + escapeHtml(stN) + '</div><div class="meta">' + escapeHtml(dates) + ' · נוצר ' + escapeHtml(age) + ' · ' + escapeHtml(src) + ' · ID ' + escapeHtml(fb.fb_event_id||"") + '</div></div><div class="right"><a class="btn btn-fb" href="' + fb.fb_url + '" target="_blank" rel="noopener">📘 פתחי</a><button class="btn btn-copy-url" data-url="' + escapeHtml(fb.fb_url) + '">🔗 העתקי</button></div></div>';
+    }).join("") + '</div>';
+  }
+  function wireListCopy(root){
+    root.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".btn-copy-url");
+      if (!btn) return;
+      try {
+        await navigator.clipboard.writeText(btn.dataset.url);
+        toast("✓ הועתק");
+      } catch(err) {
+        alert(btn.dataset.url);
+      }
+    });
+  }
   function escapeHtml(s){
-    return String(s||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+  function toast(msg){
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 1800);
   }
 })();
 </script>
