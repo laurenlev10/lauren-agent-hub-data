@@ -130,10 +130,10 @@ def fetch_sales_today(jwt, since_pt=None):
     if since_pt is None:
         date_from_str = f"{today_mdy} 00:00:00"
     else:
-        # Ensure the since_pt is on today's PT date (defensive — the caller
-        # should already ensure this via compute_event_open_in_pt).
-        if since_pt.date() != la_now.date():
-            print(f"WARN: since_pt date {since_pt.date()} != PT today {la_now.date()} — falling back to midnight.")
+        # since_pt may be a past day (event start_date for multi-day windows).
+        # Reject futures only — anything in the past or today is fine.
+        if since_pt.date() > la_now.date():
+            print(f"WARN: since_pt date {since_pt.date()} is after PT today {la_now.date()} — falling back to midnight today.")
             date_from_str = f"{today_mdy} 00:00:00"
         else:
             date_from_str = since_pt.strftime("%m/%d/%Y %H:%M:%S")
@@ -211,38 +211,37 @@ def compute_metrics(orders):
 
 
 
-def compute_event_open_in_pt(state):
-    """Compute today's event-doors-open moment (10:00 event-local) as a PT-zoned datetime.
+def compute_event_open_in_pt(state, start_date):
+    """Compute the EVENT'S OPENING moment (10:00 event-local on the event's
+    first day, e.g. Friday) as a PT-zoned datetime.
 
-    OCTOPOS aggregates by Pacific Time (location.time_zone), so query bounds must
-    be in PT. We take the event city's IANA timezone (via STATE_TZ), build a
-    naive datetime at 10:00 local for today's PT date, localize it to the event
-    TZ, then convert to PT.
+    OCTOPOS aggregates by Pacific Time (location.time_zone), so query bounds
+    must be in PT. We take the event city's IANA timezone (via STATE_TZ),
+    build a naive datetime at 10:00 local for `start_date`, localize it to the
+    event TZ, then convert to PT.
 
-    Edge case — an event city's "today" can be one calendar day ahead of PT
-    (NY event at 02:00 EDT = 23:00 PT previous day). We anchor on PT-today
-    intentionally: the workflow only runs when PT-today matches the event row's
-    Fri-Sun window, so PT-today === event-local-today for all events whose
-    timezone is PT or east of PT (which covers all states in STATE_TZ). HI is
-    west of PT but no HI events exist in the current schedule.
+    This is the doors-open moment of the WHOLE event, not just today — so a
+    Sunday query produces a window spanning Fri+Sat+Sun. The whole-event
+    semantics is Lauren's directive 2026-05-24 #2: "אני רוצה מתחילת האירוע —
+    מיום שישי בשעת פתיחת הדלתות עד לדחיפה האחרונה". See memory.md for the full
+    rationale.
 
-    Returns a tz-aware datetime in America/Los_Angeles.
+    Args:
+        state: 2-letter US state code (e.g. "MN"). Lookup key into STATE_TZ.
+        start_date: ISO date string "YYYY-MM-DD" — the event's first day.
+
+    Returns a tz-aware datetime in America/Los_Angeles, or None if either input
+    is missing/invalid.
     """
-    if not state:
-        # Fallback: 10:00 PT today (treat as PT event).
-        la = datetime.now(ZoneInfo("America/Los_Angeles")).replace(
-            hour=EVENT_OPEN_HOUR_LOCAL, minute=0, second=0, microsecond=0
-        )
-        return la
+    if not state or not start_date:
+        return None
+    try:
+        sd = datetime.fromisoformat(start_date).date()
+    except Exception:
+        return None
     tz_name = STATE_TZ.get(state, "America/Los_Angeles")
     ev_tz = ZoneInfo(tz_name)
-    today_la = datetime.now(ZoneInfo("America/Los_Angeles")).date()
-    # Build the 10:00-event-local datetime *for today's PT date*. Using PT-today
-    # as the date anchor is intentional — see docstring.
-    naive = datetime(
-        today_la.year, today_la.month, today_la.day,
-        EVENT_OPEN_HOUR_LOCAL, 0, 0,
-    )
+    naive = datetime(sd.year, sd.month, sd.day, EVENT_OPEN_HOUR_LOCAL, 0, 0)
     ev_open_local = naive.replace(tzinfo=ev_tz)
     return ev_open_local.astimezone(ZoneInfo("America/Los_Angeles"))
 
@@ -253,12 +252,13 @@ def find_live_event():
     Parses SCHEDULE from docs/launch/index.html using a regex that pulls the
     minimal fields (city, state, start_date, end_date) per row.
 
-    Returns (event_key, state) or (None, None).
+    Returns (event_key, state, start_date, end_date) or (None, None, None, None).
+    start_date and end_date are ISO date strings ("YYYY-MM-DD").
     """
     import re
     html_path = REPO_ROOT / "docs" / "launch" / "index.html"
     if not html_path.exists():
-        return (None, None)
+        return (None, None, None, None)
     html = html_path.read_text(encoding="utf-8")
     today_la = datetime.now(ZoneInfo("America/Los_Angeles")).date()
     pat = re.compile(
@@ -272,42 +272,56 @@ def find_live_event():
             continue
         if sd_d <= today_la <= ed_d:
             slug = re.sub(r"[^a-z0-9]+", "-", city.lower()).strip("-")
-            return (f"{slug}-{sd}", (state or "").upper())
-    return (None, None)
+            return (f"{slug}-{sd}", (state or "").upper(), sd, ed)
+    return (None, None, None, None)
 
 
 def main():
     jwt = octopos_jwt()
-    evkey, state_code = find_live_event()
-    # Compute "event doors open" in PT — used as the dateFrom for the sales
-    # query so we only count sales from doors-open onward, not from midnight.
-    # Falls back gracefully when no event is live (state_code is None).
-    event_open_pt = compute_event_open_in_pt(state_code) if state_code else None
+    evkey, state_code, start_date, end_date = find_live_event()
+    # Window anchor = event's OPENING DAY (start_date) at 10:00 event-local.
+    # On Friday: window = Fri 10:00 → now. On Saturday: Fri 10:00 → now (covers
+    # Fri + Sat). On Sunday: Fri 10:00 → now (covers Fri + Sat + Sun). Whole-
+    # event cumulative semantics (Lauren 2026-05-24 #2).
+    event_open_pt = compute_event_open_in_pt(state_code, start_date) if (state_code and start_date) else None
     orders, la_now, date_from_str = fetch_sales_today(jwt, since_pt=event_open_pt)
     metrics = compute_metrics(orders)
+    # Elapsed hours since event open, useful for "from open · 28h 15m" display.
+    elapsed_h = None
+    if event_open_pt:
+        elapsed_h = round(
+            (datetime.now(timezone.utc) - event_open_pt.astimezone(timezone.utc)).total_seconds() / 3600,
+            2,
+        )
     state = {
         "_updated_at": datetime.now(timezone.utc).isoformat(),
         "_about": (
             "Live POS metrics from OCTOPOS dashboard. Refreshed every 30 min "
             "during event weekends. Shown on /launch/ below the live hall photo. "
-            "Window: event-doors-open (10:00 event-local) → now."
+            "Window: event-doors-open on START_DATE (10:00 event-local) → now. "
+            "Spans the WHOLE event so far (Fri+Sat+Sun cumulative)."
         ),
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "date_local": la_now.strftime("%Y-%m-%d"),
         "tz": "America/Los_Angeles",
         "event_key": evkey,
         "event_state": state_code,
-        # Window bounds (PT). Consumers can show "since 10:00 event-local"
-        # or compute elapsed hours. ISO 8601 with offset.
+        "event_start_date": start_date,
+        "event_end_date": end_date,
+        # Window bounds (PT). `since_pt` is the event's opening moment (Fri 10:00
+        # event-local). ISO 8601 with offset. `elapsed_hours_since_open` is the
+        # quick at-a-glance number for downstream consumers.
         "since_pt": event_open_pt.isoformat() if event_open_pt else None,
         "since_str": date_from_str,  # MM/DD/YYYY HH:MM:SS as passed to OCTOPOS
+        "elapsed_hours_since_open": elapsed_h,
         **metrics,
     }
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     STATE_PATH.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
     print(f"OK wrote {STATE_PATH}")
-    print(f"  date_local: {state['date_local']}  evkey: {evkey}  state: {state_code}")
-    print(f"  since:      {date_from_str} PT")
+    print(f"  evkey:      {evkey}  state: {state_code}  start_date: {start_date}")
+    print(f"  date_local: {state['date_local']}")
+    print(f"  since:      {date_from_str} PT  ({elapsed_h}h elapsed)")
     print(f"  payments:   ${metrics['total_payments']:,.2f}")
     print(f"  txns:       {metrics['transaction_count']}")
     print(f"  avg:        ${metrics['avg_transaction']:,.2f}")

@@ -1626,14 +1626,23 @@ End date: </div>
           // "Since open" — the sales window starts at event-doors-open (10:00 event-local),
           // not midnight PT (Lauren's directive 2026-05-24). Compute elapsed time since
           // OCTOPOS_LIVE.since_pt for an at-a-glance "since 4h ago / since 10:00" hint.
+          // The window can now span multiple event days (Fri-now / Fri+Sat-now /
+          // Fri+Sat+Sun-now) since the anchor is event.start_date 10:00, not today.
+          // So elapsed can run 0h-72h+. Render compactly: <60m → '15m', <24h → '4h 12m',
+          // ≥24h → '1d 14h'.
           let sinceTxt = '';
           if (OCTOPOS_LIVE.since_pt) {
             const sinceMs = new Date(OCTOPOS_LIVE.since_pt).getTime();
             const elapsedMin = Math.max(0, Math.round((Date.now() - sinceMs) / 60000));
-            if (elapsedMin < 60) sinceTxt = `from open · ${elapsedMin}m`;
-            else {
+            if (elapsedMin < 60) {
+              sinceTxt = `from open · ${elapsedMin}m`;
+            } else if (elapsedMin < 24 * 60) {
               const h = Math.floor(elapsedMin / 60), m = elapsedMin % 60;
               sinceTxt = m ? `from open · ${h}h ${m}m` : `from open · ${h}h`;
+            } else {
+              const d = Math.floor(elapsedMin / (24 * 60));
+              const h = Math.floor((elapsedMin - d * 24 * 60) / 60);
+              sinceTxt = h ? `from open · ${d}d ${h}h` : `from open · ${d}d`;
             }
           }
           const baseMeta = (mins === null) ? '🐙 OCTOPOS' :
