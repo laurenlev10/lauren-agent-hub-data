@@ -162,6 +162,14 @@
   .pos-live-label{font-size:9px;color:#7c3aed;font-weight:700;margin-top:2px;text-transform:uppercase;letter-spacing:.2px;line-height:1.1}
   .pos-live-meta{position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:9.5px;color:#7c3aed;background:#fff;border:1px solid #c084fc;padding:1px 8px;border-radius:10px;font-weight:700;white-space:nowrap}
   .pos-live-meta.stale{color:#b45309;border-color:#fbbf24;background:#fffbeb}
+  /* FB Event stats (Going/Interested) — refreshed every 6h by fb-event-stats.yml (Lauren 2026-05-23) */
+  .fb-stats-row{display:flex;align-items:stretch;gap:6px;margin-top:8px;padding:8px 6px;background:linear-gradient(180deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:10px;box-shadow:0 1px 3px rgba(59,130,246,.15);position:relative;max-width:280px;box-sizing:border-box}
+  .fb-stats-stat{flex:1;text-align:center;padding:1px 2px;border-right:1px solid rgba(59,130,246,.25);min-width:0}
+  .fb-stats-stat:last-of-type{border-right:none}
+  .fb-stats-value{font-size:18px;font-weight:800;color:#1d4ed8;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-0.2px}
+  .fb-stats-label{font-size:9px;color:#1d4ed8;font-weight:700;margin-top:2px;text-transform:uppercase;letter-spacing:.2px;line-height:1.1}
+  .fb-stats-meta{position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:9.5px;color:#1d4ed8;background:#fff;border:1px solid #93c5fd;padding:1px 8px;border-radius:10px;font-weight:700;white-space:nowrap}
+  .fb-stats-meta.stale{color:#b45309;border-color:#fbbf24;background:#fffbeb}
   /* Instagram Reel shares row — sits BELOW the POS row on the live event. Shares = Lauren's #1 metric (per CLAUDE.md). (2026-05-22) */
   .reel-shares-row{display:flex;align-items:stretch;gap:4px;margin-top:8px;padding:8px 6px;background:linear-gradient(180deg,#fdf2f8,#ffe4e6);border:1.5px solid #f9a8d4;border-radius:10px;box-shadow:0 1px 3px rgba(236,72,153,.15);position:relative;animation:reelSharesPulse 2.4s ease-in-out infinite;max-width:280px;box-sizing:border-box}
   @keyframes reelSharesPulse{0%,100%{box-shadow:0 1px 3px rgba(236,72,153,.15)}50%{box-shadow:0 2px 12px rgba(236,72,153,.35)}}
@@ -681,7 +689,8 @@ const STAFF_DEFAULTS = {"glendale-2026-01-09":{"team":"Mor Daniel Shai Dor Goni 
 // Key: same `${city-slug}-${start_date}` shape as the result maps above.
 // Value: any subset of the keys in MANUAL_TASK_DEFS below + updated_at + (optionally) team_override / image_override_url.
 let MANUAL_TASKS = {};   // mutable — populated from notes.json on load, written back on every checkbox toggle
-let OCTOPOS_LIVE = null;   // populated from docs/state/octopos_live.json on init; refreshed every 30 min by octopos-live-dashboard.yml during event weekends
+let OCTOPOS_LIVE = null;
+let FB_EVENT_STATS = null;  // populated from docs/state/fb_event_stats.json on init; refreshed every 6h by fb-event-stats.yml (Lauren 2026-05-23)   // populated from docs/state/octopos_live.json on init; refreshed every 30 min by octopos-live-dashboard.yml during event weekends
 
 // Owner: update-subscribe-target.yml (weekly Monday 08:00 PT) — picks current/next event and writes docs/state/subscribe_target.json.
 // Read by the 🔳 QR LP button on each row: green if SUBSCRIBE_TARGET.event_key === evKey (i.e. the QR landing page is currently pointing here), black otherwise.
@@ -1580,6 +1589,43 @@ End date: </div>
             '</div>';
         }
       }
+      // FB Event stats card (Going/Interested) — shown on EVERY row with an FB event (not gated by isLive).
+      // Source: docs/state/fb_event_stats.json refreshed every 6h by fb-event-stats.yml. Lauren 2026-05-23.
+      let fbStatsHtml = '';
+      if (ev && FB_EVENT_STATS && FB_EVENT_STATS.events) {
+        const evKeyFB = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
+        const fbs = FB_EVENT_STATS.events[evKeyFB];
+        if (fbs) {
+          const going = Number(fbs.going || 0);
+          const interested = Number(fbs.interested || 0);
+          let hrs = null;
+          if (fbs.fetched_at) {
+            const diff = Date.now() - new Date(fbs.fetched_at).getTime();
+            hrs = Math.max(0, Math.round(diff / 3600000));
+          }
+          const stale = (hrs !== null && hrs > 12);
+          const metaTxt = (hrs === null) ? '\ud83d\udcd8 FACEBOOK' :
+                          (hrs < 1) ? '\ud83d\udcd8 FACEBOOK \u00b7 <1h ago' :
+                          (hrs === 1) ? '\ud83d\udcd8 FACEBOOK \u00b7 1h ago' :
+                          '\ud83d\udcd8 FACEBOOK \u00b7 ' + hrs + 'h ago';
+          const fbUrl = (typeof FB_EVENTS !== "undefined" && FB_EVENTS[evKeyFB]) ? FB_EVENTS[evKeyFB].fb_url : '';
+          const tipParts = ['Going: ' + going, 'Interested: ' + interested];
+          if (fbs.maybe) tipParts.push('Maybe: ' + fbs.maybe);
+          if (fbs.declined) tipParts.push('Declined: ' + fbs.declined);
+          const tip = tipParts.join(' \u00b7 ') + ' \u00b7 refreshed every 6h';
+          const open = fbUrl ? '<a href="' + fbUrl + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;display:block;">' : '<div>';
+          const close = fbUrl ? '</a>' : '</div>';
+          fbStatsHtml =
+            open +
+            '<div class="fb-stats-row" title="' + escapeHtml(tip) + '">' +
+              '<div class="fb-stats-stat"><div class="fb-stats-value">' + going.toLocaleString('en-US') + '</div><div class="fb-stats-label">Going</div></div>' +
+              '<div class="fb-stats-stat"><div class="fb-stats-value">' + interested.toLocaleString('en-US') + '</div><div class="fb-stats-label">Interested</div></div>' +
+              '<div class="fb-stats-meta' + (stale ? ' stale' : '') + '">' + escapeHtml(metaTxt) + '</div>' +
+            '</div>' +
+            close;
+        }
+      }
+
             // Instagram Reel shares row — sits below POS row on the LIVE event. (2026-05-22)
       // Shares = Lauren's #1 metric (per CLAUDE.md "⭐ Business context"). Source: insta_reel_scans
       // array on MANUAL_TASKS[evkey], appended by insta-reel-share-scan agent on Fri/Sat/Sun.
@@ -2132,7 +2178,7 @@ End date: </div>
         eff: eff,
         hasEvent: !!ev,
         html: '<tr class="' + cls + '" data-iso="' + iso + '" data-period="' + periodTag + '">' +
-               '<td class="col-date">' + dateCell + liveBadge + localTimeHtml + hallPhotoHtml + posLiveHtml + reelSharesHtml + '</td>' +
+               '<td class="col-date">' + dateCell + liveBadge + localTimeHtml + hallPhotoHtml + posLiveHtml + reelSharesHtml + fbStatsHtml + '</td>' +
                '<td class="col-city">' + escapeHtml(cityCell) + tierBadge + '</td>' +
                '<td class="col-venue">' + venueCell + '</td>' +
                '<td class="col-status"><div>' + statusBadge + '</div>' + rowBtn + '</td>' +
