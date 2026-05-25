@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>יומן מסחר TradingView · SMA60 v1.1</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef2f7; --surface:#ffffff; --s2:#f4f7fb; --s3:#e8eef6;
+  --bdr:#d2daea; --bdr2:#e4eaf3;
+  --sky:#1a6ed4; --sky2:#1254b0; --sky-bg:#ddeeff; --sky-mid:#93c5fd;
+  --grn:#166534; --grn-bg:#dcfce7; --grn-mid:#86efac; --grn-soft:#16a34a;
+  --red:#b91c1c; --red-bg:#fee2e2; --red-mid:#fca5a5; --red-soft:#dc2626;
+  --amb:#b45309; --amb-bg:#fef3c7; --amb-mid:#fcd34d;
+  --pur:#6d28d9; --pur-bg:#ede9fe; --pur-mid:#c4b5fd;
+  --tv:#1e3a8a; --tv-soft:#3b82f6;
+  --txt:#0a0f1e; --txt2:#111827; --txt3:#1f2937; --txt4:#4b5563; --txt5:#6b7280;
+  --f:'Heebo',sans-serif;
+  --r:14px; --rl:20px;
+  --sh:0 1px 4px rgba(0,0,0,.07),0 2px 8px rgba(0,0,0,.04);
+  --sh2:0 6px 20px rgba(0,0,0,.1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{background:var(--bg);font-family:var(--f);color:var(--txt);min-height:100vh;}
+body{padding:18px 22px 60px;font-size:15px;line-height:1.45;}
+a{color:var(--sky2);text-decoration:none;}
+a:hover{text-decoration:underline;}
+
+.page{max-width:1480px;margin:0 auto;}
+
+/* TOPBAR */
+.topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px;flex-wrap:wrap;}
+.brand-lbl{font-size:14px;font-weight:700;color:var(--tv-soft);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;}
+.brand-ttl{font-size:32px;font-weight:900;color:var(--txt);letter-spacing:-.02em;}
+.brand-ttl span{color:var(--tv);}
+.brand-sub{font-size:15px;color:var(--txt3);margin-top:3px;font-weight:600;}
+.top-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.pill{display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1.5px solid var(--bdr);border-radius:999px;padding:9px 15px;font-size:13.5px;font-weight:700;color:var(--txt3);box-shadow:var(--sh);}
+.pill.ok{border-color:var(--grn-mid);color:var(--grn);background:var(--grn-bg);}
+.pill.warn{border-color:var(--amb-mid);color:var(--amb);background:var(--amb-bg);}
+.pill.err{border-color:var(--red-mid);color:var(--red);background:var(--red-bg);}
+.btn{font-family:var(--f);font-size:14px;font-weight:700;border-radius:11px;padding:9px 16px;cursor:pointer;border:1.5px solid var(--bdr);background:var(--surface);color:var(--txt3);transition:all .15s;box-shadow:var(--sh);}
+.btn:hover{border-color:var(--tv-soft);color:var(--tv);}
+.btn.primary{background:var(--tv);color:#fff;border-color:var(--tv);}
+.btn.primary:hover{background:var(--tv-soft);}
+.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--txt5);font-size:13.5px;font-weight:600;margin-bottom:8px;}
+.back-link:hover{color:var(--tv);text-decoration:none;}
+
+.kpi-section{margin-bottom:18px;}
+.kpi-row-label{font-size:14px;font-weight:800;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin:14px 4px 8px;display:flex;align-items:center;gap:8px;}
+.kpi-row-label .ico{font-size:18px;}
+.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:11px;}
+@media (max-width:1100px){.kpi-grid{grid-template-columns:repeat(3,1fr);}}
+@media (max-width:640px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+.kpi{background:var(--surface);border:1.5px solid var(--bdr2);border-radius:var(--r);padding:13px 14px;box-shadow:var(--sh);}
+.kpi.dnger{border-color:var(--amb-mid);background:#fffaeb;}
+.kpi .k-lbl{font-size:12.5px;font-weight:700;color:var(--txt4);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
+.kpi .k-val{font-size:24px;font-weight:900;color:var(--txt);line-height:1.05;}
+.kpi .k-val.pos{color:var(--grn);}
+.kpi .k-val.neg{color:var(--red);}
+.kpi .k-val.muted{color:var(--txt5);}
+.kpi .k-sub{font-size:12.5px;color:var(--txt5);margin-top:4px;font-weight:600;}
+
+.filters{background:var(--surface);border:1.5px solid var(--bdr2);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh);margin-bottom:14px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;}
+.f-group{display:flex;flex-direction:column;gap:5px;}
+.f-group label{font-size:12px;font-weight:800;color:var(--txt4);text-transform:uppercase;letter-spacing:.05em;}
+.f-group select, .f-group input{font-family:var(--f);font-size:14px;font-weight:600;border:1.5px solid var(--bdr);border-radius:9px;padding:8px 11px;background:var(--surface);color:var(--txt2);min-width:130px;outline:none;}
+.f-group select:focus, .f-group input:focus{border-color:var(--tv-soft);}
+.f-spacer{flex:1;}
+.f-info{font-size:13px;color:var(--txt4);font-weight:600;}
+
+.table-wrap{background:var(--surface);border:1.5px solid var(--bdr2);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);}
+table.journal{width:100%;border-collapse:collapse;font-size:13.5px;}
+table.journal thead th{background:var(--s2);color:var(--txt3);font-weight:800;text-align:right;padding:11px 12px;border-bottom:1.5px solid var(--bdr);font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;}
+table.journal tbody td{padding:11px 12px;border-bottom:1px solid var(--bdr2);color:var(--txt2);}
+table.journal tbody tr:hover{background:var(--s2);}
+table.journal tbody tr.is-entry{background:#fafbfd;}
+table.journal tbody tr.is-exit{background:#fff;}
+table.journal tbody tr.is-danger td{background:#fffbeb!important;}
+table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
+.bdg{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:800;padding:3px 9px;border-radius:999px;letter-spacing:.02em;}
+.bdg-long{background:var(--grn-bg);color:var(--grn);border:1px solid var(--grn-mid);}
+.bdg-short{background:var(--red-bg);color:var(--red);border:1px solid var(--red-mid);}
+.bdg-swap-long{background:var(--sky-bg);color:var(--sky2);border:1px solid var(--sky-mid);}
+.bdg-swap-short{background:var(--pur-bg);color:var(--pur);border:1px solid var(--pur-mid);}
+.bdg-exit-tp{background:var(--grn-bg);color:var(--grn);border:1px solid var(--grn-mid);}
+.bdg-exit-sl{background:var(--red-bg);color:var(--red);border:1px solid var(--red-mid);}
+.bdg-exit-other{background:#e5e7eb;color:#374151;border:1px solid #d1d5db;}
+.bdg-danger{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;}
+.num{font-variant-numeric:tabular-nums;font-weight:700;}
+.num.pos{color:var(--grn-soft);}
+.num.neg{color:var(--red-soft);}
+.num.muted{color:var(--txt5);}
+.cell-time .d{font-weight:700;color:var(--txt2);}
+.cell-time .t{font-size:12px;color:var(--txt5);font-weight:600;}
+
+.empty{padding:60px 30px;text-align:center;color:var(--txt5);}
+.empty .ico{font-size:54px;margin-bottom:14px;opacity:.45;}
+.empty h2{font-size:22px;font-weight:800;color:var(--txt3);margin-bottom:8px;}
+.empty p{font-size:14.5px;max-width:560px;margin:0 auto;line-height:1.6;}
+.empty code{background:var(--s2);border:1px solid var(--bdr2);border-radius:6px;padding:2px 7px;font-family:ui-monospace,monospace;font-size:13px;color:var(--tv);}
+
+.meta-strip{font-size:12.5px;color:var(--txt5);text-align:center;margin-top:16px;font-weight:600;}
+.meta-strip code{font-family:ui-monospace,monospace;background:var(--s2);padding:2px 7px;border-radius:5px;border:1px solid var(--bdr2);color:var(--txt3);}
+
+.section-hdr{display:flex;align-items:center;gap:10px;margin:22px 4px 10px;}
+.section-hdr h2{font-size:18px;font-weight:900;color:var(--txt);letter-spacing:-.01em;}
+.section-hdr .count{font-size:13px;font-weight:700;color:var(--txt5);background:var(--surface);border:1px solid var(--bdr2);border-radius:999px;padding:3px 11px;}
+
+.pager{display:flex;justify-content:center;align-items:center;gap:10px;padding:14px;border-top:1px solid var(--bdr2);background:var(--s2);}
+.pager button{font-family:var(--f);font-size:13px;font-weight:700;border:1.5px solid var(--bdr);background:var(--surface);color:var(--txt3);border-radius:8px;padding:6px 12px;cursor:pointer;}
+.pager button:disabled{opacity:.4;cursor:not-allowed;}
+.pager .info{font-size:13px;color:var(--txt4);font-weight:600;}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="../">‹ חזרה ל-Daily Tracker</a>
+
+  <div class="topbar">
+    <div>
+      <div class="brand-lbl">📊 TradingView Auto-Journal</div>
+      <div class="brand-ttl">יומן <span>מסחר אוטומטי</span></div>
+      <div class="brand-sub">SMA60 v1.1 · webhook → Zapier → GitHub</div>
+    </div>
+    <div class="top-right">
+      <span class="pill" id="status-pill">⏳ טוען…</span>
+      <span class="pill" id="updated-pill" style="display:none;"></span>
+      <button class="btn" onclick="loadData(true)">🔄 רענן</button>
+      <button class="btn primary" onclick="window.open('https://github.com/laurenlev10/lauren-agent-hub-data/blob/main/docs/trading/journal-data.json','_blank')">📂 קובץ JSON ב-GitHub</button>
+    </div>
+  </div>
+
+  <div class="kpi-section">
+    <div class="kpi-row-label"><span class="ico">📈</span> כל העסקאות הסגורות</div>
+    <div class="kpi-grid" id="kpi-all"></div>
+  </div>
+
+  <div class="kpi-section">
+    <div class="kpi-row-label"><span class="ico">⚠️</span> עסקאות בשעות מסוכנות (danger=1)</div>
+    <div class="kpi-grid" id="kpi-danger"></div>
+  </div>
+
+  <div class="filters">
+    <div class="f-group">
+      <label>תאריך מ-</label>
+      <input type="date" id="f-from">
+    </div>
+    <div class="f-group">
+      <label>תאריך עד</label>
+      <input type="date" id="f-to">
+    </div>
+    <div class="f-group">
+      <label>סוג</label>
+      <select id="f-type">
+        <option value="all">הכל</option>
+        <option value="entry">כניסות בלבד</option>
+        <option value="exit">יציאות בלבד</option>
+        <option value="long">LONG (כל)</option>
+        <option value="short">SHORT (כל)</option>
+      </select>
+    </div>
+    <div class="f-group">
+      <label>שעה מסוכנת</label>
+      <select id="f-danger">
+        <option value="all">הכל</option>
+        <option value="0">רק לא-מסוכן</option>
+        <option value="1">רק מסוכן</option>
+      </select>
+    </div>
+    <div class="f-group">
+      <label>סימבול</label>
+      <select id="f-ticker"><option value="all">הכל</option></select>
+    </div>
+    <div class="f-spacer"></div>
+    <div class="f-info" id="filter-info">—</div>
+  </div>
+
+  <div class="section-hdr">
+    <h2>📋 יומן אירועי Webhook</h2>
+    <span class="count" id="row-count">0 שורות</span>
+  </div>
+
+  <div class="table-wrap">
+    <table class="journal">
+      <thead>
+        <tr>
+          <th>זמן (ישראל)</th>
+          <th>סימבול</th>
+          <th>סוג</th>
+          <th>פעולה</th>
+          <th>כמות</th>
+          <th>מחיר</th>
+          <th>מחיר כניסה</th>
+          <th>טיקים</th>
+          <th>$</th>
+          <th>סכנה</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="pager" id="pager" style="display:none;">
+      <button id="pg-prev" onclick="changePage(-1)">‹ הקודם</button>
+      <span class="info" id="pg-info">—</span>
+      <button id="pg-next" onclick="changePage(1)">הבא ›</button>
+    </div>
+  </div>
+
+  <div class="meta-strip" id="meta-strip"></div>
+</div>
+
+<script>
+const DATA_URL = "../journal-data.json";
+const PAGE_SIZE = 50;
+const TZ = "Asia/Jerusalem";
+
+let STATE = { raw: null, filtered: [], page: 0 };
+
+function fmtMoney(n){
+  if(n === null || n === undefined || isNaN(n)) return "—";
+  const sign = n >= 0 ? "" : "-";
+  const abs = Math.abs(Number(n));
+  return sign + "$" + abs.toLocaleString("en-US",{minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtTicks(n){
+  if(n === null || n === undefined || isNaN(n)) return "—";
+  const sign = n > 0 ? "+" : (n < 0 ? "" : "");
+  return sign + Number(n).toLocaleString("en-US",{maximumFractionDigits:0});
+}
+function fmtPrice(n){
+  if(n === null || n === undefined || n === "" || isNaN(n)) return "—";
+  return Number(n).toLocaleString("en-US",{minimumFractionDigits:2, maximumFractionDigits:4});
+}
+function fmtTimeIL(iso){
+  if(!iso) return {d:"—", t:""};
+  try {
+    const d = new Date(iso);
+    if(isNaN(d.getTime())) return {d: String(iso), t: ""};
+    const dateFmt = new Intl.DateTimeFormat("he-IL",{ timeZone:TZ, day:"2-digit", month:"2-digit", year:"2-digit" });
+    const timeFmt = new Intl.DateTimeFormat("he-IL",{ timeZone:TZ, hour:"2-digit", minute:"2-digit", hour12:false });
+    return { d: dateFmt.format(d), t: timeFmt.format(d) };
+  } catch(e){ return {d: String(iso), t:""}; }
+}
+function dateOnlyIL(iso){
+  if(!iso) return null;
+  try {
+    const d = new Date(iso);
+    if(isNaN(d.getTime())) return null;
+    const fmt = new Intl.DateTimeFormat("en-CA",{ timeZone:TZ, year:"numeric", month:"2-digit", day:"2-digit" });
+    return fmt.format(d);
+  } catch(e){ return null; }
+}
+function isExit(t){
+  const s = String(t.type || "").toUpperCase();
+  return s.startsWith("EXIT") || t.action === "exit" || (t.result_ticks !== undefined && t.result_ticks !== null);
+}
+function isEntry(t){ return !isExit(t); }
+
+function typeBadgeHTML(type){
+  const u = String(type || "").toUpperCase();
+  if(u === "LONG")       return '<span class="bdg bdg-long">▲ LONG</span>';
+  if(u === "SHORT")      return '<span class="bdg bdg-short">▼ SHORT</span>';
+  if(u === "SWAP LONG")  return '<span class="bdg bdg-swap-long">⇆ SWAP LONG</span>';
+  if(u === "SWAP SHORT") return '<span class="bdg bdg-swap-short">⇆ SWAP SHORT</span>';
+  if(u.includes("TP"))   return '<span class="bdg bdg-exit-tp">🎯 ' + u + '</span>';
+  if(u.includes("SL"))   return '<span class="bdg bdg-exit-sl">🛑 ' + u + '</span>';
+  if(u.startsWith("EXIT")) return '<span class="bdg bdg-exit-other">⏹ ' + u + '</span>';
+  return '<span class="bdg bdg-exit-other">' + (u || "—") + '</span>';
+}
+
+function setStatus(text, kind){
+  const p = document.getElementById("status-pill");
+  p.textContent = text;
+  p.className = "pill " + (kind || "");
+}
+
+function renderKPIs(){
+  const all = STATE.filtered.filter(isExit);
+  const danger = all.filter(t => Number(t.danger) === 1);
+  document.getElementById("kpi-all").innerHTML = kpiCards(all, false);
+  document.getElementById("kpi-danger").innerHTML = kpiCards(danger, true);
+}
+function kpiCards(exits, isDanger){
+  const n = exits.length;
+  const wins = exits.filter(e => Number(e.result_dollars) > 0).length;
+  const losses = exits.filter(e => Number(e.result_dollars) < 0).length;
+  const breaks = exits.filter(e => Number(e.result_dollars) === 0).length;
+  const winRate = n > 0 ? (wins / n * 100) : 0;
+  const netD = exits.reduce((s,e) => s + (Number(e.result_dollars) || 0), 0);
+  const netT = exits.reduce((s,e) => s + (Number(e.result_ticks) || 0), 0);
+  const avgD = n > 0 ? netD / n : 0;
+  const klass = isDanger ? "kpi dnger" : "kpi";
+  const fc = v => v > 0 ? "pos" : (v < 0 ? "neg" : "muted");
+  const bestD = n > 0 ? Math.max.apply(null, exits.map(e=>Number(e.result_dollars)||0)) : 0;
+  const worstD = n > 0 ? Math.min.apply(null, exits.map(e=>Number(e.result_dollars)||0)) : 0;
+  const bestT = n > 0 ? Math.max.apply(null, exits.map(e=>Number(e.result_ticks)||0)) : 0;
+  const worstT = n > 0 ? Math.min.apply(null, exits.map(e=>Number(e.result_ticks)||0)) : 0;
+  return ''
+    + '<div class="' + klass + '"><div class="k-lbl">עסקאות סגורות</div><div class="k-val">' + n + '</div><div class="k-sub">' + wins + ' ✓ · ' + losses + ' ✗ · ' + breaks + ' 0</div></div>'
+    + '<div class="' + klass + '"><div class="k-lbl">אחוז הצלחה</div><div class="k-val ' + (n>0?(winRate>=50?'pos':'neg'):'muted') + '">' + (n>0 ? winRate.toFixed(1)+'%' : '—') + '</div><div class="k-sub">' + wins + ' מתוך ' + n + '</div></div>'
+    + '<div class="' + klass + '"><div class="k-lbl">סה״כ רווח/הפסד</div><div class="k-val ' + fc(netD) + '">' + (n>0 ? fmtMoney(netD) : '—') + '</div><div class="k-sub">' + (n>0 ? 'ממוצע ' + fmtMoney(avgD) : '—') + '</div></div>'
+    + '<div class="' + klass + '"><div class="k-lbl">סה״כ טיקים</div><div class="k-val ' + fc(netT) + '">' + (n>0 ? fmtTicks(netT) : '—') + '</div><div class="k-sub">' + (n>0 ? 'ממוצע ' + (netT/n).toFixed(1) : '—') + '</div></div>'
+    + '<div class="' + klass + '"><div class="k-lbl">עסקה הכי טובה</div><div class="k-val pos">' + (n>0 ? fmtMoney(bestD) : '—') + '</div><div class="k-sub">' + (n>0 ? fmtTicks(bestT)+' טיקים' : '—') + '</div></div>'
+    + '<div class="' + klass + '"><div class="k-lbl">עסקה הכי גרועה</div><div class="k-val neg">' + (n>0 ? fmtMoney(worstD) : '—') + '</div><div class="k-sub">' + (n>0 ? fmtTicks(worstT)+' טיקים' : '—') + '</div></div>'
+  ;
+}
+
+function buildTickerOptions(){
+  const sel = document.getElementById("f-ticker");
+  const current = sel.value;
+  const tickers = Array.from(new Set(((STATE.raw && STATE.raw.trades) || []).map(t => t.ticker).filter(Boolean))).sort();
+  sel.innerHTML = '<option value="all">הכל</option>' + tickers.map(t => '<option value="' + t + '">' + t + '</option>').join("");
+  if(tickers.indexOf(current) >= 0) sel.value = current;
+}
+function applyFilters(){
+  const fromV = document.getElementById("f-from").value;
+  const toV   = document.getElementById("f-to").value;
+  const typeV = document.getElementById("f-type").value;
+  const dangV = document.getElementById("f-danger").value;
+  const tickV = document.getElementById("f-ticker").value;
+
+  const all = (STATE.raw && STATE.raw.trades) || [];
+  STATE.filtered = all.filter(t => {
+    const d = dateOnlyIL(t.time || t._received_at);
+    if(fromV && (!d || d < fromV)) return false;
+    if(toV && (!d || d > toV)) return false;
+    if(dangV !== "all" && String(Number(t.danger) || 0) !== dangV) return false;
+    if(tickV !== "all" && t.ticker !== tickV) return false;
+    if(typeV !== "all"){
+      const u = String(t.type || "").toUpperCase();
+      if(typeV === "entry" && !isEntry(t)) return false;
+      if(typeV === "exit"  && !isExit(t)) return false;
+      if(typeV === "long"  && u.indexOf("LONG") < 0) return false;
+      if(typeV === "short" && u.indexOf("SHORT") < 0) return false;
+    }
+    return true;
+  });
+
+  STATE.page = 0;
+  document.getElementById("filter-info").textContent =
+    'מסונן: ' + STATE.filtered.length + ' מתוך ' + all.length + ' אירועים';
+  document.getElementById("row-count").textContent = STATE.filtered.length + ' שורות';
+  renderKPIs();
+  renderTable();
+}
+
+function renderTable(){
+  const tbody = document.getElementById("tbody");
+  const all = (STATE.raw && STATE.raw.trades) || [];
+  if(all.length === 0){
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">'
+      + '<div class="ico">📭</div>'
+      + '<h2>אין עדיין נתונים</h2>'
+      + '<p>כשתפעילי את ההתראה ב-TradingView, ה-webhook יישלח ל-Zapier, ושם יוכנס לקובץ '
+      + '<code>docs/trading/journal-data.json</code>. הדף הזה ימשוך משם אוטומטית בכל רענון.</p>'
+      + '</td></tr>';
+    document.getElementById("pager").style.display = "none";
+    return;
+  }
+  const sorted = STATE.filtered.slice().sort((a,b) => {
+    const ta = new Date(a.time || a._received_at || 0).getTime() || 0;
+    const tb = new Date(b.time || b._received_at || 0).getTime() || 0;
+    return tb - ta;
+  });
+
+  const total = sorted.length;
+  if(total === 0){
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">'
+      + '<div class="ico">🔍</div>'
+      + '<h2>אין תוצאות לסינון הנוכחי</h2>'
+      + '<p>נסי לשנות את הפילטרים למעלה.</p>'
+      + '</td></tr>';
+    document.getElementById("pager").style.display = "none";
+    return;
+  }
+  const pages = Math.ceil(total / PAGE_SIZE);
+  if(STATE.page >= pages) STATE.page = pages - 1;
+  if(STATE.page < 0) STATE.page = 0;
+  const start = STATE.page * PAGE_SIZE;
+  const slice = sorted.slice(start, start + PAGE_SIZE);
+
+  tbody.innerHTML = slice.map(t => {
+    const exit = isExit(t);
+    const tm = fmtTimeIL(t.time || t._received_at);
+    const rd = Number(t.result_dollars);
+    const rt = Number(t.result_ticks);
+    const danger = Number(t.danger) === 1;
+    const cls = (exit ? 'is-exit' : 'is-entry') + (danger ? ' is-danger' : '');
+    const sideHtml = (exit && t.side) ? ' <span style="color:var(--txt5);font-size:12px">→ ' + t.side + '</span>' : '';
+    const ticksCls = (exit && !isNaN(rt)) ? (rt>0?"pos":(rt<0?"neg":"muted")) : "muted";
+    const dollarsCls = (exit && !isNaN(rd)) ? (rd>0?"pos":(rd<0?"neg":"muted")) : "muted";
+    const dangerCell = danger ? '<span class="bdg bdg-danger">⚠ שעה מסוכנת</span>' : '<span style="color:var(--txt5);font-size:12px">—</span>';
+    return '<tr class="' + cls + '">'
+      + '<td class="cell-time"><div class="d">' + tm.d + '</div><div class="t">' + tm.t + '</div></td>'
+      + '<td><b>' + (t.ticker || "—") + '</b></td>'
+      + '<td>' + typeBadgeHTML(t.type) + '</td>'
+      + '<td>' + (t.action || "—") + sideHtml + '</td>'
+      + '<td class="num">' + (t.quantity != null ? t.quantity : "—") + '</td>'
+      + '<td class="num">' + fmtPrice(t.price) + '</td>'
+      + '<td class="num ' + (exit ? "" : "muted") + '">' + (exit ? fmtPrice(t.entry_price) : "—") + '</td>'
+      + '<td class="num ' + ticksCls + '">' + (exit ? fmtTicks(rt) : "—") + '</td>'
+      + '<td class="num ' + dollarsCls + '">' + (exit ? fmtMoney(rd) : "—") + '</td>'
+      + '<td>' + dangerCell + '</td>'
+      + '</tr>';
+  }).join("");
+
+  const pager = document.getElementById("pager");
+  if(pages > 1){
+    pager.style.display = "flex";
+    document.getElementById("pg-prev").disabled = (STATE.page === 0);
+    document.getElementById("pg-next").disabled = (STATE.page >= pages - 1);
+    document.getElementById("pg-info").textContent =
+      'עמוד ' + (STATE.page + 1) + ' מתוך ' + pages + ' · מציג ' + (start + 1) + '–' + Math.min(start + PAGE_SIZE, total) + ' מתוך ' + total;
+  } else {
+    pager.style.display = "none";
+  }
+}
+function changePage(d){ STATE.page += d; renderTable(); }
+
+async function loadData(force){
+  setStatus("⏳ טוען…", "");
+  try {
+    const url = DATA_URL + "?_=" + Date.now();
+    const r = await fetch(url, { cache: "no-store" });
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    if(!j || typeof j !== "object" || !Array.isArray(j.trades)){
+      throw new Error("schema לא תקין — מצופה trades:[]");
+    }
+    STATE.raw = j;
+    setStatus("✓ " + j.trades.length + " אירועים", "ok");
+    const u = j._updated_at;
+    const upPill = document.getElementById("updated-pill");
+    if(u){
+      const tm = fmtTimeIL(u);
+      upPill.textContent = "עודכן " + tm.d + " " + tm.t;
+      upPill.style.display = "inline-flex";
+    } else {
+      upPill.style.display = "none";
+    }
+    document.getElementById("meta-strip").innerHTML =
+      'מקור: <code>' + DATA_URL + '</code> · מתעדכן בכל webhook מ-Zapier · רענון אוטומטי כל 60 שניות';
+    buildTickerOptions();
+    applyFilters();
+  } catch(e){
+    console.error(e);
+    setStatus("⚠ שגיאת טעינה: " + e.message, "err");
+    document.getElementById("tbody").innerHTML = '<tr><td colspan="10" class="empty">'
+      + '<div class="ico">⚠️</div>'
+      + '<h2>לא הצלחתי לטעון את הנתונים</h2>'
+      + '<p>' + e.message + '<br><br>בדקי שהקובץ <code>docs/trading/journal-data.json</code> קיים ב-repo.</p>'
+      + '</td></tr>';
+  }
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  ["f-from","f-to","f-type","f-danger","f-ticker"].forEach(id => {
+    document.getElementById(id).addEventListener("change", applyFilters);
+  });
+  loadData(true);
+  setInterval(() => loadData(false), 60000);
+});
+</script>
+</body>
+</html>
