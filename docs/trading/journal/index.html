@@ -353,8 +353,8 @@ function renderTable(){
     tbody.innerHTML = '<tr><td colspan="10" class="empty">'
       + '<div class="ico">📭</div>'
       + '<h2>אין עדיין נתונים</h2>'
-      + '<p>כשתפעילי את ההתראה ב-TradingView, ה-webhook יישלח ל-Zapier, ושם יוכנס לקובץ '
-      + '<code>docs/trading/journal-data.json</code>. הדף הזה מתעדכן לבד כל 60 שניות — את לא צריכה לעשות כלום.</p>'
+      + '<p>כשתפעילי את ההתראה ב-TradingView, ה-webhook יישלח ל-Zapier מיידית ויוסיף את העסקה לקובץ '
+      + '<code>docs/trading/journal-data.json</code>. כאן את תראי את העסקה בלחיצה על 🔄 רענן (או אוטומטית כשתחזרי לטאב הזה).</p>'
       + '</td></tr>';
     document.getElementById("pager").style.display = "none";
     return;
@@ -441,7 +441,7 @@ async function loadData(force){
       upPill.style.display = "none";
     }
     document.getElementById("meta-strip").innerHTML =
-      'מקור: <code>' + DATA_URL + '</code> · מתעדכן בכל webhook מ-Zapier · רענון אוטומטי כל 60 שניות';
+      'מקור: <code>' + DATA_URL + '</code> · מתעדכן בכל webhook מ-Zapier · לחצי 🔄 רענן לסנכרון ידני (או חזרה לטאב = רענון אוטומטי)';
     buildTickerOptions();
     applyFilters();
   } catch(e){
@@ -460,7 +460,11 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById(id).addEventListener("change", applyFilters);
   });
   loadData(true);
-  setInterval(() => loadData(false), 60000);
+  // אין רענון אוטומטי תקופתי — הדף נשען על הכפתור 🔄 רענן
+  // אבל כשחוזרים לטאב אחרי שהיית בחוץ — רענון חד-פעמי אוטומטי כדי שהנתונים יהיו עדכניים
+  document.addEventListener("visibilitychange", () => {
+    if(document.visibilityState === "visible") loadData(false);
+  });
 });
 </script>
 </body>
