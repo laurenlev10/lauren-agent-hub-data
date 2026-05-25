@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roadmap — Tradovate Worker Project</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef2f7; --surface:#ffffff; --s2:#f4f7fb; --s3:#e8eef6;
+  --bdr:#d2daea; --bdr2:#e4eaf3;
+  --tv:#1e3a8a; --tv-soft:#3b82f6; --tv-bg:#dbeafe;
+  --grn:#166534; --grn-bg:#dcfce7; --grn-mid:#86efac; --grn-soft:#16a34a;
+  --red:#b91c1c; --red-bg:#fee2e2; --red-mid:#fca5a5;
+  --amb:#b45309; --amb-bg:#fef3c7; --amb-mid:#fcd34d;
+  --pur:#6d28d9; --pur-bg:#ede9fe;
+  --txt:#0a0f1e; --txt2:#111827; --txt3:#1f2937; --txt4:#4b5563; --txt5:#6b7280;
+  --f:'Heebo',sans-serif;
+  --r:14px; --rl:20px;
+  --sh:0 1px 4px rgba(0,0,0,.07),0 2px 8px rgba(0,0,0,.04);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{background:var(--bg);font-family:var(--f);color:var(--txt);min-height:100vh;}
+body{padding:18px 22px 60px;font-size:15px;line-height:1.45;}
+a{color:var(--tv-soft);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.page{max-width:1100px;margin:0 auto;}
+.back-link{display:inline-flex;align-items:center;gap:5px;color:var(--txt5);font-size:13.5px;font-weight:600;margin-bottom:8px;}
+.back-link:hover{color:var(--tv);text-decoration:none;}
+
+/* Hero */
+.hero{background:linear-gradient(135deg,#1e3a8a,#3b82f6);color:#fff;border-radius:var(--rl);padding:26px 28px;margin-bottom:18px;box-shadow:var(--sh);}
+.hero h1{font-size:30px;font-weight:900;letter-spacing:-.02em;margin-bottom:6px;}
+.hero .sub{font-size:15px;font-weight:600;opacity:.92;}
+.hero .meta{margin-top:14px;display:flex;gap:18px;flex-wrap:wrap;font-size:13.5px;font-weight:700;}
+.hero .meta span{background:rgba(255,255,255,.18);padding:6px 12px;border-radius:8px;}
+
+/* Progress */
+.progress-wrap{background:var(--surface);border:1.5px solid var(--bdr2);border-radius:var(--r);padding:16px 18px;margin-bottom:18px;box-shadow:var(--sh);}
+.progress-wrap .lbl{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.progress-wrap .ttl{font-size:14px;font-weight:800;color:var(--txt2);}
+.progress-wrap .pct{font-size:14px;font-weight:900;color:var(--tv);}
+.progress-bar{height:10px;background:var(--s3);border-radius:999px;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--grn-soft),var(--tv-soft));border-radius:999px;width:0;transition:width .5s;}
+.progress-stats{margin-top:8px;font-size:12.5px;color:var(--txt4);font-weight:600;display:flex;gap:14px;flex-wrap:wrap;}
+
+/* Phase */
+.phase{background:var(--surface);border:1.5px solid var(--bdr2);border-radius:var(--r);margin-bottom:14px;box-shadow:var(--sh);overflow:hidden;}
+.phase-hdr{padding:14px 20px;background:var(--s2);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid var(--bdr2);transition:background .15s;}
+.phase-hdr:hover{background:var(--s3);}
+.phase-hdr .ttl{font-size:17px;font-weight:900;color:var(--txt);}
+.phase-hdr .ttl .num{display:inline-block;background:var(--tv);color:#fff;font-size:13px;font-weight:900;padding:2px 9px;border-radius:6px;margin-left:8px;}
+.phase-hdr .desc{font-size:13px;color:var(--txt4);font-weight:600;margin-top:2px;}
+.phase-hdr .pcount{font-size:13px;font-weight:800;color:var(--txt3);background:#fff;border:1.5px solid var(--bdr);border-radius:999px;padding:4px 12px;}
+.phase-hdr .pcount.done{background:var(--grn-bg);color:var(--grn);border-color:var(--grn-mid);}
+.phase-hdr .arrow{font-size:18px;color:var(--txt4);transition:transform .2s;}
+.phase.collapsed .arrow{transform:rotate(-90deg);}
+.phase.collapsed .phase-body{display:none;}
+.phase-body{padding:6px 0;}
+
+/* Step */
+.step{padding:14px 20px;border-bottom:1px solid var(--bdr2);display:grid;grid-template-columns:48px 1fr auto;gap:14px;align-items:flex-start;transition:background .12s;}
+.step:last-child{border-bottom:none;}
+.step:hover{background:var(--s2);}
+.step.done{background:#f0fdf4;}
+.step.done:hover{background:#dcfce7;}
+.step-num{font-size:18px;font-weight:900;color:var(--tv);background:var(--tv-bg);border-radius:8px;padding:8px 0;text-align:center;width:48px;line-height:1.2;}
+.step.done .step-num{background:var(--grn-bg);color:var(--grn);}
+.step-num .id{display:block;font-size:11px;font-weight:700;color:var(--txt4);margin-top:2px;}
+.step.done .step-num .id{color:var(--grn);}
+.step-body .title{font-size:16px;font-weight:800;color:var(--txt);margin-bottom:5px;}
+.step.done .step-body .title{text-decoration:line-through;text-decoration-color:rgba(22,101,52,.5);text-decoration-thickness:2px;color:var(--txt3);}
+.step-body .why{font-size:13.5px;color:var(--txt3);line-height:1.5;margin-bottom:4px;}
+.step-body .why b{color:var(--tv);font-weight:800;}
+.step-body .what{font-size:12.5px;color:var(--txt4);font-style:italic;line-height:1.5;}
+.step-actions{display:flex;flex-direction:column;gap:6px;min-width:140px;}
+.btn{font-family:var(--f);font-size:13px;font-weight:800;border-radius:9px;padding:8px 14px;cursor:pointer;border:1.5px solid;transition:all .15s;white-space:nowrap;}
+.btn.copy{background:var(--tv);color:#fff;border-color:var(--tv);}
+.btn.copy:hover{background:var(--tv-soft);border-color:var(--tv-soft);}
+.btn.copy.copied{background:var(--grn-soft);border-color:var(--grn-soft);}
+.btn.toggle-done{background:#fff;color:var(--grn);border-color:var(--grn-mid);font-size:12px;padding:6px 10px;}
+.btn.toggle-done:hover{background:var(--grn-bg);}
+.btn.toggle-done.is-done{background:var(--grn-soft);color:#fff;border-color:var(--grn-soft);}
+
+/* Notice */
+.notice{background:#fffbeb;border:1.5px solid var(--amb-mid);border-radius:var(--r);padding:14px 18px;margin-bottom:18px;font-size:14px;color:var(--amb);font-weight:600;line-height:1.5;}
+.notice b{color:#78350f;}
+
+/* Token setup */
+.token-setup{background:var(--surface);border:2px dashed var(--bdr);border-radius:var(--r);padding:14px 18px;margin-bottom:14px;font-size:13.5px;color:var(--txt4);text-align:center;}
+.token-setup button{font-family:var(--f);font-size:13px;font-weight:800;background:var(--tv);color:#fff;border:none;border-radius:8px;padding:7px 16px;cursor:pointer;margin-right:8px;}
+
+@media (max-width:720px){
+  .step{grid-template-columns:1fr;}
+  .step-actions{flex-direction:row;justify-content:flex-start;}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <a class="back-link" href="../journal/">‹ חזרה ליומן</a>
+
+  <div class="hero">
+    <h1>🗺️ Roadmap — Tradovate Worker Project</h1>
+    <div class="sub">מסלול עבודה צעד-אחר-צעד מהקמת חשבון Cloudflare ועד לדשבורד trading מלא</div>
+    <div class="meta">
+      <span>🎯 8 שלבים</span>
+      <span>📝 34 משימות</span>
+      <span>⏰ כל יום קצת</span>
+      <span>🎮 לחיצה = prompt מוכן ל-Cowork</span>
+    </div>
+  </div>
+
+  <div class="notice">
+    <b>איך להשתמש:</b> כשאת מתחילה משימה — לחצי <b>📋 העתק prompt</b> בשורה שלה.
+    הטקסט יועתק לclipboard. פתחי Cowork בdesktop, הדביקי בצ׳אט חדש, ואני אעבוד איתך על הצעד הזה.
+    ברגע שהשלב הושלם — לחצי <b>✓ סמן כבוצע</b> כדי לסמן progress. הכל מסונכרן ב-GitHub.
+  </div>
+
+  <div class="progress-wrap">
+    <div class="lbl">
+      <span class="ttl">התקדמות כללית</span>
+      <span class="pct" id="pct">0%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="bar"></div></div>
+    <div class="progress-stats" id="stats">טוען...</div>
+  </div>
+
+  <div class="token-setup" id="token-setup" style="display:none;">
+    🔐 כדי לסמן סטטוס של משימות (✓ בוצע) צריך GitHub PAT. <button onclick="promptToken()">הגדירי PAT</button>
+  </div>
+
+  <div id="phases-wrap"></div>
+</div>
+
+<script>
+// =============================================================
+// Roadmap data — 34 steps in 8 phases
+// =============================================================
+const ROADMAP = [
+  // ============ PHASE 0 ============
+  { phase: 0, title: "🏗️ יסודות — תשתית Cloudflare", desc: "הכנת הסביבה לפעולות ידניות מהירות", steps: [
+
+    { id: "0.1", title: "פתיחת חשבון Cloudflare חינמי",
+      why: "<b>Cloudflare Worker</b> הוא ה-מנוע שיפתור את בעיית ה-CORS — דפדפן לא יכול לדבר ישירות עם Tradovate, אז Worker יישב באמצע. החשבון חינמי, לא דורש כרטיס אשראי.",
+      what: "פתיחת חשבון, אישור email, מציאת Account ID.",
+      prompt: "[Step 0.1] פתיחת חשבון Cloudflare\n\nהקשר: זה השלב הראשון בבניית Cloudflare Worker שיתפקד כשכבת ביניים בין הדשבורד שלי (https://laurenlev10.github.io/lauren-agent-hub-data/trading/journal/) ל-Tradovate Demo API. צריך את זה כי Tradovate חוסם CORS ולא ניתן לדבר ישירות מהדפדפן.\n\nהמשימה:\n1. הדריך אותי איך לפתוח חשבון Cloudflare חינמי (אין צורך בכרטיס אשראי)\n2. אחרי שאתחבר — הדריך איפה למצוא את Account ID שלי בdashboard\n3. עזור לי לשמור את ה-Account ID לקובץ Documents/Claude/.claude/secrets/cloudflare.json\n4. סמן Step 0.1 כ-Done ב-roadmap_progress.json (IRON RULE #7)\n\nכשנסיים, אעבור ל-Step 0.2 (התקנת Wrangler CLI)." },
+
+    { id: "0.2", title: "התקנת Wrangler CLI",
+      why: "<b>Wrangler</b> זה כלי שורת-פקודה של Cloudflare. עם זה נוכל לפרסם Workers ולנהל secrets מהמחשב שלך בלי להיכנס לdashboard בכל פעם.",
+      what: "התקנת npm package, התחברות לחשבון.",
+      prompt: "[Step 0.2] התקנת Wrangler CLI\n\nהקשר: יש לי כבר חשבון Cloudflare (Step 0.1 בוצע). עכשיו צריך להתקין Wrangler — הCLI הרשמי שלהם — כדי לפרסם Workers מהטרמינל.\n\nהמשימה:\n1. בדוק שיש לי Node.js + npm מותקנים (הרץ node --version)\n2. הדריך אותי להתקין Wrangler גלובלית: npm install -g wrangler\n3. הרץ אצלי wrangler login — זה יפתח דפדפן לאישור\n4. אחרי החיבור, הרץ wrangler whoami כדי לוודא חיבור תקין\n5. סמן Step 0.2 כ-Done ב-roadmap_progress.json\n\nכשנסיים, נעבור ל-Step 0.3 (יצירת Hello World Worker)." },
+
+    { id: "0.3", title: "יצירת Worker ראשון - Hello World",
+      why: "לפני שאנחנו טוחנים על קוד Tradovate — בואי נוודא ש-Worker עובד עם משהו פשוט. <b>Hello World</b> זה הצעד הקלאסי לוודא שכל ה-pipeline (deploy + URL חי) עובד.",
+      what: "יצירת Worker, deploy, גישה ל-URL הציבורי.",
+      prompt: "[Step 0.3] יצירת Hello World Worker ראשון\n\nהקשר: Wrangler מותקן (Step 0.2). עכשיו רוצה ליצור Worker ראשון חינמי שמחזיר 'Hello World' כשפונים אליו, כדי לוודא שכל ה-pipeline עובד לפני שמתחילים בקוד אמיתי.\n\nהמשימה:\n1. צור תיקייה חדשה: ~/cloudflare-workers/tradovate-bridge (או היכן שאתה רואה לנכון)\n2. הרץ wrangler init tradovate-bridge — בחר את כל ברירת המחדל, JavaScript\n3. עזור לי לערוך את src/index.js שיחזיר 'Hello World' עם JSON\n4. הרץ wrangler deploy וקבל URL ציבורי\n5. בדוק שה-URL חוזר תקין דרך curl\n6. שמור את ה-URL בקובץ Documents/Claude/.claude/secrets/cloudflare.json\n7. סמן Step 0.3 כ-Done\n\nכשנסיים, נעבור ל-Step 0.4 (הוספת Tradovate credentials כ-Secrets)." },
+
+    { id: "0.4", title: "הוספת Tradovate credentials כ-Secrets",
+      why: "Worker עומד לדבר עם Tradovate, וצריך username/password/API key שלך. <b>Wrangler Secrets</b> שומרים את זה מוצפן ב-Cloudflare, לא בקוד — אין סיכון שייחשפו ב-GitHub.",
+      what: "wrangler secret put של 6 משתנים (cid, sec, name, password, appId, account_id).",
+      prompt: "[Step 0.4] הוספת Tradovate credentials כ-Secrets ב-Cloudflare Worker\n\nהקשר: Hello World Worker עובד (Step 0.3). עכשיו צריך לאחסן credentials של Tradovate Demo כ-Secrets ב-Worker, כדי שיוכל להתחבר ל-Tradovate API בלי שהcredentials יופיעו בקוד.\n\nהcredentials נמצאים בקובץ: Documents/Claude/.claude/secrets/tradovate_demo.json\n\nהמשימה:\n1. עבור על הקובץ tradovate_demo.json וקרא את הערכים\n2. הדריך אותי להריץ wrangler secret put לכל אחד מהבאים, מתיקיית ה-Worker:\n   - TRADOVATE_NAME\n   - TRADOVATE_PASSWORD\n   - TRADOVATE_CID\n   - TRADOVATE_SEC\n   - TRADOVATE_APP_ID\n   - TRADOVATE_ACCOUNT_ID\n3. הרץ wrangler secret list לוודא שכל ה-6 שמורים\n4. סמן Step 0.4 כ-Done\n\nכשנסיים, Phase 0 (יסודות) הושלם! נעבור ל-Phase 1 — בניית endpoints." }
+  ]},
+
+  // ============ PHASE 1 ============
+  { phase: 1, title: "🔌 Endpoints בסיסיים — היכולת לדבר עם Tradovate", desc: "ה-Worker יודע לקרוא ולכתוב פוזיציות", steps: [
+
+    { id: "1.1", title: "GET /position — מחזיר פוזיציות חיות",
+      why: "ה-endpoint הראשון של ה-Worker. <b>GET /position</b> יחזיר JSON של כל הפוזיציות הפתוחות בTradovate. זה הבלוק שיבנה את ה-'Live Position Card' בדשבורד.",
+      what: "auth → GET /position/list → filter active → return JSON.",
+      prompt: "[Step 1.1] הוספת endpoint GET /position ל-Cloudflare Worker\n\nהקשר: Worker עם credentials (Step 0.4 בוצע). עכשיו רוצה להוסיף endpoint ראשון שמחזיר את הפוזיציות הפתוחות בTradovate Demo.\n\nהמשימה:\n1. עדכן src/index.js להוסיף routing — אם הבקשה היא GET /position → לבצע את הלוגיקה הזו\n2. כתוב פונקציה authTradovate() שעושה POST ל-/auth/accesstokenrequest עם הSecrets ומחזירה access token\n3. כתוב פונקציה getPositions(token) שעושה GET ל-/position/list ומחזירה רק פוזיציות עם netPos != 0\n4. תוסיף CORS headers (Access-Control-Allow-Origin) כדי שהדפדפן יוכל לקרוא\n5. wrangler deploy + בדוק ב-curl שה-endpoint מחזיר JSON תקין\n6. סמן Step 1.1 כ-Done\n\nכשנסיים, נעבור ל-Step 1.2 (GET /balance)." },
+
+    { id: "1.2", title: "GET /balance — מחזיר יתרת חשבון",
+      why: "כדי לראות בדשבורד <b>היתרה הנוכחית + P&L היומי</b>, צריך endpoint שמושך מ-Tradovate (`/cashBalance/list` ו-`/account/...`). זה הבסיס ל-'Daily Loss Cap' ולwidget של יתרה.",
+      what: "auth → GET /cashBalance/list + P&L → JSON.",
+      prompt: "[Step 1.2] הוספת endpoint GET /balance ל-Worker\n\nהקשר: GET /position עובד (Step 1.1). עכשיו צריך endpoint שמחזיר נתוני יתרה: cash balance, P&L היום, realized PnL.\n\nהמשימה:\n1. הוסף route GET /balance ב-src/index.js\n2. fetch ל-Tradovate: GET /cashBalance/list (יחזיר רשימה — נמצא את הרשומה של ACCOUNT_ID שלי)\n3. גם fetch ל-GET /performance/list או חיפוש P&L היומי\n4. החזר JSON: { cash_balance, realized_pnl_today, open_pnl, day_pnl_total }\n5. CORS headers\n6. בדוק ב-curl, סמן Done\n\nכשנסיים, נעבור ל-Step 1.3 (POST /flatten)." },
+
+    { id: "1.3", title: "POST /flatten — סוגר את כל הפוזיציות",
+      why: "endpoint החירום! <b>POST /flatten</b> ייקח את כל הפוזיציות הפתוחות וייתן הוראת market order הפוכה לכל אחת. זה מה שיפעיל הכפתור 🚨 שכבר בדשבורד — אבל ישירות, בלי לעבור Zapier.",
+      what: "auth → fetch positions → POST /order/placeorder per non-zero position.",
+      prompt: "[Step 1.3] הוספת endpoint POST /flatten ל-Worker\n\nהקשר: GET endpoints עובדים. עכשיו צריך POST /flatten — סוגר את כל הפוזיציות הפתוחות בלחיצה אחת.\n\nהמשימה:\n1. הוסף route POST /flatten ב-src/index.js\n2. fetch positions (אפשר reuse של getPositions)\n3. לכל פוזיציה non-zero: שלח POST /order/placeorder עם action הפוך (Buy אם short, Sell אם long), orderQty=abs(netPos), orderType='Market'\n4. אסוף results לכל closing order: { contract, qty, action, order_id }\n5. החזר JSON עם list של orders שנשלחו + status\n6. CORS headers\n7. בדוק ב-curl (אם demo flat, החזרת empty list)\n8. סמן Done\n\nכשנסיים, נעבור ל-Step 1.4." },
+
+    { id: "1.4", title: "POST /cancel-pending-orders — מבטל orders תקועים",
+      why: "כשהשוק סגור (כמו Memorial Day) — orders שנשלחו מתקעים ב-'Working'. <b>POST /cancel-pending</b> ינקה אותם. שימושי גם כשרוצים לבטל orders ידנית.",
+      what: "auth → list orders status=Working/Pending → cancel each.",
+      prompt: "[Step 1.4] הוספת endpoint POST /cancel-pending-orders\n\nהקשר: 3 endpoints קיימים. עכשיו endpoint לביטול orders תקועים (Working, PendingNew, Pending status).\n\nהמשימה:\n1. הוסף route POST /cancel-pending ב-Worker\n2. fetch GET /order/list עם access token\n3. סנן orders עם ordStatus in ('Working','PendingNew','Pending')\n4. לכל אחד: POST /order/cancelorder עם orderId\n5. החזר list של orders שבוטלו\n6. סמן Done\n\nכשנסיים Phase 1 הושלם — Worker יודע 4 פעולות בסיסיות! עוברים ל-Phase 2 (חיבור לדשבורד)." }
+  ]},
+
+  // ============ PHASE 2 ============
+  { phase: 2, title: "🔗 חיבור הדשבורד — מציג נתונים חיים", desc: "מחליפים את ה-Zapier-based flatten ומציגים פוזיציות בזמן אמת", steps: [
+
+    { id: "2.1", title: "הוספת Worker URL לדשבורד",
+      why: "הדשבורד צריך לדעת לאן לפנות. <b>נשמור את ה-Worker URL</b> כקובץ ב-GitHub (לא secret — זה URL ציבורי בכל מקרה) שהדשבורד טוען בעלייה.",
+      what: "יצירת docs/trading/worker_config.json עם url + עדכון הדשבורד לקרוא.",
+      prompt: "[Step 2.1] הוספת Worker URL לדשבורד יומן\n\nהקשר: Worker עובד (Phase 1 הושלם). עכשיו רוצה שהדשבורד (docs/trading/journal/index.html) יידע איפה הWorker.\n\nהמשימה:\n1. צור docs/trading/worker_config.json עם { worker_url: '...' } (קח את ה-URL שאמרתי לך)\n2. ערוך index.html להוסיף let WORKER_URL = null; ולטעון אותו מ-../worker_config.json בעלייה\n3. הוסף סטטוס chip בtopbar שמראה 🟢 Worker Connected / 🔴 Worker Down (נסיון GET /ping)\n4. הוסף לWorker route GET /ping שמחזיר {ok:true} פשוט\n5. push, רענן דשבורד, וודא שהchip ירוק\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 2.2." },
+
+    { id: "2.2", title: "החלפת FLATTEN button ל-Worker (במקום Zapier)",
+      why: "הכפתור הקיים שולח 2 webhooks ל-Zapier (יקר). <b>נחבר אותו ישירות ל-Worker</b> — קריאה אחת, תגובה תוך שנייה, אפס Zapier tasks.",
+      what: "עדכון flattenAll() ב-JS לקרוא POST {WORKER_URL}/flatten.",
+      prompt: "[Step 2.2] החלפת FLATTEN button מ-Zapier ל-Worker ישיר\n\nהקשר: ה-Worker עם /flatten עובד (Step 1.3). הכפתור 🚨 בדשבורד כרגע שולח webhooks ל-Zapier — שורף 8 tasks ומזהם את היומן עם entries פיקטיביים.\n\nהמשימה:\n1. ב-docs/trading/journal/index.html — עדכן את הפונקציה flattenAll() ש-fetch POST ל-WORKER_URL + '/flatten' במקום webhook\n2. הצג את ה-response (כמה orders שנשלחו) כ-toast/alert\n3. אם נכשל — fallback ל-Zapier webhook (לבטיחות)\n4. push, בדוק שהכפתור עובד\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 2.3." },
+
+    { id: "2.3", title: "Live Position Card — מציג מה פתוח עכשיו",
+      why: "הפיצ׳ר החיסם הראשון! ב-top של הדשבורד <b>תופיע כרטיסיה</b> שמראה: חוזה, qty, מחיר ממוצע, P&L unrealized — מתעדכן כל 10 שניות.",
+      what: "Card UI + polling GET /position כל 10s.",
+      prompt: "[Step 2.3] הוספת Live Position Card לדשבורד\n\nהקשר: Worker עם /position עובד. עכשיו רוצה כרטיסיה בולטת בdashboard שמראה את הפוזיציה הפתוחה בTradovate Demo בזמן אמת.\n\nהמשימה:\n1. ב-docs/trading/journal/index.html — הוסף section חדש בין autotrader-panel ל-KPI section\n2. אם flat: כרטיסיה אפורה 'Flat — אין פוזיציות פתוחות'\n3. אם פוזיציה: כרטיסיה צבעונית (ירוק long, אדום short) עם: contract name, qty (±), avg price, current P&L $ (אם API מחזיר)\n4. polling GET /position כל 10 שניות (כשTab פעיל)\n5. רענון ידני בלחיצה (כפתור 🔄)\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 2.4." },
+
+    { id: "2.4", title: "Live Account Balance Widget",
+      why: "מצד הLive Position — <b>widget של יתרה</b>: cash balance, P&L היום, ו-day return %. בסיס לDaily Loss Cap.",
+      what: "Widget UI + polling GET /balance כל 30s.",
+      prompt: "[Step 2.4] הוספת Live Account Balance Widget לדשבורד\n\nהקשר: Live Position Card עובד. עכשיו רוצה widget נוסף בצד שלו שמראה: cash balance, P&L היום, drawdown.\n\nהמשימה:\n1. עדכן ה-section של live status — תהיה shell עם 2 כרטיסיות זו לצד זו: Position | Balance\n2. polling GET /balance כל 30s\n3. הצג: 💰 $X balance · 📈 +$Y day P&L · 📊 Z% return\n4. אם day P&L שלילי → אדום. חיובי → ירוק.\n5. סמן Done\n\nכשנסיים, Phase 2 הושלם! נעבור ל-Phase 3 (שליטה ידנית)." }
+  ]},
+
+  // ============ PHASE 3 ============
+  { phase: 3, title: "🎮 שליטה ידנית — לפתוח/לסגור עסקאות בלחיצה", desc: "מחליפים את Tradovate platform — הכל מהדשבורד", steps: [
+
+    { id: "3.1", title: "🟢 LONG ידני / 🔴 SHORT ידני",
+      why: "<b>פתיחת פוזיציה בלחיצה</b> — בלי לחכות לסיגנל של ה-bot. שימושי לטסטים מהירים או trading ידני קלאסי.",
+      what: "2 כפתורים + endpoint POST /open?side=long|short&qty=1.",
+      prompt: "[Step 3.1] הוספת כפתורי LONG ידני / SHORT ידני\n\nהקשר: 2 phases הושלמו. עכשיו רוצה כפתורי 🟢 LONG / 🔴 SHORT שפותחים פוזיציה ידנית בלחיצה אחת.\n\nהמשימה:\n1. בWorker: הוסף route POST /open?side=long|short&qty=1 שעושה Buy או Sell market order\n2. בדשבורד: הוסף 2 כפתורים גדולים לכרטיסיית Position\n3. אישור confirm() לפני שליחה — 'לפתוח LONG 1 חוזה MNQM6?'\n4. אחרי שליחה — toast עם orderId\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 3.2." },
+
+    { id: "3.2", title: "✂️ Close 50% — יציאת רווח חלקית",
+      why: "אסטרטגיה קלאסית של trader — <b>סוגרים חצי על TP, נותנים לחצי לרוץ</b>. הכפתור יחשב כמה זה חצי מהפוזיציה ויסגור.",
+      what: "Button + Worker POST /close-half — sends market order = abs(netPos)/2 הפוך.",
+      prompt: "[Step 3.2] הוספת כפתור ✂️ Close 50%\n\nהקשר: כפתורי LONG/SHORT עובדים. עכשיו רוצה כפתור שסוגר חצי מהפוזיציה.\n\nהמשימה:\n1. בWorker: POST /close-half — fetch position, חישוב חצי (round down), שלח market order opposite\n2. בדשבורד: כפתור ✂️ Close 50% (active רק אם יש פוזיציה)\n3. confirm: 'לסגור חצי מ-X חוזים?'\n4. סמן Done\n\nכשנסיים, נעבור ל-Step 3.3." },
+
+    { id: "3.3", title: "📏 Stop to Breakeven",
+      why: "<b>הזזת stop-loss למחיר הכניסה</b> — מנהל סיכון קלאסי. ברגע שאני +20 טיקים, stop עובר ל-entry, וכבר בלתי-מפסיד.",
+      what: "Button + Worker route שמושך avg entry, מציב stop-limit במחיר זה.",
+      prompt: "[Step 3.3] הוספת כפתור 📏 Stop to Breakeven\n\nהקשר: יש כפתורי LONG/SHORT/Close50. עכשיו רוצה כפתור שמזיז stop למחיר הכניסה.\n\nהמשימה:\n1. בWorker: POST /stop-to-be — fetch position avg entry, פלייס Stop Limit במחיר זה (Sell stop אם long, Buy stop אם short)\n2. בטל stop קיים אם יש\n3. בדשבורד: כפתור 📏 BE (active רק אם יש פוזיציה)\n4. סמן Done\n\nכשנסיים, נעבור ל-Step 3.4." },
+
+    { id: "3.4", title: "📈 Intraday P&L Chart",
+      why: "<b>גרף קו</b> שמראה את ה-P&L המצטבר מתחילת היום עד עכשיו. ויזואלי, מסביר ב-2 שניות איך הלך היום.",
+      what: "Chart.js line chart מ-/balance polling time-series.",
+      prompt: "[Step 3.4] הוספת Intraday P&L Chart לדשבורד\n\nהקשר: יש Live Balance widget. עכשיו רוצה גרף שמראה את ה-P&L המצטבר מתחילת היום.\n\nהמשימה:\n1. בדשבורד: הוסף קנבס Chart.js (CDN)\n2. כל פעם ש-/balance polling חוזר — push {time, day_pnl} למערך\n3. רנדר גרף קו עם ציר X זמן (ב-IL), ציר Y day_pnl ב-$\n4. אופציה לאיפוס בתחילת יום (יום מסחר חדש)\n5. שמור היסטוריה ב-localStorage כדי להישאר אחרי refresh\n6. סמן Done\n\nכשנסיים, Phase 3 הושלם — דשבורד trading מלא! עוברים ל-Phase 4 (אוטומציה מתוזמנת)." }
+  ]},
+
+  // ============ PHASE 4 ============
+  { phase: 4, title: "⏰ בטיחות אוטומטית — Worker Cron", desc: "פעולות שמתרחשות אוטומטית בזמנים קבועים", steps: [
+
+    { id: "4.1", title: "EOD Auto-flatten — סגירה לפני סוף יום",
+      why: "<b>סוגר כל פוזיציה ב-16:55 ET</b> (5 דק׳ לפני סגירת RTH). בלי overnight risk בDemo. חשוב במיוחד עבור prop firms עם hard EOD rules.",
+      what: "Worker cron trigger '55 20 * * 1-5' (UTC) → call /flatten internally.",
+      prompt: "[Step 4.1] הוספת EOD Auto-flatten באמצעות Worker Cron\n\nהקשר: Phase 3 הושלם. עכשיו רוצה אוטומציה: סגירת כל פוזיציה אוטומטית 5 דק׳ לפני סגירת RTH (16:55 ET = 20:55 UTC standard, 21:55 UTC DST).\n\nהמשימה:\n1. עדכן wrangler.toml להוסיף trigger cron: '55 20 * * 1-5' UTC (5 ימים, חמישי-שני CT לא חופש)\n2. הוסף handler scheduled(event, env) ב-src/index.js — קורא internally ל-flatten logic\n3. שלח SMS אישור: 'EOD flatten ran — closed X positions'\n4. wrangler deploy\n5. עדכון לקובץ הגדרות (worker_config.json) — אינדיקציה שזה enabled\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 4.2." },
+
+    { id: "4.2", title: "Pre/Post-market BOT toggle",
+      why: "<b>BOT מופעל אוטומטית בבוקר, מכובה בלילה.</b> פותרת את הצורך לזכור להפעיל ידנית כל יום. למשל: enable 9:25 ET, disable 16:55 ET.",
+      what: "Worker cron 2 פעמים ביום שמשנה autotrade_enabled.json דרך GitHub API.",
+      prompt: "[Step 4.2] הוספת תזמון אוטומטי להפעלת/כיבוי BOT\n\nהקשר: EOD flatten עובד (Step 4.1). עכשיו רוצה ש-BOT יופעל אוטומטית בבוקר ויכבה בלילה.\n\nהמשימה:\n1. הוסף 2 cron triggers ב-wrangler.toml: '25 13 * * 1-5' UTC (9:25 ET enable) ו-'55 20 * * 1-5' UTC (16:55 ET disable)\n2. ב-scheduled() — בדוק את ה-cron הנוכחי, ועדכן docs/trading/autotrade_enabled.json דרך GitHub Contents API (PUT)\n3. צריך GITHUB_PAT כSecret חדש: wrangler secret put GITHUB_PAT\n4. שלח SMS לאחר כל toggle\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 4.3." },
+
+    { id: "4.3", title: "💰 Daily Loss Cap Monitor",
+      why: "<b>בודק יתרה כל 5 דק׳</b>, ואם ירדה מתחת ל-threshold (נגיד -$200) → BOT מכבה אוטומטית + SMS. מנהל סיכון יומי קריטי.",
+      what: "Worker cron כל 5 דק׳ → /balance → check threshold → disable + SMS.",
+      prompt: "[Step 4.3] הוספת Daily Loss Cap Monitor\n\nהקשר: Auto-toggle עובד. עכשיו רוצה ש-Worker יבדוק יתרה כל 5 דק׳ ויכבה BOT אם ירדנו מתחת לthreshold.\n\nהמשימה:\n1. הוסף cron trigger '*/5 13-21 * * 1-5' UTC (כל 5 דק׳ בשעות מסחר)\n2. ב-scheduled() — fetch /balance, השווה day_pnl לthreshold (קבע ב-Secret DAILY_LOSS_CAP, נגיד -200)\n3. אם hit: PUT GitHub kill-switch → enabled=false + שלח SMS 'הופסק: ירדנו $X היום'\n4. הוסף עמודה לdashboard שמראה: 'Loss cap: -$X / -$Y' עם progress bar\n5. סמן Done\n\nכשנסיים, Phase 4 הושלם — מוגנים בטיחותית 24/7. עוברים ל-Phase 5 (אנליטיקה)." }
+  ]},
+
+  // ============ PHASE 5 ============
+  { phase: 5, title: "🧠 אנליטיקה — ללמוד מהיומן", desc: "תובנות חכמות מתוך הנתונים שכבר נאספים", steps: [
+
+    { id: "5.1", title: "🏆 Best Hour Heat Map",
+      why: "<b>טבלה: לכל שעה ביום</b> — win rate, ממוצע $, מספר עסקאות. תראי בבירור שהאסטרטגיה הכי טובה בין X-Y, וגרועה בZ-W. בסיס להחלטות.",
+      what: "JS aggregation על trades[] לפי hour, רינדור heat-map צבעוני.",
+      prompt: "[Step 5.1] בניית Best Hour Heat Map בדשבורד\n\nהקשר: Phase 4 הושלם. עכשיו אנליטיקה — מתחיל בHeat Map לפי שעה.\n\nהמשימה:\n1. ב-docs/trading/journal/index.html — הוסף section חדש 'אנליטיקה — שעה הכי טובה'\n2. JS שצובר את ה-trades לפי שעה ב-Israel time (0-23)\n3. לכל שעה: count, win rate, avg $ result_dollars, sum $\n4. רנדר טבלה 24 שורות x 4 עמודות, צבע רקע ירוק/אדום לפי PnL\n5. הדגש שעות עם <5 עסקאות כ-'לא מספיק נתונים'\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 5.2." },
+
+    { id: "5.2", title: "🌀 Streak Detector + Auto-pause",
+      why: "<b>'אחרי 3 הפסדים ברצף — BOT מכבה למשך שעה'</b>. מנגנון cool-off קלאסי, מונע revenge trading.",
+      what: "JS עוקב ב-trades, אם streak>=3 → flip kill-switch, אחרי שעה auto-restart.",
+      prompt: "[Step 5.2] הוספת Streak Detector + Auto-pause\n\nהקשר: Heat Map עובד. עכשיו רוצה שהמערכת תזהה streaks (רצף הפסדים) ותכבה BOT אוטומטית.\n\nהמשימה:\n1. הוסף ל-Worker scheduled (כל 5 דק׳ כבר רץ ל-Loss Cap) — בנוסף לטעון journal, לבדוק streak\n2. אם 3+ הפסדים רצופים: PUT kill-switch=false + הוסף שדה 'auto_paused_until' עם זמן + שעה\n3. בdashboard — הצג איקון 🌀 עם countdown 'BOT paused for X min'\n4. cron נוסף — אם auto_paused_until חלף, רענן kill-switch=true\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 5.3." },
+
+    { id: "5.3", title: "🎯 Win Rate by Signal Type",
+      why: "<b>pie chart או טבלה</b> — LONG vs SHORT vs SWAP LONG vs SWAP SHORT vs EXIT TP vs EXIT SL. איזה סוג הכי רווחי? אולי כדאי לבטל SWAP?",
+      what: "Aggregation על type, רינדור Chart.js doughnut + table.",
+      prompt: "[Step 5.3] Win Rate by Signal Type\n\nהקשר: יש Streak Detector. עכשיו רוצה לראות איזה סוג סיגנל הכי מצליח.\n\nהמשימה:\n1. ב-journal HTML — section נוסף 'ביצועים לפי סוג סיגנל'\n2. JS groupBy על trades לפי type (LONG/SHORT/SWAP LONG/EXIT LONG TP וכו')\n3. לכל קבוצה: count, win rate, total $, avg $\n4. רנדר טבלה ממוינת לפי total $ desc\n5. אופציונלית גם Chart.js pie chart\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 5.4." },
+
+    { id: "5.4", title: "📅 Calendar P&L Heatmap",
+      why: "<b>תצוגת לוח שנה</b> חודשי — כל יום ריבוע ירוק/אדום לפי PnL. רואים פטרנים: 'בשבועות הראשונים אני טוב, באמצע הולך לאיבוד'.",
+      what: "Calendar grid (לוח שנה) עם צבעים לפי PnL יומי.",
+      prompt: "[Step 5.4] הוספת Calendar P&L Heatmap\n\nהקשר: יש Win Rate analysis. עכשיו רוצה תצוגת לוח שנה.\n\nהמשימה:\n1. section חדש — 'לוח שנה — P&L יומי'\n2. בחירת חודש (default: נוכחי)\n3. הצג grid 7x5 (שבועות x ימים)\n4. כל ריבוע: יום + PnL יומי, צבע רקע פי intensity (ירוק→אדום)\n5. hover מציג tooltip עם פרטים: number of trades, win rate\n6. סמן Done\n\nכשנסיים, Phase 5 הושלם — דשבורד אנליטי מלא. עוברים ל-Phase 6 (סיגנלים חיצוניים)." }
+  ]},
+
+  // ============ PHASE 6 ============
+  { phase: 6, title: "🔭 חכמה — סיגנלים חיצוניים", desc: "חיבור למקורות נוספים שמעשירים את הbot", steps: [
+
+    { id: "6.1", title: "📰 Economic Calendar Blackout",
+      why: "<b>אוטו-כיבוי BOT לפני CPI/NFP/FOMC</b>. תנודתיות חריגה = הפסדים חריגים. המערכת תקרא calendar וחוסם 5 דק׳ לפני + אחרי.",
+      what: "Worker scheduled שמושך calendar API (Finnhub/Investing) → קובע blackout windows.",
+      prompt: "[Step 6.1] הוספת Economic Calendar Blackout\n\nהקשר: Phase 5 הושלם. עכשיו רוצה שה-BOT יידע על אירועי מאקרו ויחסום אוטומטית.\n\nהמשימה:\n1. חקור Free APIs ל-economic calendar (Finnhub free tier? AlphaVantage? Investing.com scraping?)\n2. צור worker route GET /calendar שמחזיר אירועי היום בעלי impact=high\n3. cron יומי 6:00 ET — מושך calendar, יוצר רשימת blackouts (5 דק׳ לפני, 10 דק׳ אחרי) ל-autotrade_enabled.json\n4. Code step בZapier ייבדוק אם בblackout → SKIP\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 6.2." },
+
+    { id: "6.2", title: "🌊 ATR-based Filter",
+      why: "<b>'לא לסחור אם השוק שטוח'</b>. אם ATR(14) של MNQ < 30 — לא נכנסים. שווקים שטוחים = הרבה whip-saws.",
+      what: "Worker שמושך ATR מ-Tradovate marketData, מעדכן kill-switch dynamically.",
+      prompt: "[Step 6.2] הוספת ATR-based Filter\n\nהקשר: Calendar Blackout עובד. עכשיו filter על volatility.\n\nהמשימה:\n1. בWorker — endpoint GET /atr שמושך 14 candles אחרונים של MNQM6 מ-Tradovate market data + מחשב ATR\n2. cron כל 15 דק׳ — אם ATR < threshold (10? 15? נקבע ביחד) → set kill-switch reason='low_atr'\n3. dashboard מציג: ATR נוכחי + threshold + status\n4. סמן Done\n\nכשנסיים, נעבור ל-Step 6.3." },
+
+    { id: "6.3", title: "🎯 Two-stage Take Profit",
+      why: "<b>במקום TP אחד — TP1 +15 חצי, TP2 +40 שני חצי</b>. נטו: שומרים רווחים, נותנים לעבר רוץ. סטטיסטית מנצח TP בודד.",
+      what: "Tradovate Code step בZapier יידע פעולת LONG → שלוח 2 limit orders (TP1, TP2).",
+      prompt: "[Step 6.3] הוספת Two-stage Take Profit\n\nהקשר: ATR Filter עובד. עכשיו שיפור באסטרטגיה — TP מדורג.\n\nהמשימה:\n1. עדכן Tradovate Code step ב-Zapier — בכניסת LONG/SHORT, אחרי market order, שלח 2 limit orders:\n   - TP1: 50% qty, +15 ticks\n   - TP2: 50% qty, +40 ticks\n   - אם price moves favorably אחרי TP1 — Stop ל-BE אוטומטית\n2. עדכן את הPython code accordingly\n3. סמן Done\n\nכשנסיים, Phase 6 הושלם — bot חכם. עוברים ל-Phase 7 (multi-account)." }
+  ]},
+
+  // ============ PHASE 7 ============
+  { phase: 7, title: "💼 Multi-account — הכנה ל-live", desc: "מבנה גמיש כדי לעבור לחשבון אמיתי או לpro firm", steps: [
+
+    { id: "7.1", title: "Live Account Adapter",
+      why: "<b>אותו קוד יעבוד גם על Demo וגם על Live</b>. רק החלפת URL ו-credentials. הכנה לרגע שתהיי מוכנה לעבור לכסף אמיתי.",
+      what: "ה-Worker יקבל env=demo|live param ויבחר ה-URL/secrets המתאימים.",
+      prompt: "[Step 7.1] הכנת Worker ל-Live Account\n\nהקשר: Phase 6 הושלם. עכשיו הכנה לעתיד — Worker שיודע לעבוד גם מול Live (לא רק Demo).\n\nהמשימה:\n1. עדכן Worker — כל route יכול לקבל ?env=demo או ?env=live, default=demo\n2. הוסף Secrets נפרדים: TRADOVATE_LIVE_NAME, TRADOVATE_LIVE_PASSWORD, וכו' (יישארו ריקים בינתיים)\n3. בקוד — בחר URL ו-secrets לפי env\n4. סמן Done\n\nכשנסיים, נעבור ל-Step 7.2." },
+
+    { id: "7.2", title: "Demo↔Live Toggle בדשבורד",
+      why: "<b>מתג גלוי</b> בdashboard — Demo / Live. כדי שלעולם לא תפרסי טעות, יש אישור כפול לפני מעבר ל-Live.",
+      what: "Toggle UI + state ב-localStorage + ויזואל clear.",
+      prompt: "[Step 7.2] הוספת Demo↔Live Toggle בדשבורד\n\nהקשר: Worker תומך ב-env. עכשיו ממשק להחלפה.\n\nהמשימה:\n1. בtopbar של dashboard — toggle בולט: Demo (סגול) / Live (אדום)\n2. שמור ב-localStorage\n3. כל קריאה לWorker מוסיפה ?env=demo|live\n4. מעבר ל-Live דורש 2 אישורים + טייפ של 'LIVE' לאישור\n5. כל הדשבורד מקבל border אדום עבה במצב Live\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 7.3." },
+
+    { id: "7.3", title: "Multi-prop Mirroring",
+      why: "<b>אותו סיגנל → BluSky + Apex + Lucid במקביל</b>. אם prop firm מתיר auto-trading, ניתן להריץ אותו setup על כל החשבונות. הגדלת הכנסות x3.",
+      what: "Worker מוסיף routes לכל firm, Code step שולח לרשימת חשבונות מוגדרת.",
+      prompt: "[Step 7.3] בניית Multi-prop Mirroring\n\nהקשר: יש Live Toggle. עכשיו הרחבה — לחשבונות multiple prop firms.\n\nהמשימה:\n1. חקור — אילו prop firms של Lauren (BluSky/Apex/Lucid) מתירים automated trading? תקריא Terms של כל אחד\n2. אם מתירים — הוסף adapters ב-Worker לכל broker (חלקם משתמשים ב-Rithmic, חלקם CQG, חלקם Tradovate)\n3. הוסף config: docs/trading/mirror_accounts.json — רשימת חשבונות פעילים + per-account risk profile\n4. Tradovate Code step ישלח לכל אחד\n5. סמן Done\n\nכשנסיים, Phase 7 הושלם. עוברים ל-Phase 8 (ליטוש סופי)." }
+  ]},
+
+  // ============ PHASE 8 ============
+  { phase: 8, title: "✨ ליטוש — חוויית משתמש", desc: "פיצ׳רים שעושים את הכלי הזה למקצועי וקל לחיים יומיים", steps: [
+
+    { id: "8.1", title: "🌙 Dark Mode",
+      why: "<b>עבודת לילה</b> (מסחר אסיה, futures בלילה) דורשת theme כהה. הקלה משמעותית על העיניים אחרי כמה שעות.",
+      what: "CSS variables כפול (light/dark), toggle ב-localStorage.",
+      prompt: "[Step 8.1] הוספת Dark Mode לדשבורד\n\nהקשר: Phase 7 הושלם. עכשיו ליטוש UX.\n\nהמשימה:\n1. ב-journal HTML + roadmap HTML — הוסף CSS variables לdark mode\n2. toggle 🌙/☀️ בtopbar\n3. שמור ב-localStorage\n4. אוטומטי לפי שעה? (אחרי 19:00 → dark)\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 8.2." },
+
+    { id: "8.2", title: "📱 Mobile Optimization",
+      why: "<b>שליטה מהטלפון</b> כשאת לא ליד המחשב. כפתורי FLATTEN/Position נגישים, dashboard responsive.",
+      what: "Media queries, single-column on mobile, sticky FLATTEN button.",
+      prompt: "[Step 8.2] Mobile Optimization\n\nהקשר: Dark Mode עובד. עכשיו mobile-friendly.\n\nהמשימה:\n1. עדכן כל ה-grid layouts לsingle-column על מסכים <600px\n2. הכפתור FLATTEN sticky על mobile (תמיד נגיש)\n3. typography קטן ב-mobile\n4. בדוק על iPhone/Android\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 8.3." },
+
+    { id: "8.3", title: "🔔 Browser Notifications on Fill",
+      why: "<b>פוש לחלון הדפדפן</b> בכל מילוי, גם אם הtab בpost. לא צריך לבהות במסך.",
+      what: "Notification API, polling /orders ל-status==Filled changes.",
+      prompt: "[Step 8.3] Browser Notifications on Fill\n\nהקשר: Mobile עובד. עכשיו push notifications.\n\nהמשימה:\n1. בכניסה ראשונה לדשבורד — בקש Notification.requestPermission()\n2. polling GET /orders כל 10s — זהה orders חדשים עם status=Filled\n3. אם נמצא — new Notification('💰 Filled', { body: 'LONG 1 MNQM6 @ 20500' })\n4. סמן Done\n\nכשנסיים, נעבור ל-Step 8.4." },
+
+    { id: "8.4", title: "📊 Daily SMS Recap",
+      why: "<b>17:00 ET כל יום — SMS עם סיכום</b>: עסקאות, P&L, win rate, הערות. סוף יום ברור גם בלי לפתוח דשבורד.",
+      what: "Worker scheduled cron 21:00 UTC, מבצע aggregate על journal, SMS via SimpleTexting.",
+      prompt: "[Step 8.4] Daily SMS Recap\n\nהקשר: Phase 8 מתקדם. עכשיו תקציר יומי ב-SMS.\n\nהמשימה:\n1. הוסף Worker scheduled '0 21 * * 1-5' UTC (17:00 ET)\n2. מושך journal, מסנן trades של היום ב-IL\n3. בונה הודעה: 'יום סוכם: X trades · Y win rate · Z$ net · best trade $A · worst $B'\n4. שלח SMS דרך SimpleTexting (Token קיים ב-Worker secret)\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 8.5." },
+
+    { id: "8.5", title: "📲 SMS Commands — שליטה ב-SMS",
+      why: "<b>שולחת 'STOP' למספר → BOT מכבה. 'FLATTEN' → סוגר הכל. 'STATUS' → מקבלת מצב</b>. שליטה אולטימטיבית.",
+      what: "SimpleTexting webhook לWorker route POST /sms-cmd, פעולה לפי תוכן.",
+      prompt: "[Step 8.5] SMS Commands\n\nהקשר: Daily Recap עובד. השלב הסופי — SMS commands.\n\nהמשימה:\n1. בSimpleTexting — קונפיגוריזה incoming SMS webhook אל Worker URL + '/sms-cmd'\n2. בWorker: POST /sms-cmd קורא תוכן הודעה\n3. במידה ולפי תוכן: STOP→kill-switch=false / START→true / FLATTEN→flatten / STATUS→החזר position + balance\n4. שלח SMS תגובה\n5. סמן Done\n\nכשנסיים — סיימת את כל ה-Roadmap! 🎉 דשבורד trading מלא ושלם. נדבר על אילו פיצ׳רים נוספים תרצי" }
+  ]}
+];
+
+// =============================================================
+// Progress state — synced via GitHub (IRON RULE #7)
+// =============================================================
+const PROGRESS_URL = "../roadmap_progress.json";
+const PROGRESS_REPO_FILE = "docs/trading/roadmap_progress.json";
+const TOKEN_KEY = "lauren_gh_token_v1";
+let PROGRESS = { steps: {} };
+let PROGRESS_SHA = null;
+
+async function loadProgress(){
+  try{
+    const r = await fetch(PROGRESS_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if(r.ok) PROGRESS = await r.json();
+    if(!PROGRESS.steps) PROGRESS.steps = {};
+  } catch(e){ console.warn("progress load failed:", e); }
+}
+async function saveProgress(){
+  const token = (localStorage.getItem(TOKEN_KEY) || "").trim();
+  if(!token){
+    document.getElementById("token-setup").style.display = "block";
+    return false;
+  }
+  PROGRESS._updated_at = new Date().toISOString();
+  try{
+    const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + PROGRESS_REPO_FILE + "?ref=main";
+    const getR = await fetch(getUrl, { headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
+    if(!getR.ok){ if(getR.status===401){ localStorage.removeItem(TOKEN_KEY); document.getElementById("token-setup").style.display="block"; alert("GitHub PAT לא תקין — הגדירי מחדש"); return false; } throw new Error("GET "+getR.status); }
+    const cur = await getR.json();
+    const newContent = JSON.stringify(PROGRESS, null, 2);
+    const putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + PROGRESS_REPO_FILE;
+    const putR = await fetch(putUrl, {
+      method:"PUT",
+      headers:{"Authorization":"token "+token, "Accept":"application/vnd.github+json", "Content-Type":"application/json"},
+      body: JSON.stringify({ message: "roadmap: update progress", content: btoa(unescape(encodeURIComponent(newContent))), sha: cur.sha, branch: "main" })
+    });
+    return putR.ok;
+  } catch(e){ console.error(e); alert("שמירה נכשלה: " + e.message); return false; }
+}
+
+function promptToken(){
+  const t = prompt("הדביקי GitHub PAT (יישמר ב-localStorage של דפדפן זה בלבד):");
+  if(t){ localStorage.setItem(TOKEN_KEY, t.trim()); document.getElementById("token-setup").style.display="none"; alert("PAT נשמר ✓"); }
+}
+
+async function toggleDone(stepId, btnEl){
+  const cur = PROGRESS.steps[stepId];
+  const done = cur && cur.status === "done";
+  PROGRESS.steps[stepId] = done ? { status:"todo" } : { status:"done", completed_at: new Date().toISOString() };
+  btnEl.disabled = true; btnEl.textContent = "שומר...";
+  const ok = await saveProgress();
+  if(ok){
+    render();
+  } else {
+    delete PROGRESS.steps[stepId]; // rollback
+    btnEl.disabled = false;
+    render();
+  }
+}
+
+function copyPrompt(stepId, btnEl){
+  const all = ROADMAP.flatMap(p => p.steps);
+  const step = all.find(s => s.id === stepId);
+  if(!step) return;
+  navigator.clipboard.writeText(step.prompt).then(() => {
+    const orig = btnEl.textContent;
+    btnEl.textContent = "✓ הועתק!";
+    btnEl.classList.add("copied");
+    setTimeout(() => { btnEl.textContent = orig; btnEl.classList.remove("copied"); }, 1800);
+  }).catch(() => {
+    const ta = document.createElement("textarea");
+    ta.value = step.prompt; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); btnEl.textContent = "✓ הועתק!"; setTimeout(()=>{btnEl.textContent="📋 העתק prompt";}, 1800); } catch(e){ alert("העתקה נכשלה. הprompt:\n\n" + step.prompt); }
+    document.body.removeChild(ta);
+  });
+}
+
+function togglePhase(idx){
+  document.getElementById("phase-" + idx).classList.toggle("collapsed");
+}
+
+function render(){
+  const all = ROADMAP.flatMap(p => p.steps);
+  const total = all.length;
+  const doneCount = all.filter(s => PROGRESS.steps[s.id] && PROGRESS.steps[s.id].status === "done").length;
+  const pct = total ? Math.round(doneCount * 100 / total) : 0;
+  document.getElementById("pct").textContent = pct + "%";
+  document.getElementById("bar").style.width = pct + "%";
+  document.getElementById("stats").innerHTML = "<span>✅ <b>" + doneCount + "</b> בוצעו</span><span>⬜ <b>" + (total-doneCount) + "</b> נשארו</span><span>📝 <b>" + total + "</b> סה״כ</span>";
+
+  const wrap = document.getElementById("phases-wrap");
+  wrap.innerHTML = ROADMAP.map((p, idx) => {
+    const phaseDone = p.steps.filter(s => PROGRESS.steps[s.id] && PROGRESS.steps[s.id].status === "done").length;
+    const phaseTotal = p.steps.length;
+    const allDone = phaseDone === phaseTotal;
+    const collapsed = idx > 0 && phaseDone === 0 ? "collapsed" : "";
+    return '<div class="phase ' + collapsed + '" id="phase-' + idx + '">'
+      + '<div class="phase-hdr" onclick="togglePhase(' + idx + ')">'
+        + '<div>'
+          + '<div class="ttl">' + p.title + ' <span class="num">Phase ' + p.phase + '</span></div>'
+          + '<div class="desc">' + p.desc + '</div>'
+        + '</div>'
+        + '<div style="display:flex;align-items:center;gap:10px;">'
+          + '<span class="pcount ' + (allDone?"done":"") + '">' + phaseDone + ' / ' + phaseTotal + '</span>'
+          + '<span class="arrow">▼</span>'
+        + '</div>'
+      + '</div>'
+      + '<div class="phase-body">'
+        + p.steps.map(s => {
+          const st = PROGRESS.steps[s.id] || {};
+          const done = st.status === "done";
+          return '<div class="step ' + (done?"done":"") + '">'
+            + '<div class="step-num">' + s.id.split(".")[1] + '<span class="id">#' + s.id + '</span></div>'
+            + '<div class="step-body">'
+              + '<div class="title">' + s.title + '</div>'
+              + '<div class="why">' + s.why + '</div>'
+              + (s.what ? '<div class="what">↪ ' + s.what + '</div>' : '')
+            + '</div>'
+            + '<div class="step-actions">'
+              + '<button class="btn copy" onclick="copyPrompt(\'' + s.id + '\', this)">📋 העתק prompt</button>'
+              + '<button class="btn toggle-done ' + (done?"is-done":"") + '" onclick="toggleDone(\'' + s.id + '\', this)">' + (done?"↺ בטל סימון":"✓ סמן כבוצע") + '</button>'
+            + '</div>'
+          + '</div>';
+        }).join("")
+      + '</div>'
+    + '</div>';
+  }).join("");
+}
+
+window.addEventListener("DOMContentLoaded", async () => {
+  await loadProgress();
+  render();
+});
+</script>
+</body>
+</html>
