@@ -123,6 +123,9 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
 .at-btn.toggle-off{background:var(--red-soft);color:#fff;border-color:var(--red-soft);}
 .at-btn.toggle-off:hover{background:#b91c1c;border-color:#b91c1c;}
 .at-btn.edit{background:#fff;color:var(--txt3);border-color:var(--bdr);}
+.at-btn.flatten{background:#7f1d1d;color:#fff;border-color:#7f1d1d;font-weight:900;letter-spacing:.05em;}
+.at-btn.flatten:hover{background:#991b1b;border-color:#991b1b;transform:scale(1.03);}
+.at-btn.flatten.working{background:var(--amb);border-color:var(--amb);}
 .at-btn.edit:hover{border-color:var(--tv);color:var(--tv);}
 .at-btn:disabled{opacity:.5;cursor:not-allowed;}
 .webhook-strip{background:linear-gradient(135deg,#eff6ff,#e0e7ff);border:1.5px solid #c7d2fe;border-radius:var(--r);padding:11px 16px;box-shadow:var(--sh);margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
@@ -180,6 +183,7 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
     </div>
     <div class="at-meta" id="at-meta"></div>
     <div class="at-spacer"></div>
+    <button class="at-btn flatten" id="at-btn-flatten" onclick="flattenAll()">🚨 סגור הכל</button>
     <button class="at-btn edit" id="at-btn-edit" onclick="window.open('https://github.com/laurenlev10/lauren-agent-hub-data/edit/main/docs/trading/autotrade_enabled.json','_blank')">⚙ ערוך הגדרות</button>
     <button class="at-btn toggle-on" id="at-btn-toggle" onclick="toggleAutoTrader()" disabled>טוען...</button>
   </div>
@@ -389,6 +393,55 @@ async function toggleAutoTrader(){
     alert("שגיאה: " + e.message);
     btn.disabled = false;
     btn.textContent = origText;
+  }
+}
+
+// ============== FLATTEN ALL — emergency close-all positions ==============
+async function flattenAll(){
+  if(!confirm("🚨 לסגור עכשיו את כל הפוזיציות הפתוחות?\n\nישלח 2 webhooks (EXIT LONG + EXIT SHORT) ל-Tradovate Demo.\nאם יש פוזיציה — תיסגר. אם flat — no-op בטוח.")) return;
+  const btn = document.getElementById("at-btn-flatten");
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.className = "at-btn flatten working";
+  btn.textContent = "⏳ סוגר...";
+
+  const webhookUrl = document.getElementById("wh-url").textContent.trim();
+  const now = new Date().toISOString();
+  const ticker = "MNQM2026";
+
+  const exitLong = {
+    ticker, type: "EXIT LONG TP", action: "exit", side: "sell",
+    quantity: 1, price: "0", time: now, danger: 0,
+    _emergency_flatten: true
+  };
+  const exitShort = {
+    ticker, type: "EXIT SHORT TP", action: "exit", side: "buy",
+    quantity: 1, price: "0", time: now, danger: 0,
+    _emergency_flatten: true
+  };
+
+  try {
+    // Send both in parallel
+    const [r1, r2] = await Promise.all([
+      fetch(webhookUrl, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(exitLong) }),
+      fetch(webhookUrl, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(exitShort) })
+    ]);
+    if(r1.ok && r2.ok){
+      btn.textContent = "✓ נשלח! בדקי Tradovate";
+      btn.className = "at-btn flatten";
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = origText;
+      }, 4000);
+    } else {
+      throw new Error("webhook returned " + r1.status + "/" + r2.status);
+    }
+  } catch(e){
+    console.error(e);
+    alert("שגיאה בשליחת FLATTEN: " + e.message + "\n\nגיבוי: היכנסי ל-Tradovate ישירות וסגרי ידנית.");
+    btn.disabled = false;
+    btn.textContent = origText;
+    btn.className = "at-btn flatten";
   }
 }
 
