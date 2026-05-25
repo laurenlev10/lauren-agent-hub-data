@@ -101,6 +101,30 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
 .empty p{font-size:14.5px;max-width:560px;margin:0 auto;line-height:1.6;}
 .empty code{background:var(--s2);border:1px solid var(--bdr2);border-radius:6px;padding:2px 7px;font-family:ui-monospace,monospace;font-size:13px;color:var(--tv);}
 
+.autotrader-panel{background:#fff;border:2px solid var(--bdr);border-radius:var(--r);padding:14px 18px;box-shadow:var(--sh);margin-bottom:14px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+.autotrader-panel.on{border-color:var(--grn-mid);background:linear-gradient(135deg,#f0fdf4,#dcfce7);}
+.autotrader-panel.off{border-color:#fca5a5;background:linear-gradient(135deg,#fef2f2,#fee2e2);}
+.autotrader-panel.unknown{border-color:var(--amb-mid);background:#fffbeb;}
+.at-status{display:flex;align-items:center;gap:10px;}
+.at-status .at-dot{width:14px;height:14px;border-radius:50%;}
+.at-status.on .at-dot{background:var(--grn-soft);box-shadow:0 0 0 4px rgba(22,163,74,.15);}
+.at-status.off .at-dot{background:var(--red-soft);}
+.at-status.unknown .at-dot{background:var(--amb);}
+.at-status .at-label{font-size:15px;font-weight:900;color:var(--txt);letter-spacing:.02em;}
+.at-status.on .at-label{color:var(--grn);}
+.at-status.off .at-label{color:var(--red);}
+.at-status.unknown .at-label{color:var(--amb);}
+.at-meta{font-size:12.5px;color:var(--txt4);font-weight:600;display:flex;gap:14px;flex-wrap:wrap;}
+.at-meta strong{color:var(--txt2);font-weight:800;}
+.at-spacer{flex:1;}
+.at-btn{font-family:var(--f);font-size:13.5px;font-weight:800;border-radius:10px;padding:9px 16px;cursor:pointer;border:1.5px solid;transition:all .15s;}
+.at-btn.toggle-on{background:var(--grn-soft);color:#fff;border-color:var(--grn-soft);}
+.at-btn.toggle-on:hover{background:#15803d;border-color:#15803d;}
+.at-btn.toggle-off{background:var(--red-soft);color:#fff;border-color:var(--red-soft);}
+.at-btn.toggle-off:hover{background:#b91c1c;border-color:#b91c1c;}
+.at-btn.edit{background:#fff;color:var(--txt3);border-color:var(--bdr);}
+.at-btn.edit:hover{border-color:var(--tv);color:var(--tv);}
+.at-btn:disabled{opacity:.5;cursor:not-allowed;}
 .webhook-strip{background:linear-gradient(135deg,#eff6ff,#e0e7ff);border:1.5px solid #c7d2fe;border-radius:var(--r);padding:11px 16px;box-shadow:var(--sh);margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
 .webhook-strip .wh-label{font-size:13px;font-weight:800;color:var(--tv);display:flex;align-items:center;gap:5px;}
 .webhook-strip code.wh-url{flex:1;min-width:200px;font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;background:#fff;border:1px solid #c7d2fe;border-radius:8px;padding:7px 12px;color:var(--txt3);font-weight:600;overflow-x:auto;white-space:nowrap;direction:ltr;text-align:left;}
@@ -146,6 +170,18 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
     <code class="wh-url" id="wh-url">https://hooks.zapier.com/hooks/catch/4888615/4o0onyg/</code>
     <button class="wh-btn" id="wh-btn" onclick="copyWebhook()">📋 העתק</button>
     <span class="wh-help">הדביקי ב-Alert → Notifications → Webhook URL</span>
+  </div>
+
+  <!-- Tradovate Auto-Trader status + kill-switch -->
+  <div class="autotrader-panel unknown" id="at-panel">
+    <div class="at-status unknown" id="at-status-wrap">
+      <span class="at-dot"></span>
+      <span class="at-label" id="at-label">⏳ טוען...</span>
+    </div>
+    <div class="at-meta" id="at-meta"></div>
+    <div class="at-spacer"></div>
+    <button class="at-btn edit" id="at-btn-edit" onclick="window.open('https://github.com/laurenlev10/lauren-agent-hub-data/edit/main/docs/trading/autotrade_enabled.json','_blank')">⚙ ערוך הגדרות</button>
+    <button class="at-btn toggle-on" id="at-btn-toggle" onclick="toggleAutoTrader()" disabled>טוען...</button>
   </div>
 
   <div class="kpi-section">
@@ -232,6 +268,129 @@ const PAGE_SIZE = 50;
 const TZ = "Asia/Jerusalem";
 
 let STATE = { raw: null, filtered: [], page: 0 };
+
+// ============== Auto-Trader status + kill-switch ==============
+const AT_URL = "../autotrade_enabled.json";
+const AT_REPO_FILE = "docs/trading/autotrade_enabled.json";
+const AT_TOKEN_KEY = "lauren_gh_token_v1";  // per IRON RULE #7 — localStorage for secrets
+let AT_CONFIG = null;
+let AT_SHA = null;
+
+async function loadAutoTraderStatus(){
+  try {
+    const r = await fetch(AT_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    AT_CONFIG = await r.json();
+    renderAutoTraderPanel();
+  } catch(e){
+    console.warn("autotrade config load failed:", e);
+    document.getElementById("at-label").textContent = "⚠ לא הצלחתי לטעון הגדרות";
+  }
+}
+function renderAutoTraderPanel(){
+  const panel = document.getElementById("at-panel");
+  const statusWrap = document.getElementById("at-status-wrap");
+  const label = document.getElementById("at-label");
+  const meta = document.getElementById("at-meta");
+  const btn = document.getElementById("at-btn-toggle");
+  const c = AT_CONFIG || {};
+
+  // Count today's trades from the journal (PT-aware would be ideal, but local-tz is fine for cap purposes)
+  const todayStr = new Date().toISOString().slice(0,10);
+  let todayCount = 0;
+  if(STATE.raw && Array.isArray(STATE.raw.trades)){
+    todayCount = STATE.raw.trades.filter(t => {
+      const ts = t._received_at || t.time;
+      return ts && ts.startsWith(todayStr);
+    }).length;
+  }
+
+  if(c.enabled === true){
+    panel.className = "autotrader-panel on";
+    statusWrap.className = "at-status on";
+    label.textContent = "🟢 BOT פעיל — שולח Orders ל-Tradovate Demo";
+    btn.className = "at-btn toggle-off";
+    btn.textContent = "🔴 כבי BOT";
+    btn.disabled = false;
+  } else if(c.enabled === false){
+    panel.className = "autotrader-panel off";
+    statusWrap.className = "at-status off";
+    label.textContent = "🔴 BOT כבוי — סיגנלים נשמרים ביומן בלבד";
+    btn.className = "at-btn toggle-on";
+    btn.textContent = "🟢 הפעלי BOT";
+    btn.disabled = false;
+  } else {
+    panel.className = "autotrader-panel unknown";
+    statusWrap.className = "at-status unknown";
+    label.textContent = "⚠ סטטוס לא ידוע";
+    btn.disabled = true;
+  }
+  const contract = c.active_contract || {};
+  meta.innerHTML =
+    '<span>חוזה: <strong>' + (contract.contract_name || "—") + '</strong></span>' +
+    '<span>חשבון: <strong>' + (c.account_id || "—") + '</strong> (' + (c.environment || "?") + ')</span>' +
+    '<span>גודל מקס: <strong>' + (c.max_qty || "—") + '</strong></span>' +
+    '<span>תקרה יומית: <strong>' + (todayCount) + ' / ' + (c.daily_cap || "—") + '</strong></span>' +
+    '<span>סינון danger: <strong>' + (c.skip_on_danger ? "כן" : "לא") + '</strong></span>';
+}
+
+async function toggleAutoTrader(){
+  if(!AT_CONFIG) return;
+  const newEnabled = !AT_CONFIG.enabled;
+  const action = newEnabled ? "הפעלת" : "כיבוי";
+  if(!confirm("האם לאשר " + action + " של BOT אוטומטי? (Tradovate Demo)")) return;
+
+  // Get GitHub PAT from localStorage; prompt if missing
+  let token = (localStorage.getItem(AT_TOKEN_KEY) || "").trim();
+  if(!token){
+    token = (prompt("הדביקי GitHub PAT חד-פעמי (לכתיבה ל-repo).\nיישמר ב-localStorage של דפדפן זה בלבד.") || "").trim();
+    if(!token) return;
+    localStorage.setItem(AT_TOKEN_KEY, token);
+  }
+
+  const btn = document.getElementById("at-btn-toggle");
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "שומר...";
+
+  try {
+    // Fetch current SHA + content
+    const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + AT_REPO_FILE + "?ref=main";
+    const getR = await fetch(getUrl, { headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
+    if(!getR.ok){
+      if(getR.status === 401){ localStorage.removeItem(AT_TOKEN_KEY); throw new Error("PAT לא תקין — נמחק, נסי שוב"); }
+      throw new Error("GitHub GET נכשל: " + getR.status);
+    }
+    const cur = await getR.json();
+    const decoded = JSON.parse(atob(cur.content.replace(/\s/g,"")));
+    decoded.enabled = newEnabled;
+    decoded._updated_at = new Date().toISOString();
+    decoded._updated_by = "browser-toggle";
+
+    const newContent = JSON.stringify(decoded, null, 2);
+    const putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + AT_REPO_FILE;
+    const putR = await fetch(putUrl, {
+      method: "PUT",
+      headers: {"Authorization":"token "+token,"Accept":"application/vnd.github+json","Content-Type":"application/json"},
+      body: JSON.stringify({
+        message: "autotrade: " + (newEnabled ? "ENABLE" : "DISABLE") + " bot (via dashboard)",
+        content: btoa(unescape(encodeURIComponent(newContent))),
+        sha: cur.sha,
+        branch: "main"
+      })
+    });
+    if(!putR.ok){ throw new Error("GitHub PUT נכשל: " + putR.status); }
+    AT_CONFIG = decoded;
+    renderAutoTraderPanel();
+    btn.textContent = "✓ נשמר!";
+    setTimeout(() => { renderAutoTraderPanel(); }, 1500);
+  } catch(e){
+    console.error(e);
+    alert("שגיאה: " + e.message);
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
 
 function copyWebhook(){
   const url = document.getElementById("wh-url").textContent;
@@ -492,10 +651,11 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById(id).addEventListener("change", applyFilters);
   });
   loadData(true);
+  loadAutoTraderStatus();
   // אין רענון אוטומטי תקופתי — הדף נשען על הכפתור 🔄 רענן
   // אבל כשחוזרים לטאב אחרי שהיית בחוץ — רענון חד-פעמי אוטומטי כדי שהנתונים יהיו עדכניים
   document.addEventListener("visibilitychange", () => {
-    if(document.visibilityState === "visible") loadData(false);
+    if(document.visibilityState === "visible"){ loadData(false); loadAutoTraderStatus(); }
   });
 });
 </script>
