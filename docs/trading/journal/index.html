@@ -934,7 +934,7 @@ function enrichSwapPnL(trades){
     var tb = new Date(b.time || b._received_at).getTime();
     return (ta||0) - (tb||0);
   });
-  var openEntry = null; // { direction: 'long'|'short', price: number }
+  var openEntry = null; // { direction: 'long'|'short', price: number, qty: number }
   for (var i = 0; i < sorted.length; i++){
     var t = sorted[i];
     var type = String(t.type || "").toUpperCase().trim();
@@ -946,7 +946,9 @@ function enrichSwapPnL(trades){
     var isShort = (type === "SHORT");
     var isExit = type.indexOf("EXIT") === 0;
     var isSwap = (isSwapLong || isSwapShort);
-    // SWAP closes prior opposite position → compute its P&L on this row
+    var qty = Number(t.quantity) || 1;
+
+    // ============ SWAP closes prior opposite position → compute its P&L on this row ============
     if(isSwap && openEntry){
       var dirMatches = (isSwapLong && openEntry.direction === "short")
                     || (isSwapShort && openEntry.direction === "long");
@@ -954,7 +956,7 @@ function enrichSwapPnL(trades){
         var diff = price - openEntry.price;
         if(openEntry.direction === "short") diff = -diff;
         var ticks = Math.round(diff / _TICK_SIZE_MNQ);
-        var dollars = +(ticks * _TICK_VALUE_USD_MNQ).toFixed(2);
+        var dollars = +(ticks * _TICK_VALUE_USD_MNQ * (openEntry.qty || 1)).toFixed(2);
         if(t.entry_price === undefined || t.entry_price === null){
           t.entry_price = openEntry.price;
         }
@@ -967,11 +969,40 @@ function enrichSwapPnL(trades){
         t._swap_pnl_computed = true;
       }
     }
+
+    // ============ EXIT closes the open position → compute P&L on this row ============
+    // Same idea as SWAP, but for explicit EXIT events fired by Pine (EXIT LONG TP, etc.).
+    // Pine's "Lauren BOT" alert message only carries type+price; entry_price/ticks/$
+    // are filled in here by looking back at the most recent open entry.
+    if(isExit && openEntry){
+      // EXIT LONG closes a LONG; EXIT SHORT closes a SHORT
+      var isExitLong  = type.indexOf("EXIT LONG")  === 0;
+      var isExitShort = type.indexOf("EXIT SHORT") === 0;
+      var exitDirMatches = (isExitLong && openEntry.direction === "long")
+                        || (isExitShort && openEntry.direction === "short");
+      if(exitDirMatches){
+        var diffE = price - openEntry.price;
+        if(openEntry.direction === "short") diffE = -diffE;
+        var ticksE = Math.round(diffE / _TICK_SIZE_MNQ);
+        var dollarsE = +(ticksE * _TICK_VALUE_USD_MNQ * (openEntry.qty || 1)).toFixed(2);
+        if(t.entry_price === undefined || t.entry_price === null){
+          t.entry_price = openEntry.price;
+        }
+        if(t.result_ticks === undefined || t.result_ticks === null){
+          t.result_ticks = ticksE;
+        }
+        if(t.result_dollars === undefined || t.result_dollars === null){
+          t.result_dollars = dollarsE;
+        }
+        t._exit_pnl_computed = true;
+      }
+    }
+
     // Update openEntry state
     if(isLong || isSwapLong){
-      openEntry = { direction: "long", price: price };
+      openEntry = { direction: "long", price: price, qty: qty };
     } else if(isShort || isSwapShort){
-      openEntry = { direction: "short", price: price };
+      openEntry = { direction: "short", price: price, qty: qty };
     } else if(isExit){
       openEntry = null;
     }
