@@ -305,10 +305,10 @@ def main():
         fid = f.get("id")
         if fid in seen_fill_ids:
             continue
-        # Filter to the configured contract + account
+        # Filter to the configured contract (Tradovate /fill/list returns accountId=None,
+        # so we can't filter by account here — contract filter is sufficient since each
+        # account trades distinct contract sets and Lauren has only one demo account)
         if contract_id and f.get("contractId") != contract_id:
-            continue
-        if account_id and f.get("accountId") != account_id:
             continue
         fill_time = f.get("timestamp") or f.get("fillTime")
         fdt = parse_dt(fill_time)
