@@ -265,8 +265,13 @@ def build_exit_row(fill, open_entry, autotrade):
     exit_type = f"EXIT {dir_str} {reason}"
     side = "sell" if direction == "long" else "buy"
 
+    # Use the actual Tradovate fill time as _received_at so the row sorts
+    # into the right chronological position in the journal (the time the fill
+    # actually happened, not when the reconciler discovered it). Original
+    # write-time kept under _written_at for audit.
     return {
-        "_received_at": datetime.now(timezone.utc).isoformat(),
+        "_received_at": fill_time or datetime.now(timezone.utc).isoformat(),
+        "_written_at": datetime.now(timezone.utc).isoformat(),
         "_source": "tradovate-reconciler",
         "ticker": (autotrade.get("active_contract") or {}).get("contract_name") or "MNQM6",
         "type": exit_type,
