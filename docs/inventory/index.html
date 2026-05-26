@@ -1199,6 +1199,12 @@ function renderSupplierCard(sup, s, idx){
             ? '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="סימנת כעודכן ידנית. לחיצה כדי להסיר את הסימון" style="background:linear-gradient(180deg,#7c3aed,#5b21b6);font-size:11px;padding:5px 10px;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-right:4px">✓ עודכן ידנית · '+_fmtMMDDHHMM(s.manually_updated_at)+'</button>'
             : '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="לחצי כדי לסמן שעדכנת את ההזמנה ידנית ב-OCTOPOS" style="background:#ede9fe;color:#5b21b6;font-size:11px;padding:5px 10px;border:1px solid #c4b5fd;border-radius:6px;cursor:pointer;font-weight:700;margin-right:4px">✋ עודכן ידנית</button>')
         : '')+
+      // Lauren 2026-05-26 PM: '+ הזמנה נוספת' — only when there's already a saved order
+      // (or a confirmed/uploaded invoice). Opens the wizard in "additional order" mode
+      // where the suggested qtys subtract what's already on prior orders for this event.
+      ((_hasOrderOrInvoice)
+        ? '<button type="button" class="btn-additional-order" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="צרי הזמנה נוספת נפרדת לאותו אירוע — ההצעות יחושבו פחות מה שכבר הוזמן" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#0d9488,#0f766e);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-right:4px;box-shadow:0 1px 3px rgba(15,118,110,.3)">＋ הזמנה נוספת</button>'
+        : '')+
       newOrderBtn+
       '<div class="total">'+totalDisp+'</div>'+
       '<div class="chev">▾</div>'+
@@ -2593,7 +2599,25 @@ function buildSupplierOrder(supplierCode){
     const cs = Number(rule.multiple_of || 0) > 0
       ? Number(rule.multiple_of)
       : (minD > 0 ? minD : DEFAULT_CASE_SIZE);
-    let gap   = Math.max(0, thr - stockForGap) * mult;
+    // Lauren 2026-05-26 PM: "+ הזמנה נוספת" mode — subtract qtys already on prior
+    // local_orders for the same supplier+event. We treat them as if they're already
+    // in stock since they'll arrive before the event.
+    let alreadyOrdered = 0;
+    if (WIZARD_STATE && WIZARD_STATE.additionalOrder && typeof CURRENT_EVKEY !== 'undefined' && CURRENT_EVKEY){
+      try {
+        const _los = (STATE && STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].local_orders) || [];
+        _los.forEach(function(o){
+          if (o.supplier_code !== supplierCode) return;
+          (o.items || []).forEach(function(it){
+            if (String(it.product_id) === String(p.id)) {
+              alreadyOrdered += Number(it.quantity || it.qty || 0);
+            }
+          });
+        });
+      } catch(_){}
+    }
+    const stockWithOnOrder = stockForGap + alreadyOrdered;
+    let gap   = Math.max(0, thr - stockWithOnOrder) * mult;
     // MOQ: if base > 0 but below MOQ, snap up to MOQ
     if (gap > 0 && Number(rule.moq || 0) > 0 && gap < Number(rule.moq)) gap = Number(rule.moq);
     let suggested = roundToCase(gap, cs, 'down');  // Lauren 2026-05-18 PM — round DOWN (conservative); gap=72 cs=48 → 48 not 96. min_display floor below ensures we still order at least one pack when gap>0.
@@ -2611,6 +2635,10 @@ function buildSupplierOrder(supplierCode){
     if (rule.multiple_of) ruleHints.push(`📦 כפולה ${rule.multiple_of}`);
     if (rule.max) ruleHints.push(`🚦 מקס ${rule.max}`);
     if (rule.skip) ruleHints.push("🚫 skip");
+    // Add a hint if this product was reduced/skipped due to already-ordered qty
+    if (alreadyOrdered > 0) {
+      ruleHints.push('🚚 כבר הוזמן: ' + alreadyOrdered);
+    }
     const row = {
       product_id: p.id,
       name: p.name,
@@ -2622,6 +2650,7 @@ function buildSupplierOrder(supplierCode){
       suggested: suggested,
       qty: suggested,
       lane: lane,
+      already_ordered: alreadyOrdered,  // Lauren 2026-05-26 PM
       // Borderline lane is now also "kept by default" — Lauren still has to decide,
       // but the row visuals are normal-opacity (per 2026-05-13 feedback).
       // Only SKIP lane stays unkept (half-transparent) by default.
@@ -2629,7 +2658,8 @@ function buildSupplierOrder(supplierCode){
       rule: rule,
       ruleHints: ruleHints,
       note: rule.note || (lane === 'order' ? '' :
-            (stock >= 2 * thr ? `יש כבר ${stock} (יותר מ-2×threshold)` :
+            (alreadyOrdered > 0 && stockWithOnOrder >= thr ? `כבר הוזמן ${alreadyOrdered} בהזמנה קודמת — מכוסה` :
+             stock >= 2 * thr ? `יש כבר ${stock} (יותר מ-2×threshold)` :
              stock >= thr ? `יש ${stock} ≥ ${thr} — מספיק לאירוע אחד` :
              thr <= 0 ? 'אין threshold מוגדר באוקטופוס' : ''))
     };
@@ -2658,10 +2688,11 @@ function recomputeSupplierTotals(s){
 }
 
 /* ---- Wizard UI ---- */
-async function openOrderWizard(scopeSupplierCode){
+async function openOrderWizard(scopeSupplierCode, opts){
   await loadSummaries();
   const summaries = mostRecentSummaries();
-  WIZARD_STATE = { events: 1, size: 'medium', useBudget: false, budgetAmount: 0, anchorEvent: (summaries[0] || null), scopeSupplier: scopeSupplierCode || null };
+  opts = opts || {};
+  WIZARD_STATE = { events: 1, size: 'medium', useBudget: false, budgetAmount: 0, anchorEvent: (summaries[0] || null), scopeSupplier: scopeSupplierCode || null, additionalOrder: !!opts.additionalOrder };
 
   const defaultBudget = summaries[0] ? Math.round(summaries[0].sales * BUDGET_DEFAULT_PCT) : 0;
   const summaryOpts = summaries.map(s => '<option value="'+s.evkey+'">' + s.evkey + ' — $' + (s.sales||0).toLocaleString() + '</option>').join('');
@@ -2670,7 +2701,8 @@ async function openOrderWizard(scopeSupplierCode){
   modal.className = 'wiz-modal';
   modal.innerHTML =
     '<div class="wiz-card">' +
-      '<h2>✨ ' + (scopeSupplierCode ? 'הזמנה חדשה — ' + escHtml((SUPPLIERS.find(function(x){return x.code===scopeSupplierCode;})||{}).name||scopeSupplierCode) : 'צרי הזמנות לאירוע') + '</h2>' +
+      '<h2>✨ ' + (scopeSupplierCode ? ((opts.additionalOrder ? '＋ הזמנה נוספת — ' : 'הזמנה חדשה — ') + escHtml((SUPPLIERS.find(function(x){return x.code===scopeSupplierCode;})||{}).name||scopeSupplierCode)) : 'צרי הזמנות לאירוע') + '</h2>' +
+      (opts.additionalOrder ? '<div style="background:#ccfbf1;border:1px solid #5eead4;border-radius:8px;padding:8px 12px;margin:6px 0 12px;font-size:12px;color:#0f766e">💡 מצב "הזמנה נוספת" — הכמויות המוצעות יחושבו בהתחשב במה שכבר הוזמן בהזמנות הקודמות לאירוע הזה. מוצרים שכבר מכוסים לא יוצעו שוב.</div>' : '') +
       '<div class="wiz-q">' +
         '<div class="qlabel">1) כמה כיסוי להזמין לאירוע?</div>' +
         '<div class="wiz-opts" data-q="coverage">' +
@@ -3688,6 +3720,15 @@ document.addEventListener("click", function(e){
   if (nob){
     e.preventDefault(); e.stopPropagation();
     openOrderWizard(nob.dataset.supplierCode);
+    return;
+  }
+  // Lauren 2026-05-26 PM: '+ הזמנה נוספת' — opens the wizard in "additional order"
+  // mode so the suggested quantities subtract whatever is already on prior local_orders
+  // for the same supplier+event.
+  var addOb = e.target.closest('.btn-additional-order');
+  if (addOb){
+    e.preventDefault(); e.stopPropagation();
+    openOrderWizard(addOb.dataset.supplierCode, { additionalOrder: true });
     return;
   }
   if (e.target.matches('#btnRefreshOctopos, #btnRefreshOctoposGlobal')){ manualRefreshOctopos(e.target); }
