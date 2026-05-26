@@ -102,12 +102,12 @@ a:hover{text-decoration:underline;}
   <a class="back-link" href="../journal/">‹ חזרה ליומן</a>
 
   <div class="hero">
-    <h1>🗺️ Roadmap — Tradovate Worker Project</h1>
-    <div class="sub">מסלול עבודה צעד-אחר-צעד מהקמת חשבון Cloudflare ועד לדשבורד trading מלא</div>
+    <h1>🗺️ Roadmap — Lauren BOT Trading System</h1>
+    <div class="sub">מסלול בנייה והרחבה של מערכת המסחר האוטומטית (Pine → Zapier → Tradovate + Journal)</div>
     <div class="meta">
-      <span>🎯 8 שלבים</span>
-      <span>📝 34 משימות</span>
-      <span>⏰ כל יום קצת</span>
+      <span>🎯 7 שלבים פעילים</span>
+      <span>📝 30 משימות פעילות</span>
+      <span>⛔ Phase 0 (Cloudflare) — בוטל</span>
       <span>🎮 לחיצה = prompt מוכן ל-Cowork</span>
     </div>
   </div>
@@ -116,6 +116,26 @@ a:hover{text-decoration:underline;}
     <b>איך להשתמש:</b> כשאת מתחילה משימה — לחצי <b>📋 העתק prompt</b> בשורה שלה.
     הטקסט יועתק לclipboard. פתחי Cowork בdesktop, הדביקי בצ׳אט חדש, ואני אעבוד איתך על הצעד הזה.
     ברגע שהשלב הושלם — לחצי <b>✓ סמן כבוצע</b> כדי לסמן progress. הכל מסונכרן ב-GitHub.
+  </div>
+
+  <div class="notice" style="background:#dcfce7;border-color:#86efac;color:#14532d;margin-top:14px;">
+    <b>🔄 שינוי ארכיטקטוני (2026-05-26):</b> מסלול הCloudflare Worker (Phase 0) <b>בוטל ולא נדרש</b>. 
+    הבחירה נפלה על <b>GitHub Actions</b> כתשתית polling — חינמי, פשוט, וכבר משולב ב-repo. 
+    הצורך בWorker-as-CORS-proxy ירד כי המערכת לא דורשת קריאה ישירה מהדפדפן ל-Tradovate; 
+    כל הקריאות מתבצעות בצד-שרת דרך Zapier (אורדרים) ו-GitHub Action (sync יומן). 
+    אם בעתיד נרצה latency של פחות מ-2 דקות — נשקול אז.
+  </div>
+
+  <div class="notice" style="background:#fef3c7;border-color:#fde68a;color:#78350f;margin-top:14px;">
+    <b>✅ מה כבר עובד במערכת (מעודכן 2026-05-26):</b>
+    <ul style="margin:8px 0 0 18px;padding:0;line-height:1.7;">
+      <li><b>Pine — Lauren BOT mode</b>: alert() אחד לכל אירוע (LONG/SHORT/SWAP + EXIT TP/SL) דרך "Any alert() function call"</li>
+      <li><b>Zapier Step 4 v4</b>: OSO ל-Tradovate עם ברקטים אטומיים (Market parent + Stop SL + Limit TP); SWAP עם cancel-working + flatten; דחיה אם אין SL/TP</li>
+      <li><b>Tradovate Fill Reconciler (GitHub Action)</b>: כל 5 דקות פוסע על fills של Tradovate, רושם EXIT rows שPine פספסה, idempotent עם tradovate_fill_id, sanity guards</li>
+      <li><b>Journal dashboard</b>: מצב "📊 עסקאות" (שורה לעסקה) + toggle ל-"📋 רשומות גולמיות", חישוב P&L לSWAP, עמודות זמן IL+LA, פילטר תאריך יחיד + היום/אתמול</li>
+      <li><b>Manual edit</b>: עפרון אחד לכל שורה → modal עם entry+exit side-by-side, auto-compute P&L, מחיקה, הוספה ידנית</li>
+      <li><b>Kill-switch</b>: BOT toggle מהדשבורד, danger-hour filter, daily_cap, SMS על כל failure (IRON RULE #3)</li>
+    </ul>
   </div>
 
   <div class="progress-wrap">
@@ -140,7 +160,7 @@ a:hover{text-decoration:underline;}
 // =============================================================
 const ROADMAP = [
   // ============ PHASE 0 ============
-  { phase: 0, title: "🏗️ יסודות — תשתית Cloudflare", desc: "הכנת הסביבה לפעולות ידניות מהירות", steps: [
+  { phase: 0, title: "🏗️ ⛔ Cloudflare Worker (לא נדרש — Superseded 2026-05-26)", desc: "המסלול הוחלף ב-GitHub Actions. השלבים נשמרו לתיעוד היסטורי בלבד — אין לבצע.", steps: [
 
     { id: "0.1", title: "פתיחת חשבון Cloudflare חינמי",
       why: "<b>Cloudflare Worker</b> הוא ה-מנוע שיפתור את בעיית ה-CORS — דפדפן לא יכול לדבר ישירות עם Tradovate, אז Worker יישב באמצע. החשבון חינמי, לא דורש כרטיס אשראי.",
