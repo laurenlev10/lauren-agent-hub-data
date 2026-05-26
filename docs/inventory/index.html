@@ -5802,6 +5802,66 @@ function tryLayoutSplitRescue(rowStrings){
 }
 
 // PDF.js extraction with positional grouping (rows by Y coord)
+// Lauren 2026-05-26 PM: scan invoice rowStrings for an explicit "Total / Amount Due /
+// Balance / Grand Total" line — many invoices print the real paid amount at the bottom,
+// which is more reliable than summing line items (the parser may get the per-unit vs
+// per-display price wrong on display-pack rows). Returns the largest matching $ amount,
+// or null if no signal found. The detected value is stored on the lines array and
+// surfaced in the CMP modal as a pre-fill for the actual-paid override.
+function detectInvoiceTotal(rowStrings){
+  if (!Array.isArray(rowStrings)) return null;
+  // Keywords that strongly signal the bottom total. Hebrew + English variants.
+  // Sorted by trust — earlier patterns win when multiple match.
+  var KW = [
+    /\b(amount\s*due|balance\s*due|total\s*due|total\s*paid|grand\s*total|invoice\s*total|order\s*total|amount\s*paid|net\s*total)\b/i,
+    /\b(סה"כ\s*לתשלום|לתשלום|סה"כ\s*חשבונית|יתרה\s*לתשלום|סה"כ\s*כללי)\b/i,
+    /\btotal\b/i  // weakest — generic 'Total'
+  ];
+  // Negative keywords — skip rows that say 'subtotal' etc.
+  var SKIP = /\b(subtotal|sub\s*total|item\s*total|line\s*total|qty\s*total)\b/i;
+  var best = null; // {amount, keywordTier, rowIdx}
+  for (var idx = 0; idx < rowStrings.length; idx++){
+    var row = rowStrings[idx] || '';
+    if (SKIP.test(row)) continue;
+    // Find which keyword tier matches
+    var kwTier = -1;
+    for (var ki = 0; ki < KW.length; ki++){
+      if (KW[ki].test(row)){ kwTier = ki; break; }
+    }
+    if (kwTier < 0) continue;
+    // Extract all $-amounts on this row + take the largest.
+    var amts = [];
+    var amtRe = /\$?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?|[0-9]+\.[0-9]{1,2})\b/g;
+    var amt;
+    while ((amt = amtRe.exec(row)) !== null){
+      var num = Number(String(amt[1]).replace(/,/g, ''));
+      if (!isNaN(num) && num > 0) amts.push(num);
+    }
+    if (!amts.length) {
+      // No amount on this row — try the NEXT row (some invoices put 'Total:' on one row
+      // and the $ amount on the next).
+      var nextRow = rowStrings[idx + 1] || '';
+      var amtRe2 = /\$?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?|[0-9]+\.[0-9]{1,2})\b/g;
+      var amt2;
+      while ((amt2 = amtRe2.exec(nextRow)) !== null){
+        var num2 = Number(String(amt2[1]).replace(/,/g, ''));
+        if (!isNaN(num2) && num2 > 0) amts.push(num2);
+      }
+    }
+    if (!amts.length) continue;
+    var maxOnRow = Math.max.apply(null, amts);
+    // Prefer earlier-tier (stronger) keyword. Within same tier, prefer larger amount.
+    if (!best || kwTier < best.keywordTier || (kwTier === best.keywordTier && maxOnRow > best.amount)){
+      best = { amount: maxOnRow, keywordTier: kwTier, rowIdx: idx, row: row };
+    }
+  }
+  if (best && best.amount >= 1) {
+    console.log('[recv] detectInvoiceTotal → $' + best.amount.toFixed(2) + ' from row ' + best.rowIdx + ' (tier ' + best.keywordTier + '): ' + (best.row || '').slice(0, 120));
+    return best.amount;
+  }
+  return null;
+}
+
 async function parseInvoicePdf(file){
   var ab = await file.arrayBuffer();
   var pdf = await window.pdfjsLib.getDocument({data: ab}).promise;
@@ -5838,6 +5898,9 @@ async function parseInvoicePdf(file){
       if (rescued && rescued.length) lines = lines.concat(rescued);
     } catch(e){ console.warn('[layout-split] rescue threw:', e); }
     console.log('[recv] PDF parsed primary: ' + lines.length + ' lines from ' + rowStrings.length + ' rowStrings');
+    // Lauren 2026-05-26 PM: attach the detected real invoice total (from the "Total: $X"
+    // line at the bottom of the PDF) so the CMP modal can pre-fill the actual-paid input.
+    try { lines._invoiceTotal = detectInvoiceTotal(rowStrings); } catch(_){}
     return lines;
   }
 
@@ -9783,6 +9846,21 @@ async function handleCompareInvoiceFile(file){
     }
     CMP_CTX.invoice_lines = lines || [];
     CMP_CTX.line_edits = CMP_CTX.line_edits || {};
+    // Lauren 2026-05-26 PM: carry the parser-detected invoice total (from the explicit
+    // "Total / Amount Due" line on the PDF) into CMP_CTX so the totals header can
+    // surface it as a suggestion / one-click apply for the actual-paid override.
+    if (lines && lines._invoiceTotal != null && lines._invoiceTotal > 0) {
+      CMP_CTX._parsed_total = lines._invoiceTotal;
+      // Auto-apply on FIRST parse — only when Lauren hasn\'t typed her own override yet.
+      try {
+        var supPI = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+        if (supPI && supPI._pending_invoice && (supPI._pending_invoice.actual_paid_usd == null || supPI._pending_invoice.actual_paid_usd === '')) {
+          supPI._pending_invoice.actual_paid_usd = CMP_CTX._parsed_total;
+          supPI.invoice_total_usd = CMP_CTX._parsed_total;
+          console.log('[recv] auto-applied parsed invoice total $' + CMP_CTX._parsed_total.toFixed(2));
+        }
+      } catch(_){}
+    }
 
     // NABI-specific bundle expansion (Lauren 2026-05-18 PM late):
     // NABI ships gel polishes as a single line 'NG NEW GEL NAIL POLISH 9.5'
