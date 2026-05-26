@@ -200,6 +200,10 @@ def build_counted(rows, snapshot):
         rec["current_stock"] = snap.get("in_stock_qty")
         rec["threshold"] = snap.get("threshold")
         rec["event_count"] = len(rec["events"])
+        # Per Lauren 2026-05-26: surface RECOUNT tag state so dashboard can offer "remove" button
+        cats = snap.get("categories") or []
+        rec["categories"] = [{"id": c.get("id"), "name": c.get("name")} for c in cats if c.get("id")]
+        rec["has_recount_tag"] = any((c.get("name") or "").strip().lower() == "recount" for c in cats)
         out.append(rec)
     out.sort(key=lambda x: abs(x["delta_total"]), reverse=True)
     return out

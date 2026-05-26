@@ -309,7 +309,7 @@ function wireSortHandlers(tabId){
 
 function renderSearchAndCount(tabId, total, count){
   const desc = {
-    counted_at_event: 'מוצרים שנספרו פיזית במהלך האירוע (מ-OCTOPOS get-recount-data)',
+    counted_at_event: 'מוצרים שנספרו פיזית באירוע. ⚠️ "תיקון בספירה" = ההפרש בין מה שהמערכת חשבה לפני הספירה למה שבאמת היה (DR = חסר, CR = עודף). "מלאי כעת" = מה ש-OCTOPOS מציג עכשיו אחרי הספירה והמכירות שאחריה.',
     missed_from_worklist: 'מוצרים שהיו ברשימה לפני האירוע אבל לא נספרו — חשוב לחזור עליהם',
     negatives: 'מוצרים שעכשיו במלאי שלילי — להוסיף לרשימת ספירה לאירוע הבא',
     slow_movers: 'במלאי יותר מ-1 יחידה, לא נמכרו כלל באירוע הזה — לבדוק האם להוריד מחיר / להוציא',
@@ -344,27 +344,139 @@ function renderCounted(){
     + sortableHeader('name', 'מוצר', 'counted_at_event')
     + sortableHeader('supplier', 'ספק', 'counted_at_event')
     + sortableHeader('event_count', '# ספירות', 'counted_at_event')
-    + sortableHeader('delta_total', 'הפרש כולל', 'counted_at_event')
-    + sortableHeader('current_stock', 'מלאי עכשיו', 'counted_at_event')
+    + sortableHeader('delta_total', 'תיקון בספירה ±', 'counted_at_event')
+    + sortableHeader('current_stock', '📦 מלאי כעת (OCTOPOS)', 'counted_at_event')
     + sortableHeader('threshold', 'Threshold', 'counted_at_event')
+    + sortableHeader('has_recount_tag', 'תג RECOUNT', 'counted_at_event')
     + '</tr></thead><tbody>';
   for (const r of rows){
     const delta = r.delta_total || 0;
     const dCls = delta >= 0 ? 'delta-cr' : 'delta-dr';
-    const dStr = (delta >= 0 ? '+' : '') + fmt(delta);
+    const dStr = delta === 0 ? '—' : (delta > 0 ? '↑ +' : '↓ ') + fmt(delta);
     html += `<tr>
       <td><div class="product-name">${escHtml(r.name)}</div>
         ${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
       <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
       <td class="num">${r.event_count}</td>
       <td class="num ${dCls}">${dStr}</td>
-      <td class="num">${fmt(r.current_stock)}</td>
+      <td class="num">${renderStockPill(r.current_stock)}</td>
       <td class="num">${fmt(r.threshold)}</td>
+      <td>${renderRecountTagCell(r)}</td>
     </tr>`;
   }
   html += '</tbody></table>';
   $('#tabContent').innerHTML = html;
   wireSortHandlers('counted_at_event'); wireSearch();
+  // Wire RECOUNT tag remove buttons
+  $('#tabContent').querySelectorAll('.recount-remove-btn').forEach(btn => {
+    btn.onclick = () => removeRecountTag(btn.dataset.pid, btn);
+  });
+}
+
+// ─── Current-stock pill (makes the actual stock number visually distinct from the delta) ──
+function renderStockPill(s){
+  if (s === null || s === undefined) return '<span class="pill muted">—</span>';
+  const n = Number(s);
+  if (n < 0) return `<span class="pill danger" title="במלאי שלילי לפי OCTOPOS">${fmt(n)}</span>`;
+  if (n === 0) return `<span class="pill warning">0</span>`;
+  return `<span class="pill info" title="מלאי נוכחי לפי OCTOPOS">${fmt(n)}</span>`;
+}
+
+// ─── RECOUNT tag column helpers ────────────────────────────────────────
+function renderRecountTagCell(r){
+  if (r.recount_tag_removed_at){
+    const when = new Date(r.recount_tag_removed_at).toLocaleString('he-IL', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+    return `<span class="pill success">✓ הוסר ${escHtml(when)}</span>`;
+  }
+  if (r.has_recount_tag){
+    return `<button class="recount-remove-btn" data-pid="${r.product_id}">🧹 הסר תג</button>`;
+  }
+  return '<span class="pill muted">—</span>';
+}
+
+async function removeRecountTag(pid, btn){
+  const pidNum = parseInt(pid);
+  // Find the row in SUMMARY
+  const row = SUMMARY.tabs.counted_at_event.find(x => x.product_id === pidNum);
+  if (!row){ toast('⚠ מוצר לא נמצא', 'error'); return; }
+  if (!row.has_recount_tag){ toast('⚠ אין תג RECOUNT למוצר הזה', 'error'); return; }
+
+  let token = (localStorage.getItem('lauren_octopos_token') || '').trim();
+  if (!token){
+    token = prompt('הזיני את ה-OCTOPOS token (נשמר מקומית במכשיר):');
+    if (!token) return;
+    localStorage.setItem('lauren_octopos_token', token.trim());
+  }
+  if (!confirm(`להסיר תג RECOUNT מ-"${row.name}"?\n(נשמר ב-OCTOPOS וב-GitHub)`)) return;
+
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    // Calculate new category_ids = current minus the Recount one
+    const newCatIds = (row.categories || [])
+      .filter(c => (c.name || '').trim().toLowerCase() !== 'recount')
+      .map(c => c.id);
+    // OCTOPOS PUT
+    const r = await fetch('https://themakeup.octoretail.com/api/v2/products/' + pid, {
+      method: 'PUT',
+      headers: {'Authorization': token, 'Content-Type':'application/json', 'Accept':'application/json'},
+      body: JSON.stringify({'category_ids': newCatIds})
+    });
+    if (r.status === 401){
+      localStorage.removeItem('lauren_octopos_token');
+      throw new Error('Token לא חוקי — נמחק. הזיני מחדש.');
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    // Local update
+    row.has_recount_tag = false;
+    row.recount_tag_removed_at = new Date().toISOString();
+    row.categories = (row.categories || []).filter(c => (c.name || '').trim().toLowerCase() !== 'recount');
+    toast('✓ הוסר ב-OCTOPOS — שומר ב-GitHub...', 'success');
+    // Persist to GitHub
+    const ok = await saveEventSummaryToGithub();
+    if (ok){
+      toast('✓ נשמר גם ב-GitHub', 'success');
+    } else {
+      toast('⚠ נשמר ב-OCTOPOS, אבל GitHub-sync נכשל (יעודכן בסבב הבא)', 'info');
+    }
+    // Re-render the cell
+    renderTabContent();
+  } catch(e){
+    toast('⚠ נכשל: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '🧹 הסר תג';
+  }
+}
+
+async function saveEventSummaryToGithub(){
+  let ghToken = (localStorage.getItem('lauren_gh_token_v1') || '').trim();
+  if (!ghToken){
+    ghToken = prompt('הזיני את ה-GitHub token (כדי לשמור את ה"הוסר" באופן קבוע ב-GitHub):');
+    if (!ghToken) return false;
+    localStorage.setItem('lauren_gh_token_v1', ghToken.trim());
+  }
+  try {
+    const repoFile = 'docs/state/event_summary/' + SUMMARY.evkey + '.json';
+    // 1. GET current sha
+    const getUrl = 'https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/' + repoFile + '?ref=main';
+    const getR = await fetch(getUrl, {headers: {'Authorization': 'token '+ghToken, 'Accept':'application/vnd.github+json'}});
+    let sha = null;
+    if (getR.ok){ const j = await getR.json(); sha = j.sha; }
+    // 2. PUT new content
+    const putUrl = 'https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/' + repoFile;
+    const content = JSON.stringify(SUMMARY, null, 2);
+    const body = {message: 'event-summary: Lauren removed RECOUNT tag via dashboard', content: btoa(unescape(encodeURIComponent(content))), branch: 'main'};
+    if (sha) body.sha = sha;
+    const r = await fetch(putUrl, {method:'PUT',
+      headers: {'Authorization':'token '+ghToken, 'Accept':'application/vnd.github+json', 'Content-Type':'application/json'},
+      body: JSON.stringify(body)});
+    if (r.status === 401){
+      localStorage.removeItem('lauren_gh_token_v1');
+      return false;
+    }
+    return r.ok;
+  } catch(e){
+    console.error('saveEventSummaryToGithub failed:', e);
+    return false;
+  }
 }
 
 function renderMissed(){
