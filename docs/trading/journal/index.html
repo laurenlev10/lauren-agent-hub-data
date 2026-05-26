@@ -669,6 +669,65 @@ function renderTable(){
 }
 function changePage(d){ STATE.page += d; renderTable(); }
 
+// ============== SWAP P&L enrichment (computed view-side, see CLAUDE.md) ==============
+// For each SWAP row that closes an opposite-direction prior position, attach
+// entry_price/result_ticks/result_dollars so the table can render the closed-leg P&L
+// (the SWAP webhook doesn't carry it — Pine only sends the new entry's price).
+const _TICK_SIZE_MNQ = 0.25;
+const _TICK_VALUE_USD_MNQ = 0.50;
+
+function enrichSwapPnL(trades){
+  if(!Array.isArray(trades)) return;
+  // chronological copy — don't mutate order of original array, but mutate row objects in-place
+  const sorted = trades.slice().sort(function(a,b){
+    var ta = new Date(a.time || a._received_at).getTime();
+    var tb = new Date(b.time || b._received_at).getTime();
+    return (ta||0) - (tb||0);
+  });
+  var openEntry = null; // { direction: 'long'|'short', price: number }
+  for (var i = 0; i < sorted.length; i++){
+    var t = sorted[i];
+    var type = String(t.type || "").toUpperCase().trim();
+    var price = Number(t.price);
+    if(!isFinite(price)) continue;
+    var isSwapLong  = (type === "SWAP LONG");
+    var isSwapShort = (type === "SWAP SHORT");
+    var isLong  = (type === "LONG");
+    var isShort = (type === "SHORT");
+    var isExit = type.indexOf("EXIT") === 0;
+    var isSwap = (isSwapLong || isSwapShort);
+    // SWAP closes prior opposite position → compute its P&L on this row
+    if(isSwap && openEntry){
+      var dirMatches = (isSwapLong && openEntry.direction === "short")
+                    || (isSwapShort && openEntry.direction === "long");
+      if(dirMatches){
+        var diff = price - openEntry.price;
+        if(openEntry.direction === "short") diff = -diff;
+        var ticks = Math.round(diff / _TICK_SIZE_MNQ);
+        var dollars = +(ticks * _TICK_VALUE_USD_MNQ).toFixed(2);
+        if(t.entry_price === undefined || t.entry_price === null){
+          t.entry_price = openEntry.price;
+        }
+        if(t.result_ticks === undefined || t.result_ticks === null){
+          t.result_ticks = ticks;
+        }
+        if(t.result_dollars === undefined || t.result_dollars === null){
+          t.result_dollars = dollars;
+        }
+        t._swap_pnl_computed = true;
+      }
+    }
+    // Update openEntry state
+    if(isLong || isSwapLong){
+      openEntry = { direction: "long", price: price };
+    } else if(isShort || isSwapShort){
+      openEntry = { direction: "short", price: price };
+    } else if(isExit){
+      openEntry = null;
+    }
+  }
+}
+
 async function loadData(force){
   setStatus("⏳ טוען…", "");
   try {
@@ -680,6 +739,7 @@ async function loadData(force){
       throw new Error("schema לא תקין — מצופה trades:[]");
     }
     STATE.raw = j;
+    enrichSwapPnL(STATE.raw.trades);
     setStatus("✓ " + j.trades.length + " אירועים", "ok");
     const u = j._updated_at;
     const upPill = document.getElementById("updated-pill");
