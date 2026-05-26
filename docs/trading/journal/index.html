@@ -92,6 +92,26 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
 .num.pos{color:var(--grn-soft);}
 .num.neg{color:var(--red-soft);}
 .num.muted{color:var(--txt5);}
+
+/* Manual edit — pencil icon + modal */
+.edit-btn{background:transparent;border:1px solid var(--brd2);color:var(--txt5);font-size:14px;padding:2px 8px;border-radius:6px;cursor:pointer;line-height:1;}
+.edit-btn:hover{background:var(--bg2);color:var(--txt2);}
+.add-trade-btn{background:#0066cc;color:white;border:0;padding:8px 16px;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;margin:8px 4px;}
+.add-trade-btn:hover{background:#0052a3;}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:9999;}
+.modal-bg.open{display:flex;}
+.modal-box{background:white;padding:24px;border-radius:12px;max-width:520px;width:92%;max-height:90vh;overflow-y:auto;}
+.modal-box h3{margin:0 0 16px;color:#0066cc;}
+.modal-box label{display:block;margin:10px 0 4px;font-weight:600;font-size:13px;color:#444;}
+.modal-box input,.modal-box select{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;box-sizing:border-box;}
+.modal-box .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.modal-box .btns{display:flex;gap:8px;margin-top:20px;justify-content:flex-end;}
+.modal-box button{padding:10px 18px;border-radius:6px;border:0;font-weight:600;cursor:pointer;font-size:14px;}
+.modal-box .btn-save{background:#22c55e;color:white;}
+.modal-box .btn-delete{background:#ef4444;color:white;}
+.modal-box .btn-cancel{background:#e5e7eb;color:#444;}
+.modal-box .hint{font-size:12px;color:#888;margin-top:4px;}
+
 .cell-time .d{font-weight:700;color:var(--txt2);}
 .cell-time .t{font-size:12px;color:var(--txt5);font-weight:600;}
 
@@ -254,10 +274,12 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
           <th>טיקים</th>
           <th>$</th>
           <th>סכנה</th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
     </table>
+    <div style="margin:8px 0;text-align:right;"><button class="add-trade-btn" onclick="openTradeModal(null)">+ הוסף עסקה ידנית</button></div>
     <div class="pager" id="pager" style="display:none;">
       <button id="pg-prev" onclick="changePage(-1)">‹ הקודם</button>
       <span class="info" id="pg-info">—</span>
@@ -598,7 +620,7 @@ function renderTable(){
   const tbody = document.getElementById("tbody");
   const all = (STATE.raw && STATE.raw.trades) || [];
   if(all.length === 0){
-    tbody.innerHTML = '<tr><td colspan="10" class="empty">'
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">'
       + '<div class="ico">📭</div>'
       + '<h2>אין עדיין נתונים</h2>'
       + '<p>כשתפעילי את ההתראה ב-TradingView, ה-webhook יישלח ל-Zapier מיידית ויוסיף את העסקה לקובץ '
@@ -615,7 +637,7 @@ function renderTable(){
 
   const total = sorted.length;
   if(total === 0){
-    tbody.innerHTML = '<tr><td colspan="10" class="empty">'
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">'
       + '<div class="ico">🔍</div>'
       + '<h2>אין תוצאות לסינון הנוכחי</h2>'
       + '<p>נסי לשנות את הפילטרים למעלה.</p>'
@@ -629,7 +651,7 @@ function renderTable(){
   const start = STATE.page * PAGE_SIZE;
   const slice = sorted.slice(start, start + PAGE_SIZE);
 
-  tbody.innerHTML = slice.map(t => {
+  tbody.innerHTML = slice.map((t, sliceIdxRel) => { const sliceIdx = start + sliceIdxRel;
     const exit = isExit(t);
     const tm = fmtTimeIL(t.time || t._received_at);
     const tmLA = fmtTimeLA(t.time || t._received_at);
@@ -653,6 +675,7 @@ function renderTable(){
       + '<td class="num ' + ticksCls + '">' + (exit ? fmtTicks(rt) : "—") + '</td>'
       + '<td class="num ' + dollarsCls + '">' + (exit ? fmtMoney(rd) : "—") + '</td>'
       + '<td>' + dangerCell + '</td>'
+      + '<td><button class="edit-btn" onclick="openTradeModal(' + sliceIdx + ')" title="ערוך">✏️</button></td>'
       + '</tr>';
   }).join("");
 
@@ -757,7 +780,7 @@ async function loadData(force){
   } catch(e){
     console.error(e);
     setStatus("⚠ שגיאת טעינה: " + e.message, "err");
-    document.getElementById("tbody").innerHTML = '<tr><td colspan="10" class="empty">'
+    document.getElementById("tbody").innerHTML = '<tr><td colspan="11" class="empty">'
       + '<div class="ico">⚠️</div>'
       + '<h2>לא הצלחתי לטעון את הנתונים</h2>'
       + '<p>' + e.message + '<br><br>בדקי שהקובץ <code>docs/trading/journal-data.json</code> קיים ב-repo.</p>'
@@ -778,5 +801,258 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 });
 </script>
+
+<!-- ============== MANUAL TRADE EDIT MODAL ============== -->
+<div class="modal-bg" id="trade-modal-bg" onclick="if(event.target===this)closeTradeModal()">
+  <div class="modal-box">
+    <h3 id="trade-modal-title">עריכת עסקה</h3>
+    <div class="hint" id="trade-modal-hint">ערכי או הוסיפי שורה ידנית ליומן. כל שינוי נשמר בGitHub.</div>
+
+    <label>זמן (ISO UTC)</label>
+    <input id="te-received-at" type="text" placeholder="2026-05-26T15:00:00Z" />
+    <div class="hint">פורמט: YYYY-MM-DDTHH:MM:SSZ. השאירי ריק לעכשיו.</div>
+
+    <div class="row">
+      <div>
+        <label>סימבול</label>
+        <input id="te-ticker" type="text" placeholder="MNQM2026" />
+      </div>
+      <div>
+        <label>סוג</label>
+        <select id="te-type">
+          <option value="LONG">LONG</option>
+          <option value="SHORT">SHORT</option>
+          <option value="SWAP LONG">SWAP LONG</option>
+          <option value="SWAP SHORT">SWAP SHORT</option>
+          <option value="EXIT LONG TP">EXIT LONG TP</option>
+          <option value="EXIT LONG SL">EXIT LONG SL</option>
+          <option value="EXIT SHORT TP">EXIT SHORT TP</option>
+          <option value="EXIT SHORT SL">EXIT SHORT SL</option>
+          <option value="EXIT LONG SWAP">EXIT LONG SWAP</option>
+          <option value="EXIT SHORT SWAP">EXIT SHORT SWAP</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>פעולה</label>
+        <select id="te-action">
+          <option value="buy">buy</option>
+          <option value="sell">sell</option>
+          <option value="exit">exit</option>
+        </select>
+      </div>
+      <div>
+        <label>כמות</label>
+        <input id="te-qty" type="number" step="1" value="1" />
+      </div>
+    </div>
+
+    <label>מחיר (מחיר הסיגנל)</label>
+    <input id="te-price" type="number" step="0.25" placeholder="29934.00" />
+
+    <label>מחיר כניסה (לשורות EXIT — איפה נפתחה הכניסה המקורית)</label>
+    <input id="te-entry-price" type="number" step="0.25" placeholder="29920.00" />
+
+    <div class="row">
+      <div>
+        <label>טיקים (רווח/הפסד)</label>
+        <input id="te-ticks" type="number" step="1" placeholder="+300" />
+      </div>
+      <div>
+        <label>$ (רווח/הפסד)</label>
+        <input id="te-dollars" type="number" step="0.01" placeholder="+150.00" />
+      </div>
+    </div>
+    <div class="hint">לחישוב אוטומטי: <button type="button" onclick="autoComputePnL()" style="background:#0066cc;color:white;border:0;padding:4px 10px;border-radius:4px;font-size:12px;cursor:pointer;">חשב טיקים+$ ממחיר וכניסה</button> (מבוסס tick_size=0.25, $0.5/tick × כמות)</div>
+
+    <label>סכנה (1=שעה מסוכנת, 0=בטוח)</label>
+    <input id="te-danger" type="number" min="0" max="1" value="0" />
+
+    <div class="btns">
+      <button class="btn-delete" id="te-btn-delete" onclick="deleteTradeRow()">🗑️ מחק</button>
+      <button class="btn-cancel" onclick="closeTradeModal()">ביטול</button>
+      <button class="btn-save" id="te-btn-save" onclick="saveTradeEdit()">💾 שמור</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============== Manual Trade Edit ==============
+const TE_REPO_FILE = "docs/trading/journal-data.json";
+let TE_EDIT_INDEX = null;  // null = adding new, otherwise = index in STATE.raw.trades
+
+function openTradeModal(idx){
+  const isEdit = (idx !== null && idx !== undefined);
+  TE_EDIT_INDEX = isEdit ? idx : null;
+  const sorted = STATE.filtered || (STATE.raw && STATE.raw.trades) || [];
+  const t = isEdit ? sorted[idx] : null;
+
+  document.getElementById("trade-modal-title").textContent = isEdit ? "עריכת עסקה" : "הוספת עסקה חדשה";
+  document.getElementById("te-btn-delete").style.display = isEdit ? "" : "none";
+
+  document.getElementById("te-received-at").value = isEdit ? (t._received_at || t.time || "") : "";
+  document.getElementById("te-ticker").value = isEdit ? (t.ticker || "MNQM2026") : "MNQM2026";
+  document.getElementById("te-type").value = isEdit ? (t.type || "LONG") : "LONG";
+  document.getElementById("te-action").value = isEdit ? (t.action || "buy") : "buy";
+  document.getElementById("te-qty").value = isEdit ? (t.quantity || 1) : 1;
+  document.getElementById("te-price").value = isEdit ? (t.price || "") : "";
+  document.getElementById("te-entry-price").value = isEdit ? (t.entry_price || "") : "";
+  document.getElementById("te-ticks").value = isEdit ? (t.result_ticks || "") : "";
+  document.getElementById("te-dollars").value = isEdit ? (t.result_dollars || "") : "";
+  document.getElementById("te-danger").value = isEdit ? (t.danger || 0) : 0;
+
+  document.getElementById("trade-modal-bg").classList.add("open");
+}
+function closeTradeModal(){
+  document.getElementById("trade-modal-bg").classList.remove("open");
+  TE_EDIT_INDEX = null;
+}
+
+function autoComputePnL(){
+  const TICK_SIZE = 0.25;
+  const TICK_VAL = 0.5;
+  const type = document.getElementById("te-type").value;
+  const price = parseFloat(document.getElementById("te-price").value);
+  const entry = parseFloat(document.getElementById("te-entry-price").value);
+  const qty   = parseInt(document.getElementById("te-qty").value || "1", 10);
+  if(!isFinite(price) || !isFinite(entry)){
+    alert("צריך גם מחיר וגם מחיר כניסה לחישוב");
+    return;
+  }
+  const isLong = type.startsWith("EXIT LONG") || type === "LONG" || type === "SWAP LONG";
+  const diff = isLong ? (price - entry) : (entry - price);
+  const ticks = Math.round(diff / TICK_SIZE);
+  const dollars = +(ticks * TICK_VAL * qty).toFixed(2);
+  document.getElementById("te-ticks").value = ticks;
+  document.getElementById("te-dollars").value = dollars;
+}
+
+async function saveTradeEdit(){
+  let token = (localStorage.getItem(AT_TOKEN_KEY) || "").trim();
+  if(!token){
+    token = (prompt("הדביקי GitHub PAT לעריכה ידנית:") || "").trim();
+    if(!token) return;
+    localStorage.setItem(AT_TOKEN_KEY, token);
+  }
+
+  // Build the row from form values
+  const row = {
+    _received_at: document.getElementById("te-received-at").value.trim() || new Date().toISOString(),
+    ticker: document.getElementById("te-ticker").value.trim() || "MNQM2026",
+    type: document.getElementById("te-type").value,
+    action: document.getElementById("te-action").value || null,
+    quantity: parseInt(document.getElementById("te-qty").value || "1", 10),
+    price: parseFloat(document.getElementById("te-price").value) || null,
+    danger: parseInt(document.getElementById("te-danger").value || "0", 10),
+  };
+  const entryP = parseFloat(document.getElementById("te-entry-price").value);
+  const ticks  = parseFloat(document.getElementById("te-ticks").value);
+  const dollars= parseFloat(document.getElementById("te-dollars").value);
+  if(isFinite(entryP))  row.entry_price = entryP;
+  if(isFinite(ticks))   row.result_ticks = ticks;
+  if(isFinite(dollars)) row.result_dollars = dollars;
+  row._source = (TE_EDIT_INDEX === null) ? "manual-add" : "manual-edit";
+  row._edited_at = new Date().toISOString();
+
+  const btn = document.getElementById("te-btn-save");
+  btn.disabled = true; btn.textContent = "שומר...";
+
+  try {
+    // GET current journal
+    const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + TE_REPO_FILE + "?ref=main";
+    const getR = await fetch(getUrl, { headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
+    if(!getR.ok){
+      if(getR.status === 401){ localStorage.removeItem(AT_TOKEN_KEY); throw new Error("PAT לא תקין — נמחק, נסי שוב"); }
+      throw new Error("GitHub GET נכשל: " + getR.status);
+    }
+    const cur = await getR.json();
+    const decoded = JSON.parse(atob(cur.content.replace(/\s/g,"")));
+
+    // Mutate trades array — match by _received_at + price + type to find the right row
+    const trades = decoded.trades || [];
+    if(TE_EDIT_INDEX !== null){
+      // Find matching trade in canonical array (filter+sort may differ)
+      const old = STATE.filtered[TE_EDIT_INDEX] || (STATE.raw.trades[TE_EDIT_INDEX]);
+      const matchIdx = trades.findIndex(x =>
+        x._received_at === old._received_at && x.type === old.type && Math.abs((x.price||0) - (old.price||0)) < 0.001);
+      if(matchIdx >= 0){
+        trades[matchIdx] = { ...trades[matchIdx], ...row };
+      } else {
+        // Fallback — append
+        trades.push(row);
+      }
+    } else {
+      trades.push(row);
+    }
+    decoded.trades = trades;
+    decoded._updated_at = new Date().toISOString();
+    decoded._updated_by = "manual-edit-via-dashboard";
+
+    const newContent = JSON.stringify(decoded, null, 2);
+    const putR = await fetch("https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + TE_REPO_FILE, {
+      method: "PUT",
+      headers: {"Authorization":"token "+token,"Accept":"application/vnd.github+json","Content-Type":"application/json"},
+      body: JSON.stringify({
+        message: (TE_EDIT_INDEX === null ? "journal: manual ADD row" : "journal: manual EDIT row") + " (via dashboard)",
+        content: btoa(unescape(encodeURIComponent(newContent))),
+        sha: cur.sha,
+        branch: "main"
+      })
+    });
+    if(!putR.ok){ throw new Error("GitHub PUT נכשל: " + putR.status); }
+
+    btn.textContent = "✓ נשמר!";
+    setTimeout(() => { closeTradeModal(); loadData(true); }, 1000);
+  } catch(e){
+    console.error(e);
+    alert("שגיאה: " + e.message);
+    btn.disabled = false; btn.textContent = "💾 שמור";
+  }
+}
+
+async function deleteTradeRow(){
+  if(TE_EDIT_INDEX === null) return;
+  if(!confirm("למחוק את השורה הזו לצמיתות? לא ניתן לשחזר.")) return;
+  const token = (localStorage.getItem(AT_TOKEN_KEY) || "").trim();
+  if(!token){ alert("צריך GitHub PAT"); return; }
+
+  const btn = document.getElementById("te-btn-delete");
+  btn.disabled = true; btn.textContent = "מוחקת...";
+
+  try {
+    const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + TE_REPO_FILE + "?ref=main";
+    const getR = await fetch(getUrl, { headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
+    if(!getR.ok) throw new Error("GET " + getR.status);
+    const cur = await getR.json();
+    const decoded = JSON.parse(atob(cur.content.replace(/\s/g,"")));
+    const old = STATE.filtered[TE_EDIT_INDEX] || STATE.raw.trades[TE_EDIT_INDEX];
+    decoded.trades = (decoded.trades || []).filter(x =>
+      !(x._received_at === old._received_at && x.type === old.type && Math.abs((x.price||0) - (old.price||0)) < 0.001));
+    decoded._updated_at = new Date().toISOString();
+    decoded._updated_by = "manual-delete-via-dashboard";
+
+    const putR = await fetch("https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + TE_REPO_FILE, {
+      method: "PUT",
+      headers: {"Authorization":"token "+token,"Accept":"application/vnd.github+json","Content-Type":"application/json"},
+      body: JSON.stringify({
+        message: "journal: manual DELETE row (via dashboard)",
+        content: btoa(unescape(encodeURIComponent(JSON.stringify(decoded, null, 2)))),
+        sha: cur.sha,
+        branch: "main"
+      })
+    });
+    if(!putR.ok) throw new Error("PUT " + putR.status);
+    btn.textContent = "✓";
+    setTimeout(() => { closeTradeModal(); loadData(true); }, 800);
+  } catch(e){
+    console.error(e);
+    alert("שגיאה: " + e.message);
+    btn.disabled = false; btn.textContent = "🗑️ מחק";
+  }
+}
+</script>
+
 </body>
 </html>
