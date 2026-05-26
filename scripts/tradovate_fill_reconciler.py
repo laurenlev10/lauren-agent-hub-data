@@ -30,6 +30,12 @@ AUTOTRADE_PATH = "docs/trading/autotrade_enabled.json"
 # Match window — Pine alert arrives within this delta of the Tradovate fill
 PINE_MATCH_WINDOW_SECONDS = 180  # 3 minutes (covers up to 1-min bar closes + lag)
 
+# Sanity bound — any single trade exceeding this many ticks is almost certainly
+# a contract-mismatch error (different symbol's open position matched against
+# current contract's fill). Real MNQ trades have SL=600 ticks max, so 1500 is
+# a comfortable cap. Reconciler will refuse to write rows beyond this.
+MAX_REASONABLE_TICKS = 1500
+
 # ============ ENV / SECRETS ============
 TRADOVATE_NAME     = os.environ.get("TRADOVATE_NAME", "Laurenlev318")
 TRADOVATE_PASSWORD = os.environ["TRADOVATE_PASSWORD"]
@@ -246,10 +252,13 @@ def build_exit_row(fill, open_entry, autotrade):
     direction = open_entry["direction"]  # 'long' or 'short'
     entry_price = open_entry["price"]
 
-    # Compute P&L
+    # Compute P&L — assume only ONE contract was closed per fill (the bracket
+    # attaches to a single position). Multi-qty fills happen during SWAP when
+    # one Buy/Sell both closes and opens — only the closing portion is the exit.
+    close_qty = 1
     raw_diff = (fill_price - entry_price) if direction == "long" else (entry_price - fill_price)
     ticks = int(round(raw_diff / tick_size))
-    dollars = round(ticks * tick_value * fill_qty, 2)
+    dollars = round(ticks * tick_value * close_qty, 2)
 
     reason = classify_exit_reason(open_entry, fill_price, autotrade)
     dir_str = "LONG" if direction == "long" else "SHORT"
@@ -338,8 +347,13 @@ def main():
             seen_fill_ids.add(fid)
             continue
 
-        # Build and queue a new EXIT row
+        # Build the candidate row
         row = build_exit_row(f, open_entry, autotrade)
+        # Sanity check — refuse absurd P&L (= contract mismatch in open_entry walk)
+        if abs(int(row.get("result_ticks") or 0)) > MAX_REASONABLE_TICKS:
+            print(f"[reconciler] SKIP fill_id={fid} — absurd ticks={row['result_ticks']} (probable contract mismatch with journal entry @ {open_entry['price']})")
+            seen_fill_ids.add(fid)
+            continue
         new_rows.append(row)
         seen_fill_ids.add(fid)
         print(f"[reconciler] NEW EXIT: fill_id={fid} {row['type']} @ {row['price']} → ticks={row['result_ticks']} ${row['result_dollars']}")
