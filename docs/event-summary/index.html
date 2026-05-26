@@ -346,6 +346,7 @@ function renderCounted(){
     + sortableHeader('delta_total', '🔧 תיקון בספירה', 'counted_at_event')
     + sortableHeader('units_sold_at_event', '🛒 נמכרו באירוע', 'counted_at_event')
     + sortableHeader('current_stock', '📦 כמה יש עכשיו במערכת', 'counted_at_event')
+    + sortableHeader('threshold', '⚙️ Threshold', 'counted_at_event')
     + sortableHeader('has_recount_tag', 'תג RECOUNT', 'counted_at_event')
     + '</tr></thead><tbody>';
   for (const r of rows){
@@ -360,6 +361,7 @@ function renderCounted(){
       <td class="num ${dCls}" title="הספירה גילתה את ההפרש הזה לעומת מה שהמערכת חשבה לפני הספירה">${dStr}</td>
       <td class="num">${units > 0 ? '<strong>'+fmt(units)+'</strong>' : '<span style="color:var(--muted)">0</span>'}</td>
       <td class="num">${renderStockPill(r.current_stock)}</td>
+      <td class="num">${(r.threshold === null || r.threshold === undefined || r.threshold === 0) ? '<span class="pill warning" title="אין Threshold מוגדר">—</span>' : fmt(r.threshold)}</td>
       <td>${renderRecountTagCell(r)}</td>
     </tr>`;
   }
