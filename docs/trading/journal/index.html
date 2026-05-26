@@ -288,20 +288,7 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
   <div class="table-wrap">
     <table class="journal">
       <thead>
-        <tr>
-          <th>זמן (ישראל)</th>
-          <th>זמן (LA)</th>
-          <th>סימבול</th>
-          <th>סוג</th>
-          <th>פעולה</th>
-          <th>כמות</th>
-          <th>מחיר</th>
-          <th>מחיר כניסה</th>
-          <th>טיקים</th>
-          <th>$</th>
-          <th>סכנה</th>
-          <th></th>
-        </tr>
+        <tr id="table-headers"></tr>
       </thead>
       <tbody id="tbody"></tbody>
     </table>
@@ -327,11 +314,27 @@ let STATE = { raw: null, filtered: [], page: 0 };
 const VIEW_MODE_KEY = "lauren_journal_view_mode";
 let VIEW_MODE = localStorage.getItem(VIEW_MODE_KEY) || "pairs";
 
+const HEADERS_PAIRS = [
+  "זמן (ישראל)", "זמן (LA)", "סימבול", "כיוון", "סוג סגירה", "כמות",
+  "מחיר כניסה", "מחיר יציאה", "טיקים", "$", "עריכה"
+];
+const HEADERS_EVENTS = [
+  "זמן (ישראל)", "זמן (LA)", "סימבול", "סוג", "פעולה", "כמות",
+  "מחיר", "מחיר כניסה", "טיקים", "$", "סכנה", ""
+];
+function renderTableHeaders(){
+  const tr = document.getElementById("table-headers");
+  if (!tr) return;
+  const cols = (VIEW_MODE === "pairs") ? HEADERS_PAIRS : HEADERS_EVENTS;
+  tr.innerHTML = cols.map(h => "<th>" + h + "</th>").join("");
+}
+
 function setViewMode(mode){
   VIEW_MODE = (mode === "events") ? "events" : "pairs";
   localStorage.setItem(VIEW_MODE_KEY, VIEW_MODE);
   document.getElementById("vw-pairs").classList.toggle("active", VIEW_MODE === "pairs");
   document.getElementById("vw-events").classList.toggle("active", VIEW_MODE === "events");
+  renderTableHeaders();
   applyFilters();
 }
 
@@ -405,7 +408,7 @@ function renderPairsView(filteredEvents){
   document.getElementById("row-count").textContent = total + ' עסקאות';
 
   if (total === 0){
-    tbody.innerHTML = '<tr><td colspan="11" class="empty"><div class="ico">🔍</div><h2>אין עסקאות בסינון הנוכחי</h2></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="empty"><div class="ico">🔍</div><h2>אין עסקאות בסינון הנוכחי</h2></td></tr>';
     document.getElementById("pager").style.display = "none";
     return;
   }
@@ -803,7 +806,7 @@ function renderTable(){
   const tbody = document.getElementById("tbody");
   const all = (STATE.raw && STATE.raw.trades) || [];
   if(all.length === 0){
-    tbody.innerHTML = '<tr><td colspan="11" class="empty">'
+    tbody.innerHTML = '<tr><td colspan="12" class="empty">'
       + '<div class="ico">📭</div>'
       + '<h2>אין עדיין נתונים</h2>'
       + '<p>כשתפעילי את ההתראה ב-TradingView, ה-webhook יישלח ל-Zapier מיידית ויוסיף את העסקה לקובץ '
@@ -826,7 +829,7 @@ function renderTable(){
 
   const total = sorted.length;
   if(total === 0){
-    tbody.innerHTML = '<tr><td colspan="11" class="empty">'
+    tbody.innerHTML = '<tr><td colspan="12" class="empty">'
       + '<div class="ico">🔍</div>'
       + '<h2>אין תוצאות לסינון הנוכחי</h2>'
       + '<p>נסי לשנות את הפילטרים למעלה.</p>'
@@ -969,7 +972,7 @@ async function loadData(force){
   } catch(e){
     console.error(e);
     setStatus("⚠ שגיאת טעינה: " + e.message, "err");
-    document.getElementById("tbody").innerHTML = '<tr><td colspan="11" class="empty">'
+    document.getElementById("tbody").innerHTML = '<tr><td colspan="12" class="empty">'
       + '<div class="ico">⚠️</div>'
       + '<h2>לא הצלחתי לטעון את הנתונים</h2>'
       + '<p>' + e.message + '<br><br>בדקי שהקובץ <code>docs/trading/journal-data.json</code> קיים ב-repo.</p>'
@@ -981,9 +984,10 @@ window.addEventListener("DOMContentLoaded", () => {
   ["f-from","f-to","f-type","f-danger","f-ticker"].forEach(id => {
     document.getElementById(id).addEventListener("change", applyFilters);
   });
-  // Initialize view toggle state
+  // Initialize view toggle state + headers
   document.getElementById("vw-pairs").classList.toggle("active", VIEW_MODE === "pairs");
   document.getElementById("vw-events").classList.toggle("active", VIEW_MODE === "events");
+  renderTableHeaders();
   loadData(true);
   loadAutoTraderStatus();
   // אין רענון אוטומטי תקופתי — הדף נשען על הכפתור 🔄 רענן
