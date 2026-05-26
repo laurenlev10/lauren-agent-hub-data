@@ -243,6 +243,15 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
 
   <div class="filters">
     <div class="f-group">
+      <label>תאריך יחיד</label>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input type="date" id="f-single" onchange="onSingleDateChange(this.value)">
+        <button type="button" class="btn" style="padding:6px 10px;font-size:12px" onclick="setSingleDate(0)" title="כל העסקאות מהיום (שעון ישראל)">היום</button>
+        <button type="button" class="btn" style="padding:6px 10px;font-size:12px" onclick="setSingleDate(-1)" title="כל העסקאות מאתמול">אתמול</button>
+        <button type="button" class="btn" style="padding:6px 10px;font-size:12px;background:#fee2e2;color:#b91c1c" onclick="clearSingleDate()" title="נקה — להציג טווח תאריכים מ-עד">✕</button>
+      </div>
+    </div>
+    <div class="f-group">
       <label>תאריך מ-</label>
       <input type="date" id="f-from">
     </div>
@@ -770,6 +779,32 @@ function buildTickerOptions(){
   sel.innerHTML = '<option value="all">הכל</option>' + tickers.map(t => '<option value="' + t + '">' + t + '</option>').join("");
   if(tickers.indexOf(current) >= 0) sel.value = current;
 }
+function setSingleDate(daysOffset){
+  // Use Israel timezone to compute the date string
+  const now = new Date();
+  const ilNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+  ilNow.setDate(ilNow.getDate() + daysOffset);
+  const yyyy = ilNow.getFullYear();
+  const mm = String(ilNow.getMonth() + 1).padStart(2, "0");
+  const dd = String(ilNow.getDate()).padStart(2, "0");
+  const dateStr = yyyy + "-" + mm + "-" + dd;
+  document.getElementById("f-single").value = dateStr;
+  onSingleDateChange(dateStr);
+}
+function clearSingleDate(){
+  document.getElementById("f-single").value = "";
+  // Also clear date-from / date-to so the existing range filter doesn't keep filtering
+  document.getElementById("f-from").value = "";
+  document.getElementById("f-to").value = "";
+  applyFilters();
+}
+function onSingleDateChange(val){
+  // When user picks a single date, sync date-from + date-to to that same day
+  document.getElementById("f-from").value = val || "";
+  document.getElementById("f-to").value   = val || "";
+  applyFilters();
+}
+
 function applyFilters(){
   const fromV = document.getElementById("f-from").value;
   const toV   = document.getElementById("f-to").value;
@@ -982,7 +1017,16 @@ async function loadData(force){
 
 window.addEventListener("DOMContentLoaded", () => {
   ["f-from","f-to","f-type","f-danger","f-ticker"].forEach(id => {
-    document.getElementById(id).addEventListener("change", applyFilters);
+    document.getElementById(id).addEventListener("change", () => {
+      // If user manually changes from/to, clear the single-date input (no longer applies)
+      if (id === "f-from" || id === "f-to"){
+        const s = document.getElementById("f-single");
+        const fr = document.getElementById("f-from").value;
+        const to = document.getElementById("f-to").value;
+        if (s && (s.value !== fr || s.value !== to)) s.value = "";
+      }
+      applyFilters();
+    });
   });
   // Initialize view toggle state + headers
   document.getElementById("vw-pairs").classList.toggle("active", VIEW_MODE === "pairs");
