@@ -244,6 +244,7 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
       <thead>
         <tr>
           <th>זמן (ישראל)</th>
+          <th>זמן (LA)</th>
           <th>סימבול</th>
           <th>סוג</th>
           <th>פעולה</th>
@@ -478,16 +479,18 @@ function fmtPrice(n){
   if(n === null || n === undefined || n === "" || isNaN(n)) return "—";
   return Number(n).toLocaleString("en-US",{minimumFractionDigits:2, maximumFractionDigits:4});
 }
-function fmtTimeIL(iso){
+function fmtTimeTZ(iso, tz, locale){
   if(!iso) return {d:"—", t:""};
   try {
     const d = new Date(iso);
     if(isNaN(d.getTime())) return {d: String(iso), t: ""};
-    const dateFmt = new Intl.DateTimeFormat("he-IL",{ timeZone:TZ, day:"2-digit", month:"2-digit", year:"2-digit" });
-    const timeFmt = new Intl.DateTimeFormat("he-IL",{ timeZone:TZ, hour:"2-digit", minute:"2-digit", hour12:false });
+    const dateFmt = new Intl.DateTimeFormat(locale,{ timeZone:tz, day:"2-digit", month:"2-digit", year:"2-digit" });
+    const timeFmt = new Intl.DateTimeFormat(locale,{ timeZone:tz, hour:"2-digit", minute:"2-digit", hour12:false });
     return { d: dateFmt.format(d), t: timeFmt.format(d) };
   } catch(e){ return {d: String(iso), t:""}; }
 }
+function fmtTimeIL(iso){ return fmtTimeTZ(iso, "Asia/Jerusalem", "he-IL"); }
+function fmtTimeLA(iso){ return fmtTimeTZ(iso, "America/Los_Angeles", "en-GB"); }
 function dateOnlyIL(iso){
   if(!iso) return null;
   try {
@@ -629,6 +632,7 @@ function renderTable(){
   tbody.innerHTML = slice.map(t => {
     const exit = isExit(t);
     const tm = fmtTimeIL(t.time || t._received_at);
+    const tmLA = fmtTimeLA(t.time || t._received_at);
     const rd = Number(t.result_dollars);
     const rt = Number(t.result_ticks);
     const danger = Number(t.danger) === 1;
@@ -639,6 +643,7 @@ function renderTable(){
     const dangerCell = danger ? '<span class="bdg bdg-danger">⚠ שעה מסוכנת</span>' : '<span style="color:var(--txt5);font-size:12px">—</span>';
     return '<tr class="' + cls + '">'
       + '<td class="cell-time"><div class="d">' + tm.d + '</div><div class="t">' + tm.t + '</div></td>'
+      + '<td class="cell-time"><div class="d">' + tmLA.d + '</div><div class="t">' + tmLA.t + '</div></td>'
       + '<td><b>' + (t.ticker || "—") + '</b></td>'
       + '<td>' + typeBadgeHTML(t.type) + '</td>'
       + '<td>' + (t.action || "—") + sideHtml + '</td>'
