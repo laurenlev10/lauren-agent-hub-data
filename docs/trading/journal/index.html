@@ -51,6 +51,27 @@ a:hover{text-decoration:underline;}
 .kpi-row-label{font-size:14px;font-weight:800;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;margin:14px 4px 8px;display:flex;align-items:center;gap:8px;}
 .kpi-row-label .ico{font-size:18px;}
 .kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:11px;}
+
+/* Live state — Position + Balance side-by-side */
+.live-state{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+@media (max-width:700px){.live-state{grid-template-columns:1fr;}}
+.live-card{background:#fff;border:2px solid var(--bdr);border-radius:var(--r);padding:16px 20px;box-shadow:var(--sh);position:relative;}
+.live-card.long{border-color:#22c55e;background:linear-gradient(135deg,#f0fdf4,#dcfce7);}
+.live-card.short{border-color:#ef4444;background:linear-gradient(135deg,#fef2f2,#fee2e2);}
+.live-card.flat{border-color:#9ca3af;background:#f9fafb;}
+.live-card.balance{border-color:#3b82f6;background:linear-gradient(135deg,#eff6ff,#dbeafe);}
+.live-card .label{font-size:12px;color:#666;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;}
+.live-card .big{font-size:28px;font-weight:800;line-height:1.1;margin-top:2px;}
+.live-card .sub{font-size:13px;color:#555;margin-top:6px;}
+.live-card .stale{position:absolute;top:8px;left:8px;background:#fef3c7;color:#a16207;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;}
+.live-card .pnl-pos{color:#15803d;font-weight:700;}
+.live-card .pnl-neg{color:#b91c1c;font-weight:700;}
+.live-card .pnl-zero{color:#6b7280;font-weight:600;}
+.live-card .dir-bdg{display:inline-block;padding:3px 10px;border-radius:6px;font-size:14px;font-weight:800;}
+.live-card .dir-long{background:#22c55e;color:white;}
+.live-card .dir-short{background:#ef4444;color:white;}
+.live-card .dir-flat{background:#9ca3af;color:white;}
+
 @media (max-width:1100px){.kpi-grid{grid-template-columns:repeat(3,1fr);}}
 @media (max-width:640px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
 .kpi{background:var(--surface);border:1.5px solid var(--bdr2);border-radius:var(--r);padding:13px 14px;box-shadow:var(--sh);}
@@ -229,6 +250,20 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
     <button class="at-btn flatten" id="at-btn-flatten" onclick="flattenAll()">🚨 סגור הכל</button>
     <button class="at-btn edit" id="at-btn-edit" onclick="window.open('https://github.com/laurenlev10/lauren-agent-hub-data/edit/main/docs/trading/autotrade_enabled.json','_blank')">⚙ ערוך הגדרות</button>
     <button class="at-btn toggle-on" id="at-btn-toggle" onclick="toggleAutoTrader()" disabled>טוען...</button>
+  </div>
+
+  <!-- Live State — Position + Balance (Roadmap Steps 2.1 + 2.2) -->
+  <div class="live-state">
+    <div class="live-card flat" id="live-pos-card">
+      <div class="label">📍 פוזיציה פתוחה</div>
+      <div class="big" id="live-pos-big">⏳ טוען...</div>
+      <div class="sub" id="live-pos-sub">&nbsp;</div>
+    </div>
+    <div class="live-card balance" id="live-bal-card">
+      <div class="label">💰 יתרה</div>
+      <div class="big" id="live-bal-big">⏳ טוען...</div>
+      <div class="sub" id="live-bal-sub">&nbsp;</div>
+    </div>
   </div>
 
   <div class="kpi-section">
@@ -919,6 +954,116 @@ function renderTable(){
 }
 function changePage(d){ STATE.page += d; renderTable(); }
 
+// ============== Live State (Position + Balance) — Roadmap 2.1 + 2.2 ==============
+const LIVE_POSITION_URL = "../state/live_position.json";
+const LIVE_BALANCE_URL  = "../state/live_balance.json";
+const LIVE_REFRESH_MS = 30 * 1000;  // 30 seconds
+const STALE_THRESHOLD_S = 90;        // mark yellow if data >90s old
+
+function fmtUSD(n){
+  if (n == null || isNaN(n)) return "—";
+  const abs = Math.abs(Number(n));
+  const sign = n >= 0 ? "+$" : "-$";
+  return sign + abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtUSDplain(n){
+  if (n == null || isNaN(n)) return "—";
+  return "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function pnlClass(n){
+  if (n == null || isNaN(n)) return "pnl-zero";
+  return Number(n) > 0 ? "pnl-pos" : Number(n) < 0 ? "pnl-neg" : "pnl-zero";
+}
+function staleSeconds(iso){
+  if (!iso) return Infinity;
+  try {
+    const dt = new Date(iso);
+    return (Date.now() - dt.getTime()) / 1000;
+  } catch(e){ return Infinity; }
+}
+
+async function fetchLiveJSON(url){
+  try {
+    const r = await fetch(url + "?_=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  } catch(e){
+    console.warn("fetchLiveJSON failed:", url, e);
+    return null;
+  }
+}
+
+async function renderLivePosition(){
+  const card = document.getElementById("live-pos-card");
+  const big = document.getElementById("live-pos-big");
+  const sub = document.getElementById("live-pos-sub");
+  const data = await fetchLiveJSON(LIVE_POSITION_URL);
+  // Clear stale tag from previous renders
+  const oldStale = card.querySelector(".stale"); if (oldStale) oldStale.remove();
+  if (!data){
+    card.className = "live-card flat";
+    big.innerHTML = '<span class="dir-bdg dir-flat">לא נטען</span>';
+    sub.textContent = "אין נתונים זמינים";
+    return;
+  }
+  const age = staleSeconds(data.fetched_at);
+  if (age > STALE_THRESHOLD_S){
+    const s = document.createElement("span"); s.className = "stale";
+    s.textContent = "⚠ נתונים ישנים (" + Math.round(age/60) + " דק׳)";
+    card.appendChild(s);
+  }
+  const net = Number(data.net_pos) || 0;
+  if (net === 0){
+    card.className = "live-card flat";
+    big.innerHTML = '<span class="dir-bdg dir-flat">⏸ FLAT</span>';
+    sub.textContent = "אין פוזיציה פתוחה";
+  } else {
+    const isLong = net > 0;
+    card.className = "live-card " + (isLong ? "long" : "short");
+    const dirHTML = '<span class="dir-bdg ' + (isLong ? "dir-long" : "dir-short") + '">' +
+      (isLong ? "▲ LONG" : "▼ SHORT") + " " + Math.abs(net) + "</span>";
+    const priceTxt = data.avg_price ? " @ " + Number(data.avg_price).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2}) : "";
+    big.innerHTML = dirHTML + '<span style="font-size:18px;color:#444;font-weight:600">' + priceTxt + '</span>';
+    let subText = "חוזה " + (data.contract_id || "—");
+    if (data.open_pnl != null){
+      subText += " · open P&L " + fmtUSD(data.open_pnl);
+    }
+    sub.textContent = subText;
+  }
+}
+
+async function renderLiveBalance(){
+  const card = document.getElementById("live-bal-card");
+  const big = document.getElementById("live-bal-big");
+  const sub = document.getElementById("live-bal-sub");
+  const data = await fetchLiveJSON(LIVE_BALANCE_URL);
+  const oldStale = card.querySelector(".stale"); if (oldStale) oldStale.remove();
+  if (!data){
+    big.textContent = "—";
+    sub.textContent = "אין נתונים";
+    return;
+  }
+  const age = staleSeconds(data.fetched_at);
+  if (age > STALE_THRESHOLD_S){
+    const s = document.createElement("span"); s.className = "stale";
+    s.textContent = "⚠ נתונים ישנים (" + Math.round(age/60) + " דק׳)";
+    card.appendChild(s);
+  }
+  const cash = data.cash_balance;
+  const dayPnl = data.day_pnl_realized;
+  const weekPnl = data.week_pnl_realized;
+  big.innerHTML = fmtUSDplain(cash);
+  const dayCls = pnlClass(dayPnl);
+  const weekCls = pnlClass(weekPnl);
+  sub.innerHTML = 'יום: <span class="' + dayCls + '">' + fmtUSD(dayPnl) + '</span>' +
+                  ' · שבוע: <span class="' + weekCls + '">' + fmtUSD(weekPnl) + '</span>';
+}
+
+async function refreshLiveState(){
+  await Promise.all([renderLivePosition(), renderLiveBalance()]);
+}
+
+
 // ============== SWAP P&L enrichment (computed view-side, see CLAUDE.md) ==============
 // For each SWAP row that closes an opposite-direction prior position, attach
 // entry_price/result_ticks/result_dollars so the table can render the closed-leg P&L
@@ -1082,6 +1227,9 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("vw-events").classList.toggle("active", VIEW_MODE === "events");
   renderTableHeaders();
   loadData(true);
+  // Live state — fetch immediately + every 30s
+  refreshLiveState();
+  setInterval(refreshLiveState, LIVE_REFRESH_MS);
   loadAutoTraderStatus();
   // אין רענון אוטומטי תקופתי — הדף נשען על הכפתור 🔄 רענן
   // אבל כשחוזרים לטאב אחרי שהיית בחוץ — רענון חד-פעמי אוטומטי כדי שהנתונים יהיו עדכניים
