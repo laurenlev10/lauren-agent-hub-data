@@ -364,7 +364,7 @@ function renderCounted(){
       <td class="num ${dCls}" title="הספירה גילתה את ההפרש הזה לעומת מה שהמערכת חשבה לפני הספירה">${dStr}</td>
       <td class="num">${units > 0 ? '<strong>'+fmt(units)+'</strong>' : '<span style="color:var(--muted)">0</span>'}</td>
       <td class="num">${renderStockEditCell(r)}</td>
-      <td class="num">${(r.threshold === null || r.threshold === undefined || r.threshold === 0) ? '<span class="pill warning" title="אין Threshold מוגדר">—</span>' : fmt(r.threshold)}</td>
+      <td class="num">${renderThresholdEditCell(r)}</td>
       <td>${renderRecountTagCell(r)}</td>
     </tr>`;
   }
@@ -374,7 +374,88 @@ function renderCounted(){
   $('#tabContent').querySelectorAll('.recount-remove-btn').forEach(btn => {
     btn.onclick = () => removeRecountTag(btn.dataset.pid, btn);
   });
+  wireAllInteractiveHandlers();
+}
+
+function wireAllInteractiveHandlers(){
   wireStockEditHandlers();
+  wireThresholdEditHandlers();
+  $('#tabContent').querySelectorAll('.recount-remove-btn').forEach(btn => {
+    btn.onclick = () => removeRecountTag(btn.dataset.pid, btn);
+  });
+}
+
+// ─── Shared editable Threshold cell (any tab) ─────────────────────────
+function renderThresholdEditCell(r){
+  const pid = r.product_id;
+  const thr = (r.threshold === null || r.threshold === undefined) ? 0 : Number(r.threshold);
+  const display = thr > 0 ? fmt(thr) : '<span class="pill warning" title="לא מוגדר">—</span>';
+  return `<div class="thr-cell-wrap" data-pid="${pid}">
+    <div class="thr-view" style="display:flex;gap:4px;align-items:center;justify-content:flex-end">
+      <span class="thr-display">${display}</span>
+      <button class="thr-edit-btn" data-pid="${pid}" title="ערוך Threshold" style="background:#e5e7eb;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px">✏️</button>
+    </div>
+    <div class="thr-edit-mode" style="display:none;gap:4px;align-items:center;justify-content:flex-end">
+      <input type="number" min="0" step="1" class="thr-input2" data-pid="${pid}" value="${thr}" style="width:60px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:13px;text-align:center;font-weight:600">
+      <button class="thr-save-btn2" data-pid="${pid}" style="background:var(--success);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px;font-weight:700">✓ שמור</button>
+      <button class="thr-cancel-btn2" data-pid="${pid}" style="background:#f3f4f6;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;font-size:11px">✗</button>
+    </div>
+  </div>`;
+}
+
+function wireThresholdEditHandlers(){
+  $('#tabContent').querySelectorAll('.thr-edit-btn').forEach(b=>{
+    b.onclick = () => {
+      const cell = b.closest('.thr-cell-wrap');
+      cell.querySelector('.thr-view').style.display = 'none';
+      cell.querySelector('.thr-edit-mode').style.display = 'flex';
+      const inp = cell.querySelector('.thr-input2');
+      inp.focus(); inp.select();
+    };
+  });
+  $('#tabContent').querySelectorAll('.thr-cancel-btn2').forEach(b=>{
+    b.onclick = () => {
+      const cell = b.closest('.thr-cell-wrap');
+      cell.querySelector('.thr-view').style.display = 'flex';
+      cell.querySelector('.thr-edit-mode').style.display = 'none';
+    };
+  });
+  $('#tabContent').querySelectorAll('.thr-save-btn2').forEach(b=>{
+    b.onclick = () => saveThresholdGeneric(b.dataset.pid, b);
+  });
+}
+
+async function saveThresholdGeneric(pid, btn){
+  const pidNum = parseInt(pid);
+  const cell = btn.closest('.thr-cell-wrap');
+  const input = cell.querySelector('.thr-input2');
+  const val = parseFloat(input.value);
+  if (isNaN(val) || val < 0){ toast('⚠ מספר לא חוקי', 'error'); return; }
+  let token = (localStorage.getItem('lauren_octopos_token') || '').trim();
+  if (!token){
+    token = prompt('הזיני את ה-OCTOPOS token:');
+    if (!token) return;
+    localStorage.setItem('lauren_octopos_token', token.trim());
+  }
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch('https://themakeup.octoretail.com/api/v2/products/' + pid, {
+      method: 'PUT',
+      headers: {'Authorization': token, 'Content-Type':'application/json', 'Accept':'application/json'},
+      body: JSON.stringify({'threshold_qty': val})
+    });
+    if (r.status === 401){ localStorage.removeItem('lauren_octopos_token'); throw new Error('Token לא חוקי'); }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const allR = findRowsByPid(pidNum);
+    const nowIso = new Date().toISOString();
+    allR.forEach(r => { r.threshold = val; r.threshold_edited_at = nowIso; });
+    toast('✓ Threshold עודכן: ' + val, 'success');
+    saveEventSummaryToGithub();
+    renderTabContent();
+  } catch(e){
+    toast('⚠ נכשל: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '✓ שמור';
+  }
 }
 
 // ─── Stock editor (per Lauren 2026-05-26): inline edit + איפוס quick-fix ─
@@ -424,14 +505,26 @@ function wireStockEditHandlers(){
   });
 }
 
+function findRowsByPid(pid){
+  const out = [];
+  for (const tabId in SUMMARY.tabs){
+    const arr = SUMMARY.tabs[tabId] || [];
+    for (const r of arr){
+      if (r.product_id === pid) out.push(r);
+    }
+  }
+  return out;
+}
+
 async function saveStockToOctopus(pid, btn){
   const pidNum = parseInt(pid);
   const cell = btn.closest('.stock-cell');
   const input = cell.querySelector('.stock-input');
   const newQ = parseFloat(input.value);
   if (isNaN(newQ)){ toast('⚠ מספר לא חוקי', 'error'); return; }
-  const row = SUMMARY.tabs.counted_at_event.find(x => x.product_id === pidNum);
-  if (!row){ toast('⚠ מוצר לא נמצא', 'error'); return; }
+  const allRows = findRowsByPid(pidNum);
+  if (allRows.length === 0){ toast('⚠ מוצר לא נמצא', 'error'); return; }
+  const row = allRows[0];
   const oldQ = row.current_stock;
 
   let token = (localStorage.getItem('lauren_octopos_token') || '').trim();
@@ -454,8 +547,8 @@ async function saveStockToOctopus(pid, btn){
       throw new Error('Token לא חוקי — נמחק. הזיני מחדש.');
     }
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    row.current_stock = newQ;
-    row.stock_edited_at = new Date().toISOString();
+    const nowIso = new Date().toISOString();
+    allRows.forEach(r => { r.current_stock = newQ; r.in_stock_qty = newQ; r.stock_edited_at = nowIso; });
     toast('✓ מלאי עודכן ב-OCTOPOS: ' + newQ, 'success');
     const ok = await saveEventSummaryToGithub();
     toast(ok ? '✓ נשמר גם ב-GitHub' : '⚠ נשמר ב-OCTOPOS, GitHub-sync נכשל', ok ? 'success' : 'info');
@@ -489,9 +582,9 @@ function renderRecountTagCell(r){
 
 async function removeRecountTag(pid, btn){
   const pidNum = parseInt(pid);
-  // Find the row in SUMMARY
-  const row = SUMMARY.tabs.counted_at_event.find(x => x.product_id === pidNum);
-  if (!row){ toast('⚠ מוצר לא נמצא', 'error'); return; }
+  const allRows = findRowsByPid(pidNum);
+  if (allRows.length === 0){ toast('⚠ מוצר לא נמצא', 'error'); return; }
+  const row = allRows.find(r => r.has_recount_tag) || allRows[0];
   if (!row.has_recount_tag){ toast('⚠ אין תג RECOUNT למוצר הזה', 'error'); return; }
 
   let token = (localStorage.getItem('lauren_octopos_token') || '').trim();
@@ -519,10 +612,14 @@ async function removeRecountTag(pid, btn){
       throw new Error('Token לא חוקי — נמחק. הזיני מחדש.');
     }
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    // Local update
-    row.has_recount_tag = false;
-    row.recount_tag_removed_at = new Date().toISOString();
-    row.categories = (row.categories || []).filter(c => (c.name || '').trim().toLowerCase() !== 'recount');
+    // Local update — propagate across all tabs that show this pid
+    const nowIso2 = new Date().toISOString();
+    const newCats2 = (row.categories || []).filter(c => (c.name || '').trim().toLowerCase() !== 'recount');
+    allRows.forEach(r => {
+      r.has_recount_tag = false;
+      r.recount_tag_removed_at = nowIso2;
+      r.categories = newCats2;
+    });
     toast('✓ הוסר ב-OCTOPOS — שומר ב-GitHub...', 'success');
     // Persist to GitHub
     const ok = await saveEventSummaryToGithub();
@@ -585,8 +682,9 @@ function renderMissed(){
     + sortableHeader('name', 'מוצר', 'missed_from_worklist')
     + sortableHeader('supplier', 'ספק', 'missed_from_worklist')
     + sortableHeader('reason', 'סיבה ברשימה', 'missed_from_worklist')
-    + sortableHeader('current_stock', 'מלאי עכשיו', 'missed_from_worklist')
-    + sortableHeader('threshold', 'Threshold', 'missed_from_worklist')
+    + sortableHeader('current_stock', '📦 מלאי כעת', 'missed_from_worklist')
+    + sortableHeader('threshold', '⚙️ Threshold', 'missed_from_worklist')
+    + sortableHeader('has_recount_tag', 'תג RECOUNT', 'missed_from_worklist')
     + '</tr></thead><tbody>';
   const reasonPills = {
     negative: '<span class="pill danger">🔴 מינוס</span>',
@@ -599,13 +697,15 @@ function renderMissed(){
         ${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
       <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
       <td>${reasonPills[r.reason] || '<span class="pill muted">'+escHtml(r.reason)+'</span>'}</td>
-      <td class="num">${fmt(r.current_stock)}</td>
-      <td class="num">${fmt(r.threshold)}</td>
+      <td class="num">${renderStockEditCell(r)}</td>
+      <td class="num">${renderThresholdEditCell(r)}</td>
+      <td>${renderRecountTagCell(r)}</td>
     </tr>`;
   }
   html += '</tbody></table>';
   $('#tabContent').innerHTML = html;
   wireSortHandlers('missed_from_worklist'); wireSearch();
+  wireAllInteractiveHandlers();
 }
 
 function renderNegatives(){
@@ -621,9 +721,9 @@ function renderNegatives(){
     + sortableHeader('name', 'מוצר', 'negatives')
     + sortableHeader('supplier', 'ספק', 'negatives')
     + sortableHeader('department', 'מחלקה', 'negatives')
-    + sortableHeader('in_stock_qty', 'מלאי (שלילי)', 'negatives')
-    + sortableHeader('threshold', 'Threshold', 'negatives')
-    + sortableHeader('needs_recount', 'תג Recount', 'negatives')
+    + sortableHeader('in_stock_qty', '📦 מלאי כעת (שלילי)', 'negatives')
+    + sortableHeader('threshold', '⚙️ Threshold', 'negatives')
+    + sortableHeader('has_recount_tag', 'תג RECOUNT', 'negatives')
     + '</tr></thead><tbody>';
   for (const r of rows){
     html += `<tr>
@@ -631,14 +731,15 @@ function renderNegatives(){
         ${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
       <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
       <td>${escHtml(r.department||'—')}</td>
-      <td class="num"><span class="pill danger">${fmt(r.in_stock_qty)}</span></td>
-      <td class="num">${fmt(r.threshold)}</td>
-      <td>${r.needs_recount ? '<span class="pill warning">🟡 כן</span>' : '<span class="pill muted">—</span>'}</td>
+      <td class="num">${renderStockEditCell(r)}</td>
+      <td class="num">${renderThresholdEditCell(r)}</td>
+      <td>${renderRecountTagCell(r)}</td>
     </tr>`;
   }
   html += '</tbody></table>';
   $('#tabContent').innerHTML = html;
   wireSortHandlers('negatives'); wireSearch();
+  wireAllInteractiveHandlers();
 }
 
 function renderSlowMovers(){
@@ -653,23 +754,28 @@ function renderSlowMovers(){
   html += '<table class="data"><thead><tr>'
     + sortableHeader('name', 'מוצר', 'slow_movers')
     + sortableHeader('supplier', 'ספק', 'slow_movers')
-    + sortableHeader('in_stock_qty', 'מלאי', 'slow_movers')
+    + sortableHeader('in_stock_qty', '📦 מלאי כעת', 'slow_movers')
     + sortableHeader('sale_price', 'מחיר', 'slow_movers')
     + sortableHeader('tied_up_cost', 'תקוע ב-$', 'slow_movers')
+    + sortableHeader('threshold', '⚙️ Threshold', 'slow_movers')
+    + sortableHeader('has_recount_tag', 'תג RECOUNT', 'slow_movers')
     + '</tr></thead><tbody>';
   for (const r of rows){
     html += `<tr>
       <td><div class="product-name">${escHtml(r.name)}</div>
         ${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
       <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
-      <td class="num">${fmt(r.in_stock_qty)}</td>
+      <td class="num">${renderStockEditCell(r)}</td>
       <td class="num">$${fmt(r.sale_price, 2)}</td>
       <td class="num">$${fmt(r.tied_up_cost, 2)}</td>
+      <td class="num">${renderThresholdEditCell(r)}</td>
+      <td>${renderRecountTagCell(r)}</td>
     </tr>`;
   }
   html += '</tbody></table>';
   $('#tabContent').innerHTML = html;
   wireSortHandlers('slow_movers'); wireSearch();
+  wireAllInteractiveHandlers();
 }
 
 function renderTopSellers(){
@@ -687,7 +793,9 @@ function renderTopSellers(){
     + sortableHeader('units_sold', 'יחידות', 'top_sellers')
     + sortableHeader('revenue', 'הכנסה', 'top_sellers')
     + sortableHeader('price', 'מחיר ליחידה', 'top_sellers')
-    + sortableHeader('current_stock', 'מלאי עכשיו', 'top_sellers')
+    + sortableHeader('current_stock', '📦 מלאי כעת', 'top_sellers')
+    + sortableHeader('threshold', '⚙️ Threshold', 'top_sellers')
+    + sortableHeader('has_recount_tag', 'תג RECOUNT', 'top_sellers')
     + '</tr></thead><tbody>';
   rows.forEach((r, i) => {
     const rank = i + 1;
@@ -700,12 +808,15 @@ function renderTopSellers(){
       <td class="num"><span class="pill success">${fmt(r.units_sold)}</span></td>
       <td class="num">$${fmt(r.revenue, 2)}</td>
       <td class="num">$${fmt(r.price, 2)}</td>
-      <td class="num">${fmt(r.current_stock)}</td>
+      <td class="num">${renderStockEditCell(r)}</td>
+      <td class="num">${renderThresholdEditCell(r)}</td>
+      <td>${renderRecountTagCell(r)}</td>
     </tr>`;
   });
   html += '</tbody></table>';
   $('#tabContent').innerHTML = html;
   wireSortHandlers('top_sellers'); wireSearch();
+  wireAllInteractiveHandlers();
 }
 
 function renderNoThreshold(){
@@ -723,30 +834,33 @@ function renderNoThreshold(){
     + sortableHeader('name', 'מוצר', 'no_threshold')
     + sortableHeader('supplier', 'ספק', 'no_threshold')
     + sortableHeader('department', 'מחלקה', 'no_threshold')
-    + sortableHeader('in_stock_qty', 'מלאי', 'no_threshold')
+    + sortableHeader('in_stock_qty', '📦 מלאי כעת', 'no_threshold')
     + sortableHeader('sale_price', 'מחיר', 'no_threshold')
-    + '<th>Threshold חדש</th></tr></thead><tbody>';
+    + '<th>⚙️ Threshold חדש</th>'
+    + sortableHeader('has_recount_tag', 'תג RECOUNT', 'no_threshold')
+    + '</tr></thead><tbody>';
   for (const r of rows){
     html += `<tr data-pid="${r.product_id}">
       <td><div class="product-name">${escHtml(r.name)}</div>
         ${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
       <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
       <td>${escHtml(r.department||'—')}</td>
-      <td class="num">${fmt(r.in_stock_qty)}</td>
+      <td class="num">${renderStockEditCell(r)}</td>
       <td class="num">$${fmt(r.sale_price, 2)}</td>
       <td><div class="thr-cell">
         <input type="number" class="thr-input" min="0" step="1" placeholder="—" data-pid="${r.product_id}">
         <button class="thr-save-btn" data-pid="${r.product_id}">💾 שמור</button>
       </div></td>
+      <td>${renderRecountTagCell(r)}</td>
     </tr>`;
   }
   html += '</tbody></table>';
   $('#tabContent').innerHTML = html;
   wireSortHandlers('no_threshold'); wireSearch();
-  // Wire save buttons
   $('#tabContent').querySelectorAll('.thr-save-btn').forEach(btn => {
     btn.onclick = () => saveThresholdToOctopus(btn.dataset.pid, btn);
   });
+  wireAllInteractiveHandlers();
 }
 
 // ─── Threshold save → OCTOPOS PUT /api/v2/products/{id} ────────────────
@@ -778,15 +892,16 @@ async function saveThresholdToOctopus(pid, btn){
     toast('✓ Threshold עודכן ב-OCTOPOS: ' + val, 'success');
     btn.textContent = '✓ נשמר';
     btn.classList.add('saved');
-    // Update local SUMMARY so refresh doesn't lose it visually
-    const tab = SUMMARY.tabs.no_threshold;
-    for (let i=0; i<tab.length; i++){
-      if (tab[i].product_id == pid){ tab[i].threshold = val; break; }
-    }
+    // Update ALL tabs that show this pid (threshold-edit can come from any tab)
+    const allR = findRowsByPid(parseInt(pid));
+    const nowIso3 = new Date().toISOString();
+    allR.forEach(r => { r.threshold = val; r.threshold_edited_at = nowIso3; });
+    // Also persist to GitHub so it survives reload before next octopos_sync
+    saveEventSummaryToGithub();
     setTimeout(()=> {
-      // Remove the row visually since it now has a threshold
       const row = btn.closest('tr');
       if (row) row.style.opacity = '0.4';
+      renderTabContent();
     }, 800);
   } catch(e){
     toast('⚠ שמירה נכשלה: ' + e.message, 'error');

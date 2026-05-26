@@ -179,6 +179,14 @@ def load_worklist(evkey):
     return ((d.get("events") or {}).get(evkey) or {}).get("worklist") or []
 
 
+def cats_and_recount(snap):
+    """Returns (categories_list, has_recount_bool) from a snapshot product dict."""
+    cats = snap.get("categories") or []
+    out_cats = [{"id": c.get("id"), "name": c.get("name")} for c in cats if c.get("id")]
+    has_rc = any((c.get("name") or "").strip().lower() == "recount" for c in cats)
+    return out_cats, has_rc
+
+
 def build_counted(rows, snapshot, sales=None):
     by_pid = {}
     for r in rows:
@@ -200,10 +208,9 @@ def build_counted(rows, snapshot, sales=None):
         rec["current_stock"] = snap.get("in_stock_qty")
         rec["threshold"] = snap.get("threshold")
         rec["event_count"] = len(rec["events"])
-        # Per Lauren 2026-05-26: surface RECOUNT tag state so dashboard can offer "remove" button
-        cats = snap.get("categories") or []
-        rec["categories"] = [{"id": c.get("id"), "name": c.get("name")} for c in cats if c.get("id")]
-        rec["has_recount_tag"] = any((c.get("name") or "").strip().lower() == "recount" for c in cats)
+        cats, has_rc = cats_and_recount(snap)
+        rec["categories"] = cats
+        rec["has_recount_tag"] = has_rc
         # Per Lauren 2026-05-26 v2: units sold at this event (from sales API)
         s = (sales or {}).get(pid) or {}
         rec["units_sold_at_event"] = s.get("units_sold") or 0
@@ -223,13 +230,15 @@ def build_missed(worklist, counted_pids, snapshot):
         if wpid is not None and int(wpid) in counted_pids:
             continue
         snap = snapshot.get(int(wpid)) if wpid is not None else None
+        cats, has_rc = cats_and_recount(snap or {})
         out.append({"product_id": int(wpid) if wpid is not None else None,
             "name": w.get("name") or "",
             "sku": (snap or {}).get("sku") or w.get("sku") or "",
             "supplier": (snap or {}).get("_supplier_name") or w.get("supplier") or "",
             "reason": w.get("reason") or "",
             "current_stock": (snap or {}).get("in_stock_qty"),
-            "threshold": (snap or {}).get("threshold")})
+            "threshold": (snap or {}).get("threshold"),
+            "categories": cats, "has_recount_tag": has_rc})
     return out
 
 
@@ -239,12 +248,15 @@ def build_negatives(snapshot):
         try: qty = float(snap.get("in_stock_qty") or 0)
         except: continue
         if qty >= 0 or not snap.get("active", True): continue
+        cats, has_rc = cats_and_recount(snap)
         out.append({"product_id":pid,"name":snap.get("name") or "",
             "sku":snap.get("sku") or "","supplier":snap.get("_supplier_name") or "",
             "department":snap.get("department") or "","in_stock_qty":qty,
+            "current_stock":qty,
             "threshold":snap.get("threshold"),
             "needs_recount":bool(snap.get("needs_recount")),
-            "last_updated":snap.get("updated_at")})
+            "last_updated":snap.get("updated_at"),
+            "categories":cats,"has_recount_tag":has_rc})
     out.sort(key=lambda x: x["in_stock_qty"])
     return out
 
@@ -257,11 +269,14 @@ def build_slow_movers(snapshot, sales):
         if qty <= 1 or not snap.get("active", True): continue
         if pid in sales: continue
         cost = float(snap.get("unit_cost") or 0)
+        cats, has_rc = cats_and_recount(snap)
         out.append({"product_id":pid,"name":snap.get("name") or "",
             "sku":snap.get("sku") or "","supplier":snap.get("_supplier_name") or "",
             "department":snap.get("department") or "","in_stock_qty":qty,
+            "current_stock":qty,
             "threshold":snap.get("threshold"),"unit_cost":cost,
-            "sale_price":snap.get("sale_price"),"tied_up_cost":cost*qty})
+            "sale_price":snap.get("sale_price"),"tied_up_cost":cost*qty,
+            "categories":cats,"has_recount_tag":has_rc})
     out.sort(key=lambda x: x["tied_up_cost"] or 0, reverse=True)
     return out
 
@@ -270,12 +285,14 @@ def build_top_sellers(sales, snapshot, limit=100):
     rows = []
     for pid, s in sales.items():
         snap = snapshot.get(pid) or {}
+        cats, has_rc = cats_and_recount(snap)
         rows.append({"product_id":pid,
             "name":s["name"] or snap.get("name") or "",
             "sku":s["sku"] or snap.get("sku") or "",
             "supplier":s["vendor_name"] or snap.get("_supplier_name") or "",
             "units_sold":s["units_sold"],"price":s["price"],"revenue":s["revenue"],
-            "current_stock":snap.get("in_stock_qty"),"threshold":snap.get("threshold")})
+            "current_stock":snap.get("in_stock_qty"),"threshold":snap.get("threshold"),
+            "categories":cats,"has_recount_tag":has_rc})
     rows.sort(key=lambda x: x["units_sold"], reverse=True)
     return rows[:limit]
 
@@ -286,12 +303,16 @@ def build_no_threshold(snapshot):
         try: thr = float(snap.get("threshold") or 0)
         except: thr = 0
         if thr > 0 or not snap.get("active", True): continue
+        cats, has_rc = cats_and_recount(snap)
         out.append({"product_id":pid,"name":snap.get("name") or "",
             "sku":snap.get("sku") or "","supplier":snap.get("_supplier_name") or "",
             "department":snap.get("department") or "",
-            "in_stock_qty":snap.get("in_stock_qty"),"threshold":thr,
+            "in_stock_qty":snap.get("in_stock_qty"),
+            "current_stock":snap.get("in_stock_qty"),
+            "threshold":thr,
             "unit_cost":snap.get("unit_cost"),"sale_price":snap.get("sale_price"),
-            "created_at":snap.get("created_at")})
+            "created_at":snap.get("created_at"),
+            "categories":cats,"has_recount_tag":has_rc})
     out.sort(key=lambda x: x["supplier"] or "")
     return out
 
