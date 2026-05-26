@@ -59,7 +59,7 @@ STATE_TZ = {
 
 TARGET_LOCAL_HOUR = 17
 TARGET_LOCAL_MIN  = 15
-WINDOW_MIN_BEFORE = 0   # only fire AT or AFTER 17:15
+WINDOW_MIN_BEFORE = 15  # tolerate up to 15 min early — GitHub Actions cron can jitter (2026-05-26 fix: Roseville 22:09 UTC fire missed the 22:15 target by 6 min and Auto-cleanup never ran)
 WINDOW_MIN_AFTER  = 35  # tolerate up to 17:50 (so an hourly cron at :15 catches it)
 
 
