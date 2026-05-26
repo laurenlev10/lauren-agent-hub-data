@@ -925,6 +925,12 @@ function changePage(d){ STATE.page += d; renderTable(); }
 // (the SWAP webhook doesn't carry it — Pine only sends the new entry's price).
 const _TICK_SIZE_MNQ = 0.25;
 const _TICK_VALUE_USD_MNQ = 0.50;
+// Bracket ticks — must match Pine indicator inputs (tradeTicks=300, slTicks=600).
+// Used to compute EXIT TP/SL P&L from the bracket value (Tradovate's actual fill)
+// rather than from Pine's bar-close delta (which can be 20-50 ticks off the real fill
+// because the bar may close anywhere between the high and the low).
+const _DEFAULT_TP_TICKS_MNQ = 300;
+const _DEFAULT_SL_TICKS_MNQ = 600;
 
 function enrichSwapPnL(trades){
   if(!Array.isArray(trades)) return;
@@ -971,19 +977,31 @@ function enrichSwapPnL(trades){
     }
 
     // ============ EXIT closes the open position → compute P&L on this row ============
-    // Same idea as SWAP, but for explicit EXIT events fired by Pine (EXIT LONG TP, etc.).
-    // Pine's "Lauren BOT" alert message only carries type+price; entry_price/ticks/$
-    // are filled in here by looking back at the most recent open entry.
+    // For EXIT TP / EXIT SL: use the bracket-defined ticks (300 / -600). Reason:
+    //   • Tradovate's bracket fills at the EXACT bracket price (Limit/Stop = +300/-600
+    //     ticks from entry). Pine's alert reports the bar CLOSE where it detected the
+    //     hit, which can be 20-50 ticks off (the high/low crossed the bracket intra-bar
+    //     but the close ended somewhere else). Using bracket values matches reality.
+    // For EXIT *SWAP and anything else: use price-delta (no fixed target).
     if(isExit && openEntry){
-      // EXIT LONG closes a LONG; EXIT SHORT closes a SHORT
       var isExitLong  = type.indexOf("EXIT LONG")  === 0;
       var isExitShort = type.indexOf("EXIT SHORT") === 0;
       var exitDirMatches = (isExitLong && openEntry.direction === "long")
                         || (isExitShort && openEntry.direction === "short");
       if(exitDirMatches){
-        var diffE = price - openEntry.price;
-        if(openEntry.direction === "short") diffE = -diffE;
-        var ticksE = Math.round(diffE / _TICK_SIZE_MNQ);
+        var ticksE;
+        var isTP = type.indexOf(" TP") > 0 || type.endsWith("TP");
+        var isSL = type.indexOf(" SL") > 0 || type.endsWith("SL");
+        if(isTP){
+          ticksE = _DEFAULT_TP_TICKS_MNQ;
+        } else if(isSL){
+          ticksE = -_DEFAULT_SL_TICKS_MNQ;
+        } else {
+          // EXIT * SWAP or unknown subtype — fall back to price-delta math
+          var diffE = price - openEntry.price;
+          if(openEntry.direction === "short") diffE = -diffE;
+          ticksE = Math.round(diffE / _TICK_SIZE_MNQ);
+        }
         var dollarsE = +(ticksE * _TICK_VALUE_USD_MNQ * (openEntry.qty || 1)).toFixed(2);
         if(t.entry_price === undefined || t.entry_price === null){
           t.entry_price = openEntry.price;
