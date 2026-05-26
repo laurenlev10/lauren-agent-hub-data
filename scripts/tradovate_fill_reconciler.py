@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # =============================================================================
-# Tradovate Fill Reconciler
+# Tradovate Fill Reconciler + Live State Sync
 # =============================================================================
-# Polls Tradovate /fill/list every 5 minutes, reads docs/trading/journal-data.json,
-# and writes synthetic EXIT rows for fills that closed positions but were never
-# captured by Pine's alert() (e.g., intra-bar spike to TP that reverses before
-# bar close — Pine never fires EXIT, but Tradovate's bracket already filled).
+# Two jobs in one workflow (saves runs):
+#   1. RECONCILE — polls /fill/list, writes synthetic EXIT rows to journal
+#                  for fills Pine missed (intra-bar TP spikes, etc.)
+#   2. LIVE STATE — writes docs/state/live_position.json + live_balance.json
+#                   for the dashboard's Live Position Card + Balance Widget
+#                   (Roadmap Steps 1.1 + 1.2 — built 2026-05-26)
 #
 # Idempotency: each reconciler-written row carries `tradovate_fill_id` so a
 # rerun cannot duplicate. Pine-written EXIT rows (no fill_id) are matched by
@@ -26,6 +28,10 @@ REPO = "laurenlev10/lauren-agent-hub-data"
 JOURNAL_PATH = "docs/trading/journal-data.json"
 STATE_PATH = "docs/state/tradovate_reconciler_state.json"
 AUTOTRADE_PATH = "docs/trading/autotrade_enabled.json"
+
+# Live-state files for Phase 2 dashboard widgets (Roadmap Steps 1.1 + 1.2)
+LIVE_POSITION_PATH = "docs/state/live_position.json"
+LIVE_BALANCE_PATH  = "docs/state/live_balance.json"
 
 # Match window — Pine alert arrives within this delta of the Tradovate fill
 PINE_MATCH_WINDOW_SECONDS = 180  # 3 minutes (covers up to 1-min bar closes + lag)
@@ -112,6 +118,59 @@ def fetch_fills(token):
                 out.append(f)
         except Exception:
             continue
+    return out
+
+def fetch_position_snapshot(token, contract_id, account_id):
+    """Single snapshot of the active position for the dashboard's Live Position Card.
+    Returns a dict that's safe to overwrite live_position.json with each run."""
+    out = {
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "contract_id": contract_id,
+        "account_id": account_id,
+        "net_pos": 0,
+        "avg_price": None,
+        "open_pnl": None,
+        "is_flat": True,
+    }
+    try:
+        positions = tradovate_get("/position/list", token) or []
+        for p in positions:
+            if p.get("contractId") == contract_id and (not account_id or p.get("accountId") == account_id):
+                net = int(p.get("netPos") or 0)
+                out["net_pos"] = net
+                out["avg_price"] = p.get("netPrice")
+                out["is_flat"] = (net == 0)
+                # If Tradovate returns open P&L on the position, surface it
+                if "openPL" in p: out["open_pnl"] = p.get("openPL")
+                break
+    except Exception as e:
+        out["error"] = str(e)
+    return out
+
+def fetch_balance_snapshot(token, account_id):
+    """Cash balance + day P&L for the dashboard's Live Balance Widget.
+    Reads /cashBalance/list which returns one row per account. Day P&L is
+    computed as (amount - amountSOD) since Tradovate's realizedPnL field
+    matches that delta in our testing."""
+    out = {
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "account_id": account_id,
+        "cash_balance": None,
+        "amount_sod": None,
+        "day_pnl_realized": None,
+        "week_pnl_realized": None,
+    }
+    try:
+        balances = tradovate_get("/cashBalance/list", token) or []
+        for b in balances:
+            if not account_id or b.get("accountId") == account_id:
+                out["cash_balance"] = b.get("amount")
+                out["amount_sod"]   = b.get("amountSOD")
+                out["day_pnl_realized"]  = b.get("realizedPnL")
+                out["week_pnl_realized"] = b.get("weekRealizedPnL")
+                break
+    except Exception as e:
+        out["error"] = str(e)
     return out
 
 # ============ GITHUB API ============
@@ -392,6 +451,28 @@ def main():
     state["last_error"] = None
     save_state(state, state_sha)
     print(f"[reconciler] done. seen_fill_ids size = {len(state['seen_fill_ids'])}, new exits = {len(new_rows)}")
+
+    # ============ LIVE STATE WRITES (Roadmap Steps 1.1 + 1.2) ============
+    # Single snapshot of position + balance, overwriting the JSON files for
+    # the dashboard's Live Position Card + Balance Widget. Errors are
+    # non-fatal — we already did the critical work above (journal sync).
+    try:
+        pos_snapshot = fetch_position_snapshot(token, contract_id, account_id)
+        _, pos_sha, pos_exists = gh_get_file(LIVE_POSITION_PATH)
+        gh_put_file(LIVE_POSITION_PATH, json.dumps(pos_snapshot, indent=2),
+                    "reconciler: live_position snapshot", sha=pos_sha if pos_exists else None)
+        print(f"[reconciler] wrote live_position.json (net_pos={pos_snapshot.get('net_pos')})")
+    except Exception as e:
+        print(f"[reconciler] live_position write failed (non-fatal): {e}")
+
+    try:
+        bal_snapshot = fetch_balance_snapshot(token, account_id)
+        _, bal_sha, bal_exists = gh_get_file(LIVE_BALANCE_PATH)
+        gh_put_file(LIVE_BALANCE_PATH, json.dumps(bal_snapshot, indent=2),
+                    "reconciler: live_balance snapshot", sha=bal_sha if bal_exists else None)
+        print(f"[reconciler] wrote live_balance.json (cash={bal_snapshot.get('cash_balance')}, day_pnl={bal_snapshot.get('day_pnl_realized')})")
+    except Exception as e:
+        print(f"[reconciler] live_balance write failed (non-fatal): {e}")
 
 if __name__ == "__main__":
     try:
