@@ -8594,10 +8594,54 @@ async function confirmInvoiceCompared(){
   if (btn){ btn.disabled = true; btn.textContent = '⏳ מעבד...'; }
 
   // ---- PHASE 2: Build action plan from invoice_lines + line_edits ----
-  var invoice = CMP_CTX.invoice_lines || [];
+  // Lauren 2026-05-26 BUG FIX: line_edits is keyed by RENDERED row index (ri)
+  // which includes 'missing' rows interleaved between matched ones. Previously
+  // this iterated raw CMP_CTX.invoice_lines, causing:
+  //  (a) force_received missing rows at ri >= invoice_lines.length to be silently
+  //      dropped (She Vivid + 7 others on the She Makeup PO).
+  //  (b) force_received missing rows at ri < invoice_lines.length to hijack the
+  //      data of an unrelated real invoice line at that same index (OASE002 +
+  //      SMS902 silently lost; CP155 + GP18 added in their place).
+  // Fix: iterate the rendered _lastRows array indexed by ri so line_edits map 1:1.
+  // For 'missing' rows we synthesize a line from r.exp (saved-order data) so the
+  // existing-product lookup + stock-add logic works unchanged.
   var edits = CMP_CTX.line_edits || {};
   var sup = SUPPLIERS.find(function(s){ return s.code === supplierCode; }) || {};
   var vendorId = (sup.octopos_vendor_ids && sup.octopos_vendor_ids[0]) || null;
+
+  // Build a sparse array indexed by rendered row index (ri). Holes are skipped
+  // by Array.prototype.forEach. Force-received missing rows produce synthetic
+  // entries with sku/name/qty taken from r.exp (overridable by line_edits).
+  var invoice = [];
+  var rowsForSave = (CMP_CTX._lastRows || []);
+  if (rowsForSave.length){
+    rowsForSave.forEach(function(r, ri){
+      var ovR = edits[ri] || {};
+      if (r.inv){
+        // Real invoice line — place at ri so edits[ri] applies to the correct line.
+        invoice[ri] = Object.assign({}, r.inv, {_ri_source: 'invoice', _row_exp: r.exp || null});
+      } else if (r.status === 'missing' && r.exp && ovR.force_received){
+        // Lauren clicked ↩ הגיע on this missing row — synthesize an "invoice line"
+        // from the expected (saved order) data so the rest of the pipeline treats
+        // it as a normal received line. ov.sku/name/qty/price will override.
+        invoice[ri] = {
+          sku: r.exp.sku || '',
+          name: r.exp.name || '',
+          qty: 0,
+          price: Number(r.exp.cost_unit || 0),
+          _ri_source: 'force_received_missing',
+          _row_exp: r.exp
+        };
+      }
+      // Plain missing rows (no force_received) and qty-diff/price-diff/extra/match
+      // rows with r.inv already covered above. Nothing more to do here.
+    });
+  } else {
+    // Fallback for an edge case where _lastRows wasn't populated (e.g. modal opened
+    // and confirm clicked without a render pass). Use raw invoice_lines so we don't
+    // regress to silently doing nothing.
+    (CMP_CTX.invoice_lines || []).forEach(function(L, i){ invoice[i] = L; });
+  }
 
   var actions = []; // each: {type, line, sku, productId, ...}
   invoice.forEach(function(L, i){
