@@ -137,6 +137,7 @@ table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font
   <label>אירוע:</label>
   <select id="evPicker"></select>
   <button onclick="location.reload()">🔄 רענן</button>
+  <button onclick="syncFromOctopos()" title="מושך מאוקטופוס את המלאי וה-Threshold האמיתיים כעת ושומר ב-GitHub" style="background:#16a34a">🔄 סנכרן מ-OCTOPOS</button>
   <span style="margin-right:auto;color:var(--muted);font-size:12px" id="genTime"></span>
 </div>
 
@@ -561,7 +562,7 @@ async function saveStockToOctopus(pid, btn){
     allRows.forEach(r => { r.current_stock = newQ; r.in_stock_qty = newQ; r.stock_edited_at = nowIso; });
     toast('✓ מלאי עודכן ב-OCTOPOS: ' + newQ, 'success');
     const ok = await saveEventSummaryToGithub();
-    toast(ok ? '✓ נשמר גם ב-GitHub' : '⚠ נשמר ב-OCTOPOS, GitHub-sync נכשל', ok ? 'success' : 'info');
+    if (ok) { toast('✓ נשמר גם ב-GitHub', 'success'); } else { toast('⚠ נשמר ב-OCTOPOS אבל GitHub-sync נכשל — לחצי "🔄 סנכרן מ-OCTOPOS" למעלה', 'error'); }
     renderTabContent();
   } catch(e){
     toast('⚠ נכשל: ' + e.message, 'error');
@@ -966,6 +967,54 @@ function renderPicker(){
     setEvKeyInUrl(opts[0][0]);
     loadEvent(opts[0][0]);
   }
+}
+
+// ─── Live OCTOPOS sync — refresh stock/threshold/categories for visible products
+async function syncFromOctopos(){
+  let octToken = (localStorage.getItem('lauren_octopos_token') || '').trim();
+  if (!octToken){
+    octToken = prompt('הזיני את ה-OCTOPOS token:');
+    if (!octToken) return;
+    localStorage.setItem('lauren_octopos_token', octToken.trim());
+  }
+  const tab = SUMMARY.tabs[ACTIVE_TAB] || [];
+  const pids = [...new Set(tab.map(r => r.product_id).filter(x => x != null))];
+  if (pids.length === 0){ toast('אין מוצרים לרענן', 'info'); return; }
+  toast(`מסנכרן ${pids.length} מוצרים מאוקטופוס...`, 'info');
+  let updated = 0, failed = 0;
+  for (const pid of pids){
+    try {
+      const r = await fetch('https://themakeup.octoretail.com/api/v2/products/' + pid, {
+        headers: {'Authorization': octToken, 'Accept':'application/json'}
+      });
+      if (!r.ok){ failed++; continue; }
+      const prod = await r.json();
+      const dp = (prod.data && !Array.isArray(prod.data)) ? prod.data : prod;
+      const newStock = dp.in_stock_qty != null ? Number(dp.in_stock_qty) : null;
+      const newThr = dp.threshold != null ? Number(dp.threshold) : null;
+      const cats = dp.categories || [];
+      const hasRc = cats.some(c => (c.name || '').trim().toLowerCase() === 'recount');
+      // Update across ALL tabs
+      for (const tabId in SUMMARY.tabs){
+        for (const row of SUMMARY.tabs[tabId]){
+          if (row.product_id === pid){
+            row.current_stock = newStock;
+            if ('in_stock_qty' in row) row.in_stock_qty = newStock;
+            row.threshold = newThr;
+            row.categories = cats.map(c => ({id: c.id, name: c.name}));
+            row.has_recount_tag = hasRc;
+          }
+        }
+      }
+      updated++;
+    } catch(e){ failed++; }
+  }
+  toast(`✓ סנכרון: ${updated} עודכנו${failed ? `, ${failed} נכשלו` : ''}`, 'success');
+  renderTabContent();
+  // Persist to GitHub
+  toast('שומר ל-GitHub...', 'info');
+  const ok = await saveEventSummaryToGithub();
+  toast(ok ? '✓ נשמר ב-GitHub — כעת זהה לאוקטופוס' : '⚠ שמירה ל-GitHub נכשלה — נסי שוב', ok ? 'success' : 'error');
 }
 
 // ─── Init ───────────────────────────────────────────────────────────────
