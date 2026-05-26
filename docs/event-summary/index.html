@@ -129,15 +129,16 @@ table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font
 </head>
 <body>
 <header>
-  <h1>📊 סיכום פוסט-אירוע <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v4 · 26.5</span></h1>
+  <h1>📊 סיכום פוסט-אירוע <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v5 · 26.5</span></h1>
   <div class="subtitle" id="subtitle">טוען...</div>
 </header>
 
 <div class="controls">
   <label>אירוע:</label>
   <select id="evPicker"></select>
-  <button onclick="location.reload()">🔄 רענן</button>
-  <button onclick="syncFromOctopos()" title="מושך מאוקטופוס את המלאי וה-Threshold האמיתיים כעת ושומר ב-GitHub" style="background:#16a34a">🔄 סנכרן מ-OCTOPOS</button>
+  <button onclick="location.reload()" title="טוען מחדש את הדף">🔄 רענן דף</button>
+  <button onclick="syncFromOctopos()" title="מושך מאוקטופוס את המלאי וה-Threshold האמיתיים כעת ושומר ב-GitHub" style="background:#16a34a">🔄 סנכרן מלאי+Thr</button>
+  <button onclick="buildSummaryNow()" title="מריץ את הסקריפט שבונה את הסיכום מחדש מאפס — עם נתוני מכירות + ספירה הכי עדכניים מ-OCTOPOS. ייקח ~1 דקה." style="background:#dc2626">🔨 בנה סיכום עכשיו</button>
   <span style="margin-right:auto;color:var(--muted);font-size:12px" id="genTime"></span>
 </div>
 
@@ -1015,6 +1016,64 @@ async function syncFromOctopos(){
   toast('שומר ל-GitHub...', 'info');
   const ok = await saveEventSummaryToGithub();
   toast(ok ? '✓ נשמר ב-GitHub — כעת זהה לאוקטופוס' : '⚠ שמירה ל-GitHub נכשלה — נסי שוב', ok ? 'success' : 'error');
+}
+
+// ─── Build Summary Now — triggers GitHub Actions workflow_dispatch ─────
+async function buildSummaryNow(){
+  if (!SUMMARY || !SUMMARY.evkey){ toast('אין אירוע נטען', 'error'); return; }
+  const evkey = SUMMARY.evkey;
+  // Build trigger needs `workflow` scope, separate from the contents-write token.
+  let wfToken = (localStorage.getItem('lauren_gh_workflow_token') || '').trim();
+  if (!wfToken){
+    wfToken = prompt('הזיני GitHub PAT עם הרשאת workflow (זה token נפרד מזה ששומר תוכן).\nכדי ליצור אותו: github.com/settings/tokens → Generate new token (classic) → סמני repo + workflow → צרי + הדביקי כאן.');
+    if (!wfToken) return;
+    localStorage.setItem('lauren_gh_workflow_token', wfToken.trim());
+  }
+  if (!confirm(`לבנות את הסיכום של "${evkey}" מחדש?\n(ייקח ~30-60 שניות. אחרי זה תצטרכי ללחוץ "רענן דף".)`)) return;
+  const url = 'https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/actions/workflows/event-summary-build.yml/dispatches';
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {'Authorization': 'token ' + wfToken, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json'},
+      body: JSON.stringify({ref: 'main', inputs: {evkey: evkey}})
+    });
+    if (r.status === 401 || r.status === 403){
+      localStorage.removeItem('lauren_gh_workflow_token');
+      throw new Error('Token לא חוקי או ללא הרשאת workflow — נמחק. צרי token חדש עם scope workflow.');
+    }
+    if (r.status !== 204){
+      const err = await r.text();
+      throw new Error('HTTP ' + r.status + ' ' + err);
+    }
+    toast('✓ הבנייה החלה — תיקח ~30-60 שניות. רענני את הדף אחרי דקה.', 'success');
+    // Auto-poll for the new commit and reload when ready
+    pollForRebuild(evkey);
+  } catch(e){
+    toast('⚠ נכשל: ' + e.message, 'error');
+  }
+}
+
+async function pollForRebuild(evkey){
+  const startedAt = new Date().toISOString();
+  const url = 'https://laurenlev10.github.io/lauren-agent-hub-data/state/event_summary/' + encodeURIComponent(evkey) + '.json';
+  let tries = 0;
+  const tick = async () => {
+    tries++;
+    if (tries > 24) { toast('⏱ ההמתנה הסתיימה. רענני ידנית.', 'info'); return; }
+    try {
+      const r = await fetch(url + '?_=' + Date.now(), {cache: 'no-store'});
+      if (r.ok){
+        const j = await r.json();
+        if (j.generated_at && j.generated_at > startedAt){
+          toast('✓ סיכום חדש מוכן — טוען...', 'success');
+          setTimeout(() => location.reload(), 800);
+          return;
+        }
+      }
+    } catch(_){}
+    setTimeout(tick, 5000);  // poll every 5 sec
+  };
+  setTimeout(tick, 10000);  // first check after 10 sec
 }
 
 // ─── Init ───────────────────────────────────────────────────────────────
