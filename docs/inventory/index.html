@@ -1183,6 +1183,12 @@ function renderSupplierCard(sup, s, idx){
             return '<div style="display:flex;flex-direction:column;gap:0;align-items:flex-end">' + pills + '</div>';
           })()
         : '')+
+      // Lauren 2026-05-26 PM: wrap all action buttons in a single flex container so they
+      // share ONE grid cell. Previously each button was a direct grid child — when the
+      // count of visible buttons exceeded 'auto auto auto' (3 cells), the grid wrapped
+      // extras to a new implicit row UNDER the supplier name (the '+ הזמנה נוספת' button
+      // showed up squashed at the start of row 2). flex+wrap keeps them in one cell.
+      '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;align-items:center">' +
       // Compare-invoice button — visible for suppliers with an order saved, invoice confirmed,
       // OR an uploaded-but-unconfirmed invoice (Lauren 2026-05-21 — the Romantic 5/18 case
       // had _hasLocalOrder=false + _invoiceCompared=false + _hasUploadedInvoice=true, so the
@@ -1190,22 +1196,23 @@ function renderSupplierCard(sup, s, idx){
       // Turns green '✓ קבלת סחורה עודכנה' once invoice has been compared + confirmed.
       ((_hasLocalOrder || _invoiceCompared || _hasUploadedInvoice)
         ? (_invoiceCompared
-            ? '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="לחיצה תפתח את החלון שוב" style="background:linear-gradient(180deg,#16a34a,#15803d);font-size:11px;padding:5px 10px;color:#fff">✓ קבלת סחורה עודכנה · '+_fmtMMDDHHMM(_invoiceComparedAt)+'</button>'
-            : '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" style="font-size:11px;padding:5px 10px">📋 השוואת חשבונית</button>'              + (_hasUploadedInvoice ? ' <button type="button" class="btn-octopos-push" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="קליטה ישירה לאוקטופוס — יוצר מוצרים חדשים ומעדכן מלאי לפי החשבונית הממתינה" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#ec4899,#be185d);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-right:4px;box-shadow:0 1px 3px rgba(190,24,93,.3)">🚀 צור באוקטופוס</button>' : ''))
+            ? '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="לחיצה תפתח את החלון שוב" style="background:linear-gradient(180deg,#16a34a,#15803d);font-size:11px;padding:5px 10px;color:#fff;white-space:nowrap">✓ קבלת סחורה עודכנה · '+_fmtMMDDHHMM(_invoiceComparedAt)+'</button>'
+            : '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" style="font-size:11px;padding:5px 10px;white-space:nowrap">📋 השוואת חשבונית</button>'              + (_hasUploadedInvoice ? ' <button type="button" class="btn-octopos-push" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="קליטה ישירה לאוקטופוס — יוצר מוצרים חדשים ומעדכן מלאי לפי החשבונית הממתינה" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#ec4899,#be185d);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;box-shadow:0 1px 3px rgba(190,24,93,.3);white-space:nowrap">🚀 צור באוקטופוס</button>' : ''))
         : '')+
       // 'עודכן ידנית' button — for suppliers where Lauren updated stock directly in OCTOPOS without going through compare flow
       ((_hasLocalOrder && !_invoiceCompared)
         ? (s.manually_updated_at
-            ? '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="סימנת כעודכן ידנית. לחיצה כדי להסיר את הסימון" style="background:linear-gradient(180deg,#7c3aed,#5b21b6);font-size:11px;padding:5px 10px;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-right:4px">✓ עודכן ידנית · '+_fmtMMDDHHMM(s.manually_updated_at)+'</button>'
-            : '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="לחצי כדי לסמן שעדכנת את ההזמנה ידנית ב-OCTOPOS" style="background:#ede9fe;color:#5b21b6;font-size:11px;padding:5px 10px;border:1px solid #c4b5fd;border-radius:6px;cursor:pointer;font-weight:700;margin-right:4px">✋ עודכן ידנית</button>')
+            ? '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="סימנת כעודכן ידנית. לחיצה כדי להסיר את הסימון" style="background:linear-gradient(180deg,#7c3aed,#5b21b6);font-size:11px;padding:5px 10px;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;white-space:nowrap">✓ עודכן ידנית · '+_fmtMMDDHHMM(s.manually_updated_at)+'</button>'
+            : '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="לחצי כדי לסמן שעדכנת את ההזמנה ידנית ב-OCTOPOS" style="background:#ede9fe;color:#5b21b6;font-size:11px;padding:5px 10px;border:1px solid #c4b5fd;border-radius:6px;cursor:pointer;font-weight:700;white-space:nowrap">✋ עודכן ידנית</button>')
         : '')+
       // Lauren 2026-05-26 PM: '+ הזמנה נוספת' — only when there's already a saved order
       // (or a confirmed/uploaded invoice). Opens the wizard in "additional order" mode
       // where the suggested qtys subtract what's already on prior orders for this event.
       ((_hasOrderOrInvoice)
-        ? '<button type="button" class="btn-additional-order" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="צרי הזמנה נוספת נפרדת לאותו אירוע — ההצעות יחושבו פחות מה שכבר הוזמן" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#0d9488,#0f766e);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-right:4px;box-shadow:0 1px 3px rgba(15,118,110,.3);white-space:nowrap;line-height:1.2;flex-shrink:0">+ הזמנה נוספת</button>'
+        ? '<button type="button" class="btn-additional-order" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="צרי הזמנה נוספת נפרדת לאותו אירוע — ההצעות יחושבו פחות מה שכבר הוזמן" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#0d9488,#0f766e);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;box-shadow:0 1px 3px rgba(15,118,110,.3);white-space:nowrap">+ הזמנה נוספת</button>'
         : '')+
       newOrderBtn+
+      '</div>'+
       '<div class="total">'+totalDisp+'</div>'+
       '<div class="chev">▾</div>'+
     '</div>'+
