@@ -159,210 +159,190 @@ a:hover{text-decoration:underline;}
 // Roadmap data — 34 steps in 8 phases
 // =============================================================
 const ROADMAP = [
-  // ============ PHASE 0 ============
-  { phase: 0, title: "🏗️ ⛔ Cloudflare Worker (לא נדרש — Superseded 2026-05-26)", desc: "המסלול הוחלף ב-GitHub Actions. השלבים נשמרו לתיעוד היסטורי בלבד — אין לבצע.", steps: [
 
-    { id: "0.1", title: "פתיחת חשבון Cloudflare חינמי",
-      why: "<b>Cloudflare Worker</b> הוא ה-מנוע שיפתור את בעיית ה-CORS — דפדפן לא יכול לדבר ישירות עם Tradovate, אז Worker יישב באמצע. החשבון חינמי, לא דורש כרטיס אשראי.",
-      what: "פתיחת חשבון, אישור email, מציאת Account ID.",
-      prompt: "[Step 0.1] פתיחת חשבון Cloudflare\n\nהקשר: זה השלב הראשון בבניית Cloudflare Worker שיתפקד כשכבת ביניים בין הדשבורד שלי (https://laurenlev10.github.io/lauren-agent-hub-data/trading/journal/) ל-Tradovate Demo API. צריך את זה כי Tradovate חוסם CORS ולא ניתן לדבר ישירות מהדפדפן.\n\nהמשימה:\n1. הדריך אותי איך לפתוח חשבון Cloudflare חינמי (אין צורך בכרטיס אשראי)\n2. אחרי שאתחבר — הדריך איפה למצוא את Account ID שלי בdashboard\n3. עזור לי לשמור את ה-Account ID לקובץ Documents/Claude/.claude/secrets/cloudflare.json\n4. סמן Step 0.1 כ-Done ב-roadmap_progress.json (IRON RULE #7)\n\nכשנסיים, אעבור ל-Step 0.2 (התקנת Wrangler CLI)." },
-
-    { id: "0.2", title: "התקנת Wrangler CLI",
-      why: "<b>Wrangler</b> זה כלי שורת-פקודה של Cloudflare. עם זה נוכל לפרסם Workers ולנהל secrets מהמחשב שלך בלי להיכנס לdashboard בכל פעם.",
-      what: "התקנת npm package, התחברות לחשבון.",
-      prompt: "[Step 0.2] התקנת Wrangler CLI\n\nהקשר: יש לי כבר חשבון Cloudflare (Step 0.1 בוצע). עכשיו צריך להתקין Wrangler — הCLI הרשמי שלהם — כדי לפרסם Workers מהטרמינל.\n\nהמשימה:\n1. בדוק שיש לי Node.js + npm מותקנים (הרץ node --version)\n2. הדריך אותי להתקין Wrangler גלובלית: npm install -g wrangler\n3. הרץ אצלי wrangler login — זה יפתח דפדפן לאישור\n4. אחרי החיבור, הרץ wrangler whoami כדי לוודא חיבור תקין\n5. סמן Step 0.2 כ-Done ב-roadmap_progress.json\n\nכשנסיים, נעבור ל-Step 0.3 (יצירת Hello World Worker)." },
-
-    { id: "0.3", title: "יצירת Worker ראשון - Hello World",
-      why: "לפני שאנחנו טוחנים על קוד Tradovate — בואי נוודא ש-Worker עובד עם משהו פשוט. <b>Hello World</b> זה הצעד הקלאסי לוודא שכל ה-pipeline (deploy + URL חי) עובד.",
-      what: "יצירת Worker, deploy, גישה ל-URL הציבורי.",
-      prompt: "[Step 0.3] יצירת Hello World Worker ראשון\n\nהקשר: Wrangler מותקן (Step 0.2). עכשיו רוצה ליצור Worker ראשון חינמי שמחזיר 'Hello World' כשפונים אליו, כדי לוודא שכל ה-pipeline עובד לפני שמתחילים בקוד אמיתי.\n\nהמשימה:\n1. צור תיקייה חדשה: ~/cloudflare-workers/tradovate-bridge (או היכן שאתה רואה לנכון)\n2. הרץ wrangler init tradovate-bridge — בחר את כל ברירת המחדל, JavaScript\n3. עזור לי לערוך את src/index.js שיחזיר 'Hello World' עם JSON\n4. הרץ wrangler deploy וקבל URL ציבורי\n5. בדוק שה-URL חוזר תקין דרך curl\n6. שמור את ה-URL בקובץ Documents/Claude/.claude/secrets/cloudflare.json\n7. סמן Step 0.3 כ-Done\n\nכשנסיים, נעבור ל-Step 0.4 (הוספת Tradovate credentials כ-Secrets)." },
-
-    { id: "0.4", title: "הוספת Tradovate credentials כ-Secrets",
-      why: "Worker עומד לדבר עם Tradovate, וצריך username/password/API key שלך. <b>Wrangler Secrets</b> שומרים את זה מוצפן ב-Cloudflare, לא בקוד — אין סיכון שייחשפו ב-GitHub.",
-      what: "wrangler secret put של 6 משתנים (cid, sec, name, password, appId, account_id).",
-      prompt: "[Step 0.4] הוספת Tradovate credentials כ-Secrets ב-Cloudflare Worker\n\nהקשר: Hello World Worker עובד (Step 0.3). עכשיו צריך לאחסן credentials של Tradovate Demo כ-Secrets ב-Worker, כדי שיוכל להתחבר ל-Tradovate API בלי שהcredentials יופיעו בקוד.\n\nהcredentials נמצאים בקובץ: Documents/Claude/.claude/secrets/tradovate_demo.json\n\nהמשימה:\n1. עבור על הקובץ tradovate_demo.json וקרא את הערכים\n2. הדריך אותי להריץ wrangler secret put לכל אחד מהבאים, מתיקיית ה-Worker:\n   - TRADOVATE_NAME\n   - TRADOVATE_PASSWORD\n   - TRADOVATE_CID\n   - TRADOVATE_SEC\n   - TRADOVATE_APP_ID\n   - TRADOVATE_ACCOUNT_ID\n3. הרץ wrangler secret list לוודא שכל ה-6 שמורים\n4. סמן Step 0.4 כ-Done\n\nכשנסיים, Phase 0 (יסודות) הושלם! נעבור ל-Phase 1 — בניית endpoints." }
+  // ============ PHASE 0 — REMOVED (Cloudflare) ============
+  { phase: 0, title: "🏗️ ⛔ Cloudflare Worker — בוטל 2026-05-26", desc: "המסלול הוסר. הסטאק הסופי משתמש ב-GitHub Actions ו-Zapier בלבד — בלי Cloudflare, בלי Wrangler.", steps: [
+    { id: "0", title: "⛔ Phase 0 — הוסר. שום משימה כאן לא נדרשת.",
+      why: "<b>החלטה ארכיטקטונית 2026-05-26:</b> Cloudflare Worker היה במקור בשביל לפתור CORS — אבל הdashboard לא צריך לקרוא ישירות ל-Tradovate. כל התקשורת עם Tradovate היא server-side: <b>Zapier Step 4</b> שולח אורדרים מ-webhook של TradingView, ו-<b>Tradovate Fill Reconciler</b> (GitHub Action) פוסע fills כל 5 דק׳ ומעדכן JSON files שה-Pages מגיש לdashboard. אין צורך ב-proxy.",
+      what: "כל השלבים 0.1-0.4 (חשבון Cloudflare, Wrangler, Hello World Worker, Secrets) הוסרו. לא לבצע.",
+      prompt: "(הפאזה הוסרה. אם רוצה לדון על להוסיף Cloudflare במקרה ספציפי — נדבר בנפרד.)" }
   ]},
 
-  // ============ PHASE 1 ============
-  { phase: 1, title: "🔌 Endpoints בסיסיים — היכולת לדבר עם Tradovate", desc: "ה-Worker יודע לקרוא ולכתוב פוזיציות", steps: [
+  // ============ PHASE 1 — Tradovate state sync via GitHub Actions ============
+  { phase: 1, title: "🔌 סנכרון state חי ← Tradovate", desc: "GitHub Action פוסעים את Tradovate כל דקה/5 דק׳ וכותבים JSON files לתצוגה בדשבורד", steps: [
 
-    { id: "1.1", title: "GET /position — מחזיר פוזיציות חיות",
-      why: "ה-endpoint הראשון של ה-Worker. <b>GET /position</b> יחזיר JSON של כל הפוזיציות הפתוחות בTradovate. זה הבלוק שיבנה את ה-'Live Position Card' בדשבורד.",
-      what: "auth → GET /position/list → filter active → return JSON.",
-      prompt: "[Step 1.1] הוספת endpoint GET /position ל-Cloudflare Worker\n\nהקשר: Worker עם credentials (Step 0.4 בוצע). עכשיו רוצה להוסיף endpoint ראשון שמחזיר את הפוזיציות הפתוחות בTradovate Demo.\n\nהמשימה:\n1. עדכן src/index.js להוסיף routing — אם הבקשה היא GET /position → לבצע את הלוגיקה הזו\n2. כתוב פונקציה authTradovate() שעושה POST ל-/auth/accesstokenrequest עם הSecrets ומחזירה access token\n3. כתוב פונקציה getPositions(token) שעושה GET ל-/position/list ומחזירה רק פוזיציות עם netPos != 0\n4. תוסיף CORS headers (Access-Control-Allow-Origin) כדי שהדפדפן יוכל לקרוא\n5. wrangler deploy + בדוק ב-curl שה-endpoint מחזיר JSON תקין\n6. סמן Step 1.1 כ-Done\n\nכשנסיים, נעבור ל-Step 1.2 (GET /balance)." },
+    { id: "1.1", title: "Workflow לסנכרון פוזיציות חיות (cron כל דקה)",
+      why: "<b>הדשבורד לא יכול לדבר ישירות עם Tradovate</b> (CORS+auth). הפתרון: GitHub Action שכל דקה מושך פוזיציות פתוחות, כותב ל-<code>docs/state/live_position.json</code>. ה-Pages מגיש את הקובץ הסטטי, והדשבורד עושה <code>fetch()</code> רגיל בלי בעיות.",
+      what: "scripts/tradovate_position_sync.py + .github/workflows/tradovate-position-sync.yml (cron */1 * * * 1-5). הסקריפט מתאמת עם הCredentials הקיימים (TRADOVATE_NAME/PASSWORD/CID/SEC) שכבר מוגדרים כ-secrets ב-repo.",
+      prompt: "[Step 1.1] GitHub Action לסנכרון פוזיציות חיות מ-Tradovate\n\nהקשר: Tradovate Fill Reconciler כבר עובד ב-repo. עכשיו רוצה action דומה שמושך את הפוזיציה הפתוחה הנוכחית כל דקה, כדי שהדשבורד יוכל להציג Live Position Card.\n\nהמשימה:\n1. צור scripts/tradovate_position_sync.py: אותו auth pattern כמו tradovate_fill_reconciler.py, קורא /position/list, סנן ל-contract_id מ-autotrade_enabled.json, וכתיבה ל-docs/state/live_position.json עם {fetched_at, contract_id, contract_name, qty, avg_price, ticker_root}\n2. יצור .github/workflows/tradovate-position-sync.yml: cron '*/1 * * * 1-5' + workflow_dispatch + git commit/push של docs/state/live_position.json אם השתנה + IRON RULE #3 SMS-on-failure\n3. הוסף entry ב-docs/scheduled-runs.json עם frequency='hourly' (חלון LATE של 1.2h מקלקל לcron של דקה, אז המוניטור יקבל את הריצות בקצב המתאים)\n4. push + workflow_dispatch ידני מ-Actions tab לוודא הצלחה. בדוק שה-JSON נכתב\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 1.2." },
 
-    { id: "1.2", title: "GET /balance — מחזיר יתרת חשבון",
-      why: "כדי לראות בדשבורד <b>היתרה הנוכחית + P&L היומי</b>, צריך endpoint שמושך מ-Tradovate (`/cashBalance/list` ו-`/account/...`). זה הבסיס ל-'Daily Loss Cap' ולwidget של יתרה.",
-      what: "auth → GET /cashBalance/list + P&L → JSON.",
-      prompt: "[Step 1.2] הוספת endpoint GET /balance ל-Worker\n\nהקשר: GET /position עובד (Step 1.1). עכשיו צריך endpoint שמחזיר נתוני יתרה: cash balance, P&L היום, realized PnL.\n\nהמשימה:\n1. הוסף route GET /balance ב-src/index.js\n2. fetch ל-Tradovate: GET /cashBalance/list (יחזיר רשימה — נמצא את הרשומה של ACCOUNT_ID שלי)\n3. גם fetch ל-GET /performance/list או חיפוש P&L היומי\n4. החזר JSON: { cash_balance, realized_pnl_today, open_pnl, day_pnl_total }\n5. CORS headers\n6. בדוק ב-curl, סמן Done\n\nכשנסיים, נעבור ל-Step 1.3 (POST /flatten)." },
+    { id: "1.2", title: "Workflow לסנכרון יתרה (cron כל 5 דק׳)",
+      why: "<b>יתרת המזומן + P&L היומי</b> — דרושים לדשבורד ולמנגנון Daily Loss Cap (Step 4.3). 5 דק׳ זה rate נכון — היתרה לא משתנה כל שנייה. גם חוסך runs ב-GitHub Actions (60 ריצות ביום במקום 1,440).",
+      what: "scripts/tradovate_balance_sync.py: auth → /cashBalance/list (סינון ACCOUNT_ID) + /performance/list (day P&L) → docs/state/live_balance.json. Workflow cron '*/5 13-21 * * 1-5' UTC (סביב שעות מסחר בלבד).",
+      prompt: "[Step 1.2] GitHub Action לסנכרון יתרה חשבון\n\nהקשר: Position sync עובד (Step 1.1). עכשיו אותו דבר ליתרה — אבל בקצב של 5 דק׳ במקום דקה.\n\nהמשימה:\n1. scripts/tradovate_balance_sync.py: auth → /cashBalance/list (מסנן ל-ACCOUNT_ID) + ניסיון לקבל day P&L מ-/performance/list. אם /performance לא זמין, ניתן לחלץ realized_today מ-/cashBalanceLog\n2. כתיבה ל-docs/state/live_balance.json: {fetched_at, cash_balance, day_pnl, open_pnl, realized_today_usd}\n3. .github/workflows/tradovate-balance-sync.yml: cron '*/5 13-21 * * 1-5' UTC + workflow_dispatch + IRON RULE #3\n4. רישום ב-scheduled-runs.json (frequency='hourly' כי הרבה ריצות ביום)\n5. workflow_dispatch ידני, וודא JSON נכתב\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 1.3." },
 
-    { id: "1.3", title: "POST /flatten — סוגר את כל הפוזיציות",
-      why: "endpoint החירום! <b>POST /flatten</b> ייקח את כל הפוזיציות הפתוחות וייתן הוראת market order הפוכה לכל אחת. זה מה שיפעיל הכפתור 🚨 שכבר בדשבורד — אבל ישירות, בלי לעבור Zapier.",
-      what: "auth → fetch positions → POST /order/placeorder per non-zero position.",
-      prompt: "[Step 1.3] הוספת endpoint POST /flatten ל-Worker\n\nהקשר: GET endpoints עובדים. עכשיו צריך POST /flatten — סוגר את כל הפוזיציות הפתוחות בלחיצה אחת.\n\nהמשימה:\n1. הוסף route POST /flatten ב-src/index.js\n2. fetch positions (אפשר reuse של getPositions)\n3. לכל פוזיציה non-zero: שלח POST /order/placeorder עם action הפוך (Buy אם short, Sell אם long), orderQty=abs(netPos), orderType='Market'\n4. אסוף results לכל closing order: { contract, qty, action, order_id }\n5. החזר JSON עם list של orders שנשלחו + status\n6. CORS headers\n7. בדוק ב-curl (אם demo flat, החזרת empty list)\n8. סמן Done\n\nכשנסיים, נעבור ל-Step 1.4." },
+    { id: "1.3", title: "🚨 FLATTEN — workflow_dispatch ידני",
+      why: "<b>סגירת כל הפוזיציות בלחיצה אחת</b>. במקום webhook ל-Zapier (שורף Zapier tasks ומזהם יומן עם entries פיקטיביים), הdashboard יקרא ישירות ל-GitHub API ויפעיל את ה-workflow. תגובה תוך 30-60 שניות, אפס מזהמים, אפס Zapier tasks.",
+      what: "scripts/tradovate_flatten.py (אטומי: cancel-working-orders + market-close כל position) + workflow_dispatch only (אין cron).",
+      prompt: "[Step 1.3] GitHub Action ל-FLATTEN אטומי\n\nהקשר: 2 sync workflows עובדים. עכשיו צריך workflow שניתן להפעיל ידנית מהדשבורד (Step 2.3 יחבר את הכפתור).\n\nהמשימה:\n1. scripts/tradovate_flatten.py: auth → fetch positions → לכל position non-zero שולח market order הפוך (Buy אם short, Sell אם long, orderQty=abs(netPos)) → גם cancels all working orders על ה-contract\n2. .github/workflows/tradovate-flatten.yml: workflow_dispatch בלבד (אין cron) + SMS על הצלחה ('✓ Flattened X positions') + IRON RULE #3 על failure\n3. הוסף ל-scheduled-runs.json עם frequency='on-demand' (לא LATE check)\n4. בדוק workflow_dispatch ידני מ-Actions tab\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 1.4." },
 
-    { id: "1.4", title: "POST /cancel-pending-orders — מבטל orders תקועים",
-      why: "כשהשוק סגור (כמו Memorial Day) — orders שנשלחו מתקעים ב-'Working'. <b>POST /cancel-pending</b> ינקה אותם. שימושי גם כשרוצים לבטל orders ידנית.",
-      what: "auth → list orders status=Working/Pending → cancel each.",
-      prompt: "[Step 1.4] הוספת endpoint POST /cancel-pending-orders\n\nהקשר: 3 endpoints קיימים. עכשיו endpoint לביטול orders תקועים (Working, PendingNew, Pending status).\n\nהמשימה:\n1. הוסף route POST /cancel-pending ב-Worker\n2. fetch GET /order/list עם access token\n3. סנן orders עם ordStatus in ('Working','PendingNew','Pending')\n4. לכל אחד: POST /order/cancelorder עם orderId\n5. החזר list של orders שבוטלו\n6. סמן Done\n\nכשנסיים Phase 1 הושלם — Worker יודע 4 פעולות בסיסיות! עוברים ל-Phase 2 (חיבור לדשבורד)." }
+    { id: "1.4", title: "🧹 Cancel Working Orders — workflow_dispatch",
+      why: "<b>ניקוי אורדרים תקועים</b> (Working/PendingNew/Accepted) — שימושי כשהשוק סגור, כשרוצים לבטל ידנית, או כדי לפנות מקום ל-OSO חדש בלי לסגור פוזיציה פתוחה.",
+      what: "scripts/tradovate_cancel_pending.py + workflow_dispatch בלבד.",
+      prompt: "[Step 1.4] GitHub Action לביטול pending orders\n\nהקשר: FLATTEN workflow קיים. עכשיו פעולה משלימה — לבטל orders בלי לסגור פוזיציות.\n\nהמשימה:\n1. scripts/tradovate_cancel_pending.py: auth → /order/list → סנן ordStatus in ('Working','PendingNew','Accepted') ועל ה-contract הפעיל → לכל אחד POST /order/cancelorder עם orderId\n2. .github/workflows/tradovate-cancel-pending.yml: workflow_dispatch only\n3. SMS עם count: '✓ Cancelled N pending orders'\n4. סמן Done\n\nכשנסיים, Phase 1 הושלם — 4 workflows מנהלים את State של Tradovate. ועוברים ל-Phase 2 (דשבורד מציג את ה-state)." }
   ]},
 
-  // ============ PHASE 2 ============
-  { phase: 2, title: "🔗 חיבור הדשבורד — מציג נתונים חיים", desc: "מחליפים את ה-Zapier-based flatten ומציגים פוזיציות בזמן אמת", steps: [
+  // ============ PHASE 2 — Dashboard reads live state ============
+  { phase: 2, title: "🔗 הדשבורד קורא state חי", desc: "fetch של ה-JSON files שPhase 1 כותב + רינדור ב-cards/widgets. CORS-free כי הPages מגיש סטטי.", steps: [
 
-    { id: "2.1", title: "הוספת Worker URL לדשבורד",
-      why: "הדשבורד צריך לדעת לאן לפנות. <b>נשמור את ה-Worker URL</b> כקובץ ב-GitHub (לא secret — זה URL ציבורי בכל מקרה) שהדשבורד טוען בעלייה.",
-      what: "יצירת docs/trading/worker_config.json עם url + עדכון הדשבורד לקרוא.",
-      prompt: "[Step 2.1] הוספת Worker URL לדשבורד יומן\n\nהקשר: Worker עובד (Phase 1 הושלם). עכשיו רוצה שהדשבורד (docs/trading/journal/index.html) יידע איפה הWorker.\n\nהמשימה:\n1. צור docs/trading/worker_config.json עם { worker_url: '...' } (קח את ה-URL שאמרתי לך)\n2. ערוך index.html להוסיף let WORKER_URL = null; ולטעון אותו מ-../worker_config.json בעלייה\n3. הוסף סטטוס chip בtopbar שמראה 🟢 Worker Connected / 🔴 Worker Down (נסיון GET /ping)\n4. הוסף לWorker route GET /ping שמחזיר {ok:true} פשוט\n5. push, רענן דשבורד, וודא שהchip ירוק\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 2.2." },
+    { id: "2.1", title: "Live Position Card בדשבורד",
+      why: "<b>כרטיסיה בולטת</b> בראש היומן: contract, qty±, מחיר ממוצע, P&L חי (אם API מחזיר). רענון אוטומטי כל 30s, חיווי freshness אם נתון ישן מ-90s.",
+      what: "JS fetch של docs/state/live_position.json + רינדור כרטיסיה צבעונית (ירוק long / אדום short / אפור flat).",
+      prompt: "[Step 2.1] הוספת Live Position Card לדשבורד\n\nהקשר: docs/state/live_position.json מתעדכן כל דקה (Step 1.1). עכשיו רוצה card בולט בdashboard שמציג את התוכן.\n\nהמשימה:\n1. עדכן docs/trading/journal/index.html — section חדש מעל ה-KPIs, מתחת ל-autotrader panel\n2. fetch של live_position.json כל 30s (רק כש-document.visibilityState === 'visible')\n3. אם flat → card אפור 'Flat — אין פוזיציה פתוחה'\n4. אם פוזיציה → card צבעוני: contract, qty± (1 ירוק / -1 אדום), avg price, current mark-to-market PnL אם זמין\n5. חיווי freshness: אם (now - fetched_at) > 90s → pill 'נתונים ישנים' צהוב\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 2.2." },
 
-    { id: "2.2", title: "החלפת FLATTEN button ל-Worker (במקום Zapier)",
-      why: "הכפתור הקיים שולח 2 webhooks ל-Zapier (יקר). <b>נחבר אותו ישירות ל-Worker</b> — קריאה אחת, תגובה תוך שנייה, אפס Zapier tasks.",
-      what: "עדכון flattenAll() ב-JS לקרוא POST {WORKER_URL}/flatten.",
-      prompt: "[Step 2.2] החלפת FLATTEN button מ-Zapier ל-Worker ישיר\n\nהקשר: ה-Worker עם /flatten עובד (Step 1.3). הכפתור 🚨 בדשבורד כרגע שולח webhooks ל-Zapier — שורף 8 tasks ומזהם את היומן עם entries פיקטיביים.\n\nהמשימה:\n1. ב-docs/trading/journal/index.html — עדכן את הפונקציה flattenAll() ש-fetch POST ל-WORKER_URL + '/flatten' במקום webhook\n2. הצג את ה-response (כמה orders שנשלחו) כ-toast/alert\n3. אם נכשל — fallback ל-Zapier webhook (לבטיחות)\n4. push, בדוק שהכפתור עובד\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 2.3." },
+    { id: "2.2", title: "Live Balance Widget",
+      why: "<b>צמוד ל-Position Card</b>: cash balance, day P&L, return%. בסיס לDaily Loss Cap (Phase 4.3) ולגרף P&L (Step 3.4).",
+      what: "fetch של live_balance.json + רינדור widget. ירוק/אדום לפי P&L.",
+      prompt: "[Step 2.2] Live Balance Widget בדשבורד\n\nהקשר: Position Card עובד. עכשיו widget נוסף ליתרה.\n\nהמשימה:\n1. בdashboard — section live status הופך לgrid 2-col: [Position Card] [Balance Widget]\n2. fetch של docs/state/live_balance.json כל דקה\n3. הצג: 💰 cash · 📈 day P&L · 📊 return%\n4. צבע ירוק/אדום לפי P&L של היום\n5. בנייד — single-column (Position מעל, Balance מתחת)\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 2.3." },
 
-    { id: "2.3", title: "Live Position Card — מציג מה פתוח עכשיו",
-      why: "הפיצ׳ר החיסם הראשון! ב-top של הדשבורד <b>תופיע כרטיסיה</b> שמראה: חוזה, qty, מחיר ממוצע, P&L unrealized — מתעדכן כל 10 שניות.",
-      what: "Card UI + polling GET /position כל 10s.",
-      prompt: "[Step 2.3] הוספת Live Position Card לדשבורד\n\nהקשר: Worker עם /position עובד. עכשיו רוצה כרטיסיה בולטת בdashboard שמראה את הפוזיציה הפתוחה בTradovate Demo בזמן אמת.\n\nהמשימה:\n1. ב-docs/trading/journal/index.html — הוסף section חדש בין autotrader-panel ל-KPI section\n2. אם flat: כרטיסיה אפורה 'Flat — אין פוזיציות פתוחות'\n3. אם פוזיציה: כרטיסיה צבעונית (ירוק long, אדום short) עם: contract name, qty (±), avg price, current P&L $ (אם API מחזיר)\n4. polling GET /position כל 10 שניות (כשTab פעיל)\n5. רענון ידני בלחיצה (כפתור 🔄)\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 2.4." },
+    { id: "2.3", title: "🚨 החלפת FLATTEN button ל-workflow_dispatch",
+      why: "<b>הכפתור הקיים</b> שולח webhooks ל-Zapier (יקר ב-tasks + מזהם יומן). נחבר אותו ישירות ל-GitHub Actions API → ה-workflow רץ → תגובה.",
+      what: "JS fetch POST ל-GitHub Actions dispatches endpoint עם PAT (אותו אחד של autotrade toggle).",
+      prompt: "[Step 2.3] החלפת FLATTEN button מ-Zapier ל-GitHub Actions\n\nהקשר: tradovate-flatten workflow קיים (Step 1.3). הכפתור 🚨 בדשבורד כרגע שולח webhooks ל-Zapier — שורף tasks ומזהם יומן.\n\nהמשימה:\n1. בdocs/trading/journal/index.html — פונקצית flattenAll() תשנה ל-POST ל-https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/actions/workflows/tradovate-flatten.yml/dispatches עם PAT הקיים (lauren_gh_token_v1)\n2. body: {ref:'main'}\n3. הצג toast 'FLATTEN נשלח ל-GitHub Actions' + link ל-Actions tab\n4. confirm() לפני שליחה\n5. אם 401/403 → fallback ל-Zapier webhook (לבטיחות)\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 2.4." },
 
-    { id: "2.4", title: "Live Account Balance Widget",
-      why: "מצד הLive Position — <b>widget של יתרה</b>: cash balance, P&L היום, ו-day return %. בסיס לDaily Loss Cap.",
-      what: "Widget UI + polling GET /balance כל 30s.",
-      prompt: "[Step 2.4] הוספת Live Account Balance Widget לדשבורד\n\nהקשר: Live Position Card עובד. עכשיו רוצה widget נוסף בצד שלו שמראה: cash balance, P&L היום, drawdown.\n\nהמשימה:\n1. עדכן ה-section של live status — תהיה shell עם 2 כרטיסיות זו לצד זו: Position | Balance\n2. polling GET /balance כל 30s\n3. הצג: 💰 $X balance · 📈 +$Y day P&L · 📊 Z% return\n4. אם day P&L שלילי → אדום. חיובי → ירוק.\n5. סמן Done\n\nכשנסיים, Phase 2 הושלם! נעבור ל-Phase 3 (שליטה ידנית)." }
+    { id: "2.4", title: "פסי בריאות ל-workflows",
+      why: "<b>סטטוס בולט לכל workflow</b> בdashboard — אם sync לא רץ ב-5 דק׳ אחרונות, צהוב. אם נפל פעמיים ברצף, אדום. SMS דרך scheduled-watchdog (כבר קיים).",
+      what: "fetch של docs/scheduled-runs.json + רינדור pills בtopbar.",
+      prompt: "[Step 2.4] פסי בריאות (health pills) ל-workflows בדשבורד\n\nהקשר: scheduled-runs.json קיים. עכשיו רוצה חיווי בולט בdashboard המסחר.\n\nהמשימה:\n1. בtopbar של journal — הוסף 4 pills:\n   📍 Position sync · 💰 Balance sync · 📊 Fill reconciler · 🤖 BOT\n2. כל pill מציג: זמן ריצה אחרון + סטטוס (ירוק=OK, צהוב=LATE, אפור=OFF, אדום=ERROR)\n3. fetch docs/scheduled-runs.json בעלייה (cache 60s)\n4. hover tooltip עם פרטים: cron schedule, last error if any\n5. סמן Done\n\nכשנסיים, Phase 2 הושלם — דשבורד מציג state חי בזמן אמת." }
   ]},
 
-  // ============ PHASE 3 ============
-  { phase: 3, title: "🎮 שליטה ידנית — לפתוח/לסגור עסקאות בלחיצה", desc: "מחליפים את Tradovate platform — הכל מהדשבורד", steps: [
+  // ============ PHASE 3 — Manual control via workflow_dispatch ============
+  { phase: 3, title: "🎮 שליטה ידנית מהדשבורד", desc: "כפתורים ב-UI שמריצים workflows על דרישה — פותחים/סוגרים/מזיזים stop בלי לצאת מהדשבורד", steps: [
 
     { id: "3.1", title: "🟢 LONG ידני / 🔴 SHORT ידני",
-      why: "<b>פתיחת פוזיציה בלחיצה</b> — בלי לחכות לסיגנל של ה-bot. שימושי לטסטים מהירים או trading ידני קלאסי.",
-      what: "2 כפתורים + endpoint POST /open?side=long|short&qty=1.",
-      prompt: "[Step 3.1] הוספת כפתורי LONG ידני / SHORT ידני\n\nהקשר: 2 phases הושלמו. עכשיו רוצה כפתורי 🟢 LONG / 🔴 SHORT שפותחים פוזיציה ידנית בלחיצה אחת.\n\nהמשימה:\n1. בWorker: הוסף route POST /open?side=long|short&qty=1 שעושה Buy או Sell market order\n2. בדשבורד: הוסף 2 כפתורים גדולים לכרטיסיית Position\n3. אישור confirm() לפני שליחה — 'לפתוח LONG 1 חוזה MNQM6?'\n4. אחרי שליחה — toast עם orderId\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 3.2." },
+      why: "<b>פתיחת פוזיציה בלחיצה</b> — בלי לחכות לסיגנל של ה-bot. שימושי לטסטים מהירים או trading ידני. הברקטים יחושבו אוטומטית כמו ב-Zapier Step 4 v4.",
+      what: "scripts/tradovate_manual_open.py + workflow מקבל side+qty+with_brackets כ-inputs.",
+      prompt: "[Step 3.1] כפתורי LONG/SHORT ידניים\n\nהקשר: יש flatten workflow. עכשיו רוצה ידני open עם ברקטים.\n\nהמשימה:\n1. scripts/tradovate_manual_open.py: מקבל side (long/short) + qty + with_brackets כ-env, שולח OSO Market+Stop+Limit (אם with_brackets) או רק Market (אם לא). משתמש ב-defaults של 300/600 ticks מ-autotrade_enabled.json\n2. .github/workflows/tradovate-manual-open.yml: workflow_dispatch עם inputs: side (choice long/short), qty (number, default 1), with_brackets (boolean, default true)\n3. בdashboard — כפתורי 🟢 LONG / 🔴 SHORT בLive Position Card, עם prompt('כמות?') לconfirm + dispatch\n4. סמן Done\n\nכשנסיים, נעבור ל-Step 3.2." },
 
     { id: "3.2", title: "✂️ Close 50% — יציאת רווח חלקית",
-      why: "אסטרטגיה קלאסית של trader — <b>סוגרים חצי על TP, נותנים לחצי לרוץ</b>. הכפתור יחשב כמה זה חצי מהפוזיציה ויסגור.",
-      what: "Button + Worker POST /close-half — sends market order = abs(netPos)/2 הפוך.",
-      prompt: "[Step 3.2] הוספת כפתור ✂️ Close 50%\n\nהקשר: כפתורי LONG/SHORT עובדים. עכשיו רוצה כפתור שסוגר חצי מהפוזיציה.\n\nהמשימה:\n1. בWorker: POST /close-half — fetch position, חישוב חצי (round down), שלח market order opposite\n2. בדשבורד: כפתור ✂️ Close 50% (active רק אם יש פוזיציה)\n3. confirm: 'לסגור חצי מ-X חוזים?'\n4. סמן Done\n\nכשנסיים, נעבור ל-Step 3.3." },
+      why: "<b>סוגרים חצי על TP1, נותנים לחצי לרוץ</b> — אסטרטגיה קלאסית למקסום תוחלת.",
+      what: "scripts/tradovate_close_partial.py + workflow_dispatch עם pct input.",
+      prompt: "[Step 3.2] כפתור Close 50%\n\nהקשר: יש manual open. עכשיו לסגירה חלקית.\n\nהמשימה:\n1. scripts/tradovate_close_partial.py: מקבל pct (default 50), קורא position, מחשב qty_to_close = round(abs(netPos) * pct/100), שולח market order הפוך\n2. .github/workflows/tradovate-close-partial.yml: workflow_dispatch עם input pct (number, default 50)\n3. כפתור ✂️ בLive Position Card (active רק אם יש position non-zero)\n4. סמן Done\n\nכשנסיים, נעבור ל-Step 3.3." },
 
     { id: "3.3", title: "📏 Stop to Breakeven",
-      why: "<b>הזזת stop-loss למחיר הכניסה</b> — מנהל סיכון קלאסי. ברגע שאני +20 טיקים, stop עובר ל-entry, וכבר בלתי-מפסיד.",
-      what: "Button + Worker route שמושך avg entry, מציב stop-limit במחיר זה.",
-      prompt: "[Step 3.3] הוספת כפתור 📏 Stop to Breakeven\n\nהקשר: יש כפתורי LONG/SHORT/Close50. עכשיו רוצה כפתור שמזיז stop למחיר הכניסה.\n\nהמשימה:\n1. בWorker: POST /stop-to-be — fetch position avg entry, פלייס Stop Limit במחיר זה (Sell stop אם long, Buy stop אם short)\n2. בטל stop קיים אם יש\n3. בדשבורד: כפתור 📏 BE (active רק אם יש פוזיציה)\n4. סמן Done\n\nכשנסיים, נעבור ל-Step 3.4." },
+      why: "<b>הזזת stop למחיר הכניסה</b> — מנהל סיכון קלאסי. ברגע ש-+20 ticks ברווח, stop עובר ל-entry — וכבר בלתי-מפסיד.",
+      what: "scripts/tradovate_stop_be.py + workflow_dispatch.",
+      prompt: "[Step 3.3] כפתור Stop-to-BE\n\nהקשר: יש Close 50%. עכשיו להזזת stop.\n\nהמשימה:\n1. scripts/tradovate_stop_be.py: קורא position avg entry, מבטל working stops הקיימים, פלייס Stop חדש ב-entry price (Sell stop אם long, Buy stop אם short)\n2. .github/workflows/tradovate-stop-be.yml: workflow_dispatch only\n3. כפתור 📏 BE בLive Position Card\n4. SMS אישור עם המחיר שנקבע\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 3.4." },
 
     { id: "3.4", title: "📈 Intraday P&L Chart",
-      why: "<b>גרף קו</b> שמראה את ה-P&L המצטבר מתחילת היום עד עכשיו. ויזואלי, מסביר ב-2 שניות איך הלך היום.",
-      what: "Chart.js line chart מ-/balance polling time-series.",
-      prompt: "[Step 3.4] הוספת Intraday P&L Chart לדשבורד\n\nהקשר: יש Live Balance widget. עכשיו רוצה גרף שמראה את ה-P&L המצטבר מתחילת היום.\n\nהמשימה:\n1. בדשבורד: הוסף קנבס Chart.js (CDN)\n2. כל פעם ש-/balance polling חוזר — push {time, day_pnl} למערך\n3. רנדר גרף קו עם ציר X זמן (ב-IL), ציר Y day_pnl ב-$\n4. אופציה לאיפוס בתחילת יום (יום מסחר חדש)\n5. שמור היסטוריה ב-localStorage כדי להישאר אחרי refresh\n6. סמן Done\n\nכשנסיים, Phase 3 הושלם — דשבורד trading מלא! עוברים ל-Phase 4 (אוטומציה מתוזמנת)." }
+      why: "<b>גרף קו</b> של P&L מצטבר מתחילת היום. ויזואלי, מספר סיפור ב-2 שניות. בסיס לזיהוי פטרנים יומיים.",
+      what: "Chart.js + נתונים מ-live_balance.json snapshots ב-localStorage (כל update של JSON נשמר).",
+      prompt: "[Step 3.4] Intraday P&L Chart\n\nהקשר: live_balance.json מתעדכן כל 5 דק׳. עכשיו לחבר ל-chart.\n\nהמשימה:\n1. בdashboard — Chart.js מ-CDN\n2. כל זמן ש-live_balance.json נטען — push {ts, day_pnl} ל-localStorage array (key 'lauren_pnl_history')\n3. בעלייה — render line chart מהarray, ציר X=שעה IL, ציר Y=$ day_pnl\n4. איפוס אוטומטי בתחילת יום מסחר חדש (כשמשתנה התאריך ב-IL)\n5. צבע קו ירוק אם בסוף בחיובי, אדום אם בשלילי\n6. סמן Done\n\nכשנסיים, Phase 3 הושלם — דשבורד עם שליטה ידנית מלאה." }
   ]},
 
-  // ============ PHASE 4 ============
-  { phase: 4, title: "⏰ בטיחות אוטומטית — Worker Cron", desc: "פעולות שמתרחשות אוטומטית בזמנים קבועים", steps: [
+  // ============ PHASE 4 — Safety automations ============
+  { phase: 4, title: "⏰ אוטומציות בטיחות (GitHub Actions Cron)", desc: "פעולות מתוזמנות שמגנות על החשבון 24/7", steps: [
 
     { id: "4.1", title: "EOD Auto-flatten — סגירה לפני סוף יום",
-      why: "<b>סוגר כל פוזיציה ב-16:55 ET</b> (5 דק׳ לפני סגירת RTH). בלי overnight risk בDemo. חשוב במיוחד עבור prop firms עם hard EOD rules.",
-      what: "Worker cron trigger '55 20 * * 1-5' (UTC) → call /flatten internally.",
-      prompt: "[Step 4.1] הוספת EOD Auto-flatten באמצעות Worker Cron\n\nהקשר: Phase 3 הושלם. עכשיו רוצה אוטומציה: סגירת כל פוזיציה אוטומטית 5 דק׳ לפני סגירת RTH (16:55 ET = 20:55 UTC standard, 21:55 UTC DST).\n\nהמשימה:\n1. עדכן wrangler.toml להוסיף trigger cron: '55 20 * * 1-5' UTC (5 ימים, חמישי-שני CT לא חופש)\n2. הוסף handler scheduled(event, env) ב-src/index.js — קורא internally ל-flatten logic\n3. שלח SMS אישור: 'EOD flatten ran — closed X positions'\n4. wrangler deploy\n5. עדכון לקובץ הגדרות (worker_config.json) — אינדיקציה שזה enabled\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 4.2." },
+      why: "<b>סוגר כל פוזיציה ב-16:55 ET</b> (5 דק׳ לפני RTH close). בלי overnight risk. חשוב במיוחד עבור prop firms עם hard EOD rules.",
+      what: "Cron schedule '55 20 * * 1-5' UTC (DST: '55 19 * * 1-5'). קורא לאותו script של Step 1.3.",
+      prompt: "[Step 4.1] EOD Auto-flatten cron\n\nהקשר: tradovate_flatten.py קיים (Step 1.3). עכשיו רוצה cron שמריץ אותו אוטומטית בסוף יום.\n\nהמשימה:\n1. .github/workflows/tradovate-eod-flatten.yml: cron '55 20 * * 1-5' (16:55 ET standard) ו-'55 19 * * 1-5' (16:55 ET DST — שניהם פעילים, אחד יחזור empty)\n2. שלב 'הרץ flatten' שמריץ את scripts/tradovate_flatten.py\n3. SMS לאחר ריצה: 'EOD: closed X positions' (גם אם X=0)\n4. רישום ב-scheduled-runs.json (frequency='daily', enabled=true)\n5. הוסף toggle ב-autotrade_enabled.json (eod_flatten_enabled) שניתן לכבות אם רוצה לסחור overnight בעתיד\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 4.2." },
 
-    { id: "4.2", title: "Pre/Post-market BOT toggle",
-      why: "<b>BOT מופעל אוטומטית בבוקר, מכובה בלילה.</b> פותרת את הצורך לזכור להפעיל ידנית כל יום. למשל: enable 9:25 ET, disable 16:55 ET.",
-      what: "Worker cron 2 פעמים ביום שמשנה autotrade_enabled.json דרך GitHub API.",
-      prompt: "[Step 4.2] הוספת תזמון אוטומטי להפעלת/כיבוי BOT\n\nהקשר: EOD flatten עובד (Step 4.1). עכשיו רוצה ש-BOT יופעל אוטומטית בבוקר ויכבה בלילה.\n\nהמשימה:\n1. הוסף 2 cron triggers ב-wrangler.toml: '25 13 * * 1-5' UTC (9:25 ET enable) ו-'55 20 * * 1-5' UTC (16:55 ET disable)\n2. ב-scheduled() — בדוק את ה-cron הנוכחי, ועדכן docs/trading/autotrade_enabled.json דרך GitHub Contents API (PUT)\n3. צריך GITHUB_PAT כSecret חדש: wrangler secret put GITHUB_PAT\n4. שלח SMS לאחר כל toggle\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 4.3." },
+    { id: "4.2", title: "Pre/Post-market BOT toggle אוטומטי",
+      why: "<b>BOT דולק בבוקר, כבוי בלילה</b> — בלי לזכור. למשל: enable 9:25 ET, disable 16:55 ET.",
+      what: "2 cron jobs שכותבים enabled=true/false ב-autotrade_enabled.json דרך GitHub Contents API.",
+      prompt: "[Step 4.2] Auto-toggle BOT לפי שעות\n\nהקשר: יש EOD flatten. עכשיו לתזמון הפעלה/כיבוי.\n\nהמשימה:\n1. scripts/autotrade_toggle.py: מקבל arg 'enable' או 'disable', מעדכן docs/trading/autotrade_enabled.json (קריאת sha, עדכון enabled+_updated_at+_updated_by, PUT) דרך secrets.GITHUB_TOKEN\n2. .github/workflows/tradovate-bot-schedule.yml: 2 jobs נפרדים — אחד עם cron '25 13 * * 1-5' UTC (9:25 ET enable) ואחד עם '55 20 * * 1-5' (16:55 ET disable)\n3. SMS לאחר כל toggle: 'BOT enabled @ 9:25 ET' או 'BOT disabled @ 16:55 ET'\n4. עדכון בscheduled-runs.json\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 4.3." },
 
     { id: "4.3", title: "💰 Daily Loss Cap Monitor",
-      why: "<b>בודק יתרה כל 5 דק׳</b>, ואם ירדה מתחת ל-threshold (נגיד -$200) → BOT מכבה אוטומטית + SMS. מנהל סיכון יומי קריטי.",
-      what: "Worker cron כל 5 דק׳ → /balance → check threshold → disable + SMS.",
-      prompt: "[Step 4.3] הוספת Daily Loss Cap Monitor\n\nהקשר: Auto-toggle עובד. עכשיו רוצה ש-Worker יבדוק יתרה כל 5 דק׳ ויכבה BOT אם ירדנו מתחת לthreshold.\n\nהמשימה:\n1. הוסף cron trigger '*/5 13-21 * * 1-5' UTC (כל 5 דק׳ בשעות מסחר)\n2. ב-scheduled() — fetch /balance, השווה day_pnl לthreshold (קבע ב-Secret DAILY_LOSS_CAP, נגיד -200)\n3. אם hit: PUT GitHub kill-switch → enabled=false + שלח SMS 'הופסק: ירדנו $X היום'\n4. הוסף עמודה לdashboard שמראה: 'Loss cap: -$X / -$Y' עם progress bar\n5. סמן Done\n\nכשנסיים, Phase 4 הושלם — מוגנים בטיחותית 24/7. עוברים ל-Phase 5 (אנליטיקה)." }
+      why: "<b>בודק יתרה כל 5 דק׳</b> ואם הפסד היומי חוצה threshold (נגיד -$200) → BOT מכבה אוטומטית + SMS. מנהל סיכון יומי קריטי.",
+      what: "Cron */5 קורא live_balance.json, משווה ל-cfg.daily_loss_cap ב-autotrade_enabled.json, אם hit → kill-switch + SMS.",
+      prompt: "[Step 4.3] Daily Loss Cap Monitor\n\nהקשר: live_balance.json מתעדכן כל 5 דק׳. עכשיו monitor שמכבה BOT אם הפסד יומי חוצה threshold.\n\nהמשימה:\n1. הוסף field חדש ב-autotrade_enabled.json: daily_loss_cap_usd (default -200)\n2. scripts/daily_loss_cap_check.py: קורא live_balance.json, משווה day_pnl ל-cfg.daily_loss_cap_usd. אם hit + bot עוד דולק → כבה (PUT ל-autotrade_enabled.json enabled=false) + SMS 'Hit daily loss cap -$X / -$Y → BOT off'\n3. workflow .yml: cron '*/5 13-21 * * 1-5' (כל 5 דק׳ בשעות מסחר)\n4. בdashboard — pill 'Loss cap: -$X / -$Y' עם progress bar\n5. סמן Done\n\nכשנסיים, Phase 4 הושלם — מערכת בטיחות אוטומטית 24/7." }
   ]},
 
-  // ============ PHASE 5 ============
-  { phase: 5, title: "🧠 אנליטיקה — ללמוד מהיומן", desc: "תובנות חכמות מתוך הנתונים שכבר נאספים", steps: [
+  // ============ PHASE 5 — Analytics (pure JS) ============
+  { phase: 5, title: "🧠 אנליטיקה — תובנות מהיומן", desc: "JS-only בדשבורד, אוגרגציה על journal-data.json הקיים. אפס תשתית חדשה.", steps: [
 
     { id: "5.1", title: "🏆 Best Hour Heat Map",
-      why: "<b>טבלה: לכל שעה ביום</b> — win rate, ממוצע $, מספר עסקאות. תראי בבירור שהאסטרטגיה הכי טובה בין X-Y, וגרועה בZ-W. בסיס להחלטות.",
-      what: "JS aggregation על trades[] לפי hour, רינדור heat-map צבעוני.",
-      prompt: "[Step 5.1] בניית Best Hour Heat Map בדשבורד\n\nהקשר: Phase 4 הושלם. עכשיו אנליטיקה — מתחיל בHeat Map לפי שעה.\n\nהמשימה:\n1. ב-docs/trading/journal/index.html — הוסף section חדש 'אנליטיקה — שעה הכי טובה'\n2. JS שצובר את ה-trades לפי שעה ב-Israel time (0-23)\n3. לכל שעה: count, win rate, avg $ result_dollars, sum $\n4. רנדר טבלה 24 שורות x 4 עמודות, צבע רקע ירוק/אדום לפי PnL\n5. הדגש שעות עם <5 עסקאות כ-'לא מספיק נתונים'\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 5.2." },
+      why: "<b>לכל שעה ביום</b> — win rate, ממוצע $, מספר עסקאות. תראי באיזה שעות האסטרטגיה הכי טובה, איזה גרועות.",
+      what: "JS aggregation על trades לפי hour ב-Asia/Jerusalem, רינדור heat-map צבעוני.",
+      prompt: "[Step 5.1] Best Hour Heat Map\n\nהקשר: journal-data.json עשיר. עכשיו אנליטיקה client-side.\n\nהמשימה:\n1. בdashboard — section חדש 'אנליטיקה: שעה הכי טובה'\n2. JS group על trades לפי hour (0-23) ב-Asia/Jerusalem\n3. לכל שעה: count, win rate, avg result_dollars, sum result_dollars\n4. רנדר טבלה 24 שורות x 4 עמודות, צבע רקע ירוק/אדום לפי PnL net\n5. הדגש שעות עם <5 trades כ-'דגימה קטנה' (אפור)\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 5.2." },
 
     { id: "5.2", title: "🌀 Streak Detector + Auto-pause",
-      why: "<b>'אחרי 3 הפסדים ברצף — BOT מכבה למשך שעה'</b>. מנגנון cool-off קלאסי, מונע revenge trading.",
-      what: "JS עוקב ב-trades, אם streak>=3 → flip kill-switch, אחרי שעה auto-restart.",
-      prompt: "[Step 5.2] הוספת Streak Detector + Auto-pause\n\nהקשר: Heat Map עובד. עכשיו רוצה שהמערכת תזהה streaks (רצף הפסדים) ותכבה BOT אוטומטית.\n\nהמשימה:\n1. הוסף ל-Worker scheduled (כל 5 דק׳ כבר רץ ל-Loss Cap) — בנוסף לטעון journal, לבדוק streak\n2. אם 3+ הפסדים רצופים: PUT kill-switch=false + הוסף שדה 'auto_paused_until' עם זמן + שעה\n3. בdashboard — הצג איקון 🌀 עם countdown 'BOT paused for X min'\n4. cron נוסף — אם auto_paused_until חלף, רענן kill-switch=true\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 5.3." },
+      why: "<b>'אחרי 3 הפסדים ברצף — BOT מכבה לשעה'</b>. cooldown קלאסי שמונע revenge trading.",
+      what: "scripts/streak_check.py נוסף ל-workflow של Loss Cap (חסכון runs) — אם streak>=3 → enabled=false + auto_paused_until=now+1h.",
+      prompt: "[Step 5.2] Streak Detector + Auto-pause\n\nהקשר: יש Loss Cap monitor. עכשיו streak detection.\n\nהמשימה:\n1. scripts/streak_check.py: קורא journal-data.json, מחשב streak הפסדים נוכחי על EXIT rows הכרונולוגים האחרונים. אם >=3 → מעדכן autotrade_enabled.json: enabled=false + auto_paused_until=now+1h\n2. הוסף לworkflow של Loss Cap (4.3) — חסכון בריצות\n3. cron נוסף — אם auto_paused_until חלף → enabled=true שוב + SMS\n4. בdashboard — אם paused → 🌀 'BOT cooldown · X min נשארו'\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 5.3." },
 
     { id: "5.3", title: "🎯 Win Rate by Signal Type",
-      why: "<b>pie chart או טבלה</b> — LONG vs SHORT vs SWAP LONG vs SWAP SHORT vs EXIT TP vs EXIT SL. איזה סוג הכי רווחי? אולי כדאי לבטל SWAP?",
-      what: "Aggregation על type, רינדור Chart.js doughnut + table.",
-      prompt: "[Step 5.3] Win Rate by Signal Type\n\nהקשר: יש Streak Detector. עכשיו רוצה לראות איזה סוג סיגנל הכי מצליח.\n\nהמשימה:\n1. ב-journal HTML — section נוסף 'ביצועים לפי סוג סיגנל'\n2. JS groupBy על trades לפי type (LONG/SHORT/SWAP LONG/EXIT LONG TP וכו')\n3. לכל קבוצה: count, win rate, total $, avg $\n4. רנדר טבלה ממוינת לפי total $ desc\n5. אופציונלית גם Chart.js pie chart\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 5.4." },
+      why: "<b>טבלה</b> שמשווה LONG vs SHORT vs SWAP LONG vs SWAP SHORT vs EXIT TP. איזה סוג הכי רווחי? אולי כדאי לבטל SWAP?",
+      what: "JS groupBy על trades לפי type + רינדור טבלה.",
+      prompt: "[Step 5.3] Win Rate by Signal Type\n\nהקשר: יש Heat Map. עכשיו ביצועים לפי סוג סיגנל.\n\nהמשימה:\n1. בdashboard — section נוסף 'ביצועים לפי סוג'\n2. JS groupBy על trades לפי type\n3. לכל קבוצה: count, win rate, total $, avg $\n4. טבלה ממוינת לפי total $ desc\n5. אופציה: Chart.js doughnut chart\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 5.4." },
 
     { id: "5.4", title: "📅 Calendar P&L Heatmap",
-      why: "<b>תצוגת לוח שנה</b> חודשי — כל יום ריבוע ירוק/אדום לפי PnL. רואים פטרנים: 'בשבועות הראשונים אני טוב, באמצע הולך לאיבוד'.",
-      what: "Calendar grid (לוח שנה) עם צבעים לפי PnL יומי.",
-      prompt: "[Step 5.4] הוספת Calendar P&L Heatmap\n\nהקשר: יש Win Rate analysis. עכשיו רוצה תצוגת לוח שנה.\n\nהמשימה:\n1. section חדש — 'לוח שנה — P&L יומי'\n2. בחירת חודש (default: נוכחי)\n3. הצג grid 7x5 (שבועות x ימים)\n4. כל ריבוע: יום + PnL יומי, צבע רקע פי intensity (ירוק→אדום)\n5. hover מציג tooltip עם פרטים: number of trades, win rate\n6. סמן Done\n\nכשנסיים, Phase 5 הושלם — דשבורד אנליטי מלא. עוברים ל-Phase 6 (סיגנלים חיצוניים)." }
+      why: "<b>תצוגת לוח שנה</b> — כל יום ריבוע ירוק/אדום לפי PnL. רואים פטרנים: 'תחילת חודש טוב, סוף חודש לא'.",
+      what: "Calendar grid 7x5 + צבעי intensity לפי PnL יומי.",
+      prompt: "[Step 5.4] Calendar P&L Heatmap\n\nהקשר: יש Win Rate. עכשיו לוח שנה.\n\nהמשימה:\n1. בdashboard — section חדש 'לוח שנה: P&L יומי'\n2. בחירת חודש (default: נוכחי IL)\n3. grid 7x5 (שבועות x ימים)\n4. כל ריבוע: יום + sum PnL יומי, צבע intensity (ירוק→אדום)\n5. hover tooltip: number of trades, win rate, best/worst trade\n6. סמן Done\n\nכשנסיים, Phase 5 הושלם." }
   ]},
 
-  // ============ PHASE 6 ============
-  { phase: 6, title: "🔭 חכמה — סיגנלים חיצוניים", desc: "חיבור למקורות נוספים שמעשירים את הbot", steps: [
+  // ============ PHASE 6 — External signals ============
+  { phase: 6, title: "🔭 חוכמה — סיגנלים חיצוניים", desc: "מקורות נוספים שמעשירים החלטות BOT", steps: [
 
     { id: "6.1", title: "📰 Economic Calendar Blackout",
-      why: "<b>אוטו-כיבוי BOT לפני CPI/NFP/FOMC</b>. תנודתיות חריגה = הפסדים חריגים. המערכת תקרא calendar וחוסם 5 דק׳ לפני + אחרי.",
-      what: "Worker scheduled שמושך calendar API (Finnhub/Investing) → קובע blackout windows.",
-      prompt: "[Step 6.1] הוספת Economic Calendar Blackout\n\nהקשר: Phase 5 הושלם. עכשיו רוצה שה-BOT יידע על אירועי מאקרו ויחסום אוטומטית.\n\nהמשימה:\n1. חקור Free APIs ל-economic calendar (Finnhub free tier? AlphaVantage? Investing.com scraping?)\n2. צור worker route GET /calendar שמחזיר אירועי היום בעלי impact=high\n3. cron יומי 6:00 ET — מושך calendar, יוצר רשימת blackouts (5 דק׳ לפני, 10 דק׳ אחרי) ל-autotrade_enabled.json\n4. Code step בZapier ייבדוק אם בblackout → SKIP\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 6.2." },
+      why: "<b>BOT מושבת לפני CPI/NFP/FOMC</b>. תנודתיות חריגה = הפסדים. workflow יומי מושך calendar, יוצר blackout windows. Zapier בודק לפני כניסה.",
+      what: "GitHub Action יומי שמושך מ-Finnhub/AlphaVantage/Investing → כותב docs/state/blackouts.json. Zapier Step 4 בודק וSKIP אם בwindow.",
+      prompt: "[Step 6.1] Economic Calendar Blackout\n\nהקשר: Phase 5 הושלם. עכשיו integration ל-economic events.\n\nהמשימה:\n1. חקור Free APIs (Finnhub free tier, AlphaVantage news, scraping Investing). בחר אחד.\n2. scripts/economic_calendar_fetch.py: יומי 6:00 ET, מושך אירועי impact=high של היום, כותב docs/state/blackouts.json עם windows [{start, end, event, impact}]\n3. .github/workflows/economic-calendar.yml: cron '0 13 * * 1-5' UTC + IRON RULE #3\n4. עדכן zapier-tradovate-code-step.py: בודק blackouts.json, אם בwindow → SKIP 'in_blackout'\n5. בdashboard — section 'אירועי מאקרו היום'\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 6.2." },
 
-    { id: "6.2", title: "🌊 ATR-based Filter",
-      why: "<b>'לא לסחור אם השוק שטוח'</b>. אם ATR(14) של MNQ < 30 — לא נכנסים. שווקים שטוחים = הרבה whip-saws.",
-      what: "Worker שמושך ATR מ-Tradovate marketData, מעדכן kill-switch dynamically.",
-      prompt: "[Step 6.2] הוספת ATR-based Filter\n\nהקשר: Calendar Blackout עובד. עכשיו filter על volatility.\n\nהמשימה:\n1. בWorker — endpoint GET /atr שמושך 14 candles אחרונים של MNQM6 מ-Tradovate market data + מחשב ATR\n2. cron כל 15 דק׳ — אם ATR < threshold (10? 15? נקבע ביחד) → set kill-switch reason='low_atr'\n3. dashboard מציג: ATR נוכחי + threshold + status\n4. סמן Done\n\nכשנסיים, נעבור ל-Step 6.3." },
+    { id: "6.2", title: "🌊 ATR-based Volatility Filter",
+      why: "<b>לא לסחור אם השוק שטוח</b>. ATR(14) < threshold → kill-switch. שווקים שטוחים = whip-saws.",
+      what: "GitHub Action שמושך candles מ-Tradovate, מחשב ATR, מעדכן autotrade_enabled.json דינמי.",
+      prompt: "[Step 6.2] ATR-based Filter\n\nהקשר: יש Calendar Blackout. עכשיו filter על volatility.\n\nהמשימה:\n1. scripts/atr_filter.py: cron כל 15 דק׳ — fetch 14 candles אחרונים של MNQM6 מ-Tradovate marketData → מחשב ATR\n2. אם ATR < threshold (configurable, default 10 נקודות) → autotrade_enabled.json: enabled=false + reason='low_atr'. אם ATR שב מעל threshold → enabled=true\n3. workflow .yml: cron '*/15 13-21 * * 1-5'\n4. בdashboard — pill 'ATR: X / threshold Y'\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 6.3." },
 
     { id: "6.3", title: "🎯 Two-stage Take Profit",
-      why: "<b>במקום TP אחד — TP1 +15 חצי, TP2 +40 שני חצי</b>. נטו: שומרים רווחים, נותנים לעבר רוץ. סטטיסטית מנצח TP בודד.",
-      what: "Tradovate Code step בZapier יידע פעולת LONG → שלוח 2 limit orders (TP1, TP2).",
-      prompt: "[Step 6.3] הוספת Two-stage Take Profit\n\nהקשר: ATR Filter עובד. עכשיו שיפור באסטרטגיה — TP מדורג.\n\nהמשימה:\n1. עדכן Tradovate Code step ב-Zapier — בכניסת LONG/SHORT, אחרי market order, שלח 2 limit orders:\n   - TP1: 50% qty, +15 ticks\n   - TP2: 50% qty, +40 ticks\n   - אם price moves favorably אחרי TP1 — Stop ל-BE אוטומטית\n2. עדכן את הPython code accordingly\n3. סמן Done\n\nכשנסיים, Phase 6 הושלם — bot חכם. עוברים ל-Phase 7 (multi-account)." }
+      why: "<b>TP1 חצי (קצר), TP2 חצי (ארוך)</b> + Stop ל-BE אחרי TP1. סטטיסטית טוב מ-TP בודד.",
+      what: "Update Zapier Step 4 — במקום bracket אחד, שלח 2 limits + עדכן stop ל-BE אחרי TP1.",
+      prompt: "[Step 6.3] Two-stage TP בZapier Step 4\n\nהקשר: יש ATR Filter. עכשיו שיפור באסטרטגית exits.\n\nהמשימה:\n1. עדכן zapier-tradovate-code-step.py: ENTRY path — אחרי OSO Market+Stop, שלח 2 Limit orders נפרדים (TP1 50% qty +15 ticks, TP2 50% qty +40 ticks). הSL הקיים נשאר על qty מלאה\n2. הוסף מנגנון 'on TP1 fill → cancel SL + place new SL at entry' (BE) — דורש listening on /order/list status\n3. dashboard יראה 2 EXIT rows לכל trade (TP1 / TP2)\n4. סמן Done\n\nכשנסיים, Phase 6 הושלם." }
   ]},
 
-  // ============ PHASE 7 ============
-  { phase: 7, title: "💼 Multi-account — הכנה ל-live", desc: "מבנה גמיש כדי לעבור לחשבון אמיתי או לpro firm", steps: [
+  // ============ PHASE 7 — Multi-account / Live ============
+  { phase: 7, title: "💼 Multi-account / Live", desc: "אותו setup על Demo, Live, ו-prop firms במקביל", steps: [
 
     { id: "7.1", title: "Live Account Adapter",
-      why: "<b>אותו קוד יעבוד גם על Demo וגם על Live</b>. רק החלפת URL ו-credentials. הכנה לרגע שתהיי מוכנה לעבור לכסף אמיתי.",
-      what: "ה-Worker יקבל env=demo|live param ויבחר ה-URL/secrets המתאימים.",
-      prompt: "[Step 7.1] הכנת Worker ל-Live Account\n\nהקשר: Phase 6 הושלם. עכשיו הכנה לעתיד — Worker שיודע לעבוד גם מול Live (לא רק Demo).\n\nהמשימה:\n1. עדכן Worker — כל route יכול לקבל ?env=demo או ?env=live, default=demo\n2. הוסף Secrets נפרדים: TRADOVATE_LIVE_NAME, TRADOVATE_LIVE_PASSWORD, וכו' (יישארו ריקים בינתיים)\n3. בקוד — בחר URL ו-secrets לפי env\n4. סמן Done\n\nכשנסיים, נעבור ל-Step 7.2." },
+      why: "<b>אותו קוד יעבוד על Demo וLive</b>. רק החלפת URL ו-secrets. הכנה למעבר לכסף אמיתי.",
+      what: "Secrets נפרדים TRADOVATE_LIVE_* + field 'env' ב-autotrade_enabled.json. כל script בוחר URL+credentials לפי env.",
+      prompt: "[Step 7.1] Live Account Adapter\n\nהקשר: Phase 6 הושלם. הכנה למעבר ל-live.\n\nהמשימה:\n1. הוסף GitHub Secrets: TRADOVATE_LIVE_NAME / PASSWORD / CID / SEC (ריקים בינתיים, יתמלאו כשתפתחי חשבון live)\n2. עדכן כל ה-scripts + Zapier Step 4 לקרוא env מ-autotrade_enabled.json. אם 'live' → live.tradovateapi.com + LIVE secrets. ברירת מחדל 'demo'.\n3. בכל workflow log — print איזה env פעיל (demo/live)\n4. סמן Done\n\nכשנסיים, נעבור ל-Step 7.2." },
 
     { id: "7.2", title: "Demo↔Live Toggle בדשבורד",
-      why: "<b>מתג גלוי</b> בdashboard — Demo / Live. כדי שלעולם לא תפרסי טעות, יש אישור כפול לפני מעבר ל-Live.",
-      what: "Toggle UI + state ב-localStorage + ויזואל clear.",
-      prompt: "[Step 7.2] הוספת Demo↔Live Toggle בדשבורד\n\nהקשר: Worker תומך ב-env. עכשיו ממשק להחלפה.\n\nהמשימה:\n1. בtopbar של dashboard — toggle בולט: Demo (סגול) / Live (אדום)\n2. שמור ב-localStorage\n3. כל קריאה לWorker מוסיפה ?env=demo|live\n4. מעבר ל-Live דורש 2 אישורים + טייפ של 'LIVE' לאישור\n5. כל הדשבורד מקבל border אדום עבה במצב Live\n6. סמן Done\n\nכשנסיים, נעבור ל-Step 7.3." },
+      why: "<b>מתג בולט</b> בdashboard עם confirmation כפול. כדי שלעולם לא תפרסי טעות.",
+      what: "Field 'env' ב-autotrade_enabled.json + UI toggle + double-confirm + visual red border ב-Live.",
+      prompt: "[Step 7.2] Demo↔Live Toggle UI\n\nהקשר: Live adapter קיים. עכשיו ממשק להחלפה.\n\nהמשימה:\n1. בdashboard topbar — toggle בולט: Demo (סגול) / Live (אדום)\n2. מעדכן env ב-autotrade_enabled.json דרך GitHub API (אותו pattern של autotrade toggle)\n3. מעבר ל-Live דורש 2 אישורים נפרדים + טייפ של 'LIVE' באנגלית\n4. במצב Live — כל ה-dashboard מקבל border אדום עבה + watermark 'LIVE'\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 7.3." },
 
     { id: "7.3", title: "Multi-prop Mirroring",
-      why: "<b>אותו סיגנל → BluSky + Apex + Lucid במקביל</b>. אם prop firm מתיר auto-trading, ניתן להריץ אותו setup על כל החשבונות. הגדלת הכנסות x3.",
-      what: "Worker מוסיף routes לכל firm, Code step שולח לרשימת חשבונות מוגדרת.",
-      prompt: "[Step 7.3] בניית Multi-prop Mirroring\n\nהקשר: יש Live Toggle. עכשיו הרחבה — לחשבונות multiple prop firms.\n\nהמשימה:\n1. חקור — אילו prop firms של Lauren (BluSky/Apex/Lucid) מתירים automated trading? תקריא Terms של כל אחד\n2. אם מתירים — הוסף adapters ב-Worker לכל broker (חלקם משתמשים ב-Rithmic, חלקם CQG, חלקם Tradovate)\n3. הוסף config: docs/trading/mirror_accounts.json — רשימת חשבונות פעילים + per-account risk profile\n4. Tradovate Code step ישלח לכל אחד\n5. סמן Done\n\nכשנסיים, Phase 7 הושלם. עוברים ל-Phase 8 (ליטוש סופי)." }
+      why: "<b>אותו סיגנל → BluSky + Apex + Lucid במקביל</b>, אם חוקיהם מתירים. הגדלת הכנסות פוטנציאלית x3.<br>⚠ <b>חובה לבדוק משפטית:</b> חלק מ-prop firms אוסרים automated trading או דורשים גילוי מקדים.",
+      what: "Config docs/trading/mirror_accounts.json + Zapier Step 4 שמסביב על כל החשבונות הפעילים.",
+      prompt: "[Step 7.3] Multi-prop Mirroring\n\nהקשר: יש Live Toggle. עכשיו הרחבה למיון חשבונות.\n\n⚠ חשוב: לפני שמיישמים, חקור Terms של כל prop firm — חלקם אוסרים automated trading או דורשים disclosure.\n\nהמשימה:\n1. חקור — BluSky / Apex / Lucid: האם מתירים automated trading? קרא Terms של כל אחד.\n2. אם מתירים — הוסף docs/trading/mirror_accounts.json: [{firm, broker, account_id, env, max_qty, enabled}]\n3. כל broker אחר (Rithmic/CQG) דורש script נפרד\n4. Zapier Step 4 הופך ל-loop על כל החשבונות הפעילים — ענונה: רעש Zapier tasks יוכפל\n5. בdashboard — health pill לכל חשבון\n6. סמן Done\n\nכשנסיים, Phase 7 הושלם." }
   ]},
 
-  // ============ PHASE 8 ============
-  { phase: 8, title: "✨ ליטוש — חוויית משתמש", desc: "פיצ׳רים שעושים את הכלי הזה למקצועי וקל לחיים יומיים", steps: [
+  // ============ PHASE 8 — UX polish ============
+  { phase: 8, title: "✨ ליטוש UX", desc: "פיצ׳רים שעושים את הכלי קל לחיים יומיים", steps: [
 
     { id: "8.1", title: "🌙 Dark Mode",
-      why: "<b>עבודת לילה</b> (מסחר אסיה, futures בלילה) דורשת theme כהה. הקלה משמעותית על העיניים אחרי כמה שעות.",
-      what: "CSS variables כפול (light/dark), toggle ב-localStorage.",
-      prompt: "[Step 8.1] הוספת Dark Mode לדשבורד\n\nהקשר: Phase 7 הושלם. עכשיו ליטוש UX.\n\nהמשימה:\n1. ב-journal HTML + roadmap HTML — הוסף CSS variables לdark mode\n2. toggle 🌙/☀️ בtopbar\n3. שמור ב-localStorage\n4. אוטומטי לפי שעה? (אחרי 19:00 → dark)\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 8.2." },
+      why: "<b>עבודת לילה</b> (מסחר אסיה, futures בלילה) דורשת theme כהה.",
+      what: "CSS variables כפול + toggle ב-localStorage + אוטומטי לפי שעה.",
+      prompt: "[Step 8.1] Dark Mode\n\nהמשימה:\n1. journal HTML + roadmap HTML — CSS variables לdark mode (--bg, --txt, --brd וכו')\n2. toggle 🌙/☀️ בtopbar\n3. שמירה ב-localStorage\n4. אופציה אוטומטית לפי שעה IL (19:00-07:00 → dark)\n5. סמן Done" },
 
     { id: "8.2", title: "📱 Mobile Optimization",
-      why: "<b>שליטה מהטלפון</b> כשאת לא ליד המחשב. כפתורי FLATTEN/Position נגישים, dashboard responsive.",
+      why: "<b>שליטה מהטלפון</b> כשלא ליד מחשב. כפתורי FLATTEN/Position נגישים, dashboard responsive.",
       what: "Media queries, single-column on mobile, sticky FLATTEN button.",
-      prompt: "[Step 8.2] Mobile Optimization\n\nהקשר: Dark Mode עובד. עכשיו mobile-friendly.\n\nהמשימה:\n1. עדכן כל ה-grid layouts לsingle-column על מסכים <600px\n2. הכפתור FLATTEN sticky על mobile (תמיד נגיש)\n3. typography קטן ב-mobile\n4. בדוק על iPhone/Android\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 8.3." },
+      prompt: "[Step 8.2] Mobile Optimization\n\nהמשימה:\n1. כל grid layouts → single-column על <600px\n2. כפתור FLATTEN sticky bottom-right במובייל (תמיד נגיש)\n3. typography קומפקטית במובייל\n4. בדוק על iPhone/Android\n5. סמן Done" },
 
     { id: "8.3", title: "🔔 Browser Notifications on Fill",
-      why: "<b>פוש לחלון הדפדפן</b> בכל מילוי, גם אם הtab בpost. לא צריך לבהות במסך.",
-      what: "Notification API, polling /orders ל-status==Filled changes.",
-      prompt: "[Step 8.3] Browser Notifications on Fill\n\nהקשר: Mobile עובד. עכשיו push notifications.\n\nהמשימה:\n1. בכניסה ראשונה לדשבורד — בקש Notification.requestPermission()\n2. polling GET /orders כל 10s — זהה orders חדשים עם status=Filled\n3. אם נמצא — new Notification('💰 Filled', { body: 'LONG 1 MNQM6 @ 20500' })\n4. סמן Done\n\nכשנסיים, נעבור ל-Step 8.4." },
+      why: "<b>פוש לחלון הדפדפן</b> בכל מילוי, גם אם הtab לא פעיל.",
+      what: "Notification API + watching docs/state/live_position.json + journal-data.json לשינויים.",
+      prompt: "[Step 8.3] Browser Notifications\n\nהמשימה:\n1. בעלייה ראשונה — Notification.requestPermission()\n2. polling live_position.json — זיהוי qty changes → new Notification('💰 Fill', {body: 'X qty Y @ Z'})\n3. גם על journal-data.json — שורות חדשות → Notification\n4. רינדור badge אם בקשת notification נדחתה\n5. סמן Done" },
 
     { id: "8.4", title: "📊 Daily SMS Recap",
-      why: "<b>17:00 ET כל יום — SMS עם סיכום</b>: עסקאות, P&L, win rate, הערות. סוף יום ברור גם בלי לפתוח דשבורד.",
-      what: "Worker scheduled cron 21:00 UTC, מבצע aggregate על journal, SMS via SimpleTexting.",
-      prompt: "[Step 8.4] Daily SMS Recap\n\nהקשר: Phase 8 מתקדם. עכשיו תקציר יומי ב-SMS.\n\nהמשימה:\n1. הוסף Worker scheduled '0 21 * * 1-5' UTC (17:00 ET)\n2. מושך journal, מסנן trades של היום ב-IL\n3. בונה הודעה: 'יום סוכם: X trades · Y win rate · Z$ net · best trade $A · worst $B'\n4. שלח SMS דרך SimpleTexting (Token קיים ב-Worker secret)\n5. סמן Done\n\nכשנסיים, נעבור ל-Step 8.5." },
-
-    { id: "8.5", title: "📲 SMS Commands — שליטה ב-SMS",
-      why: "<b>שולחת 'STOP' למספר → BOT מכבה. 'FLATTEN' → סוגר הכל. 'STATUS' → מקבלת מצב</b>. שליטה אולטימטיבית.",
-      what: "SimpleTexting webhook לWorker route POST /sms-cmd, פעולה לפי תוכן.",
-      prompt: "[Step 8.5] SMS Commands\n\nהקשר: Daily Recap עובד. השלב הסופי — SMS commands.\n\nהמשימה:\n1. בSimpleTexting — קונפיגוריזה incoming SMS webhook אל Worker URL + '/sms-cmd'\n2. בWorker: POST /sms-cmd קורא תוכן הודעה\n3. במידה ולפי תוכן: STOP→kill-switch=false / START→true / FLATTEN→flatten / STATUS→החזר position + balance\n4. שלח SMS תגובה\n5. סמן Done\n\nכשנסיים — סיימת את כל ה-Roadmap! 🎉 דשבורד trading מלא ושלם. נדבר על אילו פיצ׳רים נוספים תרצי" }
+      why: "<b>17:00 ET — SMS תקציר היום</b>. עסקאות, P&L, win rate. סוף יום ברור גם בלי לפתוח dashboard.",
+      what: "GitHub Action cron 21:00 UTC, aggregate journal, SMS via SimpleTexting.",
+      prompt: "[Step 8.4] Daily SMS Recap\n\nהקשר: SMS infrastructure קיימת (SIMPLETEXTING_TOKEN). עכשיו תקציר יומי.\n\nהמשימה:\n1. scripts/daily_trading_recap.py: קורא journal-data.json, מסנן trades של היום ב-IL, מחשב count/win-rate/total P&L/best/worst trade/by-type breakdown\n2. בונה הודעה Hebrew קצרה: 'יום סוכם: X עסקאות · Y win rate · $Z נטו · הכי טוב $A · הכי גרוע $B'\n3. workflow .yml — cron '0 21 * * 1-5' UTC (17:00 ET) + IRON RULE #3\n4. שולח ל-Lauren בלבד לפי IRON RULE #4.C\n5. סמן Done\n\nכשנסיים, Phase 8 הושלם — מערכת trading שלמה, professional-grade." }
   ]}
 ];
 
