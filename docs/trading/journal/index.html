@@ -112,6 +112,28 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
 .modal-box .btn-cancel{background:#e5e7eb;color:#444;}
 .modal-box .hint{font-size:12px;color:#888;margin-top:4px;}
 
+
+/* View toggle + merged trades view */
+.view-toggle{display:inline-flex;gap:0;background:#f3f4f6;border-radius:8px;padding:3px;margin-right:12px;}
+.view-toggle button{background:transparent;border:0;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;color:#666;border-radius:6px;}
+.view-toggle button.active{background:white;color:#0066cc;box-shadow:0 1px 2px rgba(0,0,0,0.08);}
+.pair-row{}
+.pair-row.is-open{background:#fff8e1;}
+.pair-row.is-tp{background:#f0fdf4;}
+.pair-row.is-sl{background:#fef2f2;}
+.pair-row.is-swap{background:#faf5ff;}
+.pair-row.is-orphan{background:#f3f4f6;}
+.cell-pair-time .d{font-weight:700;color:var(--txt2);font-size:13px;}
+.cell-pair-time .t{font-size:12px;color:var(--txt5);font-weight:600;}
+.cell-pair-time .exit-t{font-size:11px;color:var(--txt5);margin-top:3px;border-top:1px dashed #ddd;padding-top:3px;}
+.cell-pair-time .exit-t::before{content:"↓ ";color:#888;}
+.reason-bdg{padding:3px 9px;border-radius:6px;font-size:12px;font-weight:700;display:inline-block;}
+.r-tp{background:#dcfce7;color:#15803d;}
+.r-sl{background:#fee2e2;color:#b91c1c;}
+.r-swap{background:#f3e8ff;color:#6b21a8;}
+.r-open{background:#fef3c7;color:#a16207;}
+.r-orphan{background:#e5e7eb;color:#4b5563;}
+
 .cell-time .d{font-weight:700;color:var(--txt2);}
 .cell-time .t{font-size:12px;color:var(--txt5);font-weight:600;}
 
@@ -256,6 +278,10 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
 
   <div class="section-hdr">
     <h2>📋 יומן אירועי Webhook</h2>
+    <div class="view-toggle" role="tablist" aria-label="תצוגה">
+      <button id="vw-pairs"  class="active" onclick="setViewMode('pairs')" title="עסקה אחת בשורה (entry→exit מאוחדים)">📊 עסקאות</button>
+      <button id="vw-events" onclick="setViewMode('events')" title="כל אירוע (webhook) בשורה משלו — לדיבאג">📋 רשומות גולמיות</button>
+    </div>
     <span class="count" id="row-count">0 שורות</span>
   </div>
 
@@ -296,6 +322,164 @@ const PAGE_SIZE = 50;
 const TZ = "Asia/Jerusalem";
 
 let STATE = { raw: null, filtered: [], page: 0 };
+
+// ============== View mode (pairs vs raw events) ==============
+const VIEW_MODE_KEY = "lauren_journal_view_mode";
+let VIEW_MODE = localStorage.getItem(VIEW_MODE_KEY) || "pairs";
+
+function setViewMode(mode){
+  VIEW_MODE = (mode === "events") ? "events" : "pairs";
+  localStorage.setItem(VIEW_MODE_KEY, VIEW_MODE);
+  document.getElementById("vw-pairs").classList.toggle("active", VIEW_MODE === "pairs");
+  document.getElementById("vw-events").classList.toggle("active", VIEW_MODE === "events");
+  applyFilters();
+}
+
+// Pair builder — walks chronological events, matches entries to exits.
+// Output: array of { entry: event|null, exit: event|null, reason: 'TP'|'SL'|'SWAP'|'OPEN'|'ORPHAN_EXIT' }
+function buildTradePairs(events){
+  const sorted = events.slice().sort(function(a, b){
+    const ta = new Date(a._received_at || a.time || 0).getTime() || 0;
+    const tb = new Date(b._received_at || b.time || 0).getTime() || 0;
+    return ta - tb;  // oldest first for walking state
+  });
+  const pairs = [];
+  let open = null;
+  for (let i = 0; i < sorted.length; i++){
+    const t = sorted[i];
+    const type = String(t.type || "").toUpperCase().trim();
+    const isLong = (type === "LONG");
+    const isShort = (type === "SHORT");
+    const isSwapLong = (type === "SWAP LONG");
+    const isSwapShort = (type === "SWAP SHORT");
+    const isExit = (type.indexOf("EXIT") === 0);
+
+    if (isLong || isShort){
+      if (open) pairs.push({ entry: open, exit: null, reason: "OPEN" });
+      open = t;
+    } else if (isSwapLong || isSwapShort){
+      if (open) {
+        pairs.push({ entry: open, exit: t, reason: "SWAP" });
+      }
+      open = t;
+    } else if (isExit){
+      const reason = type.indexOf("TP") >= 0 ? "TP"
+                   : type.indexOf("SL") >= 0 ? "SL"
+                   : type.indexOf("SWAP") >= 0 ? "SWAP" : "EXIT";
+      if (open){
+        pairs.push({ entry: open, exit: t, reason });
+        open = null;
+      } else {
+        pairs.push({ entry: null, exit: t, reason: "ORPHAN_EXIT" });
+      }
+    }
+  }
+  if (open) pairs.push({ entry: open, exit: null, reason: "OPEN" });
+  return pairs;
+}
+
+function dirOfEvent(t){
+  if (!t) return "?";
+  const tp = String(t.type || "").toUpperCase();
+  if (tp === "LONG" || tp === "SWAP LONG" || tp.indexOf("EXIT LONG") === 0) return "LONG";
+  if (tp === "SHORT" || tp === "SWAP SHORT" || tp.indexOf("EXIT SHORT") === 0) return "SHORT";
+  return "?";
+}
+
+function reasonBadge(reason){
+  if (reason === "TP") return '<span class="reason-bdg r-tp">🎯 TP</span>';
+  if (reason === "SL") return '<span class="reason-bdg r-sl">🛑 SL</span>';
+  if (reason === "SWAP") return '<span class="reason-bdg r-swap">🔄 SWAP</span>';
+  if (reason === "OPEN") return '<span class="reason-bdg r-open">⏳ OPEN</span>';
+  if (reason === "ORPHAN_EXIT") return '<span class="reason-bdg r-orphan">❓ EXIT only</span>';
+  return '<span class="reason-bdg r-orphan">'+reason+'</span>';
+}
+
+// Render trades-paired view — one row per logical trade
+function renderPairsView(filteredEvents){
+  const tbody = document.getElementById("tbody");
+  const pairs = buildTradePairs(filteredEvents);
+  // Display newest first
+  pairs.reverse();
+  const total = pairs.length;
+  document.getElementById("row-count").textContent = total + ' עסקאות';
+
+  if (total === 0){
+    tbody.innerHTML = '<tr><td colspan="11" class="empty"><div class="ico">🔍</div><h2>אין עסקאות בסינון הנוכחי</h2></td></tr>';
+    document.getElementById("pager").style.display = "none";
+    return;
+  }
+  const pages = Math.ceil(total / PAGE_SIZE);
+  if (STATE.page >= pages) STATE.page = pages - 1;
+  if (STATE.page < 0) STATE.page = 0;
+  const start = STATE.page * PAGE_SIZE;
+  const slice = pairs.slice(start, start + PAGE_SIZE);
+
+  tbody.innerHTML = slice.map(function(p){
+    const entry = p.entry, exit = p.exit;
+    const refE = entry || exit;
+    const refX = exit || entry;
+    const tmInE = fmtTimeIL(refE._received_at || refE.time);
+    const tmLaE = fmtTimeLA(refE._received_at || refE.time);
+    const hasExit = !!exit && !!entry;  // both sides → show exit time too
+    const tmInX = exit ? fmtTimeIL(exit._received_at || exit.time) : null;
+    const tmLaX = exit ? fmtTimeLA(exit._received_at || exit.time) : null;
+
+    const dir = dirOfEvent(entry || exit);
+    const dirBadge = dir === "LONG" ? '<span class="bdg" style="background:#dcfce7;color:#15803d">LONG ▲</span>'
+                   : dir === "SHORT" ? '<span class="bdg" style="background:#fee2e2;color:#b91c1c">SHORT ▼</span>'
+                   : '<span class="bdg">?</span>';
+
+    const entryPx = entry ? entry.price : (exit && exit.entry_price);
+    const exitPx  = exit ? exit.price : null;
+    const rt = exit ? Number(exit.result_ticks) : NaN;
+    const rd = exit ? Number(exit.result_dollars) : NaN;
+    const ticksCls = !isNaN(rt) ? (rt > 0 ? "pos" : rt < 0 ? "neg" : "muted") : "muted";
+    const dollarsCls = !isNaN(rd) ? (rd > 0 ? "pos" : rd < 0 ? "neg" : "muted") : "muted";
+
+    const cls = "pair-row " +
+      (p.reason === "TP" ? "is-tp" :
+       p.reason === "SL" ? "is-sl" :
+       p.reason === "SWAP" ? "is-swap" :
+       p.reason === "OPEN" ? "is-open" : "is-orphan");
+
+    // Edit handles: pencil opens entry-event; if no entry, opens exit
+    const editTargetIdx = STATE.raw.trades.indexOf(entry || exit);
+    const editExitIdx   = exit ? STATE.raw.trades.indexOf(exit) : -1;
+    const editButtons = '<button class="edit-btn" title="ערוך כניסה" onclick="openTradeModal(' + editTargetIdx + ')">✏️</button>' +
+      (exit && entry ? '<button class="edit-btn" title="ערוך יציאה" style="margin-right:4px" onclick="openTradeModal(' + editExitIdx + ')">✏️↓</button>' : '');
+
+    let timeCell = '<td class="cell-pair-time"><div class="d">' + tmInE.d + '</div><div class="t">' + tmInE.t + '</div>';
+    if (hasExit && tmInX) timeCell += '<div class="exit-t">' + tmInX.t + '</div>';
+    timeCell += '</td>';
+    let timeCellLA = '<td class="cell-pair-time"><div class="d">' + tmLaE.d + '</div><div class="t">' + tmLaE.t + '</div>';
+    if (hasExit && tmLaX) timeCellLA += '<div class="exit-t">' + tmLaX.t + '</div>';
+    timeCellLA += '</td>';
+
+    return '<tr class="' + cls + '">'
+      + timeCell + timeCellLA
+      + '<td><b>' + (refE.ticker || "—") + '</b></td>'
+      + '<td>' + dirBadge + '</td>'
+      + '<td>' + reasonBadge(p.reason) + '</td>'
+      + '<td class="num">' + ((entry || exit).quantity != null ? (entry || exit).quantity : "—") + '</td>'
+      + '<td class="num">' + fmtPrice(entryPx) + '</td>'
+      + '<td class="num">' + (exitPx != null ? fmtPrice(exitPx) : "—") + '</td>'
+      + '<td class="num ' + ticksCls + '">' + (!isNaN(rt) ? fmtTicks(rt) : "—") + '</td>'
+      + '<td class="num ' + dollarsCls + '">' + (!isNaN(rd) ? fmtMoney(rd) : "—") + '</td>'
+      + '<td>' + editButtons + '</td>'
+      + '</tr>';
+  }).join("");
+
+  const pager = document.getElementById("pager");
+  if (pages > 1){
+    pager.style.display = "flex";
+    document.getElementById("pg-prev").disabled = (STATE.page === 0);
+    document.getElementById("pg-next").disabled = (STATE.page >= pages - 1);
+    document.getElementById("pg-info").textContent = 'עמוד ' + (STATE.page + 1) + ' מתוך ' + pages + ' · מציג ' + (start + 1) + '–' + Math.min(start + PAGE_SIZE, total) + ' מתוך ' + total;
+  } else {
+    pager.style.display = "none";
+  }
+}
 
 // ============== Auto-Trader status + kill-switch ==============
 const AT_URL = "../autotrade_enabled.json";
@@ -629,6 +813,12 @@ function renderTable(){
     document.getElementById("pager").style.display = "none";
     return;
   }
+  // Delegate to the right view renderer
+  if (VIEW_MODE === "pairs"){
+    renderPairsView(STATE.filtered);
+    return;
+  }
+  // (events mode — original raw-event rendering follows)
   const sorted = STATE.filtered.slice().sort((a,b) => {
     const ta = new Date(a.time || a._received_at || 0).getTime() || 0;
     const tb = new Date(b.time || b._received_at || 0).getTime() || 0;
@@ -792,6 +982,9 @@ window.addEventListener("DOMContentLoaded", () => {
   ["f-from","f-to","f-type","f-danger","f-ticker"].forEach(id => {
     document.getElementById(id).addEventListener("change", applyFilters);
   });
+  // Initialize view toggle state
+  document.getElementById("vw-pairs").classList.toggle("active", VIEW_MODE === "pairs");
+  document.getElementById("vw-events").classList.toggle("active", VIEW_MODE === "events");
   loadData(true);
   loadAutoTraderStatus();
   // אין רענון אוטומטי תקופתי — הדף נשען על הכפתור 🔄 רענן
