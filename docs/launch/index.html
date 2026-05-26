@@ -428,6 +428,7 @@
   .btn-inventory-row{background:linear-gradient(180deg,#d97706,#92400e)} /* brown-gold per Lauren's spec — flips green via .done */
   .btn-qrlp-row{background:linear-gradient(180deg,#1f2937,#0f172a)} /* QR LP — black, flips green via .done when the public QR landing page (themakeupblowoutsale-group.com) currently points to this event. Lauren 2026-05-20. */
   .btn-recount-row{background:linear-gradient(180deg,#7c3aed,#5b21b6)} /* purple per recount landing accent — flips green via .done */
+  .btn-summary-row{background:linear-gradient(180deg,#0891b2,#0e7490)} /* teal — post-event summary dashboard */
   .btn-fbevent-row{background:linear-gradient(180deg,#000000,#1c1e21)} /* Facebook Event — black per Lauren's spec 2026-05-23, flips green via .done when @fbevent has created the FB event */
   /* 'needs-summary' — past event without a published summary yet (call-to-action,
      Lauren 2026-05-05: 'הפעילות הכי חשובה לעשות כשאירוע נגמר'). Pulsing
@@ -2281,6 +2282,20 @@ End date: </div>
             rowBtn += '<a class="btn-agent-row btn-recount-row" href="../recount/?' + recParams + '" target="_blank" rel="noopener" title="פתחי רשימת ספירה לאירוע — חלון: שישי-ראשון של האירוע">🔢 Recount</a>';
           }
 
+          // 📊 Post-event Summary — full 6-tab review dashboard (added 2026-05-26)
+          // Owner: event-summary-build. Schema: EVENT_SUMMARY_INDEX[evKey] = {generated_at, stats:{counted_count, top_sellers_count, ...}}
+          // Run state: opens /event-summary/?evkey=... — shows empty state if no data yet.
+          // Done state: when summary JSON exists, button flips teal (cyan) showing #counted + revenue.
+          const evsum = (typeof EVENT_SUMMARY_INDEX !== "undefined") ? EVENT_SUMMARY_INDEX[evKey] : null;
+          if (evsum && evsum.stats) {
+            const cnts = evsum.stats;
+            const revenue = cnts.total_revenue ? "$" + Math.round(cnts.total_revenue).toLocaleString() : "";
+            const sumTip = "סיכום פוסט-אירוע · " + (cnts.counted_count||0) + " נספרו · " + (cnts.unique_products_sold||0) + " מוצרים נמכרו · " + revenue + " · עודכן " + (evsum.generated_at||"").slice(0,10);
+            rowBtn += '<a class="btn-agent-row btn-summary-row done" href="../event-summary/?evkey=' + evKey + '" target="_blank" rel="noopener" title="' + escapeHtml(sumTip) + '">📊 פוסט: ' + (cnts.counted_count||0) + (revenue ? " · " + revenue : "") + '</a>';
+          } else {
+            rowBtn += '<a class="btn-agent-row btn-summary-row" href="../event-summary/?evkey=' + evKey + '" target="_blank" rel="noopener" title="פתחי סיכום פוסט-אירוע: נספרו, לא נספרו, מינוס, לא זזו, הכי נמכרו, ללא Threshold">📊 פוסט-אירוע</a>';
+          }
+
           // 📘 Facebook Event — per-event public FB Page event (added 2026-05-23)
           // Owner: facebook-event. Schema: FB_EVENTS[evKey] = { fb_url, fb_event_id, created_at, image_source, status }
           // Run state: opens /facebook-events/?... pre-filled with this event so @fbevent can create on facebook.com/events/create/.
@@ -3689,7 +3704,18 @@ End date: </div>
     .then(data => { FB_EVENT_STATS = data; if (data) renderSchedule(); })
     .catch(() => { /* fail-silent — stats card simply doesn't appear */ });
 
-  // Lauren 2026-05-21 PM — load OCTOPOS_RECOUNT dynamically so 🔢 Recount turns
+  // Lauren 2026-05-26 — load EVENT_SUMMARY_INDEX dynamically so 📊 פוסט-אירוע turns green
+// for events that have a built summary, with #counted + revenue in the label.
+let EVENT_SUMMARY_INDEX = {};
+(async () => {
+  try {
+    const r = await fetch("../state/event_summary/_index.json?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok) EVENT_SUMMARY_INDEX = await r.json();
+  } catch(e) { console.warn("EVENT_SUMMARY_INDEX load failed", e); }
+  if (typeof renderSchedule === "function") renderSchedule();
+})();
+
+// Lauren 2026-05-21 PM — load OCTOPOS_RECOUNT dynamically so 🔢 Recount turns
   // green the moment recount_prebuild.py writes a slice (Thursday cron pre-event
   // OR recount_weekend.py post-event). Replaces the previous static map.
   fetch("../state/octopos_recount.json?_=" + Date.now(), { cache: "no-store" })
