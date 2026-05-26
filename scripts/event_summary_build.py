@@ -179,7 +179,7 @@ def load_worklist(evkey):
     return ((d.get("events") or {}).get(evkey) or {}).get("worklist") or []
 
 
-def build_counted(rows, snapshot):
+def build_counted(rows, snapshot, sales=None):
     by_pid = {}
     for r in rows:
         try: pid = int(r["product_id"])
@@ -204,6 +204,10 @@ def build_counted(rows, snapshot):
         cats = snap.get("categories") or []
         rec["categories"] = [{"id": c.get("id"), "name": c.get("name")} for c in cats if c.get("id")]
         rec["has_recount_tag"] = any((c.get("name") or "").strip().lower() == "recount" for c in cats)
+        # Per Lauren 2026-05-26 v2: units sold at this event (from sales API)
+        s = (sales or {}).get(pid) or {}
+        rec["units_sold_at_event"] = s.get("units_sold") or 0
+        rec["revenue_at_event"] = s.get("revenue") or 0
         out.append(rec)
     out.sort(key=lambda x: abs(x["delta_total"]), reverse=True)
     return out
@@ -301,7 +305,7 @@ def build_for_event(ev):
     recount_rows = fetch_recount_rows(jwt, start, end)
     sales = fetch_sales_by_vendor_product(jwt, start, end)
 
-    counted = build_counted(recount_rows, snapshot)
+    counted = build_counted(recount_rows, snapshot, sales)
     counted_pids = {c["product_id"] for c in counted}
     missed = build_missed(worklist, counted_pids, snapshot)
     negatives = build_negatives(snapshot)
