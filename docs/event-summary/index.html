@@ -36,7 +36,8 @@ header .subtitle { opacity: 0.92; font-size: 13px; }
 .stat-card .value { font-size: 18px; font-weight: 700; color: var(--primary); }
 
 .tabs { display: flex; gap: 4px; padding: 0 20px; background: #fff;
-  border-bottom: 1px solid var(--border); overflow-x: auto; }
+  border-bottom: 1px solid var(--border); overflow-x: auto;
+  position: sticky; top: 64px; z-index: 40; }
 .tab { background: none; border: none; padding: 10px 14px; cursor: pointer; font-size: 13px;
   font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap;
   font-family: inherit; }
@@ -61,7 +62,8 @@ table.data { width: 100%; border-collapse: collapse; background: #fff;
   border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 table.data th { background: #f9fafb; padding: 10px 12px; text-align: right; font-weight: 600;
   color: var(--muted); font-size: 12px; text-transform: uppercase; border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; cursor: pointer; user-select: none; }
+  position: sticky; top: 110px; z-index: 30; cursor: pointer; user-select: none;
+  box-shadow: 0 1px 0 var(--border); }
 table.data th:hover { background: #f3f4f6; }
 table.data th .sort-arrow { font-size: 9px; color: var(--primary); margin-right: 3px; }
 table.data td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; }
@@ -115,8 +117,9 @@ table.data td.num { text-align: left; font-variant-numeric: tabular-nums; font-w
 
 @media (max-width: 700px) {
   .controls { padding: 10px; }
-  .tabs { padding: 0 4px; }
+  .tabs { padding: 0 4px; top: 56px; }
   .tab { padding: 8px 10px; font-size: 12px; }
+  table.data th { top: 96px; }
   .tab-content { padding: 8px; }
   .stat-card { min-width: 90px; padding: 6px 10px; }
   .stat-card .value { font-size: 14px; }
@@ -360,7 +363,7 @@ function renderCounted(){
       <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
       <td class="num ${dCls}" title="הספירה גילתה את ההפרש הזה לעומת מה שהמערכת חשבה לפני הספירה">${dStr}</td>
       <td class="num">${units > 0 ? '<strong>'+fmt(units)+'</strong>' : '<span style="color:var(--muted)">0</span>'}</td>
-      <td class="num">${renderStockPill(r.current_stock)}</td>
+      <td class="num">${renderStockEditCell(r)}</td>
       <td class="num">${(r.threshold === null || r.threshold === undefined || r.threshold === 0) ? '<span class="pill warning" title="אין Threshold מוגדר">—</span>' : fmt(r.threshold)}</td>
       <td>${renderRecountTagCell(r)}</td>
     </tr>`;
@@ -371,6 +374,96 @@ function renderCounted(){
   $('#tabContent').querySelectorAll('.recount-remove-btn').forEach(btn => {
     btn.onclick = () => removeRecountTag(btn.dataset.pid, btn);
   });
+  wireStockEditHandlers();
+}
+
+// ─── Stock editor (per Lauren 2026-05-26): inline edit + איפוס quick-fix ─
+function renderStockEditCell(r){
+  const pid = r.product_id;
+  const stockHtml = renderStockPill(r.current_stock);
+  return `<div class="stock-cell" data-pid="${pid}">
+    <div class="stock-view" style="display:flex;gap:4px;align-items:center;justify-content:flex-end">
+      ${stockHtml}
+      <button class="stock-edit-btn" data-pid="${pid}" title="ערוך מלאי" style="background:#e5e7eb;border:none;border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px">✏️</button>
+    </div>
+    <div class="stock-edit" style="display:none;gap:4px;align-items:center;justify-content:flex-end">
+      <input type="number" class="stock-input" data-pid="${pid}" value="${r.current_stock ?? 0}" style="width:60px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:13px;text-align:center;font-weight:600">
+      <button class="stock-zero-btn" data-pid="${pid}" title="אפס ל-0" style="background:var(--warning-light);color:var(--warning);border:1px solid var(--warning);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:11px;font-weight:700">0️⃣ איפוס</button>
+      <button class="stock-save-btn" data-pid="${pid}" style="background:var(--success);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px;font-weight:700">✓ שמור</button>
+      <button class="stock-cancel-btn" data-pid="${pid}" style="background:#f3f4f6;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;font-size:11px">✗</button>
+    </div>
+  </div>`;
+}
+
+function wireStockEditHandlers(){
+  $('#tabContent').querySelectorAll('.stock-edit-btn').forEach(b=>{
+    b.onclick = () => {
+      const cell = b.closest('.stock-cell');
+      cell.querySelector('.stock-view').style.display = 'none';
+      cell.querySelector('.stock-edit').style.display = 'flex';
+      cell.querySelector('.stock-input').focus();
+      cell.querySelector('.stock-input').select();
+    };
+  });
+  $('#tabContent').querySelectorAll('.stock-cancel-btn').forEach(b=>{
+    b.onclick = () => {
+      const cell = b.closest('.stock-cell');
+      cell.querySelector('.stock-view').style.display = 'flex';
+      cell.querySelector('.stock-edit').style.display = 'none';
+    };
+  });
+  $('#tabContent').querySelectorAll('.stock-zero-btn').forEach(b=>{
+    b.onclick = () => {
+      const cell = b.closest('.stock-cell');
+      cell.querySelector('.stock-input').value = 0;
+      cell.querySelector('.stock-save-btn').click();
+    };
+  });
+  $('#tabContent').querySelectorAll('.stock-save-btn').forEach(b=>{
+    b.onclick = () => saveStockToOctopus(b.dataset.pid, b);
+  });
+}
+
+async function saveStockToOctopus(pid, btn){
+  const pidNum = parseInt(pid);
+  const cell = btn.closest('.stock-cell');
+  const input = cell.querySelector('.stock-input');
+  const newQ = parseFloat(input.value);
+  if (isNaN(newQ)){ toast('⚠ מספר לא חוקי', 'error'); return; }
+  const row = SUMMARY.tabs.counted_at_event.find(x => x.product_id === pidNum);
+  if (!row){ toast('⚠ מוצר לא נמצא', 'error'); return; }
+  const oldQ = row.current_stock;
+
+  let token = (localStorage.getItem('lauren_octopos_token') || '').trim();
+  if (!token){
+    token = prompt('הזיני את ה-OCTOPOS token (נשמר מקומית במכשיר):');
+    if (!token) return;
+    localStorage.setItem('lauren_octopos_token', token.trim());
+  }
+  if (!confirm(`לעדכן מלאי של "${row.name}" מ-${oldQ} ל-${newQ}?\n(נשמר ב-OCTOPOS וב-GitHub)`)) return;
+
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch('https://themakeup.octoretail.com/api/v2/products/' + pid, {
+      method: 'PUT',
+      headers: {'Authorization': token, 'Content-Type':'application/json', 'Accept':'application/json'},
+      body: JSON.stringify({'in_stock_qty': newQ})
+    });
+    if (r.status === 401){
+      localStorage.removeItem('lauren_octopos_token');
+      throw new Error('Token לא חוקי — נמחק. הזיני מחדש.');
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    row.current_stock = newQ;
+    row.stock_edited_at = new Date().toISOString();
+    toast('✓ מלאי עודכן ב-OCTOPOS: ' + newQ, 'success');
+    const ok = await saveEventSummaryToGithub();
+    toast(ok ? '✓ נשמר גם ב-GitHub' : '⚠ נשמר ב-OCTOPOS, GitHub-sync נכשל', ok ? 'success' : 'info');
+    renderTabContent();
+  } catch(e){
+    toast('⚠ נכשל: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '✓ שמור';
+  }
 }
 
 // ─── Current-stock pill (makes the actual stock number visually distinct from the delta) ──
