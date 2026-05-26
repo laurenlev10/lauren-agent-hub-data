@@ -8441,11 +8441,21 @@ function openCompareInvoiceModal(supplierCode, supplierName){
               delete supAP._pending_invoice.actual_paid_usd;
             } else {
               supAP._pending_invoice.actual_paid_usd = Number(rawV);
+              // Lauren 2026-05-26 PM: also write the override directly on the supplier
+              // slice so the pill behind the modal reflects it even before the next
+              // computeInvoiceTotalsAndApply tick.
+              supAP.invoice_total_usd = Number(rawV);
             }
             // Push into the supplier-row pill / global subtotal: invoice_total_usd is the
             // value displayed on the dashboard's supplier row. Override with the user
             // value if set; restore to computed if cleared.
             try { computeInvoiceTotalsAndApply(); } catch(_){}
+            // Lauren 2026-05-26 PM: explicitly re-render the supplier rows so the pill
+            // on the dashboard behind the modal updates to the new total — without this
+            // the cached HTML keeps showing the old $2,570.40 even though state is right.
+            try { if (typeof renderSuppliersWithBindings === 'function') renderSuppliersWithBindings(); } catch(_){}
+            try { if (typeof renderReceiveList === 'function') renderReceiveList(); } catch(_){}
+            try { if (typeof renderGlobalSuppliers === 'function') renderGlobalSuppliers(); } catch(_){}
             if (typeof scheduleSave === 'function') scheduleSave();
           }
         } catch(_){}
@@ -8551,6 +8561,49 @@ function openCompareInvoiceModal(supplierCode, supplierName){
         try { renderCompareDiff(); } catch(_){}
         return;
       }
+      // 💰 Toggle "this row is shipping" — Lauren 2026-05-26 PM. Auto-detected via the
+      // shipping regex on render; this button lets her flip it both ways:
+      //  • If auto-detected as shipping but actually IS a product → set not_shipping:true
+      //  • If not auto-detected but actually IS shipping (regex miss) → set is_shipping:true
+      // The row's amount is then included/excluded from the supplier's shipping_cost_usd
+      // automatically the next time computeInvoiceTotalsAndApply runs.
+      var shipBtnE = ev.target.closest('[data-action="toggle-shipping"]');
+      if (shipBtnE) {
+        ev.preventDefault(); ev.stopPropagation();
+        var riS = Number(shipBtnE.dataset.ri);
+        if (!CMP_CTX.line_edits) CMP_CTX.line_edits = {};
+        if (!CMP_CTX.line_edits[riS]) CMP_CTX.line_edits[riS] = {};
+        var ovS3 = CMP_CTX.line_edits[riS];
+        var rowS = (CMP_CTX._lastRows || [])[riS];
+        var nameS = rowS && rowS.inv ? (rowS.inv.name || '') : '';
+        var skuS  = rowS && rowS.inv ? (rowS.inv.sku  || '') : '';
+        var _shipNamesRe3 = /\b(shipping|shipment|freight|delivery|carriage|handling|postage|fuel\s*surcharge|משלוח|הובלה|ups|u\.p\.s|fedex|fed[\s\-]?ex|usps|u\.s\.p\.s|dhl|ontrac|lasership|laser\s*ship)\b/i;
+        var autoMatch = _shipNamesRe3.test(nameS) || _shipNamesRe3.test(skuS);
+        var currentlyOn = (ovS3.is_shipping === true) || (autoMatch && ovS3.not_shipping !== true);
+        if (currentlyOn) {
+          // Turning OFF — clear is_shipping, set not_shipping to override any auto match.
+          delete ovS3.is_shipping;
+          ovS3.not_shipping = true;
+          // Also un-exclude / un-skip-create — Lauren wants this back as a product.
+          delete ovS3.add_to_system;  // restore default
+        } else {
+          ovS3.is_shipping = true;
+          delete ovS3.not_shipping;
+          // Don't create as a new OCTOPOS product — it's just a shipping fee row.
+          ovS3.add_to_system = false;
+        }
+        try {
+          var supSh = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+          if (supSh && supSh._pending_invoice) {
+            supSh._pending_invoice.line_edits = CMP_CTX.line_edits;
+            if (typeof scheduleSave === 'function') scheduleSave();
+          }
+        } catch(_){}
+        try { computeInvoiceTotalsAndApply(); } catch(_){}
+        try { renderCompareDiff(); } catch(_){}
+        try { toast(currentlyOn ? 'בוטל — לא משלוח' : '💰 סומן כעלות משלוח', ''); } catch(_){}
+        return;
+      }
       // ✕ Remove a parser-detected row from the comparison. Lauren 2026-05-26 PM.
       // Sets _removed:true on the underlying invoice line (preserving array indices)
       // so renderCompareDiff + confirmInvoiceCompared + total calc all skip it.
@@ -8644,9 +8697,56 @@ function openAddProductForm(){
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:10010;padding:30px';
   var card = document.createElement('div');
   card.style.cssText = 'background:#fff;border-radius:14px;max-width:520px;width:100%;padding:20px;direction:rtl;box-shadow:0 30px 80px rgba(0,0,0,.5)';
+  // Lauren 2026-05-26 PM: build a picker of existing OCTOPOS products for this supplier
+  // that AREN'T already in the comparison table — so Lauren can select one instead of
+  // re-typing a name/SKU that already exists. Selecting a product auto-fills the form.
+  var _existingForPicker = [];
+  try {
+    var _sup = (OCTOPOS && OCTOPOS.vendors && OCTOPOS.vendors[CMP_CTX.supplier_code]) || null;
+    if (_sup) {
+      var _allP = (_sup.products || []).concat(_sup.inactive_products || []);
+      // Build a set of SKUs already present in the comparison (expected + invoice_lines).
+      var _inUseSku = {};
+      (CMP_CTX.expected || []).forEach(function(e){ if (e.sku) _inUseSku[String(e.sku).toUpperCase().trim()] = true; });
+      (CMP_CTX.invoice_lines || []).forEach(function(L){ if (L && L.sku && !L._removed) _inUseSku[String(L.sku).toUpperCase().trim()] = true; });
+      _allP.forEach(function(p){
+        if (!p) return;
+        var skuU = (p.sku || '').toString().toUpperCase().trim();
+        if (skuU && _inUseSku[skuU]) return;
+        _existingForPicker.push({
+          id: p.id,
+          sku: p.sku || '',
+          name: p.name || '',
+          cost: Number(p.unit_cost || p.cost || 0),
+          stock: Number(p.in_stock_qty || 0),
+          inactive: (_sup.inactive_products || []).indexOf(p) >= 0
+        });
+      });
+      // Sort alphabetically by name, active products first
+      _existingForPicker.sort(function(a,b){
+        if (a.inactive !== b.inactive) return a.inactive ? 1 : -1;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+    }
+  } catch(_){}
+  var _pickerOptions = '<option value="">— בחרי מוצר קיים של הספק שלא נמצא ברשימה —</option>';
+  _existingForPicker.forEach(function(p, idx){
+    var label = (p.sku ? '[' + p.sku + '] ' : '') + p.name + (p.inactive ? ' (לא פעיל)' : '') + ' · עלות $' + p.cost.toFixed(2) + ' · במלאי ' + p.stock;
+    _pickerOptions += '<option value="' + idx + '">' + escHtml(label) + '</option>';
+  });
+
   card.innerHTML =
     '<h2 style="margin:0 0 4px;font-size:17px;color:#0f172a">＋ הוסף מוצר ידני</h2>' +
-    '<div style="color:var(--muted);font-size:12px;margin-bottom:12px">המוצר ייווסף כשורה חדשה בטבלת ההשוואה. אם יש לו SKU שתואם למוצר קיים ב-OCTOPOS — המלאי יעודכן; אחרת המוצר ייווצר ב-OCTOPOS בעת אישור.</div>' +
+    '<div style="color:var(--muted);font-size:12px;margin-bottom:12px">בחרי מוצר קיים של הספק מהרשימה (אם הוא לא נמצא בהשוואה הנוכחית) — או הקלידי שם/SKU חדש כדי ליצור מוצר חדש ב-OCTOPOS. הכמות והמחיר ישונו אוטומטית לפי מה שתבחרי.</div>' +
+    (_existingForPicker.length > 0
+      ? '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;margin-bottom:12px">' +
+          '<label style="display:flex;flex-direction:column;gap:5px;font-size:13px">' +
+            '<span style="color:#1e3a8a;font-weight:700">📦 בחרי מוצר קיים של הספק (' + _existingForPicker.length + ' זמינים):</span>' +
+            '<select id="addP_picker" style="padding:8px;border:1px solid #93c5fd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer">' + _pickerOptions + '</select>' +
+            '<span style="font-size:11px;color:#475569">בחירה תמלא אוטומטית את שם המוצר, SKU ועלות. תוכלי לעדכן ידנית אם צריך.</span>' +
+          '</label>' +
+        '</div>'
+      : '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#854d0e">⚠ אין מוצרים נוספים של הספק הזה ב-OCTOPOS שלא כבר בהשוואה. כתבי שם/SKU חדש כדי ליצור מוצר חדש.</div>') +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">' +
       '<label style="display:flex;flex-direction:column;gap:4px;grid-column:1/3"><span style="color:#475569">שם המוצר *</span><input type="text" id="addP_name" placeholder="לדוגמא: She Mascara Black" style="padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px"></label>' +
       '<label style="display:flex;flex-direction:column;gap:4px"><span style="color:#475569">SKU</span><input type="text" id="addP_sku" placeholder="MB12" style="padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;text-transform:uppercase"></label>' +
@@ -8658,9 +8758,35 @@ function openAddProductForm(){
       '<button type="button" id="addP_cancel" style="padding:9px 18px;background:#f1f5f9;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600">ביטול</button>' +
       '<button type="button" id="addP_ok" style="padding:9px 18px;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">＋ הוסף לטבלה</button>' +
     '</div>';
+  // Stash the picker list on the card so the change handler can use it
+  card._pickerList = _existingForPicker;
   bg.appendChild(card);
   document.body.appendChild(bg);
   setTimeout(function(){ var f = document.getElementById('addP_name'); if (f) f.focus(); }, 50);
+  // When Lauren picks a product from the dropdown, auto-fill name/SKU/cost.
+  var pickerEl = card.querySelector('#addP_picker');
+  if (pickerEl) {
+    pickerEl.addEventListener('change', function(){
+      var idx = Number(pickerEl.value);
+      if (isNaN(idx) || pickerEl.value === '') {
+        // Cleared selection — leave fields as-is (Lauren may have started typing already)
+        return;
+      }
+      var prod = (card._pickerList || [])[idx];
+      if (!prod) return;
+      var nameEl  = card.querySelector('#addP_name');
+      var skuEl   = card.querySelector('#addP_sku');
+      var priceEl = card.querySelector('#addP_price');
+      var qtyEl   = card.querySelector('#addP_qty');
+      if (nameEl)  nameEl.value  = prod.name || '';
+      if (skuEl)   skuEl.value   = prod.sku || '';
+      if (priceEl && (prod.cost > 0))  priceEl.value = Number(prod.cost).toFixed(2);
+      // Stash the OCTOPOS product_id on the card so confirm can plumb it through.
+      card._selectedProductId = prod.id || null;
+      // Focus qty since name/sku/cost are now filled
+      if (qtyEl) qtyEl.focus();
+    });
+  }
   bg.addEventListener('click', function(e){
     if (e.target === bg || e.target.id === 'addP_cancel') { bg.remove(); return; }
     if (e.target.id === 'addP_ok') {
@@ -8676,6 +8802,9 @@ function openAddProductForm(){
       // won't find a saved-order item, unless SKU happens to match — then it joins as match).
       if (!Array.isArray(CMP_CTX.invoice_lines)) CMP_CTX.invoice_lines = [];
       var newLine = { sku: sku, name: name, qty: qty, price: price, total: qty * price, _manual_add: true };
+      // If Lauren picked an existing product from the dropdown, carry its OCTOPOS product_id
+      // so confirmInvoiceCompared's lookup short-circuits to update stock on the right row.
+      if (card._selectedProductId) newLine._linked_product_id = card._selectedProductId;
       CMP_CTX.invoice_lines.push(newLine);
       // If a sale price was given, record it as an edit on the new row index.
       // The new ri will be at the END of _lastRows after re-render — we set it after render.
@@ -8820,9 +8949,21 @@ async function confirmInvoiceCompared(){
   }
 
   var actions = []; // each: {type, line, sku, productId, ...}
+  // Lauren 2026-05-26 PM: collect shipping rows here so we add them to shipping_cost_usd
+  // at the end (instead of treating them as products to create or stock to update).
+  var _shipNamesReConf = /\b(shipping|shipment|freight|delivery|carriage|handling|postage|fuel\s*surcharge|משלוח|הובלה|ups|u\.p\.s|fedex|fed[\s\-]?ex|usps|u\.s\.p\.s|dhl|ontrac|lasership|laser\s*ship)\b/i;
+  var _confShippingTotal = 0;
   invoice.forEach(function(L, i){
     var ov = edits[i] || {};
     if (ov.exclude_from_event) return; // skip excluded lines from system updates too
+    // Shipping row? Don't create as product / don't update stock. Add to shipping_cost.
+    var _autoShipConf = _shipNamesReConf.test((L && L.name) || '') || _shipNamesReConf.test((L && L.sku) || '');
+    var _isShipConf = (ov.is_shipping === true) || (_autoShipConf && ov.not_shipping !== true);
+    if (_isShipConf && L) {
+      var amtSh = Number(L.total || (L.qty * L.price) || 0);
+      if (amtSh > 0) _confShippingTotal += amtSh;
+      return; // do NOT continue into the matcher / stock / create code paths
+    }
     var addToSystem = (ov.add_to_system !== undefined) ? !!ov.add_to_system : true;
     var sku = (ov.sku !== undefined ? ov.sku : L.sku || '').trim();
     var name = (ov.name !== undefined ? ov.name : L.name || '').trim();
@@ -9239,6 +9380,24 @@ async function confirmInvoiceCompared(){
     });
     summary.create = keepResult.keepIdxs.length;
     log('✓ אישרת ' + keepResult.keepIdxs.length + ' מתוך ' + createList.length + ' מוצרים חדשים' + (persistedSkipCount > 0 ? ' (' + persistedSkipCount + ' נדחו ולא יוצעו שוב)' : ''));
+  }
+
+  // Lauren 2026-05-26 PM: if shipping rows were detected, push the sum into the
+  // supplier's shipping_cost_usd now (BEFORE the OCTOPOS API loop, so the dashboard
+  // shows the right number even if a later API call fails). The amount is ADDED, not
+  // replaced — repeated confirmations should not double-charge so guard with an idempotency
+  // marker keyed by a hash of the contributing line totals.
+  if (_confShippingTotal > 0) {
+    try {
+      var supSh2 = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[supplierCode] : null;
+      if (supSh2) {
+        // Use shipping_cost_usd directly (replace, not add) — Lauren expects to see the
+        // detected total reflected in the field, and re-running the confirm should not
+        // double it. The persisted invoice file is the single source-of-truth.
+        supSh2.shipping_cost_usd = Math.round(_confShippingTotal * 100) / 100;
+        if (typeof scheduleSave === 'function') scheduleSave();
+      }
+    } catch(_){}
   }
 
   // Show progress modal
@@ -9738,13 +9897,21 @@ function computeInvoiceTotalsAndApply(){
   try {
     // Heuristic: scan any 'name' in invoice_lines for shipping keywords; if found,
     // use its 'total' value as shipping. Common variants: shipping, freight, delivery, משלוח.
-    var SHIP_RE = /\b(shipping|shipment|freight|delivery|carriage|handling|משלוח|הובלה)\b/i;
-    lines.forEach(function(L){
-      if (SHIP_RE.test(L.name || '') || SHIP_RE.test(L.sku || '')) {
+    // Lauren 2026-05-26 PM: extended to include common US carriers (UPS, FedEx, USPS,
+    // DHL, OnTrac, LaserShip) — the SHE invoice had a "UPS" line that the previous
+    // regex didn't catch. Also honor the manual is_shipping line_edit flag.
+    var SHIP_RE = /\b(shipping|shipment|freight|delivery|carriage|handling|postage|fuel\s*surcharge|משלוח|הובלה|ups|u\.p\.s|fedex|fed[\s\-]?ex|usps|u\.s\.p\.s|dhl|ontrac|lasership|laser\s*ship)\b/i;
+    // Sum (not max) — a single invoice may have base shipping + fuel surcharge as separate rows.
+    var shipSum = 0;
+    lines.forEach(function(L, i){
+      var ovS = edits[i] || {};
+      var isShip = !!ovS.is_shipping || (!ovS.not_shipping && (SHIP_RE.test(L.name || '') || SHIP_RE.test(L.sku || '')));
+      if (isShip) {
         var amt = Number(L.total || L.price || 0);
-        if (amt > 0) shippingDetected = Math.max(shippingDetected, amt);
+        if (amt > 0) shipSum += amt;
       }
     });
+    if (shipSum > 0) shippingDetected = shipSum;
   } catch(_){}
 
   // Persist to STATE.events[evkey].suppliers[supplierCode]
@@ -9766,6 +9933,11 @@ function computeInvoiceTotalsAndApply(){
         if (shippingDetected > 0) supState.shipping_cost_usd = Math.round(shippingDetected * 100) / 100;
         // Use the normal autosave path so the change reaches GitHub
         if (typeof scheduleSave === 'function') scheduleSave();
+        // Lauren 2026-05-26 PM: also re-render the supplier rows so any pill watching
+        // invoice_total_usd / shipping_cost_usd refreshes immediately (the cached DOM
+        // otherwise keeps the stale value until Lauren navigates away and back).
+        try { if (typeof renderSuppliersWithBindings === 'function') renderSuppliersWithBindings(); } catch(_){}
+        try { if (typeof renderReceiveList === 'function') renderReceiveList(); } catch(_){}
       }
     }
   } catch(e){ console.warn('apply invoice totals failed:', e); }
@@ -9856,11 +10028,19 @@ function renderCompareDiff(){
 
   // Detected invoice totals (subtotal + shipping). Excluded lines don't count.
   // (Removed lines are already filtered out above.)
+  // Lauren 2026-05-26 PM: subtotal-rows that are tagged as shipping (auto OR manual)
+  // are excluded here — they get added to _shipping below instead.
+  function _riForInvoiceLine(L){
+    for (var _i = 0; _i < rows.length; _i++){ if (rows[_i].inv === L) return _i; }
+    return -1;
+  }
+  var _shipNamesReSubtot = /\b(shipping|shipment|freight|delivery|carriage|handling|postage|fuel\s*surcharge|משלוח|הובלה|ups|u\.p\.s|fedex|fed[\s\-]?ex|usps|u\.s\.p\.s|dhl|ontrac|lasership|laser\s*ship)\b/i;
   var _lineSubtotal = 0;
   var _excludedCount = 0;
   var _excludedSum = 0;
   invoice.forEach(function(L, i){
-    var ovT = (CMP_CTX.line_edits || {})[i] || {};
+    var riL = _riForInvoiceLine(L);
+    var ovT = (CMP_CTX.line_edits || {})[riL >= 0 ? riL : i] || {};
     var q = (ovT.qty !== undefined ? Number(ovT.qty) : Number(L.qty||0));
     var p = (ovT.price !== undefined ? Number(ovT.price) : Number(L.price||0));
     var t = Number(L.total||0);
@@ -9871,17 +10051,34 @@ function renderCompareDiff(){
       _excludedSum += (t > 0 ? t : 0);
       return;
     }
+    // Skip rows that are tagged as shipping (manual is_shipping=true OR auto via regex
+    // and not explicitly overridden via not_shipping=true). They feed _shipping below.
+    var _autoShip = _shipNamesReSubtot.test(L.name || '') || _shipNamesReSubtot.test(L.sku || '');
+    var _isShipRow = (ovT.is_shipping === true) || (_autoShip && ovT.not_shipping !== true);
+    if (_isShipRow) return;
     if (t > 0) _lineSubtotal += t;
   });
   var _shipping = 0;
+  // Map from invoice_line ref → row index ri (so we can read line_edits[ri].is_shipping
+  // from inside the invoice.forEach below — invoice is the post-_removed-filter slice
+  // whose own index differs from ri).
+  function _riOf(L){
+    for (var _i = 0; _i < rows.length; _i++){ if (rows[_i].inv === L) return _i; }
+    return -1;
+  }
   try {
-    var _SHIP_RE = /\b(shipping|shipment|freight|delivery|carriage|handling|משלוח|הובלה)\b/i;
-    invoice.forEach(function(L){
-      if (_SHIP_RE.test(L.name || '') || _SHIP_RE.test(L.sku || '')) {
+    // Lauren 2026-05-26 PM: extended carriers + manual is_shipping override + SUM not max.
+    var _SHIP_RE = /\b(shipping|shipment|freight|delivery|carriage|handling|postage|fuel\s*surcharge|משלוח|הובלה|ups|u\.p\.s|fedex|fed[\s\-]?ex|usps|u\.s\.p\.s|dhl|ontrac|lasership|laser\s*ship)\b/i;
+    var _shipSum = 0;
+    invoice.forEach(function(L, i){
+      var ovS2 = (CMP_CTX.line_edits || {})[_riOf(L) >= 0 ? _riOf(L) : i] || {};
+      var isShip2 = !!ovS2.is_shipping || (!ovS2.not_shipping && (_SHIP_RE.test(L.name || '') || _SHIP_RE.test(L.sku || '')));
+      if (isShip2) {
         var amt = Number(L.total || L.price || 0);
-        if (amt > 0) _shipping = Math.max(_shipping, amt);
+        if (amt > 0) _shipSum += amt;
       }
     });
+    _shipping = _shipSum;
   } catch(_){}
   var _grand = _lineSubtotal + _shipping;
   // Discrepancy detection — missing items + price mismatches
@@ -10200,11 +10397,22 @@ function renderCompareDiff(){
       var removeBtn = (r.status === 'extra')
         ? '<button type="button" data-action="remove-row" data-ri="'+ri+'" title="הסר את השורה הזו לפני העדכון" style="background:#fee2e2;border:1px solid #fca5a5;color:#991b1b;border-radius:4px;padding:2px 5px;cursor:pointer;font-size:11px;font-weight:700;margin-top:2px">✕</button>'
         : '';
-      html += '<tr class="'+r.status+'" data-ri="'+ri+'" style="'+rowStyle+'">' +
+      // Lauren 2026-05-26 PM: 💰 mark-as-shipping toggle. Auto-on if the regex matched
+      // OR Lauren explicitly set is_shipping. Available on 'extra' rows where shipping
+      // lines typically land (UPS, FedEx, USPS, DHL, OnTrac, LaserShip, fuel surcharge).
+      // Clicking moves the row out of the items-subtotal and into the shipping-cost,
+      // and stops the create-new-product flow from suggesting it.
+      var _shipNamesRe = /\b(shipping|shipment|freight|delivery|carriage|handling|postage|fuel\s*surcharge|משלוח|הובלה|ups|u\.p\.s|fedex|fed[\s\-]?ex|usps|u\.s\.p\.s|dhl|ontrac|lasership|laser\s*ship)\b/i;
+      var _shipAuto = _shipNamesRe.test(r.inv && (r.inv.name || '')) || _shipNamesRe.test(r.inv && (r.inv.sku || ''));
+      var _shipOn = (ov.is_shipping === true) || (_shipAuto && ov.not_shipping !== true);
+      var shipBtn = (r.status === 'extra')
+        ? '<button type="button" data-action="toggle-shipping" data-ri="'+ri+'" title="' + (_shipOn ? 'מסומן כעלות משלוח — לחיצה תבטל' : 'סמן כעלות משלוח (UPS / FedEx / etc.) — הסכום יעבור לשורת המשלוח') + '" style="background:' + (_shipOn ? '#dcfce7' : '#fef3c7') + ';border:1px solid ' + (_shipOn ? '#86efac' : '#fde68a') + ';color:' + (_shipOn ? '#166534' : '#a16207') + ';border-radius:4px;padding:2px 5px;cursor:pointer;font-size:11px;font-weight:700;margin-top:2px">💰' + (_shipOn ? '✓' : '') + '</button>'
+        : '';
+      html += '<tr class="'+r.status+'" data-ri="'+ri+'"' + (_shipOn ? ' data-is-shipping="1"' : '') + ' style="'+rowStyle + (_shipOn ? ';background:#f0fdf4' : '')+'">' +
         '<td style="text-align:center">' +
           '<div style="display:flex;flex-direction:column;align-items:center;gap:2px">' +
-            '<span style="font-size:14px">'+statusEmoji[r.status]+'</span>' +
-            linkBtn + linkBadge + removeBtn +
+            '<span style="font-size:14px">' + (_shipOn ? '💰' : statusEmoji[r.status]) + '</span>' +
+            linkBtn + linkBadge + shipBtn + removeBtn +
           '</div>' +
         '</td>' +
         '<td><input type="text" data-edit="name" data-ri="'+ri+'" value="'+escHtml(name)+'" style="'+inpBase+'"></td>' +
