@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📊 סיכום פוסט-אירוע</title>
+<style>
+:root {
+  --bg: #fafafa; --surface: #fff; --border: #e5e7eb; --text: #111827;
+  --muted: #6b7280; --primary: #7c3aed; --primary-light: #ede9fe;
+  --success: #16a34a; --success-light: #dcfce7;
+  --danger: #dc2626; --danger-light: #fee2e2;
+  --warning: #d97706; --warning-light: #fef3c7;
+  --info: #2563eb; --info-light: #dbeafe;
+}
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Heebo", Arial, sans-serif;
+  margin: 0; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+header { background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%); color: #fff;
+  padding: 16px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); position: sticky; top: 0; z-index: 50; }
+header h1 { margin: 0 0 4px 0; font-size: 20px; font-weight: 700; }
+header .subtitle { opacity: 0.92; font-size: 13px; }
+.controls { background: #fff; border-bottom: 1px solid var(--border); padding: 10px 20px;
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.controls label { font-weight: 600; color: var(--muted); }
+.controls select, .controls input[type="text"] {
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 14px; background: #fff; }
+.controls button { background: var(--primary); color: #fff; border: none; border-radius: 6px;
+  padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.controls button:hover { background: #6d28d9; }
+.stats-strip { display: flex; gap: 8px; padding: 12px 20px; background: #fff; border-bottom: 1px solid var(--border);
+  overflow-x: auto; }
+.stat-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 12px; min-width: 120px; flex-shrink: 0; }
+.stat-card .label { font-size: 11px; color: var(--muted); }
+.stat-card .value { font-size: 18px; font-weight: 700; color: var(--primary); }
+
+.tabs { display: flex; gap: 4px; padding: 0 20px; background: #fff;
+  border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tab { background: none; border: none; padding: 10px 14px; cursor: pointer; font-size: 13px;
+  font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap;
+  font-family: inherit; }
+.tab:hover { color: var(--text); background: #f3f4f6; }
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); background: var(--primary-light); }
+.tab .badge { display: inline-block; background: var(--primary); color: #fff; border-radius: 10px;
+  padding: 1px 7px; font-size: 11px; margin-right: 4px; font-weight: 700; }
+.tab.active .badge { background: #fff; color: var(--primary); }
+
+.tab-content { padding: 16px 20px; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+.tab-header { display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px; gap: 12px; flex-wrap: wrap; }
+.tab-header .title { font-size: 16px; font-weight: 700; color: var(--text); }
+.tab-header .description { color: var(--muted); font-size: 13px; }
+.search-box { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 13px; min-width: 200px; }
+
+table.data { width: 100%; border-collapse: collapse; background: #fff;
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+table.data th { background: #f9fafb; padding: 10px 12px; text-align: right; font-weight: 600;
+  color: var(--muted); font-size: 12px; text-transform: uppercase; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; cursor: pointer; user-select: none; }
+table.data th:hover { background: #f3f4f6; }
+table.data th .sort-arrow { font-size: 9px; color: var(--primary); margin-right: 3px; }
+table.data td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; }
+table.data tr:last-child td { border-bottom: none; }
+table.data tr:hover { background: #fafafa; }
+table.data td.num { text-align: left; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+.pill.danger { background: var(--danger-light); color: var(--danger); }
+.pill.warning { background: var(--warning-light); color: var(--warning); }
+.pill.success { background: var(--success-light); color: var(--success); }
+.pill.info { background: var(--info-light); color: var(--info); }
+.pill.muted { background: #f3f4f6; color: var(--muted); }
+
+.empty { text-align: center; padding: 40px 20px; color: var(--muted); }
+.empty .emoji { font-size: 40px; margin-bottom: 8px; }
+
+.thr-cell { display: flex; align-items: center; gap: 4px; }
+.thr-input { width: 70px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px;
+  font-size: 13px; font-weight: 600; text-align: center; }
+.thr-input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px var(--primary-light); }
+.thr-save-btn { background: var(--success); color: #fff; border: none; border-radius: 4px;
+  padding: 4px 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.thr-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.thr-save-btn.saved { background: var(--muted); }
+
+.toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 18px; border-radius: 8px;
+  font-weight: 600; color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000;
+  animation: slideIn 0.2s ease-out; max-width: 350px; }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); }
+.toast.info { background: var(--info); }
+@keyframes slideIn { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.token-banner { background: var(--warning-light); border: 1px solid var(--warning);
+  border-radius: 8px; padding: 12px 16px; margin: 12px 20px; color: #92400e; }
+.token-banner button { margin-right: 8px; background: var(--warning); color: #fff;
+  border: none; border-radius: 4px; padding: 6px 12px; font-weight: 600; cursor: pointer; }
+
+.product-name { font-weight: 600; }
+.product-sku { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.supplier-tag { display: inline-block; padding: 1px 6px; background: var(--info-light);
+  color: var(--info); border-radius: 4px; font-size: 11px; font-weight: 600; }
+.delta-cr { color: var(--success); font-weight: 700; }
+.delta-dr { color: var(--danger); font-weight: 700; }
+
+.loading { text-align: center; padding: 60px 20px; color: var(--muted); }
+.spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--primary-light);
+  border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; margin-bottom: 8px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 700px) {
+  .controls { padding: 10px; }
+  .tabs { padding: 0 4px; }
+  .tab { padding: 8px 10px; font-size: 12px; }
+  .tab-content { padding: 8px; }
+  .stat-card { min-width: 90px; padding: 6px 10px; }
+  .stat-card .value { font-size: 14px; }
+  table.data th, table.data td { padding: 6px 8px; font-size: 12px; }
+  .product-name { font-size: 13px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>📊 סיכום פוסט-אירוע</h1>
+  <div class="subtitle" id="subtitle">טוען...</div>
+</header>
+
+<div class="controls">
+  <label>אירוע:</label>
+  <select id="evPicker"></select>
+  <button onclick="location.reload()">🔄 רענן</button>
+  <span style="margin-right:auto;color:var(--muted);font-size:12px" id="genTime"></span>
+</div>
+
+<div id="tokenBanner" class="token-banner" style="display:none">
+  <strong>⚠ צריך OCTOPOS token לעריכת thresholds</strong> —
+  הזיני את ה-token: <button onclick="promptOctopusToken()">הוסיפי token</button>
+</div>
+
+<div class="stats-strip" id="statsStrip"></div>
+
+<div class="tabs" id="tabsBar"></div>
+
+<div class="tab-content" id="tabContent">
+  <div class="loading"><div class="spinner"></div><div>טוען נתוני האירוע...</div></div>
+</div>
+
+<script>
+// ─── State ──────────────────────────────────────────────────────────────
+const TABS = [
+  { id: 'counted_at_event',      label: '🧮 נספרו באירוע',          color: 'primary' },
+  { id: 'missed_from_worklist',  label: '⚠ לא נספרו (היו ברשימה)',  color: 'warning' },
+  { id: 'negatives',             label: '🔴 מינוס במלאי',           color: 'danger' },
+  { id: 'slow_movers',           label: '💤 לא זזו (מעל יחידה)',    color: 'muted' },
+  { id: 'top_sellers',           label: '🏆 הכי נמכרו',             color: 'success' },
+  { id: 'no_threshold',          label: '⚙️ ללא Threshold',         color: 'info' },
+];
+let SUMMARY = null;
+let ACTIVE_TAB = TABS[0].id;
+let SEARCH_TERM = '';
+let SORT_BY = {}; // {tabId: {field, dir}}
+let INDEX = {};
+
+// ─── Helpers ────────────────────────────────────────────────────────────
+function $(sel){ return document.querySelector(sel); }
+function fmt(n, decimals){
+  if (n === null || n === undefined || n === '') return '—';
+  const num = Number(n);
+  if (isNaN(num)) return n;
+  return num.toLocaleString('en-US', {minimumFractionDigits: decimals||0, maximumFractionDigits: decimals||0});
+}
+function escHtml(s){ return String(s||'').replace(/[<>&"]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c]); }
+function toast(msg, kind){
+  const t = document.createElement('div');
+  t.className = 'toast ' + (kind||'info');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=> t.remove(), 4000);
+}
+
+// ─── URL / param management ─────────────────────────────────────────────
+function getEvKeyFromUrl(){
+  const p = new URLSearchParams(location.search);
+  return p.get('evkey') || '';
+}
+function setEvKeyInUrl(k){
+  const p = new URLSearchParams(location.search);
+  p.set('evkey', k);
+  history.replaceState(null, '', location.pathname + '?' + p.toString());
+}
+
+// ─── Data loading ───────────────────────────────────────────────────────
+async function loadIndex(){
+  try {
+    const r = await fetch('../state/event_summary/_index.json?_=' + Date.now(), {cache:'no-store'});
+    if (r.ok) INDEX = await r.json();
+  } catch(e){ console.warn('index load failed', e); }
+}
+
+async function loadEvent(evkey){
+  $('#tabContent').innerHTML = '<div class="loading"><div class="spinner"></div><div>טוען...</div></div>';
+  try {
+    const r = await fetch('../state/event_summary/' + encodeURIComponent(evkey) + '.json?_=' + Date.now(),
+                          {cache:'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    SUMMARY = await r.json();
+    render();
+  } catch(e){
+    $('#tabContent').innerHTML = '<div class="empty"><div class="emoji">😶</div>'
+      + '<div>אין עוד סיכום לאירוע הזה (<code>' + evkey + '</code>).</div>'
+      + '<div style="margin-top:12px;font-size:12px">' + escHtml(e.message) + '</div></div>';
+    $('#subtitle').textContent = '—';
+    $('#statsStrip').innerHTML = '';
+    $('#tabsBar').innerHTML = '';
+  }
+}
+
+// ─── Renderers ──────────────────────────────────────────────────────────
+function renderSubtitle(){
+  if (!SUMMARY) return;
+  const e = SUMMARY.event;
+  const date = e.start_date + ' → ' + e.end_date;
+  $('#subtitle').textContent = `${e.city}, ${e.state} · ${date} · ${e.venue || ''}`;
+  if (SUMMARY.generated_at){
+    $('#genTime').textContent = 'עודכן ' + new Date(SUMMARY.generated_at).toLocaleString('he-IL');
+  }
+}
+
+function renderStatsStrip(){
+  if (!SUMMARY) return;
+  const s = SUMMARY.stats;
+  $('#statsStrip').innerHTML = `
+    <div class="stat-card"><div class="label">סה"כ הכנסה</div>
+      <div class="value">$${fmt(s.total_revenue, 2)}</div></div>
+    <div class="stat-card"><div class="label">יחידות נמכרו</div>
+      <div class="value">${fmt(s.total_units_sold)}</div></div>
+    <div class="stat-card"><div class="label">מוצרים שונים</div>
+      <div class="value">${fmt(s.unique_products_sold)}</div></div>
+    <div class="stat-card"><div class="label">נספרו</div>
+      <div class="value">${s.counted_count}</div></div>
+    <div class="stat-card"><div class="label">לא נספרו</div>
+      <div class="value">${s.missed_count}</div></div>
+    <div class="stat-card"><div class="label">במינוס</div>
+      <div class="value">${s.negatives_count}</div></div>
+  `;
+}
+
+function renderTabsBar(){
+  $('#tabsBar').innerHTML = TABS.map(t => {
+    const count = SUMMARY.tabs[t.id] ? SUMMARY.tabs[t.id].length : 0;
+    return `<button class="tab ${t.id===ACTIVE_TAB?'active':''}" data-tab="${t.id}">
+      <span class="badge">${count}</span>${t.label}</button>`;
+  }).join('');
+  $('#tabsBar').querySelectorAll('.tab').forEach(b=>{
+    b.onclick = () => { ACTIVE_TAB = b.dataset.tab; SEARCH_TERM = ''; renderTabContent(); renderTabsBar(); };
+  });
+}
+
+function getSortedFiltered(tabId){
+  let rows = SUMMARY.tabs[tabId] || [];
+  if (SEARCH_TERM){
+    const q = SEARCH_TERM.toLowerCase();
+    rows = rows.filter(r =>
+      (r.name || '').toLowerCase().includes(q) ||
+      (r.sku || '').toLowerCase().includes(q) ||
+      (r.supplier || '').toLowerCase().includes(q)
+    );
+  }
+  const sort = SORT_BY[tabId];
+  if (sort){
+    rows = rows.slice().sort((a,b)=>{
+      const av = a[sort.field], bv = b[sort.field];
+      if (av === bv) return 0;
+      if (av === null || av === undefined) return 1;
+      if (bv === null || bv === undefined) return -1;
+      const cmp = (typeof av === 'number' && typeof bv === 'number') ? av - bv : String(av).localeCompare(String(bv));
+      return sort.dir === 'desc' ? -cmp : cmp;
+    });
+  }
+  return rows;
+}
+
+function sortableHeader(field, label, tabId){
+  const s = SORT_BY[tabId];
+  const arrow = (s && s.field === field) ? (s.dir === 'desc' ? '▼' : '▲') : '';
+  return `<th data-field="${field}"><span class="sort-arrow">${arrow}</span>${escHtml(label)}</th>`;
+}
+
+function wireSortHandlers(tabId){
+  $('#tabContent').querySelectorAll('th[data-field]').forEach(th => {
+    th.onclick = () => {
+      const field = th.dataset.field;
+      const cur = SORT_BY[tabId];
+      if (cur && cur.field === field){
+        SORT_BY[tabId] = { field, dir: cur.dir === 'desc' ? 'asc' : 'desc' };
+      } else {
+        SORT_BY[tabId] = { field, dir: 'desc' };
+      }
+      renderTabContent();
+    };
+  });
+}
+
+function renderSearchAndCount(tabId, total, count){
+  const desc = {
+    counted_at_event: 'מוצרים שנספרו פיזית במהלך האירוע (מ-OCTOPOS get-recount-data)',
+    missed_from_worklist: 'מוצרים שהיו ברשימה לפני האירוע אבל לא נספרו — חשוב לחזור עליהם',
+    negatives: 'מוצרים שעכשיו במלאי שלילי — להוסיף לרשימת ספירה לאירוע הבא',
+    slow_movers: 'במלאי יותר מ-1 יחידה, לא נמכרו כלל באירוע הזה — לבדוק האם להוריד מחיר / להוציא',
+    top_sellers: 'מוצרים שנמכרו הכי הרבה באירוע (מסודר לפי יחידות)',
+    no_threshold: 'מוצרים פעילים בלי Threshold (ערך 0). ניתן לקבוע כאן ולשמור ישירות ב-OCTOPOS.',
+  }[tabId] || '';
+  return `<div class="tab-header">
+    <div>
+      <div class="title">${TABS.find(x=>x.id===tabId).label} <span style="color:var(--muted);font-weight:400">(${count}${count!==total?` מתוך ${total}`:''})</span></div>
+      <div class="description">${desc}</div>
+    </div>
+    <input type="text" class="search-box" placeholder="🔍 חיפוש לפי שם / SKU / ספק..." value="${escHtml(SEARCH_TERM)}" id="searchBox">
+  </div>`;
+}
+
+function wireSearch(){
+  const box = $('#searchBox');
+  if (box) box.oninput = (e)=>{ SEARCH_TERM = e.target.value; renderTabContent(); setTimeout(()=>$('#searchBox').focus(),0); };
+}
+
+// ─── Tab renderers ──────────────────────────────────────────────────────
+function renderCounted(){
+  const total = SUMMARY.tabs.counted_at_event.length;
+  const rows = getSortedFiltered('counted_at_event');
+  if (rows.length === 0){
+    $('#tabContent').innerHTML = renderSearchAndCount('counted_at_event', total, 0)
+      + '<div class="empty"><div class="emoji">📭</div><div>שום מוצר לא נספר באירוע הזה.</div></div>';
+    wireSearch(); return;
+  }
+  let html = renderSearchAndCount('counted_at_event', total, rows.length);
+  html += '<table class="data"><thead><tr>'
+    + sortableHeader('name', 'מוצר', 'counted_at_event')
+    + sortableHeader('supplier', 'ספק', 'counted_at_event')
+    + sortableHeader('event_count', '# ספירות', 'counted_at_event')
+    + sortableHeader('delta_total', 'הפרש כולל', 'counted_at_event')
+    + sortableHeader('current_stock', 'מלאי עכשיו', 'counted_at_event')
+    + sortableHeader('threshold', 'Threshold', 'counted_at_event')
+    + '</tr></thead><tbody>';
+  for (const r of rows){
+    const delta = r.delta_total || 0;
+    const dCls = delta >= 0 ? 'delta-cr' : 'delta-dr';
+    const dStr = (delta >= 0 ? '+' : '') + fmt(delta);
+    html += `<tr>
+      <td><div class="product-name">${escHtml(r.name)}</div>
+        ${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
+      <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
+      <td class="num">${r.event_count}</td>
+      <td class="num ${dCls}">${dStr}</td>
+      <td class="num">${fmt(r.current_stock)}</td>
+      <td class="num">${fmt(r.threshold)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  $('#tabContent').innerHTML = html;
+  wireSortHandlers('counted_at_event'); wireSearch();
+}
+
+function renderMissed(){
+  const total = SUMMARY.tabs.missed_from_worklist.length;
+  const rows = getSortedFiltered('missed_from_worklist');
+  if (rows.length === 0){
+    $('#tabContent').innerHTML = renderSearchAndCount('missed_from_worklist', total, 0)
+      + '<div class="empty"><div class="emoji">✅</div><div>כל הרשימה נספרה — מצוין!</div></div>';
+    wireSearch(); return;
+  }
+  let html = renderSearchAndCount('missed_from_worklist', total, rows.length);
+  html += '<table class="data"><thead><tr>'
+    + sortableHeader('name', 'מוצר', 'missed_from_worklist')
+    + sortableHeader('supplier', 'ספק', 'missed_from_worklist')
+    + sortableHeader('reason', 'סיבה ברשימה', 'missed_from_worklist')
+    + sortableHeader('current_stock', 'מלאי עכשיו', 'missed_from_worklist')
+    + sortableHeader('threshold', 'Threshold', 'missed_from_worklist')
+    + '</tr></thead><tbody>';
+  const reasonPills = {
+    negative: '<span class="pill danger">🔴 מינוס</span>',
+    sat_unsold: '<span class="pill warning">💤 לא זז</span>',
+    preexisting: '<span class="pill info">📋 מקודם</span>',
+  };
+  for (const r of rows){
+    html += `<tr>
+      <td><div class="product-name">${escHtml(r.name)}</div>
+        ${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
+      <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
+      <td>${reasonPills[r.reason] || '<span class="pill muted">'+escHtml(r.reason)+'</span>'}</td>
+      <td class="num">${fmt(r.current_stock)}</td>
+      <td class="num">${fmt(r.threshold)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  $('#tabContent').innerHTML = html;
+  wireSortHandlers('missed_from_worklist'); wireSearch();
+}
+
+function renderNegatives(){
+  const total = SUMMARY.tabs.negatives.length;
+  const rows = getSortedFiltered('negatives');
+  if (rows.length === 0){
+    $('#tabContent').innerHTML = renderSearchAndCount('negatives', total, 0)
+      + '<div class="empty"><div class="emoji">✅</div><div>אין מוצרים במינוס. כל הכבוד!</div></div>';
+    wireSearch(); return;
+  }
+  let html = renderSearchAndCount('negatives', total, rows.length);
+  html += '<table class="data"><thead><tr>'
+    + sortableHeader('name', 'מוצר', 'negatives')
+    + sortableHeader('supplier', 'ספק', 'negatives')
+    + sortableHeader('department', 'מחלקה', 'negatives')
+    + sortableHeader('in_stock_qty', 'מלאי (שלילי)', 'negatives')
+    + sortableHeader('threshold', 'Threshold', 'negatives')
+    + sortableHeader('needs_recount', 'תג Recount', 'negatives')
+    + '</tr></thead><tbody>';
+  for (const r of rows){
+    html += `<tr>
+      <td><div class="product-name">${escHtml(r.name)}</div>
+        ${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
+      <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
+      <td>${escHtml(r.department||'—')}</td>
+      <td class="num"><span class="pill danger">${fmt(r.in_stock_qty)}</span></td>
+      <td class="num">${fmt(r.threshold)}</td>
+      <td>${r.needs_recount ? '<span class="pill warning">🟡 כן</span>' : '<span class="pill muted">—</span>'}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  $('#tabContent').innerHTML = html;
+  wireSortHandlers('negatives'); wireSearch();
+}
+
+function renderSlowMovers(){
+  const total = SUMMARY.tabs.slow_movers.length;
+  const rows = getSortedFiltered('slow_movers');
+  if (rows.length === 0){
+    $('#tabContent').innerHTML = renderSearchAndCount('slow_movers', total, 0)
+      + '<div class="empty"><div class="emoji">⚡</div><div>כל המלאי זז — מצוין!</div></div>';
+    wireSearch(); return;
+  }
+  let html = renderSearchAndCount('slow_movers', total, rows.length);
+  html += '<table class="data"><thead><tr>'
+    + sortableHeader('name', 'מוצר', 'slow_movers')
+    + sortableHeader('supplier', 'ספק', 'slow_movers')
+    + sortableHeader('in_stock_qty', 'מלאי', 'slow_movers')
+    + sortableHeader('sale_price', 'מחיר', 'slow_movers')
+    + sortableHeader('tied_up_cost', 'תקוע ב-$', 'slow_movers')
+    + '</tr></thead><tbody>';
+  for (const r of rows){
+    html += `<tr>
+      <td><div class="product-name">${escHtml(r.name)}</div>
+        ${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
+      <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
+      <td class="num">${fmt(r.in_stock_qty)}</td>
+      <td class="num">$${fmt(r.sale_price, 2)}</td>
+      <td class="num">$${fmt(r.tied_up_cost, 2)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  $('#tabContent').innerHTML = html;
+  wireSortHandlers('slow_movers'); wireSearch();
+}
+
+function renderTopSellers(){
+  const total = SUMMARY.tabs.top_sellers.length;
+  const rows = getSortedFiltered('top_sellers');
+  if (rows.length === 0){
+    $('#tabContent').innerHTML = renderSearchAndCount('top_sellers', total, 0)
+      + '<div class="empty"><div class="emoji">📊</div><div>אין נתוני מכירה לאירוע.</div></div>';
+    wireSearch(); return;
+  }
+  let html = renderSearchAndCount('top_sellers', total, rows.length);
+  html += '<table class="data"><thead><tr><th>#</th>'
+    + sortableHeader('name', 'מוצר', 'top_sellers')
+    + sortableHeader('supplier', 'ספק', 'top_sellers')
+    + sortableHeader('units_sold', 'יחידות', 'top_sellers')
+    + sortableHeader('revenue', 'הכנסה', 'top_sellers')
+    + sortableHeader('price', 'מחיר ליחידה', 'top_sellers')
+    + sortableHeader('current_stock', 'מלאי עכשיו', 'top_sellers')
+    + '</tr></thead><tbody>';
+  rows.forEach((r, i) => {
+    const rank = i + 1;
+    const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+    html += `<tr>
+      <td class="num">${rankEmoji} ${rank}</td>
+      <td><div class="product-name">${escHtml(r.name)}</div>
+        ${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
+      <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
+      <td class="num"><span class="pill success">${fmt(r.units_sold)}</span></td>
+      <td class="num">$${fmt(r.revenue, 2)}</td>
+      <td class="num">$${fmt(r.price, 2)}</td>
+      <td class="num">${fmt(r.current_stock)}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  $('#tabContent').innerHTML = html;
+  wireSortHandlers('top_sellers'); wireSearch();
+}
+
+function renderNoThreshold(){
+  const total = SUMMARY.tabs.no_threshold.length;
+  const rows = getSortedFiltered('no_threshold');
+  const token = (localStorage.getItem('lauren_octopos_token') || '').trim();
+  $('#tokenBanner').style.display = token ? 'none' : 'block';
+  if (rows.length === 0){
+    $('#tabContent').innerHTML = renderSearchAndCount('no_threshold', total, 0)
+      + '<div class="empty"><div class="emoji">✅</div><div>לכל המוצרים יש Threshold!</div></div>';
+    wireSearch(); return;
+  }
+  let html = renderSearchAndCount('no_threshold', total, rows.length);
+  html += '<table class="data"><thead><tr>'
+    + sortableHeader('name', 'מוצר', 'no_threshold')
+    + sortableHeader('supplier', 'ספק', 'no_threshold')
+    + sortableHeader('department', 'מחלקה', 'no_threshold')
+    + sortableHeader('in_stock_qty', 'מלאי', 'no_threshold')
+    + sortableHeader('sale_price', 'מחיר', 'no_threshold')
+    + '<th>Threshold חדש</th></tr></thead><tbody>';
+  for (const r of rows){
+    html += `<tr data-pid="${r.product_id}">
+      <td><div class="product-name">${escHtml(r.name)}</div>
+        ${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
+      <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
+      <td>${escHtml(r.department||'—')}</td>
+      <td class="num">${fmt(r.in_stock_qty)}</td>
+      <td class="num">$${fmt(r.sale_price, 2)}</td>
+      <td><div class="thr-cell">
+        <input type="number" class="thr-input" min="0" step="1" placeholder="—" data-pid="${r.product_id}">
+        <button class="thr-save-btn" data-pid="${r.product_id}">💾 שמור</button>
+      </div></td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  $('#tabContent').innerHTML = html;
+  wireSortHandlers('no_threshold'); wireSearch();
+  // Wire save buttons
+  $('#tabContent').querySelectorAll('.thr-save-btn').forEach(btn => {
+    btn.onclick = () => saveThresholdToOctopus(btn.dataset.pid, btn);
+  });
+}
+
+// ─── Threshold save → OCTOPOS PUT /api/v2/products/{id} ────────────────
+async function saveThresholdToOctopus(pid, btn){
+  const input = $('#tabContent').querySelector('input.thr-input[data-pid="'+pid+'"]');
+  const val = parseFloat(input.value);
+  if (isNaN(val) || val < 0){ toast('⚠ מספר לא חוקי', 'error'); return; }
+  let token = (localStorage.getItem('lauren_octopos_token') || '').trim();
+  if (!token){
+    token = prompt('הזיני את ה-OCTOPOS token (נשמר מקומית במכשיר):');
+    if (!token) return;
+    localStorage.setItem('lauren_octopos_token', token.trim());
+    $('#tokenBanner').style.display = 'none';
+  }
+  if (!confirm(`לעדכן Threshold ל-${val} עבור מוצר #${pid} ב-OCTOPOS?`)) return;
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch('https://themakeup.octoretail.com/api/v2/products/' + pid, {
+      method: 'PUT',
+      headers: {'Authorization': token, 'Content-Type':'application/json', 'Accept':'application/json'},
+      body: JSON.stringify({'threshold_qty': val})
+    });
+    if (r.status === 401){
+      localStorage.removeItem('lauren_octopos_token');
+      $('#tokenBanner').style.display = 'block';
+      throw new Error('Token לא חוקי — נמחק. הזיני מחדש.');
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    toast('✓ Threshold עודכן ב-OCTOPOS: ' + val, 'success');
+    btn.textContent = '✓ נשמר';
+    btn.classList.add('saved');
+    // Update local SUMMARY so refresh doesn't lose it visually
+    const tab = SUMMARY.tabs.no_threshold;
+    for (let i=0; i<tab.length; i++){
+      if (tab[i].product_id == pid){ tab[i].threshold = val; break; }
+    }
+    setTimeout(()=> {
+      // Remove the row visually since it now has a threshold
+      const row = btn.closest('tr');
+      if (row) row.style.opacity = '0.4';
+    }, 800);
+  } catch(e){
+    toast('⚠ שמירה נכשלה: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '💾 שמור';
+  }
+}
+
+function promptOctopusToken(){
+  const t = prompt('הזיני את ה-OCTOPOS token (נשמר מקומית במכשיר):');
+  if (t){ localStorage.setItem('lauren_octopos_token', t.trim()); $('#tokenBanner').style.display = 'none'; toast('✓ Token נשמר', 'success'); }
+}
+
+// ─── Tab orchestrator ───────────────────────────────────────────────────
+function renderTabContent(){
+  if (!SUMMARY){ return; }
+  switch(ACTIVE_TAB){
+    case 'counted_at_event': renderCounted(); break;
+    case 'missed_from_worklist': renderMissed(); break;
+    case 'negatives': renderNegatives(); break;
+    case 'slow_movers': renderSlowMovers(); break;
+    case 'top_sellers': renderTopSellers(); break;
+    case 'no_threshold': renderNoThreshold(); break;
+  }
+  renderTabsBar();
+}
+
+function render(){
+  renderSubtitle();
+  renderStatsStrip();
+  renderTabsBar();
+  renderTabContent();
+}
+
+// ─── Event picker ───────────────────────────────────────────────────────
+function renderPicker(){
+  const sel = $('#evPicker');
+  const opts = Object.entries(INDEX).sort((a,b)=> b[1].start_date.localeCompare(a[1].start_date));
+  if (!opts.length){
+    sel.innerHTML = '<option value="">אין סיכומים עדיין</option>';
+    return;
+  }
+  const current = getEvKeyFromUrl();
+  sel.innerHTML = opts.map(([k, m]) =>
+    `<option value="${escHtml(k)}" ${k===current?'selected':''}>${escHtml(m.city)}, ${escHtml(m.state)} · ${escHtml(m.start_date)}</option>`
+  ).join('');
+  sel.onchange = () => {
+    setEvKeyInUrl(sel.value);
+    loadEvent(sel.value);
+  };
+  // If no current evkey, pick first
+  if (!current && opts.length){
+    setEvKeyInUrl(opts[0][0]);
+    loadEvent(opts[0][0]);
+  }
+}
+
+// ─── Init ───────────────────────────────────────────────────────────────
+(async () => {
+  await loadIndex();
+  renderPicker();
+  const ek = getEvKeyFromUrl();
+  if (ek) await loadEvent(ek);
+})();
+</script>
+</body>
+</html>
