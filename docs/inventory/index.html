@@ -2624,6 +2624,13 @@ function buildSupplierOrder(supplierCode){
     // If there's ANY need to order AND min_display is set, the order must be at least min_display.
     // Uses gap>0 (not suggested>0) so that small gaps rounding down to 0 still get bumped to one pack.
     if (gap > 0 && minD > 0 && suggested < minD) suggested = minD;
+    // Lauren 2026-05-26 PM: also apply a one-case floor for products WITHOUT an explicit
+    // min_display rule. Without this, products with a small gap (e.g. thr=8, stock=0 →
+    // gap=8) rounded down to 0 against the default 12-pack size and never got suggested.
+    // The Xime Rice & Collagen Eye Cream + Serum incident — both had stock=0 but
+    // suggested 0 because they have no min_display rule, so neither MOQ snap nor the
+    // min_display floor lifted them off the floor.
+    if (gap > 0 && suggested <= 0) suggested = cs;
     // Max cap
     if (Number(rule.max || 0) > 0) suggested = Math.min(suggested, Number(rule.max));
     // Hard skip
