@@ -108,11 +108,6 @@ def fetch_fills(token):
             continue
     return out
 
-def fetch_contracts(token):
-    """Get contract definitions (need tick_size, tick_value)."""
-    contracts = tradovate_get("/contract/list", token) or []
-    return {c.get("id"): c for c in contracts}
-
 # ============ GITHUB API ============
 def gh_get_file(path):
     """Returns (decoded_content_str, sha, exists_bool)."""
@@ -236,14 +231,16 @@ def classify_exit_reason(open_entry, fill_price, autotrade):
     profit = (fill_price - entry_price) if direction == "long" else (entry_price - fill_price)
     return "TP" if profit > 0 else "SL"
 
-def build_exit_row(fill, open_entry, contract, autotrade):
-    """Construct a journal row for an unrecorded exit fill."""
+def build_exit_row(fill, open_entry, autotrade):
+    """Construct a journal row for an unrecorded exit fill.
+    Pulls tick_size/tick_value from autotrade_enabled.json (which already
+    has the active contract's tick metadata — no separate Tradovate fetch needed)."""
     fill_price = float(fill.get("price"))
     fill_qty = int(fill.get("qty") or 1)
     fill_action = fill.get("action") or ""
     fill_time = fill.get("timestamp") or fill.get("fillTime")
 
-    tick_size = float((contract or {}).get("tickSize") or (autotrade.get("active_contract") or {}).get("tick_size") or 0.25)
+    tick_size  = float((autotrade.get("active_contract") or {}).get("tick_size")     or 0.25)
     tick_value = float((autotrade.get("active_contract") or {}).get("tick_value_usd") or 0.50)
 
     direction = open_entry["direction"]  # 'long' or 'short'
@@ -295,7 +292,6 @@ def main():
 
     # 2. Fetch fills (last 24h) + contracts
     fills = fetch_fills(token)
-    contracts = fetch_contracts(token)
     print(f"[reconciler] fetched {len(fills)} fills in last 24h")
 
     # 3. Walk fills chronologically; identify exits that are missing from journal
@@ -343,8 +339,7 @@ def main():
             continue
 
         # Build and queue a new EXIT row
-        contract = contracts.get(f.get("contractId")) or {}
-        row = build_exit_row(f, open_entry, contract, autotrade)
+        row = build_exit_row(f, open_entry, autotrade)
         new_rows.append(row)
         seen_fill_ids.add(fid)
         print(f"[reconciler] NEW EXIT: fill_id={fid} {row['type']} @ {row['price']} → ticks={row['result_ticks']} ${row['result_dollars']}")
