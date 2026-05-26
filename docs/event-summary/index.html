@@ -59,15 +59,16 @@ header .subtitle { opacity: 0.92; font-size: 13px; }
 
 table.data { width: 100%; border-collapse: collapse; background: #fff;
   border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-table.data th { background: #fff; padding: 10px 12px; text-align: right; font-weight: 700;
+table.data th { background: #fff; padding: 10px 12px; text-align: center; font-weight: 700;
   color: var(--text); font-size: 12px; text-transform: uppercase; border-bottom: 2px solid var(--primary);
   position: sticky; top: 0; z-index: 20; cursor: pointer; user-select: none; }
 table.data th:hover { background: #f3f4f6; }
+table.data th:nth-child(1), table.data th:nth-child(2) { text-align: right; }
 table.data th .sort-arrow { font-size: 9px; color: var(--primary); margin-right: 3px; }
 table.data td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; }
 table.data tr:last-child td { border-bottom: none; }
 table.data tr:hover { background: #fafafa; }
-table.data td.num { text-align: left; font-variant-numeric: tabular-nums; font-weight: 600; }
+table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
 
 .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
 .pill.danger { background: var(--danger-light); color: var(--danger); }
@@ -392,12 +393,12 @@ function renderThresholdEditCell(r){
     ? `<span style="font-weight:700;color:#15803d">${fmt(thr)}</span>`
     : `<span style="color:#d97706;font-weight:700">— לא מוגדר</span>`;
   return `<div class="thr-cell-wrap" data-pid="${pid}" style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:3px 6px;display:inline-flex;align-items:center;gap:6px">
-    <div class="thr-view" style="display:flex;gap:4px;align-items:center;justify-content:flex-end">
+    <div class="thr-view" style="display:flex;gap:4px;align-items:center;justify-content:center">
       <span style="font-size:10px;color:#15803d;font-weight:700">Thr:</span>
       <span class="thr-display">${valHtml}</span>
       <button class="thr-edit-btn" data-pid="${pid}" title="ערוך Threshold" style="background:#dcfce7;border:1px solid #86efac;border-radius:4px;padding:1px 5px;cursor:pointer;font-size:11px">✏️</button>
     </div>
-    <div class="thr-edit-mode" style="display:none;gap:4px;align-items:center;justify-content:flex-end">
+    <div class="thr-edit-mode" style="display:none;gap:4px;align-items:center;justify-content:center">
       <input type="number" min="0" step="1" class="thr-input2" data-pid="${pid}" value="${thr}" style="width:60px;padding:3px 5px;border:1px solid #86efac;border-radius:4px;font-size:13px;text-align:center;font-weight:700;color:#15803d">
       <button class="thr-save-btn2" data-pid="${pid}" style="background:var(--success);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px;font-weight:700">✓ שמור</button>
       <button class="thr-cancel-btn2" data-pid="${pid}" style="background:#f3f4f6;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer;font-size:11px">✗</button>
@@ -471,12 +472,12 @@ function renderStockEditCell(r){
   const fg = isNeg ? '#b91c1c' : (isZero ? '#92400e' : '#1d4ed8');
   const valStr = (v === null || v === undefined) ? '—' : fmt(v);
   return `<div class="stock-cell" data-pid="${pid}" style="background:${bg};border:1px solid ${bd};border-radius:6px;padding:3px 6px;display:inline-flex;align-items:center;gap:6px">
-    <div class="stock-view" style="display:flex;gap:4px;align-items:center;justify-content:flex-end">
+    <div class="stock-view" style="display:flex;gap:4px;align-items:center;justify-content:center">
       <span style="font-size:10px;color:${fg};font-weight:700">מלאי:</span>
       <span style="font-weight:700;color:${fg}">${valStr}</span>
       <button class="stock-edit-btn" data-pid="${pid}" title="ערוך מלאי" style="background:${bg};border:1px solid ${bd};border-radius:4px;padding:1px 5px;cursor:pointer;font-size:11px">✏️</button>
     </div>
-    <div class="stock-edit" style="display:none;gap:4px;align-items:center;justify-content:flex-end">
+    <div class="stock-edit" style="display:none;gap:4px;align-items:center;justify-content:center">
       <input type="number" class="stock-input" data-pid="${pid}" value="${r.current_stock ?? 0}" style="width:60px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;font-size:13px;text-align:center;font-weight:600">
       <button class="stock-zero-btn" data-pid="${pid}" title="אפס ל-0" style="background:var(--warning-light);color:var(--warning);border:1px solid var(--warning);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:11px;font-weight:700">0️⃣ איפוס</button>
       <button class="stock-save-btn" data-pid="${pid}" style="background:var(--success);color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px;font-weight:700">✓ שמור</button>
