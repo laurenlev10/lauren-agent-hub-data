@@ -8429,6 +8429,28 @@ function openCompareInvoiceModal(supplierCode, supplierName){
   var resBox = document.getElementById('cmpResult');
   if (resBox && !resBox._editListenerBound) {
     var captureEdit = function(ev){
+      // Lauren 2026-05-26 PM — handle the editable "actual paid" total input. When set,
+      // it overrides the auto-computed total everywhere it appears (supplier-row pill,
+      // global subtotal, totals popup). When cleared (empty), falls back to computed.
+      if (ev.target.id === 'cmpActualPaidInput') {
+        var rawV = (ev.target.value || '').trim();
+        try {
+          var supAP = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+          if (supAP && supAP._pending_invoice) {
+            if (rawV === '' || isNaN(Number(rawV)) || Number(rawV) <= 0) {
+              delete supAP._pending_invoice.actual_paid_usd;
+            } else {
+              supAP._pending_invoice.actual_paid_usd = Number(rawV);
+            }
+            // Push into the supplier-row pill / global subtotal: invoice_total_usd is the
+            // value displayed on the dashboard's supplier row. Override with the user
+            // value if set; restore to computed if cleared.
+            try { computeInvoiceTotalsAndApply(); } catch(_){}
+            if (typeof scheduleSave === 'function') scheduleSave();
+          }
+        } catch(_){}
+        return;
+      }
       if (!ev.target.matches('[data-edit][data-ri]')) return;
       var ri = Number(ev.target.dataset.ri);
       var field = ev.target.dataset.edit;
@@ -8478,12 +8500,83 @@ function openCompareInvoiceModal(supplierCode, supplierName){
     resBox.addEventListener('change', captureEdit);
     // Click handler for '↩ הגיע' force-received button
     resBox.addEventListener('click', function(ev){
+      // 🛒 Click-to-copy: clicking the ordered qty cell copies the value into the
+      // sibling "הגיע" qty input. Lauren 2026-05-26 PM — most-common case is invoice
+      // matches PO 1:1, so this saves typing.
+      var copyCell = ev.target.closest('[data-action="copy-order-qty"]');
+      if (copyCell) {
+        ev.preventDefault(); ev.stopPropagation();
+        var riC = Number(copyCell.dataset.ri);
+        var qtyC = Number(copyCell.dataset.qty);
+        var input = resBox.querySelector('input[data-edit="qty"][data-ri="' + riC + '"]');
+        if (input && !isNaN(qtyC)) {
+          input.value = String(qtyC);
+          // Dispatch change so the existing captureEdit handler persists to line_edits
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          // Brief visual flash so Lauren sees the copy happened
+          var origBg = input.style.background;
+          input.style.background = '#bbf7d0';
+          setTimeout(function(){ input.style.background = origBg; try { renderCompareDiff(); } catch(_){} }, 250);
+        }
+        return;
+      }
       // 🔗 Link to existing OCTOPOS product
       var linkBtnE = ev.target.closest('[data-action="link-existing"]');
       if (linkBtnE) {
         ev.preventDefault(); ev.stopPropagation();
         var riL = Number(linkBtnE.dataset.ri);
         openLinkExistingPicker(riL);
+        return;
+      }
+      // ＋ הוסף מוצר ידני — open a small inline-form modal for SKU/name/qty/cost/sale.
+      // Appends an "extra" line to invoice_lines so it renders/saves like a parser-detected row.
+      // Lauren 2026-05-26 PM.
+      if (ev.target.id === 'cmpAddProductBtn') {
+        ev.preventDefault(); ev.stopPropagation();
+        openAddProductForm();
+        return;
+      }
+      // ✕ Clear the actual-paid override — fall back to the auto-computed total.
+      if (ev.target.id === 'cmpActualPaidClear') {
+        ev.preventDefault(); ev.stopPropagation();
+        try {
+          var supX = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+          if (supX && supX._pending_invoice) {
+            delete supX._pending_invoice.actual_paid_usd;
+            // Also clear from the persisted supplier row so the row pill / global subtotal recompute.
+            // We leave s.invoice_total_usd alone — re-render with the computed value will update it.
+            if (typeof scheduleSave === 'function') scheduleSave();
+          }
+        } catch(_){}
+        try { renderCompareDiff(); } catch(_){}
+        return;
+      }
+      // ✕ Remove a parser-detected row from the comparison. Lauren 2026-05-26 PM.
+      // Sets _removed:true on the underlying invoice line (preserving array indices)
+      // so renderCompareDiff + confirmInvoiceCompared + total calc all skip it.
+      var removeBtnE = ev.target.closest('[data-action="remove-row"]');
+      if (removeBtnE) {
+        ev.preventDefault(); ev.stopPropagation();
+        var riR = Number(removeBtnE.dataset.ri);
+        var rowR = (CMP_CTX._lastRows || [])[riR];
+        if (rowR && rowR.inv) {
+          var nameR = rowR.inv.name || rowR.inv.sku || '(שורה ללא שם)';
+          if (confirm('להסיר את השורה "' + nameR + '" מהשוואת החשבונית? פעולה זו תוריד אותה גם מסך החשבונית וגם מהעדכון ב-OCTOPOS.')) {
+            rowR.inv._removed = true;
+            // Also clear any per-row edits for this ri so a re-render doesn't try to apply them
+            if (CMP_CTX.line_edits && CMP_CTX.line_edits[riR]) delete CMP_CTX.line_edits[riR];
+            try {
+              var supRem = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+              if (supRem && supRem._pending_invoice) {
+                supRem._pending_invoice.invoice_lines = CMP_CTX.invoice_lines;
+                supRem._pending_invoice.line_edits = CMP_CTX.line_edits;
+                if (typeof scheduleSave === 'function') scheduleSave();
+              }
+            } catch(_){}
+            renderCompareDiff();
+            try { toast('השורה הוסרה', ''); } catch(_){}
+          }
+        }
         return;
       }
       // 🔧 Auto-split a display-set row across matching base shades
@@ -8537,6 +8630,89 @@ function openCompareInvoiceModal(supplierCode, supplierName){
   }
   if (!CMP_CTX.line_edits) CMP_CTX.line_edits = {};
   document.body.style.overflow = 'hidden';
+}
+
+// Lauren 2026-05-26 PM: small modal to manually add a product row that the parser missed.
+// Appends an "extra" invoice line to CMP_CTX.invoice_lines so it renders + saves like any
+// other parser-detected line.
+function openAddProductForm(){
+  if (!CMP_CTX) return;
+  var existing = document.getElementById('cmpAddProductBg');
+  if (existing) existing.remove();
+  var bg = document.createElement('div');
+  bg.id = 'cmpAddProductBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:10010;padding:30px';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;border-radius:14px;max-width:520px;width:100%;padding:20px;direction:rtl;box-shadow:0 30px 80px rgba(0,0,0,.5)';
+  card.innerHTML =
+    '<h2 style="margin:0 0 4px;font-size:17px;color:#0f172a">＋ הוסף מוצר ידני</h2>' +
+    '<div style="color:var(--muted);font-size:12px;margin-bottom:12px">המוצר ייווסף כשורה חדשה בטבלת ההשוואה. אם יש לו SKU שתואם למוצר קיים ב-OCTOPOS — המלאי יעודכן; אחרת המוצר ייווצר ב-OCTOPOS בעת אישור.</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">' +
+      '<label style="display:flex;flex-direction:column;gap:4px;grid-column:1/3"><span style="color:#475569">שם המוצר *</span><input type="text" id="addP_name" placeholder="לדוגמא: She Mascara Black" style="padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px"></label>' +
+      '<label style="display:flex;flex-direction:column;gap:4px"><span style="color:#475569">SKU</span><input type="text" id="addP_sku" placeholder="MB12" style="padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;text-transform:uppercase"></label>' +
+      '<label style="display:flex;flex-direction:column;gap:4px"><span style="color:#475569">כמות שהגיעה *</span><input type="number" id="addP_qty" min="1" step="1" placeholder="12" style="padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;text-align:center"></label>' +
+      '<label style="display:flex;flex-direction:column;gap:4px"><span style="color:#475569">מחיר עלות ליחידה ($) *</span><input type="number" id="addP_price" min="0" step="0.01" placeholder="0.75" style="padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;text-align:center"></label>' +
+      '<label style="display:flex;flex-direction:column;gap:4px"><span style="color:#475569">מחיר מכירה ($)</span><input type="number" id="addP_sale" min="0" step="0.50" placeholder="3.00" style="padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;text-align:center"></label>' +
+    '</div>' +
+    '<div style="margin-top:14px;display:flex;gap:10px;justify-content:flex-end">' +
+      '<button type="button" id="addP_cancel" style="padding:9px 18px;background:#f1f5f9;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600">ביטול</button>' +
+      '<button type="button" id="addP_ok" style="padding:9px 18px;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">＋ הוסף לטבלה</button>' +
+    '</div>';
+  bg.appendChild(card);
+  document.body.appendChild(bg);
+  setTimeout(function(){ var f = document.getElementById('addP_name'); if (f) f.focus(); }, 50);
+  bg.addEventListener('click', function(e){
+    if (e.target === bg || e.target.id === 'addP_cancel') { bg.remove(); return; }
+    if (e.target.id === 'addP_ok') {
+      var name = (document.getElementById('addP_name').value || '').trim();
+      var sku  = (document.getElementById('addP_sku').value || '').trim().toUpperCase();
+      var qty  = Number(document.getElementById('addP_qty').value || 0);
+      var price = Number(document.getElementById('addP_price').value || 0);
+      var sale = Number(document.getElementById('addP_sale').value || 0);
+      if (!name) { try{ toast('חסר שם המוצר', 'error'); }catch(_){} return; }
+      if (!qty || qty <= 0) { try{ toast('חסרה כמות', 'error'); }catch(_){} return; }
+      if (!price || price < 0) { try{ toast('חסר מחיר עלות', 'error'); }catch(_){} return; }
+      // Append to invoice_lines — it'll render as an "extra" row (since exp matching
+      // won't find a saved-order item, unless SKU happens to match — then it joins as match).
+      if (!Array.isArray(CMP_CTX.invoice_lines)) CMP_CTX.invoice_lines = [];
+      var newLine = { sku: sku, name: name, qty: qty, price: price, total: qty * price, _manual_add: true };
+      CMP_CTX.invoice_lines.push(newLine);
+      // If a sale price was given, record it as an edit on the new row index.
+      // The new ri will be at the END of _lastRows after re-render — we set it after render.
+      try {
+        var sup = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+        if (sup && sup._pending_invoice) {
+          sup._pending_invoice.invoice_lines = CMP_CTX.invoice_lines;
+          if (typeof scheduleSave === 'function') scheduleSave();
+        }
+      } catch(_){}
+      bg.remove();
+      try { renderCompareDiff(); } catch(_){}
+      // After re-render, find the new row's ri and persist sale_price if given.
+      if (sale > 0) {
+        try {
+          var rows = CMP_CTX._lastRows || [];
+          for (var i = rows.length - 1; i >= 0; i--) {
+            if (rows[i].inv === newLine || (rows[i].inv && rows[i].inv._manual_add && rows[i].inv.sku === sku && rows[i].inv.name === name)) {
+              if (!CMP_CTX.line_edits) CMP_CTX.line_edits = {};
+              if (!CMP_CTX.line_edits[i]) CMP_CTX.line_edits[i] = {};
+              CMP_CTX.line_edits[i].sale_price = sale;
+              try {
+                var sup2 = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+                if (sup2 && sup2._pending_invoice) {
+                  sup2._pending_invoice.line_edits = CMP_CTX.line_edits;
+                  if (typeof scheduleSave === 'function') scheduleSave();
+                }
+              } catch(_){}
+              renderCompareDiff();
+              break;
+            }
+          }
+        } catch(_){}
+      }
+      try { toast('המוצר נוסף לטבלה — ערוך אותו לפי הצורך', ''); } catch(_){}
+    }
+  });
 }
 
 function closeCompareInvoiceModal(){
@@ -8639,8 +8815,8 @@ async function confirmInvoiceCompared(){
   } else {
     // Fallback for an edge case where _lastRows wasn't populated (e.g. modal opened
     // and confirm clicked without a render pass). Use raw invoice_lines so we don't
-    // regress to silently doing nothing.
-    (CMP_CTX.invoice_lines || []).forEach(function(L, i){ invoice[i] = L; });
+    // regress to silently doing nothing. Skip _removed lines.
+    (CMP_CTX.invoice_lines || []).forEach(function(L, i){ if (L && !L._removed) invoice[i] = L; });
   }
 
   var actions = []; // each: {type, line, sku, productId, ...}
@@ -8869,7 +9045,7 @@ async function confirmInvoiceCompared(){
         if (_packN > 1) effQtyNew = qty * _packN;
       }
       if (addToSystem && sku && effQtyNew > 0 && price > 0) {
-        actions.push({type:'create', sku: sku, name: name, qty: effQtyNew, price: price, salePrice: salePrice, displayMin: displayMin, inGarage: inGarage, clearance: clearance, vendorId: vendorId});
+        actions.push({type:'create', sku: sku, name: name, qty: effQtyNew, price: price, salePrice: salePrice, displayMin: displayMin, inGarage: inGarage, clearance: clearance, vendorId: vendorId, _source_ri: i});
       }
     }
   });
@@ -9028,6 +9204,28 @@ async function confirmInvoiceCompared(){
     // Filter actions to keep only the approved creates + all non-create actions
     var keepSet = new Set(keepResult.keepIdxs);
     var origCreateActions = actions.filter(function(a){ return a.type === 'create'; });
+    // Persist Lauren's "don't create" choice — set add_to_system=false on the source
+    // row so the popup doesn't ask about this same product next confirm.
+    // Lauren 2026-05-26 PM bug fix: previously the unchecks were forgotten, so every
+    // confirm re-suggested the same rejected products.
+    var persistedSkipCount = 0;
+    origCreateActions.forEach(function(a, idx){
+      if (!keepSet.has(idx) && a._source_ri !== undefined) {
+        if (!CMP_CTX.line_edits) CMP_CTX.line_edits = {};
+        if (!CMP_CTX.line_edits[a._source_ri]) CMP_CTX.line_edits[a._source_ri] = {};
+        CMP_CTX.line_edits[a._source_ri].add_to_system = false;
+        persistedSkipCount++;
+      }
+    });
+    if (persistedSkipCount > 0) {
+      try {
+        var supS = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[supplierCode] : null;
+        if (supS && supS._pending_invoice) {
+          supS._pending_invoice.line_edits = CMP_CTX.line_edits;
+          if (typeof scheduleSave === 'function') scheduleSave();
+        }
+      } catch(_){}
+    }
     // Apply per-row sale_price overrides
     origCreateActions.forEach(function(a, idx){
       if (keepResult.salePrices[idx] && keepResult.salePrices[idx] > 0) {
@@ -9040,7 +9238,7 @@ async function confirmInvoiceCompared(){
       return keepSet.has(idx);
     });
     summary.create = keepResult.keepIdxs.length;
-    log('✓ אישרת ' + keepResult.keepIdxs.length + ' מתוך ' + createList.length + ' מוצרים חדשים');
+    log('✓ אישרת ' + keepResult.keepIdxs.length + ' מתוך ' + createList.length + ' מוצרים חדשים' + (persistedSkipCount > 0 ? ' (' + persistedSkipCount + ' נדחו ולא יוצעו שוב)' : ''));
   }
 
   // Show progress modal
@@ -9516,7 +9714,8 @@ async function handleCompareInvoiceFile(file){
 
 function computeInvoiceTotalsAndApply(){
   if (!CMP_CTX) return;
-  var lines = CMP_CTX.invoice_lines || [];
+  // Lauren 2026-05-26 PM: skip _removed lines (the 🗑️✕ button).
+  var lines = (CMP_CTX.invoice_lines || []).filter(function(L){ return !L || !L._removed; });
   var edits = CMP_CTX.line_edits || {};
   // Sum line totals — fall back to qty*price if 'total' isn't set.
   // EXCLUDE rows where line_edits[i].exclude_from_event is true.
@@ -9554,7 +9753,16 @@ function computeInvoiceTotalsAndApply(){
       var slice = (STATE.events && STATE.events[CURRENT_EVKEY]) || null;
       if (slice && slice.suppliers && slice.suppliers[CMP_CTX.supplier_code]) {
         var supState = slice.suppliers[CMP_CTX.supplier_code];
-        if (lineSubtotal > 0) supState.invoice_total_usd = Math.round(lineSubtotal * 100) / 100;
+        // Lauren 2026-05-26 PM: if Lauren typed a real "actual paid" total in the
+        // השוואת חשבונית header, that value takes precedence over the computed sum
+        // for the supplier-row pill + the global subtotal. The computed value is
+        // still kept available via _pending_invoice but doesn't override the pill.
+        var apOverride = (supState._pending_invoice && supState._pending_invoice.actual_paid_usd);
+        if (apOverride != null && apOverride !== '' && !isNaN(Number(apOverride)) && Number(apOverride) > 0) {
+          supState.invoice_total_usd = Math.round(Number(apOverride) * 100) / 100;
+        } else if (lineSubtotal > 0) {
+          supState.invoice_total_usd = Math.round(lineSubtotal * 100) / 100;
+        }
         if (shippingDetected > 0) supState.shipping_cost_usd = Math.round(shippingDetected * 100) / 100;
         // Use the normal autosave path so the change reaches GitHub
         if (typeof scheduleSave === 'function') scheduleSave();
@@ -9566,7 +9774,10 @@ function computeInvoiceTotalsAndApply(){
 function renderCompareDiff(){
   if (!CMP_CTX){ return; }
   var expected = CMP_CTX.expected || [];
-  var invoice = CMP_CTX.invoice_lines || [];
+  // Lauren 2026-05-26 PM: filter out rows Lauren removed via the 🗑️✕ button.
+  // The original invoice_lines array is preserved (with _removed:true flags) so
+  // the save path can also skip them — see confirmInvoiceCompared.
+  var invoice = (CMP_CTX.invoice_lines || []).filter(function(L){ return !L || !L._removed; });
   if (!invoice.length){
     $("#cmpResult").innerHTML = '<div style="padding:14px;background:#fef3c7;border-radius:10px;color:#854d0e">לא הצלחתי לזהות שורות בחשבונית. נסי קובץ ברור יותר.</div>';
     return;
@@ -9644,6 +9855,7 @@ function renderCompareDiff(){
   } catch(e){ console.warn('display-set detection failed:', e); }
 
   // Detected invoice totals (subtotal + shipping). Excluded lines don't count.
+  // (Removed lines are already filtered out above.)
   var _lineSubtotal = 0;
   var _excludedCount = 0;
   var _excludedSum = 0;
@@ -9681,14 +9893,39 @@ function renderCompareDiff(){
     return invP > 0 && expP > 0 && Math.abs(invP - expP) >= 0.01;
   });
 
+  // Lauren 2026-05-26 PM: editable "actual paid" total. The auto-computed sum is often
+  // wrong because the parser may grab display-price as unit-price (or vice versa). Lauren
+  // can type the real amount paid here; it overrides the computed total everywhere it
+  // surfaces (this header, the supplier-row pill, the receive subtotal etc).
+  var _actualPaidUsd = (function(){
+    try {
+      var supA = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+      var fromPending = supA && supA._pending_invoice && supA._pending_invoice.actual_paid_usd;
+      if (fromPending != null && fromPending !== '' && !isNaN(Number(fromPending))) return Number(fromPending);
+    } catch(_){}
+    return null;
+  })();
+  var _displayedGrand = (_actualPaidUsd != null && _actualPaidUsd > 0) ? _actualPaidUsd : _grand;
+  var _isOverridden = (_actualPaidUsd != null && _actualPaidUsd > 0);
+
   var totalsHtml = '';
-  if (_lineSubtotal > 0 || _excludedCount > 0) {
-    totalsHtml = '<div style="margin-bottom:12px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;display:flex;gap:24px;flex-wrap:wrap;font-size:13px">' +
-      '<div><b style="color:#166534">סכום פריטים (לאירוע):</b> <span style="font-weight:700;color:#15803d">$' + _lineSubtotal.toFixed(2) + '</span></div>' +
+  if (_lineSubtotal > 0 || _excludedCount > 0 || _isOverridden) {
+    totalsHtml = '<div style="margin-bottom:12px;padding:12px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;display:flex;gap:24px;flex-wrap:wrap;font-size:13px;align-items:center">' +
+      '<div><b style="color:#166534">סכום פריטים (חישוב):</b> <span style="font-weight:700;color:#15803d' + (_isOverridden ? ';text-decoration:line-through;opacity:.6' : '') + '">$' + _lineSubtotal.toFixed(2) + '</span></div>' +
       (_shipping > 0 ? '<div><b style="color:#166534">משלוח:</b> <span style="font-weight:700;color:#15803d">$' + _shipping.toFixed(2) + '</span></div>' : '') +
-      '<div style="margin-right:auto"><b style="color:#166534">סה"כ (לאירוע):</b> <span style="font-weight:800;color:#14532d;font-size:15px">$' + _grand.toFixed(2) + '</span></div>' +
+      '<div style="margin-right:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<b style="color:#166534">' + (_isOverridden ? 'סה"כ ששולם בפועל:' : 'סה"כ (לאירוע):') + '</b>' +
+        '<span style="font-weight:800;color:' + (_isOverridden ? '#1e3a8a' : '#14532d') + ';font-size:16px">$' + _displayedGrand.toFixed(2) + '</span>' +
+        '<span style="display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px dashed #93c5fd;border-radius:6px;padding:4px 8px;font-size:11px">' +
+          '<span style="color:#1e3a8a;font-weight:700">סה"כ אמיתי ששולם בחשבונית:</span>' +
+          '<span style="color:#475569">$</span>' +
+          '<input type="number" id="cmpActualPaidInput" min="0" step="0.01" placeholder="' + _grand.toFixed(2) + '" value="' + (_isOverridden ? _actualPaidUsd.toFixed(2) : '') + '" style="width:88px;padding:3px 5px;font-size:13px;text-align:center;border:1px solid #cbd5e1;border-radius:4px;font-weight:700;color:#1e3a8a" title="הקלידי כאן את הסכום האמיתי ששילמת לפי החשבונית — יחליף את החישוב האוטומטי בכל מקום">' +
+          (_isOverridden ? '<button type="button" id="cmpActualPaidClear" title="נקה — חזרה לחישוב האוטומטי" style="background:none;border:none;color:#7f1d1d;cursor:pointer;font-size:13px;padding:0 2px">✕</button>' : '') +
+        '</span>' +
+      '</div>' +
+      (_isOverridden ? '<div style="width:100%;color:#1e3a8a;font-size:11px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:5px 9px">💙 סכום ידני פעיל — חישוב המערכת ($' + _grand.toFixed(2) + ') הוחלף בסכום שהזנת. בטל כדי לחזור לחישוב.</div>' : '') +
       (_excludedCount > 0 ? '<div style="width:100%;color:#7f1d1d;font-size:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:6px 10px;margin-top:6px">🗑️ ' + _excludedCount + ' פריטים הוסרו מהאירוע · $' + _excludedSum.toFixed(2) + ' לא נכלל בסך</div>' : '') +
-      '<div style="color:var(--muted);font-size:11px;width:100%">✓ הסכומים האלו כבר עודכנו בשורת הספק (סה"כ חשבונית + הוצאות משלוח). יישמרו אוטומטית.</div>' +
+      '<div style="color:var(--muted);font-size:11px;width:100%">✓ הסכומים האלו כבר עודכנו בשורת הספק. הסכום האמיתי (אם הזנת) יחליף את החישוב בכל הסיכומים.</div>' +
     '</div>';
   }
   // Discrepancy SMS buttons row
@@ -9956,20 +10193,28 @@ function renderCompareDiff(){
       var linkBtn = (r.status === 'extra')
         ? '<button type="button" data-action="link-existing" data-ri="'+ri+'" title="שייך/י למוצר קיים במערכת" style="background:#dbeafe;border:1px solid #93c5fd;color:#1e3a8a;border-radius:4px;padding:2px 5px;cursor:pointer;font-size:11px;font-weight:700;margin-top:2px">🔗</button>'
         : '';
+      // Lauren 2026-05-26 PM: ✕ remove-row button — completely removes a parser-detected
+      // row from the comparison (and from the OCTOPOS update). Available on 'extra' rows
+      // (parser found a line that's not in the PO — Lauren's main use case for "this row
+      // is junk") and on rows added manually via "+ הוסף מוצר" (which also render as extra).
+      var removeBtn = (r.status === 'extra')
+        ? '<button type="button" data-action="remove-row" data-ri="'+ri+'" title="הסר את השורה הזו לפני העדכון" style="background:#fee2e2;border:1px solid #fca5a5;color:#991b1b;border-radius:4px;padding:2px 5px;cursor:pointer;font-size:11px;font-weight:700;margin-top:2px">✕</button>'
+        : '';
       html += '<tr class="'+r.status+'" data-ri="'+ri+'" style="'+rowStyle+'">' +
         '<td style="text-align:center">' +
           '<div style="display:flex;flex-direction:column;align-items:center;gap:2px">' +
             '<span style="font-size:14px">'+statusEmoji[r.status]+'</span>' +
-            linkBtn + linkBadge +
+            linkBtn + linkBadge + removeBtn +
           '</div>' +
         '</td>' +
         '<td><input type="text" data-edit="name" data-ri="'+ri+'" value="'+escHtml(name)+'" style="'+inpBase+'"></td>' +
         '<td><input type="text" data-edit="sku" data-ri="'+ri+'" value="'+escHtml(sku)+'" style="'+inpBase+'text-align:center"></td>' +
-        // 🛒 order-qty + 📦 received-qty side-by-side cells
+        // 🛒 order-qty (clickable → copies to הגיע) + 📦 received-qty side-by-side cells.
+        // Lauren 2026-05-26 PM: clicking the order qty auto-fills "הגיע" with the same number.
         (function(){
           var expectedQty = (r.exp && Number(r.exp.qty || r.expQ || 0)) || null;
           var orderCell = expectedQty !== null
-            ? '<td style="text-align:center;font-weight:700;color:#a16207;background:#fef9c3" title="כמות שהזמנת">' + expectedQty + '</td>'
+            ? '<td data-action="copy-order-qty" data-ri="'+ri+'" data-qty="'+expectedQty+'" style="text-align:center;font-weight:700;color:#a16207;background:#fef9c3;cursor:pointer;user-select:none" title="לחיצה תעתיק את הכמות הזו ל-הגיע (' + expectedQty + ')">' + expectedQty + '</td>'
             : '<td style="text-align:center;color:var(--muted)">—</td>';
           var qtyDiffer = (expectedQty !== null && expectedQty !== qty);
           var qtyBg = qtyDiffer ? '#fff7ed' : '#fff';
@@ -9997,6 +10242,13 @@ function renderCompareDiff(){
   // Cache rows for the force-received click handler
   CMP_CTX._lastRows = rows;
   html += '</tbody></table>';
+  // Lauren 2026-05-26 PM: "+ הוסף מוצר" — add a row for a product that arrived in the
+  // physical shipment but the parser didn't pick up (or isn't in the saved order).
+  // The new row is appended as an "extra" line in invoice_lines — Lauren fills in the
+  // fields inline like any other row.
+  html += '<div style="margin-top:10px;display:flex;justify-content:flex-end">' +
+    '<button type="button" id="cmpAddProductBtn" style="background:linear-gradient(180deg,#3b82f6,#1d4ed8);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(29,78,216,.35)">＋ הוסף מוצר ידני</button>' +
+  '</div>';
   // Note about Phase 1
   html += '<div style="margin-top:14px;color:var(--muted);font-size:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px">💡 הערך/י את המוצרים החדשים — מינ\' לדיספליי נחלץ אוטומטית מתיאור כמו "(24pc x 12packs)". בלחיצת "✅ עדכן קבלת סחורה" הנתונים יישמרו ב-product_rules למוצרים שיש להם כבר ID ב-OCTOPOS.<br>📝 <b>מוצרים חדשים</b> ייווצרו ב-OCTOPOS כאשר Phase 2 ייפרס. הברקוד הראשוני יהיה <b>שם המוצר</b> כי OCTOPOS דורש ברקוד — תוכלי לעדכן אותו ידנית לאחר מכן.</div>';
   $("#cmpResult").innerHTML = html;
