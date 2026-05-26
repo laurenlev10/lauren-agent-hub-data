@@ -1089,7 +1089,10 @@ function enrichSwapPnL(trades){
   for (var i = 0; i < sorted.length; i++){
     var t = sorted[i];
     var type = String(t.type || "").toUpperCase().trim();
-    var price = Number(t.price);
+    // Prefer Tradovate's actual fill price over Pine's bar-close (Reconciler annotates this)
+    var fillPrice = Number(t.tradovate_fill_price);
+    var pineClose = Number(t.price);
+    var price = isFinite(fillPrice) ? fillPrice : pineClose;
     if(!isFinite(price)) continue;
     var isSwapLong  = (type === "SWAP LONG");
     var isSwapShort = (type === "SWAP SHORT");
@@ -1137,7 +1140,14 @@ function enrichSwapPnL(trades){
         var ticksE;
         var isTP = type.indexOf(" TP") > 0 || type.endsWith("TP");
         var isSL = type.indexOf(" SL") > 0 || type.endsWith("SL");
-        if(isTP){
+        // BEST CASE — both sides have actual Tradovate fill prices → use the real delta
+        var bothHaveFills = isFinite(Number(t.tradovate_fill_price)) && openEntry.has_fill;
+        if(bothHaveFills){
+          var diffReal = price - openEntry.price;
+          if(openEntry.direction === "short") diffReal = -diffReal;
+          ticksE = Math.round(diffReal / _TICK_SIZE_MNQ);
+        } else if(isTP){
+          // Fall back to bracket value when actual fills aren't available
           ticksE = _DEFAULT_TP_TICKS_MNQ;
         } else if(isSL){
           ticksE = -_DEFAULT_SL_TICKS_MNQ;
@@ -1162,10 +1172,11 @@ function enrichSwapPnL(trades){
     }
 
     // Update openEntry state
+    var hasActualFill = isFinite(Number(t.tradovate_fill_price));
     if(isLong || isSwapLong){
-      openEntry = { direction: "long", price: price, qty: qty };
+      openEntry = { direction: "long", price: price, qty: qty, has_fill: hasActualFill };
     } else if(isShort || isSwapShort){
-      openEntry = { direction: "short", price: price, qty: qty };
+      openEntry = { direction: "short", price: price, qty: qty, has_fill: hasActualFill };
     } else if(isExit){
       openEntry = null;
     }

@@ -452,6 +452,74 @@ def main():
     save_state(state, state_sha)
     print(f"[reconciler] done. seen_fill_ids size = {len(state['seen_fill_ids'])}, new exits = {len(new_rows)}")
 
+    # ============ ANNOTATE JOURNAL ROWS WITH ACTUAL TRADOVATE FILL PRICES ============
+    # For each entry / exit row in journal that doesn't yet carry an actual fill price,
+    # find the matching Tradovate fill (within ±3 min, matching action direction) and
+    # store it as `tradovate_fill_price` + `tradovate_fill_id_match`.
+    # This gives the dashboard the broker's REAL number rather than Pine's bar-close.
+    try:
+        annotated_count = 0
+        # Re-fetch journal fresh — we may have just written new rows above
+        journal_now, journal_now_sha = load_journal()
+        trades_now = journal_now.get("trades", [])
+        # Walk every trade once
+        for t in trades_now:
+            tp = (t.get("type") or "").upper().strip()
+            is_long_entry  = (tp == "LONG"  or tp == "SWAP LONG")
+            is_short_entry = (tp == "SHORT" or tp == "SWAP SHORT")
+            is_exit_long   = tp.startswith("EXIT LONG")
+            is_exit_short  = tp.startswith("EXIT SHORT")
+            is_entry = is_long_entry or is_short_entry
+            is_exit  = is_exit_long or is_exit_short
+            if not (is_entry or is_exit):
+                continue
+            if t.get("tradovate_fill_price"):
+                continue  # already annotated
+            # Reconciler-source EXIT rows already use real Tradovate fill price as `price`
+            if t.get("_source") == "tradovate-reconciler" and t.get("tradovate_fill_id"):
+                t["tradovate_fill_price"] = t.get("price")
+                t["tradovate_fill_id_match"] = t.get("tradovate_fill_id")
+                annotated_count += 1
+                continue
+            # Find matching fill
+            tdt = parse_dt(t.get("_received_at") or t.get("time"))
+            if not tdt:
+                continue
+            # Direction: LONG → Buy fill, SHORT → Sell fill, EXIT LONG → Sell, EXIT SHORT → Buy
+            if is_long_entry or is_exit_short:
+                expected_action = "Buy"
+            else:
+                expected_action = "Sell"
+            best_fill = None
+            best_delta_s = 180.0  # 3 min window
+            for f in sorted_fills:
+                if contract_id and f.get("contractId") != contract_id:
+                    continue
+                if f.get("action") != expected_action:
+                    continue
+                fdt = parse_dt(f.get("timestamp") or f.get("fillTime"))
+                if not fdt:
+                    continue
+                delta_s = abs((fdt - tdt).total_seconds())
+                if delta_s > best_delta_s:
+                    continue
+                best_delta_s = delta_s
+                best_fill = f
+            if best_fill:
+                t["tradovate_fill_price"] = best_fill.get("price")
+                t["tradovate_fill_id_match"] = best_fill.get("id")
+                t["tradovate_fill_time_match"] = best_fill.get("timestamp")
+                annotated_count += 1
+        if annotated_count > 0:
+            journal_now["_updated_at"] = datetime.now(timezone.utc).isoformat()
+            journal_now["_updated_by"] = "tradovate-fill-reconciler-annotate"
+            save_journal(journal_now, journal_now_sha, f"reconciler: annotate {annotated_count} rows with actual fill prices")
+            print(f"[reconciler] annotated {annotated_count} journal rows with tradovate_fill_price")
+        else:
+            print(f"[reconciler] no journal rows needed annotation")
+    except Exception as e:
+        print(f"[reconciler] annotation pass failed (non-fatal): {e}")
+
     # ============ LIVE STATE WRITES (Roadmap Steps 1.1 + 1.2) ============
     # Single snapshot of position + balance, overwriting the JSON files for
     # the dashboard's Live Position Card + Balance Widget. Errors are
