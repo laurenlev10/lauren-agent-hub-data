@@ -401,14 +401,23 @@ function buildTradePairs(events){
     const isSwapShort = (type === "SWAP SHORT");
     const isExit = (type.indexOf("EXIT") === 0);
 
-    if (isLong || isShort){
-      if (open) pairs.push({ entry: open, exit: null, reason: "OPEN" });
-      open = t;
-    } else if (isSwapLong || isSwapShort){
-      if (open) {
+    if (isLong || isShort || isSwapLong || isSwapShort){
+      // 🛑 BUG FIX 2026-05-27 — Pine sometimes sends bare "LONG"/"SHORT" instead of "SWAP LONG"
+      // when trigLong1/trigShort1 fires concurrently with didSwapLong (Pine ternary order).
+      // A LONG arriving while we hold an open SHORT is an IMPLICIT SWAP — close prior, open new.
+      // Same direction repeat is a DUPLICATE signal — keep original open (don't overwrite price).
+      const newDir = (isLong || isSwapLong) ? "LONG" : "SHORT";
+      const openDir = open ? dirOfEvent(open) : null;
+      if (open && openDir && openDir !== newDir){
         pairs.push({ entry: open, exit: t, reason: "SWAP" });
+        open = t;
+      } else if (open && openDir === newDir){
+        pairs.push({ entry: t, exit: null, reason: "DUP_SIGNAL" });
+        // keep original open
+      } else {
+        if (open) pairs.push({ entry: open, exit: null, reason: "OPEN" });
+        open = t;
       }
-      open = t;
     } else if (isExit){
       const reason = type.indexOf("TP") >= 0 ? "TP"
                    : type.indexOf("SL") >= 0 ? "SL"
@@ -438,6 +447,7 @@ function reasonBadge(reason){
   if (reason === "SL") return '<span class="reason-bdg r-sl">🛑 SL</span>';
   if (reason === "SWAP") return '<span class="reason-bdg r-swap">🔄 SWAP</span>';
   if (reason === "OPEN") return '<span class="reason-bdg r-open">⏳ OPEN</span>';
+  if (reason === "DUP_SIGNAL") return '<span class="reason-bdg r-orphan" title="כפיל — Pine שלח אות לאותו כיוון שכבר פתוח">⚠ DUP</span>';
   if (reason === "ORPHAN_EXIT") return '<span class="reason-bdg r-orphan">❓ EXIT only</span>';
   return '<span class="reason-bdg r-orphan">'+reason+'</span>';
 }
@@ -445,7 +455,9 @@ function reasonBadge(reason){
 // Render trades-paired view — one row per logical trade
 function renderPairsView(filteredEvents){
   const tbody = document.getElementById("tbody");
-  const pairs = buildTradePairs(filteredEvents);
+  // Filter DUP_SIGNAL out of the trades view — informational only (original entry stays open).
+  // They still appear in the raw-events view.
+  const pairs = buildTradePairs(filteredEvents).filter(function(p){ return p.reason !== "DUP_SIGNAL"; });
   // Display newest first
   pairs.reverse();
   const total = pairs.length;
@@ -955,8 +967,11 @@ function renderTable(){
 function changePage(d){ STATE.page += d; renderTable(); }
 
 // ============== Live State (Position + Balance) — Roadmap 2.1 + 2.2 ==============
-const LIVE_POSITION_URL = "../state/live_position.json";
-const LIVE_BALANCE_URL  = "../state/live_balance.json";
+// 🛑 BUG FIX 2026-05-27: live_position.json sits at docs/state/, dashboard at docs/trading/journal/,
+// so the relative URL needs TWO ".." levels. "../state/..." resolved to /trading/state/ → 404 forever,
+// and the dashboard silently fell back to "לא נטען". Always test relative URLs against gh-pages first.
+const LIVE_POSITION_URL = "../../state/live_position.json";
+const LIVE_BALANCE_URL  = "../../state/live_balance.json";
 const LIVE_REFRESH_MS = 30 * 1000;  // 30 seconds
 const STALE_THRESHOLD_S = 90;        // mark yellow if data >90s old
 
@@ -1103,25 +1118,23 @@ function enrichSwapPnL(trades){
     var qty = Number(t.quantity) || 1;
 
     // ============ SWAP closes prior opposite position → compute its P&L on this row ============
-    if(isSwap && openEntry){
-      var dirMatches = (isSwapLong && openEntry.direction === "short")
-                    || (isSwapShort && openEntry.direction === "long");
-      if(dirMatches){
-        var diff = price - openEntry.price;
-        if(openEntry.direction === "short") diff = -diff;
-        var ticks = Math.round(diff / _TICK_SIZE_MNQ);
-        var dollars = +(ticks * _TICK_VALUE_USD_MNQ * (openEntry.qty || 1)).toFixed(2);
-        if(t.entry_price === undefined || t.entry_price === null){
-          t.entry_price = openEntry.price;
-        }
-        if(t.result_ticks === undefined || t.result_ticks === null){
-          t.result_ticks = ticks;
-        }
-        if(t.result_dollars === undefined || t.result_dollars === null){
-          t.result_dollars = dollars;
-        }
-        t._swap_pnl_computed = true;
-      }
+    // 🛑 2026-05-27 — also treats IMPLICIT swaps: plain "LONG"/"SHORT" arriving while opposite
+    // direction is open. Pine sometimes sends bare "LONG" instead of "SWAP LONG" when both
+    // trigLong1 and didSwapLong are true simultaneously (Pine ternary order — trigLong1 wins).
+    var isAnyLong  = isLong  || isSwapLong;
+    var isAnyShort = isShort || isSwapShort;
+    var implicitSwap = (isAnyLong  && openEntry && openEntry.direction === "short")
+                    || (isAnyShort && openEntry && openEntry.direction === "long");
+    if(implicitSwap){
+      var diff = price - openEntry.price;
+      if(openEntry.direction === "short") diff = -diff;
+      var ticks = Math.round(diff / _TICK_SIZE_MNQ);
+      var dollars = +(ticks * _TICK_VALUE_USD_MNQ * (openEntry.qty || 1)).toFixed(2);
+      if(t.entry_price === undefined || t.entry_price === null) t.entry_price = openEntry.price;
+      if(t.result_ticks === undefined || t.result_ticks === null) t.result_ticks = ticks;
+      if(t.result_dollars === undefined || t.result_dollars === null) t.result_dollars = dollars;
+      t._swap_pnl_computed = true;
+      t._swap_kind = isSwap ? "explicit" : "implicit";
     }
 
     // ============ EXIT closes the open position → compute P&L on this row ============
@@ -1172,11 +1185,21 @@ function enrichSwapPnL(trades){
     }
 
     // Update openEntry state
+    // SAME-direction duplicate (LONG while already long) → keep ORIGINAL openEntry (don't overwrite
+    // with a stale duplicate alert price), and tag this row so the table can mark it as duplicate.
     var hasActualFill = isFinite(Number(t.tradovate_fill_price));
-    if(isLong || isSwapLong){
-      openEntry = { direction: "long", price: price, qty: qty, has_fill: hasActualFill };
-    } else if(isShort || isSwapShort){
-      openEntry = { direction: "short", price: price, qty: qty, has_fill: hasActualFill };
+    if(isAnyLong){
+      if(openEntry && openEntry.direction === "long" && !implicitSwap){
+        t._duplicate_signal = true;  // keep prior open
+      } else {
+        openEntry = { direction: "long", price: price, qty: qty, has_fill: hasActualFill };
+      }
+    } else if(isAnyShort){
+      if(openEntry && openEntry.direction === "short" && !implicitSwap){
+        t._duplicate_signal = true;
+      } else {
+        openEntry = { direction: "short", price: price, qty: qty, has_fill: hasActualFill };
+      }
     } else if(isExit){
       openEntry = null;
     }
