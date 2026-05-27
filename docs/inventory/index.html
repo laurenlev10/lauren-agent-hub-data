@@ -9130,7 +9130,19 @@ async function confirmInvoiceCompared(){
       var ovR = edits[ri] || {};
       if (r.inv){
         // Real invoice line — place at ri so edits[ri] applies to the correct line.
-        invoice[ri] = Object.assign({}, r.inv, {_ri_source: 'invoice', _row_exp: r.exp || null});
+        // Lauren 2026-05-27 PM #2 — also carry the RENDERED qty (the value Lauren saw
+        // in the qty input cell). For 'matched' rows the renderer pack-multiplied
+        // L.qty by packCmp to display invQ; for 'extra' rows invQ === L.qty. Saving
+        // r.invQ here lets the save-path push exactly what Lauren saw, eliminating
+        // the heuristic pack-multiplication that broke on Feral Edge invoices
+        // (where L.qty was already in pieces because the invoice didn't use DZ/CASE
+        // markers — save tried to ×pack and produced +1152 instead of +48).
+        invoice[ri] = Object.assign({}, r.inv, {
+          _ri_source: 'invoice',
+          _row_exp: r.exp || null,
+          _renderedQty: (r.invQ !== undefined ? Number(r.invQ) : Number(r.inv.qty || 0)),
+          _renderedPackCmp: (r.packCmp !== undefined ? Number(r.packCmp) : 1)
+        });
       } else if (r.status === 'missing' && r.exp && ovR.force_received){
         // Lauren clicked ↩ הגיע on this missing row — synthesize an "invoice line"
         // from the expected (saved order) data so the rest of the pipeline treats
@@ -9173,7 +9185,14 @@ async function confirmInvoiceCompared(){
     var addToSystem = (ov.add_to_system !== undefined) ? !!ov.add_to_system : true;
     var sku = (ov.sku !== undefined ? ov.sku : L.sku || '').trim();
     var name = (ov.name !== undefined ? ov.name : L.name || '').trim();
-    var qty = Number(ov.qty !== undefined ? ov.qty : (L.qty || 0));
+    // Lauren 2026-05-27 PM #2 — DEFAULT qty = the rendered value Lauren saw in
+    // the input cell (= L._renderedQty), NOT raw L.qty. The renderer already
+    // applied pack-multiplication for 'matched' rows; for 'extras' it equals
+    // L.qty. This eliminates the save-path pack-multiplication entirely
+    // (previously the `if (ov.qty===undefined && !L.unit_note) effQty *= pack`
+    // block, which broke the Feral Edge case: L.qty=48 in pieces → save
+    // ×24 = +1152 phantom units).
+    var qty = Number(ov.qty !== undefined ? ov.qty : (L._renderedQty !== undefined ? L._renderedQty : (L.qty || 0)));
     var price = Number(ov.price !== undefined ? ov.price : (L.price || 0));
     var salePrice = ov.sale_price !== undefined ? Number(ov.sale_price) : null;
     var displayMin = ov.display_min !== undefined ? Number(ov.display_min) : null;
@@ -9363,17 +9382,11 @@ async function confirmInvoiceCompared(){
       // the SAVE was reading raw L.qty (=2) and adding only 2 to OCTOPOS stock
       // instead of 24. If Lauren didn't manually override the input, apply the
       // same pack-multiplication here so the saved qty matches what she saw.
+      // Lauren 2026-05-27 PM #2 — qty is now ALWAYS in pieces (renderer pre-applied
+      // pack-multiplication via _renderedQty, or parser stored pieces in L.qty for
+      // DZ/CASE/etc). No more save-path pack-multiply — eliminates the AMUSE
+      // (DZ) + Feral Edge (no marker) double-multiply bugs in one stroke.
       var effQty = qty;
-      // Lauren 2026-05-27 — DOUBLE-PACK-MULTIPLY BUG FIX
-      // If the parser already converted unit-of-measure (DZ/DOZEN/GROSS → pieces),
-      // L.unit_note is set ('2×DZ' etc) and L.qty is ALREADY in pieces. Do NOT
-      // pack-multiply again — would double-apply (Amuse 5/22/2026 Cleveland: each
-      // line pushed ×12 or ×24 too many, e.g. 2 DZ → parser=24 → save ×12 = 288
-      // → stock corrupted with hundreds of phantom units).
-      if (ov.qty === undefined && qty > 0 && !L.unit_note && typeof getEffectivePackForLine === 'function'){
-        var _packS = getEffectivePackForLine(supplierCode, existing.id);
-        if (_packS > 1) effQty = qty * _packS;
-      }
       // Existing product — adjust stock + sale_price + clearance + rules
       if (addToSystem && effQty > 0) {
         actions.push({type:'stock', productId: existing.id, name: name, qty: effQty, currentStock: Number(existing.in_stock_qty||0)});
@@ -9392,12 +9405,8 @@ async function confirmInvoiceCompared(){
       // New product — POST. Apply pack-size to qty here too if not manually
       // overridden, using supplier default (no product_id yet for product-level
       // override).
+      // Lauren 2026-05-27 PM #2 — same as existing-product path; qty is already in pieces.
       var effQtyNew = qty;
-      // Lauren 2026-05-27 — DOUBLE-PACK-MULTIPLY BUG FIX (companion to Block A above)
-      if (ov.qty === undefined && qty > 0 && !L.unit_note && typeof getEffectivePackForLine === 'function'){
-        var _packN = getEffectivePackForLine(supplierCode, null);
-        if (_packN > 1) effQtyNew = qty * _packN;
-      }
       if (addToSystem && sku && effQtyNew > 0 && price > 0) {
         actions.push({type:'create', sku: sku, name: name, qty: effQtyNew, price: price, salePrice: salePrice, displayMin: displayMin, inGarage: inGarage, clearance: clearance, vendorId: vendorId, _source_ri: i});
       }
