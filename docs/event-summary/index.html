@@ -129,7 +129,7 @@ table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font
 </head>
 <body>
 <header>
-  <h1>📊 סיכום פוסט-אירוע <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v5 · 26.5</span></h1>
+  <h1>📊 סיכום פוסט-אירוע <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v6 · 26.5</span></h1>
   <div class="subtitle" id="subtitle">טוען...</div>
 </header>
 
@@ -384,6 +384,9 @@ function wireAllInteractiveHandlers(){
   $('#tabContent').querySelectorAll('.recount-remove-btn').forEach(btn => {
     btn.onclick = () => removeRecountTag(btn.dataset.pid, btn);
   });
+  $('#tabContent').querySelectorAll('.recount-add-btn').forEach(btn => {
+    btn.onclick = () => addRecountTag(btn.dataset.pid, btn);
+  });
 }
 
 // ─── Shared editable Threshold cell (any tab) ─────────────────────────
@@ -582,14 +585,19 @@ function renderStockPill(s){
 
 // ─── RECOUNT tag column helpers ────────────────────────────────────────
 function renderRecountTagCell(r){
+  if (r.recount_tag_added_at && !r.recount_tag_removed_at){
+    const when = new Date(r.recount_tag_added_at).toLocaleString('he-IL', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+    return `<span class="pill warning" title="תג RECOUNT נוסף — יופיע ברשימת הספירה לאירוע הבא">🔖 נוסף ${escHtml(when)}</span>`;
+  }
   if (r.recount_tag_removed_at){
     const when = new Date(r.recount_tag_removed_at).toLocaleString('he-IL', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
     return `<span class="pill success">✓ הוסר ${escHtml(when)}</span>`;
   }
   if (r.has_recount_tag){
-    return `<button class="recount-remove-btn" data-pid="${r.product_id}">🧹 הסר תג</button>`;
+    return `<button class="recount-remove-btn" data-pid="${r.product_id}" title="להסיר את תג RECOUNT מהמוצר ב-OCTOPOS">🧹 הסר תג</button>`;
   }
-  return '';  // No tag, never had one — leave blank
+  // No tag — offer to add (useful for slow movers to flag for next event's count)
+  return `<button class="recount-add-btn" data-pid="${r.product_id}" title="להוסיף תג RECOUNT — המוצר יופיע ברשימת הספירה לאירוע הבא" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px;font-weight:700">➕ הוסף תג</button>`;
 }
 
 async function removeRecountTag(pid, btn){
@@ -645,6 +653,55 @@ async function removeRecountTag(pid, btn){
   } catch(e){
     toast('⚠ נכשל: ' + e.message, 'error');
     btn.disabled = false; btn.textContent = '🧹 הסר תג';
+  }
+}
+
+async function addRecountTag(pid, btn){
+  const pidNum = parseInt(pid);
+  const allRows = findRowsByPid(pidNum);
+  if (allRows.length === 0){ toast('⚠ מוצר לא נמצא', 'error'); return; }
+  const row = allRows[0];
+  if (row.has_recount_tag){ toast('⚠ למוצר כבר יש תג RECOUNT', 'error'); return; }
+
+  let token = (localStorage.getItem('lauren_octopos_token') || '').trim();
+  if (!token){
+    token = prompt('הזיני את ה-OCTOPOS token (נשמר מקומית במכשיר):');
+    if (!token) return;
+    localStorage.setItem('lauren_octopos_token', token.trim());
+  }
+  if (!confirm(`להוסיף תג RECOUNT ל-"${row.name}"?\n(המוצר יופיע ברשימת הספירה לאירוע הבא)`)) return;
+
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    // Current category ids + 14 (RECOUNT)
+    const existingIds = (row.categories || []).map(c => c.id).filter(x => x);
+    const newCatIds = [...new Set([...existingIds, 14])];
+    const r = await fetch('https://themakeup.octoretail.com/api/v2/products/' + pid, {
+      method: 'PUT',
+      headers: {'Authorization': token, 'Content-Type':'application/json', 'Accept':'application/json'},
+      body: JSON.stringify({'category_ids': newCatIds})
+    });
+    if (r.status === 401){
+      localStorage.removeItem('lauren_octopos_token');
+      throw new Error('Token לא חוקי — נמחק. הזיני מחדש.');
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const nowIso = new Date().toISOString();
+    const newCats = [...(row.categories || []), {id: 14, name: 'Recount'}];
+    allRows.forEach(r => {
+      r.has_recount_tag = true;
+      r.recount_tag_added_at = nowIso;
+      r.recount_tag_removed_at = null;
+      r.categories = newCats;
+    });
+    toast('✓ תג נוסף ב-OCTOPOS — שומר ב-GitHub...', 'success');
+    const ok = await saveEventSummaryToGithub();
+    if (ok) toast('✓ נשמר ב-GitHub', 'success');
+    else toast('⚠ נשמר ב-OCTOPOS אבל GitHub-sync נכשל — לחצי 🔄 סנכרן מלאי+Thr למעלה', 'error');
+    renderTabContent();
+  } catch(e){
+    toast('⚠ נכשל: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '➕ הוסף תג';
   }
 }
 
