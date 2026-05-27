@@ -1,0 +1,70 @@
+name: Agent SMS dispatch (on-demand)
+
+# Generic SMS pipe for Cowork-driven agent runs. The bash sandbox cannot
+# reach SimpleTexting directly, so interactive agents dispatch this
+# workflow with the text to send. Pure-API path, no Chrome.
+
+on:
+  workflow_dispatch:
+    inputs:
+      text:
+        description: "Full SMS body (UTF-8, newlines OK)"
+        required: true
+        type: string
+      recipient:
+        description: "lauren | eli | both (default: lauren)"
+        required: false
+        default: "lauren"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Send SMS
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          ELI_PHONE:           ${{ secrets.ELI_PHONE }}
+          SMS_TEXT:            ${{ inputs.text }}
+          RECIPIENT:           ${{ inputs.recipient }}
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, "scripts")
+          from lauren_sms import send_sms
+
+          text = os.environ["SMS_TEXT"]
+          who  = os.environ.get("RECIPIENT","lauren").lower().strip()
+          targets = []
+          if who in ("lauren","both"):
+              p = os.environ.get("LAUREN_PHONE","").strip()
+              if p: targets.append(("Lauren", p))
+          if who in ("eli","both"):
+              p = os.environ.get("ELI_PHONE","").strip()
+              if p: targets.append(("Eli", p))
+          if not targets:
+              print("no recipients resolved — abort"); sys.exit(1)
+
+          for label, phone in targets:
+              try:
+                  r = send_sms(phone, text)
+                  print(f"  ✓ {label} ({phone}) — id={r.get('id')} credits={r.get('credits')}")
+              except Exception as e:
+                  print(f"  ⚠ {label} ({phone}) failed: {e}")
+          PY
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
