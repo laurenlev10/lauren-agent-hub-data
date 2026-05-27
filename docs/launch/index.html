@@ -2264,23 +2264,7 @@ End date: </div>
             rowBtn += '<a class="btn-agent-row btn-inventory-row" href="../inventory/?' + invParams + '" target="_blank" rel="noopener" title="Open Inventory Orders pre-filled with this event">📦 Inventory</a>';
           }
 
-          // 🔢 OCTOPOS Recount — per-event recount list (added 2026-05-17)
-          // Owner: octopos-recount. Schema: OCTOPOS_RECOUNT[evKey] = { worklist_size, n_negative, n_stale, n_counted, window:{start,end}, href, generated_at }
-          // Run state: opens /recount/?evkey=... pre-filled with this event's Fri→Sun window.
-          // Done state: when a worklist exists for this event, button flips green showing the count.
-          const rec = (typeof OCTOPOS_RECOUNT !== "undefined") ? OCTOPOS_RECOUNT[evKey] : null;
-          if (rec) {
-            const recTip = "רשימת ספירה · " + (rec.worklist_size||0) + " מוצרים · " + (rec.generated_at||"").slice(0,10);
-            const recHref = rec.href || ("../recount/?evkey=" + evKey);
-            rowBtn += '<a class="btn-agent-row btn-recount-row done" href="' + recHref + '" target="_blank" rel="noopener" title="' + escapeHtml(recTip) + '">🔢 Recount ' + (rec.worklist_size||0) + '</a>';
-          } else {
-            const recParams = new URLSearchParams({
-              evkey: evKey, city: _evCity, state: _evState,
-              start_date: ev.start_date, end_date: ev.end_date,
-              venue: ev.venue || "", address: ev.address || ""
-            }).toString();
-            rowBtn += '<a class="btn-agent-row btn-recount-row" href="../recount/?' + recParams + '" target="_blank" rel="noopener" title="פתחי רשימת ספירה לאירוע — חלון: שישי-ראשון של האירוע">🔢 Recount</a>';
-          }
+          // 🔢 Recount button REMOVED 2026-05-27 — replaced by Inventory Summary's pre-event mode.
 
           // 📊 Post-event Summary — full 6-tab review dashboard (added 2026-05-26)
           // Owner: event-summary-build. Schema: EVENT_SUMMARY_INDEX[evKey] = {generated_at, stats:{counted_count, top_sellers_count, ...}}
