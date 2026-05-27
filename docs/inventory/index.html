@@ -9338,6 +9338,12 @@ async function confirmInvoiceCompared(){
     }
     // Pass 4 (NEW — Lauren 2026-05-18 PM late): if the invoice line's SKU matches an item
     // in CMP_CTX.expected (saved order), use that item's product_id to find in OCTOPOS.
+    // Lauren 2026-05-27 PM #4 — same-supplier ONLY. CMP_CTX.expected.product_id can be
+    // wrong if the order Wizard linked the saved order to a cross-supplier product (e.g.,
+    // Feral Edge BH716 → Xime BH716 pid 1114 because BH716 only existed in Xime at order
+    // time). Cross-supplier match here caused multiple invoice rows to dedup-merge into
+    // one wrong stock update. Now: only honor expMatch.product_id if it's in the current
+    // supplier's vendor slice.
     if (!existing && sku) {
       var skuU = sku.toUpperCase().trim();
       var expMatch = null;
@@ -9348,14 +9354,12 @@ async function confirmInvoiceCompared(){
       });
       if (expMatch && expMatch.product_id) {
         try {
-          Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
-            var v = OCTOPOS.vendors[c] || {};
-            (v.products || []).concat(v.inactive_products || []).forEach(function(p){
-              if (!existing && String(p.id) === String(expMatch.product_id)) {
-                existing = p;
-                existingMatchedBy = 'expected-pid';
-              }
-            });
+          var vSame = (OCTOPOS && OCTOPOS.vendors && OCTOPOS.vendors[supplierCode]) || {};
+          (vSame.products || []).concat(vSame.inactive_products || []).forEach(function(p){
+            if (!existing && String(p.id) === String(expMatch.product_id)) {
+              existing = p;
+              existingMatchedBy = 'expected-pid';
+            }
           });
         } catch(_){}
       }
