@@ -129,7 +129,7 @@ table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font
 </head>
 <body>
 <header>
-  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v12 · 26.5</span></h1>
+  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v13 · 26.5</span></h1>
   <div class="subtitle" id="subtitle">טוען...</div>
 </header>
 
@@ -333,7 +333,7 @@ function renderSearchAndCount(tabId, total, count){
     counted_at_event: '🔧 <b>תיקון בספירה</b> = ההפרש שהספירה גילתה (למשל ↓ -78 = המערכת חשבה שיש 78 יותר ממה שבאמת היה). 🛒 <b>נמכרו באירוע</b> = כמה יחידות נמכרו בקופה במהלך 3 ימי האירוע. 📦 <b>כמה יש עכשיו במערכת</b> = המספר האמיתי ב-OCTOPOS ברגע זה (אחרי הספירה + מכירות שאחריה).',
     missed_from_worklist: 'מוצרים שהיו ברשימת הספירה לפני האירוע אבל לא נספרו בפועל. 🛒 <b>נמכרו באירוע</b> = כמה יחידות מהמוצר הזה נמכרו ב-3 הימים (לפי הקופה). מספר גבוה = המלאי במערכת לא מדויק וחשוב לספור באירוע הבא. 💤 לא זז (אדום) = 0 נמכרו = אולי המוצר לא קיים פיזית בכלל — לבדוק.',
     negatives: 'מוצרים שעכשיו במלאי שלילי — להוסיף לרשימת ספירה לאירוע הבא',
-    slow_movers: 'במלאי יותר מ-1 יחידה, לא נמכרו כלל באירוע הזה — לבדוק האם להוריד מחיר / להוציא',
+    slow_movers: 'במלאי יותר מ-1 יחידה, לא נמכרו כלל באירוע הזה. אופציות פעולה: ✏️ לאפס מלאי, 🏷️ לסמן Clearance! (לא יופיע יותר בWizard), או להוסיף תג RECOUNT לאירוע הבא.',
     top_sellers: 'מוצרים שנמכרו הכי הרבה באירוע (מסודר לפי יחידות)',
     no_threshold: 'מוצרים פעילים בלי Threshold (ערך 0). ניתן לקבוע Threshold כאן (נשמר ישירות ב-OCTOPOS), או לסמן 🏷️ Clearance! כדי שלא נמשיך עם המוצר (הוא לא יופיע בWizard להזמנות).',
   }[tabId] || '';
@@ -857,6 +857,7 @@ function renderSlowMovers(){
     + sortableHeader('tied_up_cost', 'תקוע ב-$', 'slow_movers')
     + sortableHeader('threshold', '⚙️ Threshold', 'slow_movers')
     + sortableHeader('has_recount_tag', 'תג RECOUNT', 'slow_movers')
+    + '<th>🏷️ Clearance</th>'
     + '</tr></thead><tbody>';
   for (const r of rows){
     html += `<tr>
@@ -868,11 +869,15 @@ function renderSlowMovers(){
       <td class="num">$${fmt(r.tied_up_cost, 2)}</td>
       <td class="num">${renderThresholdEditCell(r)}</td>
       <td>${renderRecountTagCell(r)}</td>
+      <td>${renderClearanceCell(r)}</td>
     </tr>`;
   }
   html += '</tbody></table>';
   $('#tabContent').innerHTML = html;
   wireSortHandlers('slow_movers'); wireSearch();
+  $('#tabContent').querySelectorAll('.clearance-btn').forEach(btn => {
+    btn.onclick = () => markAsClearance(btn.dataset.pid, btn);
+  });
   wireAllInteractiveHandlers();
 }
 
