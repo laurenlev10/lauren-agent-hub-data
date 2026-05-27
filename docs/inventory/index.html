@@ -656,8 +656,12 @@
     </div>
     <div id="cmpResult" style="margin-top:16px"></div>
     <div id="cmpConfirmBlock" style="margin-top:16px;text-align:left;display:none">
-      <button type="button" id="cmpConfirmBtn" style="padding:12px 24px;font-size:14px;font-weight:700;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:10px;cursor:pointer;box-shadow:0 2px 4px rgba(22,163,74,.25)">✅ עדכן קבלת סחורה</button>
-      <div style="margin-top:6px;color:var(--muted);font-size:12px">מסמן את הספק כ"קבלת סחורה עודכנה" — הכפתור בשורת הספק יהפוך לירוק.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button type="button" id="cmpConfirmBtn" style="padding:12px 24px;font-size:14px;font-weight:700;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:10px;cursor:pointer;box-shadow:0 2px 4px rgba(22,163,74,.25)">✅ עדכן קבלת סחורה</button>
+        <button type="button" id="cmpSaveDraftBtn" title="שמור את כל העריכות (כמויות, מחירים, מוצרים שסומנו) — בלי לעדכן את OCTOPOS. תוכלי לחזור ולסיים אחר כך." style="padding:12px 20px;font-size:13px;font-weight:700;background:linear-gradient(180deg,#3b82f6,#1d4ed8);color:#fff;border:none;border-radius:10px;cursor:pointer;box-shadow:0 2px 4px rgba(29,78,216,.25)">💾 שמור טיוטה</button>
+        <span id="cmpDraftStatus" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div style="margin-top:6px;color:var(--muted);font-size:12px">✅ <b>עדכן</b> = דחיפה ל-OCTOPOS · 💾 <b>שמור טיוטה</b> = שמירת העריכות בלבד (לחזרה מאוחר יותר)</div>
     </div>
   </div>
 </div>
@@ -8561,7 +8565,11 @@ function openCompareInvoiceModal(supplierCode, supplierName){
       // Render diff with restored data — show banner explaining it's restored
       var when = pending.parsed_at ? new Date(pending.parsed_at) : null;
       var whenLabel = (when && !isNaN(when.getTime())) ? (when.toLocaleString('he-IL')) : '';
-      $("#cmpResult").innerHTML = '<div style="padding:10px 14px;background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;border-radius:8px;font-size:12px;margin-bottom:10px">📋 שוחזרה חשבונית קודמת שהועלתה' + (whenLabel ? ' · ' + escHtml(whenLabel) : '') + '. אפשר להמשיך לערוך, או להעלות קובץ חדש להחלפה.</div>';
+      // Lauren 2026-05-27 PM — also show draft-saved timestamp if Lauren has been editing
+      var draftWhen = pending.draft_saved_at ? new Date(pending.draft_saved_at) : null;
+      var draftLabel = (draftWhen && !isNaN(draftWhen.getTime())) ? (draftWhen.toLocaleString('he-IL')) : '';
+      var editCount = Object.keys(pending.line_edits || {}).length;
+      $("#cmpResult").innerHTML = '<div style="padding:10px 14px;background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;border-radius:8px;font-size:12px;margin-bottom:10px">📋 שוחזרה חשבונית קודמת שהועלתה' + (whenLabel ? ' · ' + escHtml(whenLabel) : '') + (draftLabel ? '<br>💾 טיוטה אחרונה: ' + escHtml(draftLabel) + (editCount > 0 ? ' · ' + editCount + ' שורות נערכו' : '') : '') + '. אפשר להמשיך לערוך, או להעלות קובץ חדש להחלפה.</div>';
       // Defer renderCompareDiff to next tick so DOM is ready
       setTimeout(function(){ renderCompareDiff(); }, 0);
     }
@@ -9025,10 +9033,41 @@ document.addEventListener("click", function(e){
     else if (e.target.type === 'number') val = Number(e.target.value || 0);
     else val = e.target.value;
     CMP_CTX.line_edits[ri][field] = val;
+    // Lauren 2026-05-27 PM — persist edits to _pending_invoice immediately so
+    // closing the modal doesn't lose work. Also bumps draft_saved_at so the
+    // timestamp on next reopen reflects the actual last edit.
+    try {
+      var supPI = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+      if (supPI && supPI._pending_invoice) {
+        supPI._pending_invoice.line_edits = CMP_CTX.line_edits;
+        supPI._pending_invoice.draft_saved_at = new Date().toISOString();
+        if (typeof scheduleSave === 'function') scheduleSave();
+      }
+    } catch(_){}
     return;
   }
   if (e.target.id === 'cmpConfirmBtn'){
     confirmInvoiceCompared();
+    return;
+  }
+  if (e.target.id === 'cmpSaveDraftBtn'){
+    // Save Draft — copy CMP_CTX.line_edits to _pending_invoice + close modal.
+    // Does NOT push to OCTOPOS. Lauren can reopen the modal later to continue.
+    try {
+      var supSD = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+      if (supSD && supSD._pending_invoice) {
+        supSD._pending_invoice.line_edits = CMP_CTX.line_edits || {};
+        supSD._pending_invoice.draft_saved_at = new Date().toISOString();
+        if (typeof scheduleSave === 'function') scheduleSave();
+        var editCount = Object.keys(CMP_CTX.line_edits || {}).length;
+        toast('💾 טיוטה נשמרה (' + editCount + ' שורות נערכו) — תוכלי לחזור ולסיים אחר כך', 'success');
+        setTimeout(function(){ closeCompareInvoiceModal(); }, 300);
+      } else {
+        toast('⚠️ אין חשבונית פעילה לשמירה', 'error');
+      }
+    } catch(err) {
+      toast('שגיאה: ' + err.message, 'error');
+    }
     return;
   }
 });
