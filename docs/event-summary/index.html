@@ -129,7 +129,7 @@ table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font
 </head>
 <body>
 <header>
-  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v11 · 26.5</span></h1>
+  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v12 · 26.5</span></h1>
   <div class="subtitle" id="subtitle">טוען...</div>
 </header>
 
@@ -257,7 +257,9 @@ function renderStatsStrip(){
 
 function renderTabsBar(){
   $('#tabsBar').innerHTML = TABS.map(t => {
-    const count = SUMMARY.tabs[t.id] ? SUMMARY.tabs[t.id].length : 0;
+    const rows = SUMMARY.tabs[t.id] || [];
+    const qual = tabQualifier(t.id);
+    const count = qual ? rows.filter(qual).length : rows.length;
     return `<button class="tab ${t.id===ACTIVE_TAB?'active':''}" data-tab="${t.id}">
       <span class="badge">${count}</span>${t.label}</button>`;
   }).join('');
@@ -266,8 +268,23 @@ function renderTabsBar(){
   });
 }
 
+function tabQualifier(tabId){
+  // Defensive filter: rows must still match the tab's semantic criterion.
+  // This guards against stale JSON where Lauren updated values in-place but
+  // the row stayed in the wrong array (pre-v11 saves).
+  switch(tabId){
+    case 'no_threshold': return r => !(Number(r.threshold) > 0);
+    case 'negatives':    return r => Number(r.current_stock) < 0;
+    case 'slow_movers':  return r => Number(r.current_stock) > 1 && !(Number(r.units_sold_at_event) > 0);
+    default: return null;
+  }
+}
+
 function getSortedFiltered(tabId){
   let rows = SUMMARY.tabs[tabId] || [];
+  // Apply tab-specific qualifier (drops rows that no longer belong)
+  const qual = tabQualifier(tabId);
+  if (qual) rows = rows.filter(qual);
   if (SEARCH_TERM){
     const q = SEARCH_TERM.toLowerCase();
     rows = rows.filter(r =>
