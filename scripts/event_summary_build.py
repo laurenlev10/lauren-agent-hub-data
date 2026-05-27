@@ -396,22 +396,39 @@ def build_for_event(ev):
         if sec.exists():
             v2_token = sec.read_text().strip()
     if v2_token:
-        # Collect all pids that appear in the recount rows OR sales
-        relevant_pids = set()
+        # Always-hydrate pids that appear in recount_rows OR in the worklist.
+        # These products show up in counted_at_event / missed_from_worklist tabs and are
+        # the most visible to Lauren — must reflect live OCTOPOS values, not stale snapshot.
+        # For sales pids, only hydrate if missing (keeps API call count reasonable).
+        always_hydrate = set()
         for row in recount_rows:
-            try: relevant_pids.add(int(row.get("product_id")))
+            try: always_hydrate.add(int(row.get("product_id")))
             except: pass
-        for pid in sales.keys(): relevant_pids.add(pid)
+        for w in worklist:
+            wpid = w.get("id") or w.get("product_id")
+            if wpid is not None:
+                try: always_hydrate.add(int(wpid))
+                except: pass
+        if_missing = set()
+        for pid in sales.keys():
+            if pid not in always_hydrate: if_missing.add(pid)
+
         hydrate_count = 0
         import time
-        for pid in relevant_pids:
+        for pid in always_hydrate:
+            snap = fetch_live_product_v2(pid, v2_token)
+            if snap:
+                snapshot[pid] = snap  # always overwrite — live is truth
+                hydrate_count += 1
+            time.sleep(0.12)
+        for pid in if_missing:
             if snapshot.get(pid) is None:
                 snap = fetch_live_product_v2(pid, v2_token)
                 if snap:
                     snapshot[pid] = snap
                     hydrate_count += 1
-                time.sleep(0.15)  # be nice to OCTOPOS
-        if hydrate_count: print(f"hydrate: {hydrate_count} orphan products loaded live")
+                time.sleep(0.12)
+        print(f"hydrate: {hydrate_count} products refreshed live ({len(always_hydrate)} always, {len(if_missing)} if-missing)")
 
     counted = build_counted(recount_rows, snapshot, sales)
     counted_pids = {c["product_id"] for c in counted}
