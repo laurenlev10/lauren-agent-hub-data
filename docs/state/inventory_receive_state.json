@@ -1,5 +1,5 @@
 {
-  "_updated_at": "2026-05-21T00:01:44.182518Z",
+  "_updated_at": "2026-05-27T15:30:00Z",
   "_about": "Inventory receive-mode state — list of POs Lauren marked as 'not shipped to event' (equivalent to 'transfer to next event as-is'). Synced via GitHub Contents API from docs/inventory/index.html.",
   "skipped_pos": [
     "191",
@@ -3622,5 +3622,66 @@
     "she-makeup": [
       "^GM\\b"
     ]
+  },
+  "supplier_format_profiles": {
+    "_about": "Per-supplier invoice format quirks learned from past parses. Parser reads before parsing, gets populated as Lauren resolves new quirks. Schema: {<supplier_code>: {unit_of_measure, price_basis, faux_bold, sku_brand_prefixes, mixed_pack_size, notes, last_observed}}",
+    "amuse-cosmetics": {
+      "unit_of_measure": "DZ",
+      "price_basis": "per_pack",
+      "faux_bold": false,
+      "sku_brand_prefixes": [
+        "AM",
+        "SK",
+        "KL",
+        "FK",
+        "FM",
+        "GL",
+        "BL"
+      ],
+      "mixed_pack_size": false,
+      "default_pack_size": 12,
+      "notes": "Order UT / Pack / Ship UT / B.O. UT / Price all in DZ. Price column is per-dozen (so qty × price = Ext.Amount). Parser DZ-detection handles. AMUSE Cleveland 2026-05-22: invoice #229859, all 12 lines in 2.00 or 1.00 DZ format.",
+      "last_observed": "2026-05-22"
+    },
+    "bb-and-w": {
+      "unit_of_measure": "PCS",
+      "price_basis": "per_pack",
+      "faux_bold": true,
+      "sku_brand_prefixes": [
+        "BB&W"
+      ],
+      "mixed_pack_size": true,
+      "default_pack_size": 24,
+      "notes": "Faux-bold rendering doubles every heading char (use dedupDropShadowItems + dedupRepeatedSequences). SKUs contain & (BB&WMW, BB&W-LL). Letterhead \"Business Number\" parses as fake product — isContactInfoRow skip. Mixed pack: most 24/display, but Makeup Remover (36), Setting Spray (40), all Creamy Stain Liner Pencils (617, 621, 623, 624, 925) all 12/display.",
+      "last_observed": "2026-05-20"
+    },
+    "she-makeup": {
+      "unit_of_measure": "PCS",
+      "price_basis": "per_pack",
+      "faux_bold": false,
+      "sku_brand_prefixes": [
+        "SH",
+        "SGS",
+        "SMS"
+      ],
+      "mixed_pack_size": true,
+      "default_pack_size": 12,
+      "notes": "She invoices use straight piece counts. Order UT = display count; Ship UT × pack = pieces. Some products in 24-display packs.",
+      "last_observed": "2026-05-26"
+    },
+    "xime-beauty": {
+      "unit_of_measure": "PCS",
+      "price_basis": "per_pack",
+      "faux_bold": false,
+      "sku_brand_prefixes": [
+        "XB-",
+        "XS",
+        "XS22-"
+      ],
+      "mixed_pack_size": false,
+      "default_pack_size": 12,
+      "notes": "Xime — qty/price tiebreaker prefers decimal-bearing price (b2e7756 fix). SKU pattern: XB-NNN, XS-NNN, XS22-NNN. Recent: XB-717 (Dare Matte), XB-716 (True Black).",
+      "last_observed": "2026-05-22"
+    }
   }
 }

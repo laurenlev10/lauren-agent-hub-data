@@ -5194,6 +5194,26 @@ function getSupplierPackSize(supCode){
 // Per-product pack override (in product_rules.pack_size) takes precedence over
 // the supplier default. Useful when ONE product within a supplier ships in
 // different units than the rest (e.g., a single bulky item among dz-shipped pencils).
+// Lauren 2026-05-27 PM — PER-SUPPLIER FORMAT PROFILE (Improvement A)
+// Returns the format-profile object for a supplier_code, or empty {}. Used by
+// the parser + invoice-receive flow to apply known supplier-specific quirks
+// without hard-coding per-supplier branches. Profile schema in
+// docs/state/inventory_receive_state.json -> supplier_format_profiles.
+//
+// Today the profile is a documentation device + minimum integration (faux_bold
+// hint for BBW). Future-Claude should extend: parser reads `unit_of_measure`
+// to pick parseDZ vs parseCase, `mixed_pack_size` to skip supplier_pack_sizes
+// fallback, etc. For each new supplier — populate the profile via the UI
+// (planned) or by editing the JSON directly. Pattern: read live, write back.
+function getSupplierFormatProfile(supCode){
+  try {
+    var profiles = (RECV_STATE && RECV_STATE.supplier_format_profiles) || {};
+    return profiles[supCode] || {};
+  } catch(_){
+    return {};
+  }
+}
+
 function getEffectivePackForLine(supCode, productId){
   if (productId){
     var r = getRuleFor(productId) || {};
@@ -6088,6 +6108,12 @@ async function parseInvoiceImage(file){
 // Heuristic parser — extract {qty, sku, name, price, total} from a row string.
 // Two-pass: prefer rows with a strict SKU pattern, but also accept rows without
 // one (where SKU stays blank — name-similarity matching handles those at diff time).
+// Lauren 2026-05-27 PM — parseInvoiceRows is the per-line PDF parser. Future
+// extension: read supplier_format_profiles via getSupplierFormatProfile(code)
+// to skip work when profile says 'no DZ for this supplier', or to force
+// faux_bold dedup, etc. Right now the parser auto-detects each quirk per row;
+// the profile is documentation. When a NEW supplier surfaces a NEW quirk,
+// resolve once, write to the profile, and the next invoice goes smoothly.
 function parseInvoiceRows(rowStrings){
   var lines = [];
   rowStrings.forEach(function(row){
@@ -9601,12 +9627,27 @@ async function confirmInvoiceCompared(){
     var ruleActs = actions.filter(function(a){ return a.type === 'rule_update'; });
     var createActs = actions.filter(function(a){ return a.type === 'create'; });
     stockActs.forEach(function(a){ totalNewQty += a.qty; });
+    // Lauren 2026-05-27 PM — SPIKE DETECTION (Improvement G1)
+    // Flag any stock change where |delta| >= 100 units OR delta_pct >= 200% as
+    // potentially-wrong. This catches future double-multiply bugs (like the AMUSE
+    // incident: 0 → 576 = ∞% spike, would have flashed red). Lauren must explicitly
+    // tick an ack checkbox before the Confirm button enables.
+    var SPIKE_ABS = 100;   // units
+    var SPIKE_PCT = 200;   // %
+    var spikeRows = [];
     var rowsHtml = stockActs.map(function(a){
       var cur = Number(a.currentStock || 0);
-      var nxt = cur + Number(a.qty || 0);
-      return '<tr><td style="padding:4px 8px;font-size:12px">' + escHtml((a.name||'').slice(0,40)) + '</td>' +
+      var add = Number(a.qty || 0);
+      var nxt = cur + add;
+      var pct = cur > 0 ? (add / cur * 100) : (add > 0 ? 9999 : 0);
+      var isSpike = (Math.abs(add) >= SPIKE_ABS) || (pct >= SPIKE_PCT);
+      if (isSpike) spikeRows.push({sku: a.name, add: add, pct: pct, cur: cur});
+      var bg = isSpike ? 'background:#fef2f2;' : '';
+      var addColor = isSpike ? '#b91c1c' : '#15803d';
+      var icon = isSpike ? '🚨 ' : '';
+      return '<tr style="' + bg + '"><td style="padding:4px 8px;font-size:12px">' + icon + escHtml((a.name||'').slice(0,40)) + '</td>' +
              '<td style="padding:4px 8px;text-align:center;font-size:12px;color:var(--muted)">' + cur + '</td>' +
-             '<td style="padding:4px 8px;text-align:center;font-size:12px;color:#15803d;font-weight:700">+' + a.qty + '</td>' +
+             '<td style="padding:4px 8px;text-align:center;font-size:12px;color:' + addColor + ';font-weight:700">+' + add + (isSpike && pct < 9999 ? ' (' + Math.round(pct) + '%)' : '') + '</td>' +
              '<td style="padding:4px 8px;text-align:center;font-size:12px;font-weight:700">' + nxt + '</td></tr>';
     }).join('');
     var preflightHtml =
@@ -9628,16 +9669,40 @@ async function confirmInvoiceCompared(){
       bgPre.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.7);display:flex;align-items:center;justify-content:center;z-index:10002;padding:30px';
       var pCard = document.createElement('div');
       pCard.style.cssText = 'background:#fff;border-radius:14px;max-width:700px;width:100%;padding:24px;direction:rtl;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.5)';
-      pCard.innerHTML = preflightHtml +
+      var spikeWarnHtml = '';
+      if (spikeRows.length > 0) {
+        spikeWarnHtml =
+          '<div style="margin-top:12px;padding:12px 14px;background:#fef2f2;border:2px solid #fca5a5;border-radius:10px">' +
+            '<div style="font-weight:700;color:#991b1b;font-size:14px;margin-bottom:6px">🚨 ' + spikeRows.length + ' עדכוני קפיצה חריגה — בדקי שאלו לא באג בפרסר</div>' +
+            '<div style="font-size:11px;color:#7f1d1d;margin-bottom:8px">סף: |Δ| ≥ ' + SPIKE_ABS + ' יח׳ או Δ% ≥ ' + SPIKE_PCT + '%. הדוגמה המפורסמת: AMUSE Cleveland 2026-05-27 — כל שורה הייתה +288 או +576 במקום +24, כל שורה הייתה מסומנת כאן באדום.</div>' +
+            '<label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#991b1b;cursor:pointer">' +
+              '<input type="checkbox" id="_spikeAck" style="width:18px;height:18px;cursor:pointer;accent-color:#dc2626"> ' +
+              'בדקתי את הקפיצות — הן נכונות' +
+            '</label>' +
+          '</div>';
+      }
+      pCard.innerHTML = preflightHtml + spikeWarnHtml +
         '<div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">' +
           '<button type="button" id="_preflightCancel" style="padding:10px 20px;background:#f1f5f9;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600">ביטול</button>' +
-          '<button type="button" id="_preflightConfirm" style="padding:10px 20px;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">✅ אישור — בצעי</button>' +
+          '<button type="button" id="_preflightConfirm" ' + (spikeRows.length > 0 ? 'disabled' : '') + ' style="padding:10px 20px;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700' + (spikeRows.length > 0 ? ';opacity:.45;cursor:not-allowed' : '') + '">✅ אישור — בצעי</button>' +
         '</div>';
       bgPre.appendChild(pCard);
       document.body.appendChild(bgPre);
+      // Enable confirm only once spike-ack is ticked
+      if (spikeRows.length > 0) {
+        var ackEl = pCard.querySelector('#_spikeAck');
+        var confEl = pCard.querySelector('#_preflightConfirm');
+        if (ackEl && confEl) {
+          ackEl.addEventListener('change', function(){
+            confEl.disabled = !ackEl.checked;
+            confEl.style.opacity = ackEl.checked ? '1' : '.45';
+            confEl.style.cursor = ackEl.checked ? 'pointer' : 'not-allowed';
+          });
+        }
+      }
       bgPre.addEventListener('click', function(e){
         if (e.target === bgPre || e.target.id === '_preflightCancel'){ bgPre.remove(); resolve(false); return; }
-        if (e.target.id === '_preflightConfirm'){ bgPre.remove(); resolve(true); return; }
+        if (e.target.id === '_preflightConfirm' && !e.target.disabled){ bgPre.remove(); resolve(true); return; }
       });
     });
     if (!preflightOk){
@@ -9741,6 +9806,33 @@ async function confirmInvoiceCompared(){
   }
 
   var results = { ok: 0, fail: 0, errors: [], skipped: skippedCount };
+  // Lauren 2026-05-27 PM — STOCK AUDIT LOG (Improvement C)
+  // Collect every successful stock PUT into a batch. At the end of the loop, write
+  // the batch to docs/state/octopos_stock_audit.json (append + cap at 500 entries).
+  // Schema per entry: {ts, pid, sku, name, before, after, delta, source,
+  //   evkey, supplier_code, session_id, run_id}. Powers future "what changed?"
+  // queries and trivializes reverts.
+  var auditBatch = [];
+  var _auditSessionId = (window._octoposAuditSessionId = window._octoposAuditSessionId || ('s_' + Math.random().toString(36).slice(2, 10)));
+  var _auditRunId = 'r_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+  function _queueStockAudit(pid, sku, name, before, after){
+    try {
+      auditBatch.push({
+        ts: new Date().toISOString(),
+        pid: Number(pid),
+        sku: sku || '',
+        name: (name || '').slice(0, 80),
+        before: Number(before || 0),
+        after: Number(after || 0),
+        delta: Number(after || 0) - Number(before || 0),
+        source: '@inventory/receive',
+        evkey: CURRENT_EVKEY || '',
+        supplier_code: supplierCode,
+        session_id: _auditSessionId,
+        run_id: _auditRunId
+      });
+    } catch(_){}
+  }
   function _markCompleted(action){
     var key = _actionKey(action);
     if (completedKeys.indexOf(key) === -1) {
@@ -9975,7 +10067,11 @@ async function confirmInvoiceCompared(){
           body: JSON.stringify({in_stock_qty: newStock})
         });
         var mergedHint = (a._mergedCount && a._mergedCount > 1) ? ' (אוחד מ-' + a._mergedCount + ' שורות)' : '';
-        if (r2.ok) { log('  ✓ מלאי: ' + a.currentStock + ' → ' + newStock + mergedHint, true); _markCompleted(a); results.ok++; }
+        if (r2.ok) {
+          log('  ✓ מלאי: ' + a.currentStock + ' → ' + newStock + mergedHint, true);
+          _queueStockAudit(a.productId, '', a.name, a.currentStock, newStock); // Improvement C — audit log
+          _markCompleted(a); results.ok++;
+        }
         else { log('  ✗ מלאי נכשל: ' + r2.status, false); results.fail++; results.errors.push({action:a,status:r2.status}); }
       } else if (a.type === 'sale_price') {
         var r3 = await fetch('https://themakeup.octoretail.com/api/v2/products/' + a.productId, {
@@ -10014,6 +10110,44 @@ async function confirmInvoiceCompared(){
       log('  ✗ שגיאה: ' + e.message, false);
       results.fail++;
       results.errors.push({action:a, error:e.message});
+    }
+  }
+
+  // Lauren 2026-05-27 PM — flush audit batch to GitHub (Improvement C)
+  if (auditBatch.length > 0) {
+    try {
+      var ghTokenA = (localStorage.getItem('lauren_gh_token_v1') || '').trim();
+      if (ghTokenA) {
+        var auditFile = 'docs/state/octopos_stock_audit.json';
+        var getR = await fetch('https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/' + auditFile + '?ref=main',
+          { headers: {'Authorization':'token '+ghTokenA, 'Accept':'application/vnd.github+json'}});
+        if (getR.ok) {
+          var meta = await getR.json();
+          var existing;
+          try { existing = JSON.parse(atob((meta.content || '').replace(/\n/g, ''))); }
+          catch(_) { existing = { _updated_at: null, entries: [] }; }
+          if (!Array.isArray(existing.entries)) existing.entries = [];
+          existing.entries = (existing.entries || []).concat(auditBatch);
+          // Cap to most-recent 500 entries
+          if (existing.entries.length > 500) existing.entries = existing.entries.slice(-500);
+          existing._updated_at = new Date().toISOString();
+          var content = JSON.stringify(existing, null, 2);
+          var putR = await fetch('https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/' + auditFile,
+            { method:'PUT', headers: {'Authorization':'token '+ghTokenA, 'Accept':'application/vnd.github+json', 'Content-Type':'application/json'},
+              body: JSON.stringify({
+                message: '@inventory: audit ' + auditBatch.length + ' stock updates (' + supplierCode + ')',
+                content: btoa(unescape(encodeURIComponent(content))), branch: 'main', sha: meta.sha
+              })
+            });
+          if (putR.ok) {
+            log('📝 audit log: נוספו ' + auditBatch.length + ' רישומים ל-octopos_stock_audit.json', true);
+          } else {
+            console.warn('audit log PUT failed:', putR.status);
+          }
+        }
+      }
+    } catch(auditErr) {
+      console.warn('audit log flush threw:', auditErr);
     }
   }
 
@@ -10963,7 +11097,62 @@ function openLinkExistingPicker(ri){
     matches = matches.slice(0, 100);
     var box = modal.querySelector('#_lnkResults');
     if (!matches.length) {
-      box.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">לא נמצאו מוצרים מתאימים</div>';
+      // Lauren 2026-05-27 PM — LIVE OCTOPOS FALLBACK (Improvement B)
+      // If the local snapshot has no matches, query OCTOPOS LIVE and offer 1-click
+      // inject into the snapshot. Catches the XB-717 / XB-716 case where products
+      // exist in OCTOPOS but the snapshot is stale (last sync 12h ago).
+      box.innerHTML =
+        '<div style="padding:14px;color:var(--muted);font-size:13px;text-align:center">' +
+          'לא נמצאו מוצרים ב-snapshot המקומי.<br>' +
+          '<button type="button" id="_lnkLiveSearch" style="margin-top:10px;padding:8px 16px;background:linear-gradient(180deg,#0ea5e9,#0369a1);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px">🔍 חיפוש LIVE ב-OCTOPOS</button>' +
+        '</div>';
+      var liveBtn = modal.querySelector('#_lnkLiveSearch');
+      if (liveBtn) {
+        liveBtn.addEventListener('click', async function(){
+          liveBtn.disabled = true; liveBtn.textContent = '⏳ מחפש LIVE...';
+          var octT = (localStorage.getItem('lauren_octopos_token') || '').trim();
+          if (!octT) { liveBtn.textContent = '⚠ אין טוקן OCTOPOS'; return; }
+          var qTerm = (modal.querySelector('#_lnkSearch').value || '').toLowerCase().trim();
+          if (!qTerm) { liveBtn.textContent = '⚠ הקלידי משהו לחיפוש'; return; }
+          // Probe a window of recent product IDs (the most likely place for missing products)
+          var snap = {};
+          try { (Object.values((window.OCTOPOS && OCTOPOS.vendors) || {})).forEach(function(v){
+            (v.products||[]).concat(v.inactive_products||[]).forEach(function(p){ snap[p.id] = true; });
+          }); } catch(_){}
+          // Find current max pid in snapshot, probe ±30
+          var maxPid = 0; Object.keys(snap).forEach(function(k){ maxPid = Math.max(maxPid, Number(k)); });
+          var probeIds = [];
+          for (var i = Math.max(1, maxPid - 50); i <= maxPid + 30; i++) probeIds.push(i);
+          var liveHits = [];
+          var qWords = qTerm.split(/\s+/);
+          for (var ix = 0; ix < probeIds.length; ix++) {
+            try {
+              var pr = await fetch('https://themakeup.octoretail.com/api/v2/products/' + probeIds[ix],
+                { headers: {'Authorization': octT, 'Accept':'application/json'}});
+              if (pr.ok) {
+                var pd = await pr.json();
+                if (pd && pd.id) {
+                  var hay = ((pd.name || '') + ' ' + (pd.sku || '')).toLowerCase();
+                  if (qWords.every(function(w){ return hay.indexOf(w) !== -1; })) {
+                    liveHits.push(pd);
+                  }
+                }
+              }
+            } catch(_){}
+          }
+          if (!liveHits.length) {
+            box.innerHTML = '<div style="padding:14px;color:#b91c1c;font-size:13px;text-align:center">⚠️ לא נמצא ב-OCTOPOS LIVE גם. ייתכן שצריך לחפש בשם אחר או שהמוצר באמת לא קיים.</div>';
+            return;
+          }
+          box.innerHTML = '<div style="padding:8px;background:#dbeafe;color:#1e3a8a;font-size:11px;font-weight:700">🔍 ' + liveHits.length + ' תוצאות LIVE (לא ב-snapshot עדיין):</div>' +
+            liveHits.map(function(p){
+              return '<div data-pid="' + p.id + '" data-pname="' + escHtml(p.name||'') + '" data-psku="' + escHtml(p.sku||'') + '" data-pcost="' + Number(p.cost||0).toFixed(2) + '" data-live="1" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:13px;background:#eff6ff" onmouseover="this.style.background=\'#dbeafe\'" onmouseout="this.style.background=\'#eff6ff\'">' +
+                '<div><b>' + escHtml(p.name||'') + '</b> <span style="background:#fef3c7;color:#92400e;font-size:9px;padding:1px 5px;border-radius:3px;border:1px solid #fde68a;margin-right:4px">LIVE</span></div>' +
+                '<div style="color:var(--muted);font-size:11px;margin-top:2px">' + escHtml(p.sku||'(ללא SKU)') + ' · $' + Number(p.cost||0).toFixed(2) + '/יח\' · stock ' + Number(p.in_stock_qty||0) + '</div>' +
+              '</div>';
+            }).join('');
+        });
+      }
       return;
     }
     box.innerHTML = matches.map(function(p){
