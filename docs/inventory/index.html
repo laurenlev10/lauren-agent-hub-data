@@ -9276,7 +9276,13 @@ async function confirmInvoiceCompared(){
       // instead of 24. If Lauren didn't manually override the input, apply the
       // same pack-multiplication here so the saved qty matches what she saw.
       var effQty = qty;
-      if (ov.qty === undefined && qty > 0 && typeof getEffectivePackForLine === 'function'){
+      // Lauren 2026-05-27 — DOUBLE-PACK-MULTIPLY BUG FIX
+      // If the parser already converted unit-of-measure (DZ/DOZEN/GROSS → pieces),
+      // L.unit_note is set ('2×DZ' etc) and L.qty is ALREADY in pieces. Do NOT
+      // pack-multiply again — would double-apply (Amuse 5/22/2026 Cleveland: each
+      // line pushed ×12 or ×24 too many, e.g. 2 DZ → parser=24 → save ×12 = 288
+      // → stock corrupted with hundreds of phantom units).
+      if (ov.qty === undefined && qty > 0 && !L.unit_note && typeof getEffectivePackForLine === 'function'){
         var _packS = getEffectivePackForLine(supplierCode, existing.id);
         if (_packS > 1) effQty = qty * _packS;
       }
@@ -9299,7 +9305,8 @@ async function confirmInvoiceCompared(){
       // overridden, using supplier default (no product_id yet for product-level
       // override).
       var effQtyNew = qty;
-      if (ov.qty === undefined && qty > 0 && typeof getEffectivePackForLine === 'function'){
+      // Lauren 2026-05-27 — DOUBLE-PACK-MULTIPLY BUG FIX (companion to Block A above)
+      if (ov.qty === undefined && qty > 0 && !L.unit_note && typeof getEffectivePackForLine === 'function'){
         var _packN = getEffectivePackForLine(supplierCode, null);
         if (_packN > 1) effQtyNew = qty * _packN;
       }
@@ -9516,6 +9523,66 @@ async function confirmInvoiceCompared(){
         if (typeof scheduleSave === 'function') scheduleSave();
       }
     } catch(_){}
+  }
+
+  // Lauren 2026-05-27 — PREFLIGHT CONFIRMATION (Bug B fix)
+  // BEFORE the Amuse Cleveland incident, the only confirmation modal was for new-PRODUCT
+  // creation. Stock updates / sale-price changes / clearance tags went straight from
+  // 'click ✅' to OCTOPOS pushes with no preview-and-confirm step — so Lauren had no
+  // safety-net for double-pack quantities. Always require an explicit confirmation
+  // listing every action AND the per-product NEW stock value before any API call.
+  if (actions.length > 0) {
+    var totalStock = 0, totalNewQty = 0;
+    var stockActs = actions.filter(function(a){ return a.type === 'stock'; });
+    var saleActs = actions.filter(function(a){ return a.type === 'sale_price'; });
+    var clearActs = actions.filter(function(a){ return a.type === 'clearance'; });
+    var ruleActs = actions.filter(function(a){ return a.type === 'rule_update'; });
+    var createActs = actions.filter(function(a){ return a.type === 'create'; });
+    stockActs.forEach(function(a){ totalNewQty += a.qty; });
+    var rowsHtml = stockActs.map(function(a){
+      var cur = Number(a.currentStock || 0);
+      var nxt = cur + Number(a.qty || 0);
+      return '<tr><td style="padding:4px 8px;font-size:12px">' + escHtml((a.name||'').slice(0,40)) + '</td>' +
+             '<td style="padding:4px 8px;text-align:center;font-size:12px;color:var(--muted)">' + cur + '</td>' +
+             '<td style="padding:4px 8px;text-align:center;font-size:12px;color:#15803d;font-weight:700">+' + a.qty + '</td>' +
+             '<td style="padding:4px 8px;text-align:center;font-size:12px;font-weight:700">' + nxt + '</td></tr>';
+    }).join('');
+    var preflightHtml =
+      '<h2 style="margin:0 0 8px;font-size:18px;color:#0f172a">✅ אישור סופי לפני PUSH ל-OCTOPOS</h2>' +
+      '<div style="color:var(--muted);font-size:13px;margin-bottom:14px">בדקי את הכמויות. אחרי לחיצה על "אישור — בצעי" המערכת תעדכן את אוקטופוס. בלי אישור — שום דבר לא יקרה.</div>' +
+      '<div style="background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px">' +
+        '<div style="font-weight:700;color:#0f172a;margin-bottom:6px">סיכום:</div>' +
+        '<div style="font-size:13px;line-height:1.7">' +
+          (stockActs.length ? '📦 <b>' + stockActs.length + '</b> עדכוני מלאי · סה"כ <b>+' + totalNewQty + '</b> יחידות<br>' : '') +
+          (createActs.length ? '🆕 <b>' + createActs.length + '</b> מוצרים חדשים<br>' : '') +
+          (saleActs.length ? '💰 <b>' + saleActs.length + '</b> מחירי מכירה<br>' : '') +
+          (clearActs.length ? '🚫 <b>' + clearActs.length + '</b> סימוני Clearance<br>' : '') +
+          (ruleActs.length ? '📝 <b>' + ruleActs.length + '</b> כללי מוצר<br>' : '') +
+        '</div>' +
+      '</div>' +
+      (stockActs.length ? '<div style="background:#fff;border:1px solid var(--line);border-radius:8px;max-height:280px;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead style="background:#f1f5f9;position:sticky;top:0"><tr><th style="padding:6px 8px;text-align:right;font-size:11px;color:var(--muted)">מוצר</th><th style="padding:6px 8px;text-align:center;font-size:11px;color:var(--muted)">לפני</th><th style="padding:6px 8px;text-align:center;font-size:11px;color:var(--muted)">+יחידות</th><th style="padding:6px 8px;text-align:center;font-size:11px;color:var(--muted)">אחרי</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>' : '');
+    var preflightOk = await new Promise(function(resolve){
+      var bgPre = document.createElement('div');
+      bgPre.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.7);display:flex;align-items:center;justify-content:center;z-index:10002;padding:30px';
+      var pCard = document.createElement('div');
+      pCard.style.cssText = 'background:#fff;border-radius:14px;max-width:700px;width:100%;padding:24px;direction:rtl;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.5)';
+      pCard.innerHTML = preflightHtml +
+        '<div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">' +
+          '<button type="button" id="_preflightCancel" style="padding:10px 20px;background:#f1f5f9;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600">ביטול</button>' +
+          '<button type="button" id="_preflightConfirm" style="padding:10px 20px;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">✅ אישור — בצעי</button>' +
+        '</div>';
+      bgPre.appendChild(pCard);
+      document.body.appendChild(bgPre);
+      bgPre.addEventListener('click', function(e){
+        if (e.target === bgPre || e.target.id === '_preflightCancel'){ bgPre.remove(); resolve(false); return; }
+        if (e.target.id === '_preflightConfirm'){ bgPre.remove(); resolve(true); return; }
+      });
+    });
+    if (!preflightOk){
+      if (btn){ btn.disabled = false; btn.textContent = '✅ עדכן קבלת סחורה'; }
+      toast('בוטל לפני PUSH ל-OCTOPOS — שום דבר לא עודכן', '');
+      return;
+    }
   }
 
   // Show progress modal
