@@ -361,13 +361,14 @@ def build_top_sellers(sales, snapshot, limit=100):
     return rows[:limit]
 
 
-def build_no_threshold(snapshot):
+def build_no_threshold(snapshot, sales=None):
     out = []
     for pid, snap in snapshot.items():
         try: thr = float(snap.get("threshold") or 0)
         except: thr = 0
         if thr > 0 or not snap.get("active", True): continue
         cats, has_rc = cats_and_recount(snap)
+        s = (sales or {}).get(pid) or {}
         out.append({"product_id":pid,"name":snap.get("name") or "",
             "sku":snap.get("sku") or "","supplier":snap.get("_supplier_name") or "",
             "department":snap.get("department") or "",
@@ -376,6 +377,7 @@ def build_no_threshold(snapshot):
             "threshold":thr,
             "unit_cost":snap.get("unit_cost"),"sale_price":snap.get("sale_price"),
             "created_at":snap.get("created_at"),
+            "units_sold_at_event": s.get("units_sold") or 0,
             "categories":cats,"has_recount_tag":has_rc})
     out.sort(key=lambda x: x["supplier"] or "")
     return out
@@ -439,7 +441,7 @@ def build_for_event(ev):
     negatives = build_negatives(snapshot)
     slow_movers = build_slow_movers(snapshot, sales)
     top_sellers = build_top_sellers(sales, snapshot)
-    no_threshold = build_no_threshold(snapshot)
+    no_threshold = build_no_threshold(snapshot, sales)
 
     summary = {"evkey":evkey,
         "event":{"city":ev.get("city"),"state":ev.get("state"),

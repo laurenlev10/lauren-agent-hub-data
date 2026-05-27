@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>📊 סיכום פוסט-אירוע</title>
+<title>📊 Inventory Summary</title>
 <style>
 :root {
   --bg: #fafafa; --surface: #fff; --border: #e5e7eb; --text: #111827;
@@ -129,7 +129,7 @@ table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font
 </head>
 <body>
 <header>
-  <h1>📊 סיכום פוסט-אירוע <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v7 · 26.5</span></h1>
+  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v8 · 26.5</span></h1>
   <div class="subtitle" id="subtitle">טוען...</div>
 </header>
 
@@ -905,6 +905,7 @@ function renderNoThreshold(){
     + sortableHeader('name', 'מוצר', 'no_threshold')
     + sortableHeader('supplier', 'ספק', 'no_threshold')
     + sortableHeader('department', 'מחלקה', 'no_threshold')
+    + sortableHeader('units_sold_at_event', '🛒 נמכרו באירוע', 'no_threshold')
     + sortableHeader('in_stock_qty', '📦 מלאי כעת', 'no_threshold')
     + sortableHeader('sale_price', 'מחיר', 'no_threshold')
     + '<th>⚙️ Threshold חדש</th>'
@@ -916,6 +917,7 @@ function renderNoThreshold(){
         ${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
       <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
       <td>${escHtml(r.department||'—')}</td>
+      <td class="num">${(r.units_sold_at_event > 0) ? '<strong>'+fmt(r.units_sold_at_event)+'</strong>' : '<span class="pill danger" title="לא זז באירוע">💤 לא זז</span>'}</td>
       <td class="num">${renderStockEditCell(r)}</td>
       <td class="num">$${fmt(r.sale_price, 2)}</td>
       <td><div class="thr-cell">
