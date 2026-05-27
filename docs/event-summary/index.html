@@ -129,7 +129,7 @@ table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font
 </head>
 <body>
 <header>
-  <h1>📊 סיכום פוסט-אירוע <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v6 · 26.5</span></h1>
+  <h1>📊 סיכום פוסט-אירוע <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v7 · 26.5</span></h1>
   <div class="subtitle" id="subtitle">טוען...</div>
 </header>
 
@@ -751,6 +751,7 @@ function renderMissed(){
     + sortableHeader('name', 'מוצר', 'missed_from_worklist')
     + sortableHeader('supplier', 'ספק', 'missed_from_worklist')
     + sortableHeader('reason', 'סיבה ברשימה', 'missed_from_worklist')
+    + sortableHeader('units_sold_at_event', '🛒 נמכרו / לא זז', 'missed_from_worklist')
     + sortableHeader('current_stock', '📦 מלאי כעת', 'missed_from_worklist')
     + sortableHeader('threshold', '⚙️ Threshold', 'missed_from_worklist')
     + sortableHeader('has_recount_tag', 'תג RECOUNT', 'missed_from_worklist')
@@ -766,6 +767,7 @@ function renderMissed(){
         ${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
       <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
       <td>${reasonPills[r.reason] || '<span class="pill muted">'+escHtml(r.reason)+'</span>'}</td>
+      <td class="num">${(r.units_sold_at_event > 0) ? '<strong>'+fmt(r.units_sold_at_event)+'</strong>' : '<span class="pill danger" title="לא זז באירוע — נשאר במלאי">💤 לא זז</span>'}</td>
       <td class="num">${renderStockEditCell(r)}</td>
       <td class="num">${renderThresholdEditCell(r)}</td>
       <td>${renderRecountTagCell(r)}</td>

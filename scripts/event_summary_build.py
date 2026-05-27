@@ -281,7 +281,7 @@ def build_counted(rows, snapshot, sales=None):
     return out
 
 
-def build_missed(worklist, counted_pids, snapshot):
+def build_missed(worklist, counted_pids, snapshot, sales=None):
     name_to_pid = {(s.get("name") or "").strip().lower(): pid for pid,s in snapshot.items()}
     out = []
     for w in worklist:
@@ -292,6 +292,8 @@ def build_missed(worklist, counted_pids, snapshot):
             continue
         snap = snapshot.get(int(wpid)) if wpid is not None else None
         cats, has_rc = cats_and_recount(snap or {})
+        s = (sales or {}).get(int(wpid)) if wpid is not None else None
+        units_sold = (s or {}).get("units_sold") or 0
         out.append({"product_id": int(wpid) if wpid is not None else None,
             "name": w.get("name") or "",
             "sku": (snap or {}).get("sku") or w.get("sku") or "",
@@ -299,6 +301,7 @@ def build_missed(worklist, counted_pids, snapshot):
             "reason": w.get("reason") or "",
             "current_stock": (snap or {}).get("in_stock_qty"),
             "threshold": (snap or {}).get("threshold"),
+            "units_sold_at_event": units_sold,
             "categories": cats, "has_recount_tag": has_rc})
     return out
 
@@ -432,7 +435,7 @@ def build_for_event(ev):
 
     counted = build_counted(recount_rows, snapshot, sales)
     counted_pids = {c["product_id"] for c in counted}
-    missed = build_missed(worklist, counted_pids, snapshot)
+    missed = build_missed(worklist, counted_pids, snapshot, sales)
     negatives = build_negatives(snapshot)
     slow_movers = build_slow_movers(snapshot, sales)
     top_sellers = build_top_sellers(sales, snapshot)
