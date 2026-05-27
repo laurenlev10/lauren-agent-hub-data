@@ -1005,7 +1005,13 @@ function recomputeSummary(evkey){
     // Lauren 2026-05-27 PM #6 — invoice_total_usd IS the grand total (= what was
     // paid including shipping). shipping_cost_usd is informational about the
     // shipping portion. Do NOT add them again — that double-counts shipping.
+    // Lauren 2026-05-27 PM #7 — also sum per-order invoice totals (each saved
+    // order can now have its own invoice + total when using the per-order flow).
     var invSum = Number(s.invoice_total_usd||0);
+    try {
+      var _supOrdersSum = (slice.local_orders || []).filter(function(o){ return o.supplier_code === sup.code; });
+      _supOrdersSum.forEach(function(o){ invSum += Number(o.invoice_total_usd || 0); });
+    } catch(_){}
     invoiceTotal += invSum;
     if (s.invoice_compared_at) {
       orderedCodes.add(sup.code);
@@ -1108,14 +1114,31 @@ function renderSupplierCard(sup, s, idx){
   } catch(e){ _hasLocalOrder = false; }
   // Per-row invoice total — invoice_total_usd already is the grand total.
   // Lauren 2026-05-27 PM #6 — don't add shipping again.
+  // Lauren 2026-05-27 PM #7 — also include per-order invoice totals
   var _rowInvoiceTotal = Number(s.invoice_total_usd || 0);
+  try {
+    var _rowOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === sup.code; });
+    _rowOrders.forEach(function(o){ _rowInvoiceTotal += Number(o.invoice_total_usd || 0); });
+  } catch(_){}
   // Check if invoice has been compared+confirmed for this supplier in this event
+  // Lauren 2026-05-27 PM #7 — also check per-order. If ANY order is compared, mark.
   var _invoiceCompared = false;
   var _invoiceComparedAt = '';
   try {
     if (s && s.invoice_compared_at) {
       _invoiceCompared = true;
       _invoiceComparedAt = s.invoice_compared_at;
+    }
+    var _supOrdersC = (slice.local_orders || []).filter(function(o){ return o.supplier_code === sup.code; });
+    var _allOrdersCompared = _supOrdersC.length > 0 && _supOrdersC.every(function(o){ return !!o.invoice_compared_at; });
+    if (_allOrdersCompared) {
+      _invoiceCompared = true;
+      // Latest invoice_compared_at across all orders
+      _supOrdersC.forEach(function(o){
+        if (o.invoice_compared_at && (!_invoiceComparedAt || o.invoice_compared_at > _invoiceComparedAt)) {
+          _invoiceComparedAt = o.invoice_compared_at;
+        }
+      });
     }
   } catch(_){}
   function _fmtMMDDHHMM(iso){
@@ -1133,7 +1156,12 @@ function renderSupplierCard(sup, s, idx){
     : (STATUS_LABELS[s.status]||STATUS_LABELS.pending);
   // Per-row grand total — invoice_total_usd already is the grand total Lauren paid.
   // Lauren 2026-05-27 PM #6 — don't add shipping again.
+  // Lauren 2026-05-27 PM #7 — also include per-order invoice totals
   var _rowGrand = Number(s.invoice_total_usd||0);
+  try {
+    var _gOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === sup.code; });
+    _gOrders.forEach(function(o){ _rowGrand += Number(o.invoice_total_usd || 0); });
+  } catch(_){}
   const totalDisp = _rowGrand > 0
     ? '<span style="color:#15803d;font-weight:800">' + fmtUsd(_rowGrand) + '</span>'
     : '<span style="color:var(--muted)">—</span>';
@@ -1565,15 +1593,34 @@ function renderLocalOrdersForSupplier(supplierCode){
         '<td style="text-align:center;color:var(--muted)">$' + cu.toFixed(2) + '</td>' +
         '<td style="text-align:left;color:#15803d;font-weight:600">$' + lt.toFixed(2) + '</td></tr>';
     }).join('');
+    // Lauren 2026-05-27 PM #7 — per-order invoice state for display
+    var _orderInvoiceCompared = !!o.invoice_compared_at;
+    var _orderInvoiceTotal = Number(o.invoice_total_usd || 0);
+    var _orderHasPending = !!(o._pending_invoice && o._pending_invoice.invoice_lines && o._pending_invoice.invoice_lines.length);
+    var _compareBtnLabel = _orderInvoiceCompared
+      ? '✓ עודכן · ' + (o.invoice_compared_at ? new Date(o.invoice_compared_at).toLocaleString('he-IL', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '')
+      : (_orderHasPending ? '📋 השוואת חשבונית (טיוטה)' : '📋 השוואת חשבונית');
+    var _compareBtnStyle = _orderInvoiceCompared
+      ? 'background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;'
+      : (_orderHasPending ? 'background:linear-gradient(180deg,#f59e0b,#d97706);color:#fff;border:none;' : 'background:linear-gradient(180deg,#3b82f6,#1d4ed8);color:#fff;border:none;');
+    var resetBtn = _orderInvoiceCompared
+      ? '<button type="button" class="btn-reset-order-invoice" data-supplier-code="' + escHtml(supplierCode) + '" data-order-index="' + oi + '" title="↺ נקה את סטטוס &quot;עודכן&quot; לחשבונית של ההזמנה הזו" style="background:#fff;border:1px solid var(--line);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:13px;color:#475569;padding:0;line-height:1;margin-left:4px">↺</button>'
+      : '';
     var actionBtns = ' <span style="display:inline-block;margin-right:auto;float:left">' +
+      '<button type="button" class="btn-compare-order-invoice" data-supplier-code="' + escHtml(supplierCode) + '" data-order-index="' + oi + '" title="פתחי השוואת חשבונית עבור ההזמנה הזו בלבד" style="font-size:11px;padding:4px 10px;' + _compareBtnStyle + 'border-radius:6px;cursor:pointer;font-weight:700;margin-left:4px">' + _compareBtnLabel + '</button>' +
+      resetBtn +
       '<button type="button" class="btn-edit-saved-order" data-supplier-code="' + escHtml(supplierCode) + '" data-order-index="' + oi + '" title="ערוך כמויות / מחק שורות" style="font-size:11px;padding:4px 10px;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;cursor:pointer;font-weight:600;margin-left:4px">✏️ ערוך</button>' +
       '<button type="button" class="btn-copy-sms-order" data-supplier-code="' + escHtml(supplierCode) + '" data-order-index="' + oi + '" title="העתק את ה-SMS לקליפבורד מיידית (יום: TOMORROW)" style="font-size:11px;padding:4px 10px;background:#dcfce7;border:1px solid #86efac;border-radius:6px;cursor:pointer;font-weight:600;margin-left:4px">📋 העתק SMS</button>' +
       '<button type="button" class="btn-resend-sms-order" data-supplier-code="' + escHtml(supplierCode) + '" data-order-index="' + oi + '" title="פתח את ההודעה הזו שוב לשליחה" style="font-size:11px;padding:4px 10px;background:#dbeafe;border:1px solid #93c5fd;border-radius:6px;cursor:pointer;font-weight:600">📲 SMS שוב</button>' +
     '</span>';
+    var invoiceTotalHtml = _orderInvoiceTotal > 0
+      ? ' · <span style="color:#15803d;font-weight:800">חשבונית: ' + fmtUsd(_orderInvoiceTotal) + '</span>'
+      : '';
     html += '<details' + (oi === 0 ? ' open' : '') + ' style="margin-bottom:10px;padding:8px;background:#fff;border:1px solid #d1fae5;border-radius:6px;">' +
       '<summary style="cursor:pointer;font-weight:600;">' +
         '💾 הזמנה #' + (oi+1) + ' · ' + (o.items || []).length + ' פריטים · ' +
-        '<b>' + (o.total_qty || 0) + ' pcs</b> · <b>$' + Number(o.total_cost || 0).toFixed(2) + '</b>' +
+        '<b>' + (o.total_qty || 0) + ' pcs</b> · <b>צפוי: $' + Number(o.total_cost || 0).toFixed(2) + '</b>' +
+        invoiceTotalHtml +
         ' <span style="color:var(--muted);font-size:11px;font-weight:400;margin-right:8px;">נשמר ' + when + '</span>' +
         (o.restored_from ? ' <span style="color:#92400e;font-size:11px;font-weight:400;">· משוחזרת מ-SMS</span>' : '') +
         actionBtns +
@@ -8506,7 +8553,7 @@ function maybeShowAutoSyncCountdown(){
   if (!resBox || !CMP_CTX || !Array.isArray(CMP_CTX.invoice_lines) || !CMP_CTX.invoice_lines.length) return;
   // Don't show the banner if invoice was already confirmed once (avoid double-push)
   try {
-    var sup0 = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+    var sup0 = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
     if (sup0 && sup0.invoice_compared_at) return;
   } catch(_){}
   // Avoid stacking multiple banners on re-render
@@ -8567,11 +8614,53 @@ async function triggerOctoposPushForSupplier(supplierCode, supplierName){
   catch(e){ console.error(e); toast("שגיאה בפתיחת חלון: " + e.message, "error"); }
 }
 
-function openCompareInvoiceModal(supplierCode, supplierName){
-  // Aggregate items from this supplier's local_orders for this event
+// Lauren 2026-05-27 PM #7 — PER-ORDER COMPARE FLOW
+// Returns the pending-invoice slot for the current CMP_CTX. When order_index is
+// set (per-order flow), the slot lives ON the local order object; otherwise it
+// lives on the supplier slice (legacy combined flow).
+function _getPendingInvoiceSlot(){
+  if (!CMP_CTX) return null;
+  try {
+    var slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || {};
+    if (CMP_CTX.order_index !== undefined && CMP_CTX.order_index !== null) {
+      // Per-order — find the matching local order
+      var supOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === CMP_CTX.supplier_code; });
+      var ord = supOrders[CMP_CTX.order_index];
+      if (!ord) return null;
+      if (!ord._pending_invoice) ord._pending_invoice = {};
+      return ord;
+    }
+    // Legacy supplier-level
+    var sup = (slice.suppliers || {})[CMP_CTX.supplier_code];
+    if (!sup) return null;
+    if (!sup._pending_invoice) sup._pending_invoice = {};
+    return sup;
+  } catch(_) { return null; }
+}
+
+// Same helper but read-only (returns null if slot doesn't exist yet, doesn't create it)
+function _getPendingInvoiceSlotReadonly(){
+  if (!CMP_CTX) return null;
+  try {
+    var slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || {};
+    if (CMP_CTX.order_index !== undefined && CMP_CTX.order_index !== null) {
+      var supOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === CMP_CTX.supplier_code; });
+      return supOrders[CMP_CTX.order_index] || null;
+    }
+    return (slice.suppliers || {})[CMP_CTX.supplier_code] || null;
+  } catch(_) { return null; }
+}
+
+function openCompareInvoiceModal(supplierCode, supplierName, orderIndex){
+  // Lauren 2026-05-27 PM #7 — orderIndex (optional, integer): when set, scope
+  // the compare flow to ONE saved order instead of aggregating all orders for
+  // the supplier. Each order gets its own _pending_invoice + invoice_compared_at
+  // + invoice_total_usd, stored on the local order object itself.
   if (typeof CURRENT_EVKEY === "undefined" || !CURRENT_EVKEY) { toast("אין אירוע פעיל", "error"); return; }
   var slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || {};
-  var localOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === supplierCode; });
+  var localOrdersAll = (slice.local_orders || []).filter(function(o){ return o.supplier_code === supplierCode; });
+  // Scope: if orderIndex provided, use only that order; else aggregate all
+  var localOrders = (orderIndex !== undefined && orderIndex !== null) ? [localOrdersAll[orderIndex]].filter(Boolean) : localOrdersAll;
   var aggMap = {};  // sku|name -> {name, sku, qty, cost_unit, product_id}
   localOrders.forEach(function(o){
     (o.items || []).forEach(function(it){
@@ -8588,7 +8677,8 @@ function openCompareInvoiceModal(supplierCode, supplierName){
     supplier_code: supplierCode,
     supplier_name: supplierName,
     expected: expected,
-    invoice_lines: []
+    invoice_lines: [],
+    order_index: (orderIndex !== undefined && orderIndex !== null) ? Number(orderIndex) : null
   };
 
   // Render expected block
@@ -8601,16 +8691,18 @@ function openCompareInvoiceModal(supplierCode, supplierName){
         '</tbody></table>'+
       '</details>';
 
-  $("#cmpTitle").textContent = "📋 השוואת חשבונית · " + supplierName;
+  // Lauren 2026-05-27 PM #7 — per-order title shows the order # too
+  $("#cmpTitle").textContent = "📋 השוואת חשבונית · " + supplierName + ((CMP_CTX.order_index !== null) ? " · הזמנה #" + (CMP_CTX.order_index + 1) : "");
   $("#cmpExpectedBlock").innerHTML = expHtml;
   $("#cmpResult").innerHTML = '';
   $("#cmpFile").value = '';
   var cb0 = document.getElementById('cmpConfirmBlock'); if (cb0) cb0.style.display = 'none';
   $("#cmpModalBg").style.display = 'flex';
 
-  // Try to restore a previously parsed invoice for this supplier (saved in supplier slice)
+  // Try to restore a previously parsed invoice — from the appropriate slot
+  // (per-order or supplier-level) based on CMP_CTX.order_index.
   try {
-    var supState = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[supplierCode] : null;
+    var supState = _getPendingInvoiceSlotReadonly();
     var pending = supState && supState._pending_invoice;
     if (pending && Array.isArray(pending.invoice_lines) && pending.invoice_lines.length) {
       CMP_CTX.invoice_lines = pending.invoice_lines;
@@ -8637,7 +8729,7 @@ function openCompareInvoiceModal(supplierCode, supplierName){
       if (ev.target.id === 'cmpActualPaidInput') {
         var rawV = (ev.target.value || '').trim();
         try {
-          var supAP = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+          var supAP = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
           if (supAP && supAP._pending_invoice) {
             if (rawV === '' || isNaN(Number(rawV)) || Number(rawV) <= 0) {
               delete supAP._pending_invoice.actual_paid_usd;
@@ -8675,7 +8767,7 @@ function openCompareInvoiceModal(supplierCode, supplierName){
       CMP_CTX.line_edits[ri][field] = val;
       // Mirror into supplier slice so edits survive modal close/reopen
       try {
-        var sup2 = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+        var sup2 = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
         if (sup2 && sup2._pending_invoice) {
           sup2._pending_invoice.line_edits = CMP_CTX.line_edits;
           if (typeof scheduleSave === 'function') scheduleSave();
@@ -8752,7 +8844,7 @@ function openCompareInvoiceModal(supplierCode, supplierName){
       if (ev.target.id === 'cmpActualPaidClear') {
         ev.preventDefault(); ev.stopPropagation();
         try {
-          var supX = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+          var supX = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
           if (supX && supX._pending_invoice) {
             delete supX._pending_invoice.actual_paid_usd;
             // Also clear from the persisted supplier row so the row pill / global subtotal recompute.
@@ -8795,7 +8887,7 @@ function openCompareInvoiceModal(supplierCode, supplierName){
           ovS3.add_to_system = false;
         }
         try {
-          var supSh = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+          var supSh = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
           if (supSh && supSh._pending_invoice) {
             supSh._pending_invoice.line_edits = CMP_CTX.line_edits;
             if (typeof scheduleSave === 'function') scheduleSave();
@@ -8821,7 +8913,7 @@ function openCompareInvoiceModal(supplierCode, supplierName){
             // Also clear any per-row edits for this ri so a re-render doesn't try to apply them
             if (CMP_CTX.line_edits && CMP_CTX.line_edits[riR]) delete CMP_CTX.line_edits[riR];
             try {
-              var supRem = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+              var supRem = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
               if (supRem && supRem._pending_invoice) {
                 supRem._pending_invoice.invoice_lines = CMP_CTX.invoice_lines;
                 supRem._pending_invoice.line_edits = CMP_CTX.line_edits;
@@ -8873,7 +8965,7 @@ function openCompareInvoiceModal(supplierCode, supplierName){
       }
       // Persist + re-render
       try {
-        var sup3 = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+        var sup3 = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
         if (sup3 && sup3._pending_invoice) {
           sup3._pending_invoice.line_edits = CMP_CTX.line_edits;
           if (typeof scheduleSave === 'function') scheduleSave();
@@ -9011,7 +9103,7 @@ function openAddProductForm(){
       // If a sale price was given, record it as an edit on the new row index.
       // The new ri will be at the END of _lastRows after re-render — we set it after render.
       try {
-        var sup = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+        var sup = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
         if (sup && sup._pending_invoice) {
           sup._pending_invoice.invoice_lines = CMP_CTX.invoice_lines;
           if (typeof scheduleSave === 'function') scheduleSave();
@@ -9029,7 +9121,7 @@ function openAddProductForm(){
               if (!CMP_CTX.line_edits[i]) CMP_CTX.line_edits[i] = {};
               CMP_CTX.line_edits[i].sale_price = sale;
               try {
-                var sup2 = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+                var sup2 = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
                 if (sup2 && sup2._pending_invoice) {
                   sup2._pending_invoice.line_edits = CMP_CTX.line_edits;
                   if (typeof scheduleSave === 'function') scheduleSave();
@@ -9114,7 +9206,7 @@ document.addEventListener("click", function(e){
     // closing the modal doesn't lose work. Also bumps draft_saved_at so the
     // timestamp on next reopen reflects the actual last edit.
     try {
-      var supPI = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+      var supPI = _getPendingInvoiceSlot();
       if (supPI && supPI._pending_invoice) {
         supPI._pending_invoice.line_edits = CMP_CTX.line_edits;
         supPI._pending_invoice.draft_saved_at = new Date().toISOString();
@@ -9131,7 +9223,7 @@ document.addEventListener("click", function(e){
     // Save Draft — copy CMP_CTX.line_edits to _pending_invoice + close modal.
     // Does NOT push to OCTOPOS. Lauren can reopen the modal later to continue.
     try {
-      var supSD = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+      var supSD = _getPendingInvoiceSlot();
       if (supSD && supSD._pending_invoice) {
         supSD._pending_invoice.line_edits = CMP_CTX.line_edits || {};
         supSD._pending_invoice.draft_saved_at = new Date().toISOString();
@@ -9658,7 +9750,7 @@ async function confirmInvoiceCompared(){
     });
     if (persistedSkipCount > 0) {
       try {
-        var supS = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[supplierCode] : null;
+        var supS = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
         if (supS && supS._pending_invoice) {
           supS._pending_invoice.line_edits = CMP_CTX.line_edits;
           if (typeof scheduleSave === 'function') scheduleSave();
@@ -9687,7 +9779,7 @@ async function confirmInvoiceCompared(){
   // marker keyed by a hash of the contributing line totals.
   if (_confShippingTotal > 0) {
     try {
-      var supSh2 = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[supplierCode] : null;
+      var supSh2 = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
       if (supSh2) {
         // Use shipping_cost_usd directly (replace, not add) — Lauren expects to see the
         // detected total reflected in the field, and re-running the confirm should not
@@ -9851,7 +9943,7 @@ async function confirmInvoiceCompared(){
     if (a.type === 'create') return 'create:' + (a.sku || a.name || '').toUpperCase();
     return a.type + ':' + (a.productId || '');
   }
-  var supForCompletion = (STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers && STATE.events[CURRENT_EVKEY].suppliers[supplierCode]) || null;
+  var supForCompletion = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7
   if (supForCompletion && supForCompletion._pending_invoice) {
     if (!Array.isArray(supForCompletion._pending_invoice.completed_action_keys)) {
       supForCompletion._pending_invoice.completed_action_keys = [];
@@ -10267,11 +10359,11 @@ async function confirmInvoiceCompared(){
   // Final state save — mark invoice_compared_at + clear _pending_invoice
   var nowIso2 = new Date().toISOString();
   try {
-    var sup2 = STATE.events[CURRENT_EVKEY].suppliers[supplierCode];
+    // Lauren 2026-05-27 PM #7 — write invoice_compared_at to the right slot
+    // (per-order or supplier-level depending on CMP_CTX.order_index).
+    var sup2 = _getPendingInvoiceSlot();
     if (sup2) {
       sup2.invoice_compared_at = nowIso2;
-      // Keep _pending_invoice as the invoice audit record (Lauren 2026-05-18 PM late
-      // — she wants to see the invoice details in the supplier card afterwards).
       if (sup2._pending_invoice) sup2._pending_invoice.confirmed_at = nowIso2;
     }
     if (typeof scheduleSave === 'function') scheduleSave();
@@ -10337,10 +10429,11 @@ async function handleCompareInvoiceFile(file){
       CMP_CTX._parsed_total = lines._invoiceTotal;
       // Auto-apply on FIRST parse — only when Lauren hasn\'t typed her own override yet.
       try {
-        var supPI = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
-        if (supPI && supPI._pending_invoice && (supPI._pending_invoice.actual_paid_usd == null || supPI._pending_invoice.actual_paid_usd === '')) {
-          supPI._pending_invoice.actual_paid_usd = CMP_CTX._parsed_total;
-          supPI.invoice_total_usd = CMP_CTX._parsed_total;
+        var supPI = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
+        var supPIw = _getPendingInvoiceSlot();
+        if (supPIw && supPIw._pending_invoice && (supPIw._pending_invoice.actual_paid_usd == null || supPIw._pending_invoice.actual_paid_usd === '')) {
+          supPIw._pending_invoice.actual_paid_usd = CMP_CTX._parsed_total;
+          supPIw.invoice_total_usd = CMP_CTX._parsed_total;
           console.log('[recv] auto-applied parsed invoice total $' + CMP_CTX._parsed_total.toFixed(2));
         }
       } catch(_){}
@@ -10410,7 +10503,7 @@ async function handleCompareInvoiceFile(file){
     } catch(e){ console.warn('computeInvoiceTotalsAndApply failed:', e); }
     // Persist to supplier slice so modal can be re-opened with the same data
     try {
-      var sup = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+      var sup = _getPendingInvoiceSlot();
       if (sup) {
         sup._pending_invoice = {
           invoice_lines: CMP_CTX.invoice_lines,
@@ -10485,18 +10578,21 @@ function computeInvoiceTotalsAndApply(){
     if (typeof CURRENT_EVKEY !== 'undefined' && CURRENT_EVKEY && CMP_CTX.supplier_code) {
       var slice = (STATE.events && STATE.events[CURRENT_EVKEY]) || null;
       if (slice && slice.suppliers && slice.suppliers[CMP_CTX.supplier_code]) {
-        var supState = slice.suppliers[CMP_CTX.supplier_code];
-        // Lauren 2026-05-26 PM: if Lauren typed a real "actual paid" total in the
-        // השוואת חשבונית header, that value takes precedence over the computed sum
-        // for the supplier-row pill + the global subtotal. The computed value is
-        // still kept available via _pending_invoice but doesn't override the pill.
-        var apOverride = (supState._pending_invoice && supState._pending_invoice.actual_paid_usd);
-        if (apOverride != null && apOverride !== '' && !isNaN(Number(apOverride)) && Number(apOverride) > 0) {
-          supState.invoice_total_usd = Math.round(Number(apOverride) * 100) / 100;
-        } else if (lineSubtotal > 0) {
-          supState.invoice_total_usd = Math.round(lineSubtotal * 100) / 100;
+        // Lauren 2026-05-27 PM #7 — route to the right slot (per-order vs supplier-level)
+        var supState = _getPendingInvoiceSlot();
+        if (supState) {
+          // Lauren 2026-05-26 PM: if Lauren typed a real "actual paid" total in the
+          // השוואת חשבונית header, that value takes precedence over the computed sum
+          // for the supplier-row pill + the global subtotal. The computed value is
+          // still kept available via _pending_invoice but doesn't override the pill.
+          var apOverride = (supState._pending_invoice && supState._pending_invoice.actual_paid_usd);
+          if (apOverride != null && apOverride !== '' && !isNaN(Number(apOverride)) && Number(apOverride) > 0) {
+            supState.invoice_total_usd = Math.round(Number(apOverride) * 100) / 100;
+          } else if (lineSubtotal > 0) {
+            supState.invoice_total_usd = Math.round(lineSubtotal * 100) / 100;
+          }
+          if (shippingDetected > 0) supState.shipping_cost_usd = Math.round(shippingDetected * 100) / 100;
         }
-        if (shippingDetected > 0) supState.shipping_cost_usd = Math.round(shippingDetected * 100) / 100;
         // Use the normal autosave path so the change reaches GitHub
         if (typeof scheduleSave === 'function') scheduleSave();
         // Lauren 2026-05-26 PM: also re-render the supplier rows so any pill watching
@@ -10662,7 +10758,7 @@ function renderCompareDiff(){
   // surfaces (this header, the supplier-row pill, the receive subtotal etc).
   var _actualPaidUsd = (function(){
     try {
-      var supA = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+      var supA = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
       var fromPending = supA && supA._pending_invoice && supA._pending_invoice.actual_paid_usd;
       if (fromPending != null && fromPending !== '' && !isNaN(Number(fromPending))) return Number(fromPending);
     } catch(_){}
@@ -11155,7 +11251,7 @@ function autoSplitDisplaySet(ri){
 
   // 3. Persist + re-render
   try {
-    var sup3 = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+    var sup3 = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
     if (sup3 && sup3._pending_invoice) {
       sup3._pending_invoice.line_edits = CMP_CTX.line_edits;
       if (typeof scheduleSave === 'function') scheduleSave();
@@ -11320,7 +11416,7 @@ function openLinkExistingPicker(ri){
     }
     // Persist + close + re-render
     try {
-      var sup3 = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[CMP_CTX.supplier_code] : null;
+      var sup3 = _getPendingInvoiceSlotReadonly();  // Lauren 2026-05-27 PM #7 — per-order routing
       if (sup3 && sup3._pending_invoice) {
         sup3._pending_invoice.line_edits = CMP_CTX.line_edits;
         if (typeof scheduleSave === 'function') scheduleSave();
@@ -11723,6 +11819,41 @@ function openResendSmsForSavedOrder(supplierCode, orderIndex){
 
 // Wire the buttons
 document.addEventListener('click', function(e){
+  // Lauren 2026-05-27 PM #7 — per-order compare invoice button
+  var bcoi = e.target.closest('.btn-compare-order-invoice');
+  if (bcoi){
+    e.preventDefault(); e.stopPropagation();
+    var supCode = bcoi.dataset.supplierCode;
+    var supName = '';
+    try {
+      var s = SUPPLIERS.find(function(x){ return x.code === supCode; });
+      supName = s ? s.name : supCode;
+    } catch(_){ supName = supCode; }
+    openCompareInvoiceModal(supCode, supName, Number(bcoi.dataset.orderIndex));
+    return;
+  }
+  // Lauren 2026-05-27 PM #7 — per-order reset (↺) button — clear invoice_compared_at on this order
+  var broi = e.target.closest('.btn-reset-order-invoice');
+  if (broi){
+    e.preventDefault(); e.stopPropagation();
+    var supCodeR = broi.dataset.supplierCode;
+    var oiR = Number(broi.dataset.orderIndex);
+    if (!confirm('↺ לנקות את סטטוס "עודכן" לחשבונית של ההזמנה הזו?\n\n(הנתונים השמורים בחשבונית לא יימחקו — רק הסטטוס. כפתור ההשוואה יחזור למצב הרגיל.)')) return;
+    try {
+      var slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || {};
+      var supOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === supCodeR; });
+      var ord = supOrders[oiR];
+      if (ord) {
+        ord.invoice_compared_at = null;
+        if (ord._pending_invoice) ord._pending_invoice.completed_action_keys = [];
+        if (typeof scheduleSave === 'function') scheduleSave();
+        toast('↺ סטטוס "עודכן" של הזמנה #' + (oiR+1) + ' נוקה', 'success');
+        if (typeof renderSuppliers === 'function') renderSuppliers();
+        else if (typeof render === 'function') render();
+      }
+    } catch(err) { toast('שגיאה: ' + err.message, 'error'); }
+    return;
+  }
   var ed = e.target.closest('.btn-edit-saved-order');
   if (ed){
     e.preventDefault(); e.stopPropagation();
