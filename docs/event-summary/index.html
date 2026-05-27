@@ -129,7 +129,7 @@ table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font
 </head>
 <body>
 <header>
-  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v14 · 26.5</span></h1>
+  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v15 · 26.5</span></h1>
   <div class="subtitle" id="subtitle">טוען...</div>
 </header>
 
@@ -298,6 +298,8 @@ async function loadPreEventMode(evkey){
 
   SUMMARY = {
     evkey, _pre_event_mode: true,
+    _snapshot_at: snap._updated_at,
+    _live_synced: false,
     generated_at: snap._updated_at || new Date().toISOString(),
     event: {city, state: '', start_date: start, end_date: '', venue: ''},
     tabs: {
@@ -319,6 +321,83 @@ async function loadPreEventMode(evkey){
     },
   };
   render();
+  // Auto-sync the to_recount tab in the background — snapshot can be 1+ day stale
+  // and Lauren's complaint is exactly that. Background fetch validates each tagged
+  // product's live category list; rows that no longer have the tag drop out via
+  // tabQualifier on the next re-render.
+  setTimeout(() => autoSyncPreEvent(), 200);
+}
+
+async function autoSyncPreEvent(){
+  if (!SUMMARY || !SUMMARY._pre_event_mode || SUMMARY._live_synced) return;
+  let token = (localStorage.getItem('lauren_octopos_token') || '').trim();
+  if (!token){
+    // Show banner asking for token — don't auto-prompt to avoid annoyance
+    showPreEventBanner('snapshot');
+    return;
+  }
+  showPreEventBanner('syncing');
+  const pids = (SUMMARY.tabs.to_recount || []).map(r => r.product_id).filter(x => x != null);
+  let done = 0, dropped = 0;
+  // Batched concurrency to avoid overwhelming OCTOPOS — 4 at a time
+  const batchSize = 4;
+  for (let i = 0; i < pids.length; i += batchSize){
+    const batch = pids.slice(i, i + batchSize);
+    await Promise.all(batch.map(async pid => {
+      try {
+        const r = await fetch('https://themakeup.octoretail.com/api/v2/products/' + pid, {
+          headers: {'Authorization': token, 'Accept':'application/json'}
+        });
+        if (!r.ok) return;
+        const prod = await r.json();
+        const dp = (prod.data && !Array.isArray(prod.data)) ? prod.data : prod;
+        const cats = dp.categories || [];
+        const hasRc = cats.some(c => (c.name || '').trim().toLowerCase() === 'recount');
+        const newStock = dp.in_stock_qty != null ? Number(dp.in_stock_qty) : null;
+        const newThr = dp.threshold != null ? Number(dp.threshold) : null;
+        for (const tabId in SUMMARY.tabs){
+          for (const row of SUMMARY.tabs[tabId]){
+            if (row.product_id === pid){
+              row.current_stock = newStock;
+              row.in_stock_qty = newStock;
+              row.threshold = newThr;
+              row.categories = cats.map(c => ({id: c.id, name: c.name}));
+              row.has_recount_tag = hasRc;
+            }
+          }
+        }
+        if (!hasRc) dropped++;
+        done++;
+      } catch(_){}
+    }));
+    // Update progress banner mid-flight
+    showPreEventBanner('syncing', done, pids.length, dropped);
+  }
+  SUMMARY._live_synced = true;
+  showPreEventBanner('done', done, pids.length, dropped);
+  renderTabContent();
+  setTimeout(() => { const b = $('#preEventBanner'); if (b) b.remove(); }, 5000);
+}
+
+function showPreEventBanner(state, done, total, dropped){
+  let b = $('#preEventBanner');
+  if (!b){
+    b = document.createElement('div');
+    b.id = 'preEventBanner';
+    b.style.cssText = 'position:sticky;top:0;z-index:60;padding:8px 14px;font-size:13px;font-weight:600;display:flex;gap:10px;align-items:center;justify-content:center';
+    document.body.insertBefore(b, document.body.firstChild);
+  }
+  if (state === 'snapshot'){
+    b.style.background = '#fef3c7'; b.style.color = '#92400e';
+    b.innerHTML = '⚠ הנתונים מ-snapshot — ייתכן שלא עדכניים. <button onclick="autoSyncPreEvent()" style="background:#92400e;color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-weight:700;margin-right:8px">🔄 סנכרן מ-OCTOPOS עכשיו</button>';
+  } else if (state === 'syncing'){
+    b.style.background = '#dbeafe'; b.style.color = '#1d4ed8';
+    const pct = total ? Math.round(100 * done / total) : 0;
+    b.innerHTML = `🔄 מסנכרן מ-OCTOPOS... ${done||0}/${total||'?'} (${pct}%)${dropped ? ` · ${dropped} כבר לא מתויגים` : ''}`;
+  } else if (state === 'done'){
+    b.style.background = '#dcfce7'; b.style.color = '#15803d';
+    b.innerHTML = `✓ סונכרן עם OCTOPOS · ${done} מוצרים · ${dropped} כבר לא מתויגים RECOUNT והוסרו מהרשימה`;
+  }
 }
 
 // ─── Renderers ──────────────────────────────────────────────────────────
