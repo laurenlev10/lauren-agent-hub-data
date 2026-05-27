@@ -179,6 +179,67 @@ def load_worklist(evkey):
     return ((d.get("events") or {}).get(evkey) or {}).get("worklist") or []
 
 
+def fetch_live_product_v2(pid, v2_token, retries=3):
+    """Fallback when a product isn't in the daily snapshot (e.g. no vendor_id).
+    Returns a snap-like dict so callers can use it interchangeably."""
+    import time
+    for attempt in range(retries):
+        try:
+            req = urllib.request.Request(f"{OCTO_BASE}/api/v2/products/{pid}",
+                headers={"Authorization": v2_token, "Accept":"application/json", "User-Agent":OCTO_UA})
+            with urllib.request.urlopen(req, timeout=12) as r:
+                data = json.loads(r.read())
+            break
+        except Exception as e:
+            if attempt + 1 == retries:
+                print(f"  live fetch failed for pid {pid} after {retries} tries: {e}", file=sys.stderr)
+                return None
+            time.sleep(0.5 + attempt * 0.5)
+    try:
+        d = data.get("data", data)
+        if isinstance(d, list): d = d[0] if d else {}
+        return {
+            "id": d.get("id"),
+            "name": d.get("name") or "",
+            "sku": d.get("sku") or "",
+            "barcode": d.get("barcode") or "",
+            "in_stock_qty": float(d.get("in_stock_qty") or 0) if d.get("in_stock_qty") is not None else None,
+            "threshold": float(d.get("threshold") or 0) if d.get("threshold") is not None else None,
+            "unit_cost": float(d.get("cost") or 0) if d.get("cost") is not None else None,
+            "sale_price": float(d.get("sale_price") or 0) if d.get("sale_price") is not None else None,
+            "active": bool(d.get("active", True)),
+            "categories": d.get("categories") or [],
+            "department": (d.get("department") or {}).get("name") if isinstance(d.get("department"), dict) else (d.get("department") or ""),
+            "_supplier_name": "—",
+            "_supplier_code": "",
+            "_orphan": True,  # flag — fetched live, not in snapshot
+        }
+    except Exception as e:
+        print(f"  live fetch parse failed for pid {pid}: {e}", file=sys.stderr)
+        return None
+
+
+def hydrate_orphans(rows, snapshot, v2_token):
+    """Find rows whose snapshot lookup returned no data, and live-fetch from OCTOPOS."""
+    if not v2_token: return 0
+    missing_pids = set()
+    for r in rows:
+        pid = r.get("product_id")
+        if pid and (snapshot.get(pid) is None):
+            missing_pids.add(pid)
+    if not missing_pids:
+        return 0
+    print(f"hydrate: fetching {len(missing_pids)} orphan products (missing from daily snapshot)")
+    fetched = 0
+    for pid in missing_pids:
+        snap = fetch_live_product_v2(pid, v2_token)
+        if snap:
+            snapshot[pid] = snap
+            fetched += 1
+    print(f"hydrate: fetched {fetched}/{len(missing_pids)}")
+    return fetched
+
+
 def cats_and_recount(snap):
     """Returns (categories_list, has_recount_bool) from a snapshot product dict."""
     cats = snap.get("categories") or []
@@ -325,6 +386,32 @@ def build_for_event(ev):
     worklist = load_worklist(evkey); print(f"worklist: {len(worklist)}")
     recount_rows = fetch_recount_rows(jwt, start, end)
     sales = fetch_sales_by_vendor_product(jwt, start, end)
+
+    # Hydrate orphan products (counted at event but missing from daily snapshot —
+    # e.g. items with no vendor_id assigned in OCTOPOS). Look up live via /api/v2.
+    v2_token = os.environ.get("OCTOPOS_TOKEN") or ""
+    if not v2_token:
+        # Fall back: try reading from local secret file (Cowork session)
+        sec = Path("/sessions/magical-loving-heisenberg/mnt/Claude/.claude/secrets/octopos_token.txt")
+        if sec.exists():
+            v2_token = sec.read_text().strip()
+    if v2_token:
+        # Collect all pids that appear in the recount rows OR sales
+        relevant_pids = set()
+        for row in recount_rows:
+            try: relevant_pids.add(int(row.get("product_id")))
+            except: pass
+        for pid in sales.keys(): relevant_pids.add(pid)
+        hydrate_count = 0
+        import time
+        for pid in relevant_pids:
+            if snapshot.get(pid) is None:
+                snap = fetch_live_product_v2(pid, v2_token)
+                if snap:
+                    snapshot[pid] = snap
+                    hydrate_count += 1
+                time.sleep(0.15)  # be nice to OCTOPOS
+        if hydrate_count: print(f"hydrate: {hydrate_count} orphan products loaded live")
 
     counted = build_counted(recount_rows, snapshot, sales)
     counted_pids = {c["product_id"] for c in counted}
