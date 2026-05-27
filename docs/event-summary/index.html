@@ -129,7 +129,7 @@ table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font
 </head>
 <body>
 <header>
-  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v9 · 26.5</span></h1>
+  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v10 · 26.5</span></h1>
   <div class="subtitle" id="subtitle">טוען...</div>
 </header>
 
@@ -318,7 +318,7 @@ function renderSearchAndCount(tabId, total, count){
     negatives: 'מוצרים שעכשיו במלאי שלילי — להוסיף לרשימת ספירה לאירוע הבא',
     slow_movers: 'במלאי יותר מ-1 יחידה, לא נמכרו כלל באירוע הזה — לבדוק האם להוריד מחיר / להוציא',
     top_sellers: 'מוצרים שנמכרו הכי הרבה באירוע (מסודר לפי יחידות)',
-    no_threshold: 'מוצרים פעילים בלי Threshold (ערך 0). ניתן לקבוע כאן ולשמור ישירות ב-OCTOPOS.',
+    no_threshold: 'מוצרים פעילים בלי Threshold (ערך 0). ניתן לקבוע Threshold כאן (נשמר ישירות ב-OCTOPOS), או לסמן 🏷️ Clearance! כדי שלא נמשיך עם המוצר (הוא לא יופיע בWizard להזמנות).',
   }[tabId] || '';
   return `<div class="tab-header">
     <div>
@@ -910,6 +910,7 @@ function renderNoThreshold(){
     + sortableHeader('sale_price', 'מחיר', 'no_threshold')
     + '<th>⚙️ Threshold חדש</th>'
     + sortableHeader('has_recount_tag', 'תג RECOUNT', 'no_threshold')
+    + '<th>🏷️ Clearance</th>'
     + '</tr></thead><tbody>';
   for (const r of rows){
     html += `<tr data-pid="${r.product_id}">
@@ -925,6 +926,7 @@ function renderNoThreshold(){
         <button class="thr-save-btn" data-pid="${r.product_id}">💾 שמור</button>
       </div></td>
       <td>${renderRecountTagCell(r)}</td>
+      <td>${renderClearanceCell(r)}</td>
     </tr>`;
   }
   html += '</tbody></table>';
@@ -933,7 +935,64 @@ function renderNoThreshold(){
   $('#tabContent').querySelectorAll('.thr-save-btn').forEach(btn => {
     btn.onclick = () => saveThresholdToOctopus(btn.dataset.pid, btn);
   });
+  $('#tabContent').querySelectorAll('.clearance-btn').forEach(btn => {
+    btn.onclick = () => markAsClearance(btn.dataset.pid, btn);
+  });
   wireAllInteractiveHandlers();
+}
+
+// ─── Clearance! marker — prepends "Clearance!" to product name in OCTOPOS ──
+function renderClearanceCell(r){
+  const name = r.name || '';
+  if (name.toLowerCase().startsWith('clearance!')){
+    return `<span class="pill success" title="המוצר כבר מסומן Clearance — לא יופיע בWizard להזמנות">🏷️ ✓ Clearance</span>`;
+  }
+  if (r.clearance_marked_at){
+    const when = new Date(r.clearance_marked_at).toLocaleString('he-IL', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+    return `<span class="pill success">🏷️ סומן ${escHtml(when)}</span>`;
+  }
+  return `<button class="clearance-btn" data-pid="${r.product_id}" title="מוסיף 'Clearance!' לשם המוצר ב-OCTOPOS — יסומן כמוצר שלא נמשיך להזמין ולא יופיע בWizard" style="background:#fde68a;color:#92400e;border:1px solid #f59e0b;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px;font-weight:700">🏷️ סמן Clearance!</button>`;
+}
+
+async function markAsClearance(pid, btn){
+  const pidNum = parseInt(pid);
+  const allRows = findRowsByPid(pidNum);
+  if (allRows.length === 0){ toast('⚠ מוצר לא נמצא', 'error'); return; }
+  const row = allRows[0];
+  const currentName = row.name || '';
+  if (currentName.toLowerCase().startsWith('clearance!')){
+    toast('⚠ המוצר כבר מסומן Clearance', 'info'); return;
+  }
+  const newName = 'Clearance! ' + currentName;
+  let token = (localStorage.getItem('lauren_octopos_token') || '').trim();
+  if (!token){
+    token = prompt('הזיני את ה-OCTOPOS token:');
+    if (!token) return;
+    localStorage.setItem('lauren_octopos_token', token.trim());
+  }
+  if (!confirm(`לסמן את "${currentName}" כ-Clearance?\nהשם החדש יהיה: "${newName}"\nהמוצר לא יופיע יותר בWizard להזמנות.`)) return;
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch('https://themakeup.octoretail.com/api/v2/products/' + pid, {
+      method: 'PUT',
+      headers: {'Authorization': token, 'Content-Type':'application/json', 'Accept':'application/json'},
+      body: JSON.stringify({'name': newName})
+    });
+    if (r.status === 401){
+      localStorage.removeItem('lauren_octopos_token');
+      throw new Error('Token לא חוקי — נמחק.');
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const nowIso = new Date().toISOString();
+    allRows.forEach(rr => { rr.name = newName; rr.clearance_marked_at = nowIso; });
+    toast('✓ סומן Clearance ב-OCTOPOS', 'success');
+    const ok = await saveEventSummaryToGithub();
+    toast(ok ? '✓ נשמר ב-GitHub' : '⚠ נשמר ב-OCTOPOS, GitHub-sync נכשל — לחצי 🔄 סנכרן מלאי+Thr', ok ? 'success' : 'error');
+    renderTabContent();
+  } catch(e){
+    toast('⚠ נכשל: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '🏷️ סמן Clearance!';
+  }
 }
 
 // ─── Threshold save → OCTOPOS PUT /api/v2/products/{id} ────────────────
