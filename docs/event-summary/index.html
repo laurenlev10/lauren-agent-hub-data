@@ -129,7 +129,7 @@ table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font
 </head>
 <body>
 <header>
-  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v10 · 26.5</span></h1>
+  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v11 · 26.5</span></h1>
   <div class="subtitle" id="subtitle">טוען...</div>
 </header>
 
@@ -457,6 +457,9 @@ async function saveThresholdGeneric(pid, btn){
     const allR = findRowsByPid(pidNum);
     const nowIso = new Date().toISOString();
     allR.forEach(r => { r.threshold = val; r.threshold_edited_at = nowIso; });
+    if (val > 0) {
+      SUMMARY.tabs.no_threshold = (SUMMARY.tabs.no_threshold || []).filter(r => r.product_id !== pidNum);
+    }
     toast('✓ Threshold עודכן: ' + val, 'success');
     saveEventSummaryToGithub();
     renderTabContent();
@@ -564,6 +567,13 @@ async function saveStockToOctopus(pid, btn){
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const nowIso = new Date().toISOString();
     allRows.forEach(r => { r.current_stock = newQ; r.in_stock_qty = newQ; r.stock_edited_at = nowIso; });
+    // Drop from tabs where the row no longer qualifies after the new stock value
+    if (newQ >= 0) {
+      SUMMARY.tabs.negatives = (SUMMARY.tabs.negatives || []).filter(r => r.product_id !== pidNum);
+    }
+    if (newQ <= 1) {
+      SUMMARY.tabs.slow_movers = (SUMMARY.tabs.slow_movers || []).filter(r => r.product_id !== pidNum);
+    }
     toast('✓ מלאי עודכן ב-OCTOPOS: ' + newQ, 'success');
     const ok = await saveEventSummaryToGithub();
     if (ok) { toast('✓ נשמר גם ב-GitHub', 'success'); } else { toast('⚠ נשמר ב-OCTOPOS אבל GitHub-sync נכשל — לחצי "🔄 סנכרן מ-OCTOPOS" למעלה', 'error'); }
@@ -985,6 +995,9 @@ async function markAsClearance(pid, btn){
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const nowIso = new Date().toISOString();
     allRows.forEach(rr => { rr.name = newName; rr.clearance_marked_at = nowIso; });
+    // Drop from tabs where Clearance products don't belong (Lauren's not actively managing these)
+    SUMMARY.tabs.no_threshold = (SUMMARY.tabs.no_threshold || []).filter(r => r.product_id !== pidNum);
+    SUMMARY.tabs.slow_movers = (SUMMARY.tabs.slow_movers || []).filter(r => r.product_id !== pidNum);
     toast('✓ סומן Clearance ב-OCTOPOS', 'success');
     const ok = await saveEventSummaryToGithub();
     toast(ok ? '✓ נשמר ב-GitHub' : '⚠ נשמר ב-OCTOPOS, GitHub-sync נכשל — לחצי 🔄 סנכרן מלאי+Thr', ok ? 'success' : 'error');
@@ -1028,11 +1041,14 @@ async function saveThresholdToOctopus(pid, btn){
     const allR = findRowsByPid(parseInt(pid));
     const nowIso3 = new Date().toISOString();
     allR.forEach(r => { r.threshold = val; r.threshold_edited_at = nowIso3; });
+    // If threshold now > 0, drop the product from the 'ללא Threshold' tab
+    // (it no longer qualifies). Same logic applied to other tabs by their respective save handlers.
+    if (val > 0) {
+      SUMMARY.tabs.no_threshold = (SUMMARY.tabs.no_threshold || []).filter(r => r.product_id !== parseInt(pid));
+    }
     // Also persist to GitHub so it survives reload before next octopos_sync
     saveEventSummaryToGithub();
     setTimeout(()=> {
-      const row = btn.closest('tr');
-      if (row) row.style.opacity = '0.4';
       renderTabContent();
     }, 800);
   } catch(e){
