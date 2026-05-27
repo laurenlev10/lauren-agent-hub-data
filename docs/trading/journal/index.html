@@ -191,6 +191,12 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
 .at-btn.flatten.working{background:var(--amb);border-color:var(--amb);}
 .at-btn.edit:hover{border-color:var(--tv);color:var(--tv);}
 .at-btn:disabled{opacity:.5;cursor:not-allowed;}
+/* 🛑 2026-05-27 — Manual refresh button for Tradovate live state */
+.live-card{position:relative;}
+.live-refresh-btn{position:absolute;top:8px;left:8px;font-family:var(--f);font-size:11px;font-weight:700;background:#fff;color:#0ea5e9;border:1.5px solid #7dd3fc;border-radius:8px;padding:4px 9px;cursor:pointer;transition:all .12s;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+.live-refresh-btn:hover{background:#e0f2fe;border-color:#0ea5e9;}
+.live-refresh-btn:disabled{opacity:.55;cursor:wait;}
+.live-refresh-btn.spinning{background:#fef3c7;border-color:#f59e0b;color:#92400e;}
 .webhook-strip{background:linear-gradient(135deg,#eff6ff,#e0e7ff);border:1.5px solid #c7d2fe;border-radius:var(--r);padding:11px 16px;box-shadow:var(--sh);margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
 .webhook-strip .wh-label{font-size:13px;font-weight:800;color:var(--tv);display:flex;align-items:center;gap:5px;}
 .webhook-strip code.wh-url{flex:1;min-width:200px;font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;background:#fff;border:1px solid #c7d2fe;border-radius:8px;padding:7px 12px;color:var(--txt3);font-weight:600;overflow-x:auto;white-space:nowrap;direction:ltr;text-align:left;}
@@ -255,6 +261,7 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
   <!-- Live State — Position + Balance (Roadmap Steps 2.1 + 2.2) -->
   <div class="live-state">
     <div class="live-card flat" id="live-pos-card">
+      <button class="live-refresh-btn" id="live-refresh-btn" onclick="refreshTradovateNow()" title="הפעלי reconciler עכשיו — מושך פוזיציה ויתרה מ-Tradovate API ישירות (לוקח 15-30 שניות)">🔄 רענן עכשיו</button>
       <div class="label">📍 פוזיציה פתוחה</div>
       <div class="big" id="live-pos-big">⏳ טוען...</div>
       <div class="sub" id="live-pos-sub">&nbsp;</div>
@@ -1076,6 +1083,88 @@ async function renderLiveBalance(){
 
 async function refreshLiveState(){
   await Promise.all([renderLivePosition(), renderLiveBalance()]);
+}
+
+// 🛑 2026-05-27 — Manual refresh: dispatches the reconciler workflow and polls for fresh data.
+// Needed because GitHub Actions cron throttles 5-min schedules to every 1-4h on small repos,
+// so Lauren's position can be hours out of date.
+async function refreshTradovateNow(){
+  const btn = document.getElementById("live-refresh-btn");
+  let token = (localStorage.getItem(AT_TOKEN_KEY) || "").trim();
+  if(!token){
+    token = (prompt("הדביקי GitHub PAT חד-פעמי (לכתיבה ל-repo).\nיישמר ב-localStorage של דפדפן זה בלבד.") || "").trim();
+    if(!token) return;
+    localStorage.setItem(AT_TOKEN_KEY, token);
+  }
+
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.classList.add("spinning");
+  btn.textContent = "🔄 שולח...";
+
+  try {
+    // 1. Capture the current fetched_at so we know when fresh data has arrived
+    const before = await (await fetch("../../state/live_position.json?_=" + Date.now(), { cache: "no-store" })).json().catch(function(){ return null; });
+    const beforeAt = before && before.fetched_at ? before.fetched_at : "";
+
+    // 2. Dispatch the workflow
+    const dispUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/actions/workflows/tradovate-fill-reconciler.yml/dispatches";
+    const dispR = await fetch(dispUrl, {
+      method: "POST",
+      headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json", "Content-Type":"application/json"},
+      body: JSON.stringify({ref:"main"})
+    });
+    if(!dispR.ok){
+      if(dispR.status === 401){ localStorage.removeItem(AT_TOKEN_KEY); throw new Error("PAT לא תקין — נמחק, נסי שוב"); }
+      if(dispR.status === 403){ throw new Error("PAT חסר scope=repo או workflow — צרי PAT חדש עם הרשאות מתאימות"); }
+      throw new Error("dispatch נכשל: " + dispR.status);
+    }
+
+    // 3. Poll for fresh data (workflow takes ~15-25s to run + push)
+    btn.textContent = "⏳ מחכה לתוצאה...";
+    const maxWaitMs = 60000, intervalMs = 3000;
+    const startedAt = Date.now();
+    let gotFresh = false;
+    while(Date.now() - startedAt < maxWaitMs){
+      await new Promise(function(r){ setTimeout(r, intervalMs); });
+      const r = await fetch("../../state/live_position.json?_=" + Date.now(), { cache: "no-store" });
+      if(r.ok){
+        const j = await r.json();
+        if(j && j.fetched_at && j.fetched_at !== beforeAt){
+          gotFresh = true;
+          break;
+        }
+      }
+      const elapsed = Math.round((Date.now() - startedAt) / 1000);
+      btn.textContent = "⏳ " + elapsed + "s...";
+    }
+
+    if(gotFresh){
+      btn.textContent = "✓ עודכן!";
+      await refreshLiveState();
+      setTimeout(function(){
+        btn.classList.remove("spinning");
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }, 2000);
+    } else {
+      btn.textContent = "⚠ timeout — לחצי שוב";
+      btn.classList.remove("spinning");
+      setTimeout(function(){
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }, 3500);
+    }
+  } catch(e){
+    console.error("refreshTradovateNow failed:", e);
+    btn.textContent = "✗ שגיאה";
+    alert("שגיאת רענון: " + e.message);
+    setTimeout(function(){
+      btn.classList.remove("spinning");
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }, 2000);
+  }
 }
 
 
