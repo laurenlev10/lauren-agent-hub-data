@@ -1467,16 +1467,27 @@ function renderInvoiceDetailsForSupplier(supplierCode){
   var confirmedAt = pi.confirmed_at ? new Date(pi.confirmed_at).toLocaleString('he-IL') : '';
 
   // Compute totals using same logic as the modal
+  // Lauren 2026-05-27 PM — DZ-aware per-unit price: if L.unit_note is set, the qty
+  // is already in pieces but L.price (legacy) may still be per-pack. Use raw_qty +
+  // pack_multiplier when available; fall back to L.total which is always the actual
+  // invoice line amount.
   var subtotal = 0;
   var excludedCount = 0;
+  function _unitPrice(L, ov){
+    if (ov.price !== undefined) return Number(ov.price);
+    var raw = Number(L.price || 0);
+    var mul = Number(L.pack_multiplier || (L.raw_qty > 0 && L.qty > L.raw_qty ? L.qty / L.raw_qty : 1));
+    return (L.unit_note && mul > 1) ? (raw / mul) : raw;
+  }
   lines.forEach(function(L, i){
     var ov = edits[i] || {};
     if (ov.exclude_from_event) { excludedCount++; return; }
     var q = (ov.qty !== undefined ? Number(ov.qty) : Number(L.qty||0));
-    var p = (ov.price !== undefined ? Number(ov.price) : Number(L.price||0));
-    var t = Number(L.total || 0);
-    if (ov.qty !== undefined || ov.price !== undefined) t = q * p;
-    if (!t && q > 0 && p > 0) t = q * p;
+    var p = _unitPrice(L, ov);
+    // Prefer the actual invoice line total when no qty/price edits — it's
+    // authoritative and avoids any qty/price unit mismatches in legacy data.
+    var t = (ov.qty === undefined && ov.price === undefined) ? Number(L.total || 0) : 0;
+    if (!t) t = q * p;
     if (t > 0) subtotal += t;
   });
 
@@ -1486,8 +1497,10 @@ function renderInvoiceDetailsForSupplier(supplierCode){
     var name = (ov.name !== undefined ? ov.name : L.name || '');
     var sku  = (ov.sku !== undefined ? ov.sku : L.sku || '');
     var qty  = (ov.qty !== undefined ? Number(ov.qty) : Number(L.qty || 0));
-    var price = (ov.price !== undefined ? Number(ov.price) : Number(L.price || 0));
-    var total = qty * price;
+    // Lauren 2026-05-27 PM — per-unit price for DZ-converted lines (see _unitPrice helper above).
+    var price = _unitPrice(L, ov);
+    // Prefer L.total (actual invoice line amount) when row hasn't been edited.
+    var total = (ov.qty === undefined && ov.price === undefined && L.total) ? Number(L.total) : (qty * price);
     var clearance = !!ov.clearance;
     var inGarage = !!ov.in_garage;
     var rowStyle = excluded ? 'opacity:.4;text-decoration:line-through' : '';
@@ -6212,13 +6225,23 @@ function parseInvoiceRows(rowStrings){
     if (finalQty === 0 && (!found.total || found.total === 0)) {
       return;
     }
+    // Lauren 2026-05-27 PM — when unit_note is set, the parser already multiplied
+    // qty by the multiplier (DZ→×12, GROSS→×144, /CASE pack-size, etc). The invoice's
+    // 'price' field is per-PACK (per-dozen for DZ), so without normalizing the price
+    // here, downstream `qty × price` calculations explode by the multiplier ($300
+    // instead of $25 for a 2-DZ × $12.50 AMUSE line). Divide price too so qty and
+    // price are both in pieces. L.total stays as the actual invoice line total.
+    var _packMul = (found.qty > 0 && finalQty > found.qty) ? (finalQty / found.qty) : 1;
+    var finalPrice = (_packMul > 1 && unitNote) ? (found.price / _packMul) : found.price;
     lines.push({
       sku: sku,
       name: nameRaw,
       qty: finalQty,
       raw_qty: found.qty,
       unit_note: unitNote,
-      price: found.price,
+      price: finalPrice,
+      raw_price: found.price,
+      pack_multiplier: _packMul,
       total: found.total
     });
   });
