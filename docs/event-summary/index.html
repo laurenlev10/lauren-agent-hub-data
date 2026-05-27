@@ -129,7 +129,7 @@ table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font
 </head>
 <body>
 <header>
-  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v13 · 26.5</span></h1>
+  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v14 · 26.5</span></h1>
   <div class="subtitle" id="subtitle">טוען...</div>
 </header>
 
@@ -158,6 +158,7 @@ table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font
 <script>
 // ─── State ──────────────────────────────────────────────────────────────
 const TABS = [
+  { id: 'to_recount',            label: '🏷️ לספור באירוע',         color: 'warning', preOnly: true },
   { id: 'counted_at_event',      label: '🧮 נספרו באירוע',          color: 'primary' },
   { id: 'missed_from_worklist',  label: '⚠ לא נספרו (היו ברשימה)',  color: 'warning' },
   { id: 'negatives',             label: '🔴 מינוס במלאי',           color: 'danger' },
@@ -212,17 +213,112 @@ async function loadEvent(evkey){
   try {
     const r = await fetch('../state/event_summary/' + encodeURIComponent(evkey) + '.json?_=' + Date.now(),
                           {cache:'no-store'});
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    SUMMARY = await r.json();
-    render();
+    if (r.ok) {
+      SUMMARY = await r.json();
+      SUMMARY._pre_event_mode = false;
+      render(); return;
+    }
+    if (r.status === 404) {
+      // Future event — no summary built yet. Build a synthetic pre-event view from snapshot.
+      await loadPreEventMode(evkey);
+      return;
+    }
+    throw new Error('HTTP ' + r.status);
   } catch(e){
     $('#tabContent').innerHTML = '<div class="empty"><div class="emoji">😶</div>'
-      + '<div>אין עוד סיכום לאירוע הזה (<code>' + evkey + '</code>).</div>'
+      + '<div>טעינה נכשלה לאירוע <code>' + escHtml(evkey) + '</code></div>'
       + '<div style="margin-top:12px;font-size:12px">' + escHtml(e.message) + '</div></div>';
     $('#subtitle').textContent = '—';
     $('#statsStrip').innerHTML = '';
     $('#tabsBar').innerHTML = '';
   }
+}
+
+async function loadPreEventMode(evkey){
+  // Pre-event view: load OCTOPOS snapshot + recount.json, surface a focused 3-tab view:
+  //   🏷️ לספור באירוע  — all products currently tagged RECOUNT in OCTOPOS
+  //   🔴 מינוס במלאי
+  //   ⚙️ ללא Threshold
+  let snap = null;
+  try {
+    const r = await fetch('../state/octopos_products.json?_=' + Date.now(), {cache:'no-store'});
+    if (r.ok) snap = await r.json();
+  } catch(_){}
+  if (!snap) {
+    $('#tabContent').innerHTML = '<div class="empty"><div class="emoji">😶</div><div>לא הצלחתי לטעון את snapshot של OCTOPOS. ייתכן שהsnapshot עדיין לא נבנה.</div></div>';
+    return;
+  }
+  // Collect all active products
+  const all = [];
+  for (const code in (snap.vendors || {})){
+    const vi = snap.vendors[code];
+    const supplierName = vi.octopos_name || vi.name || code;
+    for (const p of (vi.products || [])){
+      if (p.active === false) continue;
+      p._supplier_name = supplierName;
+      all.push(p);
+    }
+  }
+  // Build tabs
+  const to_recount = [];
+  const negatives = [];
+  const no_threshold = [];
+  for (const p of all){
+    const cats = p.categories || [];
+    const hasRc = cats.some(c => (c.name || '').trim().toLowerCase() === 'recount');
+    const stk = Number(p.in_stock_qty || 0);
+    const thr = Number(p.threshold || 0);
+    const row = {
+      product_id: p.id,
+      name: p.name || '',
+      sku: p.sku || '',
+      supplier: p._supplier_name,
+      department: p.department || '',
+      current_stock: stk,
+      in_stock_qty: stk,
+      threshold: thr,
+      categories: cats.map(c => ({id: c.id, name: c.name})),
+      has_recount_tag: hasRc,
+      unit_cost: Number(p.unit_cost || 0),
+      sale_price: Number(p.sale_price || 0),
+      updated_at: p.updated_at,
+    };
+    if (hasRc) to_recount.push(row);
+    if (stk < 0) negatives.push({...row, last_updated: p.updated_at});
+    if (thr <= 0) no_threshold.push(row);
+  }
+  to_recount.sort((a,b) => a.current_stock - b.current_stock);  // most negative first
+  negatives.sort((a,b) => a.current_stock - b.current_stock);
+  no_threshold.sort((a,b) => (a.supplier || '').localeCompare(b.supplier || ''));
+
+  // Synthesize event meta from evkey (best-effort — slug-YYYY-MM-DD)
+  const m = evkey.match(/^(.+)-(\d{4}-\d{2}-\d{2})$/);
+  const city = m ? m[1].replace(/-/g, ' ').replace(/\b\w/g, c=>c.toUpperCase()) : evkey;
+  const start = m ? m[2] : '';
+
+  SUMMARY = {
+    evkey, _pre_event_mode: true,
+    generated_at: snap._updated_at || new Date().toISOString(),
+    event: {city, state: '', start_date: start, end_date: '', venue: ''},
+    tabs: {
+      counted_at_event: [],
+      missed_from_worklist: [],
+      negatives,
+      slow_movers: [],
+      top_sellers: [],
+      no_threshold,
+      to_recount,  // NEW pre-event tab
+    },
+    stats: {
+      counted_count: 0, missed_count: 0,
+      negatives_count: negatives.length,
+      slow_movers_count: 0, top_sellers_count: 0,
+      no_threshold_count: no_threshold.length,
+      to_recount_count: to_recount.length,
+      total_units_sold: 0, total_revenue: 0, unique_products_sold: 0,
+    },
+  };
+  render();
 }
 
 // ─── Renderers ──────────────────────────────────────────────────────────
@@ -256,7 +352,15 @@ function renderStatsStrip(){
 }
 
 function renderTabsBar(){
-  $('#tabsBar').innerHTML = TABS.map(t => {
+  const isPre = SUMMARY._pre_event_mode === true;
+  const showTabs = TABS.filter(t => {
+    if (isPre && (t.id === 'counted_at_event' || t.id === 'missed_from_worklist' || t.id === 'top_sellers' || t.id === 'slow_movers')) return false;
+    if (!isPre && t.id === 'to_recount') return false;  // post-event has actual counted/missed instead
+    return true;
+  });
+  // Auto-pick first tab if active is hidden
+  if (!showTabs.find(t => t.id === ACTIVE_TAB)) ACTIVE_TAB = showTabs[0]?.id || 'negatives';
+  $('#tabsBar').innerHTML = showTabs.map(t => {
     const rows = SUMMARY.tabs[t.id] || [];
     const qual = tabQualifier(t.id);
     const count = qual ? rows.filter(qual).length : rows.length;
@@ -273,6 +377,7 @@ function tabQualifier(tabId){
   // This guards against stale JSON where Lauren updated values in-place but
   // the row stayed in the wrong array (pre-v11 saves).
   switch(tabId){
+    case 'to_recount':   return r => r.has_recount_tag === true;
     case 'no_threshold': return r => !(Number(r.threshold) > 0);
     case 'negatives':    return r => Number(r.current_stock) < 0;
     case 'slow_movers':  return r => Number(r.current_stock) > 1 && !(Number(r.units_sold_at_event) > 0);
@@ -330,6 +435,7 @@ function wireSortHandlers(tabId){
 
 function renderSearchAndCount(tabId, total, count){
   const desc = {
+    to_recount: 'כל המוצרים עם תג RECOUNT באוקטופוס כרגע. אלה המוצרים שצריך לספור באירוע הקרוב. מסודר לפי מלאי שלילי קודם. אפשר ✏️ לעדכן מלאי או 🧹 להסיר תג ישירות מכאן.',
     counted_at_event: '🔧 <b>תיקון בספירה</b> = ההפרש שהספירה גילתה (למשל ↓ -78 = המערכת חשבה שיש 78 יותר ממה שבאמת היה). 🛒 <b>נמכרו באירוע</b> = כמה יחידות נמכרו בקופה במהלך 3 ימי האירוע. 📦 <b>כמה יש עכשיו במערכת</b> = המספר האמיתי ב-OCTOPOS ברגע זה (אחרי הספירה + מכירות שאחריה).',
     missed_from_worklist: 'מוצרים שהיו ברשימת הספירה לפני האירוע אבל לא נספרו בפועל. 🛒 <b>נמכרו באירוע</b> = כמה יחידות מהמוצר הזה נמכרו ב-3 הימים (לפי הקופה). מספר גבוה = המלאי במערכת לא מדויק וחשוב לספור באירוע הבא. 💤 לא זז (אדום) = 0 נמכרו = אולי המוצר לא קיים פיזית בכלל — לבדוק.',
     negatives: 'מוצרים שעכשיו במלאי שלילי — להוסיף לרשימת ספירה לאירוע הבא',
@@ -352,6 +458,39 @@ function wireSearch(){
 }
 
 // ─── Tab renderers ──────────────────────────────────────────────────────
+function renderToRecount(){
+  const total = SUMMARY.tabs.to_recount.length;
+  const rows = getSortedFiltered('to_recount');
+  if (rows.length === 0){
+    $('#tabContent').innerHTML = renderSearchAndCount('to_recount', total, 0)
+      + '<div class="empty"><div class="emoji">✅</div><div>אין מוצרים עם תג RECOUNT באוקטופוס כרגע.</div></div>';
+    wireSearch(); return;
+  }
+  let html = renderSearchAndCount('to_recount', total, rows.length);
+  html += '<table class="data"><thead><tr>'
+    + sortableHeader('name', 'מוצר', 'to_recount')
+    + sortableHeader('supplier', 'ספק', 'to_recount')
+    + sortableHeader('department', 'מחלקה', 'to_recount')
+    + sortableHeader('current_stock', '📦 מלאי כעת', 'to_recount')
+    + sortableHeader('threshold', '⚙️ Threshold', 'to_recount')
+    + '<th>תג RECOUNT</th>'
+    + '</tr></thead><tbody>';
+  for (const r of rows){
+    html += `<tr>
+      <td><div class="product-name">${escHtml(r.name)}</div>${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
+      <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
+      <td>${escHtml(r.department||'—')}</td>
+      <td class="num">${renderStockEditCell(r)}</td>
+      <td class="num">${renderThresholdEditCell(r)}</td>
+      <td>${renderRecountTagCell(r)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  $('#tabContent').innerHTML = html;
+  wireSortHandlers('to_recount'); wireSearch();
+  wireAllInteractiveHandlers();
+}
+
 function renderCounted(){
   const total = SUMMARY.tabs.counted_at_event.length;
   const rows = getSortedFiltered('counted_at_event');
@@ -1088,6 +1227,7 @@ function promptOctopusToken(){
 function renderTabContent(){
   if (!SUMMARY){ return; }
   switch(ACTIVE_TAB){
+    case 'to_recount': renderToRecount(); break;
     case 'counted_at_event': renderCounted(); break;
     case 'missed_from_worklist': renderMissed(); break;
     case 'negatives': renderNegatives(); break;
