@@ -1951,19 +1951,24 @@ End date: </div>
             rowBtn += '<a class="btn-agent-row btn-contract-row" href="../contract/?' + params + '" target="_blank" rel="noopener" title="Open Contract Review pre-filled with this event">📋 Contract</a>';
           }
 
-          // 🔍 City Scout — form lives on the agent_hub homepage (no /scout/ subfolder); pass scout-* params + anchor #scout-card
+          // 🔍 City Scout — orange opens the per-event Scout Brief dashboard (pre-filled details + Copy-Prompt for Cowork NEW TASK); green opens the finished report from SCOUTS map
           const sc = (typeof SCOUTS !== "undefined") ? SCOUTS[evKey] : null;
           if (sc) {
             rowBtn += '<a class="btn-agent-row btn-scout-row done" href="' + sc.href + '" target="_blank" rel="noopener" title="City Scout · score ' + sc.score + ' · ' + (sc.generated_at||"").slice(0,10) + '">🔍 Scout: ' + sc.score + '⭐</a>';
           } else {
-            const monthsArr = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-            const scoutMonth = monthsArr[parseInt((ev.start_date||"").slice(5,7),10) - 1] || "";
-            const scoutParams = new URLSearchParams({
-              "scout-city":  ev.city || "",
-              "scout-state": ev.state || "",
-              "scout-month": scoutMonth
+            // Build a brief-page link with the full event payload pre-filled (city, state, dates, venue, address, tier, evkey).
+            // The brief page renders the event card + criteria + Copy-Prompt-for-Cowork button (turns green when the agent finishes).
+            const scoutBriefParams = new URLSearchParams({
+              city:       ev.city || "",
+              state:      ev.state || "",
+              start_date: ev.start_date || "",
+              end_date:   ev.end_date || "",
+              venue:      ev.venue || "",
+              address:    ev.address || "",
+              tier:       (ev.tier != null ? String(ev.tier) : ""),
+              evkey:      evKey
             }).toString();
-            rowBtn += '<a class="btn-agent-row btn-scout-row" href="../?' + scoutParams + '#scout-card" target="_blank" rel="noopener" title="Open City Scout (on Agent Hub) pre-filled with this event">🔍 City Scout</a>';
+            rowBtn += '<a class="btn-agent-row btn-scout-row" href="../scout-brief/?' + scoutBriefParams + '" target="_blank" rel="noopener" title="Open Scout Brief — pre-filled with this event\'s city/address; copy the prompt to a Cowork NEW TASK">🔍 City Scout</a>';
           }
 
           // 🎨 Canva Event Images — three states (Lauren 2026-05-03 PM, manual override added)

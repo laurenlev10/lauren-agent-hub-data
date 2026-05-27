@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>סקירת מיקום — Scout Brief · MBS</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:#f3f4f6;font-family:'Heebo',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1f2937}
+  .scout-brief{max-width:880px;margin:0 auto;padding:24px 18px 80px}
+  .back-link{display:inline-flex;align-items:center;gap:4px;color:#fff;text-decoration:none;font-size:13px;font-weight:600;margin-bottom:14px;padding:7px 14px;background:rgba(255,255,255,.18);border-radius:18px;transition:background .15s}
+  .back-link:hover{background:rgba(255,255,255,.32)}
+  .hdr{background:linear-gradient(135deg,#7c3aed 0%,#be185d 60%,#ea580c 100%);color:#fff;padding:24px 28px;border-radius:18px;box-shadow:0 12px 32px rgba(124,58,237,.22);margin-bottom:24px}
+  .hdr h1{margin:0 0 6px;font-size:26px;font-weight:800;letter-spacing:-.3px}
+  .hdr .sub{margin:0;font-size:15px;opacity:.92;font-weight:500}
+  .card{background:#fff;border-radius:14px;padding:22px 24px;box-shadow:0 4px 14px rgba(15,23,42,.06);margin-bottom:18px;border:1px solid #e5e7eb}
+  .card h2{margin:0 0 14px;font-size:18px;font-weight:700;color:#374151;display:flex;align-items:center;gap:8px}
+  .ev-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .ev-cell{padding:12px 14px;background:#f9fafb;border-radius:10px;border:1px solid #f3f4f6}
+  .ev-cell .lbl{font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;display:block}
+  .ev-cell .val{font-size:14px;font-weight:600;color:#111827;line-height:1.4;word-break:break-word}
+  .ev-cell.wide{grid-column:1/-1}
+  .criteria-list{margin:0;padding:0;list-style:none}
+  .criteria-list li{padding:10px 0;border-bottom:1px solid #f3f4f6;font-size:14px;line-height:1.55;display:flex;align-items:flex-start;gap:10px}
+  .criteria-list li:last-child{border-bottom:none}
+  .criteria-list .ico{flex:0 0 auto;font-size:17px;margin-top:1px}
+  .criteria-list .txt{flex:1}
+  .criteria-list b{color:#7c3aed}
+  .deliver-list{margin:0;padding:0;list-style:none}
+  .deliver-list li{padding:8px 0;font-size:14px;color:#374151;display:flex;align-items:flex-start;gap:8px}
+  .deliver-list li::before{content:"✓";color:#16a34a;font-weight:800;flex:0 0 auto}
+  .copy-zone{background:linear-gradient(135deg,#fff7ed 0%,#fef3c7 100%);border:2px solid #fbbf24;border-radius:16px;padding:24px;text-align:center;margin-top:20px;box-shadow:0 6px 18px rgba(251,191,36,.18)}
+  .copy-zone h3{margin:0 0 6px;font-size:18px;color:#92400e;font-weight:800}
+  .copy-zone p{margin:0 0 16px;font-size:13px;color:#78350f;line-height:1.6}
+  .copy-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(180deg,#ea580c,#c2410c);color:#fff;border:none;border-radius:12px;padding:16px 28px;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(234,88,12,.35);transition:all .18s;font-family:inherit;min-width:280px}
+  .copy-btn:hover{transform:translateY(-1px);filter:brightness(1.08);box-shadow:0 6px 16px rgba(234,88,12,.45)}
+  .copy-btn:active{transform:translateY(0)}
+  .copy-btn.copied{background:linear-gradient(180deg,#facc15,#ca8a04);box-shadow:0 4px 12px rgba(202,138,4,.35)}
+  .copy-btn.done{background:linear-gradient(180deg,#16a34a,#15803d);box-shadow:0 4px 12px rgba(22,163,74,.35);text-decoration:none}
+  .copy-btn.done:hover{filter:brightness(1.08)}
+  .state-note{margin-top:14px;font-size:12.5px;color:#78350f;line-height:1.55;background:rgba(255,255,255,.55);padding:10px 14px;border-radius:10px;display:none}
+  .state-note.show{display:block}
+  .state-note b{color:#92400e}
+  .preview{background:#0f172a;color:#e2e8f0;border-radius:12px;padding:16px;margin-top:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.55;direction:ltr;text-align:left;max-height:220px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;border:1px solid #1e293b}
+  .preview-wrap{margin-top:12px}
+  .preview-wrap details{cursor:pointer}
+  .preview-wrap summary{font-size:13px;color:#6b7280;font-weight:600;padding:6px 0;list-style:none}
+  .preview-wrap summary::-webkit-details-marker{display:none}
+  .preview-wrap summary::before{content:"▸ ";color:#9ca3af;display:inline-block}
+  .preview-wrap details[open] summary::before{content:"▾ "}
+  .toast{position:fixed;top:24px;left:50%;transform:translateX(-50%) translateY(-100px);background:#16a34a;color:#fff;padding:14px 24px;border-radius:12px;font-weight:700;font-size:14px;box-shadow:0 10px 30px rgba(22,163,74,.4);transition:transform .35s cubic-bezier(.2,.9,.3,1.2);z-index:9999;pointer-events:none}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .toast.err{background:#dc2626;box-shadow:0 10px 30px rgba(220,38,38,.4)}
+  .missing-note{background:#fee2e2;border:1px solid #fca5a5;color:#991b1b;padding:14px 18px;border-radius:10px;margin-bottom:16px;font-size:14px;font-weight:600}
+  @media(max-width:640px){
+    .ev-grid{grid-template-columns:1fr}
+    .copy-btn{width:100%;min-width:0}
+    .hdr h1{font-size:22px}
+  }
+</style>
+</head>
+<body>
+<div class="scout-brief">
+  <a href="../launch/" class="back-link">→ חזרה ל-Event Manager</a>
+  <div id="missing-note" class="missing-note" style="display:none">⚠ חסרים פרטי אירוע ב-URL — חזרי ל-Event Manager ולחצי על 🔍 City Scout מתוך שורת אירוע.</div>
+
+  <div class="hdr">
+    <h1 id="hdr-title">🔍 סקירת מיקום</h1>
+    <p class="sub" id="hdr-sub">בחרי אירוע מ-Event Manager כדי להתחיל</p>
+  </div>
+
+  <div class="card">
+    <h2>📋 פרטי האירוע</h2>
+    <div class="ev-grid" id="ev-grid"></div>
+  </div>
+
+  <div class="card">
+    <h2>🎯 מה הסוכן יבדוק</h2>
+    <ul class="criteria-list">
+      <li><span class="ico">🏨</span><span class="txt"><b>המקום הנוכחי</b> — האם המקום עומד בסטנדרט MBS? sqft ≥2,500, mid-tier brand, חניה חינם, load-in ישיר (בלי מעלית)</span></li>
+      <li><span class="ico">📊</span><span class="txt"><b>דמוגרפיה ZIP</b> — Hispanic% (יעד 25-50%), median income ($55-75K), % נשים 25-44 (30%+), Walk Score (50+)</span></li>
+      <li><span class="ico">🏙️</span><span class="txt"><b>סריקת העיר</b> — 3-5 שכונות עם הכי הרבה foot traffic, אחוז Hispanic גבוה, וקרבה למרכזי קניות</span></li>
+      <li><span class="ico">🏆</span><span class="txt"><b>5-10 venues חלופיים</b> בעיר — Hilton Garden Inn / Holiday Inn / DoubleTree / Embassy Suites / Sheraton / Best Western Premier (לא: Hilton מלא, Marriott מלא, Westin, Ritz)</span></li>
+      <li><span class="ico">📅</span><span class="txt"><b>היסטוריית MBS</b> בעיר — תוצאות עבר מ-historical xlsx + סיבות לחולשה (Covid? מזג אוויר? אולם לא נכון?)</span></li>
+      <li><span class="ico">🌆</span><span class="txt"><b>ערים סמוכות</b> שכדאי לבדוק באותה נסיעה — Cross-city ranking לפי MBS optimal profile score (X/30)</span></li>
+      <li><span class="ico">📋</span><span class="txt"><b>Contract criteria checklist</b> להדפסה — sqft, חניה, load-in, capacity, AV, no catering minimum</span></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>📦 מה יחזור בסיום</h2>
+    <ul class="deliver-list">
+      <li>דוח HTML מלא ב-Hebrew RTL ב-<code>docs/scout/&lt;city-slug&gt;/</code></li>
+      <li>סעיף פותח "הערכת המקום הנוכחי" — 3 חוזקות + 3 חולשות של האולם</li>
+      <li>Cross-city ranking table (העיר + ערים סמוכות, מהטוב לחלש)</li>
+      <li>סעיף סיום "המלצה סופית" עם verdict ברור: 🟢 להישאר / 🟡 לבדוק חלופה / 🔴 להחליף בהזדמנות הבאה</li>
+      <li>3+ venues חלופיים עם ציון, כתובת, contact, מחיר משוער</li>
+      <li>SMS דרך SimpleTexting עם הציון והקישור</li>
+      <li>הכפתור 🔍 City Scout ב-Event Manager יהפוך לירוק עם הציון</li>
+    </ul>
+  </div>
+
+  <div class="copy-zone">
+    <h3>📋 העתיקי ופתחי NEW TASK ב-Cowork</h3>
+    <p>הפקודה למטה כוללת את כל פרטי האירוע + הוראות לסוכן. העתיקי, פתחי NEW TASK ב-Cowork, הדביקי, והסוכן יתחיל לעבוד (10-15 דק').</p>
+    <button id="copy-btn" class="copy-btn" type="button">📋 העתק פקודה לסוכן Cowork</button>
+    <div id="state-note" class="state-note"></div>
+    <div class="preview-wrap"><details>
+      <summary>תצוגת הפקודה (לחצי להרחבה)</summary>
+      <pre class="preview" id="prompt-preview"></pre>
+    </details></div>
+  </div>
+</div>
+
+<div id="toast" class="toast">הועתק ללוח! 📋</div>
+
+<script>
+(function(){
+  "use strict";
+  function $(id){ return document.getElementById(id); }
+  function qp(){ return new URLSearchParams(location.search); }
+  function htmlEsc(s){ return String(s||"").replace(/[&<>"']/g, function(c){ return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]; }); }
+  function citySlug(city, state){
+    var c = String(city||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+    var s = String(state||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+    return s ? (c + "-" + s) : c;
+  }
+  function fmtDateRange(start, end){
+    if (!start) return "";
+    if (!end || end === start) return start;
+    return start + " – " + end;
+  }
+  function showToast(msg, isErr){
+    var t = $("toast");
+    t.textContent = msg;
+    t.classList.toggle("err", !!isErr);
+    t.classList.add("show");
+    setTimeout(function(){ t.classList.remove("show"); }, 2400);
+  }
+  function buildPrompt(p){
+    return "@mbs-venue + @mbs-scout — סקירת מיקום מלאה לאירוע\n\n" +
+"האירוע:\n" +
+"• עיר: " + p.city + ", " + p.state + "\n" +
+"• תאריכים: " + p.start_date + " – " + p.end_date + "\n" +
+"• אולם: " + (p.venue || "(לא צוין)") + "\n" +
+"• כתובת: " + (p.address || "(לא צוינה)") + "\n" +
+"• Tier: " + (p.tier || "(לא צוין)") + "\n" +
+"• evkey: " + p.evkey + "\n\n" +
+"המטרה: לענות על שתי שאלות —\n" +
+"1. האם " + (p.venue || "המקום הנוכחי") + " הוא הבחירה הטובה ביותר ב-" + p.city + " עבור אירוע MBS?\n" +
+"2. אם לא — איזה מקומות בעיר עדיפים לפעם הבאה?\n\n" +
+"הרץ את שני ה-SKILLs:\n\n" +
+"1. mbs-venue-research — Scheduled/NEW/mbs-venue-research/SKILL.md\n" +
+"   אבחון של המקום הנוכחי: דמוגרפיה ZIP (Hispanic 25-50%, income $55-75K, women 25-44 30%+), Walk Score (50+), foot traffic, contract criteria (≥2,500 sqft, חניה חינם, load-in ישיר ללא מעלית, capacity מצוין בחוזה), ציון מול MBS optimal profile.\n\n" +
+"2. mbs-city-scout — Scheduled/NEW/mbs-city-scout/SKILL.md\n" +
+"   סריקה של כל העיר: 3-5 שכונות מובילות + 5-10 venues חלופיים. mid-tier brand בלבד — KEEP: Hilton Garden Inn / Holiday Inn (+ Express + Conference Center) / DoubleTree / Embassy Suites / Best Western (Premier/Plus) / Comfort Suites / Wingate / Courtyard / Four Points / Sheraton (כולל Sheraton Grand + Suites) / Radisson / convention centers / banquet halls. FILTER OUT: Hilton (full brand), Marriott (full brand — חוץ מ-Courtyard/TownePlace/Fairfield/SpringHill/Residence Inn), Westin, W, Ritz-Carlton, Four Seasons, Hyatt Regency, כל venue עם sqft<2,500, airport zones (Walk Score<40), pure office park, catering minimum >$500.\n\n" +
+"מקורות מידע נוספים:\n" +
+"• Scheduled/NEW/event-forecast/forecast.md — אם יש לעיר היסטוריה ב-MBS\n" +
+"• Scheduled/NEW/mbs-event-summary/EVENT_DATA.md — Master List 2026 + city demographics\n" +
+"• Scheduled/NEW/mbs-event-summary/MEMORY.md §22 — venue research SOP\n" +
+"• Scheduled/NEW/mbs-event-summary/AVERAGES.md — baseline ל-MBS optimal profile\n" +
+"• Scheduled/NEW/mbs-city-scout/historical_events_2017-2024.xlsx — היסטוריית MBS בעיר (REINFORCEMENT ONLY — לא לפסול עיר על סמך כישלון יחיד שעלול להיות Covid / מזג אוויר / אולם לא נכון)\n\n" +
+"פלט נדרש:\n" +
+"1. דוח HTML מלא ב-Hebrew RTL, scoped CSS ל-.mbs-scout, פונט Heebo, back link ל-Event Manager (לפי STEP 8 של mbs-city-scout).\n" +
+"2. סעיף פותח **\"הערכת המקום הנוכחי\"** — 3 חוזקות + 3 חולשות של " + (p.venue || "המקום הנוכחי") + " ב-" + (p.address || p.city) + ", עם ציון Pass/Fail מול 4 contract criteria (sqft, parking, load-in, capacity).\n" +
+"3. Cross-city ranking table (STEP 6.5) — העיר הראשית + ערים סמוכות, מהטוב לחלש לפי MBS optimal profile match (X/30).\n" +
+"4. 5-10 venue candidates עם כרטיסים מלאים — name, address+ZIP, event sqft, brand tier, parking, contact, reviews, why physically check, red flags.\n" +
+"5. Contract criteria printable checklist (STEP 5).\n" +
+"6. 3-5 ערים סמוכות — כל אחת עם 3+ venues (IRON RULE STEP 6).\n" +
+"7. Timing recommendations (STEP 7).\n" +
+"8. סעיף סיום **\"המלצה סופית\"** עם verdict ברור: 🟢 להישאר ב-" + (p.venue || "המקום הנוכחי") + " / 🟡 לבדוק חלופה / 🔴 להחליף בהזדמנות הבאה. כולל top 3 חלופות מובילות עם ציון, כתובת, ו-1-line rationale.\n\n" +
+"פרסום (לפי IRON RULE #1):\n" +
+"• clone של laurenlev10/lauren-agent-hub-data, edit, push.\n" +
+"• דוח ל-docs/scout/" + p.citySlug + "/index.html\n" +
+"• עדכן SCOUTS map ב-docs/launch/index.html עם evkey \"" + p.evkey + "\" → {score: <X>, top_count: <N>, href: \"../scout/" + p.citySlug + "/\", generated_at: \"<ISO>\"}\n" +
+"• הרץ bash .githooks/check.sh על קבצים שעודכנו לפני push.\n" +
+"• SMS Touchpoint 3 דרך SimpleTexting (comms.md של mbs-city-scout) — ציון + top alternative venue + לינק.\n\n" +
+"זמן ריצה צפוי: 10-15 דק'.";
+  }
+  function renderEventCard(p){
+    var grid = $("ev-grid");
+    var cells = [
+      { lbl: "עיר", val: (p.city||"—") + (p.state ? ", " + p.state : ""), wide: false },
+      { lbl: "תאריכים", val: fmtDateRange(p.start_date, p.end_date) || "—", wide: false },
+      { lbl: "אולם", val: p.venue || "—", wide: false },
+      { lbl: "Tier", val: p.tier || "—", wide: false },
+      { lbl: "כתובת מלאה", val: p.address || "—", wide: true }
+    ];
+    grid.innerHTML = cells.map(function(c){
+      return '<div class="ev-cell' + (c.wide ? " wide" : "") + '"><span class="lbl">' + htmlEsc(c.lbl) + '</span><span class="val">' + htmlEsc(c.val) + '</span></div>';
+    }).join("");
+  }
+  function fallbackCopy(text){
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch(e){ ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+  function bindCopy(p, promptText){
+    var btn = $("copy-btn");
+    var note = $("state-note");
+    var reportHref = "../scout/" + p.citySlug + "/";
+    function setCopied(){
+      btn.classList.add("copied");
+      btn.classList.remove("done");
+      btn.textContent = "⏳ הועתק — הדביקי ב-Cowork NEW TASK";
+      note.innerHTML = "<b>השלב הבא:</b> פתחי את Cowork → NEW TASK → הדביקי. הסוכן ייקח 10-15 דק'. כשהוא יסיים, רענני את הדף הזה והכפתור יהפוך לירוק 🟢. הכפתור 🔍 City Scout ב-Event Manager גם הוא יהפוך לירוק עם הציון.";
+      note.classList.add("show");
+      try { localStorage.setItem("scout_brief_copied_" + p.evkey, String(Date.now())); } catch(e){}
+    }
+    function setDone(){
+      btn.classList.remove("copied");
+      btn.classList.add("done");
+      btn.textContent = "🟢 הסקירה מוכנה — לחצי לפתיחה";
+      btn.setAttribute("data-href", reportHref);
+      note.innerHTML = "<b>הסקירה הושלמה!</b> לחצי על הכפתור כדי לפתוח את הדוח המלא. הכפתור 🔍 City Scout ב-Event Manager גם הוא ירוק עכשיו.";
+      note.classList.add("show");
+    }
+    btn.addEventListener("click", function(){
+      if (btn.classList.contains("done")) {
+        var href = btn.getAttribute("data-href") || reportHref;
+        window.open(href, "_blank", "noopener");
+        return;
+      }
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(promptText).then(function(){
+            setCopied();
+            showToast("הועתק ללוח! 📋", false);
+          }, function(){
+            if (fallbackCopy(promptText)) { setCopied(); showToast("הועתק! 📋"); }
+            else showToast("שגיאת העתקה — בחרי ידנית מהתיבה", true);
+          });
+          return;
+        }
+        if (fallbackCopy(promptText)) { setCopied(); showToast("הועתק! 📋"); }
+        else showToast("שגיאת העתקה — בחרי ידנית מהתיבה", true);
+      } catch(e){
+        showToast("שגיאת העתקה — בחרי ידנית מהתיבה", true);
+      }
+    });
+    var lastCopy = null;
+    try { lastCopy = localStorage.getItem("scout_brief_copied_" + p.evkey); } catch(e){}
+    fetch(reportHref, { method: "HEAD", cache: "no-store" })
+      .then(function(r){ if (r.ok) setDone(); else if (lastCopy) setCopied(); })
+      .catch(function(){ if (lastCopy) setCopied(); });
+  }
+  function init(){
+    var q = qp();
+    var p = {
+      city:       q.get("city")       || "",
+      state:      q.get("state")      || "",
+      start_date: q.get("start_date") || "",
+      end_date:   q.get("end_date")   || "",
+      venue:      q.get("venue")      || "",
+      address:    q.get("address")    || "",
+      tier:       q.get("tier")       || "",
+      evkey:      q.get("evkey")      || ""
+    };
+    if (!p.city || !p.start_date) {
+      $("missing-note").style.display = "block";
+      $("hdr-title").textContent = "🔍 סקירת מיקום";
+      $("hdr-sub").textContent  = "חזרי ל-Event Manager ולחצי על 🔍 City Scout בשורת אירוע.";
+      return;
+    }
+    p.citySlug = citySlug(p.city, p.state);
+    if (!p.evkey) p.evkey = (citySlug(p.city, "") + "-" + p.start_date);
+    document.title = "🔍 " + p.city + ", " + p.state + " — Scout Brief";
+    $("hdr-title").textContent = "🔍 סקירת מיקום — " + p.city + ", " + p.state;
+    $("hdr-sub").textContent  = fmtDateRange(p.start_date, p.end_date) + (p.venue ? " · " + p.venue : "");
+    renderEventCard(p);
+    var prompt = buildPrompt(p);
+    $("prompt-preview").textContent = prompt;
+    bindCopy(p, prompt);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+</body>
+</html>
