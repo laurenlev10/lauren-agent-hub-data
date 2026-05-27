@@ -9258,23 +9258,33 @@ async function confirmInvoiceCompared(){
         });
       });
       var skuUp = (sku || '').toUpperCase().trim();
-      // Pass 1: exact SKU
+      // Lauren 2026-05-27 PM #3 — SAME-SUPPLIER-FIRST SKU MATCH
+      // Cross-supplier SKU collisions (e.g. Feral Edge BH716 = Blest HAIR MASK
+      // colliding with Xime BH716 = True Black eyeliner) caused wrong dedup
+      // merges in the save path. Now Pass 1 / Pass 2 / Pass 5 ALL restrict
+      // to the current supplier's products. If no same-supplier match,
+      // the line falls through to 'create new product' (or to Pass 3
+      // name-similarity, also same-supplier). For deliberate cross-supplier
+      // matches, Lauren uses the 🔗 link button (linked_product_id) which is
+      // honored later as Pass 4 — that path stays cross-supplier on purpose.
+      var sameSupProds = allProds.filter(function(o){ return o.supplierCode === supplierCode; });
+      // Pass 1: exact SKU — same-supplier only
       if (skuUp) {
-        for (var pi = 0; pi < allProds.length; pi++) {
-          if (allProds[pi].prod.sku && String(allProds[pi].prod.sku).toUpperCase().trim() === skuUp) {
-            existing = allProds[pi].prod;
+        for (var pi = 0; pi < sameSupProds.length; pi++) {
+          if (sameSupProds[pi].prod.sku && String(sameSupProds[pi].prod.sku).toUpperCase().trim() === skuUp) {
+            existing = sameSupProds[pi].prod;
             existingMatchedBy = 'sku-exact';
             break;
           }
         }
       }
-      // Pass 2: strip -D / -DISPLAY suffix and retry
+      // Pass 2: strip -D / -DISPLAY suffix and retry — same-supplier only
       if (!existing && skuUp && /-D(ISPLAY)?$/.test(skuUp)) {
         var skuStripped = skuUp.replace(/-D(ISPLAY)?$/, '');
-        for (var pi2 = 0; pi2 < allProds.length; pi2++) {
-          var psk = (allProds[pi2].prod.sku || '').toUpperCase().trim();
+        for (var pi2 = 0; pi2 < sameSupProds.length; pi2++) {
+          var psk = (sameSupProds[pi2].prod.sku || '').toUpperCase().trim();
           if (psk && (psk === skuStripped || psk.startsWith(skuStripped + '-') || psk.startsWith(skuStripped + '/'))) {
-            existing = allProds[pi2].prod;
+            existing = sameSupProds[pi2].prod;
             existingMatchedBy = 'sku-strip-d';
             break;
           }
@@ -9365,8 +9375,12 @@ async function confirmInvoiceCompared(){
         }
         var minLen = Math.max(6, Math.floor(skuClean.length * 0.7));
         var candidates = [];
-        Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
-          var v = OCTOPOS.vendors[c] || {};
+        // Lauren 2026-05-27 PM #3 — same-supplier only for Pass 5 (prefix-fuzzy)
+        // — cross-supplier SKU collisions surface here too.
+        var _vendorsLoop = {};
+        _vendorsLoop[supplierCode] = (OCTOPOS && OCTOPOS.vendors && OCTOPOS.vendors[supplierCode]) || {};
+        Object.keys(_vendorsLoop).forEach(function(c){
+          var v = _vendorsLoop[c];
           (v.products || []).concat(v.inactive_products || []).forEach(function(p){
             var psk = (p.sku || '').toUpperCase().trim();
             if (!psk) return;
