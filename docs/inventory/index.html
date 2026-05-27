@@ -1002,7 +1002,10 @@ function recomputeSummary(evkey){
     const s = slice.suppliers[sup.code];
     if (!s) return;
     // Invoice = sum of (invoice_total + shipping) for confirmed invoices
-    var invSum = Number(s.invoice_total_usd||0) + Number(s.shipping_cost_usd||0);
+    // Lauren 2026-05-27 PM #6 — invoice_total_usd IS the grand total (= what was
+    // paid including shipping). shipping_cost_usd is informational about the
+    // shipping portion. Do NOT add them again — that double-counts shipping.
+    var invSum = Number(s.invoice_total_usd||0);
     invoiceTotal += invSum;
     if (s.invoice_compared_at) {
       orderedCodes.add(sup.code);
@@ -1103,8 +1106,9 @@ function renderSupplierCard(sup, s, idx){
       });
     }
   } catch(e){ _hasLocalOrder = false; }
-  // Per-row invoice total (items + shipping)
-  var _rowInvoiceTotal = Number(s.invoice_total_usd || 0) + Number(s.shipping_cost_usd || 0);
+  // Per-row invoice total — invoice_total_usd already is the grand total.
+  // Lauren 2026-05-27 PM #6 — don't add shipping again.
+  var _rowInvoiceTotal = Number(s.invoice_total_usd || 0);
   // Check if invoice has been compared+confirmed for this supplier in this event
   var _invoiceCompared = false;
   var _invoiceComparedAt = '';
@@ -1127,8 +1131,9 @@ function renderSupplierCard(sup, s, idx){
   const statusLabel = _hasLocalOrder
     ? ('✅ נשלחה הזמנה' + (_lastWhenDisplay ? ' <span style="opacity:.75;font-weight:500;font-size:11px;margin-right:4px">· ' + _lastWhenDisplay + '</span>' : ''))
     : (STATUS_LABELS[s.status]||STATUS_LABELS.pending);
-  // Per-row total: invoice + shipping. When > 0, render in bold green; else dash placeholder.
-  var _rowGrand = Number(s.invoice_total_usd||0) + Number(s.shipping_cost_usd||0);
+  // Per-row grand total — invoice_total_usd already is the grand total Lauren paid.
+  // Lauren 2026-05-27 PM #6 — don't add shipping again.
+  var _rowGrand = Number(s.invoice_total_usd||0);
   const totalDisp = _rowGrand > 0
     ? '<span style="color:#15803d;font-weight:800">' + fmtUsd(_rowGrand) + '</span>'
     : '<span style="color:var(--muted)">—</span>';
@@ -1238,7 +1243,7 @@ function renderSupplierCard(sup, s, idx){
         '</div>'+
         '<div class="field">'+
           '<label>סה"כ חשבונית ($)</label>'+
-          '<input type="number" step="0.01" min="0" data-bind="invoice_total_usd" value="'+(s.invoice_total_usd||"")+'" placeholder="0.00">'+
+          '<input type="number" step="0.01" min="0" data-bind="invoice_total_usd" value="'+(s.invoice_total_usd||"")+'" placeholder="0.00" title="הסכום הסופי ששילמת לפי החשבונית (כולל משלוח)">'+
         '</div>'+
         '<div class="field">'+
           '<label>הוצאות משלוח ($)</label>'+
@@ -6116,10 +6121,18 @@ async function parseInvoiceImage(file){
 // resolve once, write to the profile, and the next invoice goes smoothly.
 function parseInvoiceRows(rowStrings){
   var lines = [];
-  rowStrings.forEach(function(row){
+  // Lauren 2026-05-27 PM #6 — convert from forEach to for-loop so we can:
+  //   (a) look ahead at the next row to capture name-on-next-line continuations
+  //       (Romantic Beauty PDF format: '288 OZE-2414  1.80  518.40' on row N,
+  //        '  Stamp n Wing'd Eyeliner Stamp Duo (24pc x 12packs)' on row N+1).
+  //   (b) skip consumed continuation rows so they don't parse as phantom rows.
+  var _consumedNextRow = false;
+  for (var _rsi = 0; _rsi < rowStrings.length; _rsi++) {
+    if (_consumedNextRow) { _consumedNextRow = false; continue; }
+    var row = rowStrings[_rsi];
     // Skip contact-info / letterhead rows (BBW's "Business Number 323-491-3648"
     // was being parsed as a fake product line — added 2026-05-20).
-    if (typeof isContactInfoRow === 'function' && isContactInfoRow(row)) return;
+    if (typeof isContactInfoRow === 'function' && isContactInfoRow(row)) continue;
     // Try to find a SKU-like token. Two passes:
     //   Pass A: letter-prefixed alphanumeric (XS-070, PRO-21, BB-W, etc.)
     //   Pass B: pure-numeric 4-7 digit codes (Rude's 88148, 38522, etc.) — only used
@@ -6151,7 +6164,7 @@ function parseInvoiceRows(rowStrings){
     var numRe = /\b(\d+(?:\.\d+)?)\b/g;
     var m;
     while ((m = numRe.exec(row)) !== null) nums.push({raw: m[1], val: Number(m[1])});
-    if (nums.length < 3) return; // need qty, price, total
+    if (nums.length < 3) continue; // need qty, price, total
 
     // Find all valid (qty, price, total) triples where qty is integer ≥1 and qty*price ≈ total,
     // then pick the one with the LARGEST total (usually the right answer in tables with many numbers).
@@ -6174,7 +6187,7 @@ function parseInvoiceRows(rowStrings){
         }
       }
     }
-    if (!candidates.length) return;
+    if (!candidates.length) continue;
     // Pick the candidate with the largest total. Tiebreakers:
     //   1. Prefer candidate whose PRICE has decimal places (e.g., '4.00' > '12')
     //      — Lauren's Xime case: parser saw {12, 4.00, 48.00}. Both (qty=12,
@@ -6253,7 +6266,7 @@ function parseInvoiceRows(rowStrings){
     // Skip rows with zero quantity AND zero total — they're invoice noise
     // (placeholder lines from supplier templates, out-of-stock items, etc.)
     if (finalQty === 0 && (!found.total || found.total === 0)) {
-      return;
+      continue;
     }
     // Lauren 2026-05-27 PM — when unit_note is set, the parser already multiplied
     // qty by the multiplier (DZ→×12, GROSS→×144, /CASE pack-size, etc). The invoice's
@@ -6263,6 +6276,25 @@ function parseInvoiceRows(rowStrings){
     // price are both in pieces. L.total stays as the actual invoice line total.
     var _packMul = (found.qty > 0 && finalQty > found.qty) ? (finalQty / found.qty) : 1;
     var finalPrice = (_packMul > 1 && unitNote) ? (found.price / _packMul) : found.price;
+    // Lauren 2026-05-27 PM #6 — ROMANTIC BEAUTY name-on-next-line capture.
+    // When the parsed row has a strong SKU + (qty, price, total) triple but the
+    // name slot is empty or trivially short (just digits / sku itself), look at
+    // the NEXT row. If it has letters but NO numeric triple, it's a continuation
+    // — adopt it as the name and consume the row so it doesn't parse as phantom.
+    if (sku && (!nameRaw || nameRaw.length < 4 || /^[0-9\s.]+$/.test(nameRaw))) {
+      var _nextRow = rowStrings[_rsi + 1];
+      if (_nextRow) {
+        var _nextStripped = String(_nextRow).trim();
+        var _hasLetters = /[a-zA-Z]/.test(_nextStripped);
+        // Strict: NO (qty, price, total) triple AND not a contact-info row
+        var _hasTripleHint = /\b\d{1,4}\s+[A-Z][A-Z0-9&-]{2,}\s+\d/.test(_nextStripped);
+        var _isContact = (typeof isContactInfoRow === 'function' && isContactInfoRow(_nextStripped));
+        if (_hasLetters && !_hasTripleHint && !_isContact && _nextStripped.length > 4) {
+          nameRaw = _nextStripped;
+          _consumedNextRow = true;
+        }
+      }
+    }
     lines.push({
       sku: sku,
       name: nameRaw,
@@ -6274,7 +6306,7 @@ function parseInvoiceRows(rowStrings){
       pack_multiplier: _packMul,
       total: found.total
     });
-  });
+  }
   return lines;
 }
 

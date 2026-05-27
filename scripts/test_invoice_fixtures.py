@@ -50,11 +50,13 @@ def check_fixture(expected_file: Path) -> tuple[bool, list[str]]:
         total_str = f"{line['total']:.2f}"
         if total_str not in nearby:
             errors.append(f"SKU {sku}: total ${total_str} not found near SKU position (got: {nearby!r:.120})")
-    # Invoice total
+    # Invoice total — try both with and without thousands separator
     total = spec.get("expected_invoice_total")
     if total is not None:
-        if f"{total:.2f}" not in text:
-            errors.append(f"Invoice total ${total:.2f} not found")
+        plain = f"{total:.2f}"
+        with_comma = f"{total:,.2f}"
+        if plain not in text and with_comma not in text:
+            errors.append(f"Invoice total ${plain} (or ${with_comma}) not found")
     return (len(errors) == 0, errors)
 
 def main():
