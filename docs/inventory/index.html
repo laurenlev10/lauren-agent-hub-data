@@ -8516,28 +8516,23 @@ function maybeShowAutoSyncCountdown(){
 // own logic, then programmatically calls confirmInvoiceCompared() which handles
 // product creation + stock updates + the per-product confirmation dialog.
 async function triggerOctoposPushForSupplier(supplierCode, supplierName){
+  // Lauren 2026-05-27 PM #5 — REMOVED auto-confirm.
+  // Original behavior: open modal → wait 350ms → auto-fire confirmInvoiceCompared
+  // which popped PREFLIGHT instantly without giving Lauren a chance to review.
+  // Per her directive: 'רק אחרי שאני לוחצת על כפתור עידכון מערכת אני רוצה
+  // שהפופ אפ הזה יקפוץ'. The 🚀 button now just opens the modal (restored from
+  // _pending_invoice, same as 📋). PREFLIGHT pops ONLY when Lauren clicks
+  // ✅ עדכן קבלת סחורה.
   if (typeof CURRENT_EVKEY === "undefined" || !CURRENT_EVKEY) { toast("אין אירוע פעיל", "error"); return; }
   var slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || {};
   var supState = (slice.suppliers || {})[supplierCode] || {};
   var pi = supState._pending_invoice;
   if (!pi || !Array.isArray(pi.invoice_lines) || !pi.invoice_lines.length){
-    toast("אין חשבונית ממתינה לסנכרון עבור " + (supplierName || supplierCode), "error");
+    toast("אין חשבונית ממתינה עבור " + (supplierName || supplierCode), "error");
     return;
   }
-  // Step 1: open the modal — restores _pending_invoice into CMP_CTX automatically
   try { openCompareInvoiceModal(supplierCode, supplierName); }
-  catch(e){ console.error(e); toast("שגיאה בפתיחת חלון: " + e.message, "error"); return; }
-  // Step 2: after modal-open + render settles, trigger confirm. 350ms gives
-  // openCompareInvoiceModal's deferred setTimeout(0) -> renderCompareDiff time
-  // to finish and DOM elements (cmpProgress, cmpConfirmBtn) to be present.
-  setTimeout(function(){
-    if (!CMP_CTX || !Array.isArray(CMP_CTX.invoice_lines) || !CMP_CTX.invoice_lines.length){
-      toast("שגיאה: לא ניתן לטעון את החשבונית. נסי לפתוח ידנית.", "error");
-      return;
-    }
-    try { confirmInvoiceCompared(); }
-    catch(e){ console.error(e); toast("שגיאה בסנכרון: " + e.message, "error"); }
-  }, 350);
+  catch(e){ console.error(e); toast("שגיאה בפתיחת חלון: " + e.message, "error"); }
 }
 
 function openCompareInvoiceModal(supplierCode, supplierName){
@@ -9476,6 +9471,13 @@ async function confirmInvoiceCompared(){
       if (groupedStock[key]) {
         groupedStock[key].qty += a.qty;
         groupedStock[key]._mergedCount = (groupedStock[key]._mergedCount || 1) + 1;
+        // Lauren 2026-05-27 PM #5 — collect source row names for the PREFLIGHT
+        // warning. Two invoice rows hitting the same OCTOPOS pid usually means
+        // one of them has a wrong SKU (the famous BH716 case: Feral Edge
+        // 'PROTEIN HAIR MASK COLLAGEN' and 'Blest HAIR MASK Intense Protein'
+        // both labeled SKU=BH716; only the second is actually pid 178).
+        groupedStock[key]._mergedSources = (groupedStock[key]._mergedSources || [groupedStock[key].name]).concat([a.name]);
+        groupedStock[key]._mergedQtys = (groupedStock[key]._mergedQtys || [groupedStock[key].qty - a.qty]).concat([a.qty]);
       } else {
         groupedStock[key] = Object.assign({}, a);
       }
@@ -9686,17 +9688,30 @@ async function confirmInvoiceCompared(){
     var SPIKE_ABS = 100;   // units
     var SPIKE_PCT = 200;   // %
     var spikeRows = [];
+    // Lauren 2026-05-27 PM #5 — detect merged-row warnings
+    var mergedWarnings = [];
     var rowsHtml = stockActs.map(function(a){
       var cur = Number(a.currentStock || 0);
       var add = Number(a.qty || 0);
       var nxt = cur + add;
       var pct = cur > 0 ? (add / cur * 100) : (add > 0 ? 9999 : 0);
       var isSpike = (Math.abs(add) >= SPIKE_ABS) || (pct >= SPIKE_PCT);
+      var isMerged = (a._mergedCount && a._mergedCount > 1);
       if (isSpike) spikeRows.push({sku: a.name, add: add, pct: pct, cur: cur});
-      var bg = isSpike ? 'background:#fef2f2;' : '';
+      if (isMerged) {
+        mergedWarnings.push({
+          name: a.name,
+          sources: a._mergedSources || [],
+          qtys: a._mergedQtys || [],
+          total: add,
+          count: a._mergedCount
+        });
+      }
+      var bg = isSpike ? 'background:#fef2f2;' : (isMerged ? 'background:#fffbeb;' : '');
       var addColor = isSpike ? '#b91c1c' : '#15803d';
-      var icon = isSpike ? '🚨 ' : '';
-      return '<tr style="' + bg + '"><td style="padding:4px 8px;font-size:12px">' + icon + escHtml((a.name||'').slice(0,40)) + '</td>' +
+      var icon = isSpike ? '🚨 ' : (isMerged ? '⚠️ ' : '');
+      var mergedSuffix = isMerged ? ' <span style="background:#fef3c7;color:#92400e;font-size:9px;padding:1px 5px;border-radius:3px;border:1px solid #fde68a">מיזוג ' + a._mergedCount + '</span>' : '';
+      return '<tr style="' + bg + '"><td style="padding:4px 8px;font-size:12px">' + icon + escHtml((a.name||'').slice(0,40)) + mergedSuffix + '</td>' +
              '<td style="padding:4px 8px;text-align:center;font-size:12px;color:var(--muted)">' + cur + '</td>' +
              '<td style="padding:4px 8px;text-align:center;font-size:12px;color:' + addColor + ';font-weight:700">+' + add + (isSpike && pct < 9999 ? ' (' + Math.round(pct) + '%)' : '') + '</td>' +
              '<td style="padding:4px 8px;text-align:center;font-size:12px;font-weight:700">' + nxt + '</td></tr>';
@@ -9720,6 +9735,21 @@ async function confirmInvoiceCompared(){
       bgPre.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.7);display:flex;align-items:center;justify-content:center;z-index:10002;padding:30px';
       var pCard = document.createElement('div');
       pCard.style.cssText = 'background:#fff;border-radius:14px;max-width:700px;width:100%;padding:24px;direction:rtl;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.5)';
+      // Lauren 2026-05-27 PM #5 — MERGE WARNING block
+      var mergeWarnHtml = '';
+      if (mergedWarnings.length > 0) {
+        mergeWarnHtml =
+          '<div style="margin-top:12px;padding:12px 14px;background:#fffbeb;border:2px solid #fcd34d;border-radius:10px">' +
+            '<div style="font-weight:700;color:#92400e;font-size:14px;margin-bottom:8px">⚠️ ' + mergedWarnings.length + ' מוצרי OCTOPOS מקבלים עדכון מ-2+ שורות חשבונית — בדקי שאלו לא SKU שגויים</div>' +
+            '<div style="font-size:11px;color:#78350f;margin-bottom:8px">דוגמה: BH716 — אם 2 שורות חשבונית עם השמות "PROTEIN HAIR MASK COLLAGEN" ו"Blest HAIR MASK Intense Protein" שתיהן מקושרות לאותו pid, ייתכן שאחת מהן SKU שגוי. השתמשי ב-↺ "אפסי היסטוריה" כדי לחזור לחלון ההשוואה ולתקן את ה-SKU השגוי, או 🔗 לקשר ל-pid אחר.</div>' +
+            mergedWarnings.map(function(m){
+              var srcList = m.sources.map(function(s, i){
+                return '<li style="margin-bottom:2px"><span style="color:#475569">"' + escHtml(s.slice(0, 50)) + '"</span> · <b style="color:#15803d">+' + Number(m.qtys[i] || 0) + '</b></li>';
+              }).join('');
+              return '<div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:8px;margin-bottom:6px"><b style="font-size:12px">📦 ' + escHtml(m.name) + ' · סה"כ ל-OCTOPOS: <span style="color:#15803d">+' + m.total + '</span></b><ul style="margin:5px 0 0 16px;font-size:11px;padding-right:14px">' + srcList + '</ul></div>';
+            }).join('') +
+          '</div>';
+      }
       var spikeWarnHtml = '';
       if (spikeRows.length > 0) {
         spikeWarnHtml =
@@ -9732,7 +9762,7 @@ async function confirmInvoiceCompared(){
             '</label>' +
           '</div>';
       }
-      pCard.innerHTML = preflightHtml + spikeWarnHtml +
+      pCard.innerHTML = preflightHtml + mergeWarnHtml + spikeWarnHtml +
         '<div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">' +
           '<button type="button" id="_preflightCancel" style="padding:10px 20px;background:#f1f5f9;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600">ביטול</button>' +
           '<button type="button" id="_preflightConfirm" ' + (spikeRows.length > 0 ? 'disabled' : '') + ' style="padding:10px 20px;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700' + (spikeRows.length > 0 ? ';opacity:.45;cursor:not-allowed' : '') + '">✅ אישור — בצעי</button>' +
@@ -10364,7 +10394,11 @@ async function handleCompareInvoiceFile(file){
     // immediately; the 5/18 Romantic order sat unconfirmed for 3 days because
     // she closed the modal without clicking confirm. Show a 6-second timer
     // banner the user can cancel if she wants to review exclusions first.
-    try { maybeShowAutoSyncCountdown(); } catch(e){ console.warn('auto-sync banner failed:', e); }
+    // Lauren 2026-05-27 PM #5 — DISABLED. Auto-sync countdown banner auto-fired
+    // confirmInvoiceCompared after 6s, before Lauren could review/edit. Per her
+    // directive, PREFLIGHT only pops on explicit ✅ click. The banner code remains
+    // in the file (maybeShowAutoSyncCountdown) but is no longer invoked.
+    // try { maybeShowAutoSyncCountdown(); } catch(e){ console.warn('auto-sync banner failed:', e); }
   } catch(e){
     console.error(e);
     $("#cmpResult").innerHTML = '<div style="color:#b91c1c;padding:14px;background:#fee2e2;border-radius:10px">שגיאה בניתוח: ' + escHtml(e.message||String(e)) + '</div>';
