@@ -9619,10 +9619,57 @@ async function confirmInvoiceCompared(){
   }
   var completedKeys = (supForCompletion && supForCompletion._pending_invoice && supForCompletion._pending_invoice.completed_action_keys) || [];
   var originalCount = actions.length;
+  var preFilterActions = actions.slice(); // remember the full set before filtering
   actions = actions.filter(function(a){ return completedKeys.indexOf(_actionKey(a)) === -1; });
   var skippedCount = originalCount - actions.length;
   if (skippedCount > 0) {
-    log('⏭ דילגתי על ' + skippedCount + ' פעולות שכבר הצליחו בריצה קודמת');
+    // Lauren 2026-05-27 — ASK before silently skipping.
+    // The previous behavior silently dropped completed actions, which trapped Lauren
+    // after the Amuse double-pack-multiply incident: the 12 buggy pushes were marked
+    // completed, then the OCTOPOS stock got reverted externally, but the dashboard
+    // still refused to re-push because the keys were "completed". She had no way out
+    // without devtools. Now: prompt for a choice.
+    var resetChoice = await new Promise(function(resolve){
+      var bgR = document.createElement('div');
+      bgR.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.65);display:flex;align-items:center;justify-content:center;z-index:10003;padding:30px';
+      var rCard = document.createElement('div');
+      rCard.style.cssText = 'background:#fff;border-radius:14px;max-width:520px;width:100%;padding:24px;direction:rtl;box-shadow:0 30px 80px rgba(0,0,0,.5)';
+      rCard.innerHTML =
+        '<h2 style="margin:0 0 8px;font-size:17px;color:#a16207">⚠️ ' + skippedCount + ' פעולות סומנו כ"הצליחו" בריצה קודמת</h2>' +
+        '<div style="color:var(--muted);font-size:13px;margin-bottom:14px;line-height:1.6">המערכת זוכרת שכבר ביצעת push ל-OCTOPOS עבור הפעולות האלו. אם <b>אוקטופוס שונה/אופס מאז</b> (למשל בעקבות revert של baga קודם) — את צריכה לאפס את ההיסטוריה ולבצע הכל מחדש.<br><br>מה לעשות?</div>' +
+        '<div style="display:flex;flex-direction:column;gap:8px">' +
+          '<button type="button" id="_skipKeep" style="padding:12px 16px;background:#f1f5f9;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600;text-align:right">⏭ דלגי עליהן (התנהגות רגילה)<div style="font-size:11px;color:var(--muted);font-weight:400;margin-top:3px">' + actions.length + ' פעולות חדשות יבוצעו; ' + skippedCount + ' ידולגו.</div></button>' +
+          '<button type="button" id="_skipReset" style="padding:12px 16px;background:linear-gradient(180deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;text-align:right">🔄 אפסי היסטוריה ובצעי הכל מחדש<div style="font-size:11px;font-weight:400;margin-top:3px;color:#fef3c7">כל ' + originalCount + ' הפעולות יבוצעו ב-OCTOPOS, כולל אלו שסומנו "הצליחו" בעבר.</div></button>' +
+          '<button type="button" id="_skipCancel" style="padding:10px 16px;background:transparent;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600;color:var(--muted)">ביטול</button>' +
+        '</div>';
+      bgR.appendChild(rCard);
+      document.body.appendChild(bgR);
+      bgR.addEventListener('click', function(e){
+        if (e.target === bgR || e.target.id === '_skipCancel'){ bgR.remove(); resolve('cancel'); return; }
+        if (e.target.closest('#_skipKeep')){ bgR.remove(); resolve('keep'); return; }
+        if (e.target.closest('#_skipReset')){ bgR.remove(); resolve('reset'); return; }
+      });
+    });
+    if (resetChoice === 'cancel'){
+      if (btn){ btn.disabled = false; btn.textContent = '✅ עדכן קבלת סחורה'; }
+      toast('בוטל — שום דבר לא עודכן', '');
+      return;
+    }
+    if (resetChoice === 'reset'){
+      // Restore full action set + wipe completed_action_keys
+      actions = preFilterActions;
+      completedKeys.length = 0; // mutate in-place (same array ref as supForCompletion._pending_invoice.completed_action_keys)
+      try {
+        if (supForCompletion && supForCompletion._pending_invoice) {
+          supForCompletion._pending_invoice.completed_action_keys = [];
+          if (typeof scheduleSave === 'function') scheduleSave();
+        }
+      } catch(_){}
+      log('🔄 איפוס היסטוריה — מבצעת את כל ' + actions.length + ' הפעולות מחדש');
+      skippedCount = 0;
+    } else {
+      log('⏭ דילגתי על ' + skippedCount + ' פעולות שכבר הצליחו בריצה קודמת');
+    }
   }
 
   var results = { ok: 0, fail: 0, errors: [], skipped: skippedCount };
