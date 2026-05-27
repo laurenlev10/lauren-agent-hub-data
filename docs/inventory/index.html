@@ -9656,16 +9656,22 @@ async function confirmInvoiceCompared(){
       return;
     }
     if (resetChoice === 'reset'){
-      // Restore full action set + wipe completed_action_keys
+      // Restore full action set + wipe completed_action_keys + clear invoice_compared_at
+      // (Lauren 2026-05-27 PM — without clearing invoice_compared_at the supplier card
+      // stays in the green 'עודכנה' state with stale 'approved' status pills, hiding
+      // the natural compare flow even after a successful retry.)
       actions = preFilterActions;
       completedKeys.length = 0; // mutate in-place (same array ref as supForCompletion._pending_invoice.completed_action_keys)
       try {
         if (supForCompletion && supForCompletion._pending_invoice) {
           supForCompletion._pending_invoice.completed_action_keys = [];
-          if (typeof scheduleSave === 'function') scheduleSave();
         }
+        if (supForCompletion) {
+          supForCompletion.invoice_compared_at = null;
+        }
+        if (typeof scheduleSave === 'function') scheduleSave();
       } catch(_){}
-      log('🔄 איפוס היסטוריה — מבצעת את כל ' + actions.length + ' הפעולות מחדש');
+      log('🔄 איפוס היסטוריה — מבצעת את כל ' + actions.length + ' הפעולות מחדש (invoice_compared_at אופס)');
       skippedCount = 0;
     } else {
       log('⏭ דילגתי על ' + skippedCount + ' פעולות שכבר הצליחו בריצה קודמת');
