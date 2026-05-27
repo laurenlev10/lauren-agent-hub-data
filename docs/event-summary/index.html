@@ -129,7 +129,7 @@ table.data td.num { text-align: center; font-variant-numeric: tabular-nums; font
 </head>
 <body>
 <header>
-  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v15 · 26.5</span></h1>
+  <h1>📊 Inventory Summary <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 6px;border-radius:4px;font-weight:500">v16 · 26.5</span></h1>
   <div class="subtitle" id="subtitle">טוען...</div>
 </header>
 
@@ -337,7 +337,13 @@ async function autoSyncPreEvent(){
     return;
   }
   showPreEventBanner('syncing');
-  const pids = (SUMMARY.tabs.to_recount || []).map(r => r.product_id).filter(x => x != null);
+  // Collect ALL unique pids across all pre-event tabs (to_recount + no_threshold + negatives)
+  // — Lauren updates thresholds + clearance + tags throughout the day and ALL of them need refreshing.
+  const pidsSet = new Set();
+  ['to_recount', 'no_threshold', 'negatives'].forEach(tabId => {
+    (SUMMARY.tabs[tabId] || []).forEach(r => { if (r.product_id != null) pidsSet.add(r.product_id); });
+  });
+  const pids = [...pidsSet];
   let done = 0, dropped = 0;
   // Batched concurrency to avoid overwhelming OCTOPOS — 4 at a time
   const batchSize = 4;
@@ -374,7 +380,14 @@ async function autoSyncPreEvent(){
     showPreEventBanner('syncing', done, pids.length, dropped);
   }
   SUMMARY._live_synced = true;
-  showPreEventBanner('done', done, pids.length, dropped);
+  // Compute richer stats: how many got out of each tab
+  const drop = {to_recount: 0, no_threshold: 0, negatives: 0};
+  // After sync, tabQualifier will filter them out — count what's gone
+  ['to_recount', 'no_threshold', 'negatives'].forEach(tabId => {
+    const qual = tabQualifier(tabId);
+    if (qual) drop[tabId] = (SUMMARY.tabs[tabId] || []).filter(r => !qual(r)).length;
+  });
+  showPreEventBanner('done', done, pids.length, dropped, drop);
   renderTabContent();
   setTimeout(() => { const b = $('#preEventBanner'); if (b) b.remove(); }, 5000);
 }
@@ -396,7 +409,12 @@ function showPreEventBanner(state, done, total, dropped){
     b.innerHTML = `🔄 מסנכרן מ-OCTOPOS... ${done||0}/${total||'?'} (${pct}%)${dropped ? ` · ${dropped} כבר לא מתויגים` : ''}`;
   } else if (state === 'done'){
     b.style.background = '#dcfce7'; b.style.color = '#15803d';
-    b.innerHTML = `✓ סונכרן עם OCTOPOS · ${done} מוצרים · ${dropped} כבר לא מתויגים RECOUNT והוסרו מהרשימה`;
+    const drop = arguments[4] || {};
+    const parts = [];
+    if (drop.to_recount) parts.push(`${drop.to_recount} כבר לא מתויגים RECOUNT`);
+    if (drop.no_threshold) parts.push(`${drop.no_threshold} קיבלו Threshold`);
+    if (drop.negatives) parts.push(`${drop.negatives} כבר לא במינוס`);
+    b.innerHTML = `✓ סונכרן עם OCTOPOS · ${done} מוצרים` + (parts.length ? ' · ' + parts.join(' · ') : '');
   }
 }
 
