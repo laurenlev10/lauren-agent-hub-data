@@ -1200,7 +1200,7 @@ function renderSupplierCard(sup, s, idx){
       // Turns green '✓ קבלת סחורה עודכנה' once invoice has been compared + confirmed.
       ((_hasLocalOrder || _invoiceCompared || _hasUploadedInvoice)
         ? (_invoiceCompared
-            ? '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="לחיצה תפתח את החלון שוב" style="background:linear-gradient(180deg,#16a34a,#15803d);font-size:11px;padding:5px 10px;color:#fff;white-space:nowrap">✓ קבלת סחורה עודכנה · '+_fmtMMDDHHMM(_invoiceComparedAt)+'</button>'
+            ? '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="לחיצה תפתח את החלון שוב" style="background:linear-gradient(180deg,#16a34a,#15803d);font-size:11px;padding:5px 10px;color:#fff;white-space:nowrap">✓ קבלת סחורה עודכנה · '+_fmtMMDDHHMM(_invoiceComparedAt)+'</button>' + ' <button type="button" class="btn-reset-invoice-compared" data-supplier-code="'+sup.code+'" title="↺ נקה את סטטוס &quot;עודכנה&quot; — הספק יחזור למצב &quot;השוואת חשבונית&quot; ותוכלי להריץ שוב את הזרימה ללא איבוד הנתונים השמורים" style="background:#fff;border:1px solid var(--line);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:13px;color:#475569;padding:0;line-height:1">↺</button>'
             : '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" style="font-size:11px;padding:5px 10px;white-space:nowrap">📋 השוואת חשבונית</button>'              + (_hasUploadedInvoice ? ' <button type="button" class="btn-octopos-push" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="קליטה ישירה לאוקטופוס — יוצר מוצרים חדשים ומעדכן מלאי לפי החשבונית הממתינה" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#ec4899,#be185d);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;box-shadow:0 1px 3px rgba(190,24,93,.3);white-space:nowrap">🚀 צור באוקטופוס</button>' : ''))
         : '')+
       // 'עודכן ידנית' button — for suppliers where Lauren updated stock directly in OCTOPOS without going through compare flow
@@ -9027,6 +9027,30 @@ function closeCompareInvoiceModal(){
 
 // Wire compare button (event delegation)
 document.addEventListener("click", function(e){
+  // Lauren 2026-05-27 PM — UNIVERSAL RESET (Improvement D)
+  // Per-field ↺ icon clears just the stale flag (invoice_compared_at) so the
+  // supplier card returns to its normal flow. Doesn't touch _pending_invoice,
+  // line_edits, or any other state. Safer + more granular than the broader
+  // reset-history flow inside confirmInvoiceCompared.
+  var btnReset = e.target.closest('.btn-reset-invoice-compared');
+  if (btnReset) {
+    e.preventDefault(); e.stopPropagation();
+    var supCode = btnReset.dataset.supplierCode;
+    if (!confirm('↺ לנקות את סטטוס "קבלת סחורה עודכנה" עבור הספק הזה?\n\n(הנתונים השמורים בחשבונית לא יימחקו — רק הסטטוס. הספק יחזור לכפתור "השוואת חשבונית" הרגיל.)')) return;
+    try {
+      var supR = (STATE.events && STATE.events[CURRENT_EVKEY] && STATE.events[CURRENT_EVKEY].suppliers) ? STATE.events[CURRENT_EVKEY].suppliers[supCode] : null;
+      if (supR) {
+        supR.invoice_compared_at = null;
+        if (supR._pending_invoice) supR._pending_invoice.completed_action_keys = [];
+        if (typeof scheduleSave === 'function') scheduleSave();
+        toast('↺ סטטוס "עודכנה" נוקה לספק ' + supCode, 'success');
+        // Re-render the supplier card
+        if (typeof renderSuppliers === 'function') renderSuppliers();
+        else if (typeof render === 'function') render();
+      }
+    } catch(err) { toast('שגיאה: ' + err.message, 'error'); }
+    return;
+  }
   var btn = e.target.closest('.btn-compare-invoice');
   if (btn){
     e.preventDefault(); e.stopPropagation();

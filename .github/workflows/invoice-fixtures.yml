@@ -1,0 +1,41 @@
+name: Invoice parser fixture suite
+
+# Runs the canonical-invoice tests on every push that touches the parser or fixtures.
+# Catches regressions in parseInvoiceRows / parseInvoicePdf before they hit production.
+# Each fixture: one supplier PDF + expected output (docs/fixtures/invoices/<code>.{pdf,expected.json}).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/inventory/index.html'
+      - 'docs/fixtures/invoices/**'
+      - 'scripts/test_invoice_fixtures.py'
+      - '.github/workflows/invoice-fixtures.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pdftotext
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+
+      - name: Run fixture suite
+        run: python3 scripts/test_invoice_fixtures.py
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
