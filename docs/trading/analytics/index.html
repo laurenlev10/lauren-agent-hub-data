@@ -104,6 +104,20 @@ table.simple td.muted { color:var(--txt4); }
 #status.ok { color:var(--grn); }
 #status.err { color:var(--red); }
 
+/* strategy-start filter strip */
+.strategy-strip { background:linear-gradient(135deg,#fef9e7,#fef3c7); border:1.5px solid #fbbf24; border-radius:12px; padding:11px 16px; margin-bottom:14px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; box-shadow:var(--sh); }
+.strategy-strip .ss-label { font-size:13px; font-weight:800; color:#92400e; display:flex; align-items:center; gap:6px; }
+.strategy-strip .ss-current { flex:1; min-width:200px; font-size:13px; color:#7c2d12; font-weight:600; }
+.strategy-strip .ss-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.strategy-strip input[type="datetime-local"] { padding:7px 11px; border:1.5px solid #cbd5e1; border-radius:8px; font-size:13px; font-family:var(--f); }
+.strategy-strip .ss-btn { background:#fff; color:#0ea5e9; border:1.5px solid #7dd3fc; border-radius:8px; padding:7px 13px; font-family:var(--f); font-size:13px; font-weight:700; cursor:pointer; transition:all .12s; }
+.strategy-strip .ss-btn:hover { background:#e0f2fe; border-color:#0ea5e9; }
+.strategy-strip .ss-btn.primary { background:#16a34a; color:#fff; border-color:#16a34a; }
+.strategy-strip .ss-btn.primary:hover { background:#15803d; }
+.strategy-strip .ss-btn.clear { background:#fff; color:#dc2626; border-color:#fca5a5; }
+.strategy-strip .ss-btn.clear:hover { background:#fee2e2; }
+.strategy-strip .ss-btn:disabled { opacity:.55; cursor:wait; }
+
 /* empty state */
 .empty-state { text-align:center; padding:40px 20px; color:var(--txt4); }
 .empty-state .ico { font-size:48px; opacity:.6; margin-bottom:8px; }
@@ -129,6 +143,18 @@ table.simple td.muted { color:var(--txt4); }
 </div>
 
 <div id="status">⏳ טוען נתונים...</div>
+
+<!-- Strategy start-date filter strip -->
+<div class="strategy-strip" id="strategy-strip">
+  <span class="ss-label">🎯 תאריך התחלת אסטרטגיה:</span>
+  <span class="ss-current" id="strategy-current">⏳ טוען...</span>
+  <div class="ss-actions">
+    <input type="datetime-local" id="strategy-date-input" />
+    <button class="ss-btn primary" id="ss-save-date" onclick="saveStrategyDate()">💾 שמור</button>
+    <button class="ss-btn" id="ss-set-now" onclick="setStrategyToNow()">🔄 התחל מעכשיו</button>
+    <button class="ss-btn clear" id="ss-clear" onclick="clearStrategyDate()">🗑️ נקה</button>
+  </div>
+</div>
 
 <!-- KPI tiles row -->
 <div class="kpi-row" id="kpi-row" style="display:none;">
@@ -229,7 +255,10 @@ table.simple td.muted { color:var(--txt4); }
 
 <script>
 const DATA_URL = "../journal-data.json";
-let STATE = { raw: null, trades: [] };
+const CONFIG_URL = "../autotrade_enabled.json";
+const CONFIG_REPO_FILE = "docs/trading/autotrade_enabled.json";
+const AT_TOKEN_KEY = "lauren_gh_token_v1";  // per IRON RULE #7 — localStorage for secrets
+let STATE = { raw: null, trades: [], config: null };
 
 function fmtUSD(v) {
   if (v == null || isNaN(v)) return "—";
@@ -253,25 +282,123 @@ async function loadData() {
   document.getElementById("status").textContent = "⏳ טוען נתונים...";
   document.getElementById("status").className = "";
   try {
-    const r = await fetch(DATA_URL + "?_=" + Date.now(), { cache: "no-store" });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const j = await r.json();
+    // Fetch both journal data AND config in parallel
+    const [dataR, configR] = await Promise.all([
+      fetch(DATA_URL + "?_=" + Date.now(), { cache: "no-store" }),
+      fetch(CONFIG_URL + "?_=" + Date.now(), { cache: "no-store" })
+    ]);
+    if (!dataR.ok) throw new Error("data HTTP " + dataR.status);
+    const j = await dataR.json();
     if (!j || !Array.isArray(j.trades)) throw new Error("נתונים לא תקינים");
     STATE.raw = j;
     STATE.trades = j.trades;
 
+    if (configR.ok) {
+      STATE.config = await configR.json();
+    } else {
+      STATE.config = {};
+    }
+
     const updatedAt = j._updated_at ? new Date(j._updated_at).toLocaleString("he-IL") : "—";
     document.getElementById("updated-at").textContent = "עודכן " + updatedAt;
 
+    renderStrategyStrip();
     renderAll();
-
-    document.getElementById("status").textContent = "✓ נטענו " + j.trades.length + " עסקאות";
-    document.getElementById("status").className = "ok";
   } catch (e) {
     console.error(e);
     document.getElementById("status").textContent = "❌ שגיאת טעינה: " + e.message;
     document.getElementById("status").className = "err";
   }
+}
+
+function renderStrategyStrip() {
+  const startAt = STATE.config && STATE.config.strategy_started_at;
+  const cur = document.getElementById("strategy-current");
+  const inp = document.getElementById("strategy-date-input");
+  if (startAt) {
+    const d = new Date(startAt);
+    cur.textContent = "📅 מציגה רק עסקאות מ-" + d.toLocaleString("he-IL", { dateStyle: "medium", timeStyle: "short" });
+    // Pre-fill the input with current value (formatted for datetime-local)
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    inp.value = local;
+  } else {
+    cur.textContent = "⚠ אין סינון — האנליטיקס כולל את כל העסקאות מאז ומתמיד";
+    inp.value = "";
+  }
+}
+
+function getStrategyStartTs() {
+  const s = STATE.config && STATE.config.strategy_started_at;
+  if (!s) return 0;
+  const t = new Date(s).getTime();
+  return isFinite(t) ? t : 0;
+}
+
+async function saveStrategyConfigField(value, msg) {
+  let token = (localStorage.getItem(AT_TOKEN_KEY) || "").trim();
+  if (!token) {
+    token = (prompt("הדביקי GitHub PAT (לכתיבה לconfig).\nיישמר ב-localStorage של הדפדפן הזה.") || "").trim();
+    if (!token) return false;
+    localStorage.setItem(AT_TOKEN_KEY, token);
+  }
+  const btn1 = document.getElementById("ss-save-date");
+  const btn2 = document.getElementById("ss-set-now");
+  const btn3 = document.getElementById("ss-clear");
+  [btn1, btn2, btn3].forEach(b => { if (b) b.disabled = true; });
+  try {
+    const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + CONFIG_REPO_FILE + "?ref=main";
+    const getR = await fetch(getUrl, { headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json" } });
+    if (!getR.ok) {
+      if (getR.status === 401) { localStorage.removeItem(AT_TOKEN_KEY); throw new Error("PAT לא תקין — נמחק, נסי שוב"); }
+      throw new Error("GitHub GET נכשל: " + getR.status);
+    }
+    const cur = await getR.json();
+    const decoded = JSON.parse(atob(cur.content.replace(/\s/g, "")));
+    decoded.strategy_started_at = value;
+    decoded._updated_at = new Date().toISOString();
+    decoded._updated_by = "browser-analytics-strategy-strip";
+
+    const putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + CONFIG_REPO_FILE;
+    const putR = await fetch(putUrl, {
+      method: "PUT",
+      headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: msg || ("analytics: strategy_started_at = " + (value || "null")),
+        content: btoa(unescape(encodeURIComponent(JSON.stringify(decoded, null, 2)))),
+        sha: cur.sha, branch: "main"
+      })
+    });
+    if (!putR.ok) throw new Error("GitHub PUT נכשל: " + putR.status);
+
+    STATE.config = decoded;
+    renderStrategyStrip();
+    renderAll();
+    return true;
+  } catch (e) {
+    console.error("saveStrategyConfigField failed:", e);
+    alert("שגיאה: " + e.message);
+    return false;
+  } finally {
+    [btn1, btn2, btn3].forEach(b => { if (b) b.disabled = false; });
+  }
+}
+
+async function saveStrategyDate() {
+  const inp = document.getElementById("strategy-date-input");
+  if (!inp.value) { alert("בחרי תאריך קודם"); return; }
+  const iso = new Date(inp.value).toISOString();
+  await saveStrategyConfigField(iso, "analytics: set strategy_started_at to " + iso);
+}
+
+async function setStrategyToNow() {
+  if (!confirm("להגדיר את תאריך התחלת האסטרטגיה ל-עכשיו?\nכל העסקאות לפני הרגע הזה יוסתרו מהאנליטיקס.")) return;
+  const iso = new Date().toISOString();
+  await saveStrategyConfigField(iso, "analytics: strategy reset to now");
+}
+
+async function clearStrategyDate() {
+  if (!confirm("לנקות את תאריך התחלת האסטרטגיה?\nהאנליטיקס יציג שוב את כל העסקאות מאז ומתמיד.")) return;
+  await saveStrategyConfigField(null, "analytics: cleared strategy_started_at");
 }
 
 // =============== Compute closed trades (with explicit P&L) ===============
@@ -282,6 +409,11 @@ function computeClosedTrades() {
   // to capture all closing events with their P&L.
   const TICK = 0.25;
   const TVAL = 0.50;
+
+  // 🛑 2026-05-28 — apply strategy_started_at filter to scope analytics to trades
+  // executed AFTER Lauren switched to the new strategy (Pine v1.3). Trades before that
+  // remain in journal-data.json for reference, but don't affect KPIs / charts.
+  const strategyTs = getStrategyStartTs();
 
   // Sort by time
   const sorted = STATE.trades.slice().sort((a, b) => {
@@ -295,6 +427,11 @@ function computeClosedTrades() {
 
   for (const t of sorted) {
     if (t._status) continue; // SKIP/ERROR rows
+    // Apply strategy_started_at cutoff — skip events before Lauren's strategy switch
+    if (strategyTs > 0) {
+      const ts = new Date(t._received_at || t.time || 0).getTime();
+      if (!ts || ts < strategyTs) continue;
+    }
     const type = String(t.type || "").toUpperCase().trim();
     const isLong = (type === "LONG");
     const isShort = (type === "SHORT");
@@ -394,9 +531,23 @@ function destroyChart(name) {
 function renderAll() {
   const closed = computeClosedTrades();
   if (!closed.length) {
-    document.getElementById("status").textContent = "🤷 אין עסקאות סגורות בנתונים";
+    const strategyTs = getStrategyStartTs();
+    if (strategyTs > 0) {
+      document.getElementById("status").textContent = "📭 אין עדיין עסקאות סגורות מאז " + new Date(strategyTs).toLocaleString("he-IL") + " — האנליטיקס יתמלא ברגע שיהיו תוצאות.";
+    } else {
+      document.getElementById("status").textContent = "🤷 אין עסקאות סגורות בנתונים";
+    }
+    document.getElementById("status").className = "";
+    // Hide all sections
+    ["kpi-row","sec-equity","sec-drawdown","sec-hod","sec-dow","sec-distribution","sec-streaks","sec-danger","sec-direction","sec-exits"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = "none";
+    });
     return;
   }
+
+  document.getElementById("status").textContent = "✓ נטענו " + closed.length + " עסקאות סגורות" + (getStrategyStartTs() > 0 ? " (מסונן מתאריך ההתחלה)" : "");
+  document.getElementById("status").className = "ok";
 
   document.getElementById("kpi-row").style.display = "grid";
   renderKPIs(closed);
