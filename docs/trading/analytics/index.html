@@ -264,7 +264,7 @@ table.simple td.muted { color:var(--txt4); }
 <!-- P&L Calendar -->
 <div class="cal-section" id="sec-calendar" style="display:none;">
   <div class="cal-header">
-    <div class="cal-title">📅 לוח שנה <span class="desc">— רווח/הפסד יומי + שיא ושפל אינטרה-day</span></div>
+    <div class="cal-title">📅 לוח שנה <span class="desc">— רווח/הפסד יומי + שיא ושפל אינטרה-day · 🇮🇱 לפי שעון ישראל</span></div>
     <div class="cal-nav">
       <button class="cal-nav-btn" id="cal-prev" onclick="calNav(-1)">‹ קודם</button>
       <span class="cal-month-label" id="cal-month-label">—</span>
@@ -284,7 +284,7 @@ table.simple td.muted { color:var(--txt4); }
     <div class="insight" id="ins-hod"></div>
   </div>
   <div class="section" id="sec-dow" style="display:none;">
-    <h2>📅 P&L לפי יום בשבוע</h2>
+    <h2>📅 P&L לפי יום בשבוע <span class="desc">🇮🇱 לפי שעון ישראל</span></h2>
     <div class="chart-box"><canvas id="chart-dow"></canvas></div>
     <div class="insight" id="ins-dow"></div>
   </div>
@@ -947,9 +947,16 @@ function renderDayOfWeek(closed) {
   const byDay = {};
   for (let i = 0; i < 7; i++) byDay[i] = { count: 0, net: 0, wins: 0, losses: 0 };
 
+  // 🛑 2026-05-28 — Use Israel timezone for day-of-week attribution (one trading
+  // session = one IL day; see calendar comment). The browser locale (LA) would
+  // misattribute late-night trades to the wrong day.
   for (const t of closed) {
-    const d = new Date(t.entry_time || t.time);
-    const day = d.getDay();
+    const ts = t.entry_time || t.time;
+    // Get day-of-week in IL by extracting the date string, then parsing it as IL midnight
+    const ymd = ilYMD(ts); // "YYYY-MM-DD" in IL
+    // Compute day-of-week from YMD: treat as UTC midnight (timezone-neutral for day-of-week purposes)
+    const dt = new Date(ymd + "T12:00:00Z"); // noon to avoid TZ edge
+    const day = dt.getUTCDay();
     byDay[day].count++;
     byDay[day].net += t.dollars;
     if (t.dollars > 0) byDay[day].wins++;
@@ -1204,11 +1211,15 @@ function getAllTradesForCalendar() {
   return out.sort((a, b) => a.time - b.time);
 }
 
-function laYMD(timestamp) {
-  // Get year-month-day in LA timezone — returns "YYYY-MM-DD"
+function ilYMD(timestamp) {
+  // 🛑 2026-05-28 — Get year-month-day in ISRAEL timezone — returns "YYYY-MM-DD".
+  // Lauren explicitly requested IL because the trading day (CME futures) maps cleanly
+  // to a single IL date (~01:00 to ~23:00 IL = one date), whereas LA splits the same
+  // session across two calendar dates (15:00 to next-day 14:00). One trading session
+  // = one IL day = one calendar cell. Way less confusing.
   const d = new Date(timestamp);
   const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Los_Angeles",
+    timeZone: "Asia/Jerusalem",
     year: "numeric", month: "2-digit", day: "2-digit"
   });
   return fmt.format(d);
@@ -1246,7 +1257,7 @@ function renderCalendar() {
   // Group trades by LA day
   const byDay = {}; // key: "YYYY-MM-DD" → { net, peak, trough, count, sources, trades[] }
   for (const t of all) {
-    const k = laYMD(t.time);
+    const k = ilYMD(t.time);
     if (!byDay[k]) byDay[k] = { net: 0, peak: 0, trough: 0, count: 0, sources: new Set(), trades: [] };
     byDay[k].trades.push(t);
   }
@@ -1285,12 +1296,12 @@ function renderCalendar() {
   // Padding for days before the 1st
   for (let i = 0; i < startDow; i++) html += `<div class="cal-cell outside"></div>`;
 
-  const todayYMD = laYMD(Date.now());
+  const todayYMD = ilYMD(Date.now());
   let monthNet = 0, monthDays = 0, monthBest = -Infinity, monthWorst = Infinity, monthPeak = 0, monthTrough = 0;
 
   for (let day = 1; day <= daysInMonth; day++) {
     const dateObj = new Date(CALENDAR_STATE.viewYear, CALENDAR_STATE.viewMonth, day);
-    const ymd = laYMD(dateObj.getTime());
+    const ymd = ilYMD(dateObj.getTime());
     const data = byDay[ymd];
     const isToday = (ymd === todayYMD);
 
