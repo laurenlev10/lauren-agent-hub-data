@@ -104,6 +104,40 @@ table.simple td.muted { color:var(--txt4); }
 #status.ok { color:var(--grn); }
 #status.err { color:var(--red); }
 
+/* P&L Calendar */
+.cal-section { background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); padding:16px 18px; box-shadow:var(--sh); margin-bottom:14px; }
+.cal-header { display:flex; justify-content:space-between; align-items:center; gap:14px; margin-bottom:14px; flex-wrap:wrap; }
+.cal-title { font-size:16px; font-weight:800; color:var(--txt); display:flex; align-items:center; gap:8px; }
+.cal-title .desc { font-weight:500; font-size:13px; color:var(--txt4); }
+.cal-nav { display:flex; align-items:center; gap:8px; }
+.cal-nav-btn { background:#fff; color:var(--tv); border:1.5px solid var(--bdr2); border-radius:8px; padding:7px 13px; font-family:var(--f); font-size:13px; font-weight:700; cursor:pointer; transition:all .12s; }
+.cal-nav-btn:hover { background:#f1f5f9; border-color:var(--tv); }
+.cal-nav-btn:disabled { opacity:.5; cursor:not-allowed; }
+.cal-month-label { font-size:16px; font-weight:800; color:var(--txt); min-width:140px; text-align:center; }
+.cal-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; }
+.cal-day-header { font-size:11px; font-weight:800; color:var(--txt4); text-align:center; padding:6px 0; text-transform:uppercase; letter-spacing:.4px; background:#f1f5f9; border-radius:6px; }
+.cal-cell { background:#f8fafc; border:1.5px solid var(--bdr); border-radius:10px; padding:6px 7px 7px; min-height:78px; display:flex; flex-direction:column; gap:2px; position:relative; transition:all .12s; cursor:default; }
+.cal-cell.has-data { cursor:pointer; }
+.cal-cell.has-data:hover { box-shadow:0 4px 12px rgba(15,23,42,.08); transform:translateY(-1px); }
+.cal-cell.outside { background:transparent; border-color:transparent; }
+.cal-cell.outside .day-num { color:#cbd5e1; }
+.cal-cell .day-num { font-size:11px; font-weight:700; color:var(--txt4); }
+.cal-cell.today .day-num { color:#fff; background:var(--tv); border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; font-weight:800; }
+.cal-cell .pnl { font-size:15px; font-weight:800; line-height:1.15; margin-top:auto; }
+.cal-cell .peak-trough { font-size:10px; color:var(--txt4); display:flex; justify-content:space-between; gap:4px; font-variant-numeric:tabular-nums; font-family:ui-monospace, "SF Mono", monospace; }
+.cal-cell .peak-trough .pk { color:#15803d; }
+.cal-cell .peak-trough .tr { color:#b91c1c; }
+.cal-cell.win { background:linear-gradient(135deg,#dcfce7,#bbf7d0); border-color:#22c55e; }
+.cal-cell.win-big { background:linear-gradient(135deg,#bbf7d0,#86efac); border-color:#16a34a; }
+.cal-cell.win .pnl, .cal-cell.win-big .pnl { color:#15803d; }
+.cal-cell.loss { background:linear-gradient(135deg,#fee2e2,#fecaca); border-color:#ef4444; }
+.cal-cell.loss-big { background:linear-gradient(135deg,#fecaca,#fca5a5); border-color:#dc2626; }
+.cal-cell.loss .pnl, .cal-cell.loss-big .pnl { color:#b91c1c; }
+.cal-cell .bt-badge { position:absolute; top:4px; left:4px; font-size:9px; background:#f59e0b; color:#fff; padding:1px 4px; border-radius:4px; font-weight:800; }
+.cal-summary { background:#f8fafc; border:1px solid var(--bdr); border-radius:8px; padding:10px 14px; margin-top:14px; font-size:13px; color:var(--txt2); display:flex; gap:18px; flex-wrap:wrap; }
+.cal-summary span { display:flex; align-items:center; gap:5px; }
+.cal-summary strong { color:var(--txt); font-weight:800; }
+
 /* Backtest section — distinctive gold/orange so it never gets confused with live data */
 .backtest-section { background:linear-gradient(135deg,#fffbeb,#fef3c7); border:2px solid #f59e0b; border-radius:var(--r); padding:16px 18px; margin-bottom:18px; box-shadow:var(--sh); position:relative; }
 .backtest-section::before { content:"📊 BACKTEST"; position:absolute; top:-11px; right:18px; background:#f59e0b; color:#fff; font-size:11px; font-weight:900; padding:4px 10px; border-radius:8px; letter-spacing:.5px; }
@@ -227,6 +261,21 @@ table.simple td.muted { color:var(--txt4); }
   <div class="insight" id="ins-drawdown"></div>
 </div>
 
+<!-- P&L Calendar -->
+<div class="cal-section" id="sec-calendar" style="display:none;">
+  <div class="cal-header">
+    <div class="cal-title">📅 לוח שנה <span class="desc">— רווח/הפסד יומי + שיא ושפל אינטרה-day</span></div>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" id="cal-prev" onclick="calNav(-1)">‹ קודם</button>
+      <span class="cal-month-label" id="cal-month-label">—</span>
+      <button class="cal-nav-btn" id="cal-next" onclick="calNav(1)">הבא ›</button>
+      <button class="cal-nav-btn" id="cal-today" onclick="calToday()">היום</button>
+    </div>
+  </div>
+  <div class="cal-grid" id="cal-grid"></div>
+  <div class="cal-summary" id="cal-summary"></div>
+</div>
+
 <!-- Hour-of-day + Day-of-week grid -->
 <div class="grid-2">
   <div class="section" id="sec-hod" style="display:none;">
@@ -283,6 +332,7 @@ const BACKTEST_URL = "./backtest-data.json";
 const CONFIG_REPO_FILE = "docs/trading/autotrade_enabled.json";
 const AT_TOKEN_KEY = "lauren_gh_token_v1";  // per IRON RULE #7 — localStorage for secrets
 let STATE = { raw: null, trades: [], config: null, backtest: null };
+let CALENDAR_STATE = { viewYear: null, viewMonth: null };  // 0-indexed month
 
 function fmtUSD(v) {
   if (v == null || isNaN(v)) return "—";
@@ -590,6 +640,9 @@ function renderAll() {
 
   document.getElementById("sec-drawdown").style.display = "block";
   renderDrawdown(closed);
+
+  document.getElementById("sec-calendar").style.display = "block";
+  renderCalendar();
 
   document.getElementById("sec-hod").style.display = "block";
   renderHourOfDay(closed);
@@ -1111,6 +1164,185 @@ function renderExitsBreakdown(closed) {
     document.getElementById("ins-exits").className = "insight yel";
     document.getElementById("ins-exits").innerHTML = `יחס TP/SL מאוזן. אם רוב הרווח מה-SWAPs (${swapCount}), זה אומר שה-SMA60 מזהה היפוכים טוב יותר מ-TP פרוטוקולי.`;
   }
+}
+
+// ============== P&L Calendar (per-day net + peak + trough) ==============
+function getAllTradesForCalendar() {
+  // Combine live (journal) and backtest trades into one list. The calendar shows BOTH —
+  // strategy_started_at filter is intentionally NOT applied so Lauren can see historic
+  // calendar even after she sets a strategy reset. Backtest cells are marked separately.
+  const out = [];
+
+  // Live closed trades — use computeClosedTrades but bypass the start-date filter
+  // by temporarily nulling STATE.config.strategy_started_at
+  const savedStartAt = STATE.config && STATE.config.strategy_started_at;
+  if (STATE.config) STATE.config.strategy_started_at = null;
+  const live = computeClosedTrades();
+  if (STATE.config) STATE.config.strategy_started_at = savedStartAt;
+
+  for (const t of live) {
+    if (!t.dollars && t.dollars !== 0) continue;
+    out.push({
+      time: new Date(t.time).getTime(),
+      dollars: t.dollars,
+      source: "live",
+    });
+  }
+
+  // Backtest trades
+  if (STATE.backtest && Array.isArray(STATE.backtest.trades)) {
+    for (const t of STATE.backtest.trades) {
+      out.push({
+        time: new Date(t._received_at).getTime(),
+        dollars: t.result_dollars,
+        source: "backtest",
+      });
+    }
+  }
+
+  return out.sort((a, b) => a.time - b.time);
+}
+
+function laYMD(timestamp) {
+  // Get year-month-day in LA timezone — returns "YYYY-MM-DD"
+  const d = new Date(timestamp);
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric", month: "2-digit", day: "2-digit"
+  });
+  return fmt.format(d);
+}
+
+function calNav(delta) {
+  CALENDAR_STATE.viewMonth += delta;
+  if (CALENDAR_STATE.viewMonth < 0) { CALENDAR_STATE.viewMonth = 11; CALENDAR_STATE.viewYear--; }
+  if (CALENDAR_STATE.viewMonth > 11) { CALENDAR_STATE.viewMonth = 0; CALENDAR_STATE.viewYear++; }
+  renderCalendar();
+}
+
+function calToday() {
+  const now = new Date();
+  CALENDAR_STATE.viewYear = now.getFullYear();
+  CALENDAR_STATE.viewMonth = now.getMonth();
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const all = getAllTradesForCalendar();
+  if (!all.length) {
+    document.getElementById("sec-calendar").style.display = "none";
+    return;
+  }
+
+  // Default month: month containing the latest trade
+  if (CALENDAR_STATE.viewYear == null) {
+    const last = new Date(all[all.length - 1].time);
+    CALENDAR_STATE.viewYear = last.getFullYear();
+    CALENDAR_STATE.viewMonth = last.getMonth();
+  }
+
+  // Group trades by LA day
+  const byDay = {}; // key: "YYYY-MM-DD" → { net, peak, trough, count, sources, trades[] }
+  for (const t of all) {
+    const k = laYMD(t.time);
+    if (!byDay[k]) byDay[k] = { net: 0, peak: 0, trough: 0, count: 0, sources: new Set(), trades: [] };
+    byDay[k].trades.push(t);
+  }
+
+  // For each day, walk trades chronologically and track running cumulative for peak/trough
+  Object.keys(byDay).forEach(k => {
+    const d = byDay[k];
+    d.trades.sort((a, b) => a.time - b.time);
+    let running = 0, peak = 0, trough = 0;
+    for (const t of d.trades) {
+      running += t.dollars;
+      if (running > peak) peak = running;
+      if (running < trough) trough = running;
+      d.sources.add(t.source);
+    }
+    d.net = running;
+    d.peak = peak;
+    d.trough = trough;
+    d.count = d.trades.length;
+  });
+
+  // Compute month label
+  const monthNames = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+  document.getElementById("cal-month-label").textContent = monthNames[CALENDAR_STATE.viewMonth] + " " + CALENDAR_STATE.viewYear;
+
+  // Build grid
+  const firstDay = new Date(CALENDAR_STATE.viewYear, CALENDAR_STATE.viewMonth, 1);
+  const lastDay = new Date(CALENDAR_STATE.viewYear, CALENDAR_STATE.viewMonth + 1, 0);
+  const startDow = firstDay.getDay(); // 0=Sunday
+  const daysInMonth = lastDay.getDate();
+
+  const dayHeaders = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+  let html = "";
+  for (const h of dayHeaders) html += `<div class="cal-day-header">${h}</div>`;
+
+  // Padding for days before the 1st
+  for (let i = 0; i < startDow; i++) html += `<div class="cal-cell outside"></div>`;
+
+  const todayYMD = laYMD(Date.now());
+  let monthNet = 0, monthDays = 0, monthBest = -Infinity, monthWorst = Infinity, monthPeak = 0, monthTrough = 0;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateObj = new Date(CALENDAR_STATE.viewYear, CALENDAR_STATE.viewMonth, day);
+    const ymd = laYMD(dateObj.getTime());
+    const data = byDay[ymd];
+    const isToday = (ymd === todayYMD);
+
+    let cls = "cal-cell";
+    let badge = "";
+    let body = "";
+    if (isToday) cls += " today";
+
+    if (data) {
+      cls += " has-data";
+      monthNet += data.net;
+      monthDays++;
+      if (data.net > monthBest) monthBest = data.net;
+      if (data.net < monthWorst) monthWorst = data.net;
+      if (data.peak > monthPeak) monthPeak = data.peak;
+      if (data.trough < monthTrough) monthTrough = data.trough;
+
+      const onlyBt = data.sources.size === 1 && data.sources.has("backtest");
+      if (onlyBt) badge = `<span class="bt-badge">BT</span>`;
+
+      // Color classes by magnitude
+      const absN = Math.abs(data.net);
+      if (data.net > 100) cls += " win-big";
+      else if (data.net > 0) cls += " win";
+      else if (data.net < -100) cls += " loss-big";
+      else if (data.net < 0) cls += " loss";
+
+      const sign = data.net >= 0 ? "+" : "-";
+      const peakStr = data.peak !== 0 ? "+" + Math.round(data.peak) : "—";
+      const trStr = data.trough !== 0 ? Math.round(data.trough) : "—";
+      const pnlStr = sign + "$" + Math.abs(Math.round(data.net));
+      const title = `${data.count} עסקאות · שיא: +$${data.peak.toFixed(0)} · שפל: ${data.trough.toFixed(0)} · סורסים: ${[...data.sources].join(",")}`;
+      body = `<div class="peak-trough"><span class="pk">↑${peakStr}</span><span class="tr">↓${trStr}</span></div><div class="pnl">${pnlStr}</div>`;
+      html += `<div class="${cls}" title="${title}">${badge}<div class="day-num">${day}</div>${body}</div>`;
+    } else {
+      html += `<div class="${cls}"><div class="day-num">${day}</div></div>`;
+    }
+  }
+
+  document.getElementById("cal-grid").innerHTML = html;
+
+  // Month summary
+  let summary = `<span>📊 <strong>${monthDays}</strong> ימי מסחר</span>`;
+  if (monthDays > 0) {
+    const netCls = monthNet >= 0 ? "pos" : "neg";
+    summary += `<span>💰 Net: <strong class="${netCls}" style="color:${monthNet>=0?"#15803d":"#b91c1c"}">${fmtUSD(monthNet)}</strong></span>`;
+    if (isFinite(monthBest)) summary += `<span>🏆 יום הכי טוב: <strong style="color:#15803d">${fmtUSD(monthBest)}</strong></span>`;
+    if (isFinite(monthWorst)) summary += `<span>📉 יום הכי גרוע: <strong style="color:#b91c1c">${fmtUSD(monthWorst)}</strong></span>`;
+    if (monthPeak !== 0) summary += `<span>⬆ שיא חודשי: <strong style="color:#15803d">${fmtUSD(monthPeak)}</strong></span>`;
+    if (monthTrough !== 0) summary += `<span>⬇ שפל חודשי: <strong style="color:#b91c1c">${fmtUSD(monthTrough)}</strong></span>`;
+  } else {
+    summary += `<span style="color:var(--txt4)">אין עסקאות בחודש זה</span>`;
+  }
+  document.getElementById("cal-summary").innerHTML = summary;
 }
 
 loadData();
