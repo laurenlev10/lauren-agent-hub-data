@@ -612,6 +612,10 @@ function renderAll() {
   // Render the backtest baseline first — it's independent of live data
   renderBacktest();
 
+  // Render the Calendar early — it uses backtest + bypass-filter live, so it should
+  // always render regardless of strategy_started_at filter killing the live count.
+  renderCalendar();
+
   const closed = computeClosedTrades();
   if (!closed.length) {
     const strategyTs = getStrategyStartTs();
@@ -640,9 +644,6 @@ function renderAll() {
 
   document.getElementById("sec-drawdown").style.display = "block";
   renderDrawdown(closed);
-
-  document.getElementById("sec-calendar").style.display = "block";
-  renderCalendar();
 
   document.getElementById("sec-hod").style.display = "block";
   renderHourOfDay(closed);
@@ -1233,6 +1234,7 @@ function renderCalendar() {
     document.getElementById("sec-calendar").style.display = "none";
     return;
   }
+  document.getElementById("sec-calendar").style.display = "block";
 
   // Default month: month containing the latest trade
   if (CALENDAR_STATE.viewYear == null) {
