@@ -20,10 +20,21 @@ TRADOVATE = {
     "cid": 13601,
     "sec": "ab91f7d0-a36d-43b8-88fc-192b93134e05",
 }
-KILL_SWITCH_URL = "https://laurenlev10.github.io/lauren-agent-hub-data/trading/autotrade_enabled.json"
-JOURNAL_URL = "https://laurenlev10.github.io/lauren-agent-hub-data/trading/journal-data.json"
+KILL_SWITCH_URL = "https://dashboard.themakeupblowout.com/trading/autotrade_enabled.json"
+JOURNAL_URL = "https://dashboard.themakeupblowout.com/trading/journal-data.json"
 ST_TOKEN = "26daba15ca118647f932f4b9bca5a7e9"
 LAUREN_PHONE = "+14243547625"
+
+# 🛑 2026-05-28 — Cloudflare Access Service Token (required since dashboard.themakeupblowout.com
+# is now gated by Access). Without these headers, the bot can't read autotrade_enabled.json or
+# the journal. Token "Bot v2" — non-expiring. Maps to Access policy "Bot v2 Service Token"
+# (action: Service Auth) on app "Lauren Agent Hub".
+CF_ACCESS_CLIENT_ID = "e2687da8c05935922276da65140c7802.access"
+CF_ACCESS_CLIENT_SECRET = "46536b0b62f596506979048604ddd63fc43338219d2d0a428bfbfdc17dcc3ec8"
+CF_ACCESS_HEADERS = {
+    "CF-Access-Client-Id": CF_ACCESS_CLIENT_ID,
+    "CF-Access-Client-Secret": CF_ACCESS_CLIENT_SECRET,
+}
 # 🛑 2026-05-27 — fallbacks only. Actual values come from autotrade_enabled.json
 # (default_tp_ticks / default_sl_ticks). Editable from the dashboard 📊 TP/SL modal.
 DEFAULT_TP_TICKS = 250
@@ -97,7 +108,8 @@ is_exit = type_.startswith("EXIT")
 base = {"received_at": received, "ticker": ticker, "signal_type": type_, "danger": danger, "is_exit": is_exit}
 
 try:
-    cfg = requests.get(KILL_SWITCH_URL + "?_=" + str(int(time.time())), timeout=10).json()
+    cfg = requests.get(KILL_SWITCH_URL + "?_=" + str(int(time.time())),
+                       headers=CF_ACCESS_HEADERS, timeout=10).json()
 except Exception as e:
     return reject(base, "ERROR", "config_fetch_failed", error=str(e))
 
@@ -124,7 +136,8 @@ cfg_sl_ticks = int(cfg.get("default_sl_ticks") or DEFAULT_SL_TICKS)
 
 if not is_exit:
     try:
-        journal = requests.get(JOURNAL_URL + "?_=" + str(int(time.time())), timeout=10).json()
+        journal = requests.get(JOURNAL_URL + "?_=" + str(int(time.time())),
+                               headers=CF_ACCESS_HEADERS, timeout=10).json()
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         today_count = sum(1 for t in journal.get("trades", []) if (t.get("_received_at","").startswith(today)))
         if today_count >= daily_cap:

@@ -38,7 +38,7 @@ body = (
     f"• {backorders} backorders פעילים\n\n"
     f"📦 המלצות הזמנה ({total_lines} פריטים · ${total_rec:.0f}):\n"
     f"{top_str}\n\n"
-    f"https://laurenlev10.github.io/lauren-agent-hub-data/inventory/?mode=global"
+    f"https://dashboard.themakeupblowout.com/inventory/?mode=global"
 )
 phone = os.environ.get('LAUREN_PHONE', '4243547625')
 try: ok = send_sms(phone, body)

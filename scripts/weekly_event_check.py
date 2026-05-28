@@ -28,7 +28,7 @@ ROOT       = Path(".")
 LAUNCH     = ROOT / "docs/launch/index.html"
 NOTES      = ROOT / "docs/launch/notes.json"
 EVENTS_BASE = "https://events.themakeupblowout.com"
-DASHBOARD_URL = "https://laurenlev10.github.io/lauren-agent-hub-data/launch/"
+DASHBOARD_URL = "https://dashboard.themakeupblowout.com/launch/"
 ACTION_WINDOW_DAYS = 28   # 4 weeks
 LOOKAHEAD_DAYS    = 56   # only consider events in next 8 weeks
 

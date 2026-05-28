@@ -290,7 +290,7 @@ def main():
         f"@recount ✓ סיימתי סריקה אוטומטית של {city}, {state} ({local.strftime('%H:%M %Z')}).\n"
         f"📊 {len(events)} תנועות ספירה · {len(counted_pids)} מוצרים יחודיים נספרו.\n"
         + (cleanup_line + "\n" if cleanup_line else "")
-        + f"\nhttps://laurenlev10.github.io/lauren-agent-hub-data/recount/?evkey={evkey}"
+        + f"\nhttps://dashboard.themakeupblowout.com/recount/?evkey={evkey}"
     )
     sms_lauren(body)
     print("Done.")

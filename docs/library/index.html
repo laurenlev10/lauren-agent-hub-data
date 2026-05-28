@@ -1,6 +1,26 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
+<script>
+// 🛑 2026-05-28 — Cloudflare Access hostname guard.
+// If served from any URL other than the protected custom domain, replace content with a redirect notice.
+// Uses DOM methods (not innerHTML with closing-tag literals) so check.sh sees balanced tags.
+(function(){
+  var allowed = "dashboard.themakeupblowout.com";
+  if (window.location.hostname === allowed) return;
+  var u = "https://" + allowed + window.location.pathname + window.location.search;
+  document.addEventListener("DOMContentLoaded", function(){
+    document.body.innerHTML = "";
+    document.body.style.cssText = "font-family:sans-serif;padding:40px;text-align:center;direction:rtl;";
+    var h = document.createElement("h2"); h.style.color="#0f172a"; h.textContent="הדף הזה זמין רק דרך הדומיין המאובטח"; document.body.appendChild(h);
+    var p1 = document.createElement("p"); p1.style.cssText="color:#475569;margin-top:16px;"; p1.textContent="מעבירה ל:"; document.body.appendChild(p1);
+    var p2 = document.createElement("p"); var a = document.createElement("a"); a.href=u; a.style.cssText="color:#0ea5e9;font-size:18px;font-weight:700;"; a.textContent=u; p2.appendChild(a); document.body.appendChild(p2);
+    var m = document.createElement("meta"); m.setAttribute("http-equiv","refresh"); m.content="0;url="+u; document.head.appendChild(m);
+  });
+  // Stop any other scripts from running until DOMContentLoaded redirect kicks in
+  if (window.stop) try { window.stop(); } catch(e){}
+})();
+</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>📚 ספריית הסוכנים — Agent Hub</title>
@@ -544,7 +564,7 @@ function showManualCopyModal(text) {
         const cityPart = city.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
         const zipPart  = zip.replace(/[^0-9]/g, "").slice(0, 5);
         const slug = `${cityPart}-${zipPart}`;
-        const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\`\n\nCITY\n  Name: ${city}\n  ZIP:  ${zip}   (use to derive state + confirm exact city/neighborhood)\n\nRun STEPS 0-12 from the skill IN FULL. Notes for this run:\n- Research ${city} (${zip}) deeply: demographics, top neighborhoods, foot traffic, MBS optimal-profile match.\n- Per skill STEP 6, ALSO scout 3-5 SURROUNDING cities within ~2hr drive of ${city} (${zip}) as additional options worth visiting on the same trip.\n- For EACH city (the main ${city} + every surrounding city) provide AT LEAST 3 SPECIFIC EVENT VENUES that meet STEP 4 criteria (mid-tier brand or independent, ≥2,500 sqft, top-neighborhood / built-in foot traffic). Build the full venue card per STEP 4 for each — addresses, sqft, brand tier, parking, contact.\n- ALWAYS produce a CROSS-CITY RANKING table that ranks every candidate city (main + surrounding) from MOST recommended to LEAST recommended for an MBS event, with reasoning (match score, top venue, biggest red flag).\n- Per skill STEP 10.5: if ${city} is in launch_dashboard SCHEDULE, upsert SCOUTS["${slug}-<start_date>"].\n- Per skill STEP 12: send Touchpoint 3 SMS at end with https://laurenlev10.github.io/lauren-agent-hub-data/scout/${slug}/`;
+        const cmd = `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\mbs-city-scout\\SKILL.md\`\n\nCITY\n  Name: ${city}\n  ZIP:  ${zip}   (use to derive state + confirm exact city/neighborhood)\n\nRun STEPS 0-12 from the skill IN FULL. Notes for this run:\n- Research ${city} (${zip}) deeply: demographics, top neighborhoods, foot traffic, MBS optimal-profile match.\n- Per skill STEP 6, ALSO scout 3-5 SURROUNDING cities within ~2hr drive of ${city} (${zip}) as additional options worth visiting on the same trip.\n- For EACH city (the main ${city} + every surrounding city) provide AT LEAST 3 SPECIFIC EVENT VENUES that meet STEP 4 criteria (mid-tier brand or independent, ≥2,500 sqft, top-neighborhood / built-in foot traffic). Build the full venue card per STEP 4 for each — addresses, sqft, brand tier, parking, contact.\n- ALWAYS produce a CROSS-CITY RANKING table that ranks every candidate city (main + surrounding) from MOST recommended to LEAST recommended for an MBS event, with reasoning (match score, top venue, biggest red flag).\n- Per skill STEP 10.5: if ${city} is in launch_dashboard SCHEDULE, upsert SCOUTS["${slug}-<start_date>"].\n- Per skill STEP 12: send Touchpoint 3 SMS at end with https://dashboard.themakeupblowout.com/scout/${slug}/`;
         const ok = await copyText(cmd);
         if (ok) {
           scoutBtn.classList.add("copied");

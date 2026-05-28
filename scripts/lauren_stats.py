@@ -1470,7 +1470,7 @@ def format_insights_sms(insights: list, averages: dict, ts: str = None) -> str:
         lines.extend(render_event(i))
         lines.append("")  # blank line between events
 
-    lines.append("🔗 https://laurenlev10.github.io/lauren-agent-hub-data/launch/")
+    lines.append("🔗 https://dashboard.themakeupblowout.com/launch/")
     return "\n".join(lines)
 
 

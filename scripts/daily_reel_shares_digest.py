@@ -29,7 +29,7 @@ from insta_reel_scan import _load_schedule, _slug
 NOTES_PATH = Path("docs/launch/notes.json")
 MAX_EVENTS = 5  # SMS-segment-friendly (Lauren currently has 4 upcoming reels)
 HORIZON_DAYS = 30
-DASH_URL = "https://laurenlev10.github.io/lauren-agent-hub-data/launch/"
+DASH_URL = "https://dashboard.themakeupblowout.com/launch/"
 
 ELI_PHONE = os.environ.get("ELI_PHONE", "").lstrip("+").lstrip("1")
 

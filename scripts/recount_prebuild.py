@@ -658,7 +658,7 @@ def main():
         f"🔴 {stats['negative']} מינוס (לא נספרו) · 🔵 {stats['preexisting']} מתויגי RECOUNT · "
         f"💤 {stats['sat_unsold']} היו ולא נמכרו.\n"
         f"חלון נתונים מהאירוע הקודם: {prior_start} → {prior_end}\n"
-        f"https://laurenlev10.github.io/lauren-agent-hub-data/recount/?evkey={upcoming_evkey}"
+        f"https://dashboard.themakeupblowout.com/recount/?evkey={upcoming_evkey}"
     )
     sms_lauren(sms_body)
     print("Done.")

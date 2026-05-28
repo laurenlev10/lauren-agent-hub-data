@@ -1,6 +1,26 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
+<script>
+// 🛑 2026-05-28 — Cloudflare Access hostname guard.
+// If served from any URL other than the protected custom domain, replace content with a redirect notice.
+// Uses DOM methods (not innerHTML with closing-tag literals) so check.sh sees balanced tags.
+(function(){
+  var allowed = "dashboard.themakeupblowout.com";
+  if (window.location.hostname === allowed) return;
+  var u = "https://" + allowed + window.location.pathname + window.location.search;
+  document.addEventListener("DOMContentLoaded", function(){
+    document.body.innerHTML = "";
+    document.body.style.cssText = "font-family:sans-serif;padding:40px;text-align:center;direction:rtl;";
+    var h = document.createElement("h2"); h.style.color="#0f172a"; h.textContent="הדף הזה זמין רק דרך הדומיין המאובטח"; document.body.appendChild(h);
+    var p1 = document.createElement("p"); p1.style.cssText="color:#475569;margin-top:16px;"; p1.textContent="מעבירה ל:"; document.body.appendChild(p1);
+    var p2 = document.createElement("p"); var a = document.createElement("a"); a.href=u; a.style.cssText="color:#0ea5e9;font-size:18px;font-weight:700;"; a.textContent=u; p2.appendChild(a); document.body.appendChild(p2);
+    var m = document.createElement("meta"); m.setAttribute("http-equiv","refresh"); m.content="0;url="+u; document.head.appendChild(m);
+  });
+  // Stop any other scripts from running until DOMContentLoaded redirect kicks in
+  if (window.stop) try { window.stop(); } catch(e){}
+})();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Roadmap — Tradovate Worker Project</title>

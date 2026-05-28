@@ -399,7 +399,7 @@ def main():
             body = (f"@inventory 🚨 {auto_tagged_count} מוצרים נכנסו למינוס וסומנו אוטומטית RECOUNT לאירוע הבא:\n"
                     + "\n".join(f"• {n}" for n in auto_tagged_names[:8])
                     + (f"\n…ועוד {auto_tagged_count - 8}" if auto_tagged_count > 8 else "")
-                    + "\n\nhttps://laurenlev10.github.io/lauren-agent-hub-data/recount/")
+                    + "\n\nhttps://dashboard.themakeupblowout.com/recount/")
             send_sms(lauren_phone, body)
             print("✓ SMS sent to Lauren about auto-tagged negatives")
         except Exception as e:

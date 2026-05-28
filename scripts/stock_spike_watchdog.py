@@ -86,7 +86,7 @@ def main():
     if len(spikes_to_alert) > 5:
         body_lines.append(f"  ועוד {len(spikes_to_alert) - 5} מוצרים...")
     body_lines.append("")
-    body_lines.append("בדקי: https://laurenlev10.github.io/lauren-agent-hub-data/inventory/")
+    body_lines.append("בדקי: https://dashboard.themakeupblowout.com/inventory/")
     body = "\n".join(body_lines)
 
     # Recipients: Lauren only (operational alert per IRON RULE #4.C)

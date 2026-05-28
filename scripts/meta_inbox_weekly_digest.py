@@ -100,7 +100,7 @@ def main() -> int:
         body_lines.append(f"🚨 {urgent} urgent (כבר נשלחו התראות)")
     body_lines.append(f"📌 top topics: {top3}")
     body_lines.append("")
-    body_lines.append("👉 laurenlev10.github.io/lauren-agent-hub-data/meta/")
+    body_lines.append("👉 dashboard.themakeupblowout.com/meta/")
     body = "\n".join(body_lines)
 
     print(body)

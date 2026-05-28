@@ -8,7 +8,9 @@ This file exists because Lauren got tired of Claude editing local copies of her 
 
 ## 🛑 IRON RULE #1 — Dashboards live on GitHub, NEVER edit locally
 
-Lauren's live dashboards are served from GitHub Pages: **https://laurenlev10.github.io/lauren-agent-hub-data/**
+Lauren's live dashboards are served at **https://dashboard.themakeupblowout.com/** (custom domain on Cloudflare, gated by Cloudflare Access since 2026-05-28). The underlying GitHub Pages source is `laurenlev10.github.io/lauren-agent-hub-data/` but that URL 301-redirects to the custom domain.
+
+⚠ **All dashboard URLs require email-magic-link login** (info@makeupblowoutsalegroup.com → 6-digit code via Cloudflare). For bots/automation, use the Service Token headers (see IRON RULE #14 below).
 
 The local files in `Scheduled/outputs/*.html` are a **scratch directory**. They are on OneDrive, which silently truncates large files during sync (incidents on 2026-05-04 and 2026-05-08 — local files were 30–75% smaller than the deployed version). Editing them does **nothing** for Lauren — she sees the GitHub-served version on every device.
 
@@ -18,8 +20,8 @@ The local files in `Scheduled/outputs/*.html` are a **scratch directory**. They 
 
 | Local scratch (DO NOT EDIT)                          | Deployed file in repo                      | Public URL                                                     |
 |-------------------------------------------------------|--------------------------------------------|-----------------------------------------------------------------|
-| `Scheduled/outputs/launch_dashboard.html`             | `docs/launch/index.html`                   | https://laurenlev10.github.io/lauren-agent-hub-data/launch/    |
-| `Scheduled/outputs/agent_hub.html`                    | `docs/index.html`                          | https://laurenlev10.github.io/lauren-agent-hub-data/           |
+| `Scheduled/outputs/launch_dashboard.html`             | `docs/launch/index.html`                   | https://dashboard.themakeupblowout.com/launch/    |
+| `Scheduled/outputs/agent_hub.html`                    | `docs/index.html`                          | https://dashboard.themakeupblowout.com/           |
 | `Scheduled/outputs/housing_dashboard.html`            | `docs/housing/index.html`                  | .../housing/                                                    |
 | `Scheduled/outputs/inbox_dashboard.html`              | `docs/meta/index.html`                     | .../meta/                                                       |
 | `Scheduled/outputs/mbs_dashboard.html`                | `docs/mbs/index.html`                      | .../mbs/                                                        |
@@ -71,6 +73,58 @@ If any of these are true, STOP and clone the repo instead:
 It contains every preference, every IRON RULE, every change-log entry across her agents. **Read it whenever the user asks about a preference or workflow** — almost every "how does Lauren want X done" answer is in there.
 
 🛑 **The local OneDrive copy at `Scheduled/NEW/agent-infra/sms-chat/state/memory.md` is truncated by OneDrive sync** (incident 2026-05-12 — chopped mid-sentence at "Accepta"). The OneDrive copy is scratch only; the GitHub copy is the source of truth. Always `git pull` from `lauren-agent-infra` before reading memory.md, and push back any edits.
+
+---
+
+## 🛑 IRON RULE #14 — Cloudflare Access protects ALL dashboard URLs (since 2026-05-28)
+
+Lauren's entire `dashboard.themakeupblowout.com` domain is gated by **Cloudflare Access** (Zero Trust Free tier, application "Lauren Agent Hub"). Public anonymous access returns HTTP 302 → email-magic-link login. The github.io URL 301-redirects here too, so there's no leak vector at the network layer.
+
+### Two policies on the application
+
+1. **"Lauren Only"** (ALLOW) — rule: Emails include `info@makeupblowoutsalegroup.com`. Lauren logs in via 6-digit code emailed to her, session lasts 1 month.
+2. **"Bot v2 Service Token"** (SERVICE AUTH) — rule: Service Token = `Bot v2`. Used by Zapier Code Step 4 and any future automation that needs to read CF-protected URLs.
+
+### Service Token (the bot's key)
+
+Stored at `.claude/secrets/cloudflare_access_service_token.json`:
+```json
+{
+  "name": "Bot v2",
+  "client_id": "e2687da8c05935922276da65140c7802.access",
+  "client_secret": "46536b0b62f596506979048604ddd63fc43338219d2d0a428bfbfdc17dcc3ec8"
+}
+```
+
+Sent on every HTTPS request to `dashboard.themakeupblowout.com/...` from automation:
+```
+CF-Access-Client-Id: e2687da8c05935922276da65140c7802.access
+CF-Access-Client-Secret: 46536b0b62f596506979048604ddd63fc43338219d2d0a428bfbfdc17dcc3ec8
+```
+
+If your code makes a `requests.get` / `fetch` to ANY dashboard URL, you MUST send these headers — otherwise you'll get redirected to a login page (which fails JSON parsing).
+
+### Triggers that mean "you're touching something CF-Access-protected"
+
+- About to `requests.get` / `urllib.urlopen` / `fetch` to `dashboard.themakeupblowout.com/...`
+- About to add a new GitHub Actions workflow that reads any state file via HTTPS
+- About to update the Zapier Code Step 4 — the current version already has the headers
+
+If yes — load the Service Token from `.claude/secrets/cloudflare_access_service_token.json` and send the two headers on every request.
+
+**For browser-rendered dashboards:** Lauren's session cookie (set on email-PIN login) handles auth automatically. No code changes needed in the HTML.
+
+### Hostname guard on every HTML
+
+Every `docs/*.html` now starts with a guard that checks `window.location.hostname === "dashboard.themakeupblowout.com"`. If not, the page replaces itself with a redirect notice. This is defense-in-depth — the actual security boundary is Cloudflare Access at the network layer.
+
+When ADDING a new HTML in `docs/`, include the guard at the top of `<head>` (copy from any existing HTML, e.g. `docs/index.html`).
+
+### What's NOT behind CF Access
+
+- `api.github.com` — used by reconciler + Zapier journal-append (writes via GitHub Contents API). Auth via PAT, NOT CF Service Token.
+- External services (Tradovate, Meta, SimpleTexting, Octopos, Eventbrite) — auth via their own tokens.
+- Inside scripts that just embed dashboard URLs as SMS text — no fetch, no need for headers.
 
 ---
 

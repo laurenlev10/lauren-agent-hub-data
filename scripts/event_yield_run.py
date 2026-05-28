@@ -278,7 +278,7 @@ def main():
     if n_stockout == 0 and n_overstock == 0:
         body_lines.append("הכמויות תאמו את הביקוש — אין התאמות נדרשות.")
     body_lines.append("")
-    body_lines.append(f"https://laurenlev10.github.io/lauren-agent-hub-data/recount/?evkey={evkey}&tab=slow")
+    body_lines.append(f"https://dashboard.themakeupblowout.com/recount/?evkey={evkey}&tab=slow")
 
     # Send SMS (best effort)
     try:
