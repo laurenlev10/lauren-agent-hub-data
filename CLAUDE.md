@@ -146,6 +146,57 @@ Lauren's directive (verbatim): "העסק שלנו מאוד תלוי בכל מה 
 
 ---
 
+## 🛑 IRON RULE #15 — Cloudflare DNS migration: verify EVERY subdomain manually before nameserver switch
+
+Set 2026-05-28 after the events.themakeupblowout.com outage. When moving any domain to Cloudflare DNS, the auto-import scan **misses subdomains silently**. Specifically — for themakeupblowout.com, Cloudflare imported 7 CNAMEs (autodiscover/_domainconnect/email/lyncdiscover/msoid/sip/www) but missed `events.themakeupblowout.com` which was a critical landing-page subdomain. The miss caused all paid Meta/TikTok ad landing pages to 404 until manually added.
+
+### The lesson — never trust the auto-scan
+
+Cloudflare's "we found N records" scan looks authoritative but is incomplete. Some subdomains (especially CNAMEs to external services like GitHub Pages, Shopify subdomains, Squarespace, etc.) get skipped.
+
+### Mandatory pre-migration checklist
+
+Before changing nameservers at the registrar, run this BLOCKING checklist:
+
+1. **List every subdomain in active use** — search the codebase, the running ads, the SMS body lines, the CLAUDE.md "Useful paths" table:
+   ```bash
+   grep -rh -oE '[a-z0-9-]+\.themakeupblowout\.com' \
+     docs/ scripts/ .github/ CLAUDE.md \
+     | sort -u
+   ```
+
+2. **For each repo with custom GitHub Pages domain**, query the API:
+   ```bash
+   PAT=$(cat .claude/secrets/github_pat.txt)
+   for repo in laurenlev10/<every-repo>; do
+     curl -s -H "Authorization: token $PAT" \
+       "https://api.github.com/repos/$repo/pages" \
+       | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('cname'))"
+   done
+   ```
+   Every CNAME printed MUST be present in the Cloudflare scan. If any is missing — add it manually BEFORE saving nameservers.
+
+3. **For Shopify/email/Microsoft 365/other connected services**, check the relevant admin panel for any subdomain they require (autodiscover, lyncdiscover, msoid, sip, _domainconnect, etc.) — verify each is in the scan.
+
+4. **Diff GoDaddy DNS export vs Cloudflare imported list** before saving nameservers. If GoDaddy has N records and Cloudflare imported N-K, fix the K missing records first.
+
+### Recovery if a subdomain breaks post-migration
+
+Symptom: visiting `<subdomain>.<domain>.com` returns DNS error or "no DNS record". Fix:
+
+1. Open Cloudflare → domain → DNS → Records → **Add record**
+2. Type CNAME (or A/AAAA per original)
+3. Name = subdomain (just the prefix — `events`, not the full name)
+4. Target = original target (laurenlev10.github.io for GitHub Pages CNAMEs)
+5. **Proxy = DNS only** (gray cloud) for public pages — DON'T proxy through Cloudflare unless explicitly want Access protection
+6. Save — Cloudflare propagates in seconds, GitHub Pages picks up via SNI
+
+### When in doubt — `dig` it pre and post
+
+Before nameserver switch, dig every known subdomain from a different network and save outputs. Re-dig after switch. Any subdomain that resolved before but doesn't now = missing record to add immediately.
+
+---
+
 ## Useful paths (fast lookup)
 
 | Thing                           | Path                                                                        |
