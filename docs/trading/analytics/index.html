@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<script>
+// 🛑 2026-05-28 — Cloudflare Access hostname guard.
+(function(){
+  var allowed = "dashboard.themakeupblowout.com";
+  if (window.location.hostname === allowed) return;
+  var u = "https://" + allowed + window.location.pathname + window.location.search;
+  document.addEventListener("DOMContentLoaded", function(){
+    document.body.innerHTML = "";
+    document.body.style.cssText = "font-family:sans-serif;padding:40px;text-align:center;direction:rtl;";
+    var h = document.createElement("h2"); h.style.color="#0f172a"; h.textContent="הדף הזה זמין רק דרך הדומיין המאובטח"; document.body.appendChild(h);
+    var p1 = document.createElement("p"); p1.style.cssText="color:#475569;margin-top:16px;"; p1.textContent="מעבירה ל:"; document.body.appendChild(p1);
+    var p2 = document.createElement("p"); var a = document.createElement("a"); a.href=u; a.style.cssText="color:#0ea5e9;font-size:18px;font-weight:700;"; a.textContent=u; p2.appendChild(a); document.body.appendChild(p2);
+    var m = document.createElement("meta"); m.setAttribute("http-equiv","refresh"); m.content="0;url="+u; document.head.appendChild(m);
+  });
+  if (window.stop) try { window.stop(); } catch(e){}
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>אנליטיקס אסטרטגיה · SMA60</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --f: -apple-system, "Segoe UI", "Heebo", system-ui, sans-serif;
+  --tv: #2962ff;
+  --tv-soft: #5b8def;
+  --bg: #f5f7fb;
+  --card: #ffffff;
+  --txt: #0f172a;
+  --txt2: #1e293b;
+  --txt3: #475569;
+  --txt4: #64748b;
+  --grn: #16a34a;
+  --grn-soft: #22c55e;
+  --grn-bg: #dcfce7;
+  --red: #dc2626;
+  --red-soft: #ef4444;
+  --red-bg: #fee2e2;
+  --yel: #ca8a04;
+  --yel-bg: #fef3c7;
+  --bdr: #e2e8f0;
+  --bdr2: #cbd5e1;
+  --r: 14px;
+  --sh: 0 2px 8px rgba(15,23,42,0.06);
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--txt); font-family:var(--f); padding:18px 22px 60px; }
+.topbar { display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:18px; }
+.brand { display:flex; flex-direction:column; gap:2px; }
+.brand-title { font-size:22px; font-weight:800; color:var(--txt); }
+.brand-sub { font-size:13px; color:var(--txt3); font-weight:600; }
+.nav { display:flex; gap:8px; flex-wrap:wrap; }
+.nav a { text-decoration:none; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:700; border:1.5px solid var(--bdr2); color:var(--txt3); background:#fff; transition:all .12s; }
+.nav a:hover { background:#f1f5f9; }
+.nav a.active { background:var(--tv); color:#fff; border-color:var(--tv); }
+.refresh-pill { font-size:12px; color:var(--txt4); display:flex; align-items:center; gap:5px; }
+.refresh-pill button { background:#fff; color:var(--tv); border:1.5px solid var(--tv-soft); border-radius:8px; padding:6px 11px; font-size:12px; font-weight:700; cursor:pointer; font-family:var(--f); }
+.refresh-pill button:hover { background:#e0f2fe; }
+
+/* KPI row */
+.kpi-row { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:18px; }
+.kpi { background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); padding:14px 16px; box-shadow:var(--sh); display:flex; flex-direction:column; gap:4px; }
+.kpi .label { font-size:12px; color:var(--txt4); font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+.kpi .big { font-size:26px; font-weight:800; color:var(--txt); margin-top:2px; }
+.kpi .sub { font-size:12px; color:var(--txt4); font-weight:600; }
+.kpi.green .big { color:var(--grn); }
+.kpi.red .big { color:var(--red); }
+.kpi.yel .big { color:var(--yel); }
+.kpi.tv .big { color:var(--tv); }
+
+/* sections */
+.section { background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); padding:16px 18px; box-shadow:var(--sh); margin-bottom:14px; }
+.section h2 { margin:0 0 12px; font-size:16px; color:var(--txt); font-weight:800; display:flex; align-items:center; gap:8px; }
+.section h2 .desc { font-weight:500; font-size:13px; color:var(--txt4); }
+.chart-box { height:300px; position:relative; }
+.chart-box.tall { height:380px; }
+
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width: 900px) { .grid-2 { grid-template-columns:1fr; } }
+
+/* insight callouts */
+.insight { background:#f1f5f9; border-right:4px solid var(--tv); padding:10px 14px; border-radius:8px; font-size:13px; color:var(--txt2); line-height:1.55; margin-top:10px; }
+.insight.green { background:#f0fdf4; border-right-color:var(--grn); }
+.insight.red { background:#fef2f2; border-right-color:var(--red); }
+.insight.yel { background:#fef9e7; border-right-color:var(--yel); }
+.insight strong { color:var(--txt); }
+
+/* simple tables */
+table.simple { width:100%; border-collapse:collapse; font-size:13px; }
+table.simple th, table.simple td { padding:8px 12px; text-align:right; border-bottom:1px solid var(--bdr); }
+table.simple th { background:#f1f5f9; color:var(--txt3); font-weight:700; }
+table.simple tr:last-child td { border-bottom:none; }
+table.simple td.num { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
+table.simple td.pos { color:var(--grn); font-weight:700; }
+table.simple td.neg { color:var(--red); font-weight:700; }
+table.simple td.muted { color:var(--txt4); }
+
+/* status */
+#status { font-size:13px; color:var(--txt4); margin-bottom:12px; }
+#status.ok { color:var(--grn); }
+#status.err { color:var(--red); }
+
+/* empty state */
+.empty-state { text-align:center; padding:40px 20px; color:var(--txt4); }
+.empty-state .ico { font-size:48px; opacity:.6; margin-bottom:8px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-title">📈 אנליטיקס אסטרטגיה</div>
+    <div class="brand-sub">SMA60 1.3 · ניתוח עומק על כל העסקאות</div>
+  </div>
+  <div class="nav">
+    <a href="../journal/">📋 יומן עסקאות</a>
+    <a href="./" class="active">📈 אנליטיקס</a>
+    <a href="../">🤖 בוט</a>
+    <a href="../../">🏠 Agent Hub</a>
+  </div>
+  <div class="refresh-pill">
+    <span id="updated-at">⏳ טוען...</span>
+    <button onclick="loadData()">🔄 רענן</button>
+  </div>
+</div>
+
+<div id="status">⏳ טוען נתונים...</div>
+
+<!-- KPI tiles row -->
+<div class="kpi-row" id="kpi-row" style="display:none;">
+  <div class="kpi" id="kpi-trades">
+    <div class="label">סה״כ עסקאות סגורות</div>
+    <div class="big" id="kpi-trades-val">—</div>
+    <div class="sub" id="kpi-trades-sub">—</div>
+  </div>
+  <div class="kpi" id="kpi-winrate">
+    <div class="label">Win Rate</div>
+    <div class="big" id="kpi-winrate-val">—</div>
+    <div class="sub" id="kpi-winrate-sub">—</div>
+  </div>
+  <div class="kpi" id="kpi-profit-factor">
+    <div class="label">Profit Factor</div>
+    <div class="big" id="kpi-profit-factor-val">—</div>
+    <div class="sub" id="kpi-profit-factor-sub">רווחים / הפסדים</div>
+  </div>
+  <div class="kpi" id="kpi-expectancy">
+    <div class="label">Expectancy / עסקה</div>
+    <div class="big" id="kpi-expectancy-val">—</div>
+    <div class="sub" id="kpi-expectancy-sub">$ ממוצע לעסקה</div>
+  </div>
+  <div class="kpi" id="kpi-netpnl">
+    <div class="label">Net P&L</div>
+    <div class="big" id="kpi-netpnl-val">—</div>
+    <div class="sub" id="kpi-netpnl-sub">בדולרים</div>
+  </div>
+  <div class="kpi red" id="kpi-mdd">
+    <div class="label">Max Drawdown</div>
+    <div class="big" id="kpi-mdd-val">—</div>
+    <div class="sub" id="kpi-mdd-sub">הירידה הגדולה מהשיא</div>
+  </div>
+</div>
+
+<!-- Equity curve -->
+<div class="section" id="sec-equity" style="display:none;">
+  <h2>💰 Equity Curve <span class="desc">— ה-balance המצרפי לאורך זמן</span></h2>
+  <div class="chart-box"><canvas id="chart-equity"></canvas></div>
+  <div class="insight" id="ins-equity"></div>
+</div>
+
+<!-- Drawdown -->
+<div class="section" id="sec-drawdown" style="display:none;">
+  <h2>📉 Drawdown <span class="desc">— ירידה מהשיא הקודם</span></h2>
+  <div class="chart-box"><canvas id="chart-drawdown"></canvas></div>
+  <div class="insight" id="ins-drawdown"></div>
+</div>
+
+<!-- Hour-of-day + Day-of-week grid -->
+<div class="grid-2">
+  <div class="section" id="sec-hod" style="display:none;">
+    <h2>🕐 P&L לפי שעת יום <span class="desc">(LA)</span></h2>
+    <div class="chart-box"><canvas id="chart-hod"></canvas></div>
+    <div class="insight" id="ins-hod"></div>
+  </div>
+  <div class="section" id="sec-dow" style="display:none;">
+    <h2>📅 P&L לפי יום בשבוע</h2>
+    <div class="chart-box"><canvas id="chart-dow"></canvas></div>
+    <div class="insight" id="ins-dow"></div>
+  </div>
+</div>
+
+<!-- Distribution + Streaks -->
+<div class="grid-2">
+  <div class="section" id="sec-distribution" style="display:none;">
+    <h2>📊 התפלגות תוצאות עסקאות</h2>
+    <div class="chart-box"><canvas id="chart-distribution"></canvas></div>
+    <div class="insight" id="ins-distribution"></div>
+  </div>
+  <div class="section" id="sec-streaks" style="display:none;">
+    <h2>🔥 רצפים</h2>
+    <table class="simple" id="streaks-table"></table>
+    <div class="insight" id="ins-streaks"></div>
+  </div>
+</div>
+
+<!-- Danger filter analysis -->
+<div class="section" id="sec-danger" style="display:none;">
+  <h2>⚠️ אפקטיביות פילטר Danger</h2>
+  <table class="simple" id="danger-table"></table>
+  <div class="insight" id="ins-danger"></div>
+</div>
+
+<!-- Long vs Short -->
+<div class="section" id="sec-direction" style="display:none;">
+  <h2>↕️ LONG מול SHORT</h2>
+  <table class="simple" id="direction-table"></table>
+  <div class="insight" id="ins-direction"></div>
+</div>
+
+<!-- TP vs SL breakdown -->
+<div class="section" id="sec-exits" style="display:none;">
+  <h2>🎯 סיווג יציאות</h2>
+  <table class="simple" id="exits-table"></table>
+  <div class="insight" id="ins-exits"></div>
+</div>
+
+<script>
+const DATA_URL = "../journal-data.json";
+let STATE = { raw: null, trades: [] };
+
+function fmtUSD(v) {
+  if (v == null || isNaN(v)) return "—";
+  const sign = v >= 0 ? "+" : "-";
+  return sign + "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtUSDplain(v) {
+  if (v == null || isNaN(v)) return "—";
+  return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtPct(v, digits) {
+  if (v == null || isNaN(v)) return "—";
+  return (v >= 0 ? "" : "") + v.toFixed(digits != null ? digits : 1) + "%";
+}
+function fmtInt(v) {
+  if (v == null || isNaN(v)) return "—";
+  return Math.round(v).toLocaleString("en-US");
+}
+
+async function loadData() {
+  document.getElementById("status").textContent = "⏳ טוען נתונים...";
+  document.getElementById("status").className = "";
+  try {
+    const r = await fetch(DATA_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    if (!j || !Array.isArray(j.trades)) throw new Error("נתונים לא תקינים");
+    STATE.raw = j;
+    STATE.trades = j.trades;
+
+    const updatedAt = j._updated_at ? new Date(j._updated_at).toLocaleString("he-IL") : "—";
+    document.getElementById("updated-at").textContent = "עודכן " + updatedAt;
+
+    renderAll();
+
+    document.getElementById("status").textContent = "✓ נטענו " + j.trades.length + " עסקאות";
+    document.getElementById("status").className = "ok";
+  } catch (e) {
+    console.error(e);
+    document.getElementById("status").textContent = "❌ שגיאת טעינה: " + e.message;
+    document.getElementById("status").className = "err";
+  }
+}
+
+// =============== Compute closed trades (with explicit P&L) ===============
+function computeClosedTrades() {
+  // From journal-data.json: EXIT rows have result_ticks + result_dollars + entry_price.
+  // Also implicit SWAPs (LONG/SHORT entries with opposite-direction prior) — but the
+  // journal renderer side computes those via enrichSwapPnL. We'll replicate that here
+  // to capture all closing events with their P&L.
+  const TICK = 0.25;
+  const TVAL = 0.50;
+
+  // Sort by time
+  const sorted = STATE.trades.slice().sort((a, b) => {
+    const ta = new Date(a._received_at || a.time || 0).getTime() || 0;
+    const tb = new Date(b._received_at || b.time || 0).getTime() || 0;
+    return ta - tb;
+  });
+
+  const closed = []; // { time, direction, exit_type, ticks, dollars, entry_price, exit_price, qty, danger }
+  let openEntry = null;
+
+  for (const t of sorted) {
+    if (t._status) continue; // SKIP/ERROR rows
+    const type = String(t.type || "").toUpperCase().trim();
+    const isLong = (type === "LONG");
+    const isShort = (type === "SHORT");
+    const isSwapLong = (type === "SWAP LONG");
+    const isSwapShort = (type === "SWAP SHORT");
+    const isExit = type.indexOf("EXIT") === 0;
+    const isAnyLong = isLong || isSwapLong;
+    const isAnyShort = isShort || isSwapShort;
+    const qty = Number(t.quantity) || 1;
+    const price = Number(t.tradovate_fill_price);
+    const usePrice = isFinite(price) ? price : Number(t.price);
+    if (!isFinite(usePrice) && !isExit) continue;
+
+    if (isExit && openEntry) {
+      const isExitLong = type.indexOf("EXIT LONG") === 0;
+      const isExitShort = type.indexOf("EXIT SHORT") === 0;
+      const dirMatch = (isExitLong && openEntry.direction === "long") ||
+                       (isExitShort && openEntry.direction === "short");
+      if (dirMatch) {
+        let ticks = t.result_ticks;
+        let dollars = t.result_dollars;
+        if (ticks == null || dollars == null) {
+          const exitP = Number(t.tradovate_fill_price);
+          const ep = isFinite(exitP) ? exitP : Number(t.price);
+          let diff = ep - openEntry.price;
+          if (openEntry.direction === "short") diff = -diff;
+          ticks = Math.round(diff / TICK);
+          dollars = +(ticks * TVAL * (openEntry.qty || 1)).toFixed(2);
+        }
+        const exitType = type.indexOf(" TP") > 0 ? "TP"
+                       : type.indexOf(" SL") > 0 ? "SL" : "EXIT";
+        closed.push({
+          time: t._received_at || t.time,
+          direction: openEntry.direction,
+          exit_type: exitType,
+          ticks: ticks,
+          dollars: dollars,
+          entry_price: openEntry.price,
+          exit_price: usePrice,
+          qty: openEntry.qty || 1,
+          danger: openEntry.danger || 0,
+          entry_time: openEntry.time,
+        });
+        openEntry = null;
+      } else {
+        // orphan exit — skip
+      }
+    } else if (isAnyLong || isAnyShort) {
+      const newDir = isAnyLong ? "long" : "short";
+      // implicit swap?
+      if (openEntry && openEntry.direction !== newDir) {
+        // close prior as SWAP
+        let diff = usePrice - openEntry.price;
+        if (openEntry.direction === "short") diff = -diff;
+        const ticks = Math.round(diff / TICK);
+        const dollars = +(ticks * TVAL * (openEntry.qty || 1)).toFixed(2);
+        closed.push({
+          time: t._received_at || t.time,
+          direction: openEntry.direction,
+          exit_type: "SWAP",
+          ticks: ticks,
+          dollars: dollars,
+          entry_price: openEntry.price,
+          exit_price: usePrice,
+          qty: openEntry.qty || 1,
+          danger: openEntry.danger || 0,
+          entry_time: openEntry.time,
+        });
+      }
+      // Open new entry (or replace duplicate of same direction)
+      if (!openEntry || openEntry.direction !== newDir) {
+        openEntry = {
+          direction: newDir,
+          price: usePrice,
+          qty: qty,
+          danger: Number(t.danger) || 0,
+          time: t._received_at || t.time,
+        };
+      }
+      // same-direction duplicate → keep original openEntry
+    }
+  }
+
+  return closed;
+}
+
+// =============== Render all sections ===============
+let CHARTS = {};
+
+function destroyChart(name) {
+  if (CHARTS[name]) {
+    CHARTS[name].destroy();
+    delete CHARTS[name];
+  }
+}
+
+function renderAll() {
+  const closed = computeClosedTrades();
+  if (!closed.length) {
+    document.getElementById("status").textContent = "🤷 אין עסקאות סגורות בנתונים";
+    return;
+  }
+
+  document.getElementById("kpi-row").style.display = "grid";
+  renderKPIs(closed);
+
+  document.getElementById("sec-equity").style.display = "block";
+  renderEquityCurve(closed);
+
+  document.getElementById("sec-drawdown").style.display = "block";
+  renderDrawdown(closed);
+
+  document.getElementById("sec-hod").style.display = "block";
+  renderHourOfDay(closed);
+
+  document.getElementById("sec-dow").style.display = "block";
+  renderDayOfWeek(closed);
+
+  document.getElementById("sec-distribution").style.display = "block";
+  renderDistribution(closed);
+
+  document.getElementById("sec-streaks").style.display = "block";
+  renderStreaks(closed);
+
+  document.getElementById("sec-danger").style.display = "block";
+  renderDangerAnalysis(closed);
+
+  document.getElementById("sec-direction").style.display = "block";
+  renderDirection(closed);
+
+  document.getElementById("sec-exits").style.display = "block";
+  renderExitsBreakdown(closed);
+}
+
+function renderKPIs(closed) {
+  const n = closed.length;
+  const wins = closed.filter(t => t.dollars > 0);
+  const losses = closed.filter(t => t.dollars < 0);
+  const breakeven = closed.filter(t => t.dollars === 0);
+  const grossWin = wins.reduce((s, t) => s + t.dollars, 0);
+  const grossLoss = Math.abs(losses.reduce((s, t) => s + t.dollars, 0));
+  const net = grossWin - grossLoss;
+  const winRate = n > 0 ? (wins.length / n) * 100 : 0;
+  const profitFactor = grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? Infinity : 0);
+  const expectancy = n > 0 ? net / n : 0;
+
+  // Max drawdown
+  let peak = 0, balance = 0, mdd = 0;
+  const sorted = closed.slice().sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  for (const t of sorted) {
+    balance += t.dollars;
+    if (balance > peak) peak = balance;
+    const dd = peak - balance;
+    if (dd > mdd) mdd = dd;
+  }
+
+  document.getElementById("kpi-trades-val").textContent = fmtInt(n);
+  document.getElementById("kpi-trades-sub").textContent = `${wins.length} ✓ · ${losses.length} ✗ · ${breakeven.length} =`;
+
+  document.getElementById("kpi-winrate-val").textContent = fmtPct(winRate, 1);
+  document.getElementById("kpi-winrate-sub").textContent = `${wins.length}/${n} עסקאות`;
+  document.getElementById("kpi-winrate").className = "kpi " + (winRate >= 50 ? "green" : winRate >= 40 ? "yel" : "red");
+
+  const pfDisplay = isFinite(profitFactor) ? profitFactor.toFixed(2) : "∞";
+  document.getElementById("kpi-profit-factor-val").textContent = pfDisplay;
+  document.getElementById("kpi-profit-factor").className = "kpi " + (profitFactor >= 1.5 ? "green" : profitFactor >= 1 ? "yel" : "red");
+
+  document.getElementById("kpi-expectancy-val").textContent = fmtUSD(expectancy);
+  document.getElementById("kpi-expectancy").className = "kpi " + (expectancy > 0 ? "green" : "red");
+
+  document.getElementById("kpi-netpnl-val").textContent = fmtUSD(net);
+  document.getElementById("kpi-netpnl-sub").textContent = `רווחים ${fmtUSDplain(grossWin)} · הפסדים ${fmtUSDplain(grossLoss)}`;
+  document.getElementById("kpi-netpnl").className = "kpi " + (net > 0 ? "green" : "red");
+
+  document.getElementById("kpi-mdd-val").textContent = "-" + fmtUSDplain(mdd);
+  document.getElementById("kpi-mdd-sub").textContent = "מהשיא ל-low";
+}
+
+function renderEquityCurve(closed) {
+  destroyChart("equity");
+  const sorted = closed.slice().sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  let balance = 0;
+  const points = sorted.map(t => {
+    balance += t.dollars;
+    return { x: new Date(t.time), y: balance };
+  });
+
+  CHARTS.equity = new Chart(document.getElementById("chart-equity"), {
+    type: "line",
+    data: {
+      labels: points.map(p => p.x.toLocaleString("he-IL", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })),
+      datasets: [{
+        label: "Balance ($)",
+        data: points.map(p => p.y),
+        borderColor: "#16a34a",
+        backgroundColor: "rgba(22, 163, 74, 0.1)",
+        borderWidth: 2,
+        fill: true,
+        tension: 0.2,
+        pointRadius: 3,
+        pointHoverRadius: 5
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => "$" + c.parsed.y.toFixed(2) } } },
+      scales: { y: { ticks: { callback: v => "$" + v } } }
+    }
+  });
+
+  const finalBalance = balance;
+  const peak = Math.max(...points.map(p => p.y), 0);
+  const lowest = Math.min(...points.map(p => p.y), 0);
+  document.getElementById("ins-equity").innerHTML =
+    `<strong>סיכום:</strong> Balance סופי ${fmtUSD(finalBalance)} · שיא ${fmtUSD(peak)} · low ${fmtUSD(lowest)}. ` +
+    (finalBalance > 0 ? "<strong>האסטרטגיה רווחית</strong> בטווח הנוכחי." : "האסטרטגיה הפסידה בטווח הנוכחי — צריך לבחון את הסיבות.");
+}
+
+function renderDrawdown(closed) {
+  destroyChart("drawdown");
+  const sorted = closed.slice().sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  let peak = 0, balance = 0;
+  const points = sorted.map(t => {
+    balance += t.dollars;
+    if (balance > peak) peak = balance;
+    return { x: new Date(t.time), y: -(peak - balance) };
+  });
+
+  let mdd = 0;
+  points.forEach(p => { if (p.y < mdd) mdd = p.y; });
+
+  CHARTS.drawdown = new Chart(document.getElementById("chart-drawdown"), {
+    type: "line",
+    data: {
+      labels: points.map(p => p.x.toLocaleString("he-IL", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })),
+      datasets: [{
+        label: "Drawdown ($)",
+        data: points.map(p => p.y),
+        borderColor: "#dc2626",
+        backgroundColor: "rgba(220, 38, 38, 0.15)",
+        borderWidth: 2,
+        fill: true,
+        tension: 0.2,
+        pointRadius: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => "$" + c.parsed.y.toFixed(2) } } },
+      scales: { y: { ticks: { callback: v => "$" + v } } }
+    }
+  });
+
+  document.getElementById("ins-drawdown").innerHTML =
+    `<strong>Max Drawdown:</strong> ${fmtUSD(mdd)}. ` +
+    `זה אומר שמהשיא המקסימלי שלך, ה-balance ירד בכך בשלב מסוים. עבור פרופ פירם — צריך לוודא שזה לא חורג מ-trailing drawdown של החשבון.`;
+}
+
+function renderHourOfDay(closed) {
+  destroyChart("hod");
+  // Compute net P&L per hour of day (LA timezone)
+  const byHour = {};
+  for (let i = 0; i < 24; i++) byHour[i] = { count: 0, wins: 0, losses: 0, net: 0 };
+
+  for (const t of closed) {
+    const d = new Date(t.entry_time || t.time);
+    // Convert to LA — quick approximation: use toLocaleString
+    const laHourStr = d.toLocaleString("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", hour12: false });
+    const hour = parseInt(laHourStr, 10);
+    if (isNaN(hour)) continue;
+    byHour[hour].count++;
+    byHour[hour].net += t.dollars;
+    if (t.dollars > 0) byHour[hour].wins++;
+    else if (t.dollars < 0) byHour[hour].losses++;
+  }
+
+  const labels = Object.keys(byHour);
+  const data = labels.map(h => byHour[h].net);
+  const colors = data.map(v => v >= 0 ? "rgba(22,163,74,0.7)" : "rgba(220,38,38,0.7)");
+
+  CHARTS.hod = new Chart(document.getElementById("chart-hod"), {
+    type: "bar",
+    data: {
+      labels: labels.map(h => h + ":00"),
+      datasets: [{
+        label: "Net P&L by hour (LA)",
+        data: data,
+        backgroundColor: colors,
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: c => "Net: $" + c.parsed.y.toFixed(2),
+          afterLabel: c => {
+            const h = parseInt(c.label, 10);
+            const r = byHour[h];
+            return `${r.count} עסקאות · ${r.wins} ✓ · ${r.losses} ✗`;
+          }
+        } }
+      },
+      scales: { y: { ticks: { callback: v => "$" + v } } }
+    }
+  });
+
+  // Find best/worst hours
+  const hoursWithTrades = Object.entries(byHour).filter(([,r]) => r.count > 0);
+  hoursWithTrades.sort(([,a], [,b]) => b.net - a.net);
+  const bestHour = hoursWithTrades[0];
+  const worstHour = hoursWithTrades[hoursWithTrades.length - 1];
+
+  if (bestHour && worstHour && bestHour[0] !== worstHour[0]) {
+    document.getElementById("ins-hod").innerHTML =
+      `<strong>שעה רווחית:</strong> ${bestHour[0]}:00 LA (${fmtUSD(bestHour[1].net)} מ-${bestHour[1].count} עסקאות) · ` +
+      `<strong>שעה הפסדית:</strong> ${worstHour[0]}:00 LA (${fmtUSD(worstHour[1].net)} מ-${worstHour[1].count} עסקאות).`;
+  } else {
+    document.getElementById("ins-hod").innerHTML = `אין עדיין מספיק עסקאות לפיצול לפי שעה.`;
+  }
+}
+
+function renderDayOfWeek(closed) {
+  destroyChart("dow");
+  const dayNames = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+  const byDay = {};
+  for (let i = 0; i < 7; i++) byDay[i] = { count: 0, net: 0, wins: 0, losses: 0 };
+
+  for (const t of closed) {
+    const d = new Date(t.entry_time || t.time);
+    const day = d.getDay();
+    byDay[day].count++;
+    byDay[day].net += t.dollars;
+    if (t.dollars > 0) byDay[day].wins++;
+    else if (t.dollars < 0) byDay[day].losses++;
+  }
+
+  const labels = dayNames;
+  const data = Object.values(byDay).map(r => r.net);
+  const colors = data.map(v => v >= 0 ? "rgba(22,163,74,0.7)" : "rgba(220,38,38,0.7)");
+
+  CHARTS.dow = new Chart(document.getElementById("chart-dow"), {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Net P&L",
+        data: data,
+        backgroundColor: colors,
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: c => "Net: $" + c.parsed.y.toFixed(2),
+          afterLabel: c => {
+            const day = labels.indexOf(c.label);
+            const r = byDay[day];
+            return `${r.count} עסקאות · ${r.wins} ✓ · ${r.losses} ✗`;
+          }
+        } }
+      },
+      scales: { y: { ticks: { callback: v => "$" + v } } }
+    }
+  });
+
+  const withTrades = Object.entries(byDay).filter(([,r]) => r.count > 0);
+  withTrades.sort(([,a], [,b]) => b.net - a.net);
+  if (withTrades.length > 0) {
+    const best = withTrades[0];
+    document.getElementById("ins-dow").innerHTML =
+      `<strong>היום הכי רווחי:</strong> ${dayNames[best[0]]} (${fmtUSD(best[1].net)} מ-${best[1].count} עסקאות).`;
+  }
+}
+
+function renderDistribution(closed) {
+  destroyChart("distribution");
+  // Bucket trades by tick result
+  const bucketSize = 100;
+  const buckets = {};
+  for (const t of closed) {
+    const b = Math.floor(t.ticks / bucketSize) * bucketSize;
+    buckets[b] = (buckets[b] || 0) + 1;
+  }
+  const sorted = Object.keys(buckets).map(Number).sort((a, b) => a - b);
+  const labels = sorted.map(b => `${b} עד ${b + bucketSize}`);
+  const data = sorted.map(b => buckets[b]);
+  const colors = sorted.map(b => b >= 0 ? "rgba(22,163,74,0.7)" : "rgba(220,38,38,0.7)");
+
+  CHARTS.distribution = new Chart(document.getElementById("chart-distribution"), {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "מספר עסקאות",
+        data: data,
+        backgroundColor: colors,
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { ticks: { precision: 0 } } }
+    }
+  });
+
+  const ticks = closed.map(t => t.ticks);
+  const avgTicks = ticks.reduce((s, t) => s + t, 0) / ticks.length;
+  const medianTicks = ticks.slice().sort((a,b) => a-b)[Math.floor(ticks.length / 2)];
+  document.getElementById("ins-distribution").innerHTML =
+    `<strong>טיקים ממוצעים לעסקה:</strong> ${avgTicks.toFixed(1)} · <strong>חציון:</strong> ${medianTicks}.`;
+}
+
+function renderStreaks(closed) {
+  const sorted = closed.slice().sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  let curWin = 0, curLoss = 0;
+  let maxWin = 0, maxLoss = 0;
+  for (const t of sorted) {
+    if (t.dollars > 0) {
+      curWin++; curLoss = 0;
+      if (curWin > maxWin) maxWin = curWin;
+    } else if (t.dollars < 0) {
+      curLoss++; curWin = 0;
+      if (curLoss > maxLoss) maxLoss = curLoss;
+    } else { curWin = 0; curLoss = 0; }
+  }
+
+  // Current streak — based on last trade
+  const lastTrade = sorted[sorted.length - 1];
+  let curStreak = "—";
+  if (lastTrade) {
+    if (curWin > 0) curStreak = `🔥 ${curWin} ניצחונות ברצף`;
+    else if (curLoss > 0) curStreak = `❄️ ${curLoss} הפסדים ברצף`;
+  }
+
+  document.getElementById("streaks-table").innerHTML = `
+    <tr><th>מה</th><th>ערך</th></tr>
+    <tr><td>🔥 רצף ניצחונות הכי ארוך</td><td class="num pos">${maxWin}</td></tr>
+    <tr><td>❄️ רצף הפסדים הכי ארוך</td><td class="num neg">${maxLoss}</td></tr>
+    <tr><td>📍 רצף נוכחי</td><td>${curStreak}</td></tr>
+  `;
+  document.getElementById("ins-streaks").innerHTML =
+    `אם רצף ההפסדים הכי גדול שלך הוא ${maxLoss}, את צריכה להחזיק ${maxLoss + 2} עסקאות בערך עתודה ב-Apex PA לפני שאת מסתבכת.`;
+}
+
+function renderDangerAnalysis(closed) {
+  const safe = closed.filter(t => !t.danger);
+  const dangerous = closed.filter(t => t.danger);
+  function stats(arr) {
+    if (!arr.length) return { count: 0, winRate: 0, net: 0, expectancy: 0 };
+    const wins = arr.filter(t => t.dollars > 0).length;
+    const net = arr.reduce((s, t) => s + t.dollars, 0);
+    return { count: arr.length, winRate: wins / arr.length * 100, net, expectancy: net / arr.length };
+  }
+  const s = stats(safe), d = stats(dangerous);
+
+  document.getElementById("danger-table").innerHTML = `
+    <tr><th>קטגוריה</th><th>עסקאות</th><th>Win Rate</th><th>Net P&L</th><th>Exp / עסקה</th></tr>
+    <tr><td>🟢 רגיל (danger=0)</td><td class="num">${s.count}</td><td class="num">${fmtPct(s.winRate)}</td><td class="num ${s.net>=0?'pos':'neg'}">${fmtUSD(s.net)}</td><td class="num ${s.expectancy>=0?'pos':'neg'}">${fmtUSD(s.expectancy)}</td></tr>
+    <tr><td>⚠️ מסוכן (danger=1)</td><td class="num">${d.count}</td><td class="num">${fmtPct(d.winRate)}</td><td class="num ${d.net>=0?'pos':'neg'}">${fmtUSD(d.net)}</td><td class="num ${d.expectancy>=0?'pos':'neg'}">${fmtUSD(d.expectancy)}</td></tr>
+  `;
+
+  if (d.count === 0) {
+    document.getElementById("ins-danger").className = "insight";
+    document.getElementById("ins-danger").innerHTML = "אין עדיין עסקאות בשעות המסוכנות (danger=1) — או שהסינון פעיל ומבטל אותן.";
+  } else if (d.expectancy < s.expectancy) {
+    document.getElementById("ins-danger").className = "insight green";
+    document.getElementById("ins-danger").innerHTML = `<strong>הסינון יעיל:</strong> השעות הרגילות מרוויחות ${fmtUSD(s.expectancy)} לעסקה בממוצע, השעות המסוכנות רק ${fmtUSD(d.expectancy)}. <strong>שווה לסמן סינון</strong> אם עדיין לא עשית.`;
+  } else {
+    document.getElementById("ins-danger").className = "insight yel";
+    document.getElementById("ins-danger").innerHTML = `<strong>הסינון לא יעיל:</strong> בפועל השעות "המסוכנות" (${fmtUSD(d.expectancy)} / עסקה) דווקא יותר טובות מהרגילות (${fmtUSD(s.expectancy)} / עסקה). שווה לחשוב לבטל את הסינון.`;
+  }
+}
+
+function renderDirection(closed) {
+  const longs = closed.filter(t => t.direction === "long");
+  const shorts = closed.filter(t => t.direction === "short");
+  function stats(arr) {
+    if (!arr.length) return { count: 0, winRate: 0, net: 0, expectancy: 0 };
+    const wins = arr.filter(t => t.dollars > 0).length;
+    const net = arr.reduce((s, t) => s + t.dollars, 0);
+    return { count: arr.length, winRate: wins / arr.length * 100, net, expectancy: net / arr.length };
+  }
+  const l = stats(longs), s = stats(shorts);
+
+  document.getElementById("direction-table").innerHTML = `
+    <tr><th>כיוון</th><th>עסקאות</th><th>Win Rate</th><th>Net P&L</th><th>Exp / עסקה</th></tr>
+    <tr><td>🔼 LONG</td><td class="num">${l.count}</td><td class="num">${fmtPct(l.winRate)}</td><td class="num ${l.net>=0?'pos':'neg'}">${fmtUSD(l.net)}</td><td class="num ${l.expectancy>=0?'pos':'neg'}">${fmtUSD(l.expectancy)}</td></tr>
+    <tr><td>🔽 SHORT</td><td class="num">${s.count}</td><td class="num">${fmtPct(s.winRate)}</td><td class="num ${s.net>=0?'pos':'neg'}">${fmtUSD(s.net)}</td><td class="num ${s.expectancy>=0?'pos':'neg'}">${fmtUSD(s.expectancy)}</td></tr>
+  `;
+
+  if (l.count && s.count) {
+    if (Math.abs(l.expectancy - s.expectancy) < 5) {
+      document.getElementById("ins-direction").innerHTML = `<strong>איזון יפה:</strong> LONG ו-SHORT מבצעים דומה. האסטרטגיה לא מוטה לכיוון מסוים.`;
+    } else if (l.expectancy > s.expectancy) {
+      document.getElementById("ins-direction").className = "insight yel";
+      document.getElementById("ins-direction").innerHTML = `<strong>LONG טוב יותר:</strong> כיוון לונג מרוויח ${fmtUSD(l.expectancy)} לעסקה לעומת ${fmtUSD(s.expectancy)} ב-SHORT. אולי שווה לסנן SHORTs?`;
+    } else {
+      document.getElementById("ins-direction").className = "insight yel";
+      document.getElementById("ins-direction").innerHTML = `<strong>SHORT טוב יותר:</strong> כיוון שורט מרוויח ${fmtUSD(s.expectancy)} לעסקה לעומת ${fmtUSD(l.expectancy)} ב-LONG. אולי שווה לסנן LONGs?`;
+    }
+  }
+}
+
+function renderExitsBreakdown(closed) {
+  const types = { TP: 0, SL: 0, SWAP: 0, EXIT: 0 };
+  const dollars = { TP: 0, SL: 0, SWAP: 0, EXIT: 0 };
+  for (const t of closed) {
+    types[t.exit_type] = (types[t.exit_type] || 0) + 1;
+    dollars[t.exit_type] = (dollars[t.exit_type] || 0) + t.dollars;
+  }
+
+  const rows = Object.entries(types)
+    .filter(([k, v]) => v > 0)
+    .map(([k, v]) => {
+      const total = closed.length;
+      const pct = (v / total * 100).toFixed(1);
+      const d = dollars[k];
+      const avg = v > 0 ? d / v : 0;
+      const emoji = k === "TP" ? "🎯" : k === "SL" ? "🛑" : k === "SWAP" ? "🔄" : "❓";
+      return `<tr><td>${emoji} ${k}</td><td class="num">${v}</td><td class="num muted">${pct}%</td><td class="num ${d>=0?'pos':'neg'}">${fmtUSD(d)}</td><td class="num ${avg>=0?'pos':'neg'}">${fmtUSD(avg)}</td></tr>`;
+    })
+    .join("");
+
+  document.getElementById("exits-table").innerHTML = `
+    <tr><th>סוג</th><th>מספר</th><th>%</th><th>Net P&L</th><th>ממוצע / עסקה</th></tr>
+    ${rows}
+  `;
+
+  const tpCount = types.TP || 0;
+  const slCount = types.SL || 0;
+  const swapCount = types.SWAP || 0;
+  if (tpCount > slCount * 1.2) {
+    document.getElementById("ins-exits").className = "insight green";
+    document.getElementById("ins-exits").innerHTML = `<strong>יחס חיובי:</strong> ${tpCount} TPs מול ${slCount} SLs — האסטרטגיה תופסת רווחים יותר מההפסדים שלה.`;
+  } else if (slCount > tpCount * 1.2) {
+    document.getElementById("ins-exits").className = "insight red";
+    document.getElementById("ins-exits").innerHTML = `<strong>יחס שלילי:</strong> ${slCount} SLs מול ${tpCount} TPs. צריך לבחון אם ה-SL רחב מדי או ה-TP צמוד מדי.`;
+  } else {
+    document.getElementById("ins-exits").className = "insight yel";
+    document.getElementById("ins-exits").innerHTML = `יחס TP/SL מאוזן. אם רוב הרווח מה-SWAPs (${swapCount}), זה אומר שה-SMA60 מזהה היפוכים טוב יותר מ-TP פרוטוקולי.`;
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
