@@ -191,6 +191,30 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
 .at-btn.flatten.working{background:var(--amb);border-color:var(--amb);}
 .at-btn.edit:hover{border-color:var(--tv);color:var(--tv);}
 .at-btn:disabled{opacity:.5;cursor:not-allowed;}
+/* 🛑 2026-05-27 — TP/SL brackets modal + brackets button */
+.at-btn.brackets{background:#fff;color:#0ea5e9;border:1.5px solid #7dd3fc;}
+.at-btn.brackets:hover{background:#e0f2fe;border-color:#0ea5e9;}
+.bm-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;}
+.bm-dialog{background:#fff;border-radius:14px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(15,23,42,.35);direction:rtl;font-family:var(--f);}
+.bm-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #e5e7eb;}
+.bm-header h3{margin:0;font-size:18px;color:#0f172a;font-weight:800;}
+.bm-close{background:transparent;border:none;font-size:26px;cursor:pointer;color:#64748b;line-height:1;padding:0 6px;}
+.bm-close:hover{color:#0f172a;}
+.bm-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px;}
+.bm-hint{margin:0;font-size:13px;color:#475569;line-height:1.55;background:#f1f5f9;border-right:3px solid #0ea5e9;padding:10px 12px;border-radius:8px;}
+.bm-row{display:flex;flex-direction:column;gap:6px;}
+.bm-row label{font-size:13px;font-weight:700;color:#0f172a;}
+.bm-row input{padding:9px 12px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:15px;font-family:var(--f);direction:ltr;text-align:right;width:100%;box-sizing:border-box;}
+.bm-row input:focus{outline:none;border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.18);}
+.bm-side{font-size:12px;color:#64748b;}
+.bm-meta{font-size:12px;color:#64748b;background:#f8fafc;padding:8px 12px;border-radius:8px;border:1px dashed #cbd5e1;}
+.bm-footer{display:flex;justify-content:flex-start;gap:10px;padding:14px 20px;border-top:1px solid #e5e7eb;background:#f8fafc;border-radius:0 0 14px 14px;}
+.bm-cancel{padding:9px 18px;font-family:var(--f);font-size:14px;font-weight:700;border:1.5px solid #cbd5e1;background:#fff;color:#475569;border-radius:9px;cursor:pointer;}
+.bm-cancel:hover{background:#f1f5f9;}
+.bm-save{padding:9px 22px;font-family:var(--f);font-size:14px;font-weight:800;border:none;background:#16a34a;color:#fff;border-radius:9px;cursor:pointer;box-shadow:0 2px 6px rgba(22,163,74,.3);}
+.bm-save:hover{background:#15803d;}
+.bm-save:disabled{opacity:.55;cursor:wait;}
+
 /* 🛑 2026-05-27 — Manual refresh button for Tradovate live state */
 .live-card{position:relative;}
 .live-refresh-btn{position:absolute;top:8px;left:8px;font-family:var(--f);font-size:11px;font-weight:700;background:#fff;color:#0ea5e9;border:1.5px solid #7dd3fc;border-radius:8px;padding:4px 9px;cursor:pointer;transition:all .12s;box-shadow:0 1px 2px rgba(0,0,0,.04);}
@@ -254,8 +278,37 @@ table.journal tbody tr.is-danger:hover td{background:#fff5d9!important;}
     <div class="at-meta" id="at-meta"></div>
     <div class="at-spacer"></div>
     <button class="at-btn flatten" id="at-btn-flatten" onclick="flattenAll()">🚨 סגור הכל</button>
+    <button class="at-btn brackets" id="at-btn-brackets" onclick="openBracketsModal()" title="ערכי TP/SL בטיקים — הם משמשים גם את ה-OSO ב-Tradovate וגם את חישוב ה-P&L בדאשבורד">📊 TP/SL</button>
     <button class="at-btn edit" id="at-btn-edit" onclick="window.open('https://github.com/laurenlev10/lauren-agent-hub-data/edit/main/docs/trading/autotrade_enabled.json','_blank')">⚙ ערוך הגדרות</button>
     <button class="at-btn toggle-on" id="at-btn-toggle" onclick="toggleAutoTrader()" disabled>טוען...</button>
+  </div>
+
+  <!-- 📊 TP/SL bracket-settings modal (2026-05-27) -->
+  <div id="brackets-modal" class="bm-overlay" onclick="if(event.target===this)closeBracketsModal()" style="display:none;">
+    <div class="bm-dialog" role="dialog" aria-labelledby="bm-title">
+      <div class="bm-header">
+        <h3 id="bm-title">📊 הגדרות TP/SL</h3>
+        <button class="bm-close" onclick="closeBracketsModal()" aria-label="סגור">×</button>
+      </div>
+      <div class="bm-body">
+        <p class="bm-hint">הערכים האלה משמשים את ה-OSO בכל כניסה חדשה (TP/SL ברקטים ב-Tradovate) וגם את חישוב ה-P&L בעמודת הדולרים/טיקים של הדאשבורד. שינוי חל מיידית — שמירה דורשת PAT.</p>
+        <div class="bm-row">
+          <label for="bm-tp">TP — טיקים מהכניסה (רווח)</label>
+          <input type="number" id="bm-tp" min="1" step="1" inputmode="numeric">
+          <span class="bm-side">= <span id="bm-tp-usd">—</span> דולרים לחוזה (לפי tick_value)</span>
+        </div>
+        <div class="bm-row">
+          <label for="bm-sl">SL — טיקים מהכניסה (הפסד)</label>
+          <input type="number" id="bm-sl" min="1" step="1" inputmode="numeric">
+          <span class="bm-side">= <span id="bm-sl-usd">—</span> דולרים לחוזה</span>
+        </div>
+        <div class="bm-meta" id="bm-meta">—</div>
+      </div>
+      <div class="bm-footer">
+        <button class="bm-cancel" onclick="closeBracketsModal()">ביטול</button>
+        <button class="bm-save" id="bm-save-btn" onclick="saveBracketsSettings()">💾 שמור</button>
+      </div>
+    </div>
   </div>
 
   <!-- Live State — Position + Balance (Roadmap Steps 2.1 + 2.2) -->
@@ -558,7 +611,19 @@ async function loadAutoTraderStatus(){
     const r = await fetch(AT_URL + "?_=" + Date.now(), { cache: "no-store" });
     if(!r.ok) throw new Error("HTTP " + r.status);
     AT_CONFIG = await r.json();
+    // 🛑 2026-05-27 — sync bracket-tick defaults from config into the dashboard P&L calc
+    if (typeof AT_CONFIG.default_tp_ticks === "number" && AT_CONFIG.default_tp_ticks > 0){
+      _DEFAULT_TP_TICKS_MNQ = AT_CONFIG.default_tp_ticks;
+    }
+    if (typeof AT_CONFIG.default_sl_ticks === "number" && AT_CONFIG.default_sl_ticks > 0){
+      _DEFAULT_SL_TICKS_MNQ = AT_CONFIG.default_sl_ticks;
+    }
     renderAutoTraderPanel();
+    // After tick defaults change, re-enrich + re-render trades view so the new P&L numbers show
+    if (STATE && STATE.raw && Array.isArray(STATE.raw.trades)){
+      enrichSwapPnL(STATE.raw.trades);
+      applyFilters();
+    }
   } catch(e){
     console.warn("autotrade config load failed:", e);
     document.getElementById("at-label").textContent = "⚠ לא הצלחתי לטעון הגדרות";
@@ -1168,6 +1233,112 @@ async function refreshTradovateNow(){
 }
 
 
+// ============== 📊 TP/SL Brackets modal (2026-05-27) ==============
+// Opens a modal letting Lauren edit default_tp_ticks + default_sl_ticks in autotrade_enabled.json.
+// On save: GitHub Contents API PUT (idempotent, atomic) → reload the config → re-render P&L.
+
+function openBracketsModal(){
+  if(!AT_CONFIG){ alert("הגדרות הבוט עדיין לא נטענו — נסי שוב בעוד רגע"); return; }
+  const tpInput = document.getElementById("bm-tp");
+  const slInput = document.getElementById("bm-sl");
+  tpInput.value = AT_CONFIG.default_tp_ticks || _DEFAULT_TP_TICKS_MNQ || 250;
+  slInput.value = AT_CONFIG.default_sl_ticks || _DEFAULT_SL_TICKS_MNQ || 550;
+  // Recompute the $ side labels
+  function tickVal(){
+    const ac = (AT_CONFIG && AT_CONFIG.active_contract) || {};
+    return Number(ac.tick_value_usd) || 0.50;
+  }
+  function updateUsdLabels(){
+    const tv = tickVal();
+    const tp = Number(tpInput.value) || 0;
+    const sl = Number(slInput.value) || 0;
+    document.getElementById("bm-tp-usd").textContent = "+$" + (tp * tv).toFixed(2);
+    document.getElementById("bm-sl-usd").textContent = "-$" + (sl * tv).toFixed(2);
+  }
+  tpInput.oninput = updateUsdLabels;
+  slInput.oninput = updateUsdLabels;
+  updateUsdLabels();
+  const ac = (AT_CONFIG && AT_CONFIG.active_contract) || {};
+  document.getElementById("bm-meta").textContent =
+    "חוזה: " + (ac.contract_name || "—") +
+    " · tick_size: " + (ac.tick_size || "—") +
+    " · tick_value: $" + (ac.tick_value_usd || "—");
+  document.getElementById("brackets-modal").style.display = "flex";
+  setTimeout(() => tpInput.focus(), 50);
+}
+
+function closeBracketsModal(){
+  document.getElementById("brackets-modal").style.display = "none";
+}
+
+async function saveBracketsSettings(){
+  const tpNew = parseInt(document.getElementById("bm-tp").value, 10);
+  const slNew = parseInt(document.getElementById("bm-sl").value, 10);
+  if(!(tpNew > 0) || !(slNew > 0)){
+    alert("TP ו-SL חייבים להיות מספרים חיוביים"); return;
+  }
+  if(!confirm("לעדכן TP=" + tpNew + " / SL=" + slNew + " ב-autotrade_enabled.json?\nהשינוי ישפיע על כל כניסה חדשה ועל חישוב ה-P&L בדאשבורד.")) return;
+
+  let token = (localStorage.getItem(AT_TOKEN_KEY) || "").trim();
+  if(!token){
+    token = (prompt("הדביקי GitHub PAT חד-פעמי (לכתיבה ל-repo).\nיישמר ב-localStorage של דפדפן זה בלבד.") || "").trim();
+    if(!token) return;
+    localStorage.setItem(AT_TOKEN_KEY, token);
+  }
+
+  const btn = document.getElementById("bm-save-btn");
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = "שומר...";
+
+  try {
+    const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + AT_REPO_FILE + "?ref=main";
+    const getR = await fetch(getUrl, { headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
+    if(!getR.ok){
+      if(getR.status === 401){ localStorage.removeItem(AT_TOKEN_KEY); throw new Error("PAT לא תקין — נמחק, נסי שוב"); }
+      throw new Error("GitHub GET נכשל: " + getR.status);
+    }
+    const cur = await getR.json();
+    const decoded = JSON.parse(atob(cur.content.replace(/\s/g,"")));
+    decoded.default_tp_ticks = tpNew;
+    decoded.default_sl_ticks = slNew;
+    decoded._updated_at = new Date().toISOString();
+    decoded._updated_by = "browser-brackets-modal";
+
+    const putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + AT_REPO_FILE;
+    const putR = await fetch(putUrl, {
+      method: "PUT",
+      headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json", "Content-Type":"application/json"},
+      body: JSON.stringify({
+        message: "autotrade: TP=" + tpNew + " / SL=" + slNew + " (via dashboard)",
+        content: btoa(unescape(encodeURIComponent(JSON.stringify(decoded, null, 2)))),
+        sha: cur.sha, branch: "main"
+      })
+    });
+    if(!putR.ok){
+      const errBody = await putR.text();
+      throw new Error("GitHub PUT נכשל: " + putR.status + " — " + errBody.slice(0,200));
+    }
+    AT_CONFIG = decoded;
+    _DEFAULT_TP_TICKS_MNQ = tpNew;
+    _DEFAULT_SL_TICKS_MNQ = slNew;
+    btn.textContent = "✓ נשמר!";
+    // Re-enrich + re-render so the P&L column updates immediately
+    if (STATE && STATE.raw && Array.isArray(STATE.raw.trades)){
+      // Reset the computed flags so enrichSwapPnL recomputes
+      STATE.raw.trades.forEach(function(t){
+        if(t._exit_pnl_computed){ delete t.result_ticks; delete t.result_dollars; delete t._exit_pnl_computed; }
+      });
+      enrichSwapPnL(STATE.raw.trades);
+      applyFilters();
+    }
+    setTimeout(function(){ closeBracketsModal(); btn.textContent = orig; btn.disabled = false; }, 1200);
+  } catch(e){
+    console.error("saveBracketsSettings failed:", e);
+    alert("שגיאה: " + e.message);
+    btn.textContent = orig; btn.disabled = false;
+  }
+}
+
 // ============== SWAP P&L enrichment (computed view-side, see CLAUDE.md) ==============
 // For each SWAP row that closes an opposite-direction prior position, attach
 // entry_price/result_ticks/result_dollars so the table can render the closed-leg P&L
@@ -1178,8 +1349,10 @@ const _TICK_VALUE_USD_MNQ = 0.50;
 // Used to compute EXIT TP/SL P&L from the bracket value (Tradovate's actual fill)
 // rather than from Pine's bar-close delta (which can be 20-50 ticks off the real fill
 // because the bar may close anywhere between the high and the low).
-const _DEFAULT_TP_TICKS_MNQ = 300;
-const _DEFAULT_SL_TICKS_MNQ = 600;
+// 🛑 2026-05-27 — these are read from autotrade_enabled.json (default_tp_ticks/default_sl_ticks).
+// Fall back to 300/600 if config is missing. Editable from the 📊 TP/SL modal in the autotrader panel.
+let _DEFAULT_TP_TICKS_MNQ = 300;
+let _DEFAULT_SL_TICKS_MNQ = 600;
 
 function enrichSwapPnL(trades){
   if(!Array.isArray(trades)) return;

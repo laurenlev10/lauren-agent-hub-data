@@ -24,8 +24,10 @@ KILL_SWITCH_URL = "https://laurenlev10.github.io/lauren-agent-hub-data/trading/a
 JOURNAL_URL = "https://laurenlev10.github.io/lauren-agent-hub-data/trading/journal-data.json"
 ST_TOKEN = "26daba15ca118647f932f4b9bca5a7e9"
 LAUREN_PHONE = "+14243547625"
-DEFAULT_TP_TICKS = 300
-DEFAULT_SL_TICKS = 600
+# 🛑 2026-05-27 — fallbacks only. Actual values come from autotrade_enabled.json
+# (default_tp_ticks / default_sl_ticks). Editable from the dashboard 📊 TP/SL modal.
+DEFAULT_TP_TICKS = 250
+DEFAULT_SL_TICKS = 550
 
 GH_TOKEN_FOR_RAW_LOG = ""   # ← paste classic PAT (scope=repo) to enable rejection-logging
 GH_REPO = "laurenlev10/lauren-agent-hub-data"
@@ -115,6 +117,10 @@ contract_name = active.get("contract_name")
 account_id = cfg.get("account_id")
 max_qty = int(cfg.get("max_qty", 1))
 daily_cap = int(cfg.get("daily_cap", 999))
+
+# 🛑 2026-05-27 — TP/SL ticks come from config (editable via dashboard 📊 TP/SL modal)
+cfg_tp_ticks = int(cfg.get("default_tp_ticks") or DEFAULT_TP_TICKS)
+cfg_sl_ticks = int(cfg.get("default_sl_ticks") or DEFAULT_SL_TICKS)
 
 if not is_exit:
     try:
@@ -219,8 +225,9 @@ if sl_price is None or tp_price is None:
     if close_price is None or close_price <= 0:
         sms("🚨 BOT דחה כניסה — חסר price (וגם חסר sl/tp) | " + type_ + " " + ticker)
         return reject(base, "SKIP", "missing_price_and_brackets")
-    sl_ticks_in = i2(input_data.get("sl_ticks")) or DEFAULT_SL_TICKS
-    tp_ticks_in = i2(input_data.get("tp_ticks")) or DEFAULT_TP_TICKS
+    # payload sl/tp_ticks override → fallback to config (default_sl_ticks / default_tp_ticks)
+    sl_ticks_in = i2(input_data.get("sl_ticks")) or cfg_sl_ticks
+    tp_ticks_in = i2(input_data.get("tp_ticks")) or cfg_tp_ticks
     if action == "Buy":
         sl_price = close_price - sl_ticks_in * tick
         tp_price = close_price + tp_ticks_in * tick
