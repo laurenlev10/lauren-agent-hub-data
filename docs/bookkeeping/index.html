@@ -7,31 +7,118 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Heebo", sans-serif;
-         background: #f5f5f7; color: #1d1d1f; padding: 24px 16px 60px; min-height: 100vh; }
-  header { text-align: center; margin-bottom: 24px; }
-  h1 { font-size: 24px; letter-spacing: -0.4px; }
+         background: #f5f5f7; color: #1d1d1f; padding: 20px 14px 60px; min-height: 100vh; }
+  header { text-align: center; margin-bottom: 18px; }
+  h1 { font-size: 22px; letter-spacing: -0.4px; }
   .subtitle { color: #6e6e73; font-size: 13px; margin-top: 4px; }
-  .summary { max-width: 720px; margin: 0 auto 20px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-  .pill { background: white; border-radius: 999px; padding: 8px 16px; font-size: 13px;
+  .container { max-width: 760px; margin: 0 auto; }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 18px; }
+  .pill { background: white; border-radius: 999px; padding: 6px 14px; font-size: 12px;
           box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
   .pill b { font-weight: 800; }
-  .sessions { max-width: 720px; margin: 0 auto; }
-  .card { background: white; border-radius: 12px; padding: 16px 18px; margin-bottom: 10px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.08); display: flex; justify-content: space-between;
-          align-items: center; gap: 12px; text-decoration: none; color: inherit; }
-  .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); transform: translateY(-1px); transition: 0.2s; }
-  .card .left { flex: 1; }
-  .card .month { font-size: 16px; font-weight: 800; margin-bottom: 4px; }
-  .card .account { font-size: 12px; color: #6e6e73; }
-  .card .right { display: flex; align-items: center; gap: 10px; }
-  .status { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
-  .status.done    { background: #d4edda; color: #15803d; }
-  .status.partial { background: #fef3c7; color: #92400e; }
-  .status.new     { background: #dbeafe; color: #1e40af; }
-  .empty { text-align: center; color: #6e6e73; padding: 40px 20px; font-size: 14px; }
-  .empty .emoji { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
-  .footer { text-align: center; margin-top: 32px; font-size: 12px; color: #6e6e73; }
-  .footer a { color: #007aff; text-decoration: none; }
+
+  /* Form card */
+  .form-card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 18px;
+               box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .form-card h2 { font-size: 16px; margin-bottom: 14px; font-weight: 800; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 5px; }
+  .field input, .field select { width: 100%; padding: 10px 12px; border: 1px solid #e5e5ea;
+                                 border-radius: 8px; font-size: 14px; background: #fafafa;
+                                 font-family: inherit; direction: rtl; }
+  .field input:focus, .field select:focus { outline: none; border-color: #ec4899; background: white; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 540px) { .field-row { grid-template-columns: 1fr; } }
+  .file-zone { border: 2px dashed #d1d1d6; border-radius: 10px; padding: 22px 14px;
+               text-align: center; background: #fafafa; cursor: pointer; transition: 0.2s; }
+  .file-zone:hover, .file-zone.drag { border-color: #ec4899; background: #fdf2f8; }
+  .file-zone input { display: none; }
+  .file-zone .emoji { font-size: 32px; margin-bottom: 6px; opacity: 0.6; }
+  .file-zone .text { font-size: 13px; color: #475569; }
+  .file-zone .selected { font-size: 13px; color: #15803d; font-weight: 700; margin-top: 8px; }
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; }
+  .btn { padding: 11px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 700;
+         cursor: pointer; font-family: inherit; transition: 0.15s; }
+  .btn-primary { background: linear-gradient(135deg, #ec4899, #9333ea); color: white; flex: 1; }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(236,72,153,0.3); }
+  .btn-primary:disabled { background: #d1d1d6; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-secondary { background: white; color: #1d1d1f; border: 1px solid #e5e5ea; }
+  .btn-secondary:hover { background: #f5f5f7; }
+  .gmail-btn { background: linear-gradient(135deg, #fbbf24, #d97706); color: white; padding: 12px 18px;
+               border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer;
+               font-family: inherit; width: 100%; margin: 12px 0 6px; box-shadow: 0 2px 8px rgba(217,119,6,0.25); }
+  .gmail-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(217,119,6,0.35); }
+
+  /* Token gate */
+  .token-card { background: #fef3c7; border: 1px solid #fbbf24; border-radius: 12px; padding: 14px 16px;
+                margin-bottom: 14px; font-size: 13px; color: #92400e; }
+  .token-card .row { display: flex; gap: 8px; margin-top: 8px; }
+  .token-card input { flex: 1; padding: 8px 10px; border: 1px solid #fbbf24; border-radius: 6px;
+                      font-family: monospace; font-size: 12px; }
+  .token-card button { padding: 8px 14px; background: #92400e; color: white; border: none;
+                       border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .token-ok { color: #15803d; font-size: 12px; margin-bottom: 12px; text-align: center; }
+
+  /* Progress */
+  .progress-bar { background: #e5e5ea; border-radius: 10px; height: 12px; overflow: hidden;
+                  margin: 14px 0 10px; }
+  .progress-fill { background: linear-gradient(90deg, #34c759, #30b350); height: 100%;
+                   transition: width 0.3s; }
+  .progress-text { text-align: center; font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+
+  /* Tracker */
+  .section-title { font-size: 14px; font-weight: 800; margin: 22px 0 8px;
+                   padding-bottom: 6px; border-bottom: 2px solid #d1d1d6; display: flex;
+                   justify-content: space-between; align-items: center; }
+  .section-title .count { font-size: 11px; color: #6e6e73; font-weight: 500; }
+  .card { background: white; border-radius: 11px; padding: 12px 14px; margin-bottom: 8px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: flex; gap: 10px;
+          align-items: center; transition: 0.2s; }
+  .card.done { background: #d4edda; opacity: 0.7; }
+  .card.done .info { text-decoration: line-through; opacity: 0.7; }
+  .info { flex: 1; min-width: 0; }
+  .info .top-line { font-size: 13px; font-weight: 700; margin-bottom: 3px;
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .info .bottom-line { font-size: 11px; color: #6e6e73; }
+  .info .amt { font-weight: 800; color: #1d1d1f; }
+  .info .amt.credit { color: #15803d; }
+  .badge { font-size: 10px; font-weight: 800; padding: 4px 9px; border-radius: 999px;
+           white-space: nowrap; color: white; }
+  .badge.event { background: linear-gradient(135deg, #ec4899, #9333ea); }
+  .badge.pending { background: #fbbf24; color: #78350f; }
+  .badge.recurring { background: #6366f1; }
+  .badge.owner { background: #6e6e73; }
+  .badge.inventory { background: #15803d; }
+  .badge.subcontractor { background: #14b8a6; }
+  .badge.credit { background: #15803d; }
+  .badge.notag { background: #ef4444; }
+  .badge.transfer { background: #94a3b8; }
+  .done-btn { background: #ec4899; color: white; border: none; padding: 7px 12px;
+              border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer;
+              font-family: inherit; transition: 0.15s; }
+  .done-btn:hover { background: #db2777; }
+  .card.done .done-btn { background: #6e6e73; }
+  .card.done .done-btn::before { content: "✓ "; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+           background: #1d1d1f; color: white; padding: 10px 18px; border-radius: 999px;
+           font-size: 13px; font-weight: 700; box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+           opacity: 0; transition: opacity 0.3s; z-index: 1000; }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #ef4444; }
+  .toast.success { background: #15803d; }
+
+  .footer { text-align: center; margin-top: 28px; font-size: 12px; color: #6e6e73; }
+  .footer a { color: #007aff; text-decoration: none; margin: 0 6px; }
+  .empty { text-align: center; color: #6e6e73; padding: 30px 14px; font-size: 13px; }
+  .empty .emoji { font-size: 40px; margin-bottom: 8px; opacity: 0.5; }
+  .hidden { display: none !important; }
+  details > summary { cursor: pointer; font-size: 12px; color: #6e6e73; padding: 6px 0;
+                      list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::before { content: "▸ "; }
+  details[open] > summary::before { content: "▾ "; }
 </style>
 </head>
 <body>
@@ -40,69 +127,715 @@
   <div class="subtitle">תיוק חודשי של הוצאות מ-Wells Fargo / QuickBooks</div>
 </header>
 
-<div class="summary" id="summary"></div>
-<div class="sessions" id="sessions"></div>
+<div class="container">
+
+  <div id="token-area"></div>
+
+  <!-- New-session form -->
+  <div class="form-card" id="form-card">
+    <h2>🆕 התחל סשן חדש</h2>
+    <div class="field-row">
+      <div class="field">
+        <label>חודש</label>
+        <input type="month" id="f-month">
+      </div>
+      <div class="field">
+        <label>חשבון</label>
+        <select id="f-account">
+          <option value="auto">זיהוי אוטומטי</option>
+          <option value="cc7945">WF CC #7945</option>
+          <option value="ck1955">WF Checking #1955</option>
+          <option value="mc9800">Manager #9800</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>קובץ אקסל / CSV מ-QuickBooks או Wells Fargo</label>
+      <label class="file-zone" id="file-zone">
+        <input type="file" id="f-file" accept=".xlsx,.xls,.csv">
+        <div class="emoji">📤</div>
+        <div class="text">גררי קובץ לכאן או לחצי לבחירה</div>
+        <div class="selected hidden" id="file-selected"></div>
+      </label>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-start" disabled>🚀 התחל סשן</button>
+    </div>
+  </div>
+
+  <!-- Existing-sessions list -->
+  <div id="sessions-list"></div>
+
+  <!-- Active session tracker -->
+  <div id="tracker" class="hidden">
+    <div class="pills" id="tracker-pills"></div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="progress-text" id="progress-text"></div>
+    <button class="gmail-btn hidden" id="btn-gmail">🚀 שלח את כל הנסיעות ל-@books לאימות Gmail</button>
+    <div id="sections"></div>
+    <div class="btn-row" style="margin-top:20px">
+      <button class="btn btn-secondary" id="btn-back">← חזרה לרשימת הסשנים</button>
+    </div>
+  </div>
+
+</div>
 
 <div class="footer">
   <a href="../">חזרה ל-Agent Hub</a>
+  <span>·</span>
+  <a href="../library/">ספריית הסוכנים</a>
 </div>
 
-<script id="data">
-// BOOKKEEPING_SESSIONS — owned by @books agent. Per-session entries upserted via clone+edit+push.
-// schema: { month_label_he, account, tx_total, tx_done, tx_carryover, events_tagged[],
-//           red_flags[], href, generated_at }
-const BOOKKEEPING_SESSIONS = {};
+<div class="toast" id="toast"></div>
+
+<!-- SheetJS for xlsx parsing -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script id="ref-data">
+// ─────────── Reference data (embedded — synced from references/recurring_expenses.md) ───────────
+const RECURRING = [
+  {pat: /google/i,                  name: "Google",                 qb: "Software Expense",                  exp: 14.40},
+  {pat: /simpletexting/i,           name: "SimpleTexting",          qb: "Advertising & Marketing",           exp: 2200.00},
+  {pat: /\bsba\b/i,                 name: "SBA Eli",                qb: "Loan Payment",                      exp: 731.00},
+  {pat: /square/i,                  name: "Square",                 qb: "Merchant Account Fees",             exp: 130.00},
+  {pat: /national indemnity/i,      name: "National Indemnity",     qb: "Automobile Insurance",              exp: 1543.72},
+  {pat: /clickfunnels/i,            name: "ClickFunnels",           qb: "Advertising & Marketing",           exp: 297.00},
+  {pat: /bitly/i,                   name: "Bitly",                  qb: "Software Expense",                  exp: 15.00},
+  {pat: /at[\s&]?t|att/i,           name: "AT&T",                   qb: "Telephone Expense",                 exp: 392.06},
+  {pat: /lmw financial/i,           name: "LMW Financials",         qb: "Accounting",                        exp: 1000.00},
+  {pat: /\birs\b/i,                 name: "IRS",                    qb: "Taxes Paid:Payroll Taxes",          exp: 3064.00, tol: 0.30},
+  {pat: /\bedd\b/i,                 name: "EDD",                    qb: "Taxes Paid:Payroll Taxes",          exp: 421.00, tol: 0.60},
+  {pat: /eventbrite/i,              name: "Eventbrite",             qb: "Advertising",                       exp: 50.00},
+  {pat: /t-mobile|tmobile/i,        name: "T-Mobile",               qb: "Telephone Expense",                 exp: 60.00},
+  {pat: /quickbooks|intuit/i,       name: "QuickBooks",             qb: "Software Expense",                  exp: 76.94},
+  {pat: /ford transit|transit van/i,name: "Ford Transit Van",       qb: "Car / Long Term Liability",         exp: 1188.97},
+  {pat: /chatgpt|openai/i,          name: "ChatGPT",                qb: "Dues and subscriptions",            exp: 120.00},
+  {pat: /smartelds/i,               name: "SmartELDS",              qb: "Dues and subscriptions",            exp: 25.75},
+  {pat: /infinity.*insur/i,         name: "Infinity Insurance",     qb: "Auto Insurance (Eli Ram)",          exp: 407.00},
+  {pat: /esther levy/i,             name: "Esther Levy",            qb: "Business Loan Esther Levy",         exp: 3500.00, tol: 0.50},
+  {pat: /shopify/i,                 name: "Shopify",                qb: "Merchant Account Fees",             exp: 105.00},
+  {pat: /spotify/i,                 name: "Spotify",                qb: "Software Expense",                  exp: 16.99},
+  {pat: /mitsubishi/i,              name: "Mitsubishi Truck",       qb: "Loan 2020 Mitsubishi Big Truck",    exp: 1615.60},
+  {pat: /triad management/i,        name: "Triad Management",       qb: "Office rent",                       exp: 700.00},
+  {pat: /storage/i,                 name: "Storage",                qb: "Storage Rent",                      exp: 265.00},
+  {pat: /corporate turnaround/i,    name: "Corporate Turnaround",   qb: "Loan Payment",                      exp: 3500.00},
+  {pat: /forward financing/i,       name: "Forward Financing",      qb: "Forward Financing Loan",            exp: 875.00, tol: 0.60},
+  // Personal/Owner
+  {pat: /ford thousand oaks/i,      name: "Ford Thousand Oaks",     qb: "Owner's Pay:Loan 2023 Ford Explr",  exp: 815.99, owner: true},
+  {pat: /nansco/i,                  name: "Nansco Management",      qb: "Owner's Pay:Rent & Lease",          exp: 8500.00, owner: true},
+  {pat: /\brvs?\b|m&t bank/i,       name: "RV / M&T",               qb: "Owner's Pay:RV Loan Payments",      exp: 332.07, tol: 0.50, owner: true},
+  {pat: /anna frenkel|anna monthly/i, name: "Anna Frenkel",         qb: "Owner's Pay:Personal",              exp: 1500.00, owner: true},
+  {pat: /massmutual/i,              name: "MassMutual",             qb: "Owner's Pay:Life Insurance",        exp: 333.11, owner: true},
+  {pat: /sunpower/i,                name: "SunPower",               qb: "Owner's Pay:Utilities",             exp: 78.91, owner: true},
+  {pat: /affirm/i,                  name: "Affirm",                 qb: "Owner's Pay:Loan",                  exp: 0, tol: 1.0, owner: true},
+  {pat: /netflix/i,                 name: "Netflix",                qb: "Owner's Pay:Dues",                  exp: 24.99, owner: true},
+  {pat: /youtube/i,                 name: "YouTube",                qb: "Owner's Pay:Software",              exp: 13.99, owner: true},
+  {pat: /ladwp/i,                   name: "LADWP",                  qb: "Owner's Pay:Utilities",             exp: 1017.56, tol: 0.50, owner: true},
+  {pat: /mr\.?\s*cooper|nsm dba/i,  name: "Mr. Cooper Mortgage",    qb: "Owner's Pay:House Mortgage Fresno", exp: 2746.60, owner: true},
+  {pat: /so cal gas|socal/i,        name: "So Cal Gas",             qb: "Owner's Pay:Utilities",             exp: 127.88, owner: true},
+  {pat: /blue shield/i,             name: "Blue Shield",            qb: "Owner's Pay:Health Insurance",      exp: 1611.45, owner: true},
+  {pat: /fresno hoa/i,              name: "Fresno HOA",              qb: "Owner's Pay:Fresno HOA",            exp: 112.16, owner: true},
+  {pat: /spectrum/i,                name: "Spectrum",               qb: "Owner's Pay:Internet",              exp: 430.00, owner: true},
+];
+
+const TRAVEL_VENDORS = {
+  flight: /southwest|american airlines|\baa\.com|united airlines|\bual\b|delta\b|frontier|spirit airlines|jetblue|allegiant|alaska air/i,
+  hotel:  /marriott|hilton|holiday inn|hotels\.com|courtyard|doubletree|hampton inn|hyatt|best western|la quinta|comfort inn|residence inn|springhill|fairfield/i,
+  car:    /enterprise|hertz|budget car|\bavis\b|alamo|national car|dollar rental|thrifty/i,
+  rideshare: /\blyft\b|\buber\b/i,
+  venue: /convention|ballroom|expo center|banquet|fairground/i,
+};
+
+const INVENTORY_VENDORS = /makeup she|hadashi|feral edge|lurella|romantic beauty|xime|amuse cosmetic|kara beauty|beauty creations|prolux|nabi|bb&w|golden touch|mystery box|\bebc\b|\brude\b/i;
+const SUBCONTRACTOR_VENDORS = /ron semyonov|aerotek/i;
+const OWNER_PERSONAL = /alex urosevich|stemcyte/i;
+const TRANSFER_PATTERNS = /business essentials|wf #9800|wells fargo bus ess|online transfer to|payment to wf credit/i;
+
+const HEBREW_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+
+const ACCOUNT_LABELS = {
+  cc7945: "WF CC #7945",
+  ck1955: "WF Checking #1955",
+  mc9800: "Manager #9800",
+};
 </script>
 
-<script>
-(function render() {
-  const sessions = Object.entries(BOOKKEEPING_SESSIONS)
-    .sort((a, b) => (b[1].generated_at || "").localeCompare(a[1].generated_at || ""));
-  const summary = document.getElementById("summary");
-  const list = document.getElementById("sessions");
+<script id="app">
+// ─────────── State ───────────
+let SCHEDULE = {};          // { evkey: { city, state, start_date, end_date, ... } }
+let SCHEDULE_LOADED = false;
+let ALL_SESSIONS = {};      // { session_key: { ...session data } }
+let STATE_SHA = null;
+let CURRENT_SESSION = null; // active session being edited
+let SELECTED_FILE = null;
 
-  if (sessions.length === 0) {
-    list.innerHTML = `
-      <div class="empty">
-        <div class="emoji">📚</div>
-        <div>אין סשנים עדיין.</div>
-        <div style="margin-top:8px;font-size:12px">העלי קובץ Wells Fargo / QuickBooks CSV ב-Cowork והפעילי את <code>@books</code>.</div>
+const STATE_FILE_PATH = "docs/state/bookkeeping_sessions.json";
+const STATE_FILE_URL  = "../state/bookkeeping_sessions.json";
+const GH_REPO         = "laurenlev10/lauren-agent-hub-data";
+const TOKEN_KEY       = "lauren_gh_token_v1";
+
+// ─────────── Utilities ───────────
+function $(id) { return document.getElementById(id); }
+function el(html) { const d = document.createElement("div"); d.innerHTML = html; return d.firstElementChild; }
+function escapeHtml(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]); }
+function fmtMoney(n) { const sign = n < 0 ? "-" : ""; return sign + "$" + Math.abs(n).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+function parseAmount(v) {
+  if (typeof v === "number") return v;
+  if (!v) return 0;
+  const s = String(v).replace(/[\$,\s]/g, "").replace(/[()]/g, m => m === "(" ? "-" : "");
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+function parseDate(v) {
+  if (v instanceof Date) return v;
+  if (typeof v === "number") {
+    // Excel serial date
+    const d = new Date((v - 25569) * 86400 * 1000);
+    return d;
+  }
+  if (typeof v === "string") {
+    const m = v.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if (m) {
+      let y = parseInt(m[3]); if (y < 100) y += 2000;
+      return new Date(y, parseInt(m[1]) - 1, parseInt(m[2]));
+    }
+    const d = new Date(v); if (!isNaN(d)) return d;
+  }
+  return null;
+}
+function dateISO(d) { return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+function dateMMDD(d) { return String(d.getMonth()+1).padStart(2,"0") + "/" + String(d.getDate()).padStart(2,"0") + "/" + d.getFullYear(); }
+function toast(msg, type) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = "toast " + (type || "") + " show";
+  setTimeout(() => t.className = "toast " + (type || ""), 2400);
+}
+
+// ─────────── GitHub token gate ───────────
+function getToken() { return (localStorage.getItem(TOKEN_KEY) || "").trim(); }
+function setToken(v) { localStorage.setItem(TOKEN_KEY, v.trim()); renderTokenArea(); }
+
+function renderTokenArea() {
+  const area = $("token-area");
+  if (getToken()) {
+    area.innerHTML = `<div class="token-ok">✓ GitHub token פעיל · <a href="#" id="reset-token" style="color:#6e6e73">החלפה</a></div>`;
+    $("reset-token").onclick = (e) => { e.preventDefault(); localStorage.removeItem(TOKEN_KEY); renderTokenArea(); };
+  } else {
+    area.innerHTML = `
+      <div class="token-card">
+        <b>⚠ נדרש GitHub token לסנכרון</b><br>
+        בלי token, סימוני Done שלך לא יסתנכרנו בין מכשירים.
+        <div class="row">
+          <input type="password" id="token-input" placeholder="ghp_... או github_pat_...">
+          <button id="token-save">שמרי</button>
+        </div>
+        <div style="margin-top:8px;font-size:11px;opacity:0.7">ה-token נשמר רק במכשיר הזה (localStorage), לא נשלח לאף שרת חוץ מ-GitHub עצמו.</div>
       </div>`;
-    summary.innerHTML = `<div class="pill">סשנים: <b>0</b></div>`;
-    return;
+    $("token-save").onclick = () => {
+      const v = $("token-input").value.trim();
+      if (v.length > 20) setToken(v);
+      else toast("token לא תקין", "error");
+    };
+  }
+}
+
+// ─────────── Load state from GitHub ───────────
+async function loadState() {
+  try {
+    const r = await fetch(STATE_FILE_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok) {
+      const j = await r.json();
+      ALL_SESSIONS = j.sessions || {};
+    }
+  } catch (e) { console.warn("loadState failed:", e); }
+  // Also fetch SHA for later writes
+  const token = getToken();
+  if (token) {
+    try {
+      const r = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${STATE_FILE_PATH}?ref=main`,
+        { headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json" } });
+      if (r.ok) STATE_SHA = (await r.json()).sha;
+    } catch (e) { console.warn("SHA fetch failed:", e); }
+  }
+}
+
+async function saveState(commitMsg) {
+  const token = getToken();
+  if (!token) { toast("⚠ אין token — סימון נשמר רק במכשיר", "error"); return false; }
+  const payload = { _updated_at: new Date().toISOString(), _schema_version: 1, sessions: ALL_SESSIONS };
+  try {
+    // Refresh SHA right before write
+    const getR = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${STATE_FILE_PATH}?ref=main`,
+      { headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json" } });
+    if (getR.ok) STATE_SHA = (await getR.json()).sha;
+    const body = {
+      message: commitMsg || "bookkeeping: state update",
+      content: btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2)))),
+      branch: "main",
+    };
+    if (STATE_SHA) body.sha = STATE_SHA;
+    const r = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${STATE_FILE_PATH}`, {
+      method: "PUT",
+      headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json", "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) {
+      STATE_SHA = (await r.json()).content.sha;
+      return true;
+    } else {
+      const err = await r.text();
+      console.error("saveState bad response:", r.status, err);
+      toast("⚠ שמירה נכשלה — " + r.status, "error");
+      return false;
+    }
+  } catch (e) { console.error("saveState exception:", e); toast("⚠ שמירה נכשלה", "error"); return false; }
+}
+
+// ─────────── Schedule (fetched from /launch/) ───────────
+async function loadSchedule() {
+  try {
+    const r = await fetch("../launch/?_=" + Date.now(), { cache: "no-store" });
+    const html = await r.text();
+    const m = html.match(/const\s+SCHEDULE\s*=\s*(\{[\s\S]*?\n\s*\})\s*;/);
+    if (!m) throw new Error("SCHEDULE not found in /launch/");
+    SCHEDULE = (new Function("return " + m[1]))();
+    SCHEDULE_LOADED = true;
+    console.log("Schedule loaded:", Object.keys(SCHEDULE).length, "events");
+  } catch (e) {
+    console.warn("loadSchedule failed:", e);
+    SCHEDULE = {};
+  }
+}
+
+function nearestEvent(date) {
+  if (!SCHEDULE_LOADED || !date) return null;
+  let best = null, bestDist = Infinity;
+  const t = date.getTime();
+  for (const [k, ev] of Object.entries(SCHEDULE)) {
+    if (!ev || !ev.start_date) continue;
+    const start = new Date(ev.start_date).getTime();
+    const end   = ev.end_date ? new Date(ev.end_date).getTime() : start;
+    let dist;
+    if (t >= start && t <= end) dist = 0;
+    else if (t < start) dist = start - t;
+    else dist = t - end;
+    if (dist < bestDist) { bestDist = dist; best = ev; }
+  }
+  if (!best) return null;
+  return { ev: best, days: Math.round(bestDist / 86400000), in_window: bestDist === 0 };
+}
+
+// ─────────── File parsing ───────────
+function parseFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: "array", cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        // Try to find header row + data rows
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+        resolve(rows);
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function findColumns(rows) {
+  // Look for header row containing Date/Amount/Description patterns
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const row = rows[i].map(c => String(c || "").toLowerCase());
+    const dateCol = row.findIndex(c => /\bdate\b|posting\s*date|trans/.test(c));
+    const amtCol  = row.findIndex(c => /\bamount\b|\bdebit\b|\bcredit\b/.test(c));
+    const descCol = row.findIndex(c => /\bdescription\b|\bpayee\b|\bdetails?\b|\bmemo\b/.test(c));
+    if (dateCol >= 0 && amtCol >= 0 && descCol >= 0) {
+      return { headerRow: i, dateCol, amtCol, descCol };
+    }
+  }
+  // Fallback for QB exports which sometimes have no header
+  if (rows.length && rows[0].length >= 3) {
+    return { headerRow: -1, dateCol: 0, amtCol: 2, descCol: 1 };
+  }
+  return null;
+}
+
+function detectAccount(rows, cols) {
+  // Sniff from description text
+  let ccLike = 0, ckLike = 0;
+  const sample = rows.slice(cols.headerRow + 1, cols.headerRow + 40);
+  for (const r of sample) {
+    const d = String(r[cols.descCol] || "").toLowerCase();
+    if (/\bzelle\b|online transfer|wt fed|\bcheck\b|online advance/.test(d)) ckLike++;
+    else if (/airline|hotel|marriott|southwest|amazon|uber|lyft/i.test(d)) ccLike++;
+  }
+  return ccLike > ckLike ? "cc7945" : "ck1955";
+}
+
+// ─────────── Classification ───────────
+function classify(tx) {
+  // tx: { date, amt, desc }
+  const d = tx.desc || "";
+  const amt = tx.amt || 0;
+  const isCredit = amt > 0;  // bank exports: positive = credit/deposit
+
+  // Transfer detection — not an expense
+  if (TRANSFER_PATTERNS.test(d)) {
+    return { bucket: "transfer", tag: "Transfer", cls: "transfer", qb_account: "Transfer", isCredit };
   }
 
-  let totalTx = 0, totalDone = 0, totalCarryover = 0;
-  sessions.forEach(([key, s]) => {
-    totalTx       += s.tx_total      || 0;
-    totalDone     += s.tx_done       || 0;
-    totalCarryover += s.tx_carryover || 0;
+  // Credit / refund
+  if (isCredit && !/zelle from/i.test(d)) {
+    // Probably a refund — try to match a travel vendor for tagging later
+    for (const k of Object.keys(TRAVEL_VENDORS)) {
+      if (TRAVEL_VENDORS[k].test(d)) {
+        const guess = nearestEvent(tx.date);
+        return {
+          bucket: "credit_travel", tag: guess ? `${guess.ev.city} ${guess.ev.state}` : "החזר",
+          cls: guess ? "event" : "credit", qb_account: "Refund — Travel", isCredit: true,
+          guessed: !guess?.in_window, evkey: guess?.ev ? slugEv(guess.ev) : null,
+        };
+      }
+    }
+    return { bucket: "credit", tag: "החזר / זיכוי", cls: "credit", qb_account: "Income/Refund", isCredit: true };
+  }
+
+  // Recurring
+  for (const r of RECURRING) {
+    if (r.pat.test(d)) {
+      const tol = r.tol ?? 0.05;
+      const diff = r.exp ? Math.abs(Math.abs(amt) - r.exp) / r.exp : 0;
+      const flag = r.exp && diff > tol ? `⚠ סטייה ${(diff*100).toFixed(0)}%` : null;
+      return {
+        bucket: r.owner ? "owner" : "recurring",
+        tag: r.name, cls: r.owner ? "owner" : "recurring",
+        qb_account: r.qb, isCredit, flag,
+      };
+    }
+  }
+
+  // Zelle / inventory vendors
+  if (/zelle/i.test(d)) {
+    if (INVENTORY_VENDORS.test(d)) {
+      const m = d.match(/zelle\s+(?:to|from)\s+([^$]+?)(?:\s+\$|$)/i);
+      const vendor = m ? m[1].trim() : "Vendor";
+      return { bucket: "inventory", tag: "Inventory · " + vendor, cls: "inventory",
+               qb_account: "Inventory + " + vendor, isCredit };
+    }
+    if (SUBCONTRACTOR_VENDORS.test(d)) {
+      return { bucket: "subcontractor", tag: "Subcontractor", cls: "subcontractor",
+               qb_account: "Subcontractor", isCredit };
+    }
+    // Generic Zelle — needs Lauren review
+    return { bucket: "other_zelle", tag: "Zelle — לבדיקה", cls: "notag",
+             qb_account: "?", isCredit };
+  }
+
+  if (OWNER_PERSONAL.test(d)) {
+    return { bucket: "owner", tag: "Owner's Pay", cls: "owner",
+             qb_account: "Owner's Pay & Personal Expenses", isCredit };
+  }
+
+  // Travel — needs Gmail TAG (assign tentative based on bank-charge nearest-event)
+  for (const k of Object.keys(TRAVEL_VENDORS)) {
+    if (TRAVEL_VENDORS[k].test(d)) {
+      const guess = nearestEvent(tx.date);
+      if (guess && guess.in_window) {
+        // High-confidence — bank charge falls inside event window
+        return {
+          bucket: "travel_confident",
+          tag: `${guess.ev.city} ${guess.ev.state}`,
+          cls: "event", qb_account: `Travel — ${k}`, isCredit,
+          travel_type: k, evkey: slugEv(guess.ev),
+          gmail_needed: false,
+        };
+      } else if (guess) {
+        return {
+          bucket: "travel_pending",
+          tag: `${guess.ev.city} ${guess.ev.state}? (${guess.days}d)`,
+          cls: "pending", qb_account: `Travel — ${k}`, isCredit,
+          travel_type: k, evkey: slugEv(guess.ev),
+          gmail_needed: true,
+        };
+      } else {
+        return {
+          bucket: "travel_pending", tag: "Travel ?",
+          cls: "pending", qb_account: `Travel — ${k}`, isCredit,
+          travel_type: k, gmail_needed: true,
+        };
+      }
+    }
+  }
+
+  // Catch-all
+  return { bucket: "no_tag", tag: "ללא TAG", cls: "notag", qb_account: "?", isCredit };
+}
+
+function slugEv(ev) {
+  return ev.city.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + ev.start_date;
+}
+
+// ─────────── Build session ───────────
+function buildSession(file, accountKey, monthVal) {
+  return parseFile(file).then(rows => {
+    const cols = findColumns(rows);
+    if (!cols) throw new Error("לא הצלחתי לזהות עמודות Date/Amount/Description בקובץ");
+    let account = accountKey;
+    if (account === "auto") account = detectAccount(rows, cols);
+
+    const tx = [];
+    for (let i = cols.headerRow + 1; i < rows.length; i++) {
+      const row = rows[i]; if (!row || row.length === 0) continue;
+      const date = parseDate(row[cols.dateCol]);
+      const amt = parseAmount(row[cols.amtCol]);
+      const desc = String(row[cols.descCol] || "").trim();
+      if (!date || !desc || amt === 0) continue;
+      // Filter by month if provided
+      if (monthVal) {
+        const ym = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`;
+        if (ym !== monthVal) continue;
+      }
+      const cls = classify({ date, amt, desc });
+      tx.push({
+        id: "tx-" + i + "-" + Math.abs(amt).toFixed(2).replace(".", "") + "-" + date.getTime(),
+        row: i, date: dateISO(date), date_human: dateMMDD(date),
+        amt, desc, ...cls, done: false, gmail_verified: false,
+      });
+    }
+
+    const sessionKey = (monthVal || dateISO(new Date()).slice(0,7)) + "-" + account;
+    const ymY = monthVal ? parseInt(monthVal.slice(0,4)) : new Date().getFullYear();
+    const ymM = monthVal ? parseInt(monthVal.slice(5,7)) - 1 : new Date().getMonth();
+
+    return {
+      session_key: sessionKey,
+      account, account_label: ACCOUNT_LABELS[account],
+      month_iso: monthVal || dateISO(new Date()).slice(0,7),
+      month_label_he: HEBREW_MONTHS[ymM] + " " + ymY,
+      tx, total_tx: tx.length,
+      generated_at: new Date().toISOString(),
+      events_tagged: [...new Set(tx.filter(t => t.cls === "event" || t.cls === "pending").map(t => t.evkey).filter(Boolean))],
+    };
   });
+}
 
-  summary.innerHTML = `
-    <div class="pill">סשנים: <b>${sessions.length}</b></div>
-    <div class="pill">פתוחות: <b>${totalTx - totalDone}</b> / ${totalTx}</div>
-    ${totalCarryover > 0 ? `<div class="pill">🕒 ממתינות: <b>${totalCarryover}</b></div>` : ""}
-  `;
+// ─────────── UI ───────────
+function renderSessionsList() {
+  const list = $("sessions-list");
+  const entries = Object.entries(ALL_SESSIONS).sort((a,b) => (b[1].generated_at || "").localeCompare(a[1].generated_at || ""));
+  if (entries.length === 0) {
+    list.innerHTML = `<div class="empty"><div class="emoji">📚</div><div>אין סשנים עדיין. העלי קובץ למעלה כדי להתחיל.</div></div>`;
+    return;
+  }
+  list.innerHTML = `<div class="section-title">📂 סשנים קודמים <span class="count">${entries.length}</span></div>` +
+    entries.map(([k, s]) => {
+      const done = s.tx ? s.tx.filter(t => t.done).length : 0;
+      const total = s.tx ? s.tx.length : (s.total_tx || 0);
+      const cls = (done >= total && total > 0) ? "done" : "";
+      const pct = total > 0 ? Math.round(100 * done / total) : 0;
+      return `
+        <div class="card ${cls}" style="cursor:pointer" data-open="${escapeHtml(k)}">
+          <div class="info">
+            <div class="top-line">${escapeHtml(s.month_label_he || k)}</div>
+            <div class="bottom-line">${escapeHtml(s.account_label || "")} · ${done}/${total} (${pct}%) · ${(s.events_tagged||[]).length} אירועים</div>
+          </div>
+          <button class="done-btn" data-open="${escapeHtml(k)}">פתיחה</button>
+        </div>`;
+    }).join("");
+  list.querySelectorAll("[data-open]").forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    openSession(b.getAttribute("data-open"));
+  });
+}
 
-  list.innerHTML = sessions.map(([key, s]) => {
-    const cls = (s.tx_done >= s.tx_total) ? "done" :
-                (s.tx_done > 0)           ? "partial" : "new";
-    const label = (cls === "done")    ? `✓ הושלם`
-                : (cls === "partial") ? `⏳ ${s.tx_done}/${s.tx_total}`
-                                      : `🆕 ${s.tx_total} חדשות`;
-    return `
-      <a class="card" href="sessions/${key}/">
-        <div class="left">
-          <div class="month">${s.month_label_he || key}</div>
-          <div class="account">${s.account || ""} · ${(s.events_tagged || []).join(" · ")}</div>
-        </div>
-        <div class="right">
-          <span class="status ${cls}">${label}</span>
-          <span>›</span>
-        </div>
-      </a>`;
-  }).join("");
+function openSession(key) {
+  CURRENT_SESSION = ALL_SESSIONS[key];
+  if (!CURRENT_SESSION) return;
+  $("form-card").classList.add("hidden");
+  $("sessions-list").classList.add("hidden");
+  $("tracker").classList.remove("hidden");
+  renderTracker();
+  window.scrollTo(0,0);
+}
+
+function closeSession() {
+  CURRENT_SESSION = null;
+  $("form-card").classList.remove("hidden");
+  $("sessions-list").classList.remove("hidden");
+  $("tracker").classList.add("hidden");
+  renderSessionsList();
+}
+
+function renderTracker() {
+  const s = CURRENT_SESSION; if (!s) return;
+  const done = s.tx.filter(t => t.done).length;
+  const total = s.tx.length;
+  const pct = total > 0 ? Math.round(100 * done / total) : 0;
+  $("progress-fill").style.width = pct + "%";
+  $("progress-text").textContent = `${done} / ${total} סומנו (${pct}%)`;
+  $("tracker-pills").innerHTML = `
+    <div class="pill">📅 <b>${escapeHtml(s.month_label_he)}</b></div>
+    <div class="pill">💳 ${escapeHtml(s.account_label)}</div>
+    <div class="pill">📋 <b>${total}</b> טרנזקציות</div>
+    <div class="pill">🎯 <b>${s.events_tagged.length}</b> אירועים</div>`;
+
+  const pendingTravel = s.tx.filter(t => t.gmail_needed && !t.gmail_verified && !t.done);
+  if (pendingTravel.length > 0) {
+    $("btn-gmail").classList.remove("hidden");
+    $("btn-gmail").textContent = `🚀 שלח ${pendingTravel.length} נסיעות ל-@books לאימות Gmail`;
+  } else {
+    $("btn-gmail").classList.add("hidden");
+  }
+
+  const sections = [
+    { id: "travel_confident", title: "✈ נסיעות (TAG ודאי)", filter: t => t.bucket === "travel_confident" },
+    { id: "travel_pending",   title: "🟡 נסיעות (TAG משוער — דרוש Gmail)", filter: t => t.bucket === "travel_pending" },
+    { id: "recurring",        title: "🔁 הוצאות קבועות", filter: t => t.bucket === "recurring" },
+    { id: "owner",            title: "🏠 Owner's Pay / Personal", filter: t => t.bucket === "owner" },
+    { id: "inventory",        title: "📦 Inventory (Zelle)", filter: t => t.bucket === "inventory" },
+    { id: "subcontractor",    title: "👷 Subcontractor", filter: t => t.bucket === "subcontractor" },
+    { id: "credit_travel",    title: "💰 החזרים מטיסות/מלונות", filter: t => t.bucket === "credit_travel" },
+    { id: "credit",           title: "💰 זיכויים אחרים", filter: t => t.bucket === "credit" },
+    { id: "other_zelle",      title: "❓ Zelle לבדיקה", filter: t => t.bucket === "other_zelle" },
+    { id: "no_tag",           title: "❌ ללא TAG", filter: t => t.bucket === "no_tag" },
+    { id: "transfer",         title: "↔ העברות (לא הוצאה)", filter: t => t.bucket === "transfer" },
+  ];
+
+  let html = "";
+  for (const sec of sections) {
+    const rows = s.tx.filter(sec.filter);
+    if (rows.length === 0) continue;
+    const sdone = rows.filter(t => t.done).length;
+    html += `<div class="section-title">${escapeHtml(sec.title)} <span class="count">${sdone}/${rows.length}</span></div>`;
+    html += rows.map(t => renderCard(t)).join("");
+  }
+  $("sections").innerHTML = html;
+
+  $("sections").querySelectorAll(".done-btn").forEach(b => {
+    b.onclick = () => toggleDone(b.getAttribute("data-tx"));
+  });
+}
+
+function renderCard(t) {
+  const cls = t.done ? "done" : "";
+  const badgeClass = t.cls || "notag";
+  const amtCls = t.isCredit ? "amt credit" : "amt";
+  const flag = t.flag ? ` <span style="color:#92400e;font-size:11px">${escapeHtml(t.flag)}</span>` : "";
+  const gmailMark = t.gmail_verified ? " ✓" : (t.gmail_needed ? " 📧" : "");
+  return `
+    <div class="card ${cls}">
+      <div class="info">
+        <div class="top-line">${escapeHtml(t.desc.slice(0, 60))}${t.desc.length > 60 ? "…" : ""}</div>
+        <div class="bottom-line">${escapeHtml(t.date_human)} · <span class="${amtCls}">${fmtMoney(t.amt)}</span> · ${escapeHtml(t.qb_account || "")}${flag}</div>
+      </div>
+      <span class="badge ${badgeClass}">${escapeHtml(t.tag)}${gmailMark}</span>
+      <button class="done-btn" data-tx="${escapeHtml(t.id)}">${t.done ? "בוצע" : "Done"}</button>
+    </div>`;
+}
+
+async function toggleDone(txId) {
+  const s = CURRENT_SESSION; if (!s) return;
+  const t = s.tx.find(x => x.id === txId); if (!t) return;
+  t.done = !t.done;
+  renderTracker();
+  ALL_SESSIONS[s.session_key] = s;
+  const ok = await saveState(`bookkeeping: toggle done on ${txId.slice(0,18)} (${s.session_key})`);
+  if (ok) toast("✓ נשמר", "success");
+}
+
+function gmailVerificationCommand() {
+  const s = CURRENT_SESSION; if (!s) return "";
+  const pending = s.tx.filter(t => t.gmail_needed && !t.gmail_verified && !t.done);
+  if (pending.length === 0) return "";
+  const lines = pending.map(t => `  - ${t.date_human} · ${fmtMoney(t.amt)} · ${t.desc.slice(0, 70)} · (תוואי TAG: ${t.tag}) · id=${t.id}`).join("\n");
+  return `Read this file and follow its instructions exactly: \`C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\bookkeeping\\SKILL.md\` — it is the orchestrator for @books.
+
+This is **Phase 2 Gmail verification** for an existing bookkeeping session.
+Session key: \`${s.session_key}\` · Month: ${s.month_label_he} · Account: ${s.account_label}
+
+The browser already classified the session and tagged everything except the ${pending.length} travel transactions below. For each one, search Gmail (eli@makeupblowoutsalegroup.com — NOT pr@) by exact amount + sender domain per \`references/tag_rules.md\`, extract the actual travel/check-in date, apply the NEAREST-EVENT rule to the schedule, and update the session state at \`docs/state/bookkeeping_sessions.json\` → \`sessions["${s.session_key}"].tx[<id>]\` with: \`gmail_verified=true\`, corrected \`tag\`, corrected \`evkey\`, corrected \`cls\` (event), \`gmail_thread_id\`, \`gmail_subject\`.
+
+Travel transactions to verify:
+${lines}
+
+Standard SMS touchpoints apply (Touchpoint 1 start, Touchpoint 3 done). Touchpoint 3 must include the dashboard URL https://laurenlev10.github.io/lauren-agent-hub-data/bookkeeping/ on its own line. NO bit.ly anywhere (IRON RULE #6).`;
+}
+
+async function sendToGmailAgent() {
+  const cmd = gmailVerificationCommand();
+  if (!cmd) { toast("אין נסיעות לאמת", "error"); return; }
+  try {
+    await navigator.clipboard.writeText(cmd);
+    toast("✓ הפקודה הועתקה — הדביקי ב-Cowork", "success");
+  } catch (e) {
+    // Fallback: show a modal with the text
+    prompt("העתיקי את הפקודה (Ctrl+C) והדביקי ב-Cowork:", cmd);
+  }
+}
+
+// ─────────── Form handlers ───────────
+function setupForm() {
+  const today = new Date();
+  $("f-month").value = today.getFullYear() + "-" + String(today.getMonth()+1).padStart(2,"0");
+
+  const zone = $("file-zone");
+  const input = $("f-file");
+  input.onchange = () => { if (input.files[0]) selectFile(input.files[0]); };
+  zone.ondragover = (e) => { e.preventDefault(); zone.classList.add("drag"); };
+  zone.ondragleave = () => zone.classList.remove("drag");
+  zone.ondrop = (e) => {
+    e.preventDefault(); zone.classList.remove("drag");
+    if (e.dataTransfer.files[0]) selectFile(e.dataTransfer.files[0]);
+  };
+
+  $("btn-start").onclick = startSession;
+  $("btn-back").onclick = closeSession;
+  $("btn-gmail").onclick = sendToGmailAgent;
+}
+
+function selectFile(file) {
+  SELECTED_FILE = file;
+  $("file-selected").textContent = "✓ " + file.name + " (" + (file.size/1024).toFixed(0) + " KB)";
+  $("file-selected").classList.remove("hidden");
+  $("btn-start").disabled = false;
+}
+
+async function startSession() {
+  if (!SELECTED_FILE) return;
+  $("btn-start").disabled = true;
+  $("btn-start").textContent = "⏳ מעבד...";
+  try {
+    if (!SCHEDULE_LOADED) await loadSchedule();
+    const account = $("f-account").value;
+    const month = $("f-month").value;
+    const session = await buildSession(SELECTED_FILE, account, month);
+    ALL_SESSIONS[session.session_key] = session;
+    const ok = await saveState(`bookkeeping: new session ${session.session_key} (${session.total_tx} tx)`);
+    if (!ok) toast("⚠ סשן נוצר אבל לא נשמר ב-GitHub", "error");
+    CURRENT_SESSION = session;
+    $("form-card").classList.add("hidden");
+    $("sessions-list").classList.add("hidden");
+    $("tracker").classList.remove("hidden");
+    renderTracker();
+    window.scrollTo(0,0);
+  } catch (e) {
+    console.error(e);
+    toast("⚠ " + (e.message || "שגיאה בעיבוד הקובץ"), "error");
+  } finally {
+    $("btn-start").disabled = false;
+    $("btn-start").textContent = "🚀 התחל סשן";
+  }
+}
+
+// ─────────── Init ───────────
+(async function init() {
+  renderTokenArea();
+  setupForm();
+  await Promise.all([loadState(), loadSchedule()]);
+  renderSessionsList();
 })();
 </script>
 </body>
