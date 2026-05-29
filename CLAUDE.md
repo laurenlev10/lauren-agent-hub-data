@@ -263,6 +263,18 @@ Don't use:
 
 In all cases — clone every consumer repo, grep for the old URL pattern, fix in lockstep.
 
+## 🛑 IRON RULE #17 — evKey = slugify(FULL SCHEDULE city) + start_date. Never truncate. (added 2026-05-29)
+
+Set 2026-05-29 after the Overland Park dark-button bug (Lauren: *"אני רוצה הבאג הזה לא יקרה שוב בעתיד"*).
+
+Every per-event button on the launch dashboard is gated by `MAP[evKey]`, where the row computes `evKey = slugify(SCHEDULE.ev.city) + "-" + ev.start_date`. All per-event maps (`LANDING_PAGES`, `IMAGES`, `REELS`, `EVENTBRITE_STATS`, `LIST_STATS`, `STAFF_DEFAULTS`, `FB_EVENTS`, `SETUPS`, `META_CAMPAIGNS`, `FORECASTS`, ...) + `docs/launch/notes.json` (`MANUAL_TASKS`) + `docs/state/*.json` MUST use that SAME key. The Overland Park bug: SCHEDULE held the full `"Overland Park"` (→ `overland-park-2026-06-12`) but every agent map had keyed it as the truncated `overland-2026-06-12` — so ALL buttons on that row went dark.
+
+**Canonical rule:** the evKey city-slug is the FULL city name exactly as in `SCHEDULE`, slugified, NO state suffix — `salt-lake-city-2026-09-25`, `north-las-vegas-2026-08-07`, `overland-park-2026-06-12`. Never truncate a multi-word city. Any agent/workflow writing per-event state derives the key from the SCHEDULE city (full), not from a prompt/xlsx/cached string — those drift. (The events-repo URL slug like `overland-park-ks-2026`, WITH state, is a separate namespace.)
+
+**Two defenses (commit follows):** (1) `autoCanonicalizeEventMaps()` runs at top of `renderSchedule()` — mirrors any map entry whose key is only a city-name truncation of a canonical SCHEDULE-derived evKey onto the canonical key (date-match + city-prefix + single-candidate guard; non-destructive). Display safety net only. (2) When a city rename orphans keys, re-key everywhere: rename `"<old>-<date>"`→`"<full>-<date>"` in `docs/launch/index.html`, MOVE the `notes.json` entry (preserve data), update `event_key` in `state/upcoming_events.json`, move entries in other `state/*.json`.
+
+**Trigger:** a row shows ALL per-event buttons dark though agents ran → suspect evKey mismatch; compare `slugify(SCHEDULE.city)+date` vs the keys actually in the maps.
+
 ## Useful paths (fast lookup)
 
 | Thing                           | Path                                                                        |
