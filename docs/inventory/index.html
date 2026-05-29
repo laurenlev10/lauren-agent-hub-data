@@ -9388,6 +9388,31 @@ async function confirmInvoiceCompared(){
     //   Pass 3: name-similarity match (≥0.55) within the same supplier's products only
     var existing = null;
     var existingMatchedBy = null;  // 'sku-exact' | 'sku-strip-d' | 'name-sim'
+    // PASS -1 (Lauren 2026-05-29): TRUST THE RENDERED MATCH.
+    // renderCompareDiff() already matched this invoice line to a saved-order item
+    // (SKU first, then name-similarity >= 0.4) and that order item carries its
+    // OCTOPOS product_id (set in openCompareInvoiceModal's aggMap). The SKU/name
+    // passes below re-derive a match at MUCH stricter thresholds (name-sim >= 0.80,
+    // +3 significant word overlap) and FAIL for BBW's no-SKU Stain Liner variants
+    // and similar no-barcode products. Those rows then fell into the 'create new
+    // product' branch, which REQUIRES a SKU (`addToSystem && sku && qty>0 && price>0`)
+    // and so SILENTLY DROPPED every no-SKU row — the push ended up containing far
+    // fewer products than Lauren edited in the update list (BBW Stain Liner incident
+    // 2026-05-29: only 2 stock updates pushed out of ~14 edited rows).
+    // Honor _row_exp.product_id (same-supplier ONLY, per the cross-supplier-collision
+    // guards in passes 1/2/4/5) so the push matches exactly what Lauren saw rendered.
+    if (!existing && L && L._row_exp && L._row_exp.product_id) {
+      try {
+        var _vExpPid = (OCTOPOS && OCTOPOS.vendors && OCTOPOS.vendors[supplierCode]) || {};
+        var _expPid = String(L._row_exp.product_id);
+        (_vExpPid.products || []).concat(_vExpPid.inactive_products || []).forEach(function(p){
+          if (!existing && String(p.id) === _expPid) {
+            existing = p;
+            existingMatchedBy = 'rendered-exp-pid';
+          }
+        });
+      } catch(_){}
+    }
     try {
       var allProds = [];
       Object.keys((OCTOPOS && OCTOPOS.vendors) || {}).forEach(function(c){
