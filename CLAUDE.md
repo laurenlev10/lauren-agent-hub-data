@@ -197,6 +197,72 @@ Before nameserver switch, dig every known subdomain from a different network and
 
 ---
 
+## 🛑 IRON RULE #16 — When a public state URL changes, audit EVERY consumer repo before commit lands
+
+Set 2026-05-29 — followup to the 2026-05-28→29 outage that motivated IRON RULE #15. The DNS migration to Cloudflare Access was structurally correct, but the followup commit `e18ff1b` that rewrote 38 occurrences of `laurenlev10.github.io/lauren-agent-hub-data` → `dashboard.themakeupblowout.com` swept ONLY THIS repo. External consumer repos kept fetching the old URL, which now 301-redirects into Cloudflare Access and returns HTML "Sign in" instead of JSON.
+
+**~21 hours of silent failure** on the Cleveland weekend QR-LP share buttons (sent users to `instagram.com/themakeupblowoutsale/` instead of the Cleveland Reel) — the exact failure mode IRON RULE #5 was written to prevent — because the JSON fetch `.catch()` was running silently and `console.warn` was the only signal.
+
+### The rule
+
+Any commit in `lauren-agent-hub-data` that changes a URL referenced from a public consumer page (subscribe-list, events.themakeupblowout.com, future SaaS landing pages, etc.) MUST be paired with a cross-repo audit + matching commits in every affected consumer repo, landed in the same Cowork session.
+
+### The mandatory pre-commit check
+
+```bash
+# 1. Identify what URL pattern is changing
+OLD=laurenlev10.github.io/lauren-agent-hub-data
+NEW=dashboard.themakeupblowout.com   # or whatever new target
+
+# 2. Clone all consumer repos (the canonical list — keep this in sync)
+PAT=$(cat .claude/secrets/github_pat.txt)
+cd /tmp && rm -rf audit-* && mkdir audit-consumers && cd audit-consumers
+for repo in \
+    themakeupblowoutsale-group-site \
+    themakeupblowout-events \
+    lauren-agent-infra; do
+  git clone --depth=1 "https://x-access-token:${PAT}@github.com/laurenlev10/${repo}.git"
+done
+
+# 3. Grep every consumer for the old pattern. Any hit = blocker.
+grep -rln "$OLD" . | grep -v '\.git/' | grep -v 'lauren-agent-hub-data/'
+
+# 4. For each hit, decide: switch to raw.githubusercontent.com (most robust, no CORS, no auth), OR switch to the new domain WITH whatever auth the consumer needs, OR vendor the JSON into the consumer repo via a workflow.
+```
+
+If step 3 has ANY hits, the migration is NOT done — fix them in the same session, push, and verify with `curl` that every public consumer URL returns valid JSON before declaring the migration complete.
+
+### Canonical consumer URL — prefer raw.githubusercontent.com
+
+For public, unauthenticated reads from external repos, use:
+
+```
+https://raw.githubusercontent.com/laurenlev10/lauren-agent-hub-data/main/docs/<path>
+```
+
+Properties: `access-control-allow-origin: *`, no Cloudflare Access in front, no CNAME redirection, no 301 chain. Public repos → no auth needed. Same data freshness as GitHub Pages (commits land within seconds).
+
+Don't use:
+- `laurenlev10.github.io/lauren-agent-hub-data/state/*` — now redirects via CNAME → CF Access (broken for external consumers).
+- `dashboard.themakeupblowout.com/state/*` — requires CF Access cookie (works only for Lauren's logged-in browser, not for public visitors).
+
+### Active defenses (in place since 2026-05-29)
+
+1. **`public-url-watchdog` workflow** (cron `7,37 * * * *`) — GETs each known consumer URL every 30 min, parses as JSON, SMSes Lauren if any returns non-JSON or non-200. Catches the next regression in ≤30 min instead of ≥21 hours.
+
+2. **Defensive HTML defaults in consumer pages** — share buttons on `subscribe-list/` no longer fall back to brand-profile URLs when the JSON fetch fails. They default to `href="#"` + `aria-disabled="true"` + `Loading event Reel…` label. If JSON fails, users see a visibly-disabled button (loud bug) instead of being silently sent to the wrong destination (silent bug). This pattern should be copied to every future page that loads per-event URLs from a remote JSON.
+
+3. **Cross-repo audit step (this rule)** — manual + scripted at commit time.
+
+### Triggers that mean "you're about to break IRON RULE #16"
+
+- About to commit a URL change in `lauren-agent-hub-data` that touches a path under `docs/state/` or any file referenced from a public landing page.
+- About to commit a domain migration (GoDaddy → Cloudflare, GitHub Pages → custom domain, etc.).
+- About to add Cloudflare Access (or any auth gate) to a domain that was previously public.
+- The "rewire all URLs" sweep ran and the commit message says "Zero remaining" — verify it scanned consumer repos, not just this one.
+
+In all cases — clone every consumer repo, grep for the old URL pattern, fix in lockstep.
+
 ## Useful paths (fast lookup)
 
 | Thing                           | Path                                                                        |
