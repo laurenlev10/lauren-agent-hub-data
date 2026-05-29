@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🟢 MYSTERY BOX — דף המכירה</title>
+<style>
+  :root { --bg:#f6f7fb; --text:#1f2937; --muted:#6b7280; --green:#16a34a; --green2:#15803d; --line:#e5e7eb; }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Heebo",Roboto,sans-serif;background:var(--bg);color:var(--text);padding:28px 18px 64px;}
+  .wrap{max-width:980px;margin:0 auto;}
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px;}
+  header h1{margin:0;font-size:26px;letter-spacing:-0.4px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:22px;}
+  .live-btn{margin-inline-start:auto;background:linear-gradient(180deg,var(--green),var(--green2));color:#fff;text-decoration:none;font-weight:800;font-size:13px;padding:9px 16px;border-radius:999px;box-shadow:0 4px 14px rgba(22,163,74,.3);}
+  .live-btn.disabled{background:#cbd5e1;box-shadow:none;pointer-events:none;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin-bottom:18px;box-shadow:0 4px 18px rgba(0,0,0,.05);}
+  .card h2{margin:0 0 14px;font-size:16px;}
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  @media(max-width:680px){.stat-row{grid-template-columns:repeat(2,1fr);}}
+  .stat{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:12px 14px;}
+  .stat .k{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.3px;}
+  .stat .v{font-size:20px;font-weight:800;margin-top:4px;}
+  .stat .v small{font-size:12px;color:var(--muted);font-weight:600;}
+  .funnel{display:flex;flex-direction:column;gap:8px;}
+  .frow{display:flex;align-items:center;gap:10px;}
+  .frow .lbl{width:150px;font-size:13px;color:var(--text);}
+  .frow .bar{flex:1;height:22px;background:#ecfdf5;border-radius:8px;overflow:hidden;}
+  .frow .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--green2));}
+  .frow .num{width:90px;text-align:start;font-weight:800;font-size:14px;}
+  .pending{color:var(--muted);font-size:13px;background:#f8fafc;border:1px dashed var(--line);border-radius:10px;padding:14px;text-align:center;}
+  label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:12px 0 4px;}
+  input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;font-family:inherit;}
+  .save{margin-top:16px;background:linear-gradient(180deg,var(--green),var(--green2));color:#fff;border:0;font-weight:800;font-size:14px;padding:11px 20px;border-radius:10px;cursor:pointer;}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px;}
+  .queue{margin-top:14px;font-size:13px;}
+  .queue .qi{padding:6px 0;border-top:1px solid var(--line);}
+  .toast{position:fixed;inset-block-end:20px;inset-inline-start:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>🟢 MYSTERY BOX</h1>
+    <a id="liveBtn" class="live-btn disabled" href="#" target="_blank" rel="noopener">דף המכירה החי →</a>
+  </header>
+  <div class="sub">מוצר הדגל — BEST SELLER · המוצר היחיד שנמכר אונליין · מנוהל ע״י סוכן <b>@shopify</b></div>
+
+  <!-- מכירות -->
+  <div class="card">
+    <h2>💰 מכירות</h2>
+    <div id="salesBody"><div class="pending">ייטען בריצה הראשונה של @shopify</div></div>
+  </div>
+
+  <!-- משפך מכירה -->
+  <div class="card">
+    <h2>🛒 משפך מכירה</h2>
+    <div id="funnelBody"><div class="pending">ייטען בריצה הראשונה של @shopify</div></div>
+  </div>
+
+  <!-- מלאי -->
+  <div class="card">
+    <h2>📦 מלאי אונליין</h2>
+    <div id="invBody"><div class="pending">ייטען בריצה הראשונה של @shopify</div></div>
+  </div>
+
+  <!-- ממשק עריכת הדף -->
+  <div class="card">
+    <h2>🎨 עריכת הדף — שינויים לריצה הבאה</h2>
+    <p class="hint">מה שתמלאי כאן יישמר ב-GitHub, והסוכן @shopify יחיל אותו על הדף החי בריצה הבאה. שדות ריקים — לא משתנים.</p>
+    <label>תמונת קופסא חדשה (URL)</label>
+    <input id="f_box" placeholder="https://...">
+    <label>כותרת ראשית</label>
+    <input id="f_head" placeholder="MYSTERY BOX">
+    <label>כותרת משנה</label>
+    <input id="f_sub" placeholder="">
+    <label>טקסט כפתור (CTA)</label>
+    <input id="f_cta" placeholder="Order Online!">
+    <label>מחיר</label>
+    <input id="f_price" placeholder="$">
+    <button class="save" id="saveBtn">שמרי שינוי לריצה הבאה</button>
+    <div class="queue" id="queueBody"></div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  var STATE_URL = "../state/shopify_mystery_box.json";
+  var REPO_FILE = "docs/state/shopify_mystery_box.json";
+  var REPO = "laurenlev10/lauren-agent-hub-data";
+  var ST = null;
+
+  function toast(msg){ var t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(function(){t.classList.remove("show");},2600); }
+  function money(v){ return (v===null||v===undefined) ? "—" : "$"+Number(v).toLocaleString(); }
+  function num(v){ return (v===null||v===undefined) ? "—" : Number(v).toLocaleString(); }
+
+  function renderSales(s){
+    var el=document.getElementById("salesBody");
+    if(!s){ return; }
+    var cols=[["היום","today"],["7 ימים","last_7d"],["30 יום","last_30d"],["סה״כ","all_time"]];
+    var any=false, html='<div class="stat-row">';
+    cols.forEach(function(c){
+      var b=s[c[1]]||{};
+      if(b.orders!==null&&b.orders!==undefined) any=true;
+      html+='<div class="stat"><div class="k">'+c[0]+'</div><div class="v">'+num(b.orders)+' <small>הזמנות</small></div><div class="v" style="font-size:14px">'+money(b.revenue)+'</div></div>';
+    });
+    html+='</div>';
+    if(any) el.innerHTML=html;
+  }
+
+  function renderFunnel(f){
+    var el=document.getElementById("funnelBody");
+    if(!f) return;
+    var steps=[["סשנים","sessions"],["צפיות במוצר","product_views"],["הוספה לעגלה","add_to_cart"],["הגיעו לתשלום","reached_checkout"],["הזמנות","orders"],["שולם","paid"]];
+    var top=null, any=false;
+    steps.forEach(function(s){ var v=f[s[1]]; if(v!==null&&v!==undefined){any=true; if(top===null)top=v;} });
+    if(!any) return;
+    var html='<div class="funnel">';
+    steps.forEach(function(s){
+      var v=f[s[1]]; var pct=(top&&v!==null&&v!==undefined)?Math.max(3,Math.round(v/top*100)):0;
+      html+='<div class="frow"><div class="lbl">'+s[0]+'</div><div class="bar"><i style="width:'+pct+'%"></i></div><div class="num">'+num(v)+'</div></div>';
+    });
+    html+='</div>';
+    el.innerHTML=html;
+  }
+
+  function renderInv(iv){
+    var el=document.getElementById("invBody");
+    if(iv&&iv.on_hand!==null&&iv.on_hand!==undefined){
+      el.innerHTML='<div class="stat" style="display:inline-block"><div class="k">יחידות במלאי</div><div class="v">'+num(iv.on_hand)+'</div></div>';
+    }
+  }
+
+  function renderQueue(st){
+    var el=document.getElementById("queueBody");
+    var q=(st&&st.design_queue)||{};
+    var keys=[["box_image_url","תמונת קופסא"],["headline","כותרת"],["subhead","כותרת משנה"],["cta","כפתור"],["price","מחיר"]];
+    var pending=keys.filter(function(k){return q[k[0]];});
+    if(!pending.length){ el.innerHTML=""; return; }
+    var html='<div style="font-weight:800;font-size:12px;color:#92400e;margin-top:6px">⏳ ממתין לריצה הבאה:</div>';
+    pending.forEach(function(k){ html+='<div class="qi">'+k[1]+': <b>'+String(q[k[0]]).slice(0,60)+'</b></div>'; });
+    el.innerHTML=html;
+  }
+
+  function applyState(st){
+    ST=st||{};
+    var lb=document.getElementById("liveBtn");
+    var url=(st&&st.page&&st.page.url)||"";
+    if(url){ lb.href=url; lb.classList.remove("disabled"); }
+    renderSales(st&&st.sales);
+    renderFunnel(st&&st.funnel);
+    renderInv(st&&st.inventory);
+    renderQueue(st);
+    var q=(st&&st.design_queue)||{};
+    if(q.box_image_url) document.getElementById("f_box").value=q.box_image_url;
+    if(q.headline) document.getElementById("f_head").value=q.headline;
+    if(q.subhead) document.getElementById("f_sub").value=q.subhead;
+    if(q.cta) document.getElementById("f_cta").value=q.cta;
+    if(q.price) document.getElementById("f_price").value=q.price;
+  }
+
+  fetch(STATE_URL+"?_="+Date.now(),{cache:"no-store"})
+    .then(function(r){ return r.ok?r.json():null; })
+    .then(applyState)
+    .catch(function(){});
+
+  document.getElementById("saveBtn").addEventListener("click", function(){
+    var token=(localStorage.getItem("lauren_gh_token_v1")||"").trim();
+    if(!token){ var t=prompt("הדביקי GitHub token כדי לסנכרן (נשמר במכשיר זה בלבד):"); if(t){token=t.trim(); localStorage.setItem("lauren_gh_token_v1",token);} else { toast("בוטל — צריך token"); return; } }
+    var st=ST||{};
+    st.design_queue=st.design_queue||{};
+    st.design_queue.box_image_url=document.getElementById("f_box").value.trim();
+    st.design_queue.headline=document.getElementById("f_head").value.trim();
+    st.design_queue.subhead=document.getElementById("f_sub").value.trim();
+    st.design_queue.cta=document.getElementById("f_cta").value.trim();
+    st.design_queue.price=document.getElementById("f_price").value.trim();
+    st._updated_at=new Date().toISOString();
+    var api="https://api.github.com/repos/"+REPO+"/contents/"+REPO_FILE;
+    var hdr={"Authorization":"token "+token,"Accept":"application/vnd.github+json"};
+    toast("שומרת...");
+    fetch(api+"?ref=main",{headers:hdr}).then(function(r){return r.ok?r.json():{};}).then(function(j){
+      var body={message:"shopify: queue design change via dashboard",branch:"main",content:btoa(unescape(encodeURIComponent(JSON.stringify(st,null,2))))};
+      if(j&&j.sha) body.sha=j.sha;
+      return fetch(api,{method:"PUT",headers:hdr,body:JSON.stringify(body)});
+    }).then(function(r){
+      if(r.ok){ toast("✓ נשמר ב-GitHub"); renderQueue(st); }
+      else { toast("⚠️ שמירה נכשלה ("+r.status+")"); }
+    }).catch(function(){ toast("⚠️ שמירה נכשלה"); });
+  });
+})();
+</script>
+</body>
+</html>
