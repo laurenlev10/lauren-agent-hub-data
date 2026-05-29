@@ -1,0 +1,162 @@
+# Public-URL watchdog — every 30 min, GET each public state URL that the
+# consumer pages (subscribe-list, events.themakeupblowout.com homepage)
+# depend on, parse as JSON, SMS Lauren on any non-OK / non-JSON response.
+#
+# Born from the 2026-05-28→29 outage: Cloudflare Access migration silently
+# broke the cross-repo fetches (laurenlev10.github.io/lauren-agent-hub-data/*
+# now 301-redirects into CF Access). Internal sweep caught all references
+# inside this repo but missed the external consumers in
+# themakeupblowoutsale-group-site + themakeupblowout-events. The watchdog
+# closes that gap: if a consumer URL stops returning JSON, Lauren gets an
+# SMS within 30 min instead of finding out 21 hours later from her manager.
+#
+# Created 2026-05-29. See CLAUDE.md IRON RULE #16 for the cross-repo rule.
+
+name: public-url-watchdog
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'   # every 30 min, :07 + :37 to spread API load
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Probe each public state URL
+        id: probe
+        run: |
+          python3 <<'PY'
+          import json, sys, urllib.request, urllib.error
+
+          # Map: consumer page (where the URL is fetched from) → public state URL it loads
+          CHECKS = [
+              ("themakeupblowoutsale-group.com/subscribe-list/",
+               "https://raw.githubusercontent.com/laurenlev10/lauren-agent-hub-data/main/docs/state/subscribe_target.json",
+               ["event_key", "ig_reel_url", "fb_url", "tiktok_url"]),
+              ("events.themakeupblowout.com/",
+               "https://raw.githubusercontent.com/laurenlev10/lauren-agent-hub-data/main/docs/state/upcoming_events.json",
+               ["events"]),
+          ]
+
+          failures = []
+          for consumer, url, required_keys in CHECKS:
+              try:
+                  req = urllib.request.Request(url, headers={"User-Agent": "lauren-watchdog/1.0"})
+                  with urllib.request.urlopen(req, timeout=15) as r:
+                      code = r.status
+                      ctype = r.headers.get("Content-Type", "")
+                      body = r.read().decode("utf-8")
+                  if code != 200:
+                      failures.append((consumer, url, f"HTTP {code}"))
+                      continue
+                  try:
+                      data = json.loads(body)
+                  except json.JSONDecodeError as e:
+                      failures.append((consumer, url, f"not-JSON (content-type={ctype}, first120={body[:120]!r})"))
+                      continue
+                  missing = [k for k in required_keys if k not in data]
+                  if missing:
+                      failures.append((consumer, url, f"missing keys: {missing}"))
+                      continue
+                  print(f"OK {consumer} -> {url} (keys present: {required_keys})")
+              except urllib.error.HTTPError as e:
+                  failures.append((consumer, url, f"HTTPError {e.code} {e.reason}"))
+              except Exception as e:
+                  failures.append((consumer, url, f"{type(e).__name__}: {e}"))
+
+          if failures:
+              lines = ["public-URL watchdog: consumer pages about to break.", ""]
+              for consumer, url, reason in failures:
+                  lines.append(f"FAIL {consumer}")
+                  lines.append(f"  URL: {url}")
+                  lines.append(f"  Reason: {reason}")
+                  lines.append("")
+              lines.append("Likely cause: DNS/auth/path change in lauren-agent-hub-data not")
+              lines.append("propagated to consumer repos. See IRON RULE #16.")
+              print("\n".join(lines))
+              with open("/tmp/watchdog_failure.txt", "w") as f:
+                  f.write("\n".join(lines))
+              sys.exit(1)
+          print("all public URLs healthy")
+          PY
+
+      - name: SMS Lauren on watchdog failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+        run: |
+          python3 - <<'PY'
+          import os, urllib.request, json
+          try:
+              body = open("/tmp/watchdog_failure.txt").read()
+          except FileNotFoundError:
+              body = "public-url-watchdog failed (no detail file). See Actions log."
+          body = body[:1400]
+          phone = os.environ.get("LAUREN_PHONE", "").strip()
+          token = os.environ.get("SIMPLETEXTING_TOKEN", "").strip()
+          if not (phone and token):
+              print("Missing phone/token — cannot send SMS")
+              raise SystemExit(0)
+          data = json.dumps({"contactPhone": phone, "mode": "AUTO", "text": body}).encode()
+          req = urllib.request.Request(
+              "https://api-app2.simpletexting.com/v2/api/messages",
+              data=data,
+              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=15) as r:
+                  print("SMS status:", r.status)
+          except Exception as e:
+              print("SMS send failed:", e)
+          PY
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        if: success()
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "public-url-watchdog":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        if: success()
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump public-url-watchdog lastRunAt"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
+
+      # IRON RULE #3: SMS Lauren if anything else fails (workflow infra, etc.)
+      - name: SMS Lauren on workflow infra failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
