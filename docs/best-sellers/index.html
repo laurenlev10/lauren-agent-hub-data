@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<script>
+// 🛑 Cloudflare Access hostname guard.
+(function(){
+  var allowed = "dashboard.themakeupblowout.com";
+  if (window.location.hostname === allowed) return;
+  var u = "https://" + allowed + window.location.pathname + window.location.search;
+  document.addEventListener("DOMContentLoaded", function(){
+    document.body.innerHTML = "";
+    document.body.style.cssText = "font-family:sans-serif;padding:40px;text-align:center;direction:rtl;";
+    var h = document.createElement("h2"); h.style.color="#0f172a"; h.textContent="הדף הזה זמין רק דרך הדומיין המאובטח"; document.body.appendChild(h);
+    var p1 = document.createElement("p"); p1.style.cssText="color:#475569;margin-top:16px;"; p1.textContent="מעבירה ל:"; document.body.appendChild(p1);
+    var p2 = document.createElement("p"); var a = document.createElement("a"); a.href=u; a.style.cssText="color:#0ea5e9;font-size:18px;font-weight:700;"; a.textContent=u; p2.appendChild(a); document.body.appendChild(p2);
+    var m = document.createElement("meta"); m.setAttribute("http-equiv","refresh"); m.content="0;url="+u; document.head.appendChild(m);
+  });
+  if (window.stop) try { window.stop(); } catch(e){}
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>💥 BEST SELLERS — Monthly Deals</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Heebo",sans-serif;background:#f5f5f7;color:#1d1d1f;padding:20px 14px 80px;min-height:100vh}
+  .wrap{max-width:920px;margin:0 auto}
+  header{text-align:center;margin-bottom:20px}
+  h1{font-size:24px;letter-spacing:-0.4px}
+  .subtitle{color:#6e6e73;font-size:13px;margin-top:6px}
+  .subtitle a{color:#ec4899;text-decoration:none;font-weight:700}
+  .subtitle a:hover{text-decoration:underline}
+  a.back{font-size:13px;color:#ec4899;text-decoration:none;display:inline-block;margin-bottom:14px}
+  a.back:hover{text-decoration:underline}
+
+  .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1d1d1f;color:#fff;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:600;z-index:9999;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center}
+  .toast.show{opacity:1}
+  .toast.ok{background:#15803d}
+  .toast.err{background:#b91c1c}
+  .toast.warn{background:#b45309}
+
+  .token-card{background:#fef3c7;border:1px solid #fbbf24;border-radius:12px;padding:14px 16px;margin-bottom:14px;font-size:13px;color:#92400e}
+  .token-card .row{display:flex;gap:8px;margin-top:8px;align-items:center}
+  .token-card input{flex:1;padding:8px 10px;border:1px solid #fbbf24;border-radius:6px;font-family:monospace;font-size:12px;direction:ltr}
+  .token-card button{padding:8px 14px;background:#92400e;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+  .token-card button:hover{background:#78350f}
+  .token-ok{color:#15803d;font-size:12px;margin-bottom:14px;text-align:center;background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:8px}
+  .token-ok a{color:#0f5132;text-decoration:underline;cursor:pointer;margin-right:10px}
+
+  .card{background:#fff;border-radius:14px;padding:18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+  .card h2{font-size:15px;margin-bottom:12px;font-weight:800;color:#1d1d1f;display:flex;align-items:center;gap:8px}
+  .card h2 .num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#ec4899;color:#fff;font-size:12px}
+  .field{margin-bottom:10px}
+  .field label{display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+  .field input,.field select{width:100%;padding:9px 11px;border:1px solid #e5e5ea;border-radius:8px;font-size:14px;background:#fafafa;font-family:inherit;direction:rtl}
+  .field input:focus,.field select:focus{outline:none;border-color:#ec4899;background:#fff}
+  .field input.ltr,.field select.ltr{direction:ltr;text-align:left}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .grid-3{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:10px}
+  @media (max-width:600px){.grid-2,.grid-3{grid-template-columns:1fr}}
+
+  .image-row{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px}
+  .image-thumb{width:88px;height:88px;border-radius:10px;background:#000;flex-shrink:0;overflow:hidden;border:2px solid #e5e5ea;position:relative}
+  .image-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .image-thumb .empty{display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:11px;text-align:center;padding:6px}
+  .image-thumb .uploading{position:absolute;inset:0;background:rgba(255,255,255,0.85);display:flex;align-items:center;justify-content:center;font-size:10px;color:#ec4899;font-weight:700}
+  .image-info{flex:1;min-width:0}
+  .image-info .name{font-size:11px;color:#6e6e73;direction:ltr;text-align:left;word-break:break-all;margin-bottom:6px;font-family:monospace}
+  .image-info button{padding:6px 12px;background:#fff;border:1px solid #d1d1d6;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+  .image-info button:hover{border-color:#ec4899;color:#ec4899}
+  .image-info input[type="file"]{display:none}
+
+  .color-swatch{display:inline-block;width:16px;height:16px;border-radius:50%;border:2px solid #1d1d1f;vertical-align:middle;margin-left:6px}
+  .color-pink{background:#ff7ab3}.color-yellow{background:#ffd84b}.color-blue{background:#4aa6ff}.color-red{background:#ff2e3e}
+
+  .deal-actions{display:flex;gap:6px;justify-content:flex-start;margin-top:8px}
+  .deal-actions button{padding:6px 10px;background:#fff;border:1px solid #d1d1d6;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:#475569}
+  .deal-actions button:hover{border-color:#ec4899;color:#ec4899}
+  .deal-actions button.danger:hover{border-color:#b91c1c;color:#b91c1c}
+
+  .add-deal{width:100%;padding:14px;background:#fff;border:2px dashed #ec4899;border-radius:14px;font-size:14px;font-weight:700;color:#ec4899;cursor:pointer;font-family:inherit;margin-bottom:14px}
+  .add-deal:hover{background:#fdf2f8}
+
+  .actions{position:sticky;bottom:14px;background:#fff;border-radius:14px;padding:14px;box-shadow:0 -4px 16px rgba(0,0,0,0.08);display:flex;gap:10px;align-items:center;border:1px solid #e5e5ea;margin-top:8px}
+  .actions .status{flex:1;font-size:12px;color:#6e6e73}
+  .actions .status b{color:#1d1d1f}
+  .actions button{padding:11px 22px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
+  .actions .btn-deploy{background:linear-gradient(135deg,#ec4899,#9333ea);color:#fff}
+  .actions .btn-deploy:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(236,72,153,0.3)}
+  .actions .btn-deploy:disabled{background:#d1d1d6;cursor:not-allowed;transform:none;box-shadow:none}
+  .actions .btn-preview{background:#fff;color:#1d1d1f;border:1px solid #d1d1d6}
+  .actions .btn-preview:hover{background:#f5f5f7}
+
+  .field-hint{font-size:11px;color:#9ca3af;margin-top:4px;line-height:1.4}
+</style>
+</head>
+<body>
+
+<div id="toast" class="toast"></div>
+
+<div class="wrap">
+
+  <a class="back" href="../library/">← חזרה לספריית הסוכנים</a>
+
+  <header>
+    <h1>💥 BEST SELLERS</h1>
+    <div class="subtitle">דף הדילים החודשיים · <a id="livelink" href="https://www.themakeupblowoutsale-group.com/best-sellers-list63753941/" target="_blank">פתחי את הדף החי ↗</a></div>
+  </header>
+
+  <div id="token-section"></div>
+
+  <div class="card">
+    <h2>🖼️ Hero — תמונה ראשית</h2>
+    <div id="hero-block"></div>
+  </div>
+
+  <div class="card">
+    <h2>📝 כותרת + טקסטים קבועים</h2>
+    <div class="grid-2">
+      <div class="field"><label>כותרת שורה 1</label><input id="title1" class="ltr"></div>
+      <div class="field"><label>כותרת שורה 2</label><input id="title2" class="ltr"></div>
+    </div>
+    <div class="field"><label>Eyebrow (פס צהוב מעל הכותרת)</label><input id="eyebrow" class="ltr"></div>
+    <div class="field"><label>שורת ה-Scan card</label><input id="scancard" class="ltr"></div>
+    <div class="grid-2">
+      <div class="field"><label>Footer — שורה ראשית</label><input id="footergrab" class="ltr"></div>
+      <div class="field"><label>Footer — שורה משנית</label><input id="footeronly" class="ltr"></div>
+    </div>
+  </div>
+
+  <div id="deals-list"></div>
+
+  <button class="add-deal" id="add-deal-btn">+ הוסיפי כרטיס דיל</button>
+
+  <div class="actions">
+    <div class="status">
+      <b id="state-summary">טוען…</b><br>
+      <span id="last-deployed">—</span>
+    </div>
+    <button class="btn-preview" onclick="window.open('https://www.themakeupblowoutsale-group.com/best-sellers-list63753941/?_='+Date.now(),'_blank')">👁️ Preview</button>
+    <button class="btn-deploy" id="deploy-btn" onclick="deployAll()">💾 שמרי ופרסמי</button>
+  </div>
+</div>
+
+<script>
+//══════════════════════════════════════════════════════════════════════════
+// State + persistence
+//══════════════════════════════════════════════════════════════════════════
+const STATE_URL = "../state/best_sellers.json";
+const STATE_REPO = "laurenlev10/lauren-agent-hub-data";
+const STATE_PATH = "docs/state/best_sellers.json";
+const TARGET_REPO = "laurenlev10/themakeupblowoutsale-group-site";
+const TARGET_DIR  = "docs/best-sellers-list63753941";
+const COLORS = ["pink","yellow","blue","red"];
+const TOKEN_KEY = "lauren_gh_token_v1";
+
+let STATE = null;
+let PENDING_UPLOADS = {};   // { localKey: { name, base64, contentType } }
+
+//══════════════════════════════════════════════════════════════════════════
+// Toast
+//══════════════════════════════════════════════════════════════════════════
+function toast(msg, kind){
+  const t = document.getElementById("toast");
+  t.className = "toast show " + (kind || "");
+  t.textContent = msg;
+  setTimeout(() => { t.className = "toast"; }, 3200);
+}
+
+//══════════════════════════════════════════════════════════════════════════
+// Token gate
+//══════════════════════════════════════════════════════════════════════════
+function getToken(){ return (localStorage.getItem(TOKEN_KEY) || "").trim(); }
+function setToken(v){ localStorage.setItem(TOKEN_KEY, v.trim()); renderTokenSection(); }
+function clearToken(){ localStorage.removeItem(TOKEN_KEY); renderTokenSection(); }
+
+function renderTokenSection(){
+  const sec = document.getElementById("token-section");
+  const tok = getToken();
+  if (tok){
+    sec.innerHTML = `<div class="token-ok">🔑 GitHub token מחובר · <a onclick="clearToken()">החליפי / מחקי</a></div>`;
+  } else {
+    sec.innerHTML = `
+      <div class="token-card">
+        <b>🔑 צריך GitHub Personal Access Token</b><br>
+        טוקן עם הרשאת push לשני הריפו: laurenlev10/themakeupblowoutsale-group-site + laurenlev10/lauren-agent-hub-data
+        <div class="row">
+          <input id="token-input" placeholder="ghp_xxxx..." type="password">
+          <button onclick="setToken(document.getElementById('token-input').value)">שמרי</button>
+        </div>
+      </div>`;
+  }
+}
+
+//══════════════════════════════════════════════════════════════════════════
+// Render
+//══════════════════════════════════════════════════════════════════════════
+function imgSrcFor(filename){
+  // Cache-bust live URL each render, fallback to local pending if just uploaded
+  if (PENDING_UPLOADS[filename]){
+    return PENDING_UPLOADS[filename].dataUrl;
+  }
+  return `https://www.themakeupblowoutsale-group.com/best-sellers-list63753941/assets/${filename}?_=${Date.now()}`;
+}
+
+function renderHero(){
+  const h = STATE.hero;
+  document.getElementById("hero-block").innerHTML = `
+    <div class="image-row">
+      <div class="image-thumb" id="hero-thumb">
+        ${h.asset ? `<img src="${imgSrcFor(h.asset)}" alt="hero">` : '<div class="empty">אין תמונה</div>'}
+      </div>
+      <div class="image-info">
+        <div class="name">${h.asset || "—"}</div>
+        <button onclick="document.getElementById('hero-file').click()">📁 החליפי תמונה</button>
+        <input type="file" id="hero-file" accept="image/*" onchange="onHeroUpload(this)">
+      </div>
+    </div>
+    <div class="field"><label>תיאור (alt text)</label><input id="hero-alt" class="ltr" value="${escAttr(h.alt || '')}" oninput="STATE.hero.alt=this.value;summarize()"></div>
+  `;
+}
+
+function renderDeals(){
+  const ul = document.getElementById("deals-list");
+  ul.innerHTML = "";
+  STATE.deals.forEach((d, i) => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <h2><span class="num">${i+1}</span> Deal #${i+1} <span class="color-swatch color-${d.color}"></span></h2>
+
+      <div class="image-row">
+        <div class="image-thumb">
+          ${d.image ? `<img src="${imgSrcFor(d.image)}" alt="${escAttr(d.name)}">` : '<div class="empty">אין תמונה</div>'}
+        </div>
+        <div class="image-info">
+          <div class="name">${d.image || "—"}</div>
+          <button onclick="document.getElementById('deal-file-${i}').click()">📁 החליפי תמונה</button>
+          <input type="file" id="deal-file-${i}" accept="image/*" onchange="onDealUpload(${i}, this)">
+        </div>
+      </div>
+
+      <div class="field"><label>שם המוצר</label><input class="ltr" value="${escAttr(d.name)}" oninput="STATE.deals[${i}].name=this.value;summarize()"></div>
+
+      <div class="grid-3">
+        <div class="field"><label>תווית דיל (לדוגמה HOT DEAL)</label><input class="ltr" value="${escAttr(d.deal)}" oninput="STATE.deals[${i}].deal=this.value;summarize()"></div>
+        <div class="field"><label>בדג' עיגול (POW! / WOW! ..)</label><input class="ltr" value="${escAttr(d.badge)}" oninput="STATE.deals[${i}].badge=this.value;summarize()"></div>
+        <div class="field"><label>צבע</label><select onchange="STATE.deals[${i}].color=this.value;renderDeals();summarize()">
+          ${COLORS.map(c => `<option value="${c}" ${c===d.color?'selected':''}>${c}</option>`).join('')}
+        </select></div>
+      </div>
+
+      <div class="deal-actions">
+        ${i > 0 ? `<button onclick="moveDeal(${i},-1)">↑ למעלה</button>` : ''}
+        ${i < STATE.deals.length-1 ? `<button onclick="moveDeal(${i},1)">↓ למטה</button>` : ''}
+        <button class="danger" onclick="removeDeal(${i})">🗑️ הסירי כרטיס</button>
+      </div>
+    `;
+    ul.appendChild(div);
+  });
+}
+
+function renderFixedText(){
+  document.getElementById("title1").value = STATE.title_line_1 || "";
+  document.getElementById("title2").value = STATE.title_line_2 || "";
+  document.getElementById("eyebrow").value = STATE.eyebrow || "";
+  document.getElementById("scancard").value = STATE.scan_card_text || "";
+  document.getElementById("footergrab").value = STATE.footer_grab || "";
+  document.getElementById("footeronly").value = STATE.footer_only || "";
+  document.getElementById("title1").oninput = e => { STATE.title_line_1 = e.target.value; summarize(); };
+  document.getElementById("title2").oninput = e => { STATE.title_line_2 = e.target.value; summarize(); };
+  document.getElementById("eyebrow").oninput = e => { STATE.eyebrow = e.target.value; summarize(); };
+  document.getElementById("scancard").oninput = e => { STATE.scan_card_text = e.target.value; summarize(); };
+  document.getElementById("footergrab").oninput = e => { STATE.footer_grab = e.target.value; summarize(); };
+  document.getElementById("footeronly").oninput = e => { STATE.footer_only = e.target.value; summarize(); };
+}
+
+function summarize(){
+  const n = STATE.deals.length;
+  const newAssets = Object.keys(PENDING_UPLOADS).length;
+  document.getElementById("state-summary").textContent = `${n} כרטיסי דיל · ${newAssets > 0 ? newAssets+' תמונות חדשות לעלות' : 'אין תמונות חדשות'}`;
+  document.getElementById("last-deployed").textContent = STATE._updated_at ? `הופץ לאחרונה: ${new Date(STATE._updated_at).toLocaleString('he-IL')}` : "טרם הופץ";
+}
+
+//══════════════════════════════════════════════════════════════════════════
+// Mutations
+//══════════════════════════════════════════════════════════════════════════
+function moveDeal(i, dir){
+  const j = i + dir;
+  if (j < 0 || j >= STATE.deals.length) return;
+  const a = STATE.deals[i];
+  STATE.deals[i] = STATE.deals[j];
+  STATE.deals[j] = a;
+  renderDeals();
+  summarize();
+}
+function removeDeal(i){
+  if (!confirm("להסיר את הכרטיס?")) return;
+  STATE.deals.splice(i, 1);
+  renderDeals();
+  summarize();
+}
+function addDeal(){
+  // Pick next color in rotation
+  const used = STATE.deals.length;
+  const colorIdx = used % COLORS.length;
+  STATE.deals.push({
+    image: "", name: "מוצר חדש", badge: "WOW!", deal: "HOT DEAL", color: COLORS[colorIdx]
+  });
+  renderDeals();
+  summarize();
+}
+document.getElementById("add-deal-btn").onclick = addDeal;
+
+//══════════════════════════════════════════════════════════════════════════
+// Image upload (in-memory until deploy)
+//══════════════════════════════════════════════════════════════════════════
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const dataUrl = r.result;
+      const base64 = dataUrl.split(",")[1];
+      resolve({ dataUrl, base64, contentType: file.type });
+    };
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+async function onHeroUpload(input){
+  const file = input.files[0]; if (!file) return;
+  const { dataUrl, base64, contentType } = await fileToBase64(file);
+  const filename = "hero." + (file.name.split(".").pop().toLowerCase());
+  STATE.hero.asset = filename;
+  PENDING_UPLOADS[filename] = { name: filename, base64, contentType, dataUrl };
+  renderHero();
+  summarize();
+  toast("✓ התמונה נטענה · לחצי 'שמרי ופרסמי' כדי לפרסם", "ok");
+}
+
+async function onDealUpload(idx, input){
+  const file = input.files[0]; if (!file) return;
+  const { dataUrl, base64, contentType } = await fileToBase64(file);
+  // Use sanitized product name + extension as filename
+  const baseName = (STATE.deals[idx].name || "deal-"+(idx+1))
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  const ext = file.name.split(".").pop().toLowerCase();
+  const filename = `${baseName}.${ext}`;
+  STATE.deals[idx].image = filename;
+  PENDING_UPLOADS[filename] = { name: filename, base64, contentType, dataUrl };
+  renderDeals();
+  summarize();
+  toast("✓ התמונה נטענה · לחצי 'שמרי ופרסמי' כדי לפרסם", "ok");
+}
+
+//══════════════════════════════════════════════════════════════════════════
+// HTML template generator — produces the live index.html
+//══════════════════════════════════════════════════════════════════════════
+function esc(s){ return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+function escAttr(s){ return esc(s); }
+
+function generateIndexHtml(){
+  const cards = STATE.deals.map((d, i) => {
+    const tilt = (i % 2 === 0) ? "tilt-l" : "tilt-r";
+    return `    <article class="card ${tilt}">
+      <div class="card-badge bg-pop-${d.color}">${esc(d.badge)}</div>
+      <div class="card-img"><img src="assets/${esc(d.image)}" alt="${escAttr(d.name)}"></div>
+      <div class="card-foot bg-pop-${d.color}">
+        <h2>${esc(d.name)}</h2>
+        <p class="deal">${esc(d.deal)}</p>
+      </div>
+    </article>`;
+  }).join("\n\n");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monthly Deals — The Makeup Blowout Sale</title>
+<meta name="description" content="Scan, swipe, save! Our hottest monthly beauty deals — only at our pop-up event.">
+<meta name="robots" content="noindex,nofollow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Monthly Deals — Pop-Up Beauty Event">
+<meta property="og:description" content="Scan, swipe, save! Our hottest monthly beauty deals.">
+<meta property="og:image" content="assets/${esc(STATE.hero.asset)}">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="image" href="assets/${esc(STATE.hero.asset)}">
+${STATE.deals.slice(0,3).map(d => `<link rel="preload" as="image" href="assets/${esc(d.image)}">`).join("\n")}
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+:root{--pop-yellow:oklch(90% .2 95);--pop-blue:oklch(65% .22 240);--pop-pink:oklch(78% .2 350);--pop-red:oklch(62% .28 25);--ink:#12080b}
+@supports not (color: oklch(0% 0 0)){:root{--pop-yellow:#ffd84b;--pop-blue:#4aa6ff;--pop-pink:#ff7ab3;--pop-red:#ff2e3e}}
+*,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0}
+body{font-family:"Archivo Black","Bebas Neue",Impact,sans-serif;color:var(--ink);background-color:#59d6fa;background-image:radial-gradient(#ffd8e9 2px,transparent 2.5px),radial-gradient(#9be4fc 2px,transparent 2.5px);background-position:0 0,25px 25px;background-size:50px 50px,50px 50px;-webkit-font-smoothing:antialiased}
+img{display:block;max-width:100%;height:auto}
+main{min-height:100vh;padding:32px 16px}
+@media (min-width:768px){main{padding:56px 16px}}
+header.hero{max-width:64rem;margin:0 auto;text-align:center}
+section.grid{max-width:72rem;margin:0 auto;display:grid;grid-template-columns:1fr;gap:32px}
+@media (min-width:640px){section.grid{grid-template-columns:1fr 1fr}}
+@media (min-width:1024px){section.grid{grid-template-columns:1fr 1fr 1fr}}
+footer.cta{max-width:48rem;margin:64px auto 0;text-align:center}
+@media (min-width:768px){footer.cta{margin-top:96px}}
+.pop-border{border:4px solid var(--ink)}
+.pop-shadow{box-shadow:8px 8px 0 var(--ink)}
+.halftone{height:32px;max-width:64rem;margin:48px auto;opacity:.4;background-image:radial-gradient(var(--ink) 1.5px,transparent 1.5px);background-size:10px 10px}
+.hero-img{margin-bottom:24px;background:#fff;overflow:hidden;transform:rotate(-1deg)}
+.hero-img img{width:100%;height:auto;display:block}
+.eyebrow{display:inline-block;background:var(--pop-yellow);padding:8px 20px;transform:rotate(-3deg);margin-bottom:24px;font-size:.9rem;letter-spacing:.2em}
+@media (min-width:768px){.eyebrow{font-size:1rem}}
+h1.title{margin:0;font-family:"Archivo Black",Impact,sans-serif;font-size:clamp(3rem,12vw,8rem);line-height:.9;letter-spacing:-.02em;text-transform:uppercase;color:var(--pop-red);-webkit-text-stroke:2px var(--ink);text-shadow:6px 6px 0 var(--ink),12px 12px 0 var(--pop-blue)}
+.scan-card{display:inline-block;margin-top:32px;background:#fff;padding:16px 24px;transform:rotate(2deg);max-width:32rem}
+.scan-card p{margin:0;font-size:1.1rem;text-transform:uppercase;font-family:"Bebas Neue","Archivo Black",sans-serif;letter-spacing:.03em}
+@media (min-width:768px){.scan-card p{font-size:1.5rem}}
+.scan-card .accent{color:var(--pop-red)}
+.zaps{margin-top:24px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+.zaps span{display:inline-block;background:#fff;padding:4px 14px;font-size:1rem;letter-spacing:.04em;animation:wiggle 3s ease-in-out infinite;border:4px solid var(--ink)}
+@media (min-width:768px){.zaps span{font-size:1.1rem}}
+.zaps span:nth-child(1){transform:rotate(-1deg);animation-delay:0s}
+.zaps span:nth-child(2){transform:rotate(2deg);animation-delay:.2s}
+.zaps span:nth-child(3){transform:rotate(-3deg);animation-delay:.4s}
+.zaps span:nth-child(4){transform:rotate(4deg);animation-delay:.6s}
+@keyframes wiggle{0%,100%{transform:rotate(-1deg)}50%{transform:rotate(1deg)}}
+.card{position:relative;background:#fff;overflow:hidden;border:4px solid var(--ink);box-shadow:8px 8px 0 var(--ink)}
+.card.tilt-l{transform:rotate(-0.8deg)}.card.tilt-r{transform:rotate(0.8deg)}
+.card-badge{position:absolute;top:-12px;right:-12px;z-index:10;width:80px;height:80px;border-radius:9999px;border:4px solid var(--ink);display:flex;align-items:center;justify-content:center;text-transform:uppercase;font-size:.95rem;font-family:"Archivo Black",Impact,sans-serif;transform:rotate(12deg);text-align:center}
+.card-img{aspect-ratio:1/1;background:#000;overflow:hidden}
+.card-img img{width:100%;height:100%;object-fit:cover}
+.card-foot{padding:16px;border-top:4px solid var(--ink)}
+.card-foot h2{margin:0;font-size:1.15rem;line-height:1.1;text-transform:uppercase;font-family:"Archivo Black",Impact,sans-serif}
+@media (min-width:768px){.card-foot h2{font-size:1.35rem}}
+.card-foot .deal{margin:10px 0 0;font-size:1.6rem;text-transform:uppercase;color:#fff;-webkit-text-stroke:1px var(--ink);text-shadow:3px 3px 0 var(--ink);font-family:"Archivo Black",Impact,sans-serif}
+@media (min-width:768px){.card-foot .deal{font-size:2rem}}
+.bg-pop-pink{background:var(--pop-pink)}.bg-pop-yellow{background:var(--pop-yellow)}.bg-pop-blue{background:var(--pop-blue)}.bg-pop-red{background:var(--pop-red)}
+.cta-card{display:inline-block;background:var(--pop-pink);padding:24px 32px;transform:rotate(-1deg);border:4px solid var(--ink);box-shadow:8px 8px 0 var(--ink)}
+.cta-card .grab{margin:0;font-size:1.5rem;line-height:1.05;text-transform:uppercase;font-family:"Archivo Black",Impact,sans-serif}
+@media (min-width:768px){.cta-card .grab{font-size:2.5rem}}
+.cta-card .only{margin:12px 0 0;font-size:.85rem;letter-spacing:.2em}
+@media (min-width:768px){.cta-card .only{font-size:1rem}}
+</style>
+</head>
+<body>
+<main>
+
+  <header class="hero">
+    <div class="hero-img pop-border pop-shadow">
+      <img src="assets/${esc(STATE.hero.asset)}" alt="${escAttr(STATE.hero.alt)}">
+    </div>
+
+    <div class="eyebrow pop-border pop-shadow">${esc(STATE.eyebrow)}</div>
+
+    <h1 class="title">${esc(STATE.title_line_1)}<br>${esc(STATE.title_line_2)}</h1>
+
+    <div class="scan-card pop-border pop-shadow">
+      <p>${esc(STATE.scan_card_text)}</p>
+    </div>
+
+    <div class="zaps">
+      <span>POW!</span>
+      <span>WOW!</span>
+      <span>BAM!</span>
+      <span>ZAP!</span>
+    </div>
+  </header>
+
+  <div class="halftone"></div>
+
+  <section class="grid">
+
+${cards}
+
+  </section>
+
+  <footer class="cta">
+    <div class="cta-card">
+      <p class="grab">${esc(STATE.footer_grab)}</p>
+      <p class="only">${esc(STATE.footer_only)}</p>
+    </div>
+  </footer>
+
+<\/main>
+<\/body>
+<\/html>
+`;
+}
+
+//══════════════════════════════════════════════════════════════════════════
+// GitHub API write helpers
+//══════════════════════════════════════════════════════════════════════════
+async function getFileSha(repo, path){
+  const token = getToken();
+  const url = `https://api.github.com/repos/${repo}/contents/${path}?ref=main`;
+  const r = await fetch(url, { headers: { Authorization: "token " + token, Accept: "application/vnd.github+json" }});
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`GET ${path} → ${r.status}`);
+  const j = await r.json();
+  return j.sha;
+}
+
+async function putFile(repo, path, contentBase64, commitMsg){
+  const token = getToken();
+  const sha = await getFileSha(repo, path);
+  const url = `https://api.github.com/repos/${repo}/contents/${path}`;
+  const body = { message: commitMsg, content: contentBase64, branch: "main" };
+  if (sha) body.sha = sha;
+  const r = await fetch(url, {
+    method: "PUT",
+    headers: { Authorization: "token " + token, Accept: "application/vnd.github+json", "Content-Type":"application/json" },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(`PUT ${path} → ${r.status}: ${t.slice(0,200)}`);
+  }
+  return r.json();
+}
+
+function utf8ToBase64(str){
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+//══════════════════════════════════════════════════════════════════════════
+// Deploy
+//══════════════════════════════════════════════════════════════════════════
+async function deployAll(){
+  if (!getToken()){ toast("⚠️ צריך טוקן GitHub קודם", "warn"); return; }
+
+  // Sanity checks
+  if (!STATE.hero.asset){ toast("⚠️ אין תמונת Hero", "warn"); return; }
+  for (let i = 0; i < STATE.deals.length; i++){
+    const d = STATE.deals[i];
+    if (!d.image){ toast(`⚠️ דיל #${i+1} בלי תמונה`, "warn"); return; }
+    if (!d.name.trim()){ toast(`⚠️ דיל #${i+1} בלי שם`, "warn"); return; }
+  }
+
+  const btn = document.getElementById("deploy-btn");
+  btn.disabled = true;
+  btn.textContent = "⏳ מפרסם…";
+
+  try {
+    // 1. Upload pending images to the live site repo
+    const pendingNames = Object.keys(PENDING_UPLOADS);
+    for (let i = 0; i < pendingNames.length; i++){
+      const name = pendingNames[i];
+      const p = PENDING_UPLOADS[name];
+      btn.textContent = `⏳ תמונה ${i+1}/${pendingNames.length}…`;
+      await putFile(TARGET_REPO, `${TARGET_DIR}/assets/${name}`, p.base64, `best-sellers: upload ${name}`);
+    }
+
+    // 2. Generate + push new index.html
+    btn.textContent = "⏳ מפרסם דף…";
+    const html = generateIndexHtml();
+    await putFile(TARGET_REPO, `${TARGET_DIR}/index.html`, utf8ToBase64(html), "best-sellers: deploy from dashboard");
+
+    // 3. Save state JSON to lauren-agent-hub-data
+    STATE._updated_at = new Date().toISOString();
+    btn.textContent = "⏳ שומר מצב…";
+    await putFile(STATE_REPO, STATE_PATH, utf8ToBase64(JSON.stringify(STATE, null, 2) + "\n"), "best-sellers: state update from dashboard");
+
+    // Clear pending
+    PENDING_UPLOADS = {};
+    summarize();
+    toast("✓ הופץ בהצלחה! יחי תוך ~30 שניות", "ok");
+  } catch(e){
+    console.error(e);
+    toast("✗ שגיאה: " + e.message, "err");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "💾 שמרי ופרסמי";
+  }
+}
+
+//══════════════════════════════════════════════════════════════════════════
+// Init
+//══════════════════════════════════════════════════════════════════════════
+async function init(){
+  renderTokenSection();
+  try {
+    const r = await fetch(STATE_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) throw new Error("state fetch " + r.status);
+    STATE = await r.json();
+  } catch(e){
+    toast("⚠️ לא הצליח לטעון state: " + e.message, "err");
+    STATE = { hero: { asset: "hero.jpeg", alt: "" }, deals: [], title_line_1:"Monthly", title_line_2:"Deals!", eyebrow:"★ POP-UP EXCLUSIVE ★", scan_card_text:"", footer_grab:"", footer_only:"" };
+  }
+  renderHero();
+  renderFixedText();
+  renderDeals();
+  summarize();
+}
+
+init();
+</script>
+</body>
+</html>
