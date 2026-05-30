@@ -24,6 +24,7 @@ from zoneinfo import ZoneInfo
 
 MASTER   = Path("docs/launch/index.html")
 FORM_IDS = Path("docs/state/event_form_ids.json")
+BUTTON_URLS = Path("docs/state/event_button_urls.json")
 EVENTS_REPO = "laurenlev10/themakeupblowout-events"
 TARGET_REPO = "laurenlev10/beauty-bash-usa"
 TARGET_FILE = "src/lib/schedule-data.ts"
@@ -40,6 +41,13 @@ def load_schedule():
     if not m:
         raise SystemExit("FATAL: SCHEDULE map not found in docs/launch/index.html")
     return json.loads(m.group(1))
+
+def load_button_urls():
+    try:
+        return json.loads(BUTTON_URLS.read_text(encoding="utf-8")).get("urls", {})
+    except Exception as e:
+        print(f"warn: could not read event_button_urls.json: {e}")
+        return {}
 
 def load_form_ids():
     try:
@@ -73,6 +81,7 @@ def jstr(s):  # JS double-quoted string, sanitised
 def build_rows(pat):
     sched = load_schedule()
     forms = load_form_ids()
+    overrides = load_button_urls()
     land  = landing_slugs(pat)
     today = datetime.datetime.now(ZoneInfo("America/Los_Angeles")).date()
     evs = []
@@ -91,7 +100,7 @@ def build_rows(pat):
         landing = f"{EVENTS_BASE}/events/{lslug}/" if lslug in land else None
         rec = forms.get(f"{lslug}-{e['start_date']}") or {}
         st_form = rec.get("form_url")
-        signup = landing or st_form or None
+        signup = overrides.get(lslug) or landing or st_form or None
         parts = [
             f'city: "{jstr(e["city"])}"', f'state: "{e["state"]}"',
             f'dates: "{fmt_dates(e["start_date"], e["end_date"])}"', 'days: "Fri – Sun"',
