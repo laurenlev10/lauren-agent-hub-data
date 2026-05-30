@@ -14,6 +14,18 @@
   .sub{color:var(--muted);font-size:13px;margin-bottom:22px;}
   .live-btn{margin-inline-start:auto;background:linear-gradient(180deg,var(--green),var(--green2));color:#fff;text-decoration:none;font-weight:800;font-size:13px;padding:9px 16px;border-radius:999px;box-shadow:0 4px 14px rgba(22,163,74,.3);}
   .live-btn.disabled{background:#cbd5e1;box-shadow:none;pointer-events:none;}
+  .links{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+  @media(max-width:680px){.links{grid-template-columns:1fr;}}
+  .qlink{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:13px 15px;transition:transform .12s,box-shadow .12s;background:#fff;}
+  .qlink:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.08);}
+  .qlink .qi{font-size:24px;flex:none;}
+  .qlink .qt{display:flex;flex-direction:column;line-height:1.3;}
+  .qlink .qt b{font-size:14px;}
+  .qlink .qt small{font-size:11px;color:var(--muted);}
+  .qlink.lovable{border-color:#ec4899;background:#fdf2f8;}
+  .qlink.edit{border-color:#9333ea;background:#faf5ff;}
+  .qlink.shop{border-color:var(--green);background:#f0fdf4;}
+  .qlink.cart{border-color:#f59e0b;background:#fffbeb;}
   .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin-bottom:18px;box-shadow:0 4px 18px rgba(0,0,0,.05);}
   .card h2{margin:0 0 14px;font-size:16px;}
   .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
@@ -47,6 +59,25 @@
     <a id="liveBtn" class="live-btn disabled" href="#" target="_blank" rel="noopener">דף המכירה החי →</a>
   </header>
   <div class="sub">מוצר הדגל — BEST SELLER · המוצר היחיד שנמכר אונליין · מנוהל ע״י סוכן <b>@shopify</b></div>
+
+  <!-- קישורים מהירים -->
+  <div class="card">
+    <h2>🔗 קישורים מהירים</h2>
+    <div class="links">
+      <a class="qlink lovable" href="https://box.themakeupblowout.com" target="_blank" rel="noopener">
+        <span class="qi">🛍️</span><span class="qt"><b>דף המכירה החי (Lovable)</b><small>box.themakeupblowout.com</small></span>
+      </a>
+      <a class="qlink edit" href="https://lovable.dev/projects/a4e5b36c-101c-476f-8964-141eda6b7fc0" target="_blank" rel="noopener">
+        <span class="qi">🎨</span><span class="qt"><b>עריכת הדף ב-Lovable</b><small>פתחי את העורך לשינויים</small></span>
+      </a>
+      <a class="qlink shop" href="https://www.themakeupblowout.com/pages/mystery-box" target="_blank" rel="noopener">
+        <span class="qi">🟢</span><span class="qt"><b>גרסת Shopify של הדף</b><small>themakeupblowout.com/pages/mystery-box</small></span>
+      </a>
+      <a class="qlink cart" href="https://www.themakeupblowout.com/cart/51701215428895:1" target="_blank" rel="noopener">
+        <span class="qi">🛒</span><span class="qt"><b>קישור הרכישה (לכפתורים)</b><small>2026 Mystery Box · $49.95</small></span>
+      </a>
+    </div>
+  </div>
 
   <!-- מכירות -->
   <div class="card">
@@ -149,8 +180,8 @@
   function applyState(st){
     ST=st||{};
     var lb=document.getElementById("liveBtn");
-    var url=(st&&st.page&&st.page.url)||"";
-    if(url){ lb.href=url; lb.classList.remove("disabled"); }
+    var url=(st&&st.page&&(st.page.live_url||st.page.url))||"https://box.themakeupblowout.com";
+    lb.href=url; lb.classList.remove("disabled");
     renderSales(st&&st.sales);
     renderFunnel(st&&st.funnel);
     renderInv(st&&st.inventory);
