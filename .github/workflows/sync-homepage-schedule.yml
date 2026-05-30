@@ -21,6 +21,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Sync homepage schedule -> beauty-bash-usa
+        id: sync
         env:
           GH_PAT: ${{ secrets.EVENTS_REPO_PAT }}
         run: |
@@ -58,6 +59,26 @@ jobs:
             git pull --rebase origin main || true
             git push origin main
           fi
+
+      - name: SMS Lauren — schedule changed, click Update to publish
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+        run: |
+          python3 - <<'PYIN'
+          import os
+          try:
+              from lauren_sms import send_sms
+          except Exception:
+              import sys; sys.path.insert(0, "scripts"); from lauren_sms import send_sms
+          phone = os.environ.get("LAUREN_PHONE", "").strip()
+          body = ("\U0001F5D3\uFE0F \u05dc\u05d5\u05d7 \u05d4\u05d0\u05d9\u05e8\u05d5\u05e2\u05d9\u05dd \u05d1\u05d3\u05e3 \u05d4\u05d1\u05d9\u05ea \u05e2\u05d5\u05d3\u05db\u05df. "
+                  "\u05dc\u05d7\u05e6\u05d9 Update \u05d1-Lovable \u05db\u05d3\u05d9 \u05dc\u05e4\u05e8\u05e1\u05dd: "
+                  "https://lovable.dev/projects/0b757644-8f54-4d25-9380-f58f7f38386b")
+          send_sms(phone, body)
+          print("reminder SMS sent")
+          PYIN
 
       # IRON RULE (Lauren 2026-05-10): SMS Lauren if this workflow fails.
       - name: SMS Lauren on failure

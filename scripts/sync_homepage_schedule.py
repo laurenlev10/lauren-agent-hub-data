@@ -38,6 +38,13 @@ def fmt_dates(sd, ed):
     s = datetime.date.fromisoformat(sd); e = datetime.date.fromisoformat(ed)
     return f"{MONTHS[s.month-1]} {s.day} – {MONTHS[e.month-1]} {e.day}, {e.year}"
 
+
+def _set_output(changed: bool):
+    out = os.environ.get("GITHUB_OUTPUT")
+    if out:
+        with open(out, "a", encoding="utf-8") as fh:
+            fh.write(f"changed={'true' if changed else 'false'}\n")
+
 def build_rows():
     sched = load_schedule()
     today = datetime.datetime.now(ZoneInfo("America/Los_Angeles")).date()
@@ -79,6 +86,7 @@ def main():
     pat = os.environ.get("GH_PAT", "").strip()
 
     if DRY_RUN or not pat:
+        _set_output(False)
         print("DRY_RUN (or no GH_PAT) — not pushing. Preview:")
         for r in rows[:3] + (["  ..."] if len(rows) > 5 else []) + rows[-2:]:
             print(r)
@@ -94,14 +102,14 @@ def main():
         old = f.read_text(encoding="utf-8")
         new = rewrite(old, rows)
         if new == old:
-            print("no change — homepage schedule already current.")
+            _set_output(False); print("no change — homepage schedule already current.")
             return 0
         f.write_text(new, encoding="utf-8")
         subprocess.run(["git", "-C", tmp, "add", TARGET_FILE], check=True)
         msg = f"schedule: weekly sync — {len(rows)} confirmed upcoming events [auto]"
         subprocess.run(["git", "-C", tmp, "commit", "-q", "-m", msg], check=True)
         subprocess.run(["git", "-C", tmp, "push", "-q", "origin", "HEAD:main"], check=True)
-        print(f"✓ pushed updated schedule ({len(rows)} events) -> Lovable will publish")
+        _set_output(True); print(f"✓ pushed updated schedule ({len(rows)} events) -> Lovable will publish")
     return 0
 
 if __name__ == "__main__":
