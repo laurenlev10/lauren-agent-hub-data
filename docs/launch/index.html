@@ -381,6 +381,7 @@
   .reel-modal-head .reel-sub{font-size:12px;opacity:.9;margin-top:3px;word-break:break-all}
   .reel-modal-head .reel-close{background:rgba(255,255,255,.25);border:none;color:#fff;border-radius:6px;padding:5px 10px;cursor:pointer;font-weight:700;flex-shrink:0}
   .reel-modal-body{padding:18px 22px}
+  .btn-share-row{background:linear-gradient(135deg,#f58529 0%,#dd2a7b 55%,#8134af 100%);color:#fff !important;border:none !important;}
   .reel-stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
   .reel-stat{background:#f8fafc;border-radius:10px;padding:12px;text-align:center;border:1px solid #e5e7eb}
   .reel-stat .label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:6px}
@@ -2304,6 +2305,7 @@ End date: </div>
                     + 'data-es="' + escapeHtml(esUrl) + '" '
                     + 'data-tt="' + escapeHtml(ttUrl) + '" '
                     + 'title="' + escapeHtml(lpTip) + '">🪧 Landing ✓ ▾</button>';
+            rowBtn += '<button class="btn-agent-row btn-share-row" type="button" onclick="window.openShareModal(this)" data-baseurl="' + escapeHtml(baseUrl) + '" data-city="' + escapeHtml(_evCity) + '" title="Share page — copy link, view &amp; edit the share links">📣 SHARE</button>';
           } else {
             // Build landing-form-specific params (eventSlug already computed above)
             const landingParams = new URLSearchParams({
@@ -4847,5 +4849,73 @@ window.copyLanding = async function(btn) {
 })();
 </script>
 
+<script>
+/* SHARE modal — per-event share-page manager (added 2026-05-31) */
+(function(){
+  function esc(x){return (x||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function slugFromBase(b){var m=(b||'').match(/\/events\/([^\/]+)\//);return m?m[1]:'';}
+  window.openShareModal=function(btn){
+    var base=btn.getAttribute('data-baseurl')||''; if(!/\/$/.test(base)) base+='/';
+    var city=btn.getAttribute('data-city')||''; var slug=slugFromBase(base);
+    var shareUrl=base+'share.html', landingUrl=base;
+    var ov=document.createElement('div'); ov.className='reel-modal';
+    function linkRow(label,url){
+      return '<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700">'+esc(label)+'</div>'
+        +'<div style="display:flex;gap:6px;align-items:center;margin-top:3px">'
+        +'<input type="text" readonly value="'+esc(url)+'" onclick="this.select()" style="flex:1;padding:7px 9px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;background:#f8fafc">'
+        +'<button type="button" data-copy="'+esc(url)+'" class="sm-copy" style="background:#374151;color:#fff;border:none;padding:7px 10px;border-radius:6px;cursor:pointer">Copy</button>'
+        +'<a href="'+esc(url)+'" target="_blank" rel="noopener" style="background:#db2777;color:#fff;text-decoration:none;padding:7px 10px;border-radius:6px">Open</a>'
+        +'</div></div>';
+    }
+    ov.innerHTML='<div class="reel-modal-card"><div class="reel-modal-head">'
+      +'<div><h2>\U0001f4e3 Share — '+esc(city)+'</h2><div class="reel-sub">'+esc(slug)+'</div></div>'
+      +'<button class="reel-close" type="button">✕</button></div>'
+      +'<div class="reel-modal-body" style="direction:ltr;text-align:left">'
+      +linkRow('Share (thank-you) page', shareUrl)+linkRow('Landing page', landingUrl)
+      +'<hr style="margin:16px 0;border:none;border-top:1px solid #eee">'
+      +'<div style="font-weight:800;margin-bottom:4px">Share links on this page</div>'
+      +'<div style="font-size:12px;color:#666;margin-bottom:10px">The IG / FB / TikTok links the share buttons point to. Set them to this event’s reel when it’s posted. Saving updates the live page within ~1 min. Empty = falls back to the brand channels.</div>'
+      +'<div id="sm-fields">Loading current links…</div><div id="sm-status" style="margin-top:10px;font-size:13px"></div>'
+      +'</div></div>';
+    document.body.appendChild(ov);
+    function close(){ov.remove();}
+    ov.querySelector('.reel-close').addEventListener('click',close);
+    ov.addEventListener('click',function(e){if(e.target===ov)close();});
+    ov.addEventListener('click',function(e){var b=e.target.closest('.sm-copy');if(b){try{navigator.clipboard.writeText(b.getAttribute('data-copy'));b.textContent='✓';setTimeout(function(){b.textContent='Copy';},1200);}catch(_){}}});
+    function setStatus(m,c){var el=ov.querySelector('#sm-status');if(el)el.innerHTML='<span style="color:'+(c||'#374151')+'">'+m+'</span>';}
+    function field(label,id,val){
+      return '<div style="margin-bottom:10px"><label style="display:block;font-size:12px;font-weight:700;margin-bottom:3px">'+esc(label)+'</label>'
+        +'<input id="'+id+'" type="text" value="'+esc(val)+'" placeholder="(defaults to brand channel)" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">'
+        +(val?' <a href="'+esc(val)+'" target="_blank" rel="noopener" style="font-size:11px;color:#db2777">open ↗</a>':'')+'</div>';
+    }
+    function renderFields(ig,fb,tt){
+      var c=ov.querySelector('#sm-fields');
+      c.innerHTML=field('Instagram reel','sm-ig',ig)+field('Facebook reel','sm-fb',fb)+field('TikTok video','sm-tt',tt)
+        +'<button id="sm-save" type="button" style="margin-top:6px;background:#16a34a;color:#fff;border:none;padding:9px 16px;border-radius:8px;font-weight:800;cursor:pointer">\U0001f4be Save share links</button>';
+      ov.querySelector('#sm-save').addEventListener('click',save);
+    }
+    fetch('https://raw.githubusercontent.com/laurenlev10/themakeupblowout-events/main/docs/upcoming-events.json?_='+Date.now(),{cache:'no-store'})
+      .then(function(r){return r.json();}).then(function(d){var ev=(d.events||[]).filter(function(e){return e.slug===slug;})[0]||{};renderFields(ev.ig_url||'',ev.fb_url||'',ev.tiktok_url||'');})
+      .catch(function(){renderFields('','','');});
+    function save(){
+      var ig=ov.querySelector('#sm-ig').value.trim(),fb=ov.querySelector('#sm-fb').value.trim(),tt=ov.querySelector('#sm-tt').value.trim();
+      var token=(localStorage.getItem('lauren_gh_token_v1')||'').trim();
+      if(!token){setStatus('⚠️ Need your GitHub token saved in the dashboard first.','#dc2626');return;}
+      setStatus('Saving…','#374151');
+      var repo='laurenlev10/themakeupblowout-events',path='docs/upcoming-events.json';
+      fetch('https://api.github.com/repos/'+repo+'/contents/'+path+'?ref=main',{headers:{Authorization:'token '+token,Accept:'application/vnd.github+json'}})
+        .then(function(r){if(!r.ok)throw 'GET '+r.status;return r.json();}).then(function(j){
+          var content=decodeURIComponent(escape(atob((j.content||'').replace(/\n/g,''))));
+          var data=JSON.parse(content); var ev=(data.events||[]).filter(function(e){return e.slug===slug;})[0];
+          if(!ev)throw 'event not found: '+slug;
+          ev.ig_url=ig; ev.fb_url=fb; ev.tiktok_url=tt;
+          var body={message:'share-links: update '+slug+' reel URLs (via launch dashboard)',content:btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2)))),branch:'main',sha:j.sha};
+          return fetch('https://api.github.com/repos/'+repo+'/contents/'+path,{method:'PUT',headers:{Authorization:'token '+token,Accept:'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify(body)});
+        }).then(function(r){if(!r.ok)throw 'PUT '+r.status;setStatus('✓ Saved — the live share page updates within ~1 minute.','#16a34a');})
+        .catch(function(e){setStatus('⚠️ Save failed: '+e,'#dc2626');});
+    }
+  };
+})();
+</script>
 </body>
 </html>
