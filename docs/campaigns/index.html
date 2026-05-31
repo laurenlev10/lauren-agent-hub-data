@@ -157,7 +157,7 @@ const RUN = {
         </div>
       </div>
       <label>Message text <span class="hint">(placeholders: {city} {state} {date_range} {venue} {address} {year} {reel_link})</span></label>
-      <textarea id="ar-text" rows="6" placeholder="This is your Free Fabulous Glitter✨ Voucher!..."></textarea>
+      <textarea id="ar-text" rows="6" placeholder="🎁 This is your FREE Eyeshadow Voucher! ✨..."></textarea>
       <span class="saved-toast" id="ar-saved">✓ Saved</span>
     </div>
 
@@ -326,7 +326,7 @@ const RUN = {
     // 2026-05-03 PM: 'keyword' field removed from state — autoresponder is now subscribe-trigger, no keyword involved.
     type: "MMS",
     image_filename: "ig_story_voucher.png",
-    text: "This is your Free Fabulous Glitter✨ Voucher! The Makeup Blowout Sale Group Are Coming To {city}, {state} {year} For Only 3 days! 🗓️ When: {date_range} 🕙 Hours: 10 AM - 5 PM 📍 Where: {address}. At {venue}. CLICK & SHARE On Your Story: {reel_link} If you share - you will GET a FREE Eyeshadow at the event, too!"
+    text: "🎁 This is your FREE Eyeshadow Voucher! ✨\nJust show this text at the door — that's it!\nThe Makeup Blowout Sale Group is coming to {city}, {state} for 3 days only! 💄\n🗓️ {date_range}\n🕙 10 AM – 5 PM\n📍 {venue} — {address}\n✔️ FREE entry & parking\n✔️ Up to 75% OFF top makeup brands\n✔️ All ages welcome\n📲 Save this text — we'll send you a reminder right before the event so you don't miss it!\nSee you there! 🎉"
   };
   const DEFAULT_FORM = {
     form_name: "{city}, {state} {year}",
@@ -334,7 +334,7 @@ const RUN = {
   };
 
   const KEY = "simple-texting:templates";
-  const TEMPLATE_VERSION = 11;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
+  const TEMPLATE_VERSION = 12;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
   // State (with auto-migration on version bump)
@@ -414,6 +414,14 @@ const RUN = {
         form_name: oldForm.form_name || (oldForm.name && oldForm.name.replace(" Sign-up","")) || DEFAULT_FORM.form_name,
         confirmation_text: oldForm.confirmation_text || oldForm.success || DEFAULT_FORM.confirmation_text
       };
+    }
+
+    // v11 → v12: New autoresponder voucher copy — FREE Eyeshadow + reminder line; share/second-gift CTA removed.
+    // (Autoresponder fires for signups to far-future events, so the "share the reel for a 2nd gift" ask does not apply yet.)
+    if (v < 12){
+      if (s.ar && s.ar.text && (s.ar.text.includes("Free Fabulous Glitter") || s.ar.text.includes("CLICK & SHARE"))){
+        s.ar.text = DEFAULT_AR.text;
+      }
     }
 
     s.version = TEMPLATE_VERSION;
