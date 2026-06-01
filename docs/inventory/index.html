@@ -1120,6 +1120,12 @@ function renderSuppliers(){
 }
 
 function renderSupplierCard(sup, s, idx){
+  // Lauren 2026-06-01 — define slice in THIS function's scope. It was referenced
+  // (per-order invoice total, _allOrdersCompared, _rowGrand) but never declared here,
+  // so every use threw a silently-caught ReferenceError → the supplier-card header
+  // never reflected per-order invoice state (e.g. per-order 'השוואת חשבונית' didn't
+  // flip the card to green '✓ קבלת סחורה עודכנה').
+  var slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || {};
   // Has the user saved an order for this supplier on this event?
   var _hasLocalOrder = false;
   var _lastWhenIso = '';
