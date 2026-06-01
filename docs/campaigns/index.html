@@ -295,7 +295,7 @@ const RUN = {
       recipient_lists: "{event_year_list_name}, match:{city}",
       type: "MMS",
       image_filename: "see_you_soon.png",
-      text: "Hey Gorgeous! 🤩 The Makeup Blowout Sale Group are in {city}, {state}! Join our amazing makeup sale event TODAY for great savings and lots of fun! Prices: $1 - $25 on Makeup, Skin Care, Hair Tools and more! We're open Friday - Sunday from 10am until 5pm. 🚨 This is your ONLY chance - we won't be back to {city}, {state} for the next 2 YEARS! Can't wait to see you there! 🙂 Address: {address} At {venue}. 🚗 Free Parking!!\n✨ For MORE gifts at the event, share our post & get a FREE Glitter Liner too! 👉 {reel_link}"
+      text: "Hey Gorgeous! 🤩 The Makeup Blowout Sale is in {city}, {state} TODAY! 💄 $1-$25 on makeup, skincare & hair. Open Fri-Sun 10AM-5PM. 🚨 Only chance for 2 YEARS! 📍 {address} (at {venue}) 🚗 Free Parking\n✨ For MORE gifts at the event, share our post & get a FREE Glitter Liner too! 👉 {reel_link}"
     },
     {
       enabled: true,
@@ -304,7 +304,7 @@ const RUN = {
       recipient_lists: "{event_year_list_name}, match:{city}",
       type: "MMS",
       image_filename: "super_saturday_sale.png",
-      text: "Good Morning {city}, {state}! 👋😍 The Makeup Blowout Sale is HERE - just minutes away from you! This is your ONLY chance - we won't be back to the {city} area for the next 2 YEARS! 🎉 DO NOT MISS OUT!!! ✨ Amazing deals up to 90% OFF ✨ Free Entry ✨ Free Parking ✨ Free Gifts  📍 {address} At {venue}.  ⏰ {remaining_dates}  See you there! 💄\n✨ For MORE gifts at the event, share our post & get a FREE Glitter Liner too! 👉 {reel_link}"
+      text: "Good Morning {city}! 😍 The Makeup Blowout Sale is HERE - amazing deals up to 75% OFF! 🎉 Free entry, parking & gifts. Won't be back for 2 YEARS! 📍 {address} (at {venue}) ⏰ {remaining_dates}\n✨ For MORE gifts at the event, share our post & get a FREE Glitter Liner too! 👉 {reel_link}"
     },
     {
       enabled: true,
@@ -313,7 +313,7 @@ const RUN = {
       recipient_lists: "{event_year_list_name}, match:{city}",
       type: "MMS",
       image_filename: "5_off_coupon.png",
-      text: "Last day special! 💄 Don't miss the Makeup Blowout Sale happening today in {city}, {state}! It's the last day, so bring your family and friends and stock up on your favorites. Use this $5 Off coupon ❤ The sale runs until 5 PM at: {address}. At {venue}. 🚗 Free Parking!! See you there!\n✨ For MORE gifts at the event, share our post & get a FREE Glitter Liner too! 👉 {reel_link}"
+      text: "Last day! 💄 The Makeup Blowout Sale ends TODAY in {city} at 5 PM. Use this $5 OFF coupon ❤ Bring friends & stock up! 📍 {address} (at {venue}) 🚗 Free Parking\n✨ For MORE gifts at the event, share our post & get a FREE Glitter Liner too! 👉 {reel_link}"
     }
   ];
   const DEFAULT_AR = {
@@ -348,7 +348,7 @@ const RUN = {
   };
 
   const KEY = "simple-texting:templates";
-  const TEMPLATE_VERSION = 18;   // bump when DEFAULT_TOUCHES / DEFAULT_ARS / DEFAULT_FORM changes
+  const TEMPLATE_VERSION = 19;   // bump when DEFAULT_TOUCHES / DEFAULT_ARS / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
   // State (with auto-migration on version bump)
@@ -505,6 +505,20 @@ const RUN = {
         .replace("✨ Want even more? Share our post on your favorite social & get a FREE Glitter Liner at the event! 👉 {reel_link}", "✨ For MORE gifts at the event, share our post & get a FREE Glitter Liner too! 👉 {reel_link}");
       (s.touches || []).forEach(t => { if (t && t.text) t.text = reword(t.text); });
       (s.ars || []).forEach(a => { if (a && a.text) a.text = reword(a.text); });
+    }
+
+    // v18 → v19: shorten the Fri/Sat/Sun touches (Lauren). Headline discount capped at "up to 75% OFF".
+    //            Signature-match the long defaults so custom edits are preserved.
+    if (v < 19){
+      const NEW_FRI = "Hey Gorgeous! 🤩 The Makeup Blowout Sale is in {city}, {state} TODAY! 💄 $1-$25 on makeup, skincare & hair. Open Fri-Sun 10AM-5PM. 🚨 Only chance for 2 YEARS! 📍 {address} (at {venue}) 🚗 Free Parking\n✨ For MORE gifts at the event, share our post & get a FREE Glitter Liner too! 👉 {reel_link}";
+      const NEW_SAT = "Good Morning {city}! 😍 The Makeup Blowout Sale is HERE - amazing deals up to 75% OFF! 🎉 Free entry, parking & gifts. Won't be back for 2 YEARS! 📍 {address} (at {venue}) ⏰ {remaining_dates}\n✨ For MORE gifts at the event, share our post & get a FREE Glitter Liner too! 👉 {reel_link}";
+      const NEW_SUN = "Last day! 💄 The Makeup Blowout Sale ends TODAY in {city} at 5 PM. Use this $5 OFF coupon ❤ Bring friends & stock up! 📍 {address} (at {venue}) 🚗 Free Parking\n✨ For MORE gifts at the event, share our post & get a FREE Glitter Liner too! 👉 {reel_link}";
+      (s.touches || []).forEach(t => {
+        if (!t || !t.text) return;
+        if (t.text.indexOf("Join our amazing makeup sale event TODAY") !== -1) t.text = NEW_FRI;
+        else if (t.text.indexOf("DO NOT MISS OUT") !== -1 && t.text.indexOf("Good Morning") !== -1) t.text = NEW_SAT;
+        else if (t.text.indexOf("It's the last day, so bring") !== -1 || t.text.indexOf("Last day special!") !== -1) t.text = NEW_SUN;
+      });
     }
 
     s.version = TEMPLATE_VERSION;
