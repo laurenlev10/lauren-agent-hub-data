@@ -33,6 +33,11 @@ DRY_RUN  = os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes")
 MONTHS = ["January","February","March","April","May","June","July","August",
           "September","October","November","December"]
 
+# 🛑 Lauren 2026-06-01: do NOT list 2027 events on the homepage (tour list +
+# "Choose your city" dropdown) until further notice. Temporary cap — raise/remove
+# only on Lauren's explicit say-so. See memory.md 2026-06-01 (#3).
+MAX_HOMEPAGE_YEAR = 2026
+
 def slugify(c): return re.sub(r"[^a-z0-9]+", "-", (c or "").lower()).strip("-")
 
 def load_schedule():
@@ -90,7 +95,8 @@ def build_rows(pat):
             continue
         for e in lst:
             if isinstance(e, dict) and e.get("status") == "confirmed" \
-               and datetime.date.fromisoformat(e["end_date"]) >= today:
+               and datetime.date.fromisoformat(e["end_date"]) >= today \
+               and datetime.date.fromisoformat(e["end_date"]).year <= MAX_HOMEPAGE_YEAR:
                 evs.append(e)
     evs.sort(key=lambda x: x["start_date"])
     rows = []
