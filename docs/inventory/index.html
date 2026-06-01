@@ -269,6 +269,9 @@
   .rev-row > div:not(.nm):not(.qty-controls){text-align:center}
   .rev-row .rev-line-total{text-align:center;font-weight:700;color:var(--accent)}
   .rev-row.skipped{opacity:.65;background:#f9fafb}
+  /* GARAGE highlight (Lauren 2026-05-31 — IRON RULE): product also in GARAGE → pink row */
+  .rev-row.in-garage{background:#fce7f3;box-shadow:inset 4px 0 0 #ec4899}
+  .rev-row.in-garage.skipped{background:#fbe3ef}
   .rev-row .lane-note{font-size:11px;color:var(--muted);font-style:italic}
   .rev-actions{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
   .rev-actions button{padding:10px 16px;font-size:14px;font-weight:700;border-radius:8px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--text)}
@@ -2818,6 +2821,34 @@ function recomputeSupplierTotals(s){
 }
 
 /* ---- Wizard UI ---- */
+// IRON RULE (Lauren 2026-05-31) — In the Order Wizard, any product that is ALSO in
+// GARAGE gets a pink row. "In garage" = (a) manual additive flag in_garage / route_to=mystery-box,
+// (b) its native OCTOPOS vendor is GARAGE (mystery-box, vendor ids 24/19),
+// (c) the OCTOPOS product carries a category named "Garage". Any one is enough.
+function wizardInGarage(pid){
+  var sid = String(pid);
+  try {
+    var rules = (typeof PRODUCT_RULES !== 'undefined' && PRODUCT_RULES.rules) ? PRODUCT_RULES.rules : {};
+    var rul = rules[sid] || {};
+    if (rul.in_garage || rul.route_to === 'mystery-box') return true;
+  } catch(_){}
+  try {
+    var V = (typeof OCTOPOS !== 'undefined' && OCTOPOS.vendors) ? OCTOPOS.vendors : {};
+    var gv = V['mystery-box'];
+    if (gv && (gv.products||[]).some(function(p){ return String(p.id) === sid; })) return true;
+    for (var cc in V){
+      var arr = V[cc].products || [];
+      for (var k=0;k<arr.length;k++){
+        if (String(arr[k].id) === sid){
+          var cats = arr[k].categories || [];
+          if (cats.some(function(c){ return (c.name||'').toLowerCase() === 'garage'; })) return true;
+          break;
+        }
+      }
+    }
+  } catch(_){}
+  return false;
+}
 async function openOrderWizard(scopeSupplierCode, opts){
   await loadSummaries();
   const summaries = mostRecentSummaries();
@@ -3035,7 +3066,8 @@ function openReviewModal(){
           whyLines.push('→ הצעה: ' + r.suggested + ' (תאשרי או שני)');
           var qtyTip = whyLines.join('\n').replace(/"/g, '&quot;');
 
-          return '<div class="rev-row' + laneClass + '" data-i="' + ri + '" data-lane="' + L + '">' +
+          var garageClass = wizardInGarage(r.product_id) ? ' in-garage' : '';
+          return '<div class="rev-row' + laneClass + garageClass + '" data-i="' + ri + '" data-lane="' + L + '">' +
             '<div class="nm">' + escHtml(r.name) + '<span class="sku">' + escHtml(r.sku) + ' · מלאי ' + r.in_stock + ' · thr ' + r.threshold + '</span>' +
               (badgesLine ? '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">' + badgesLine + '</div>' : '') +
               (ruleHints ? '<div class="lane-hints">' + ruleHints + '</div>' : '') +
