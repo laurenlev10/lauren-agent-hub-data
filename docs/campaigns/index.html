@@ -332,6 +332,13 @@ const RUN = {
       type: "MMS",
       image_filename: "ig_story_voucher.png",
       text: "Thank you for signing up — we can't wait to see you! 💕\n\nThe Makeup Blowout Sale Group is coming to {city}, {state} {year} for 3 days only! 🎉\n🗓️ {date_range} · 🕙 10 AM-5 PM\n📍 {address} (at {venue})\n✔️ Up to 75% OFF · FREE entry & parking\n\n📲 Save this — we'll remind you before the event! See you there! 🎁"
+    },
+    {
+      name: "Near-event sign-ups (switch to this close to the event)",
+      audience: "Fires when someone signs up just before the event — voucher to show at the door + social-share CTA. Lauren switches AR #1 → this one as the date approaches.",
+      type: "MMS",
+      image_filename: "ig_story_voucher.png",
+      text: "Thank you for signing up — we can't wait to see you! 💕\n🎁 Show this message at the event to get a FREE Eyeshadow!\n🗓️ {date_range} · 🕙 10 AM-5 PM\n📍 {address} (at {venue})\n✔️ Up to 75% OFF · FREE entry & parking\n\n✨ Want even more? Share our post on your favorite social & get a FREE Glitter Liner at the event! 👉 {reel_link}"
     }
   ];
   const DEFAULT_FORM = {
@@ -340,7 +347,7 @@ const RUN = {
   };
 
   const KEY = "simple-texting:templates";
-  const TEMPLATE_VERSION = 15;   // bump when DEFAULT_TOUCHES / DEFAULT_ARS / DEFAULT_FORM changes
+  const TEMPLATE_VERSION = 16;   // bump when DEFAULT_TOUCHES / DEFAULT_ARS / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
   // State (with auto-migration on version bump)
@@ -462,6 +469,14 @@ const RUN = {
     if (v < 15){
       if (Array.isArray(s.ars) && s.ars[0] && s.ars[0].text && s.ars[0].text.includes("Thank you so much for signing up")){
         s.ars[0].text = DEFAULT_ARS[0].text;
+      }
+    }
+
+    // v15 → v16: add Autoresponder #2 (near-event sign-ups). Only if the user still has just AR #1
+    //            (don't duplicate if Lauren already added her own 2nd template).
+    if (v < 16){
+      if (Array.isArray(s.ars) && s.ars.length === 1 && DEFAULT_ARS[1]){
+        s.ars.push(structuredClone(DEFAULT_ARS[1]));
       }
     }
 
