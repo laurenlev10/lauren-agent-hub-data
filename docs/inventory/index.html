@@ -1642,6 +1642,7 @@ function renderLocalOrdersForSupplier(supplierCode){
       resetBtn +
       '<button type="button" class="btn-edit-saved-order" data-supplier-code="' + escHtml(supplierCode) + '" data-order-index="' + oi + '" title="ערוך כמויות / מחק שורות" style="font-size:11px;padding:4px 10px;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;cursor:pointer;font-weight:600;margin-left:4px">✏️ ערוך</button>' +
       '<button type="button" class="btn-copy-sms-order" data-supplier-code="' + escHtml(supplierCode) + '" data-order-index="' + oi + '" title="העתק את ה-SMS לקליפבורד מיידית (יום: TOMORROW)" style="font-size:11px;padding:4px 10px;background:#dcfce7;border:1px solid #86efac;border-radius:6px;cursor:pointer;font-weight:600;margin-left:4px">📋 העתק SMS</button>' +
+      '<button type="button" class="btn-print-order" data-supplier-code="' + escHtml(supplierCode) + '" data-order-index="' + oi + '" title="הדפס רשימת ליקוט באותיות גדולות — מוצר + כמות + עמודת ✔ לסימון קבלת הסחורה" style="font-size:11px;padding:4px 10px;background:#e0e7ff;border:1px solid #a5b4fc;border-radius:6px;cursor:pointer;font-weight:600;color:#3730a3;margin-left:4px">🖨️ הדפס</button>' +
       '<button type="button" class="btn-resend-sms-order" data-supplier-code="' + escHtml(supplierCode) + '" data-order-index="' + oi + '" title="פתח את ההודעה הזו שוב לשליחה" style="font-size:11px;padding:4px 10px;background:#dbeafe;border:1px solid #93c5fd;border-radius:6px;cursor:pointer;font-weight:600">📲 SMS שוב</button>' +
       '<button type="button" class="btn-cancel-order" data-supplier-code="' + escHtml(supplierCode) + '" data-order-index="' + oi + '" title="סמני את ההזמנה כבוטלה (במקרה שלא נשלחה בסוף). היא תישאר ברשימה ואפשר לשחזר אותה בכל רגע." style="font-size:11px;padding:4px 10px;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;font-weight:600;color:#b91c1c;margin-left:4px">🚫 ביטול הזמנה</button>' +
       '<button type="button" class="btn-move-order" data-supplier-code="' + escHtml(supplierCode) + '" data-order-index="' + oi + '" title="העבירי את ההזמנה הזו כמו שהיא לאירוע הבא. כאן היא תסומן כהועברה, ובאירוע הבא תיווצר הזמנה זהה." style="font-size:11px;padding:4px 10px;background:#ede9fe;border:1px solid #c4b5fd;border-radius:6px;cursor:pointer;font-weight:600;color:#6d28d9;margin-left:4px">➡️ העבר לאירוע הבא</button>' +
@@ -12063,6 +12064,13 @@ document.addEventListener('click', function(e){
     quickCopySavedOrderSms(cs.dataset.supplierCode, Number(cs.dataset.orderIndex));
     return;
   }
+  // Lauren 2026-06-01 — print large-font picking list for a saved order
+  var pr = e.target.closest('.btn-print-order');
+  if (pr){
+    e.preventDefault(); e.stopPropagation();
+    printOrderPickList(pr.dataset.supplierCode, Number(pr.dataset.orderIndex));
+    return;
+  }
 });
 
 // Lauren 2026-05-29 — next chronological event after a given start_date (from SCHEDULE / ALL_EVENTS)
@@ -12117,6 +12125,72 @@ async function moveOrderToNextEvent(supplierCode, orderIndex){
     if (typeof renderSuppliers === 'function') renderSuppliers();
     else if (typeof render === 'function') render();
   } catch(err) { toast('שגיאה בהעברה: ' + err.message, 'error'); }
+}
+
+// Lauren 2026-06-01 — print a large-font picking list (product + quantity) for a
+// saved order, with an empty ✔ column to hand-mark each line when goods are received.
+function printOrderPickList(supplierCode, orderIndex){
+  if (typeof CURRENT_EVKEY === 'undefined' || !CURRENT_EVKEY) { toast('אין אירוע פעיל', 'error'); return; }
+  var slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || {};
+  var orders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === supplierCode; });
+  var order = orders[orderIndex];
+  if (!order) { toast('ההזמנה לא נמצאה', 'error'); return; }
+  var sup = (SUPPLIERS || []).find(function(s){ return s.code === supplierCode; }) || {};
+  var supName = sup.name || supplierCode;
+  var ev = (typeof CURRENT_EVENT !== 'undefined' && CURRENT_EVENT) || {};
+  var evTitle = (ev.city || '') + (ev.state ? ', ' + ev.state : '');
+  var evDates = (ev.start_date || '') + (ev.end_date && ev.end_date !== ev.start_date ? ' — ' + ev.end_date : '');
+  var savedWhen = (order.saved_at || '').slice(0,16).replace('T',' ');
+  var items = (order.items || []).filter(function(r){ return Number(r.quantity||0) > 0; });
+  if (!items.length) { toast('אין פריטים להדפסה בהזמנה הזו', 'error'); return; }
+  var totalUnits = items.reduce(function(s,r){ return s + Number(r.quantity||0); }, 0);
+  var rowsHtml = items.map(function(r, i){
+    return '<tr>' +
+      '<td class="num">' + (i+1) + '</td>' +
+      '<td class="prod">' + escHtml(r.product_name || ('#' + r.product_id)) + '</td>' +
+      '<td class="qty">' + Number(r.quantity||0) + '</td>' +
+      '<td class="chk"><span class="box"></span></td>' +
+    '</tr>';
+  }).join('');
+  var doc = '<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8">' +
+    '<title>הזמנה — ' + escHtml(supName) + ' — ' + escHtml(evTitle) + '</title>' +
+    '<style>' +
+      '*{box-sizing:border-box} body{font-family:Arial,"Segoe UI",sans-serif;margin:0;padding:24px;color:#0f172a}' +
+      '.head{border-bottom:4px solid #0f172a;padding-bottom:12px;margin-bottom:18px}' +
+      '.sup{font-size:34px;font-weight:900;line-height:1.1}' +
+      '.meta{font-size:18px;color:#334155;margin-top:6px;font-weight:600}' +
+      '.tot{font-size:21px;font-weight:800;margin-top:8px}' +
+      'table{width:100%;border-collapse:collapse}' +
+      'th{font-size:18px;background:#0f172a;color:#fff;padding:11px 8px;text-align:right;border:2px solid #0f172a}' +
+      'td{border:2px solid #94a3b8;padding:12px 10px;vertical-align:middle}' +
+      'td.num{font-size:20px;font-weight:700;text-align:center;width:48px;color:#64748b}' +
+      'td.prod{font-size:25px;font-weight:700}' +
+      'td.qty{font-size:32px;font-weight:900;text-align:center;width:120px}' +
+      'th.chk,td.chk{width:96px;text-align:center}' +
+      'td.chk{height:56px}' +
+      '.box{display:inline-block;width:36px;height:36px;border:3px solid #0f172a;border-radius:6px}' +
+      'tr:nth-child(even) td{background:#f1f5f9}' +
+      '.pbtn{margin:0 0 16px;padding:12px 26px;font-size:18px;font-weight:800;background:#16a34a;color:#fff;border:none;border-radius:10px;cursor:pointer}' +
+      '@media print{.pbtn{display:none} body{padding:0}}' +
+    '</style></head><body>' +
+    '<button class="pbtn" onclick="window.print()">🖨️ הדפס</button>' +
+    '<div class="head">' +
+      '<div class="sup">' + escHtml(supName) + '</div>' +
+      '<div class="meta">' + escHtml(evTitle) + (evDates ? ' · ' + escHtml(evDates) : '') + '</div>' +
+      (savedWhen ? '<div class="meta">הזמנה נשמרה: ' + escHtml(savedWhen) + '</div>' : '') +
+      '<div class="tot">' + items.length + ' מוצרים · ' + totalUnits + ' יחידות סה״כ</div>' +
+    '</div>' +
+    '<table><thead><tr>' +
+      '<th style="width:48px;text-align:center">#</th>' +
+      '<th>מוצר</th>' +
+      '<th style="width:120px;text-align:center">כמות</th>' +
+      '<th class="chk">✔ התקבל</th>' +
+    '</tr></thead><tbody>' + rowsHtml + '</tbody></table>' +
+    '</bo' + 'dy>' + '</ht' + 'ml>';
+  var w = window.open('', '_blank');
+  if (!w) { toast('הדפדפן חסם את חלון ההדפסה — אפשרי חלונות קופצים (popups) ונסי שוב', 'error'); return; }
+  w.document.open(); w.document.write(doc); w.document.close();
+  setTimeout(function(){ try{ if (w && !w.closed){ w.focus(); w.print(); } }catch(_){} }, 700);
 }
 
 function quickCopySavedOrderSms(supplierCode, orderIndex){
