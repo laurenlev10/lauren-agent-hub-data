@@ -194,7 +194,7 @@ const RUN = {
           <input type="date" id="ev-end">
         </div>
       </div>
-      <label>Share page link <span class="hint">(per-event — the event's SHARE / thank-you page URL: …/events/&lt;slug&gt;/share.html. Auto-filled from the launch dashboard 📣 SHARE / 📲 Campaigns button. Used in Touch 2 (BONUS line) &amp; Touch 4 (Sat closing) — recipients land on a page with share buttons for ALL platforms, not just Instagram. Leave blank to skip those lines.)</span></label>
+      <label>Share page link <span class="hint">(per-event — the event's SHARE / thank-you page URL: …/events/&lt;slug&gt;/share.html. Auto-filled from the event you pick here (city + dates), or from the launch dashboard 📲 Campaigns button. Used in Touch 2 (BONUS line) &amp; Touch 4 (Sat closing) — recipients land on a page with share buttons for ALL platforms, not just Instagram. Leave blank to skip those lines.)</span></label>
       <input type="text" id="ev-reel-link" placeholder="https://events.themakeupblowout.com/events/&lt;slug&gt;/share.html">
 
       <label>Mode <span class="hint">(updated 2026-05-03 PM late — cheat-sheet is now default; browser is reliability-uncertain)</span></label>
@@ -1096,6 +1096,55 @@ const RUN = {
   renderAutoresponders();
   renderForm();
   bindEditors();
+
+  // ─────────────────────────────────────────
+  // Auto-fill the Share page link from the picked event's own details (2026-06-01).
+  // Source of truth = events repo upcoming-events.json (has the real per-event slug).
+  // Falls back to the <city>-<state>-<year> slug convention if the event isn't listed yet.
+  // Never overwrites a manual edit or the URL-param value passed by the launch dashboard.
+  // ─────────────────────────────────────────
+  let EVENTS_INDEX = null;
+  let shareAuto = "";   // last value WE auto-filled
+  function citySlug(x){ return (x||"").toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); }
+  function shareUrlForEvent(ev){
+    if (!ev) return "";
+    let slug = null;
+    if (Array.isArray(EVENTS_INDEX)){
+      let m = EVENTS_INDEX.find(e => e.slug && e.start_date === ev.sd);
+      if (!m && ev.cityOnly && ev.state){
+        m = EVENTS_INDEX.find(e => e.slug
+          && citySlug(e.city) === citySlug(ev.cityOnly)
+          && (e.state||"").toUpperCase() === ev.state.toUpperCase()
+          && String(e.start_date||"").slice(0,4) === String(ev.year));
+      }
+      if (m) slug = m.slug;
+    }
+    if (!slug && ev.cityOnly && ev.state && ev.year){
+      slug = citySlug(ev.cityOnly) + "-" + ev.state.toLowerCase() + "-" + ev.year;
+    }
+    return slug ? ("https://events.themakeupblowout.com/events/" + slug + "/share.html") : "";
+  }
+  function maybeAutofillShareLink(){
+    const field = document.getElementById("ev-reel-link");
+    if (!field) return;
+    // only fill when empty or still holding a value WE set (never clobber a manual edit / URL param)
+    if (field.value && field.value !== shareAuto) return;
+    const url = shareUrlForEvent(eventCtx());
+    if (url && url !== field.value){
+      field.value = url; shareAuto = url;
+      rebuildPreview();
+    }
+  }
+  ["ev-city","ev-year","ev-start","ev-end"].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener("input", maybeAutofillShareLink);
+    el.addEventListener("change", maybeAutofillShareLink);
+  });
+  fetch("https://raw.githubusercontent.com/laurenlev10/themakeupblowout-events/main/docs/upcoming-events.json?_=" + Date.now(), {cache:"no-store"})
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { if (d && Array.isArray(d.events)) EVENTS_INDEX = d.events; maybeAutofillShareLink(); })
+    .catch(() => { maybeAutofillShareLink(); });
+  maybeAutofillShareLink();
   // Render history (with webFormId copy buttons — Lauren needs these for landing-page embed)
   function loadRecentRuns(){
     try { return JSON.parse(localStorage.getItem("simple-texting:recent-runs") || "[]"); }
