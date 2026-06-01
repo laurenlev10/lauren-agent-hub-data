@@ -590,11 +590,13 @@
      for 920px) doesn't get stretched. */
   .wrap.period-past{max-width:1400px}
   .wrap.period-past #schedule-card{max-width:920px;margin-left:auto;margin-right:auto}
-  /* 🏠 Home Page publish button — black until the live homepage shows the current event, then green. Lauren 2026-06-01 */
-  .homepage-btn{display:inline-block;margin-left:10px;padding:5px 13px;border-radius:8px;background:#1f2937;color:#fff;font-weight:700;font-size:13px;text-decoration:none;border:1px solid #111827;transition:all .12s;vertical-align:middle}
-  .homepage-btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.25)}
-  .homepage-btn.updated{background:linear-gradient(180deg,#16a34a,#15803d);border-color:#15803d}
-  .homepage-btn.checking{opacity:.6}
+  /* 🏠 Home Page publish button — per-event row button. Black until the live homepage shows the
+     current event, then green. NOT .btn-launch-row (that's hidden on done rows) — own class so it
+     shows on every event incl. past. Lauren 2026-06-01. */
+  .btn-homepage{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:5px 10px;background:#1f2937;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.3px;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:all .12s;white-space:nowrap;text-decoration:none}
+  .btn-homepage:hover{background:#111827;transform:translateY(-1px)}
+  .btn-homepage.done{background:linear-gradient(180deg,#16a34a,#15803d);color:#fff}
+  .btn-homepage.done:hover{background:linear-gradient(180deg,#15803d,#14532d)}
 </style>
 </head>
 <body>
@@ -796,28 +798,7 @@ let SUBSCRIBE_TARGET = null;
 // hero already shows the current event => button green. Else black (Lauren needs to open
 // Lovable via the button and click Publish). Lovable does NOT auto-publish on push. Lauren 2026-06-01.
 let HOMEPAGE_STATUS = null;
-function renderHomepageBtn(){
-  var btn = document.getElementById('homepage-btn');
-  if(!btn) return;
-  if(HOMEPAGE_STATUS && HOMEPAGE_STATUS.is_current){
-    btn.classList.add('updated');
-    btn.classList.remove('checking');
-    var chk = (HOMEPAGE_STATUS.checked_at||'').slice(0,16).replace('T',' ');
-    btn.title = "✓ דף הבית מעודכן — מציג את " + (HOMEPAGE_STATUS.expected_label||'האירוע הנוכחי') + " (נבדק " + chk + " UTC). לחיצה תפתח את עורך Lovable.";
-    btn.innerHTML = "🏠 Home Page ✓";
-  } else {
-    btn.classList.remove('updated');
-    btn.classList.remove('checking');
-    if(HOMEPAGE_STATUS){
-      var live = HOMEPAGE_STATUS.live_hero_text || '?';
-      var exp  = HOMEPAGE_STATUS.expected_label || '?';
-      btn.title = "⚠ דף הבית לא מעודכן. חי: " + live + " · אמור להציג: " + exp + ". לחצי כאן → עורך Lovable → Publish.";
-    } else {
-      btn.title = "פותח את עורך Lovable — שם לוחצים Publish כדי לעדכן את דף הבית";
-    }
-    btn.innerHTML = "🏠 Home Page";
-  }
-}
+// (per-row 🏠 button is rendered inside renderSchedule's rowBtn; re-renders when HOMEPAGE_STATUS loads)
 let EVENT_SHARE = null;
 const MANUAL_TASK_DEFS = [
   // Redesigned 2026-05-03 PM (2 tasks: sms_scheduled + reel_v2_campaign).
@@ -836,7 +817,7 @@ const MANUAL_TASK_DEFS = [
     <!-- Subtitle removed 2026-05-03 PM (Lauren feedback: stale — referenced retired Zapier path) -->
     <!-- Header renamed Event Launch → Event Manager 2026-05-03 PM (the old @manager checklist agent was retired earlier today, freeing the name; this dashboard IS the navigator/manager now) -->
 
-    <div style="margin-top:8px"><a class="back" href="../">← Back to Agent Hub</a><a id="homepage-btn" class="homepage-btn" href="https://lovable.dev/projects/0b757644-8f54-4d25-9380-f58f7f38386b" target="_blank" rel="noopener" title="פותח את עורך Lovable — שם לוחצים Publish כדי לעדכן את דף הבית">🏠 Home Page</a></div>
+    <div style="margin-top:8px"><a class="back" href="../">← Back to Agent Hub</a></div>
   </header>
 
 
@@ -1977,6 +1958,18 @@ End date: </div>
       // ambiguous — agent does TWO things, Eventbrite event + SMS list creation).
       let rowBtn = "";
       if (ev){
+        // 🏠 Home Page (publish) — FIRST button on every event row, before 🎟️ Eventbrite.
+        // Same global status on every row (one homepage). Green when the LIVE homepage already
+        // shows the current event; black when a Lovable Publish is still pending. Lauren 2026-06-01.
+        {
+          const hpUpd = !!(typeof HOMEPAGE_STATUS !== "undefined" && HOMEPAGE_STATUS && HOMEPAGE_STATUS.is_current);
+          const hpTitle = hpUpd
+            ? ("\u2713 \u05d3\u05e3 \u05d4\u05d1\u05d9\u05ea \u05de\u05e2\u05d5\u05d3\u05db\u05df \u2014 \u05de\u05e6\u05d9\u05d2 \u05d0\u05ea " + ((HOMEPAGE_STATUS && HOMEPAGE_STATUS.expected_label) || "\u05d4\u05d0\u05d9\u05e8\u05d5\u05e2 \u05d4\u05e0\u05d5\u05db\u05d7\u05d9") + ". \u05dc\u05d7\u05d9\u05e6\u05d4 \u05e4\u05d5\u05ea\u05d7\u05ea \u05d0\u05ea \u05e2\u05d5\u05e8\u05da Lovable.")
+            : ((typeof HOMEPAGE_STATUS !== "undefined" && HOMEPAGE_STATUS)
+                ? ("\u26a0 \u05d3\u05e3 \u05d4\u05d1\u05d9\u05ea \u05dc\u05d0 \u05de\u05e2\u05d5\u05d3\u05db\u05df (\u05d7\u05d9: " + ((HOMEPAGE_STATUS && HOMEPAGE_STATUS.live_hero_text) || "?") + "). \u05dc\u05d7\u05e6\u05d9 \u2190 Lovable \u2190 Publish.")
+                : "\u05e4\u05d5\u05ea\u05d7 \u05d0\u05ea \u05e2\u05d5\u05e8\u05da Lovable \u2014 \u05dc\u05d7\u05e6\u05d9 Publish \u05dc\u05e2\u05d3\u05db\u05df \u05d0\u05ea \u05d3\u05e3 \u05d4\u05d1\u05d9\u05ea");
+          rowBtn += '<a class="btn-homepage' + (hpUpd ? ' done' : '') + '" href="https://lovable.dev/projects/0b757644-8f54-4d25-9380-f58f7f38386b" target="_blank" rel="noopener" title="' + escapeHtml(hpTitle) + '">\ud83c\udfe0 Home Page' + (hpUpd ? ' \u2713' : '') + '</a>';
+        }
         const incomplete = !(ev.venue && ev.address);
         const evKeyForSetup = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
         const setup = (typeof SETUPS !== "undefined") ? SETUPS[evKeyForSetup] : null;
@@ -3817,7 +3810,7 @@ End date: </div>
   // Button turns green when the live homepage already shows the current event. Lauren 2026-06-01.
   fetch("../state/homepage_status.json?_=" + Date.now(), { cache: "no-store" })
     .then(r => r.ok ? r.json() : null)
-    .then(data => { HOMEPAGE_STATUS = data; renderHomepageBtn(); })
+    .then(data => { HOMEPAGE_STATUS = data; renderSchedule(); })
     .catch(() => { /* fail-silent — button stays black */ });
 
   // Load per-event share/reel links from the events repo → 📣 SHARE button goes green when set. Lauren 2026-05-31.
