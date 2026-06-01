@@ -10486,9 +10486,35 @@ async function confirmInvoiceCompared(){
     log('💡 הפעולות שהצליחו נשמרות — בלחיצה הבאה רק הנכשלות יורצו (אין כפילויות)');
   }
   toast(results.fail === 0 ? '✓ כל ' + results.ok + ' הפעולות הצליחו ב-OCTOPOS' : '⚠ ' + results.ok + ' הצליחו, ' + results.fail + ' נכשלו · בלחיצה הבאה רק הנכשלות ירוצו', results.fail === 0 ? 'success' : 'error');
-  if (btn){ btn.disabled = false; btn.textContent = results.fail === 0 ? '✅ הסתיים' : '✅ נסי שוב'; }
-  // Re-render supplier list
+  // Re-render supplier list (card flips to the green '✓ קבלת סחורה עודכנה')
   try { renderSuppliersWithBindings(); } catch(_){}
+
+  // Lauren 2026-06-01 — CLEAN CLOSE on full success. Previously the modal stayed open
+  // with '✅ עדכן קבלת סחורה' re-enabled, so (a) there was no clear "done" confirmation
+  // ("החלון לא נותן אישור שהמערכת עודכנה") and (b) re-clicking re-popped the new-products
+  // modal ("החלון של עדכון מוצרים חדשים ממשיך לקפוץ") because the create actions re-derive
+  // from the stale local snapshot. Now: hide the confirm block (no re-click possible),
+  // show a green success banner, and auto-close the modal.
+  if (results.fail === 0) {
+    if (btn){ btn.disabled = true; btn.textContent = '✅ הסתיים'; }
+    var _ccb = document.getElementById('cmpConfirmBlock');
+    if (_ccb) _ccb.style.display = 'none';
+    var _doneBox = document.getElementById('cmpResult');
+    if (_doneBox) {
+      var _doneBanner = document.createElement('div');
+      _doneBanner.style.cssText = 'margin-top:14px;padding:16px;background:#dcfce7;border:2px solid #86efac;border-radius:12px;text-align:center;direction:rtl';
+      _doneBanner.innerHTML =
+        '<div style="font-size:16px;font-weight:800;color:#14532d">✅ המערכת עודכנה בהצלחה — ' + results.ok + ' פעולות ב-OCTOPOS</div>' +
+        '<div style="font-size:12px;color:#166534;margin-top:4px">הספק סומן \u201c✓ קבלת סחורה עודכנה\u201d. החלון ייסגר אוטומטית…</div>' +
+        '<button type="button" id="cmpDoneClose" style="margin-top:10px;padding:9px 22px;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff;border:none;border-radius:9px;cursor:pointer;font-weight:700">סגירה ✓</button>';
+      _doneBox.appendChild(_doneBanner);
+      var _cdc = document.getElementById('cmpDoneClose');
+      if (_cdc) _cdc.addEventListener('click', function(){ try{ var bg=document.getElementById('cmpModalBg'); if(bg) bg.style.display='none'; }catch(_){} });
+    }
+    setTimeout(function(){ try{ var bg=document.getElementById('cmpModalBg'); if(bg) bg.style.display='none'; }catch(_){} }, 3500);
+  } else {
+    if (btn){ btn.disabled = false; btn.textContent = '✅ נסי שוב'; }
+  }
 }
 
 // Wire upload area
