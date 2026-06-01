@@ -41,13 +41,22 @@ jobs:
         run: |
           git config user.email "lauren@noreply.github.com"
           git config user.name  "Lauren (via Actions)"
-          if ! git diff --quiet docs/state/subscribe_target.json; then
-            git add docs/state/subscribe_target.json
-            git commit -m "subscribe-target: refresh $(date -u +%Y-%m-%dT%H:%MZ)"
-            git pull --rebase origin main || true
-            git push origin main
-          else
+          # NOTE: the script writes BOTH subscribe_target.json AND upcoming_events.json.
+          # Staging only one left the other as an unstaged change, which made
+          # `git pull --rebase` abort ("unstaged changes") and the push get rejected
+          # on a non-fast-forward (this repo has ~30 workflows pushing to main).
+          # Fix (2026-06-01): stage both, rebase on a clean tree, retry the push.
+          git add docs/state/subscribe_target.json docs/state/upcoming_events.json
+          if git diff --cached --quiet; then
             echo "No changes."
+          else
+            git commit -m "subscribe-target: refresh $(date -u +%Y-%m-%dT%H:%MZ)"
+            for i in 1 2 3 4 5; do
+              if git pull --rebase origin main && git push origin main; then
+                echo "pushed on attempt $i"; break
+              fi
+              echo "push attempt $i failed, retrying in 5s..."; sleep 5
+            done
           fi
 
       - name: Update scheduled-runs.json (refresh lastRunAt)
