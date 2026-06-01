@@ -590,6 +590,11 @@
      for 920px) doesn't get stretched. */
   .wrap.period-past{max-width:1400px}
   .wrap.period-past #schedule-card{max-width:920px;margin-left:auto;margin-right:auto}
+  /* 🏠 Home Page publish button — black until the live homepage shows the current event, then green. Lauren 2026-06-01 */
+  .homepage-btn{display:inline-block;margin-left:10px;padding:5px 13px;border-radius:8px;background:#1f2937;color:#fff;font-weight:700;font-size:13px;text-decoration:none;border:1px solid #111827;transition:all .12s;vertical-align:middle}
+  .homepage-btn:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+  .homepage-btn.updated{background:linear-gradient(180deg,#16a34a,#15803d);border-color:#15803d}
+  .homepage-btn.checking{opacity:.6}
 </style>
 </head>
 <body>
@@ -785,6 +790,34 @@ let FB_EVENT_STATS = null;  // populated from docs/state/fb_event_stats.json on 
 // Read by the 🔳 QR LP button on each row: green if SUBSCRIBE_TARGET.event_key === evKey (i.e. the QR landing page is currently pointing here), black otherwise.
 // Populated by an async fetch in the init block at the bottom of this script. Lauren 2026-05-20.
 let SUBSCRIBE_TARGET = null;
+
+// 🏠 Home Page button state. Owner: homepage-publish-check.yml (every 30 min) writes
+// docs/state/homepage_status.json. is_current=true => the LIVE homepage (themakeupblowout.com)
+// hero already shows the current event => button green. Else black (Lauren needs to open
+// Lovable via the button and click Publish). Lovable does NOT auto-publish on push. Lauren 2026-06-01.
+let HOMEPAGE_STATUS = null;
+function renderHomepageBtn(){
+  var btn = document.getElementById('homepage-btn');
+  if(!btn) return;
+  if(HOMEPAGE_STATUS && HOMEPAGE_STATUS.is_current){
+    btn.classList.add('updated');
+    btn.classList.remove('checking');
+    var chk = (HOMEPAGE_STATUS.checked_at||'').slice(0,16).replace('T',' ');
+    btn.title = "✓ דף הבית מעודכן — מציג את " + (HOMEPAGE_STATUS.expected_label||'האירוע הנוכחי') + " (נבדק " + chk + " UTC). לחיצה תפתח את עורך Lovable.";
+    btn.innerHTML = "🏠 Home Page ✓";
+  } else {
+    btn.classList.remove('updated');
+    btn.classList.remove('checking');
+    if(HOMEPAGE_STATUS){
+      var live = HOMEPAGE_STATUS.live_hero_text || '?';
+      var exp  = HOMEPAGE_STATUS.expected_label || '?';
+      btn.title = "⚠ דף הבית לא מעודכן. חי: " + live + " · אמור להציג: " + exp + ". לחצי כאן → עורך Lovable → Publish.";
+    } else {
+      btn.title = "פותח את עורך Lovable — שם לוחצים Publish כדי לעדכן את דף הבית";
+    }
+    btn.innerHTML = "🏠 Home Page";
+  }
+}
 let EVENT_SHARE = null;
 const MANUAL_TASK_DEFS = [
   // Redesigned 2026-05-03 PM (2 tasks: sms_scheduled + reel_v2_campaign).
@@ -803,7 +836,7 @@ const MANUAL_TASK_DEFS = [
     <!-- Subtitle removed 2026-05-03 PM (Lauren feedback: stale — referenced retired Zapier path) -->
     <!-- Header renamed Event Launch → Event Manager 2026-05-03 PM (the old @manager checklist agent was retired earlier today, freeing the name; this dashboard IS the navigator/manager now) -->
 
-    <div style="margin-top:8px"><a class="back" href="../">← Back to Agent Hub</a></div>
+    <div style="margin-top:8px"><a class="back" href="../">← Back to Agent Hub</a><a id="homepage-btn" class="homepage-btn" href="https://lovable.dev/projects/0b757644-8f54-4d25-9380-f58f7f38386b" target="_blank" rel="noopener" title="פותח את עורך Lovable — שם לוחצים Publish כדי לעדכן את דף הבית">🏠 Home Page</a></div>
   </header>
 
 
@@ -3778,6 +3811,13 @@ End date: </div>
   fetch("../state/subscribe_target.json?_=" + Date.now(), { cache: "no-store" })
     .then(r => r.ok ? r.json() : null)
     .then(data => { SUBSCRIBE_TARGET = data; renderSchedule(); })
+    .catch(() => { /* fail-silent — button stays black */ });
+
+  // 🏠 Home Page publish-status — written every 30 min by homepage-publish-check.yml.
+  // Button turns green when the live homepage already shows the current event. Lauren 2026-06-01.
+  fetch("../state/homepage_status.json?_=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => { HOMEPAGE_STATUS = data; renderHomepageBtn(); })
     .catch(() => { /* fail-silent — button stays black */ });
 
   // Load per-event share/reel links from the events repo → 📣 SHARE button goes green when set. Lauren 2026-05-31.
