@@ -56,8 +56,14 @@ jobs:
           if ! git diff --quiet docs/scheduled-runs.json; then
             git add docs/scheduled-runs.json
             git commit -m "scheduled-runs: bump sync-homepage-schedule lastRunAt"
-            git pull --rebase origin main || true
-            git push origin main
+            # Retry rebase+push: ~30 workflows push to main, so a single attempt
+            # often hits a non-fast-forward. (2026-06-01 hardening.)
+            for i in 1 2 3 4 5; do
+              if git pull --rebase origin main && git push origin main; then
+                echo "pushed on attempt $i"; break
+              fi
+              echo "push attempt $i failed, retrying in 5s..."; sleep 5
+            done
           fi
 
       - name: SMS Lauren — schedule changed, click Update to publish
