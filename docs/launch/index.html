@@ -2025,7 +2025,11 @@ End date: </div>
           // page (and any future agent that takes a reel param) gets the Instagram Reel URL
           // Lauren pasted via the 📸 INSTA REEL chip without re-typing it. Source of truth:
           // MANUAL_TASKS[evKey].insta_reel_url (set manually by Lauren OR by the insta-reel-share-scan fallback).
-          const _reelLinkForParams = ((typeof MANUAL_TASKS !== "undefined") && MANUAL_TASKS[evKey] && MANUAL_TASKS[evKey].insta_reel_url) || "";
+          // 2026-06-01: Lauren now shares the per-event SHARE (thank-you) page (all-platform share buttons),
+          // NOT the raw IG reel. Pass …/events/<slug>/share.html as the reel_link param so the
+          // campaigns dashboard auto-fills it. Falls back to "" (field blank) when no landing page yet.
+          const _lpForParams = ((typeof LANDING_PAGES !== "undefined") && LANDING_PAGES[evKey]) ? LANDING_PAGES[evKey] : null;
+          const _reelLinkForParams = (_lpForParams && _lpForParams.url) ? (_lpForParams.url.replace(/\/+$/, "") + "/share.html") : "";
           const params = new URLSearchParams({
             city: ev.city + ", " + ev.state, year: (ev.start_date||"").slice(0,4),
             start_date: ev.start_date, end_date: ev.end_date,
@@ -4877,7 +4881,7 @@ window.copyLanding = async function(btn) {
         +'</div></div>';
     }
     ov.innerHTML='<div class="reel-modal-card"><div class="reel-modal-head">'
-      +'<div><h2>\U0001f4e3 Share — '+esc(city)+'</h2><div class="reel-sub">'+esc(slug)+'</div></div>'
+      +'<div><h2>📣 Share — '+esc(city)+'</h2><div class="reel-sub">'+esc(slug)+'</div></div>'
       +'<button class="reel-close" type="button">✕</button></div>'
       +'<div class="reel-modal-body" style="direction:ltr;text-align:left">'
       +linkRow('Share (thank-you) page', shareUrl)+linkRow('Landing page', landingUrl)
@@ -4900,7 +4904,7 @@ window.copyLanding = async function(btn) {
     function renderFields(ig,fb,tt){
       var c=ov.querySelector('#sm-fields');
       c.innerHTML=field('Instagram reel','sm-ig',ig)+field('Facebook reel','sm-fb',fb)+field('TikTok video','sm-tt',tt)
-        +'<button id="sm-save" type="button" style="margin-top:6px;background:#16a34a;color:#fff;border:none;padding:9px 16px;border-radius:8px;font-weight:800;cursor:pointer">\U0001f4be Save share links</button>';
+        +'<button id="sm-save" type="button" style="margin-top:6px;background:#16a34a;color:#fff;border:none;padding:9px 16px;border-radius:8px;font-weight:800;cursor:pointer">💾 Save share links</button>';
       ov.querySelector('#sm-save').addEventListener('click',save);
     }
     fetch('https://raw.githubusercontent.com/laurenlev10/themakeupblowout-events/main/docs/upcoming-events.json?_='+Date.now(),{cache:'no-store'})

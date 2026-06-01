@@ -201,8 +201,8 @@ const RUN = {
           <input type="date" id="ev-end">
         </div>
       </div>
-      <label>Reel link <span class="hint">(per-event — Instagram Reel URL or SimpleTexting txt.so short URL. Used in Touch 2 (BONUS line), Touch 4 (Sat closing), and Auto-responder — fill once, agent uses it everywhere. Leave blank to skip those lines.)</span></label>
-      <input type="text" id="ev-reel-link" placeholder="https://www.instagram.com/reel/... or https://txt.so/...">
+      <label>Share page link <span class="hint">(per-event — the event's SHARE / thank-you page URL: …/events/&lt;slug&gt;/share.html. Auto-filled from the launch dashboard 📣 SHARE / 📲 Campaigns button. Used in Touch 2 (BONUS line) &amp; Touch 4 (Sat closing) — recipients land on a page with share buttons for ALL platforms, not just Instagram. Leave blank to skip those lines.)</span></label>
+      <input type="text" id="ev-reel-link" placeholder="https://events.themakeupblowout.com/events/&lt;slug&gt;/share.html">
 
       <label>Mode <span class="hint">(updated 2026-05-03 PM late — cheat-sheet is now default; browser is reliability-uncertain)</span></label>
       <select id="ev-mode">
@@ -292,7 +292,7 @@ const RUN = {
       recipient_lists: "prior_years_only:{city}",
       type: "MMS",
       image_filename: "brushes_first_100.png",
-      text: "The Makeup Blowout Sale is BACK! 🎉 THIS WEEKEND! ({date_range}) | 10AM-5PM 📍 {venue}, {address} 🚗 Free Parking | ✨ FREE Fabulous Glitter on arrival! ⚡ Because you've shopped with us before - this one's for YOU! 🎁 22-Piece Makeup Brush Set - Only $5! (95% OFF!) FIRST 100 CUSTOMERS ONLY! 🎁 BONUS: Share this Reel on your Instagram Story & get a FREE Eyeshadow! 👉 {reel_link} 💕 See you this weekend!"
+      text: "The Makeup Blowout Sale is BACK! 🎉 THIS WEEKEND! ({date_range}) | 10AM-5PM 📍 {venue}, {address} 🚗 Free Parking | ✨ FREE Fabulous Glitter on arrival! ⚡ Because you've shopped with us before - this one's for YOU! 🎁 22-Piece Makeup Brush Set - Only $5! (95% OFF!) FIRST 100 CUSTOMERS ONLY! 🎁 BONUS: Share our post on your favorite social & get a FREE Eyeshadow! 👉 {reel_link} 💕 See you this weekend!"
     },
     {
       enabled: true,
@@ -334,7 +334,7 @@ const RUN = {
   };
 
   const KEY = "simple-texting:templates";
-  const TEMPLATE_VERSION = 12;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
+  const TEMPLATE_VERSION = 13;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
   // State (with auto-migration on version bump)
@@ -422,6 +422,16 @@ const RUN = {
       if (s.ar && s.ar.text && (s.ar.text.includes("Free Fabulous Glitter") || s.ar.text.includes("CLICK & SHARE"))){
         s.ar.text = DEFAULT_AR.text;
       }
+    }
+
+    // v12 → v13: link now points to the multi-platform SHARE page (not the IG reel) — IRON RULE #5.
+    //            Reword Touch 2 BONUS line from IG-Story-specific to platform-agnostic.
+    if (v < 13){
+      s.touches.forEach(t => {
+        if (t && t.text && t.text.includes("Share this Reel on your Instagram Story")){
+          t.text = t.text.replace("Share this Reel on your Instagram Story", "Share our post on your favorite social");
+        }
+      });
     }
 
     s.version = TEMPLATE_VERSION;
