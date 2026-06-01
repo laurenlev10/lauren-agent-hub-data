@@ -331,7 +331,7 @@ const RUN = {
       audience: "Fires when someone signs up for an event still months away — warm thank-you; reminder sent closer to the date.",
       type: "MMS",
       image_filename: "ig_story_voucher.png",
-      text: "Thank you so much for signing up — we can't wait to see you! 💕✨\n\nThe Makeup Blowout Sale Group Are Coming To {city}, {state} {year} For Only 3 Days! 🎉\n🗓️ When: {date_range}\n🕙 Hours: 10 AM - 5 PM\n📍 Where: {address}. At {venue}.\n\n✔️ Up to 75% OFF top makeup brands\n✔️ FREE entry & free parking\n✔️ All ages welcome!\n\n📲 Save this text — we'll send you a reminder right before the event so you don't miss it! See you there! 🎁"
+      text: "Thank you for signing up — we can't wait to see you! 💕\n\nThe Makeup Blowout Sale Group is coming to {city}, {state} {year} for 3 days only! 🎉\n🗓️ {date_range} · 🕙 10 AM-5 PM\n📍 {address} (at {venue})\n✔️ Up to 75% OFF · FREE entry & parking\n\n📲 Save this — we'll remind you before the event! See you there! 🎁"
     }
   ];
   const DEFAULT_FORM = {
@@ -340,7 +340,7 @@ const RUN = {
   };
 
   const KEY = "simple-texting:templates";
-  const TEMPLATE_VERSION = 14;   // bump when DEFAULT_TOUCHES / DEFAULT_ARS / DEFAULT_FORM changes
+  const TEMPLATE_VERSION = 15;   // bump when DEFAULT_TOUCHES / DEFAULT_ARS / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
   // State (with auto-migration on version bump)
@@ -455,6 +455,13 @@ const RUN = {
           });
         }
         delete s.ar;
+      }
+    }
+
+    // v14 → v15: shorten Autoresponder #1 copy (Lauren: too long). Only swap if she hasn't rewritten it.
+    if (v < 15){
+      if (Array.isArray(s.ars) && s.ars[0] && s.ars[0].text && s.ars[0].text.includes("Thank you so much for signing up")){
+        s.ars[0].text = DEFAULT_ARS[0].text;
       }
     }
 
