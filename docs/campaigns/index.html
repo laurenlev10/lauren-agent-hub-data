@@ -144,21 +144,14 @@ const RUN = {
     </div>
 
     <div class="card">
-      <h2><span>Autoresponder</span><span class="meta">fires automatically when someone joins the event list (via Sign-up Form). NOT keyword-based.</span></h2>
-      <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.4">⚠ Updated 2026-05-03 PM: keyword field removed — Lauren's customers don't text keywords. The agent creates this in the SimpleTexting <b>Autoresponders</b> menu (NOT Keywords) with trigger = "When a contact subscribes to a list" → list = the per-event list created by event-launch.</p>
-      <div class="row">
-        <div>
-          <label>Type</label>
-          <select id="ar-type"><option value="SMS">SMS</option><option value="MMS" selected>MMS</option></select>
-        </div>
-        <div>
-          <label>Image filename <span class="hint">(MMS only)</span></label>
-          <input type="text" id="ar-image" placeholder="ig_story_voucher.png">
-        </div>
+      <h2><span>Autoresponders</span><span class="meta">numbered templates · fire when someone joins the event list (Sign-up Form). NOT keyword-based.</span></h2>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.4">⚠ keyword field removed (2026-05-03) — Lauren's customers don't text keywords. The agent creates each one in the SimpleTexting <b>Autoresponders</b> menu (NOT Keywords) with trigger = "When a contact subscribes to a list" → list = the per-event list. Add one template per audience (e.g. #1 far-future sign-ups, #2 near-event sign-ups).</p>
+      <div id="ar-cards"></div>
+      <div class="toolbar">
+        <button class="btn btn-secondary" id="add-ar">➕ Add autoresponder</button>
+        <button class="btn btn-secondary" id="reset-ars">↺ Reset to defaults</button>
+        <span class="saved-toast" id="ar-saved">✓ Saved</span>
       </div>
-      <label>Message text <span class="hint">(placeholders: {city} {state} {date_range} {venue} {address} {year} {reel_link})</span></label>
-      <textarea id="ar-text" rows="6" placeholder="🎁 This is your FREE Eyeshadow Voucher! ✨..."></textarea>
-      <span class="saved-toast" id="ar-saved">✓ Saved</span>
     </div>
 
     <div class="card">
@@ -328,13 +321,26 @@ const RUN = {
     image_filename: "ig_story_voucher.png",
     text: "🎁 This is your FREE Eyeshadow Voucher! ✨\nJust show this text at the door — that's it!\nThe Makeup Blowout Sale Group is coming to {city}, {state} for 3 days only! 💄\n🗓️ {date_range}\n🕙 10 AM – 5 PM\n📍 {venue} — {address}\n✔️ FREE entry & parking\n✔️ Up to 75% OFF top makeup brands\n✔️ All ages welcome\n📲 Save this text — we'll send you a reminder right before the event so you don't miss it!\nSee you there! 🎉"
   };
+
+  // 2026-06-01: Autoresponders are now a NUMBERED LIST of templates (state.ars[]) instead of one.
+  // #1 = far-future event sign-ups (warm thank-you + "reminder coming"). Lauren adds more (#2 near-future, …).
+  // DEFAULT_AR (above) is kept only so the legacy v8/v12 migrations still resolve; new model uses DEFAULT_ARS.
+  const DEFAULT_ARS = [
+    {
+      name: "Far-future event sign-ups",
+      audience: "Fires when someone signs up for an event still months away — warm thank-you; reminder sent closer to the date.",
+      type: "MMS",
+      image_filename: "ig_story_voucher.png",
+      text: "Thank you so much for signing up — we can't wait to see you! 💕✨\n\nThe Makeup Blowout Sale Group Are Coming To {city}, {state} {year} For Only 3 Days! 🎉\n🗓️ When: {date_range}\n🕙 Hours: 10 AM - 5 PM\n📍 Where: {address}. At {venue}.\n\n✔️ Up to 75% OFF top makeup brands\n✔️ FREE entry & free parking\n✔️ All ages welcome!\n\n📲 Save this text — we'll send you a reminder right before the event so you don't miss it! See you there! 🎁"
+    }
+  ];
   const DEFAULT_FORM = {
     form_name: "{city}, {state} {year}",
     confirmation_text: "Thank you for signing up! You will receive messages from The Makeup Blowout Sale Group."
   };
 
   const KEY = "simple-texting:templates";
-  const TEMPLATE_VERSION = 13;   // bump when DEFAULT_TOUCHES / DEFAULT_AR / DEFAULT_FORM changes
+  const TEMPLATE_VERSION = 14;   // bump when DEFAULT_TOUCHES / DEFAULT_ARS / DEFAULT_FORM changes
 
   // ─────────────────────────────────────────
   // State (with auto-migration on version bump)
@@ -342,13 +348,13 @@ const RUN = {
   function loadState(){
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || "null");
-      if (saved && saved.touches && saved.ar && saved.form){
+      if (saved && saved.touches && (saved.ars || saved.ar) && saved.form){
         const migrated = migrateState(saved);
         if (migrated.version !== saved.version) saveState(migrated);
         return migrated;
       }
     } catch(e){}
-    return { version: TEMPLATE_VERSION, touches: structuredClone(DEFAULT_TOUCHES), ar: structuredClone(DEFAULT_AR), form: structuredClone(DEFAULT_FORM) };
+    return { version: TEMPLATE_VERSION, touches: structuredClone(DEFAULT_TOUCHES), ars: structuredClone(DEFAULT_ARS), form: structuredClone(DEFAULT_FORM) };
   }
 
   // Auto-migration — content-fingerprint based.
@@ -434,6 +440,24 @@ const RUN = {
       });
     }
 
+    // v13 → v14: Autoresponder becomes a numbered list (s.ars[]). #1 = far-future sign-ups (new copy).
+    //            Preserve Lauren's existing single autoresponder as a 2nd template if she'd customized it.
+    if (v < 14){
+      if (!Array.isArray(s.ars)){
+        s.ars = [ structuredClone(DEFAULT_ARS[0]) ];
+        if (s.ar && s.ar.text && s.ar.text.trim() && s.ar.text.trim() !== DEFAULT_AR.text.trim()){
+          s.ars.push({
+            name: "Autoresponder 2",
+            audience: "",
+            type: s.ar.type || "MMS",
+            image_filename: s.ar.image_filename || "",
+            text: s.ar.text
+          });
+        }
+        delete s.ar;
+      }
+    }
+
     s.version = TEMPLATE_VERSION;
     return s;
   }
@@ -510,24 +534,75 @@ const RUN = {
   // ─────────────────────────────────────────
   // Render auto-responder + form editors
   // ─────────────────────────────────────────
-  function renderAutoresponder(){
-    // ar-keyword input was removed 2026-05-03 PM (keyword workflow not relevant)
-    document.getElementById("ar-type").value = state.ar.type || "MMS";
-    document.getElementById("ar-image").value = state.ar.image_filename || "";
-    document.getElementById("ar-text").value = state.ar.text || "";
+  function renderAutoresponders(){
+    const container = document.getElementById("ar-cards");
+    if (!container) return;
+    container.innerHTML = "";
+    (state.ars || []).forEach((a, i) => {
+      const card = document.createElement("div");
+      card.className = "touch-card";
+      card.innerHTML = `
+        <div class="touch-header">
+          <div class="title">📩 Autoresponder #${i+1}</div>
+          <button type="button" class="btn btn-secondary ar-remove" data-i="${i}" style="padding:4px 10px;font-size:12px;${(state.ars.length<=1)?'display:none':''}">✕ Remove</button>
+        </div>
+        <label>Display name <span class="hint">(which audience this autoresponder is for)</span></label>
+        <input type="text" data-i="${i}" data-f="name" value="${escapeHtml(a.name||'')}" placeholder="e.g. Far-future event sign-ups">
+        <label>Audience note <span class="hint">(internal reminder — when this one fires)</span></label>
+        <input type="text" data-i="${i}" data-f="audience" value="${escapeHtml(a.audience||'')}" placeholder="e.g. Sign-ups to events still months away">
+        <div class="row">
+          <div>
+            <label>Type</label>
+            <select data-i="${i}" data-f="type"><option ${a.type==='SMS'?'selected':''}>SMS</option><option ${a.type==='MMS'?'selected':''}>MMS</option></select>
+          </div>
+          <div>
+            <label>Image filename <span class="hint">(MMS only)</span></label>
+            <input type="text" data-i="${i}" data-f="image_filename" value="${escapeHtml(a.image_filename||'')}" placeholder="ig_story_voucher.png">
+          </div>
+        </div>
+        <label>Message text <span class="hint">(placeholders: {city} {state} {date_range} {venue} {address} {year} {reel_link})</span></label>
+        <textarea rows="8" data-i="${i}" data-f="text">${escapeHtml(a.text||'')}</textarea>
+      `;
+      container.appendChild(card);
+    });
+    container.querySelectorAll("[data-i]").forEach(el => {
+      const evt = (el.tagName === "SELECT") ? "change" : "input";
+      el.addEventListener(evt, () => {
+        const i = parseInt(el.dataset.i, 10);
+        const f = el.dataset.f;
+        state.ars[i][f] = el.value;
+        saveState(state);
+        showToast("ar-saved");
+      });
+    });
+    container.querySelectorAll(".ar-remove").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const i = parseInt(btn.dataset.i, 10);
+        if (!confirm("Remove Autoresponder #" + (i+1) + "?")) return;
+        state.ars.splice(i, 1);
+        saveState(state);
+        renderAutoresponders();
+      });
+    });
   }
   function renderForm(){
     document.getElementById("form-name").value = state.form.form_name || "";
     document.getElementById("form-confirmation").value = state.form.confirmation_text || "";
   }
   function bindEditors(){
-    // ar-keyword removed 2026-05-03 PM
-    [["ar-text","ar","text"],["ar-type","ar","type"],["ar-image","ar","image_filename"]].forEach(([id,sec,k]) => {
-      document.getElementById(id).addEventListener("input", e => {
-        state[sec][k] = e.target.value;
-        saveState(state);
-        showToast("ar-saved");
-      });
+    // Autoresponders are a numbered list now — per-field editing is wired in renderAutoresponders().
+    document.getElementById("add-ar").addEventListener("click", () => {
+      if (!Array.isArray(state.ars)) state.ars = [];
+      state.ars.push({ name: "Autoresponder " + (state.ars.length+1), audience: "", type: "MMS", image_filename: "", text: "" });
+      saveState(state);
+      renderAutoresponders();
+      showToast("ar-saved");
+    });
+    document.getElementById("reset-ars").addEventListener("click", () => {
+      if (!confirm("Reset all autoresponders to defaults? Your edits will be lost.")) return;
+      state.ars = structuredClone(DEFAULT_ARS);
+      saveState(state);
+      renderAutoresponders();
     });
     [["form-name","form","form_name"],["form-confirmation","form","confirmation_text"]].forEach(([id,sec,k]) => {
       document.getElementById(id).addEventListener("input", e => {
@@ -575,14 +650,14 @@ const RUN = {
     try {
       const text = await file.text();
       const imported = JSON.parse(text);
-      if (!imported.touches || !imported.ar || !imported.form){
+      if (!imported.touches || !(imported.ars || imported.ar) || !imported.form){
         alert("⚠ This file doesn't look like a simple-texting templates backup (missing touches/ar/form keys).");
         return;
       }
       if (!confirm("Replace your current templates with the imported file?\n\nFile: " + file.name + "\nTouches: " + (imported.touches||[]).length + "\nVersion: " + (imported.version || "?") + "\n\nYour current edits will be lost.")) return;
       state = migrateState(imported);  // run through migrations in case the import is from an older version
       saveState(state);
-      renderTouches(); renderAutoresponder(); renderForm();
+      renderTouches(); renderAutoresponders(); renderForm();
       alert("✓ Imported successfully. Templates loaded.");
     } catch(err) {
       alert("⚠ Failed to import: " + err.message);
@@ -938,9 +1013,14 @@ const RUN = {
       cmd += "\n";
     }
     // 2026-05-03 PM: keyword removed from Autoresponder section. Trigger is now list-subscribe (NOT keyword-based).
-    cmd += `=== Autoresponder ===\nTrigger: When a contact subscribes to a list\nList: ${ev.cityFull} ${ev.year}\nDelay: Immediate\nType: ${state.ar.type || "MMS"}\n`;
-    if ((state.ar.type || "MMS") === "MMS" && state.ar.image_filename) cmd += `Image: ${state.ar.image_filename}\n`;
-    cmd += `\n${fillPlaceholders(state.ar.text, ev)}\n\n`;
+    // 2026-06-01: numbered list — emit every autoresponder template (state.ars[]).
+    (state.ars || []).forEach((a, i) => {
+      const arLabel = a.name ? ` #${i+1} — ${a.name}` : ` #${i+1}`;
+      cmd += `=== Autoresponder${arLabel} ===\nTrigger: When a contact subscribes to a list\nList: ${ev.cityFull} ${ev.year}\nDelay: Immediate\nType: ${a.type || "MMS"}\n`;
+      if (a.audience) cmd += `Audience: ${a.audience}\n`;
+      if ((a.type || "MMS") === "MMS" && a.image_filename) cmd += `Image: ${a.image_filename}\n`;
+      cmd += `\n${fillPlaceholders(a.text, ev)}\n\n`;
+    });
     cmd += `=== Sign-up form ===\nForm name: ${fillPlaceholders(state.form.form_name, ev)}\nContact list: ${ev.cityFull} ${ev.year}\nForm fields: Phone (required)\nConfirmation text: ${fillPlaceholders(state.form.confirmation_text, ev)}\n`;
     document.getElementById("preview").textContent = cmd;
     return cmd;
@@ -1006,7 +1086,7 @@ const RUN = {
 
   function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
   renderTouches();
-  renderAutoresponder();
+  renderAutoresponders();
   renderForm();
   bindEditors();
   // Render history (with webFormId copy buttons — Lauren needs these for landing-page embed)
