@@ -72,10 +72,33 @@
   @media (max-width:640px){
     .meta{grid-template-columns:1fr}
   }
+
+  /* ===== RECREATE / RE-RUN BANNER (added 2026-06-01 per Lauren) ===== */
+  .recreate-bar{background:linear-gradient(90deg,rgba(124,92,255,.18),rgba(255,111,163,.14));border:1px solid #3a2f5a;border-radius:12px;padding:16px 18px;margin:0 0 18px}
+  .recreate-bar .rc-head{font-weight:700;color:#c5a7ff;font-size:15px;margin-bottom:6px}
+  .recreate-bar .rc-sub{color:var(--ink-dim);font-size:13px;line-height:1.6;margin-bottom:12px}
+  .recreate-bar .rc-actions{display:flex;gap:10px;flex-wrap:wrap}
+  .recreate-bar .rc-btn{background:var(--accent-2);color:#fff;border:0;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;box-shadow:0 2px 8px rgba(124,92,255,.4)}
+  .recreate-bar .rc-btn:hover{filter:brightness(1.1)}
+  .recreate-bar .rc-btn.ghost{background:transparent;border:1px solid #4a3a6a;color:#c5a7ff;box-shadow:none}
+  .recreate-bar .rc-btn.copied{background:var(--ok)}
+  .recreate-bar #rcCmd{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 </style>
 </head>
 <body>
 <div class="wrap">
+
+<!-- ===== RECREATE / RE-RUN BANNER (added 2026-06-01 per Lauren) ===== -->
+<div class="recreate-bar">
+  <div class="rc-head">🔁 כבר יצרת את הקמפיינים? אפשר ליצור אותם מחדש</div>
+  <div class="rc-sub">אם קמפייני ה-SimpleTexting כבר נוצרו בעבר — אפשר להפיק גרסה מעודכנת לפי הטמפלטים העדכניים. לוחצת "העתק פקודה", מדביקה ב-Cowork, והסוכן מייצר מחדש את כל הבלוקים ומעדכן את הדף הזה.</div>
+  <div class="rc-actions">
+    <button class="rc-btn" id="rcCopyBtn">📋 העתק פקודה ל-Cowork</button>
+    <a class="rc-btn ghost" href="https://dashboard.themakeupblowout.com/campaigns/" target="_blank">⚙️ עריכת הטמפלטים</a>
+  </div>
+  <textarea id="rcCmd" readonly aria-hidden="true">@sms תיצרי מחדש את כל קמפייני ה-SimpleTexting עבור Cleveland, OH 2026-05-29 (slug: cleveland-oh-2026-05-29) לפי הטמפלטים העדכניים (TEMPLATE_VERSION הנוכחי). הקמפיינים הקודמים כבר נוצרו — צרי גרסה מעודכנת של כל הבלוקים בסדר: Sign-up Form ← Autoresponder #1 ← Autoresponder #2 ← Touch 1 עד Touch 5, לפי כללי הקופי ב-templates.md (share link דרך share.html, FREE Eyeshadow להרשמה + Glitter Liner לשיתוף, "up to 75% OFF", בלי "Reply stop to stop"). עדכני את ה-cheat-sheet הזה (docs/campaigns/cheat-sheet/cleveland-oh-2026-05-29/index.html), עשי upsert ל-CAMPAIGNS_RESULTS, ודחפי ל-GitHub.</textarea>
+</div>
+
 
 <a class="back-link" href="https://dashboard.themakeupblowout.com/launch/">← חזרה לרשימת האירועים</a>
 
@@ -247,6 +270,19 @@ document.querySelectorAll("button.copy").forEach(btn => {
     });
   });
 });
+
+// ===== RECREATE BANNER copy-to-Cowork (added 2026-06-01) =====
+(function(){
+  var b=document.getElementById("rcCopyBtn"), t=document.getElementById("rcCmd");
+  if(!b||!t) return;
+  function done(){var o=b.textContent;b.textContent="הועתק ✓";b.classList.add("copied");setTimeout(function(){b.textContent=o;b.classList.remove("copied");},1600);}
+  function fallback(){t.style.position="static";t.style.left="0";t.select();try{document.execCommand("copy");}catch(e){}done();}
+  b.addEventListener("click",function(){
+    var text=t.value;
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done).catch(fallback);}
+    else {fallback();}
+  });
+})();
 </script>
 </body>
 </html>
