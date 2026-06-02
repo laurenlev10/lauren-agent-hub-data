@@ -169,6 +169,7 @@
   .inv-sheet .inv-biz{max-width:55%}
   .inv-sheet .inv-biz img{max-height:60px;margin-bottom:8px}
   .inv-sheet .inv-biz .bn{font-size:20px;font-weight:800;color:#6b21a8}
+  .inv-sheet .inv-biz .lgl{font-size:12.5px;font-weight:700;color:#111827;margin:1px 0 4px}
   .inv-sheet .inv-biz .bd{font-size:12px;color:#4b5563;line-height:1.55;white-space:pre-line}
   .inv-sheet .inv-meta{text-align:right}
   .inv-sheet .inv-meta .ti{font-size:30px;font-weight:800;letter-spacing:2px;color:#111827;margin:0 0 8px}
@@ -308,13 +309,14 @@
       <h2>פרטי העסק (מופיעים על החשבוניות)</h2>
       <p class="hint">שם, כתובת ופרטי קשר שמודפסים בראש כל חשבונית.</p>
       <div class="grid2">
-        <div class="field"><label>שם העסק</label><input id="setBizName"></div>
-        <div class="field"><label>אתר</label><input id="setBizWeb" dir="ltr"></div>
+        <div class="field"><label>שם המותג (לוגו)</label><input id="setBizName"></div>
+        <div class="field"><label>שם חברה רשמי (מופיע על החשבונית)</label><input id="setLegalName"></div>
       </div>
       <div class="grid2">
+        <div class="field"><label>אתר</label><input id="setBizWeb" dir="ltr"></div>
         <div class="field"><label>אימייל</label><input id="setBizEmail" dir="ltr"></div>
-        <div class="field"><label>טלפון</label><input id="setBizPhone" dir="ltr"></div>
       </div>
+      <div class="field"><label>טלפון</label><input id="setBizPhone" dir="ltr"></div>
       <div class="field"><label>כתובת</label><textarea id="setBizAddr" dir="ltr"></textarea></div>
       <div class="field"><label>לוגו (כתובת תמונה)</label><input id="setLogo" dir="ltr"></div>
     </div>
@@ -490,7 +492,8 @@
   var TOKEN_KEY  = "lauren_gh_token_v1";
 
   var DEFAULT_SETTINGS = {
-    biz_name: "Pro Task Runner Services",
+    biz_name: "Pro Task Runner",
+    biz_legal_name: "L&E Trading Inc",
     biz_web: "protaskrunner.com",
     biz_email: "",
     biz_phone: "",
@@ -834,6 +837,7 @@
           '<div class="inv-biz">'+
             (s.logo_url? '<img src="'+esc(s.logo_url)+'" alt="logo">':'')+
             '<div class="bn">'+esc(s.biz_name||"")+'</div>'+
+            (s.biz_legal_name? '<div class="lgl">'+esc(s.biz_legal_name)+'</div>':'')+
             '<div class="bd">'+esc(bizLines)+'</div>'+
           '</div>'+
           '<div class="inv-meta">'+
@@ -1010,7 +1014,7 @@
   //── SETTINGS ───────────────────────────────────────────
   function fillSettings(){
     var s = DATA.settings;
-    $("setBizName").value=s.biz_name||""; $("setBizWeb").value=s.biz_web||""; $("setBizEmail").value=s.biz_email||"";
+    $("setBizName").value=s.biz_name||""; $("setLegalName").value=s.biz_legal_name||""; $("setBizWeb").value=s.biz_web||""; $("setBizEmail").value=s.biz_email||"";
     $("setBizPhone").value=s.biz_phone||""; $("setBizAddr").value=s.biz_addr||""; $("setLogo").value=s.logo_url||"";
     $("setPrefix").value=s.invoice_prefix||""; $("setNextNum").value=s.next_invoice_num||1; $("setTax").value=s.tax_rate||0;
     $("setTerms").value=s.payment_terms||""; $("setCurSym").value=s.currency_symbol||"$"; $("setFooter").value=s.invoice_footer||"";
@@ -1024,7 +1028,7 @@
   }
   async function saveSettings(){
     var s = DATA.settings;
-    s.biz_name=$("setBizName").value; s.biz_web=$("setBizWeb").value; s.biz_email=$("setBizEmail").value;
+    s.biz_name=$("setBizName").value; s.biz_legal_name=$("setLegalName").value; s.biz_web=$("setBizWeb").value; s.biz_email=$("setBizEmail").value;
     s.biz_phone=$("setBizPhone").value; s.biz_addr=$("setBizAddr").value; s.logo_url=$("setLogo").value;
     s.invoice_prefix=$("setPrefix").value; s.next_invoice_num=num($("setNextNum").value)||1; s.tax_rate=num($("setTax").value);
     s.payment_terms=$("setTerms").value; s.currency_symbol=$("setCurSym").value||"$"; s.invoice_footer=$("setFooter").value;
