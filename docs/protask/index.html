@@ -188,6 +188,10 @@
   .inv-sheet .sum .sr.tot{border-top:2px solid #6b21a8;margin-top:5px;padding-top:9px;font-size:18px;font-weight:800;color:#6b21a8}
   .inv-sheet .notes{margin-top:26px;font-size:12px;color:#4b5563;border-top:1px solid #e5e7eb;padding-top:12px;white-space:pre-line}
   .inv-sheet .foot{margin-top:18px;text-align:center;font-size:12px;color:#6b21a8;font-weight:700}
+  .inv-sheet .paybox{margin-top:20px;border:2.5px solid #6b21a8;border-radius:12px;background:#f5f3ff;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px}
+  .inv-sheet .paybox .pl{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#6b21a8}
+  .inv-sheet .paybox .psub{font-size:11.5px;color:#4b5563;margin-top:2px}
+  .inv-sheet .paybox .pv{font-size:23px;font-weight:800;color:#111827;direction:ltr;white-space:nowrap}
   .inv-sheet .stamp{display:inline-block;margin-top:6px;border:3px solid #16a34a;color:#16a34a;font-weight:800;
     padding:4px 14px;border-radius:8px;transform:rotate(-6deg);font-size:16px;letter-spacing:1px}
 </style>
@@ -331,6 +335,7 @@
         <div class="field"><label>תנאי תשלום</label><input id="setTerms"></div>
         <div class="field"><label>סמל מטבע</label><input id="setCurSym" dir="ltr"></div>
       </div>
+      <div class="field"><label>Zelle לתשלום (מופיע בולט על החשבונית)</label><input id="setZelle" dir="ltr"></div>
       <div class="field"><label>הערת תחתית בחשבונית</label><input id="setFooter"></div>
     </div>
     <div class="card">
@@ -494,6 +499,7 @@
   var DEFAULT_SETTINGS = {
     biz_name: "Pro Task Runner",
     biz_legal_name: "L&E Trading Inc",
+    zelle: "424-354-7625",
     biz_web: "protaskrunner.com",
     biz_email: "",
     biz_phone: "",
@@ -858,6 +864,7 @@
           '<div class="sr"><span>Tax ('+num(inv.tax_rate)+'%)</span><span>'+money(t.tax)+'</span></div>'+
           '<div class="sr tot"><span>Total</span><span>'+money(t.grand)+'</span></div>'+
         '</div>'+
+        (s.zelle? '<div class="paybox"><div><div class="pl">💳 Pay via Zelle</div><div class="psub">to '+esc(s.biz_legal_name||s.biz_name||"")+'</div></div><div class="pv">'+esc(s.zelle)+'</div></div>':'')+
         (inv.notes? '<div class="notes"><b>Notes:</b> '+esc(inv.notes)+'</div>':'')+
         (s.invoice_footer? '<div class="foot">'+esc(s.invoice_footer)+'</div>':'')+
       '</div>';
@@ -1017,7 +1024,7 @@
     $("setBizName").value=s.biz_name||""; $("setLegalName").value=s.biz_legal_name||""; $("setBizWeb").value=s.biz_web||""; $("setBizEmail").value=s.biz_email||"";
     $("setBizPhone").value=s.biz_phone||""; $("setBizAddr").value=s.biz_addr||""; $("setLogo").value=s.logo_url||"";
     $("setPrefix").value=s.invoice_prefix||""; $("setNextNum").value=s.next_invoice_num||1; $("setTax").value=s.tax_rate||0;
-    $("setTerms").value=s.payment_terms||""; $("setCurSym").value=s.currency_symbol||"$"; $("setFooter").value=s.invoice_footer||"";
+    $("setTerms").value=s.payment_terms||""; $("setCurSym").value=s.currency_symbol||"$"; $("setZelle").value=s.zelle||""; $("setFooter").value=s.invoice_footer||"";
     $("setToken").value = getToken();
     refreshTokState();
   }
@@ -1031,7 +1038,7 @@
     s.biz_name=$("setBizName").value; s.biz_legal_name=$("setLegalName").value; s.biz_web=$("setBizWeb").value; s.biz_email=$("setBizEmail").value;
     s.biz_phone=$("setBizPhone").value; s.biz_addr=$("setBizAddr").value; s.logo_url=$("setLogo").value;
     s.invoice_prefix=$("setPrefix").value; s.next_invoice_num=num($("setNextNum").value)||1; s.tax_rate=num($("setTax").value);
-    s.payment_terms=$("setTerms").value; s.currency_symbol=$("setCurSym").value||"$"; s.invoice_footer=$("setFooter").value;
+    s.payment_terms=$("setTerms").value; s.currency_symbol=$("setCurSym").value||"$"; s.zelle=$("setZelle").value; s.invoice_footer=$("setFooter").value;
     var tk = $("setToken").value.trim();
     if (tk) setTokenLS(tk);
     refreshTokState(); updateTokBar();
