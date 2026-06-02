@@ -23,135 +23,1091 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>🦺 Pro Task Runner Services — Agent Hub</title>
+<title>🦺 Pro Task Runner — הנהלת חשבונות</title>
 <style>
-  :root { --bg: #f6f7fb; --text: #1f2937; --muted: #6b7280; }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Heebo", Roboto, sans-serif;
-    background: var(--bg); color: var(--text);
-    padding: 24px 20px 60px; min-height: 100vh;
+  :root{
+    --bg:#f4f5fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+    --brand:#6b21a8; --brand2:#c2410c; --accent:#f97316;
+    --green:#16a34a; --red:#dc2626; --amber:#d97706; --blue:#2563eb;
   }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Heebo","Rubik",Roboto,sans-serif;
+    background:var(--bg);color:var(--text);padding:0 0 80px;min-height:100vh}
+  a{color:var(--brand)}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 16px}
 
-  .back-link {
-    display: inline-block; background: #fff; border: 1px solid #e5e7eb;
-    padding: 8px 14px; border-radius: 999px; text-decoration: none;
-    color: #374151; font-size: 13px; font-weight: 600;
-    margin-bottom: 20px; transition: all 0.15s ease;
-  }
-  .back-link:hover { border-color: #6b21a8; color: #6b21a8; }
+  /* header */
+  .topbar{background:linear-gradient(135deg,#f97316 0%,#c2410c 45%,#6b21a8 100%);color:#fff;
+    padding:18px 0 56px;box-shadow:0 6px 24px rgba(107,33,168,.25)}
+  .topbar .wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .logo-box{background:#fff;border-radius:12px;padding:6px 10px;box-shadow:0 4px 14px rgba(0,0,0,.18);flex:0 0 auto}
+  .logo-box img{display:block;height:42px;width:auto;max-width:160px;object-fit:contain}
+  .topbar h1{font-size:20px;margin:0;font-weight:800;letter-spacing:-.3px}
+  .topbar .sub{font-size:12px;opacity:.92;margin-top:2px}
+  .back-link{margin-right:auto;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);
+    color:#fff;text-decoration:none;font-size:12.5px;font-weight:700;padding:7px 13px;border-radius:999px}
+  .back-link:hover{background:rgba(255,255,255,.28)}
 
-  .pt-wrap { max-width: 900px; margin: 0 auto; }
+  /* token banner */
+  .tokbar{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;
+    padding:12px 14px;margin:-40px auto 16px;display:none;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;
+    position:relative;z-index:3}
+  .tokbar.show{display:flex}
+  .tokbar input{flex:1;min-width:220px;padding:8px 10px;border:1px solid #fdba74;border-radius:8px;font-size:13px;direction:ltr}
+  .tokbar button{background:#c2410c;color:#fff;border:0;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;font-size:13px}
 
-  .pt-card {
-    background: linear-gradient(135deg, #f97316 0%, #c2410c 45%, #6b21a8 100%);
-    color: #fff; border-radius: 18px; padding: 36px 30px 30px;
-    box-shadow: 0 8px 32px rgba(107, 33, 168, 0.28);
-    position: relative; overflow: hidden;
-  }
-  .pt-card::before {
-    content: "NEW PROJECT"; position: absolute; top: 14px; left: 18px;
-    background: rgba(255,255,255,0.22); padding: 4px 12px; border-radius: 999px;
-    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
-  }
-  .pt-card::after {
-    content: "🦺"; position: absolute; right: 18px; bottom: -22px;
-    font-size: 140px; opacity: 0.13; line-height: 1; pointer-events: none;
-  }
-  .pt-content { position: relative; z-index: 1; text-align: center; }
+  /* tabs */
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:-30px auto 18px;position:relative;z-index:2}
+  .tab{background:#fff;border:1px solid var(--line);border-radius:999px;padding:9px 16px;font-size:13.5px;
+    font-weight:700;color:#374151;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.05);white-space:nowrap}
+  .tab:hover{border-color:#c4b5fd}
+  .tab.active{background:var(--brand);color:#fff;border-color:var(--brand)}
 
-  .pt-logo {
-    display: block; margin: 14px auto 18px;
-    background: #fff; padding: 14px 22px; border-radius: 14px;
-    max-width: 360px; box-shadow: 0 6px 20px rgba(0,0,0,0.18);
-  }
-  .pt-logo img { display: block; width: 100%; height: auto; max-height: 220px; object-fit: contain; }
+  /* cards / sections */
+  .section{display:none}
+  .section.active{display:block}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;
+    box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .card h2{margin:0 0 4px;font-size:16px;font-weight:800}
+  .card .hint{color:var(--muted);font-size:12.5px;margin:0 0 14px}
 
-  .pt-name { font-size: 28px; font-weight: 800; letter-spacing: -0.4px; margin: 0 0 6px; }
-  .pt-tag { font-size: 14px; opacity: 0.95; line-height: 1.6; max-width: 560px; margin: 0 auto 22px; }
+  /* stat grid */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .stat .lbl{font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}
+  .stat .val{font-size:24px;font-weight:800;letter-spacing:-.5px;direction:ltr;text-align:right}
+  .stat.income .val{color:var(--green)}
+  .stat.expense .val{color:var(--red)}
+  .stat.net .val{color:var(--brand)}
+  .stat.out .val{color:var(--amber)}
 
-  .pt-actions {
-    display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
-    margin-bottom: 26px;
-  }
-  .pt-btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    background: rgba(255,255,255,0.95); color: #6b21a8;
-    text-decoration: none; padding: 11px 22px;
-    border-radius: 999px; font-size: 14px; font-weight: 800;
-    transition: all 0.15s ease;
-  }
-  .pt-btn:hover { background: #fff; transform: translateY(-1px); }
-  .pt-btn.secondary {
-    background: rgba(255,255,255,0.18); color: #fff;
-    border: 1px solid rgba(255,255,255,0.4);
-  }
-  .pt-btn.secondary:hover { background: rgba(255,255,255,0.28); }
+  /* buttons */
+  .btn{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:10px;padding:9px 16px;font-size:13.5px;
+    font-weight:700;cursor:pointer;text-decoration:none;transition:transform .12s ease, box-shadow .12s ease}
+  .btn:hover{transform:translateY(-1px)}
+  .btn-primary{background:linear-gradient(135deg,#f97316,#c2410c);color:#fff;box-shadow:0 3px 10px rgba(194,65,12,.3)}
+  .btn-purple{background:var(--brand);color:#fff}
+  .btn-ghost{background:#f3f4f6;color:#374151}
+  .btn-ghost:hover{background:#e5e7eb}
+  .btn-sm{padding:6px 11px;font-size:12.5px;border-radius:8px}
+  .btn-danger{background:#fee2e2;color:#b91c1c}
+  .btn-danger:hover{background:#fecaca}
 
-  .pt-stage {
-    background: rgba(0,0,0,0.20); border-radius: 12px;
-    padding: 18px 20px; margin-top: 18px;
-    text-align: right; direction: rtl;
-  }
-  .pt-stage h3 {
-    margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
-    letter-spacing: 1px; opacity: 0.85; font-weight: 800;
-  }
-  .pt-stage p { margin: 0 0 8px; font-size: 13px; line-height: 1.6; opacity: 0.95; }
-  .pt-stage p:last-child { margin-bottom: 0; }
+  /* tables */
+  .tbl-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:10px 10px;text-align:right;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{font-size:12px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+  tr:hover td{background:#faf5ff}
+  td.num,th.num{direction:ltr;text-align:left;font-variant-numeric:tabular-nums}
+  .empty{text-align:center;color:var(--muted);padding:34px 10px;font-size:14px}
 
-  .pt-checklist {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-    margin-top: 12px; direction: rtl;
+  /* status pills */
+  .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:800;white-space:nowrap}
+  .pill.paid{background:#dcfce7;color:#15803d}
+  .pill.unpaid{background:#fef3c7;color:#b45309}
+  .pill.draft{background:#e5e7eb;color:#4b5563}
+  .pill.overdue{background:#fee2e2;color:#b91c1c}
+
+  .row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start}
+  .section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .section-head h2{margin:0;font-size:18px;font-weight:800}
+
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:flex-start;justify-content:center;
+    padding:24px 12px;z-index:50;overflow-y:auto}
+  .overlay.show{display:flex}
+  .modal{background:#fff;border-radius:16px;width:100%;max-width:760px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .modal.small{max-width:480px}
+  .modal h3{margin:0 0 16px;font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px}
+  .modal-close{margin-right:auto;background:none;border:0;font-size:22px;line-height:1;cursor:pointer;color:#9ca3af}
+  .field{margin-bottom:13px}
+  .field label{display:block;font-size:12.5px;font-weight:700;color:#374151;margin-bottom:5px}
+  .field input,.field select,.field textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;
+    font-size:13.5px;font-family:inherit;background:#fff}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:0;border-color:var(--brand)}
+  .field textarea{min-height:64px;resize:vertical}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  @media(max-width:560px){.grid2,.grid3{grid-template-columns:1fr}}
+  .modal-foot{display:flex;gap:10px;justify-content:flex-start;margin-top:18px;border-top:1px solid var(--line);padding-top:16px}
+
+  /* line items */
+  .li-tbl{width:100%;border-collapse:collapse;font-size:13px}
+  .li-tbl th{font-size:11px;padding:6px 6px}
+  .li-tbl td{padding:5px 6px;border-bottom:1px solid #f1f1f4}
+  .li-tbl input{padding:7px 8px}
+  .li-desc{min-width:160px}
+  .li-del{background:#fee2e2;color:#b91c1c;border:0;border-radius:7px;width:30px;height:32px;cursor:pointer;font-size:15px}
+  .totals{margin-top:12px;margin-right:auto;max-width:300px}
+  .totals .tr{display:flex;justify-content:space-between;padding:5px 0;font-size:13.5px}
+  .totals .tr.grand{border-top:2px solid var(--line);margin-top:5px;padding-top:9px;font-size:17px;font-weight:800;color:var(--brand)}
+  .totals .tr span:last-child{direction:ltr;font-variant-numeric:tabular-nums}
+
+  /* toast */
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:#1f2937;color:#fff;
+    padding:12px 20px;border-radius:10px;font-size:13.5px;font-weight:600;opacity:0;pointer-events:none;
+    transition:all .25s ease;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:90vw}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.ok{background:#15803d}.toast.warn{background:#b45309}.toast.err{background:#b91c1c}
+
+  .filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .filter-bar input,.filter-bar select{padding:8px 11px;border:1px solid var(--line);border-radius:9px;font-size:13px;font-family:inherit}
+  .saving-dot{font-size:12px;color:var(--muted)}
+
+  /* PRINT */
+  #printArea{display:none}
+  @media print{
+    body{background:#fff;padding:0}
+    body.printing > *:not(#printArea){display:none !important}
+    #printArea{display:block}
+    .overlay{display:none !important}
   }
-  @media (max-width: 600px) { .pt-checklist { grid-template-columns: 1fr; } }
-  .pt-checklist .item {
-    background: rgba(255,255,255,0.10); border-radius: 8px;
-    padding: 8px 12px; font-size: 12px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .pt-checklist .item .icon { font-size: 14px; }
-  .pt-checklist .item.done { opacity: 0.7; }
-  .pt-checklist .item.done .lbl { text-decoration: line-through; }
+  /* invoice print sheet */
+  .inv-sheet{max-width:760px;margin:0 auto;padding:34px 38px;color:#111827;direction:ltr;text-align:left;font-size:13px}
+  .inv-sheet .inv-top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #6b21a8;padding-bottom:16px;margin-bottom:22px}
+  .inv-sheet .inv-biz{max-width:55%}
+  .inv-sheet .inv-biz img{max-height:60px;margin-bottom:8px}
+  .inv-sheet .inv-biz .bn{font-size:20px;font-weight:800;color:#6b21a8}
+  .inv-sheet .inv-biz .bd{font-size:12px;color:#4b5563;line-height:1.55;white-space:pre-line}
+  .inv-sheet .inv-meta{text-align:right}
+  .inv-sheet .inv-meta .ti{font-size:30px;font-weight:800;letter-spacing:2px;color:#111827;margin:0 0 8px}
+  .inv-sheet .inv-meta .mr{font-size:12.5px;color:#374151;margin:2px 0}
+  .inv-sheet .inv-meta .mr b{color:#111827}
+  .inv-sheet .billto{margin-bottom:18px}
+  .inv-sheet .billto .h{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;font-weight:800;margin-bottom:4px}
+  .inv-sheet .billto .nm{font-size:15px;font-weight:700}
+  .inv-sheet .billto .ad{font-size:12.5px;color:#4b5563;line-height:1.5;white-space:pre-line}
+  .inv-sheet table.items{width:100%;border-collapse:collapse;margin-bottom:16px}
+  .inv-sheet table.items th{background:#6b21a8;color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:9px 10px;text-align:left}
+  .inv-sheet table.items th.r,.inv-sheet table.items td.r{text-align:right}
+  .inv-sheet table.items td{padding:9px 10px;border-bottom:1px solid #e5e7eb;font-size:12.5px}
+  .inv-sheet .sum{width:300px;margin-left:auto}
+  .inv-sheet .sum .sr{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}
+  .inv-sheet .sum .sr.tot{border-top:2px solid #6b21a8;margin-top:5px;padding-top:9px;font-size:18px;font-weight:800;color:#6b21a8}
+  .inv-sheet .notes{margin-top:26px;font-size:12px;color:#4b5563;border-top:1px solid #e5e7eb;padding-top:12px;white-space:pre-line}
+  .inv-sheet .foot{margin-top:18px;text-align:center;font-size:12px;color:#6b21a8;font-weight:700}
+  .inv-sheet .stamp{display:inline-block;margin-top:6px;border:3px solid #16a34a;color:#16a34a;font-weight:800;
+    padding:4px 14px;border-radius:8px;transform:rotate(-6deg);font-size:16px;letter-spacing:1px}
 </style>
 </head>
 <body>
 
-<a class="back-link" href="../">← חזרה לדף הראשי</a>
+<div class="topbar">
+  <div class="wrap">
+    <div class="logo-box"><img src="../_assets/protask-logo.png" alt="Pro Task Runner Services"></div>
+    <div>
+      <h1>הנהלת חשבונות · Pro Task Runner</h1>
+      <div class="sub">חשבוניות · הכנסות · לקוחות · הוצאות</div>
+    </div>
+    <a class="back-link" href="../">← מרכז הבקרה</a>
+  </div>
+</div>
 
-<div class="pt-wrap">
-  <div class="pt-card">
-    <div class="pt-content">
+<div class="wrap">
 
-      <a class="pt-logo" href="http://protaskrunner.com/" target="_blank" rel="noopener" title="פתיחת האתר החי">
-        <img src="../_assets/protask-logo.png" alt="Pro Task Runner Services">
-      </a>
+  <div class="tokbar" id="tokbar">
+    <span>🔑 כדי לסנכרן את הנתונים בין כל המכשירים דרך GitHub, הזיני טוקן (נשמר רק במכשיר הזה):</span>
+    <input id="tokInput" type="password" placeholder="GitHub Personal Access Token" autocomplete="off">
+    <button id="tokSave">שמירה</button>
+  </div>
 
-      <div class="pt-name">Pro Task Runner Services</div>
-      <div class="pt-tag">פרויקט חדש בפיתוח. כרגע יש סקיצה ראשונית של אתר מחובר לדומיין — שלד לפני פיתוח. מהריבוע הזה נבנה החוצה כל מה שצריך: לוגיקה, סוכנים ייעודיים, אינטגרציות וזרימות עבודה.</div>
+  <div class="tabs">
+    <button class="tab active" data-sec="dashboard">📊 סקירה</button>
+    <button class="tab" data-sec="invoices">🧾 חשבוניות</button>
+    <button class="tab" data-sec="income">💵 הכנסות</button>
+    <button class="tab" data-sec="clients">👥 לקוחות</button>
+    <button class="tab" data-sec="expenses">💳 הוצאות</button>
+    <button class="tab" data-sec="settings">⚙️ הגדרות</button>
+  </div>
 
-      <div class="pt-actions">
-        <a class="pt-btn" href="http://protaskrunner.com/" target="_blank" rel="noopener">↗ פתחי את האתר החי</a>
+  <!-- DASHBOARD -->
+  <div class="section active" id="sec-dashboard">
+    <div class="filter-bar">
+      <label style="font-size:12.5px;font-weight:700;color:#374151">טווח:</label>
+      <select id="dashRange">
+        <option value="month">החודש הנוכחי</option>
+        <option value="year" selected>השנה הנוכחית</option>
+        <option value="all">הכל</option>
+      </select>
+      <span class="saving-dot" id="syncStatus"></span>
+    </div>
+    <div class="stats" id="dashStats"></div>
+    <div class="card">
+      <h2>הכנסות מול הוצאות לפי חודש</h2>
+      <p class="hint">סיכום חודשי לטווח שנבחר (בדולרים).</p>
+      <div id="monthChart"></div>
+    </div>
+    <div class="card">
+      <h2>חשבוניות שטרם שולמו</h2>
+      <p class="hint">מה שפתוח לגבייה כרגע.</p>
+      <div class="tbl-wrap"><table id="openInvoicesTbl"></table></div>
+    </div>
+  </div>
+
+  <!-- INVOICES -->
+  <div class="section" id="sec-invoices">
+    <div class="section-head">
+      <h2>🧾 חשבוניות</h2>
+      <button class="btn btn-primary" id="newInvoiceBtn">+ חשבונית חדשה</button>
+    </div>
+    <div class="filter-bar">
+      <input id="invSearch" placeholder="חיפוש לפי מספר / לקוח...">
+      <select id="invStatusFilter">
+        <option value="">כל הסטטוסים</option>
+        <option value="draft">טיוטה</option>
+        <option value="unpaid">לא שולם</option>
+        <option value="paid">שולם</option>
+      </select>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="tbl-wrap"><table id="invoicesTbl"></table></div>
+    </div>
+  </div>
+
+  <!-- INCOME -->
+  <div class="section" id="sec-income">
+    <div class="section-head">
+      <h2>💵 הכנסות</h2>
+      <button class="btn btn-primary" id="newIncomeBtn">+ הכנסה ידנית</button>
+    </div>
+    <p class="hint" style="margin-top:-6px;margin-bottom:14px">סך ההכנסות = חשבוניות ששולמו + הכנסות ידניות (למשל עבודות במזומן ללא חשבונית).</p>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="tbl-wrap"><table id="incomeTbl"></table></div>
+    </div>
+  </div>
+
+  <!-- CLIENTS -->
+  <div class="section" id="sec-clients">
+    <div class="section-head">
+      <h2>👥 לקוחות</h2>
+      <button class="btn btn-primary" id="newClientBtn">+ לקוח חדש</button>
+    </div>
+    <div class="filter-bar"><input id="clientSearch" placeholder="חיפוש לקוח..."></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="tbl-wrap"><table id="clientsTbl"></table></div>
+    </div>
+  </div>
+
+  <!-- EXPENSES -->
+  <div class="section" id="sec-expenses">
+    <div class="section-head">
+      <h2>💳 הוצאות</h2>
+      <button class="btn btn-primary" id="newExpenseBtn">+ הוצאה חדשה</button>
+    </div>
+    <div class="filter-bar"><input id="expSearch" placeholder="חיפוש לפי קטגוריה / ספק..."></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="tbl-wrap"><table id="expensesTbl"></table></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="section" id="sec-settings">
+    <div class="section-head"><h2>⚙️ הגדרות העסק</h2></div>
+    <div class="card">
+      <h2>פרטי העסק (מופיעים על החשבוניות)</h2>
+      <p class="hint">שם, כתובת ופרטי קשר שמודפסים בראש כל חשבונית.</p>
+      <div class="grid2">
+        <div class="field"><label>שם העסק</label><input id="setBizName"></div>
+        <div class="field"><label>אתר</label><input id="setBizWeb" dir="ltr"></div>
       </div>
-
-      <div class="pt-stage">
-        <h3>📍 שלב נוכחי</h3>
-        <p>סקיצת אתר ראשונית מחוברת ל־<code style="background:rgba(0,0,0,0.18);padding:2px 6px;border-radius:4px">protaskrunner.com</code> (GitHub Pages). אין עדיין סוכנים, אין סכמת נתונים, אין אינטגרציות. הריבוע הזה מסמן את הפרויקט במרכז הבקרה כדי שיהיה לאן לחזור — וכשנגדיל אותו, נוסיף כאן בדיוק כמו שעשינו ל־MAKEUP BLOWOUT.</p>
-        <h3 style="margin-top:14px">🛣️ Roadmap (מקום שמור)</h3>
-        <div class="pt-checklist">
-          <div class="item"><span class="icon">✅</span><span class="lbl">דומיין מחובר</span></div>
-          <div class="item"><span class="icon">✅</span><span class="lbl">סקיצת אתר ראשונית</span></div>
-          <div class="item"><span class="icon">⬜</span><span class="lbl">הגדרת מודל עסקי</span></div>
-          <div class="item"><span class="icon">⬜</span><span class="lbl">סוכן ראשון ייעודי</span></div>
-          <div class="item"><span class="icon">⬜</span><span class="lbl">לוגיקה / זרימת עבודה</span></div>
-          <div class="item"><span class="icon">⬜</span><span class="lbl">אינטגרציות חיצוניות</span></div>
-        </div>
-        <p style="margin-top:14px;font-size:12px;opacity:0.8">💡 רוצה לעדכן את ה־roadmap או להוסיף תוכן? תגידי לי מה — אני אערוך את הדף הזה ישירות בריפו.</p>
+      <div class="grid2">
+        <div class="field"><label>אימייל</label><input id="setBizEmail" dir="ltr"></div>
+        <div class="field"><label>טלפון</label><input id="setBizPhone" dir="ltr"></div>
       </div>
+      <div class="field"><label>כתובת</label><textarea id="setBizAddr" dir="ltr"></textarea></div>
+      <div class="field"><label>לוגו (כתובת תמונה)</label><input id="setLogo" dir="ltr"></div>
+    </div>
+    <div class="card">
+      <h2>ברירות מחדל לחשבוניות</h2>
+      <div class="grid3">
+        <div class="field"><label>קידומת מספר</label><input id="setPrefix" dir="ltr"></div>
+        <div class="field"><label>המספר הבא</label><input id="setNextNum" type="number" dir="ltr"></div>
+        <div class="field"><label>מע״מ / מס ברירת מחדל (%)</label><input id="setTax" type="number" step="0.01" dir="ltr"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>תנאי תשלום</label><input id="setTerms"></div>
+        <div class="field"><label>סמל מטבע</label><input id="setCurSym" dir="ltr"></div>
+      </div>
+      <div class="field"><label>הערת תחתית בחשבונית</label><input id="setFooter"></div>
+    </div>
+    <div class="card">
+      <h2>סנכרון GitHub</h2>
+      <p class="hint">הנתונים נשמרים בקובץ <code>docs/state/protask_books.json</code> בריפו, ומסונכרנים בין כל המכשירים. הטוקן נשמר מקומית בלבד.</p>
+      <div class="field"><label>GitHub Token</label><input id="setToken" type="password" dir="ltr" placeholder="ghp_... / github_pat_..."></div>
+      <div id="tokState" style="font-size:12.5px;margin-bottom:8px"></div>
+    </div>
+    <div class="modal-foot" style="border:0;padding:0">
+      <button class="btn btn-primary" id="saveSettingsBtn">💾 שמירת הגדרות</button>
+    </div>
+  </div>
 
+</div>
+
+<!-- INVOICE MODAL -->
+<div class="overlay" id="invoiceOverlay">
+  <div class="modal">
+    <h3>🧾 <span id="invModalTitle">חשבונית חדשה</span><button class="modal-close" data-close="invoiceOverlay">×</button></h3>
+    <div class="grid3">
+      <div class="field"><label>מספר חשבונית</label><input id="invNumber" dir="ltr" readonly></div>
+      <div class="field"><label>תאריך הנפקה</label><input id="invDate" type="date"></div>
+      <div class="field"><label>תאריך לתשלום</label><input id="invDue" type="date"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>לקוח</label><select id="invClient"></select></div>
+      <div class="field"><label>סטטוס</label>
+        <select id="invStatus">
+          <option value="draft">טיוטה</option>
+          <option value="unpaid">נשלח / לא שולם</option>
+          <option value="paid">שולם</option>
+        </select>
+      </div>
+    </div>
+
+    <label style="font-size:12.5px;font-weight:700;color:#374151;display:block;margin-bottom:6px">פריטים</label>
+    <div class="tbl-wrap">
+      <table class="li-tbl" id="liTable">
+        <thead><tr>
+          <th class="li-desc">תיאור</th><th style="width:70px">כמות</th>
+          <th style="width:100px">מחיר ליח׳</th><th style="width:100px">סה״כ</th><th style="width:34px"></th>
+        </tr></thead>
+        <tbody id="liBody"></tbody>
+      </table>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="addLineBtn" style="margin-top:8px">+ שורה</button>
+
+    <div class="grid2" style="margin-top:14px">
+      <div class="field"><label>הנחה ($)</label><input id="invDiscount" type="number" step="0.01" dir="ltr" value="0"></div>
+      <div class="field"><label>מס / מע״מ (%)</label><input id="invTax" type="number" step="0.01" dir="ltr" value="0"></div>
+    </div>
+    <div class="field"><label>הערות</label><textarea id="invNotes" placeholder="הערות שיופיעו בתחתית החשבונית"></textarea></div>
+
+    <div class="totals">
+      <div class="tr"><span>ביניים</span><span id="totSub">$0.00</span></div>
+      <div class="tr"><span>הנחה</span><span id="totDisc">-$0.00</span></div>
+      <div class="tr"><span>מס</span><span id="totTax">$0.00</span></div>
+      <div class="tr grand"><span>סה״כ לתשלום</span><span id="totGrand">$0.00</span></div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="saveInvoiceBtn">💾 שמירה</button>
+      <button class="btn btn-purple" id="printInvoiceBtn">🖨️ הדפסה / PDF</button>
+      <button class="btn btn-ghost" data-close="invoiceOverlay">ביטול</button>
     </div>
   </div>
 </div>
+
+<!-- CLIENT MODAL -->
+<div class="overlay" id="clientOverlay">
+  <div class="modal small">
+    <h3>👤 <span id="clientModalTitle">לקוח חדש</span><button class="modal-close" data-close="clientOverlay">×</button></h3>
+    <div class="field"><label>שם *</label><input id="clName"></div>
+    <div class="grid2">
+      <div class="field"><label>אימייל</label><input id="clEmail" dir="ltr"></div>
+      <div class="field"><label>טלפון</label><input id="clPhone" dir="ltr"></div>
+    </div>
+    <div class="field"><label>כתובת</label><textarea id="clAddr"></textarea></div>
+    <div class="field"><label>הערות</label><input id="clNotes"></div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="saveClientBtn">💾 שמירה</button>
+      <button class="btn btn-ghost" data-close="clientOverlay">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<!-- INCOME MODAL -->
+<div class="overlay" id="incomeOverlay">
+  <div class="modal small">
+    <h3>💵 <span id="incomeModalTitle">הכנסה ידנית</span><button class="modal-close" data-close="incomeOverlay">×</button></h3>
+    <div class="grid2">
+      <div class="field"><label>תאריך</label><input id="incDate" type="date"></div>
+      <div class="field"><label>סכום ($)</label><input id="incAmount" type="number" step="0.01" dir="ltr"></div>
+    </div>
+    <div class="field"><label>לקוח (אופציונלי)</label><select id="incClient"></select></div>
+    <div class="field"><label>תיאור</label><input id="incDesc"></div>
+    <div class="grid2">
+      <div class="field"><label>אמצעי תשלום</label>
+        <select id="incMethod">
+          <option value="מזומן">מזומן</option><option value="כרטיס">כרטיס אשראי</option>
+          <option value="העברה">העברה בנקאית</option><option value="צ׳ק">צ׳ק</option>
+          <option value="Zelle">Zelle</option><option value="אחר">אחר</option>
+        </select>
+      </div>
+      <div class="field"><label>הערות</label><input id="incNotes"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="saveIncomeBtn">💾 שמירה</button>
+      <button class="btn btn-ghost" data-close="incomeOverlay">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXPENSE MODAL -->
+<div class="overlay" id="expenseOverlay">
+  <div class="modal small">
+    <h3>💳 <span id="expenseModalTitle">הוצאה חדשה</span><button class="modal-close" data-close="expenseOverlay">×</button></h3>
+    <div class="grid2">
+      <div class="field"><label>תאריך</label><input id="expDate" type="date"></div>
+      <div class="field"><label>סכום ($)</label><input id="expAmount" type="number" step="0.01" dir="ltr"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>קטגוריה</label>
+        <select id="expCategory">
+          <option>דלק / רכב</option><option>ציוד וכלים</option><option>חומרים</option>
+          <option>שיווק ופרסום</option><option>ביטוח</option><option>שכר עובדים</option>
+          <option>עמלות / תוכנה</option><option>משרד</option><option>אחר</option>
+        </select>
+      </div>
+      <div class="field"><label>ספק / למי שולם</label><input id="expPayee"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>אמצעי תשלום</label>
+        <select id="expMethod">
+          <option value="כרטיס">כרטיס אשראי</option><option value="מזומן">מזומן</option>
+          <option value="העברה">העברה בנקאית</option><option value="צ׳ק">צ׳ק</option><option value="אחר">אחר</option>
+        </select>
+      </div>
+      <div class="field"><label>הערות</label><input id="expNotes"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="saveExpenseBtn">💾 שמירה</button>
+      <button class="btn btn-ghost" data-close="expenseOverlay">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<div id="printArea"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  //── config ─────────────────────────────────────────────
+  var STATE_REPO = "laurenlev10/lauren-agent-hub-data";
+  var STATE_PATH = "docs/state/protask_books.json";
+  var STATE_URL  = "../state/protask_books.json";
+  var TOKEN_KEY  = "lauren_gh_token_v1";
+
+  var DEFAULT_SETTINGS = {
+    biz_name: "Pro Task Runner Services",
+    biz_web: "protaskrunner.com",
+    biz_email: "",
+    biz_phone: "",
+    biz_addr: "",
+    logo_url: "../_assets/protask-logo.png",
+    invoice_prefix: "PTR-",
+    next_invoice_num: 1001,
+    tax_rate: 0,
+    payment_terms: "Net 15",
+    currency_symbol: "$",
+    invoice_footer: "Thank you for your business!"
+  };
+
+  var DATA = { _updated_at: null, settings: {}, clients: [], invoices: [], income: [], expenses: [] };
+  var saving = false;
+
+  //── helpers ────────────────────────────────────────────
+  function $(id){ return document.getElementById(id); }
+  function getToken(){ return (localStorage.getItem(TOKEN_KEY) || "").trim(); }
+  function setTokenLS(t){ localStorage.setItem(TOKEN_KEY, (t || "").trim()); }
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+  function num(v){ var n = parseFloat(v); return isNaN(n) ? 0 : n; }
+  function sym(){ return (DATA.settings.currency_symbol || "$"); }
+  function money(v){ var n = num(v); return (n < 0 ? "-" : "") + sym() + Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function todayISO(){ var d = new Date(); return d.toISOString().slice(0,10); }
+  function fmtDate(iso){ if(!iso) return "—"; var p = String(iso).slice(0,10).split("-"); return p.length===3 ? (p[2]+"/"+p[1]+"/"+p[0]) : iso; }
+  function clientName(id){ var c = DATA.clients.find(function(x){ return x.id===id; }); return c ? c.name : "—"; }
+
+  function toast(msg, kind){
+    var t = $("toast");
+    t.className = "toast show " + (kind || "");
+    t.textContent = msg;
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function(){ t.className = "toast"; }, 3400);
+  }
+
+  //── invoice math ───────────────────────────────────────
+  function invSubtotal(inv){ return (inv.items||[]).reduce(function(s,it){ return s + num(it.qty)*num(it.price); }, 0); }
+  function invTotals(inv){
+    var sub = invSubtotal(inv);
+    var disc = num(inv.discount);
+    var taxable = Math.max(0, sub - disc);
+    var tax = taxable * num(inv.tax_rate) / 100;
+    return { sub: sub, disc: disc, tax: tax, grand: taxable + tax };
+  }
+  function invDisplayStatus(inv){
+    if (inv.status === "paid") return "paid";
+    if (inv.status === "draft") return "draft";
+    if (inv.due_date && inv.due_date < todayISO()) return "overdue";
+    return "unpaid";
+  }
+  function statusLabel(s){ return {paid:"שולם", unpaid:"לא שולם", draft:"טיוטה", overdue:"באיחור"}[s] || s; }
+
+  //── GitHub sync ────────────────────────────────────────
+  function utf8ToBase64(str){ return btoa(unescape(encodeURIComponent(str))); }
+
+  async function loadState(){
+    try{
+      var r = await fetch(STATE_URL + "?_=" + Date.now(), { cache: "no-store" });
+      if (r.ok){
+        var j = await r.json();
+        if (j && typeof j === "object"){
+          DATA = Object.assign({ _updated_at:null, settings:{}, clients:[], invoices:[], income:[], expenses:[] }, j);
+        }
+      }
+    } catch(e){ console.warn("loadState failed", e); }
+    DATA.settings = Object.assign({}, DEFAULT_SETTINGS, DATA.settings || {});
+    DATA.clients = DATA.clients || []; DATA.invoices = DATA.invoices || [];
+    DATA.income = DATA.income || []; DATA.expenses = DATA.expenses || [];
+  }
+
+  async function getSha(){
+    var token = getToken();
+    var url = "https://api.github.com/repos/" + STATE_REPO + "/contents/" + STATE_PATH + "?ref=main";
+    var r = await fetch(url, { headers:{ Authorization:"token "+token, Accept:"application/vnd.github+json" }});
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error("GET sha -> " + r.status);
+    var j = await r.json(); return j.sha;
+  }
+
+  async function saveState(msg){
+    DATA._updated_at = new Date().toISOString();
+    var token = getToken();
+    if (!token){ updateSync("⚠️ לא מסונכרן — אין טוקן GitHub (ראי הגדרות)"); toast("נשמר מקומית בלבד — הוסיפי טוקן GitHub בהגדרות לסנכרון", "warn"); return false; }
+    saving = true; updateSync("⏳ שומר ל-GitHub...");
+    try{
+      var sha = await getSha();
+      var url = "https://api.github.com/repos/" + STATE_REPO + "/contents/" + STATE_PATH;
+      var body = { message: msg || "protask: update books", content: utf8ToBase64(JSON.stringify(DATA, null, 2)), branch: "main" };
+      if (sha) body.sha = sha;
+      var r = await fetch(url, { method:"PUT",
+        headers:{ Authorization:"token "+token, Accept:"application/vnd.github+json", "Content-Type":"application/json" },
+        body: JSON.stringify(body) });
+      saving = false;
+      if (!r.ok){ var t = await r.text(); updateSync("⚠️ שמירה נכשלה ("+r.status+")"); toast("שמירה ל-GitHub נכשלה: "+r.status, "err"); console.error(t); return false; }
+      updateSync("✓ מסונכרן · " + new Date().toLocaleTimeString("he-IL"));
+      toast("✓ נשמר ב-GitHub", "ok");
+      return true;
+    } catch(e){ saving=false; updateSync("⚠️ שגיאת שמירה"); toast("שגיאת שמירה: "+e.message, "err"); return false; }
+  }
+
+  function updateSync(txt){ var el = $("syncStatus"); if (el) el.textContent = txt; }
+
+  //── tabs ───────────────────────────────────────────────
+  function showSection(name){
+    document.querySelectorAll(".tab").forEach(function(t){ t.classList.toggle("active", t.dataset.sec===name); });
+    document.querySelectorAll(".section").forEach(function(s){ s.classList.toggle("active", s.id==="sec-"+name); });
+    if (name==="dashboard") renderDashboard();
+    if (name==="invoices") renderInvoices();
+    if (name==="income") renderIncome();
+    if (name==="clients") renderClients();
+    if (name==="expenses") renderExpenses();
+    if (name==="settings") fillSettings();
+  }
+
+  //── DASHBOARD ──────────────────────────────────────────
+  function inRange(iso, range){
+    if (!iso) return false;
+    var d = String(iso).slice(0,10);
+    var now = new Date();
+    if (range==="all") return true;
+    if (range==="year") return d.slice(0,4) === String(now.getFullYear());
+    if (range==="month") return d.slice(0,7) === now.toISOString().slice(0,7);
+    return true;
+  }
+  function paidInvoiceDate(inv){ return inv.paid_date || inv.issue_date; }
+
+  function renderDashboard(){
+    var range = $("dashRange").value;
+    var paidInv = DATA.invoices.filter(function(i){ return i.status==="paid" && inRange(paidInvoiceDate(i), range); });
+    var invIncome = paidInv.reduce(function(s,i){ return s + invTotals(i).grand; }, 0);
+    var manIncome = DATA.income.filter(function(x){ return inRange(x.date, range); }).reduce(function(s,x){ return s + num(x.amount); }, 0);
+    var income = invIncome + manIncome;
+    var expense = DATA.expenses.filter(function(x){ return inRange(x.date, range); }).reduce(function(s,x){ return s + num(x.amount); }, 0);
+    var outstanding = DATA.invoices.filter(function(i){ return i.status!=="paid" && i.status!=="draft"; }).reduce(function(s,i){ return s + invTotals(i).grand; }, 0);
+
+    $("dashStats").innerHTML =
+      stat("income","הכנסות", money(income), "חשבוניות ששולמו: "+money(invIncome)+" · ידני: "+money(manIncome)) +
+      stat("expense","הוצאות", money(expense), DATA.expenses.filter(function(x){return inRange(x.date,range);}).length+" רישומים") +
+      stat("net","רווח נקי", money(income - expense), income? (Math.round((income-expense)/income*100)+"% מההכנסות") : "") +
+      stat("out","פתוח לגבייה", money(outstanding), DATA.invoices.filter(function(i){return i.status!=="paid"&&i.status!=="draft";}).length+" חשבוניות");
+
+    renderMonthChart(range);
+    renderOpenInvoices();
+  }
+  function stat(cls,lbl,val,sub){
+    return '<div class="stat '+cls+'"><div class="lbl">'+esc(lbl)+'</div><div class="val">'+esc(val)+'</div>'+
+      (sub? '<div class="lbl" style="margin-top:6px;font-weight:500;color:#9ca3af">'+esc(sub)+'</div>':'')+'</div>';
+  }
+
+  function renderMonthChart(range){
+    var months = {};
+    function add(iso, key, amt){ var m = String(iso).slice(0,7); if(!m) return; if(!months[m]) months[m]={inc:0,exp:0}; months[m][key]+=amt; }
+    DATA.invoices.filter(function(i){return i.status==="paid";}).forEach(function(i){ if(inRange(paidInvoiceDate(i),range)) add(paidInvoiceDate(i),"inc",invTotals(i).grand); });
+    DATA.income.forEach(function(x){ if(inRange(x.date,range)) add(x.date,"inc",num(x.amount)); });
+    DATA.expenses.forEach(function(x){ if(inRange(x.date,range)) add(x.date,"exp",num(x.amount)); });
+    var keys = Object.keys(months).sort();
+    if (!keys.length){ $("monthChart").innerHTML = '<div class="empty">אין נתונים לטווח הזה עדיין.</div>'; return; }
+    var max = 0; keys.forEach(function(k){ max = Math.max(max, months[k].inc, months[k].exp); });
+    var h = '<div style="display:flex;flex-direction:column;gap:12px">';
+    keys.forEach(function(k){
+      var m = months[k];
+      var ip = max? Math.round(m.inc/max*100):0, ep = max? Math.round(m.exp/max*100):0;
+      h += '<div><div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:4px;direction:ltr;text-align:right">'+k+'</div>'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px"><div style="height:16px;border-radius:5px;background:#16a34a;width:'+ip+'%;min-width:2px"></div><span style="font-size:11.5px;color:#15803d;direction:ltr">'+money(m.inc)+'</span></div>'+
+        '<div style="display:flex;align-items:center;gap:8px"><div style="height:16px;border-radius:5px;background:#dc2626;width:'+ep+'%;min-width:2px"></div><span style="font-size:11.5px;color:#b91c1c;direction:ltr">'+money(m.exp)+'</span></div>'+
+        '</div>';
+    });
+    h += '</div><div style="margin-top:12px;font-size:11.5px;color:#6b7280"><span style="color:#16a34a;font-weight:700">▮</span> הכנסות &nbsp; <span style="color:#dc2626;font-weight:700">▮</span> הוצאות</div>';
+    $("monthChart").innerHTML = h;
+  }
+
+  function renderOpenInvoices(){
+    var open = DATA.invoices.filter(function(i){ return i.status!=="paid" && i.status!=="draft"; })
+      .sort(function(a,b){ return (a.due_date||"").localeCompare(b.due_date||""); });
+    var t = $("openInvoicesTbl");
+    if (!open.length){ t.innerHTML = '<tr><td class="empty">אין חשבוניות פתוחות 🎉</td></tr>'; return; }
+    var h = '<thead><tr><th>מספר</th><th>לקוח</th><th>לתשלום עד</th><th class="num">סכום</th><th>סטטוס</th><th></th></tr></thead><tbody>';
+    open.forEach(function(i){
+      var ds = invDisplayStatus(i);
+      h += '<tr><td><b>'+esc(i.number)+'</b></td><td>'+esc(clientName(i.client_id))+'</td><td>'+fmtDate(i.due_date)+'</td>'+
+        '<td class="num">'+money(invTotals(i).grand)+'</td><td><span class="pill '+ds+'">'+statusLabel(ds)+'</span></td>'+
+        '<td class="row-actions"><button class="btn btn-sm btn-ghost" data-edit-inv="'+i.id+'">פתח</button>'+
+        '<button class="btn btn-sm btn-purple" data-paid-inv="'+i.id+'">סמן שולם</button></td></tr>';
+    });
+    t.innerHTML = h + '</tbody>';
+  }
+
+  //── INVOICES ───────────────────────────────────────────
+  function renderInvoices(){
+    var q = ($("invSearch").value||"").toLowerCase();
+    var sf = $("invStatusFilter").value;
+    var list = DATA.invoices.slice().sort(function(a,b){ return (b.issue_date||"").localeCompare(a.issue_date||"") || (b.number||"").localeCompare(a.number||""); });
+    list = list.filter(function(i){
+      if (sf && i.status !== sf) return false;
+      if (!q) return true;
+      return (i.number||"").toLowerCase().indexOf(q)>=0 || clientName(i.client_id).toLowerCase().indexOf(q)>=0;
+    });
+    var t = $("invoicesTbl");
+    if (!list.length){ t.innerHTML = '<tr><td class="empty">אין חשבוניות. לחצי על "חשבונית חדשה".</td></tr>'; return; }
+    var h = '<thead><tr><th>מספר</th><th>לקוח</th><th>הנפקה</th><th>לתשלום</th><th class="num">סכום</th><th>סטטוס</th><th></th></tr></thead><tbody>';
+    list.forEach(function(i){
+      var ds = invDisplayStatus(i);
+      h += '<tr><td><b>'+esc(i.number)+'</b></td><td>'+esc(clientName(i.client_id))+'</td><td>'+fmtDate(i.issue_date)+'</td>'+
+        '<td>'+fmtDate(i.due_date)+'</td><td class="num">'+money(invTotals(i).grand)+'</td>'+
+        '<td><span class="pill '+ds+'">'+statusLabel(ds)+'</span></td>'+
+        '<td class="row-actions">'+
+        '<button class="btn btn-sm btn-ghost" data-edit-inv="'+i.id+'">✏️</button>'+
+        '<button class="btn btn-sm btn-purple" data-print-inv="'+i.id+'">🖨️</button>'+
+        (i.status!=="paid"? '<button class="btn btn-sm btn-purple" data-paid-inv="'+i.id+'">שולם</button>':'')+
+        '<button class="btn btn-sm btn-danger" data-del-inv="'+i.id+'">🗑️</button>'+
+        '</td></tr>';
+    });
+    t.innerHTML = h + '</tbody>';
+  }
+
+  var editingInvoiceId = null;
+  function openInvoice(id){
+    editingInvoiceId = id;
+    fillClientSelect($("invClient"));
+    var inv;
+    if (id){
+      inv = DATA.invoices.find(function(x){ return x.id===id; });
+      $("invModalTitle").textContent = "עריכת חשבונית " + inv.number;
+    } else {
+      var s = DATA.settings;
+      inv = { id:null, number: (s.invoice_prefix||"") + (s.next_invoice_num||1), client_id:(DATA.clients[0]||{}).id||"",
+        issue_date: todayISO(), due_date: addDays(todayISO(), termDays(s.payment_terms)),
+        items:[{desc:"",qty:1,price:0}], discount:0, tax_rate: num(s.tax_rate), status:"draft", notes:"" };
+      $("invModalTitle").textContent = "חשבונית חדשה";
+    }
+    $("invNumber").value = inv.number;
+    $("invDate").value = inv.issue_date;
+    $("invDue").value = inv.due_date || "";
+    $("invClient").value = inv.client_id || "";
+    $("invStatus").value = inv.status || "draft";
+    $("invDiscount").value = inv.discount || 0;
+    $("invTax").value = inv.tax_rate || 0;
+    $("invNotes").value = inv.notes || "";
+    renderLineItems(inv.items && inv.items.length ? inv.items : [{desc:"",qty:1,price:0}]);
+    recalcInvoice();
+    openOverlay("invoiceOverlay");
+  }
+  function termDays(t){ var m = /(\d+)/.exec(t||""); return m? parseInt(m[1],10):15; }
+  function addDays(iso, d){ var dt = new Date(iso+"T00:00:00"); dt.setDate(dt.getDate()+d); return dt.toISOString().slice(0,10); }
+
+  function renderLineItems(items){
+    var b = $("liBody"); b.innerHTML = "";
+    items.forEach(function(it){ b.appendChild(lineRow(it)); });
+  }
+  function lineRow(it){
+    var tr = document.createElement("tr");
+    tr.innerHTML = '<td><input class="li-desc-i" type="text" value="'+esc(it.desc)+'" placeholder="תיאור השירות"></td>'+
+      '<td><input class="li-qty" type="number" step="0.01" dir="ltr" value="'+esc(it.qty)+'"></td>'+
+      '<td><input class="li-price" type="number" step="0.01" dir="ltr" value="'+esc(it.price)+'"></td>'+
+      '<td class="li-line num" style="font-variant-numeric:tabular-nums">'+money(num(it.qty)*num(it.price))+'</td>'+
+      '<td><button class="li-del" title="מחק">×</button></td>';
+    tr.querySelector(".li-del").addEventListener("click", function(){ tr.remove(); if(!$("liBody").children.length) $("liBody").appendChild(lineRow({desc:"",qty:1,price:0})); recalcInvoice(); });
+    tr.querySelectorAll("input").forEach(function(inp){ inp.addEventListener("input", recalcInvoice); });
+    return tr;
+  }
+  function collectItems(){
+    var items = [];
+    Array.prototype.forEach.call($("liBody").children, function(tr){
+      items.push({ desc: tr.querySelector(".li-desc-i").value, qty: num(tr.querySelector(".li-qty").value), price: num(tr.querySelector(".li-price").value) });
+    });
+    return items;
+  }
+  function recalcInvoice(){
+    Array.prototype.forEach.call($("liBody").children, function(tr){
+      var q = num(tr.querySelector(".li-qty").value), p = num(tr.querySelector(".li-price").value);
+      tr.querySelector(".li-line").textContent = money(q*p);
+    });
+    var draft = { items: collectItems(), discount: num($("invDiscount").value), tax_rate: num($("invTax").value) };
+    var t = invTotals(draft);
+    $("totSub").textContent = money(t.sub);
+    $("totDisc").textContent = "-" + money(t.disc);
+    $("totTax").textContent = money(t.tax);
+    $("totGrand").textContent = money(t.grand);
+  }
+
+  function readInvoiceForm(){
+    return { number: $("invNumber").value, client_id: $("invClient").value, issue_date: $("invDate").value,
+      due_date: $("invDue").value, items: collectItems(), discount: num($("invDiscount").value),
+      tax_rate: num($("invTax").value), status: $("invStatus").value, notes: $("invNotes").value };
+  }
+
+  async function saveInvoice(){
+    var f = readInvoiceForm();
+    if (!f.client_id){ toast("בחרי לקוח לחשבונית", "warn"); return; }
+    if (!f.items.some(function(it){ return it.desc || it.price; })){ toast("הוסיפי לפחות פריט אחד", "warn"); return; }
+    if (editingInvoiceId){
+      var inv = DATA.invoices.find(function(x){ return x.id===editingInvoiceId; });
+      Object.assign(inv, f);
+      if (f.status==="paid" && !inv.paid_date) inv.paid_date = todayISO();
+      if (f.status!=="paid") inv.paid_date = null;
+    } else {
+      var n = { id: uid(), created_at: new Date().toISOString(), paid_date: f.status==="paid"? todayISO():null };
+      Object.assign(n, f);
+      DATA.invoices.push(n);
+      DATA.settings.next_invoice_num = num(DATA.settings.next_invoice_num) + 1;
+    }
+    closeOverlay("invoiceOverlay");
+    renderInvoices();
+    await saveState("protask: save invoice " + f.number);
+  }
+
+  async function markPaid(id){
+    var inv = DATA.invoices.find(function(x){ return x.id===id; });
+    if (!inv) return;
+    inv.status = "paid"; inv.paid_date = todayISO();
+    renderInvoices(); renderDashboard();
+    await saveState("protask: invoice " + inv.number + " marked paid");
+  }
+  async function deleteInvoice(id){
+    var inv = DATA.invoices.find(function(x){ return x.id===id; });
+    if (!inv) return;
+    if (!confirm("למחוק את חשבונית " + inv.number + "?")) return;
+    DATA.invoices = DATA.invoices.filter(function(x){ return x.id!==id; });
+    renderInvoices();
+    await saveState("protask: delete invoice " + inv.number);
+  }
+
+  //── INVOICE PRINT ──────────────────────────────────────
+  function printInvoice(invOrId){
+    var inv = typeof invOrId === "string" ? DATA.invoices.find(function(x){ return x.id===invOrId; }) : invOrId;
+    if (!inv) return;
+    var s = DATA.settings, c = DATA.clients.find(function(x){ return x.id===inv.client_id; }) || {};
+    var t = invTotals(inv);
+    var ds = invDisplayStatus(inv);
+    var rows = (inv.items||[]).filter(function(it){ return it.desc || it.qty || it.price; }).map(function(it){
+      return '<tr><td>'+esc(it.desc)+'</td><td class="r">'+esc(it.qty)+'</td><td class="r">'+money(it.price)+'</td><td class="r">'+money(num(it.qty)*num(it.price))+'</td></tr>';
+    }).join("");
+    var bizLines = [s.biz_addr, s.biz_phone, s.biz_email, s.biz_web].filter(Boolean).join("\n");
+    var billLines = [c.address, c.phone, c.email].filter(Boolean).join("\n");
+    var html =
+      '<div class="inv-sheet">'+
+        '<div class="inv-top">'+
+          '<div class="inv-biz">'+
+            (s.logo_url? '<img src="'+esc(s.logo_url)+'" alt="logo">':'')+
+            '<div class="bn">'+esc(s.biz_name||"")+'</div>'+
+            '<div class="bd">'+esc(bizLines)+'</div>'+
+          '</div>'+
+          '<div class="inv-meta">'+
+            '<p class="ti">INVOICE</p>'+
+            '<p class="mr"><b>No:</b> '+esc(inv.number)+'</p>'+
+            '<p class="mr"><b>Date:</b> '+fmtDate(inv.issue_date)+'</p>'+
+            '<p class="mr"><b>Due:</b> '+fmtDate(inv.due_date)+'</p>'+
+            (ds==="paid"? '<div class="stamp">PAID</div>':'')+
+          '</div>'+
+        '</div>'+
+        '<div class="billto"><div class="h">Bill To</div><div class="nm">'+esc(c.name||"—")+'</div><div class="ad">'+esc(billLines)+'</div></div>'+
+        '<table class="items"><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Unit</th><th class="r">Amount</th></tr></thead><tbody>'+
+          (rows || '<tr><td colspan="4">—</td></tr>')+
+        '</tbody></table>'+
+        '<div class="sum">'+
+          '<div class="sr"><span>Subtotal</span><span>'+money(t.sub)+'</span></div>'+
+          (t.disc? '<div class="sr"><span>Discount</span><span>-'+money(t.disc)+'</span></div>':'')+
+          '<div class="sr"><span>Tax ('+num(inv.tax_rate)+'%)</span><span>'+money(t.tax)+'</span></div>'+
+          '<div class="sr tot"><span>Total</span><span>'+money(t.grand)+'</span></div>'+
+        '</div>'+
+        (inv.notes? '<div class="notes"><b>Notes:</b> '+esc(inv.notes)+'</div>':'')+
+        (s.invoice_footer? '<div class="foot">'+esc(s.invoice_footer)+'</div>':'')+
+      '</div>';
+    $("printArea").innerHTML = html;
+    document.body.classList.add("printing");
+    window.print();
+    setTimeout(function(){ document.body.classList.remove("printing"); }, 400);
+  }
+
+  //── INCOME ─────────────────────────────────────────────
+  function renderIncome(){
+    var paid = DATA.invoices.filter(function(i){ return i.status==="paid"; }).map(function(i){
+      return { kind:"invoice", id:i.id, date: paidInvoiceDate(i), label:"חשבונית "+i.number, client_id:i.client_id, amount: invTotals(i).grand, method:"—" };
+    });
+    var man = DATA.income.map(function(x){ return { kind:"manual", id:x.id, date:x.date, label:x.description||"הכנסה", client_id:x.client_id, amount:num(x.amount), method:x.method||"—" }; });
+    var all = paid.concat(man).sort(function(a,b){ return (b.date||"").localeCompare(a.date||""); });
+    var t = $("incomeTbl");
+    if (!all.length){ t.innerHTML = '<tr><td class="empty">אין הכנסות עדיין.</td></tr>'; return; }
+    var h = '<thead><tr><th>תאריך</th><th>מקור</th><th>לקוח</th><th>אמצעי</th><th class="num">סכום</th><th></th></tr></thead><tbody>';
+    all.forEach(function(r){
+      var tag = r.kind==="invoice"? '<span class="pill paid" style="background:#ede9fe;color:#6b21a8">🧾 חשבונית</span>' : '<span class="pill" style="background:#dcfce7;color:#15803d">💵 ידני</span>';
+      h += '<tr><td>'+fmtDate(r.date)+'</td><td>'+esc(r.label)+' '+tag+'</td><td>'+esc(r.client_id? clientName(r.client_id):"—")+'</td>'+
+        '<td>'+esc(r.method)+'</td><td class="num" style="color:#15803d;font-weight:700">'+money(r.amount)+'</td>'+
+        '<td class="row-actions">'+
+        (r.kind==="manual"? '<button class="btn btn-sm btn-ghost" data-edit-inc="'+r.id+'">✏️</button><button class="btn btn-sm btn-danger" data-del-inc="'+r.id+'">🗑️</button>'
+          : '<button class="btn btn-sm btn-ghost" data-edit-inv="'+r.id+'">פתח חשבונית</button>')+
+        '</td></tr>';
+    });
+    t.innerHTML = h + '</tbody>';
+  }
+
+  var editingIncomeId = null;
+  function openIncome(id){
+    editingIncomeId = id;
+    fillClientSelect($("incClient"), true);
+    var x = id ? DATA.income.find(function(r){ return r.id===id; }) : { date:todayISO(), amount:"", client_id:"", description:"", method:"מזומן", notes:"" };
+    $("incomeModalTitle").textContent = id? "עריכת הכנסה" : "הכנסה ידנית";
+    $("incDate").value = x.date || todayISO();
+    $("incAmount").value = x.amount || "";
+    $("incClient").value = x.client_id || "";
+    $("incDesc").value = x.description || "";
+    $("incMethod").value = x.method || "מזומן";
+    $("incNotes").value = x.notes || "";
+    openOverlay("incomeOverlay");
+  }
+  async function saveIncome(){
+    var amt = num($("incAmount").value);
+    if (!amt){ toast("הזיני סכום", "warn"); return; }
+    var rec = { date:$("incDate").value||todayISO(), amount:amt, client_id:$("incClient").value, description:$("incDesc").value, method:$("incMethod").value, notes:$("incNotes").value };
+    if (editingIncomeId){ Object.assign(DATA.income.find(function(r){return r.id===editingIncomeId;}), rec); }
+    else { rec.id = uid(); rec.created_at = new Date().toISOString(); DATA.income.push(rec); }
+    closeOverlay("incomeOverlay"); renderIncome();
+    await saveState("protask: save income");
+  }
+  async function deleteIncome(id){
+    if (!confirm("למחוק את ההכנסה?")) return;
+    DATA.income = DATA.income.filter(function(r){ return r.id!==id; });
+    renderIncome(); await saveState("protask: delete income");
+  }
+
+  //── CLIENTS ────────────────────────────────────────────
+  function renderClients(){
+    var q = ($("clientSearch").value||"").toLowerCase();
+    var list = DATA.clients.slice().sort(function(a,b){ return (a.name||"").localeCompare(b.name||""); })
+      .filter(function(c){ return !q || (c.name||"").toLowerCase().indexOf(q)>=0 || (c.email||"").toLowerCase().indexOf(q)>=0; });
+    var t = $("clientsTbl");
+    if (!list.length){ t.innerHTML = '<tr><td class="empty">אין לקוחות. לחצי על "לקוח חדש".</td></tr>'; return; }
+    var h = '<thead><tr><th>שם</th><th>אימייל</th><th>טלפון</th><th class="num">חשבוניות</th><th class="num">סה״כ הוכנס</th><th></th></tr></thead><tbody>';
+    list.forEach(function(c){
+      var invs = DATA.invoices.filter(function(i){ return i.client_id===c.id; });
+      var billed = invs.filter(function(i){return i.status==="paid";}).reduce(function(s,i){ return s+invTotals(i).grand; }, 0);
+      h += '<tr><td><b>'+esc(c.name)+'</b></td><td dir="ltr" style="text-align:right">'+esc(c.email||"—")+'</td><td dir="ltr" style="text-align:right">'+esc(c.phone||"—")+'</td>'+
+        '<td class="num">'+invs.length+'</td><td class="num">'+money(billed)+'</td>'+
+        '<td class="row-actions"><button class="btn btn-sm btn-ghost" data-edit-cl="'+c.id+'">✏️</button>'+
+        '<button class="btn btn-sm btn-danger" data-del-cl="'+c.id+'">🗑️</button></td></tr>';
+    });
+    t.innerHTML = h + '</tbody>';
+  }
+  var editingClientId = null;
+  function openClient(id){
+    editingClientId = id;
+    var c = id? DATA.clients.find(function(x){return x.id===id;}) : { name:"",email:"",phone:"",address:"",notes:"" };
+    $("clientModalTitle").textContent = id? "עריכת לקוח" : "לקוח חדש";
+    $("clName").value = c.name||""; $("clEmail").value=c.email||""; $("clPhone").value=c.phone||"";
+    $("clAddr").value=c.address||""; $("clNotes").value=c.notes||"";
+    openOverlay("clientOverlay");
+  }
+  async function saveClient(){
+    var name = $("clName").value.trim();
+    if (!name){ toast("שם לקוח הוא שדה חובה", "warn"); return; }
+    var rec = { name:name, email:$("clEmail").value.trim(), phone:$("clPhone").value.trim(), address:$("clAddr").value.trim(), notes:$("clNotes").value.trim() };
+    if (editingClientId){ Object.assign(DATA.clients.find(function(x){return x.id===editingClientId;}), rec); }
+    else { rec.id = uid(); rec.created_at = new Date().toISOString(); DATA.clients.push(rec); }
+    closeOverlay("clientOverlay"); renderClients();
+    await saveState("protask: save client " + name);
+  }
+  async function deleteClient(id){
+    var used = DATA.invoices.some(function(i){ return i.client_id===id; });
+    if (used){ if (!confirm("ללקוח הזה יש חשבוניות. למחוק בכל זאת? (החשבוניות יישארו ללא שם לקוח)")) return; }
+    else if (!confirm("למחוק את הלקוח?")) return;
+    DATA.clients = DATA.clients.filter(function(x){ return x.id!==id; });
+    renderClients(); await saveState("protask: delete client");
+  }
+  function fillClientSelect(sel, allowEmpty){
+    var cur = sel.value;
+    var opts = allowEmpty? '<option value="">— ללא —</option>' : '';
+    DATA.clients.slice().sort(function(a,b){return (a.name||"").localeCompare(b.name||"");}).forEach(function(c){
+      opts += '<option value="'+c.id+'">'+esc(c.name)+'</option>';
+    });
+    if (!DATA.clients.length && !allowEmpty) opts = '<option value="">— הוסיפי לקוח קודם —</option>';
+    sel.innerHTML = opts; sel.value = cur;
+  }
+
+  //── EXPENSES ───────────────────────────────────────────
+  function renderExpenses(){
+    var q = ($("expSearch").value||"").toLowerCase();
+    var list = DATA.expenses.slice().sort(function(a,b){ return (b.date||"").localeCompare(a.date||""); })
+      .filter(function(e){ return !q || (e.category||"").toLowerCase().indexOf(q)>=0 || (e.payee||"").toLowerCase().indexOf(q)>=0; });
+    var t = $("expensesTbl");
+    if (!list.length){ t.innerHTML = '<tr><td class="empty">אין הוצאות. לחצי על "הוצאה חדשה".</td></tr>'; return; }
+    var h = '<thead><tr><th>תאריך</th><th>קטגוריה</th><th>ספק</th><th>אמצעי</th><th class="num">סכום</th><th></th></tr></thead><tbody>';
+    list.forEach(function(e){
+      h += '<tr><td>'+fmtDate(e.date)+'</td><td>'+esc(e.category||"—")+'</td><td>'+esc(e.payee||"—")+'</td><td>'+esc(e.method||"—")+'</td>'+
+        '<td class="num" style="color:#b91c1c;font-weight:700">'+money(e.amount)+'</td>'+
+        '<td class="row-actions"><button class="btn btn-sm btn-ghost" data-edit-exp="'+e.id+'">✏️</button>'+
+        '<button class="btn btn-sm btn-danger" data-del-exp="'+e.id+'">🗑️</button></td></tr>';
+    });
+    t.innerHTML = h + '</tbody>';
+  }
+  var editingExpenseId = null;
+  function openExpense(id){
+    editingExpenseId = id;
+    var e = id? DATA.expenses.find(function(x){return x.id===id;}) : { date:todayISO(), amount:"", category:"דלק / רכב", payee:"", method:"כרטיס", notes:"" };
+    $("expenseModalTitle").textContent = id? "עריכת הוצאה" : "הוצאה חדשה";
+    $("expDate").value=e.date||todayISO(); $("expAmount").value=e.amount||""; $("expCategory").value=e.category||"דלק / רכב";
+    $("expPayee").value=e.payee||""; $("expMethod").value=e.method||"כרטיס"; $("expNotes").value=e.notes||"";
+    openOverlay("expenseOverlay");
+  }
+  async function saveExpense(){
+    var amt = num($("expAmount").value);
+    if (!amt){ toast("הזיני סכום", "warn"); return; }
+    var rec = { date:$("expDate").value||todayISO(), amount:amt, category:$("expCategory").value, payee:$("expPayee").value.trim(), method:$("expMethod").value, notes:$("expNotes").value.trim() };
+    if (editingExpenseId){ Object.assign(DATA.expenses.find(function(x){return x.id===editingExpenseId;}), rec); }
+    else { rec.id = uid(); rec.created_at = new Date().toISOString(); DATA.expenses.push(rec); }
+    closeOverlay("expenseOverlay"); renderExpenses();
+    await saveState("protask: save expense");
+  }
+  async function deleteExpense(id){
+    if (!confirm("למחוק את ההוצאה?")) return;
+    DATA.expenses = DATA.expenses.filter(function(x){ return x.id!==id; });
+    renderExpenses(); await saveState("protask: delete expense");
+  }
+
+  //── SETTINGS ───────────────────────────────────────────
+  function fillSettings(){
+    var s = DATA.settings;
+    $("setBizName").value=s.biz_name||""; $("setBizWeb").value=s.biz_web||""; $("setBizEmail").value=s.biz_email||"";
+    $("setBizPhone").value=s.biz_phone||""; $("setBizAddr").value=s.biz_addr||""; $("setLogo").value=s.logo_url||"";
+    $("setPrefix").value=s.invoice_prefix||""; $("setNextNum").value=s.next_invoice_num||1; $("setTax").value=s.tax_rate||0;
+    $("setTerms").value=s.payment_terms||""; $("setCurSym").value=s.currency_symbol||"$"; $("setFooter").value=s.invoice_footer||"";
+    $("setToken").value = getToken();
+    refreshTokState();
+  }
+  function refreshTokState(){
+    var el = $("tokState"); if (!el) return;
+    el.innerHTML = getToken()? '<span style="color:#15803d">✓ טוקן מוגדר — הנתונים מסונכרנים ל-GitHub.</span>'
+      : '<span style="color:#b45309">⚠️ אין טוקן — שינויים לא יסונכרנו בין מכשירים.</span>';
+  }
+  async function saveSettings(){
+    var s = DATA.settings;
+    s.biz_name=$("setBizName").value; s.biz_web=$("setBizWeb").value; s.biz_email=$("setBizEmail").value;
+    s.biz_phone=$("setBizPhone").value; s.biz_addr=$("setBizAddr").value; s.logo_url=$("setLogo").value;
+    s.invoice_prefix=$("setPrefix").value; s.next_invoice_num=num($("setNextNum").value)||1; s.tax_rate=num($("setTax").value);
+    s.payment_terms=$("setTerms").value; s.currency_symbol=$("setCurSym").value||"$"; s.invoice_footer=$("setFooter").value;
+    var tk = $("setToken").value.trim();
+    if (tk) setTokenLS(tk);
+    refreshTokState(); updateTokBar();
+    await saveState("protask: update settings");
+  }
+
+  //── overlays ───────────────────────────────────────────
+  function openOverlay(id){ $(id).classList.add("show"); }
+  function closeOverlay(id){ $(id).classList.remove("show"); }
+
+  function updateTokBar(){
+    var bar = $("tokbar");
+    if (getToken()) bar.classList.remove("show"); else bar.classList.add("show");
+  }
+
+  //── events ─────────────────────────────────────────────
+  function wire(){
+    document.querySelectorAll(".tab").forEach(function(t){ t.addEventListener("click", function(){ showSection(t.dataset.sec); }); });
+    $("dashRange").addEventListener("change", renderDashboard);
+
+    $("newInvoiceBtn").addEventListener("click", function(){ if(!DATA.clients.length){ toast("הוסיפי לקוח אחד לפחות לפני יצירת חשבונית", "warn"); showSection("clients"); return; } openInvoice(null); });
+    $("newClientBtn").addEventListener("click", function(){ openClient(null); });
+    $("newIncomeBtn").addEventListener("click", function(){ openIncome(null); });
+    $("newExpenseBtn").addEventListener("click", function(){ openExpense(null); });
+
+    $("addLineBtn").addEventListener("click", function(){ $("liBody").appendChild(lineRow({desc:"",qty:1,price:0})); });
+    $("invDiscount").addEventListener("input", recalcInvoice);
+    $("invTax").addEventListener("input", recalcInvoice);
+
+    $("saveInvoiceBtn").addEventListener("click", saveInvoice);
+    $("printInvoiceBtn").addEventListener("click", function(){
+      if (!$("invClient").value){ toast("בחרי לקוח", "warn"); return; }
+      var preview = readInvoiceForm();
+      if (editingInvoiceId){ var inv = DATA.invoices.find(function(x){return x.id===editingInvoiceId;}); printInvoice(Object.assign({}, inv, preview)); }
+      else printInvoice(preview);
+    });
+    $("saveClientBtn").addEventListener("click", saveClient);
+    $("saveIncomeBtn").addEventListener("click", saveIncome);
+    $("saveExpenseBtn").addEventListener("click", saveExpense);
+    $("saveSettingsBtn").addEventListener("click", saveSettings);
+
+    $("invSearch").addEventListener("input", renderInvoices);
+    $("invStatusFilter").addEventListener("change", renderInvoices);
+    $("clientSearch").addEventListener("input", renderClients);
+    $("expSearch").addEventListener("input", renderExpenses);
+
+    $("tokSave").addEventListener("click", function(){ setTokenLS($("tokInput").value); $("tokInput").value=""; updateTokBar(); refreshTokState(); toast("✓ טוקן נשמר", "ok"); });
+
+    document.querySelectorAll("[data-close]").forEach(function(b){ b.addEventListener("click", function(){ closeOverlay(b.dataset.close); }); });
+    document.querySelectorAll(".overlay").forEach(function(o){ o.addEventListener("click", function(e){ if(e.target===o) closeOverlay(o.id); }); });
+
+    // delegated row actions
+    document.addEventListener("click", function(e){
+      var el = e.target.closest("[data-edit-inv],[data-print-inv],[data-paid-inv],[data-del-inv],[data-edit-cl],[data-del-cl],[data-edit-inc],[data-del-inc],[data-edit-exp],[data-del-exp]");
+      if (!el) return;
+      if (el.dataset.editInv!=null) openInvoice(el.dataset.editInv);
+      else if (el.dataset.printInv!=null) printInvoice(el.dataset.printInv);
+      else if (el.dataset.paidInv!=null) markPaid(el.dataset.paidInv);
+      else if (el.dataset.delInv!=null) deleteInvoice(el.dataset.delInv);
+      else if (el.dataset.editCl!=null) openClient(el.dataset.editCl);
+      else if (el.dataset.delCl!=null) deleteClient(el.dataset.delCl);
+      else if (el.dataset.editInc!=null) openIncome(el.dataset.editInc);
+      else if (el.dataset.delInc!=null) deleteIncome(el.dataset.delInc);
+      else if (el.dataset.editExp!=null) openExpense(el.dataset.editExp);
+      else if (el.dataset.delExp!=null) deleteExpense(el.dataset.delExp);
+    });
+  }
+
+  //── boot ───────────────────────────────────────────────
+  async function boot(){
+    wire();
+    updateTokBar();
+    await loadState();
+    showSection("dashboard");
+    refreshTokState();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();
+</script>
 
 </body>
 </html>
