@@ -48,6 +48,7 @@ MAPPING = {
     "kara-beauty":      [10],
     "romantic-beauty":  [16],
     "beauty-creations": [4],
+    "banana-brands":    [25],     # OCTOPOS: "Banana Brands" — temporary weekly products, intake by barcode scan (Lauren 2026-06-02). No POs/invoices; multi-barcode per price-point product.
 }
 # Inverse: vendor_id → supplier_code (multi-vendor → first-match wins, but each vid is unique across the table)
 VENDOR_TO_CODE = {vid: code for code, vids in MAPPING.items() for vid in vids}
@@ -262,6 +263,9 @@ def build_snapshot(vendors, products):
             "name": p.get("name", ""),
             "sku": p.get("sku", ""),
             "barcode": p.get("barcode", ""),
+            # additional_barcodes: extra barcodes mapped to the same product (Banana Brands multi-barcode, Lauren 2026-06-02).
+            # OCTOPOS v2 product carries them as a list of objects; we store the barcode strings.
+            "additional_barcodes": [str(b.get("barcode")) for b in (p.get("additional_barcodes") or []) if isinstance(b, dict) and b.get("barcode")],
             "in_stock_qty": qty,
             "threshold": threshold,
             "unit_cost": unit_cost,

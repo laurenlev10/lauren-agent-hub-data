@@ -529,6 +529,28 @@
   .cmp-summary .pill.qty-diff{background:#fef3c7;color:#854d0e}
   .cmp-summary .pill.missing{background:#fee2e2;color:#7f1d1d}
   .cmp-summary .pill.extra{background:#dbeafe;color:#1e3a8a}
+
+  /* 🍌 Banana Brands special card (Lauren 2026-06-02) */
+  .bn-wrap{display:flex;flex-direction:column;gap:10px}
+  .bn-row{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fff}
+  .bn-row.bn-inactive{opacity:.6}
+  .bn-row-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .bn-name{font-weight:800;font-size:15px;color:#1f2937}
+  .bn-off{font-size:10px;background:#fee2e2;color:#b91c1c;border-radius:5px;padding:1px 6px;font-weight:700}
+  .bn-meta{font-size:12px;color:var(--muted)}
+  .bn-price{color:#15803d;font-weight:800}
+  .bn-stock{color:#475569}
+  .bn-count{color:#92400e}
+  .bn-bcs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;min-height:4px}
+  .bn-chip{display:inline-flex;align-items:center;gap:5px;background:#fef9c3;border:1px solid #fde047;color:#713f12;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;font-family:ui-monospace,monospace}
+  .bn-chip-mk{background:#e0e7ff;border-color:#a5b4fc;color:#3730a3}
+  .bn-del{border:none;background:transparent;color:#b45309;cursor:pointer;font-size:12px;line-height:1;padding:0 0 0 2px;font-weight:800}
+  .bn-del:hover{color:#dc2626}
+  .bn-add{display:flex;gap:8px;align-items:center}
+  .bn-add-input{flex:1;min-width:140px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;font-family:ui-monospace,monospace}
+  .bn-add-input:focus{outline:none;border-color:#f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.2)}
+  .bn-add-btn{background:linear-gradient(180deg,#facc15,#eab308);color:#422006;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+  .bn-add-btn:disabled{opacity:.6;cursor:wait}
 </style>
 </head>
 <body>
@@ -713,7 +735,10 @@ const SUPPLIERS = [
   { code: "lurella",          name: "Lurella",          category: "Cosmetics",         octopos_vendor_ids: [12] },
   { code: "kara-beauty",      name: "Kara Beauty",      category: "Cosmetics",         octopos_vendor_ids: [10] },
   { code: "romantic-beauty",  name: "Romantic Beauty",  category: "Cosmetics",         octopos_vendor_ids: [16] },
-  { code: "beauty-creations", name: "Beauty Creations", category: "Cosmetics",         octopos_vendor_ids: [4] }
+  { code: "beauty-creations", name: "Beauty Creations", category: "Cosmetics",         octopos_vendor_ids: [4] },
+  // 🍌 Banana Brands — temporary weekly products (Lauren 2026-06-02). Special card: no POs / no invoices.
+  // Intake = barcode scan at the event. Products named by price-point ("Brand $10"); each can hold many barcodes.
+  { code: "banana-brands",    name: "Banana Brands",    category: "Temporary · scan-in", octopos_vendor_ids: [25], special: "banana" }
 ];
 
 const STATUS_LABELS = {
@@ -1119,7 +1144,147 @@ function renderSuppliers(){
   });
 }
 
+
+// ============================================================================
+// 🍌 Banana Brands — special supplier card (Lauren 2026-06-02)
+// Temporary weekly products. NO purchase orders, NO invoices. Intake = barcode
+// scan at the event. Products are named by price-point ("Brand $10"); each can
+// hold MANY barcodes (OCTOPOS additional_barcodes). When a new item arrives with
+// a fresh barcode but is priced at $10, Lauren adds that barcode here under
+// "Brand $10" — scanning it at the POS then rings up that product.
+// Barcodes are written LIVE to OCTOPOS via v2 PUT {additional_barcodes:[...]}.
+// OCTOPOS is the source of truth; the daily octopos_sync reconciles the snapshot.
+// ============================================================================
+function bananaProducts(){
+  var v = (OCTOPOS && OCTOPOS.vendors) ? OCTOPOS.vendors["banana-brands"] : null;
+  if (!v) return [];
+  var arr = (v.products || []).concat(v.inactive_products || []);
+  // sort by sale_price ascending so $5, $10, $15... line up
+  arr.sort(function(a,b){ return (Number(a.sale_price)||0) - (Number(b.sale_price)||0); });
+  return arr;
+}
+function bananaBarcodeList(p){
+  // normalize additional_barcodes (may be array of strings OR array of {barcode} objects)
+  var out = [];
+  (p.additional_barcodes || []).forEach(function(b){
+    var code = (typeof b === "string") ? b : (b && b.barcode);
+    if (code && String(code).trim()) out.push(String(code).trim());
+  });
+  return out;
+}
+// Live write to OCTOPOS — REPLACES the whole additional_barcodes list with `list`.
+async function bananaPutBarcodes(pid, list){
+  var token = (localStorage.getItem("lauren_octopos_token") || "").trim();
+  if (!token){ toast("⚠️ צריך OCTOPOS token — היכנסי לדשבורד תחילה", "error"); return false; }
+  try{
+    var r = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
+      method: "PUT",
+      headers: { "Authorization": token, "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ additional_barcodes: list })
+    });
+    if (r.status === 401){ localStorage.removeItem("lauren_octopos_token"); toast("⚠️ ה-token פג תוקף — נסי שוב", "error"); return false; }
+    if (!r.ok){ toast("⚠️ OCTOPOS דחה את העדכון (HTTP " + r.status + ")", "error"); return false; }
+    return true;
+  } catch(e){ console.error("bananaPutBarcodes", e); toast("⚠️ שגיאת רשת מול OCTOPOS", "error"); return false; }
+}
+// Update the in-memory snapshot product's additional_barcodes (objects of {barcode}) so UI stays fresh.
+function bananaSetMem(pid, list){
+  ["products","inactive_products"].forEach(function(bucket){
+    var v = (OCTOPOS.vendors||{})["banana-brands"]; if (!v) return;
+    (v[bucket]||[]).forEach(function(p){
+      if (String(p.id) === String(pid)) p.additional_barcodes = list.map(function(c){ return { barcode: c }; });
+    });
+  });
+}
+function renderBananaCard(sup, s){
+  var prods = bananaProducts();
+  var note = '<div style="font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;margin-bottom:12px;line-height:1.5">'+
+    '🍌 <b>מוצרים זמניים</b> — אין כאן הזמנות או חשבוניות. הסחורה נכנסת בעיר בסריקת ברקוד. '+
+    'כל מוצר נקרא לפי מחיר (למשל <b>Brand $10</b>) ויכול להחזיק כמה ברקודים. '+
+    'כשמגיע פריט חדש עם ברקוד חדש שיימכר ב-$10 — הוסיפי כאן את הברקוד תחת <b>Brand $10</b>, '+
+    'ומאותו רגע סריקה שלו בקופה תרים את המוצר הזה. השינוי נכתב ישירות ל-OCTOPOS.'+
+    '</div>';
+  if (!prods.length){
+    return '<div class="sup-head"><div class="sup-title"><span class="sup-name">🍌 Banana Brands</span> <span class="sup-cat">מוצרים זמניים · סריקה</span></div></div>'+
+      note + '<div style="padding:14px;color:var(--muted);font-size:13px">אין עדיין מוצרים תחת הספק הזה. פתחי את הדשבורד הגלובלי (<code>?mode=global</code>) או המתיני לסנכרון היומי. אפשר גם ליצור מוצרי מחיר חדשים ב-OCTOPOS תחת הספק "Banana Brands".</div>';
+  }
+  var rows = prods.map(function(p){
+    var bcs = bananaBarcodeList(p);
+    var primary = (p.barcode||"").trim();
+    var stock = Math.round(Number(p.in_stock_qty)||0);
+    var price = (Number(p.sale_price)||0).toFixed(2).replace(/\.00$/,'');
+    var chips = bcs.map(function(c){
+      return '<span class="bn-chip">'+escHtml(c)+
+        '<button type="button" class="bn-del" data-pid="'+p.id+'" data-bc="'+escHtml(c)+'" title="הסר ברקוד">✕</button></span>';
+    }).join('');
+    var primaryChip = primary ? '<span class="bn-chip bn-chip-mk" title="מק״ט / ברקוד ראשי — לא ניתן להסרה מכאן">'+escHtml(primary)+' · מק״ט</span>' : '';
+    return ''+
+      '<div class="bn-row'+(p.active===false?' bn-inactive':'')+'">'+
+        '<div class="bn-row-head">'+
+          '<div class="bn-name">'+escHtml(p.name||('#'+p.id))+(p.active===false?' <span class="bn-off">לא פעיל</span>':'')+'</div>'+
+          '<div class="bn-meta"><span class="bn-price">$'+price+'</span> · <span class="bn-stock">מלאי '+stock+'</span> · <span class="bn-count">'+bcs.length+' ברקודים</span></div>'+
+        '</div>'+
+        '<div class="bn-bcs">'+primaryChip+chips+'</div>'+
+        '<div class="bn-add">'+
+          '<input type="text" class="bn-add-input" data-pid="'+p.id+'" placeholder="סרקי או הקלידי ברקוד חדש…" autocomplete="off" inputmode="numeric">'+
+          '<button type="button" class="bn-add-btn" data-pid="'+p.id+'">➕ הוסף ברקוד</button>'+
+        '</div>'+
+      '</div>';
+  }).join('');
+  return ''+
+    '<div class="sup-head"><div class="sup-title"><span class="sup-name">🍌 Banana Brands</span> '+
+      '<span class="sup-cat">מוצרים זמניים · סריקה · '+prods.length+' מוצרים</span></div></div>'+
+    note +
+    '<div class="bn-wrap">'+rows+'</div>';
+}
+// Delegated handlers for the banana card (registered once).
+(function(){
+  function findInput(btn){
+    var row = btn.closest(".bn-row"); return row ? row.querySelector(".bn-add-input") : null;
+  }
+  document.addEventListener("click", async function(ev){
+    var addBtn = ev.target.closest && ev.target.closest(".bn-add-btn");
+    if (addBtn){
+      var pid = addBtn.dataset.pid;
+      var inp = findInput(addBtn);
+      var code = (inp && inp.value || "").trim();
+      if (!code){ toast("הקלידי או סרקי ברקוד", "error"); if(inp) inp.focus(); return; }
+      var prod = bananaProducts().find(function(p){ return String(p.id)===String(pid); });
+      if (!prod) return;
+      var list = bananaBarcodeList(prod);
+      if (list.indexOf(code) !== -1 || (prod.barcode||"").trim()===code){ toast("הברקוד כבר קיים תחת המוצר הזה", "error"); return; }
+      addBtn.disabled = true; addBtn.textContent = "שומר…";
+      var newList = list.concat([code]);
+      var ok = await bananaPutBarcodes(pid, newList);
+      addBtn.disabled = false; addBtn.textContent = "➕ הוסף ברקוד";
+      if (ok){ bananaSetMem(pid, newList); toast("✓ נוסף ברקוד ל-"+(prod.name||("#"+pid))+" — חי ב-OCTOPOS", "success"); renderSuppliersWithBindings(); }
+      return;
+    }
+    var delBtn = ev.target.closest && ev.target.closest(".bn-del");
+    if (delBtn){
+      var pidD = delBtn.dataset.pid, bc = delBtn.dataset.bc;
+      var prodD = bananaProducts().find(function(p){ return String(p.id)===String(pidD); });
+      if (!prodD) return;
+      if (!confirm("להסיר את הברקוד "+bc+" מ-"+(prodD.name||("#"+pidD))+"?")) return;
+      var listD = bananaBarcodeList(prodD).filter(function(c){ return c !== bc; });
+      var okD = await bananaPutBarcodes(pidD, listD);
+      if (okD){ bananaSetMem(pidD, listD); toast("✓ הברקוד הוסר — חי ב-OCTOPOS", "success"); renderSuppliersWithBindings(); }
+      return;
+    }
+  });
+  // Enter key inside the add-input triggers add
+  document.addEventListener("keydown", function(ev){
+    if (ev.key === "Enter" && ev.target && ev.target.classList && ev.target.classList.contains("bn-add-input")){
+      ev.preventDefault();
+      var row = ev.target.closest(".bn-row");
+      var btn = row && row.querySelector(".bn-add-btn");
+      if (btn) btn.click();
+    }
+  });
+})();
+
 function renderSupplierCard(sup, s, idx){
+  if (sup && sup.special === "banana") return renderBananaCard(sup, s);
   // Lauren 2026-06-01 — define slice in THIS function's scope. It was referenced
   // (per-order invoice total, _allOrdersCompared, _rowGrand) but never declared here,
   // so every use threw a silently-caught ReferenceError → the supplier-card header
