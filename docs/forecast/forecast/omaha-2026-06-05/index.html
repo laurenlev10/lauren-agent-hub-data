@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<script>
+// 🛑 2026-05-28 — Cloudflare Access hostname guard.
+// If served from any URL other than the protected custom domain, replace content with a redirect notice.
+// Uses DOM methods (not innerHTML with closing-tag literals) so check.sh sees balanced tags.
+(function(){
+  var allowed = "dashboard.themakeupblowout.com";
+  if (window.location.hostname === allowed) return;
+  var u = "https://" + allowed + window.location.pathname + window.location.search;
+  document.addEventListener("DOMContentLoaded", function(){
+    document.body.innerHTML = "";
+    document.body.style.cssText = "font-family:sans-serif;padding:40px;text-align:center;direction:rtl;";
+    var h = document.createElement("h2"); h.style.color="#0f172a"; h.textContent="הדף הזה זמין רק דרך הדומיין המאובטח"; document.body.appendChild(h);
+    var p1 = document.createElement("p"); p1.style.cssText="color:#475569;margin-top:16px;"; p1.textContent="מעבירה ל:"; document.body.appendChild(p1);
+    var p2 = document.createElement("p"); var a = document.createElement("a"); a.href=u; a.style.cssText="color:#0ea5e9;font-size:18px;font-weight:700;"; a.textContent=u; p2.appendChild(a); document.body.appendChild(p2);
+    var m = document.createElement("meta"); m.setAttribute("http-equiv","refresh"); m.content="0;url="+u; document.head.appendChild(m);
+  });
+  // Stop any other scripts from running until DOMContentLoaded redirect kicks in
+  if (window.stop) try { window.stop(); } catch(e){}
+})();
+</script>
+<meta charset="utf-8">
+<title>🔮 תחזית — Omaha, NE · June 5–7, 2026</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f8f7fb;color:#1a1a2e;padding:20px;max-width:1100px;margin:0 auto;line-height:1.55}
+  header{background:linear-gradient(135deg,#7c3aed,#3b0764);color:#fff;padding:24px 28px;border-radius:14px;margin-bottom:20px}
+  header h1{margin:0 0 6px;font-size:28px}
+  header .sub{opacity:.9;font-size:14px}
+  .nav-back{display:inline-block;color:#fff;text-decoration:none;background:rgba(255,255,255,.2);padding:6px 14px;border-radius:8px;font-size:13px;margin-top:10px}
+  .headline{background:#fff;border-radius:14px;padding:24px;margin-bottom:18px;box-shadow:0 1px 3px rgba(0,0,0,.06);text-align:center;border-right:6px solid #7c3aed}
+  .estimate-big{font-size:46px;font-weight:800;color:#7c3aed;letter-spacing:-1px}
+  .conf-pill{display:inline-block;padding:6px 14px;border-radius:14px;font-weight:700;font-size:14px;margin-top:8px}
+  .conf-medium{background:#fef3c7;color:#854d0e}
+  .conf-low{background:#fee2e2;color:#991b1b}
+  .conf-high{background:#dcfce7;color:#166534}
+  .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:16px;text-align:right}
+  .meta div{background:#f3f0ff;padding:10px 12px;border-radius:8px;font-size:13px}
+  .meta b{display:block;color:#5b21b6;font-size:11px;margin-bottom:2px}
+  details{background:#fff;border-radius:12px;padding:14px 18px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+  details[open]{box-shadow:0 2px 8px rgba(124,58,237,.1)}
+  summary{font-size:17px;font-weight:600;cursor:pointer;padding:6px 0;color:#3b0764}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"▸ ";display:inline-block;transition:transform .2s}
+  details[open] summary::before{transform:rotate(90deg)}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+  th,td{padding:8px 10px;border-bottom:1px solid #eee;text-align:right}
+  th{background:#f8f7fb;color:#5b21b6;font-weight:600;font-size:13px}
+  .tag{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600;margin:1px}
+  .tag-strong{background:#dcfce7;color:#166534}
+  .tag-mid{background:#fef3c7;color:#854d0e}
+  .tag-weak{background:#fee2e2;color:#991b1b}
+  .tag-unknown{background:#e5e7eb;color:#374151}
+  .tag-conf-high{background:#1f2937;color:#fff}
+  .tag-conf-med{background:#6b7280;color:#fff}
+  .tag-conf-low{background:#d1d5db;color:#111}
+  ul.flags{list-style:none;padding:0;margin:8px 0}
+  ul.flags li{background:#fef3c7;border-right:3px solid #d97706;padding:8px 12px;margin-bottom:6px;border-radius:6px;font-size:14px}
+  ul.recs{list-style:none;padding:0;margin:8px 0}
+  ul.recs li{background:#dcfce7;border-right:3px solid #16a34a;padding:8px 12px;margin-bottom:6px;border-radius:6px;font-size:14px}
+  .math{background:#f3f4f6;padding:12px 14px;border-radius:8px;font-family:'SF Mono',Menlo,monospace;font-size:13px;direction:ltr;text-align:left;color:#374151;white-space:pre-wrap;line-height:1.7}
+  footer{margin-top:18px;padding:14px 16px;background:#fff;border-radius:10px;font-size:12px;color:#666}
+  footer a{color:#7c3aed;text-decoration:none;word-break:break-all}
+  .signal-card{background:#eef2ff;border-right:4px solid #4f46e5;padding:10px 14px;border-radius:8px;margin:8px 0;font-size:14px}
+  .signal-card b{color:#3730a3}
+  .scout-card{background:#fef3c7;border-right:4px solid #d97706;padding:12px 16px;border-radius:8px;margin:10px 0;font-size:14px}
+  .scout-card b{color:#92400e}
+  .scout-card a{color:#92400e;font-weight:600}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔮 חוזה עתידות — Omaha, NE</h1>
+  <div class="sub">June 5–7, 2026 · Courtyard by Marriott Omaha Bellevue at Beardmore Event Center · 3730 Raynor Parkway, Bellevue, NE 68123</div>
+  <a class="nav-back" href="../../">← חזרה לדשבורד התחזיות</a>
+</header>
+
+<div class="headline">
+  <div style="color:#666;font-size:13px;margin-bottom:6px">תחזית מכירות</div>
+  <div class="estimate-big">$28K – $41K</div>
+  <span class="conf-pill conf-low">ביטחון נמוכה · partial data (Scout לא רץ)</span>
+  <div class="meta">
+    <div><b>עיר</b>Omaha metro · Bellevue, NE</div>
+    <div><b>תאריכים</b>שישי–ראשון · 5–7 ביוני 2026</div>
+    <div><b>אולם</b>Courtyard Marriott @ Beardmore Event Center (3,200 sqft)</div>
+    <div><b>כתובת</b>3730 Raynor Parkway, Bellevue, NE 68123</div>
+    <div><b>אזור</b>Sarpy County · ~10 מייל דרומית ל-Downtown Omaha (ליד Offutt AFB)</div>
+    <div><b>Tier</b>2 · שוק ראשון לחלוטין</div>
+  </div>
+</div>
+
+<div class="scout-card">
+  <b>⚠ City Scout לא רץ ל-Omaha</b> — אין דוח Scout ב-<a href="../../../scout/">/scout/</a> (רק Cleveland, Columbia, Hialeah, Sunrise קיימים). לפי IRON RULE STEP 1B זוהי <b>ריצת partial-data</b>: הביטחון הורד ל-<b>נמוכה</b> והטווח הורחב ב-~20%. PASS 3 (דמוגרפיה) נשען על Census/web במקום על breakdown ברמת-ZIP של Scout.<br>
+  <b>המלצה:</b> להריץ <code>@scout omaha-ne</code> לפני האירוע הבא בעיר כדי לקבל ZIP-level Hispanic %, Walk Score ודירוג שכונות — זה הקלט הכי חזוי לתחזית.
+</div>
+
+<details open>
+  <summary>🕓 פאס 1 — היסטוריה</summary>
+  <p><b>אפס ריצות עבר ב-Omaha metro</b> — פעם ראשונה לחלוטין ב-Nebraska. אין HISTORICAL_LISTS לעיר, אין רישומי Eventbrite היסטוריים. נשענים על comps Midwest/Plains first-time-market 2026.</p>
+  <table>
+    <tr><th>אירוע</th><th>תאריך</th><th>מכירות</th><th>רווח</th><th>תיוג</th><th>למה רלוונטי</th></tr>
+    <tr><td>Columbus, OH 🎯</td><td>Apr 17–19, 2026</td><td>$48,958</td><td>+$7,152 (+14.6%)</td><td><span class="tag tag-strong">STRONG</span></td><td><b>תקרת ה-comp</b> — Midwest, פעם ראשונה ב-OH, מטרו ~910K, Tier 2. שבר רצף 4 הפסדים</td></tr>
+    <tr><td>Louisville, KY</td><td>Apr 24–26, 2026</td><td>$35,872</td><td>+$2,413 (+6.7%)</td><td><span class="tag tag-mid">MID</span></td><td>Midwest, מטרו ~630K. רווח שולי — Hispanic 6%</td></tr>
+    <tr><td>Tulsa, OK</td><td>Mar 20–22, 2026</td><td>$38,640</td><td>+$768 (+2.0%)</td><td><span class="tag tag-mid">MID</span></td><td>Plains, low-Hispanic 18% — רווח אפסי אבל לא הפסד</td></tr>
+    <tr><td>Nashville, TN ❌</td><td>May 1–3, 2026</td><td>$30,181</td><td>−$9,084 (−30.1%)</td><td><span class="tag tag-weak">WEAK</span></td><td>First-time, ZIP airport 9% Hispanic — <b>פטרון הקצה התחתון</b></td></tr>
+    <tr><td>Hampton, VA ❌</td><td>Mar 27–29, 2026</td><td>$34,033</td><td>−$11,628 (−34.2%)</td><td><span class="tag tag-weak">WEAK</span></td><td>First-time, 8% Hispanic — דפוס דומה</td></tr>
+    <tr><td>Syracuse, NY ❌</td><td>Apr 3–5, 2026</td><td>$34,930</td><td>−$9,328 (−26.7%)</td><td><span class="tag tag-weak">WEAK</span></td><td>First-time, 10% Hispanic — דפוס דומה</td></tr>
+  </table>
+  <p><b>חציון comp first-time/Midwest 2026 ≈ $35,900</b>. ממוצע 2026 N=17 = $48,217. <b>4 מתוך 5 הפסדי 2026 הם first-time markets.</b> Columbus + Louisville + Tulsa שברו את הדפוס (כולם Midwest/Plains, מטרו גדול). Omaha דומה להם בפרופיל — מטרו ~970K, Tier 2, Hispanic מטרו 16% (גבוה מ-Columbus/Louisville).</p>
+  <p>סיגנל חזק נוסף — SMS list (קריטי לפי IRON RULE #5 + memory.md 2026-05-03):</p>
+  <div class="signal-card">
+    <b>📲 רשימת SMS "Omaha, NE 2026":</b> 1,149 סה"כ · 1,070 active (snapshot 2026-06-01, T-4 ימים)<br>
+    <b>YoY:</b> אין HISTORICAL_LISTS לעיר (פעם ראשונה) → לא מחשבים מכפיל YoY<br>
+    <b>גודל מוחלט:</b> 1,149 — בריא לשוק ראשון. בטווח של Cleveland (1,483) / Roseville (1,919); מעל Hampton/Syracuse/Reading שהפסידו.<br>
+    <b>Velocity:</b> צמחה מ-204 (5/13) ל-1,149 (6/01) ב-~3 שבועות (≈5.6x) — מומנטום צמיחה חזק → +5% מתון<br>
+    <b>Eventbrite:</b> 115/250 = <b>46% fill</b> ב-T-4 · weekly_delta 0 (שבוע אחרון שטוח) · forecast_status <b>"behind"</b> · projected 131<br>
+    <b>פסיקה:</b> רשימת ה-SMS היא הסיגנל החיובי החזק; היא בולמת את הקצה התחתון מלהיות חמור כמו Hampton/Nashville. ה-Eventbrite השטוח (delta 0 בשבוע) הוא דגל צהוב — צריך דחיפת רישומים T-4→T-0.
+  </div>
+</details>
+
+<details>
+  <summary>🚨 פאס 2 — אבחון אירועים חלשים</summary>
+  <p>אין היסטוריה ישירה לתייג. במקום זה, מיפינו את הדפוס loss-pattern של 2026 ובדקנו אילו תגיות חלות על האירוע הקרוב:</p>
+  <table>
+    <tr><th>תג</th><th>חל?</th><th>ביטחון</th><th>הסבר</th></tr>
+    <tr><td><code>first_time_in_metro</code></td><td>✅ כן</td><td><span class="tag tag-conf-high">high</span></td><td>אפס היכרות עם הקהל ב-Omaha metro. 4/5 הפסדי 2026 הם first-time markets (Hampton, Syracuse, Reading, Nashville). דפוס סטטיסטי חזק.</td></tr>
+    <tr><td><code>income_above_sweet_spot</code></td><td>✅ כן</td><td><span class="tag tag-conf-med">med</span></td><td>Bellevue ZIP 68123 הכנסה חציונית <b>$93,188</b> — מעל MBS sweet spot $45-80K. Bellevue הוא פרבר צבאי (Offutt AFB) בעל הכנסה גבוהה; קונה ב-Ulta/Target, לא בהכרח ב-pop-up. אבל הרדיוס לוכד גם את South Omaha בעל הכנסה נמוכה יותר.</td></tr>
+    <tr><td><code>low_hispanic_at_venue_zip</code></td><td>🟠 חלקית</td><td><span class="tag tag-conf-med">med</span></td><td>Bellevue 68123 ~18% Hispanic — <b>הרבה פחות גרוע</b> מ-Nashville (9%) / Cleveland ZIP (2.6%). אבל הליבה ההיספנית האמיתית (South Omaha 68107/68105, ~40-50%) היא ~12-15 מייל צפונה. תלות בשיווק שמושך מצפון.</td></tr>
+    <tr><td><code>competing_local_event</code></td><td>✅ כן</td><td><span class="tag tag-conf-med">med</span></td><td><b>Banda El Recodo</b> (להקת בנדה מקסיקנית מובילה) ב-Liberty First Credit Union Arena <b>שישי 5/6 21:00</b> — מושכת בדיוק את קהל היעד ההיספני בערב יום הפתיחה. בנוסף: Big Day Out EDM שבת (Turner Park), IRONMAN 70.3 ראשון (Cunningham Lake — סגירות כבישים בצפון).</td></tr>
+    <tr><td><code>holiday_clash</code></td><td>❌ לא</td><td>—</td><td>5–7/6 אינו חופף לחג US/יהודי. window שופינג רגיל בתחילת הקיץ.</td></tr>
+    <tr><td><code>weather</code></td><td>❌ לא</td><td>—</td><td>נורמלי תחילת-יוני: ~79°F יום / 60°F לילה · סיכוי גשם קל. נטרלי-חיובי לאירוע פנים.</td></tr>
+    <tr><td><code>covid_era</code></td><td>❌ לא</td><td>—</td><td>2026</td></tr>
+    <tr><td><code>returned_too_soon</code></td><td>❌ לא</td><td>—</td><td>פעם ראשונה במטרו</td></tr>
+    <tr><td><code>marketing_cut</code></td><td>❓ לא נבדק</td><td><span class="tag tag-conf-low">low</span></td><td>אין עדיין נתוני event_analytics ל-omaha-ne-2026 ב-STATS data bus בזמן הריצה. SMS list בריא + Eventbrite פעיל מצביעים על שיווק פעיל. לוודא ב-@stats לקראת האירוע.</td></tr>
+  </table>
+  <p><b>📌 דפוס loss-pattern קריטי:</b> 4/5 הפסדי 2026 הם first-time markets. Columbus + Louisville + Tulsa שברו את הדפוס — Midwest/Plains, מטרו גדול. Omaha metro Hispanic 16.2% (גבוה מ-Columbus 6% ו-Louisville 6%!) — <b>פרופיל דמוגרפי בריא יותר מהמפסידים</b>. הסיכון העיקרי הוא לא חוסר-קהל אלא <b>מיקום האולם בפרבר Bellevue</b> + <b>תחרות Banda El Recodo</b> על אותו קהל ביום הפתיחה.</p>
+</details>
+
+<details>
+  <summary>📊 פאס 3 — דמוגרפיה (15-mile radius סביב האולם)</summary>
+  <p>מיקום: <b>~41.13°N, −95.93°W</b> — 3730 Raynor Pkwy, Bellevue, Sarpy County, ZIP 68123. ~10 מייל דרומה ל-Downtown Omaha, צמוד ל-Offutt AFB. <i>(Scout לא רץ — ה-ZIP breakdown להלן מ-Census/web, לא מ-Scout.)</i></p>
+  <table>
+    <tr><th>מדד</th><th>ערך (15-mi radius)</th><th>vs ממוצע MBS</th></tr>
+    <tr><td>אוכלוסיית מטרו Omaha-Council Bluffs</td><td>~970,000</td><td>✅ מעל הממוצע — דומה ל-Columbus 910K, Fort Worth 960K</td></tr>
+    <tr><td>Omaha city</td><td>~489,000</td><td>~10 מי' צפ' מהאולם</td></tr>
+    <tr><td>Bellevue (ZIP 68123)</td><td>~32,200 · הכנסה $93,188</td><td>🟠 הכנסה מעל sweet spot — פרבר צבאי</td></tr>
+    <tr><td>הכנסה חציונית (radius mix)</td><td>~$60K-$70K (city+suburb)</td><td>✅ <b>בתוך sweet spot</b> — הרדיוס לוכד South Omaha ($45K) + פרברים</td></tr>
+    <tr><td>Hispanic % — מטרו</td><td>~16.2%</td><td>✅ <b>מעל אזור-הסכנה</b> — גבוה מ-Nashville 9% / Syracuse 10% שהפסידו</td></tr>
+    <tr><td>Hispanic % — ZIP האולם (68123)</td><td>~18%</td><td>⚠ סביר אבל לא ה-core; הקהל החזק צפונה</td></tr>
+    <tr><td>Hispanic % — South Omaha core (68107/68105/68108)</td><td>~40-50%</td><td>✅ ה-target audience — אבל 12-15 מי' צפ' מהאולם</td></tr>
+    <tr><td>נשים 25–64 (estimate radius)</td><td>~250,000</td><td>✅ מעל הממוצע</td></tr>
+    <tr><td>Density</td><td>פרבר (אולם Bellevue) → urban core 10 מי' צפונה</td><td>⚠ foot-traffic אורגני נמוך באולם עצמו</td></tr>
+  </table>
+  <p><b>נרטיב:</b> רדיוס 15 מייל סביב 3730 Raynor Pkwy לוכד את כל מטרו Omaha (~970K) ועם מאזן הכנסה בתוך sweet spot. <b>הפרופיל הדמוגרפי כאן בריא יותר מרוב המפסידים של 2026</b> — מטרו Hispanic 16.2% עם South Omaha כליבה היספנית אמיתית (68107/68105 ~40-50%), הרבה מעל Nashville/Syracuse/Hampton. <b>אבל</b> האולם יושב בפרבר Bellevue היקר (הכנסה $93K, צבאי) — קהל היעד ההיספני מרוכז ~12-15 מייל צפונה ב-South Omaha. ההצלחה תלויה בכך שהשיווק (במיוחד הספרדי) ימשוך את South Omaha דרומה אל Bellevue, או שיתמקד גאוגרפית בצפון. אם Scout היה רץ, היינו מקבלים את ה-ZIP-level Hispanic% + Walk Score המדויקים — בהיעדרו, זה אומדן.</p>
+</details>
+
+<details>
+  <summary>🗓️ פאס 4 — עונתיות</summary>
+  <table>
+    <tr><th>סיגנל</th><th>ממצא</th><th>השפעה</th></tr>
+    <tr><td>School calendar (Omaha)</td><td>Omaha Public Schools מסיימים סוף מאי. עד 5-7/6 בית הספר <b>נגמר</b> — חופש הקיץ התחיל. משפחות פנויות יותר בסופ"ש (אבל גם נוסעות).</td><td>🟢 Mild tailwind</td></tr>
+    <tr><td>מזג אוויר Omaha (נורמלי תחילת-יוני)</td><td>גבוה ~79°F / נמוך ~60°F · סיכוי גשם קל (~0.2-0.5"). אביב-קיץ נעים, ללא גל חום/סופה.</td><td>🟢 נטרלי-חיובי — אידיאלי לקניות פנים</td></tr>
+    <tr><td>🎵 אירוע מתחרה ישיר — Banda El Recodo</td><td><b>שישי 5/6 21:00</b> ב-Liberty First Credit Union Arena — להקת בנדה מקסיקנית מובילה. מושכת בדיוק את קהל היעד ההיספני בערב יום הפתיחה.</td><td>🔴 Headwind ליום שישי (קהל היספני)</td></tr>
+    <tr><td>אירועים מתחרים נוספים</td><td>Big Day Out 2026 (EDM festival) שבת ב-Turner Park · IRONMAN 70.3 Omaha ראשון 7/6 ב-Cunningham Lake (סגירות כבישים בצפון).</td><td>🟠 Mild headwind (סופ"ש)</td></tr>
+    <tr><td>Google Trends "makeup sale" תחילת-יוני</td><td>שיא pre-summer / graduation-gift refresh — score ~55-60/100</td><td>Mild tailwind</td></tr>
+  </table>
+  <p><b>Verdict: NEUTRAL.</b> מזג אוויר נעים + בית ספר נגמר (זמינות סופ"ש) מקזזים את התחרות הישירה — <b>Banda El Recodo בערב שישי מושכת את הקהל ההיספני</b>, ו-IRONMAN ראשון יוצר סגירות כבישים. המסקנה התפעולית: <b>להסיט משקל מכירות לשבת+ראשון</b> ולא להסתמך על שישי בערב.</p>
+</details>
+
+<details open>
+  <summary>🧭 פאס 5 — סינתזה: טווח $28K–$41K</summary>
+  <p><b>בסיס + מכפילים (multiplicative):</b></p>
+  <div class="math">baseline (חציון first-time/Midwest 2026 —
+  Columbus+Louisville+Tulsa+Nashville+Hampton+Syracuse)
+                                                = $35,900
+
+× weak_tag_risk (first_time_in_metro high
+  + income_above_sweet_spot Bellevue $93K med
+  + low_hispanic_at_venue_zip חלקי med
+  + Banda El Recodo competition med)            × 0.90  → $32,310
+× demographic_delta (metro pop ~970K solid,
+  metro Hispanic 16.2% מעל אזור-סכנה,
+  BUT venue ZIP Bellevue יקר, core 12-15 mi N)  × 0.98  → $31,664
+× seasonality (NEUTRAL — מזג נעים + בי"ס נגמר
+  מקזזים את Banda El Recodo + IRONMAN)          × 0.97  → $30,714
+× sms_list_signal (1,149 list — בריא לשוק ראשון;
+  no YoY; velocity חזק 5.6x; אבל EB behind)     × 1.03  → $31,635
+
+Center  = ~$32-33K
+Range   = $28K  &lt;-  ~$33K  -&gt;  $41K (LOW confidence —
+            no past Omaha data + Scout לא רץ → טווח מורחב)</div>
+  <p><b>Confidence: ביטחון נמוכה (low)</b></p>
+  <ul>
+    <li>אפס ריצות היסטוריות במטרו Omaha → נשענים על 6 comps first-time/Midwest 2026</li>
+    <li><b>City Scout לא רץ</b> → אין ZIP-level Hispanic%/Walk Score מדויק → partial data, טווח מורחב ~20%, confidence נמוכה (per IRON RULE STEP 1B)</li>
+    <li>SMS list 1,149 (1,070 active) + velocity 5.6x = הסיגנל החיובי החזק — בלם את הקצה התחתון</li>
+    <li>EB 115/250 (46%) ב-T-4, projected 131, weekly_delta 0 = forecast_status "behind" — דגל צהוב, צריך דחיפת רישומים</li>
+    <li>הקצה התחתון $28K = פטרון Nashville/Hampton (הפסד $8-11K) מותאם ל-Omaha עם דמוגרפיה בריאה יותר + SMS list טוב; הקצה העליון $41K = פטרון Columbus (+$7K) מותאם לסיכון הפרבר + תחרות</li>
+    <li>Omaha בעל פרופיל דמוגרפי <b>טוב יותר</b> מ-Cleveland (מטרו 16.2% vs ZIP 2.6%) — לכן הקצה התחתון פחות חמור; אבל Scout-missing + Banda El Recodo + EB-behind שומרים על confidence נמוכה</li>
+  </ul>
+
+  <p><b>⚠ דגלי סיכון (top 3):</b></p>
+  <ul class="flags">
+    <li><b>שוק ראשון לחלוטין ב-Omaha:</b> 0 ריצות MBS קודמות. 4/5 הפסדי 2026 הם first-time markets (Hampton −$11.6K, Syracuse −$9.3K, Reading −$8.4K, Nashville −$9.1K). אין אנקור היסטורי — האירוע יכול ללכת לשני הכיוונים. הבייסליין נבנה מ-6 comps.</li>
+    <li><b>מיקום האולם בפרבר Bellevue (ZIP 68123):</b> הכנסה חציונית $93K (מעל sweet spot $45-80K) + פרבר צבאי. הליבה ההיספנית של קהל היעד היא South Omaha (68107/68105, ~40-50% Hispanic) ~12-15 מייל צפונה. הצלחה תלויה בשיווק שמושך מצפון — דפוס Nashville/Cleveland: ZIP venue לא-מתאים = סיכון.</li>
+    <li><b>תחרות ישירה על הקהל ההיספני + Scout חסר:</b> Banda El Recodo (בנדה מקסיקנית מובילה) ב-Omaha שישי 5/6 בערב מושכת בדיוק את קהל היעד; IRONMAN ראשון → סגירות כבישים. בנוסף — City Scout לא רץ ל-Omaha, אז אין ZIP-level breakdown מדויק → ביטחון מופחת.</li>
+  </ul>
+
+  <p><b>✅ המלצות פעולה (top 2):</b></p>
+  <ul class="recs">
+    <li><b>מיקוד גאוגרפי צפונה אל South Omaha — לא רק רדיוס סביב Bellevue:</b> כוון את תקציב ה-Meta/TikTok (במיוחד הקמפיין <b>הספרדי</b>) ל-ZIPs של South Omaha — <b>68107, 68105, 68108, 68110</b> (הליבה ההיספנית, ~40-50%) — ולא רק לרדיוס סביב 68123. שם נמצא קהל היעד. שמור על הקמפיין ה-English ברדיוס 12-15 מייל סביב האולם (לוכד את כל המטרו). הגדל תקציב T-14→T-7. Angle: "15 דקות דרומה + FREE EYESHADOW + שתפי את הריל למתנה". לינק ישיר ל-events.themakeupblowout.com/events/omaha-ne-2026/ (IRON RULE #6 — אין bit.ly).</li>
+    <li><b>הסט משקל מכירות לשבת+ראשון + דחוף רישומים ושיתופי Reel:</b> שישי מתחרה ב-Banda El Recodo, אז אל תסתמכי על ערב הפתיחה. (א) Eventbrite מאחר (115/250, projected 131, delta 0 השבוע) — שלחי תזכורת SMS לרשימה (1,070 active) ודחפי רישומים T-4→T-0. (ב) ביום ראשון אחה"צ הצוות צריך הוראה לבקש שיתוף Reel מכל לקוחה לפני יציאה (shares = ⭐ KPI #1 — memory.md). (ג) שקלי promo בוקר ראשון אחרי שמשתתפי ה-IRONMAN מסיימים (~10:00). העלי hall photo (📸 INSTA REEL) חמישי 17:00 כדי להתחיל pre_event share baseline.</li>
+  </ul>
+</details>
+
+<footer>
+  <div><b>Run timestamp:</b> Tue, Jun 2 · 09:55 PDT (2026-06-02T09:55:00−07:00)</div>
+  <div style="margin-top:8px"><b>Sources cited:</b></div>
+  <ul style="margin-top:4px">
+    <li>City Scout: ⚠ <b>לא רץ ל-Omaha</b> — אין דוח ב-<a href="../../../scout/">/scout/</a> (partial-data run, IRON RULE STEP 1B)</li>
+    <li>AVERAGES.md (N=17 2026 rolling, post-Nashville TN correction — חציון first-time/Midwest comps ~$35,900)</li>
+    <li>EVENT_DATA.md (אין רשומה היסטורית ל-Omaha metro; venue master list #22 — Courtyard Marriott Bellevue, 3,200 sqft, Tier 2)</li>
+    <li>launch_dashboard.html → LIST_STATS["omaha-2026-06-05"] (1,149 total, 1,070 active, history 204 ב-5/13 → 1,149 ב-6/01) — HISTORICAL_LISTS empty (first-time city) — EVENTBRITE_STATS["omaha-2026-06-05"] (115/250, weekly_delta 0, today_delta 2, projected 131, status "behind")</li>
+    <li>US Census QuickFacts / Data USA — Bellevue NE (ZIP 68123: pop ~32,200, Hispanic 18%, median income $93,188) · Omaha city (489K, Hispanic 16.2%) · Omaha-Council Bluffs metro ~970K</li>
+    <li>Omaha events June 5–7 2026 — Visit Omaha / AllEvents / Songkick (Banda El Recodo @ Liberty First Arena Fri 6/5; Big Day Out EDM @ Turner Park Sat; IRONMAN 70.3 Omaha @ Cunningham Lake Sun)</li>
+    <li>Omaha climate normals תחילת-יוני — usclimatedata / weather-and-climate (~79°F high / 60°F low, light rain)</li>
+  </ul>
+  <div style="margin-top:10px"><b>Anti-pattern guard:</b> אף נתון לא הומצא. הקצה התחתון $28K נשען על דפוס Hampton/Nashville (~$30-34K sales, הפסד $-8 עד $-11K) מותאם לדמוגרפיה הבריאה-יותר של Omaha + SMS list טוב. הקצה העליון $41K נשען על דפוס Columbus (+$7K, $48K sales) מותאם לסיכון הפרבר + תחרות Banda El Recodo. הנחות שלא מצוטטות ברמת מקור: (1) אוכלוסיית 15-mi radius (~970K) — מטרו Census לא radius-API ישיר; (2) Hispanic% של South Omaha ZIPs — אומדן web ולא Scout ZIP-level (Scout לא רץ); (3) school-calendar end-date — נורמה אזורית. שינוי הנחה כלשהו → לרוץ שוב את פאס 5 בלבד. <b>להריץ @scout omaha-ne לפני הביקור הבא.</b></div>
+</footer>
+
+</body>
+</html>
