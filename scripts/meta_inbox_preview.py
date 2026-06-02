@@ -451,7 +451,7 @@ CITY_PAT = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b")
 # Pattern that detects "when are you coming to X / X event / sale in X"
 # style intent, regardless of capitalization.
 CITY_QUESTION_PAT = re.compile(
-    r"\b(when|are you|coming|visit|going|sale|event|come)\b.*"
+    r"\b(when|are you|coming|visit|going|sale|event|come|been|be at|make it to)\b.*"
     r"\b(?:to|in|at|near|around)\s+"
     # Capture up to ?, sentence boundary, or a clearly terminal word.
     # Allows multi-word places like "Northern California bay area" or
@@ -857,6 +857,163 @@ _US_STATES = {
 }
 
 
+# Reverse lookup: lowercase state name -> code (e.g. "colorado" -> "CO").
+_STATE_NAME_TO_CODE = {name.lower(): code for code, name in _US_STATES.items()}
+
+# Words that are NOT part of a city name when they precede a state token.
+_PLACE_STOPWORDS = {
+    "in","to","at","near","around","for","a","an","one","do","does","did","done",
+    "the","is","are","you","u","come","coming","came","when","we","can","could",
+    "would","will","consider","considering","have","having","host","hosting","bring",
+    "bringing","throw","plan","planning","plans","hoping","hope","wish","want","wanna",
+    "love","please","pls","plz","hey","hi","of","your","our","next","back","go","going",
+    "gonna","visit","visiting","make","made","or","and","y'all","yall","sale","event",
+    "show","popup","pop-up","any","chance","time","ever","also","too","this","that",
+}
+
+# 2026-06-01 — Event-request phrasing WITHOUT the usual "when/coming/visit" trigger
+# words. Catches "can y'all consider do one in <City>", "any chance you bring a sale
+# to <City>", "you should host an event in <City>". Requires an event-object word
+# (one/sale/event/show/pop-up/stop) so it won't false-fire on "do you have it in stock".
+EVENT_REQUEST_PAT = re.compile(
+    r"\b(?:consider|considering|do|host|hosting|have|having|bring|bringing|throw|plan|planning|"
+    r"hoping|hope|wish|want|wanna|y'?all|chance|could\s+you|should)\b"
+    r"[^.?!]*?\b(?:one|a\s+sale|an?\s+event|sale|event|show|pop-?up|stop)\b"
+    r"[^.?!]*?\b(?:in|to|at|near|around|for)\s+"
+    r"([A-Za-z][A-Za-z0-9.\-']*(?:\s+[A-Za-z][A-Za-z0-9.\-']*){0,3})",
+    re.IGNORECASE,
+)
+
+# 2026-06-01 — "I'm waiting for / hoping for <place>" interest phrasing. Gated:
+# the captured place must validate (state token or schedule hit) before we auto-
+# reply, so "waiting for my order" stays with Lauren. Colloquial regions like
+# "high desert" are handled separately by _detect_known_region.
+WAITING_PLACE_PAT = re.compile(
+    r"\b(?:wait(?:ing)?\s+(?:for|on)|hoping\s+for|praying\s+for|dying\s+for|"
+    r"holding\s+out\s+for|can'?t\s+wait\s+for)\b\s+(?:the\s+|you\s+to\s+come\s+to\s+|an?\s+event\s+in\s+)?"
+    r"([A-Za-z][A-Za-z0-9.\-']*(?:\s+[A-Za-z][A-Za-z0-9.\-']*){0,3})",
+    re.IGNORECASE,
+)
+
+# Colloquial US region / metro nicknames people ask about (normalized, no leading "the").
+_KNOWN_REGIONS = {
+    "high desert","low desert","the desert","victor valley","antelope valley",
+    "coachella valley","imperial valley","inland empire","san fernando valley",
+    "san gabriel valley","san joaquin valley","central valley","bay area","east bay",
+    "south bay","north bay","central coast","gold coast","gulf coast","treasure valley",
+    "magic valley","hill country","low country","tri cities","tri state","quad cities",
+    "pacific northwest","inland northwest","southern california","northern california",
+    "central california","socal","norcal","the valley","high country","palm springs area",
+}
+
+
+def _detect_known_region(text: str):
+    """Return a prettified region name (e.g. 'High Desert') if a known colloquial
+    region nickname appears in the text, else None."""
+    if not text:
+        return None
+    norm = re.sub(r"[^a-z0-9 ]+", " ", text.lower())
+    norm = " " + re.sub(r"\s+", " ", norm).strip() + " "
+    for region in sorted(_KNOWN_REGIONS, key=len, reverse=True):
+        if (" " + region + " ") in norm:
+            return region.title()
+    return None
+
+
+def _place_with_state(text: str):
+    """Detect a 'City State' / 'City, ST' location mention anywhere in the text.
+
+    Handles organic-comment shapes that name a place + its state but lack a
+    question verb the older patterns required, e.g.:
+        '? Denver Colorado'                       -> ('Denver', 'CO')
+        'Abilene TX?'                             -> ('Abilene', 'TX')
+        "Can y'all consider do one in Abilene TX" -> ('Abilene', 'TX')
+        'South Denver, CO'                        -> ('South Denver', 'CO')
+
+    Tokenize, find a state token (full name case-insensitive; or a 2-letter code
+    that is UPPERCASE to avoid colliding with words like 'in'/'or'/'oh'), then
+    walk backwards collecting up to 3 city words until a stopword. Returns
+    (city, state_code) or None. A bare state with no city returns None.
+    """
+    if not text:
+        return None
+    raw = re.findall(r"[A-Za-z][A-Za-z.'\-]*", text)
+    if not raw:
+        return None
+    low = [w.lower() for w in raw]
+    n = len(raw)
+    found = None  # (code, start_idx)
+    i = 0
+    while i < n:
+        if i + 1 < n:
+            two = low[i] + " " + low[i + 1]
+            if two in _STATE_NAME_TO_CODE:
+                found = (_STATE_NAME_TO_CODE[two], i)
+                i += 2
+                continue
+        if low[i] in _STATE_NAME_TO_CODE:
+            found = (_STATE_NAME_TO_CODE[low[i]], i)
+        elif len(raw[i]) == 2 and raw[i].isupper() and raw[i] in _US_STATES:
+            found = (raw[i], i)
+        i += 1
+    if not found:
+        return None
+    code, sidx = found
+    city_words = []
+    j = sidx - 1
+    while j >= 0 and len(city_words) < 3:
+        if low[j] in _PLACE_STOPWORDS:
+            break
+        if low[j] in _STATE_NAME_TO_CODE or (len(raw[j]) == 2 and raw[j].isupper() and raw[j] in _US_STATES):
+            break
+        city_words.insert(0, raw[j])
+        j -= 1
+    if not city_words:
+        return None
+    return (" ".join(city_words), code)
+
+
+
+_MONTH_NAMES = {"january","february","march","april","may","june","july","august",
+           "september","october","november","december",
+           "jan","feb","mar","apr","jun","jul","aug","sep","sept","oct","nov","dec"}
+# Trailing words to peel off a captured place ("Denver please" -> "Denver").
+_PLACE_TRAIL_TRIM = {"please","pls","plz","soon","again","next","this","that","too",
+                     "thanks","thank","thx","ty","tho","though","ever","time","maybe",
+                     "yet","now","here","there","ok","okay","already","still","guys","girls"}
+# Words that are clearly NOT a city even though grammar lets them slip through.
+_NON_PLACE_WORDS = {"october","stock","town","here","there","today","tomorrow",
+                    "soon","future","general","store","online","person","time","start",
+                    "yet","stuff","things","everything","anything","makeup","lipstick",
+                    "products","product","refund","order","shipment","package","delivery",
+                    "response","reply","restock","email","website","site","sale","event"}
+
+
+def _clean_place_candidate(cand: str) -> str:
+    """Trim trailing filler words off a captured place phrase. Returns '' if nothing left."""
+    if not cand:
+        return ""
+    words = cand.strip().rstrip("?.!,").split()
+    while words and words[-1].lower() in _PLACE_TRAIL_TRIM:
+        words.pop()
+    return " ".join(words).strip()
+
+
+def _is_non_place(place: str) -> bool:
+    """True if `place` is obviously not a city (a month name, filler word, etc.).
+    Used to suppress off-schedule rotation replies for false-positive captures
+    like 'October' in 'I'm coming in October'."""
+    if not place:
+        return True
+    p = place.strip().lower().rstrip("?.!,")
+    if p in _NON_PLACE_WORDS:
+        return True
+    last = p.split()[-1] if p.split() else ""
+    if last in _MONTH_NAMES or p in _MONTH_NAMES:
+        return True
+    return False
+
+
 def _detect_state_name(text: str) -> str:
     """Return state code (e.g. 'CA') if the text is essentially just a state
     reference. Returns None if not a clean state mention.
@@ -923,8 +1080,14 @@ def classify(text: str, kb: dict) -> dict:
     if not text or len(text.strip()) < 2:
         return {"bucket": "B", "reason": "empty/too short", "reply": None}
 
+    # 2026-06-01 — detect a "City State" / "City, ST" location mention up front so
+    # it can rescue messages that older checks would mis-bucket (a bare "Denver
+    # Colorado" looks like a friend-tag; "Abilene TX" has no question verb). The
+    # actual reply is built lower down, after the NEGATIVE / FAQ checks.
+    place_state = _place_with_state(text)
+
     # Tag-only friend mentions (e.g. "Marilyn Rodriguez Sandy Rodriguez")
-    if _is_tag_only(text):
+    if _is_tag_only(text) and not place_state:
         return {"bucket": "SKIP", "reason": "tag-only-friends (no question)", "reply": None}
 
     # 2026-05-14 PM — emoji-only friendly comments → auto-handled, never shown to Lauren
@@ -936,7 +1099,7 @@ def classify(text: str, kb: dict) -> dict:
         return {"bucket": "SKIP", "reason": "reaction-or-empty (auto-done)", "reply": None}
 
     # 2026-05-14 PM — positive closer with no question → auto-done (per SKILL.md)
-    if _is_positive_closer(text):
+    if _is_positive_closer(text) and not place_state:
         return {"bucket": "SKIP", "reason": "positive-closer-no-question (auto-done)", "reply": None}
 
     # 2026-05-14 PM — state-name-only message ("Ca", "California") → CA event rotation reply
@@ -1098,6 +1261,61 @@ def classify(text: str, kb: dict) -> dict:
                                        "dates": info.get("dates",""), "status": status,
                                        "confidence": "high"}}
 
+    # 2026-06-01 — City+State mention (or event-request phrasing) detected up front.
+    # This is the fix for organic comments like "? Denver Colorado" and
+    # "Can y'all consider do one in Abilene TX" that name a place but lack the
+    # verbs the older CITY_QUESTION_PAT required. Look the city up in the schedule
+    # and answer on/past/off-schedule per the KB City Rotation Policy.
+    _place_for_reply = None
+    if place_state:
+        _place_for_reply = place_state[0]
+    else:
+        m_evt = EVENT_REQUEST_PAT.search(t)
+        if m_evt:
+            cand = _clean_place_candidate(m_evt.group(1))
+            # strip a trailing state token off the captured place ("Abilene TX" -> "Abilene")
+            ps2 = _place_with_state(cand)
+            _place_for_reply = ps2[0] if ps2 else cand
+        # Colloquial region nickname ("high desert", "inland empire", ...)
+        if not _place_for_reply:
+            reg = _detect_known_region(t)
+            if reg:
+                _place_for_reply = reg
+        # "waiting for / hoping for <place>" — gated: only auto-reply if the place
+        # validates (state token or schedule hit); otherwise leave to Lauren.
+        if not _place_for_reply:
+            m_wait = WAITING_PLACE_PAT.search(t)
+            if m_wait:
+                cand = _clean_place_candidate(m_wait.group(1))
+                ps3 = _place_with_state(cand)
+                if ps3:
+                    _place_for_reply = ps3[0]
+                elif cand and _find_in_schedule(cand, kb["schedule"]):
+                    _place_for_reply = cand
+    if _place_for_reply and _is_non_place(_place_for_reply):
+        _place_for_reply = None
+    if _place_for_reply:
+        seed = kb.get("_seed", "") + _place_for_reply
+        hit = _find_in_schedule(_place_for_reply, kb["schedule"])
+        if hit:
+            city_key, dates = hit
+            city_title = city_key.split(",")[0].strip().title()
+            _state = city_key.split(",")[1].strip().upper() if "," in city_key else ""
+            if _is_past(dates):
+                return {"bucket": "A",
+                        "reason": f"City+state mention — '{_place_for_reply}' was on schedule, past ({dates})",
+                        "reply": city_past_reply(city_title, dates, seed=seed),
+                        "event_chip": {"city": city_title, "state": _state,
+                                       "dates": dates, "status": "past", "confidence": "high"}}
+            return {"bucket": "A",
+                    "reason": f"City+state mention — '{_place_for_reply}' matches upcoming schedule '{city_key}'",
+                    "reply": city_on_schedule_reply(city_title, dates, seed=seed),
+                    "event_chip": {"city": city_title, "state": _state,
+                                   "dates": dates, "status": "upcoming", "confidence": "high"}}
+        return {"bucket": "A",
+                "reason": f"City+state mention — '{_place_for_reply}' NOT on 2026 schedule, rotation-policy reply",
+                "reply": city_rotation_reply(_place_for_reply, seed=seed)}
+
     # City question intent — "when are you coming to X" / "sale in X"
     m_q = CITY_QUESTION_PAT.search(t)
     # 2026-05-20 — don't false-match BARE_PLACE_PAT on question phrases
@@ -1105,7 +1323,7 @@ def classify(text: str, kb: dict) -> dict:
     _starts_with_qword = bool(re.match(r"^\s*(where|when|how|what|why|who|which|can\s+you|do\s+you)\b", t, re.IGNORECASE))
     m_b = BARE_PLACE_PAT.match(t) if (not m_q and not _starts_with_qword) else None
     if m_q or m_b:
-        place = (m_q.group(2) if m_q else m_b.group(1)).strip()
+        place = _clean_place_candidate(m_q.group(2) if m_q else m_b.group(1))
         hit = _find_in_schedule(place, kb["schedule"])
         seed = kb.get("_seed", "") + place  # conv-id + place for variation seed
         if hit:
@@ -1119,7 +1337,7 @@ def classify(text: str, kb: dict) -> dict:
                     "reason": f"City question — '{place}' matches upcoming schedule entry '{city_key}'",
                     "reply": city_on_schedule_reply(city_title, dates, seed=seed)}
         # Strong city-question intent but not on schedule → off-schedule reply
-        if m_q:
+        if m_q and not _is_non_place(place):
             return {"bucket": "A",
                     "reason": f"City question — '{place}' NOT on 2026 schedule, off-schedule reply",
                     "reply": city_rotation_reply(place, seed=seed)}
