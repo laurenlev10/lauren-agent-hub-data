@@ -797,6 +797,12 @@ let FB_EVENT_STATS = null;  // populated from docs/state/fb_event_stats.json on 
 // Populated by an async fetch in the init block at the bottom of this script. Lauren 2026-05-20.
 let SUBSCRIBE_TARGET = null;
 
+// 📋 Manager Report state — reports[evKey] = [submission, ...]. Populated by an async
+// fetch in the init block (../state/manager_reports.json). A row's 📋 button flips GREEN
+// when a report exists for that event. Lauren 2026-06-03.
+let MANAGER_REPORTS = {};
+function mrEnc(obj){ try{ return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }catch(e){ return ""; } }
+
 // 🏠 Home Page button state. Owner: homepage-publish-check.yml (every 30 min) writes
 // docs/state/homepage_status.json. is_current=true => the LIVE homepage (themakeupblowout.com)
 // hero already shows the current event => button green. Else black (Lauren needs to open
@@ -2442,8 +2448,17 @@ End date: </div>
               start_date: ev.start_date, end_date: ev.end_date,
               venue: ev.venue || "", address: ev.address || ""
             }).toString();
-            rowBtn += '<a class="btn-agent-row btn-mreport-row" href="https://events.themakeupblowout.com/manager-report/?' + mrParams + '" target="_blank" rel="noopener" title="טופס דוח מנהלת לאירוע (דומיין ציבורי — נפתח בלי התחברות). מלאי, תשלומים לצוות וקופה. המנהלת ממלאת בזמן האירוע ושולחת בוואטסאפ.">📋 דוח מנהלת</a>';
             const mrAbs = "https://events.themakeupblowout.com/manager-report/?" + mrParams;
+            const mrList = (typeof MANAGER_REPORTS !== "undefined") ? (MANAGER_REPORTS[evKey] || []) : [];
+            if (mrList.length) {
+              const mrLatest = mrList[mrList.length - 1];
+              const mrWho = mrLatest.manager_name || "";
+              const mrWhen = (mrLatest.submitted_at || "").slice(0,10);
+              const mrTip = "✓ דוח מנהלת מולא · " + mrWho + " · " + mrWhen + (mrList.length>1 ? " · " + mrList.length + " דוחות" : "") + " — לחצי לצפייה בדוח המלא";
+              rowBtn += '<a class="btn-agent-row btn-mreport-row done" href="../manager-report/#r=' + mrEnc(mrLatest) + '" target="_blank" rel="noopener" title="' + escapeHtml(mrTip) + '">📋 דוח מנהלת ✓</a>';
+            } else {
+              rowBtn += '<a class="btn-agent-row btn-mreport-row" href="' + mrAbs + '" target="_blank" rel="noopener" title="טופס דוח מנהלת לאירוע (דומיין ציבורי — נפתח בלי התחברות). מלאי, תשלומים לצוות וקופה. המנהלת ממלאת בזמן האירוע ושולחת בוואטסאפ.">📋 דוח מנהלת</a>';
+            }
             rowBtn += '<button type="button" class="mreport-copy-btn" data-mrurl="' + escapeHtml(mrAbs) + '" title="העתקת הלינק של טופס המנהלת — לשליחה למנהלת בוואטסאפ">🔗</button>';
           }
 
@@ -3855,6 +3870,13 @@ End date: </div>
     .then(r => r.ok ? r.json() : null)
     .then(data => { OCTOPOS_LIVE = data; renderSchedule(); })
     .catch(() => { /* fail-silent — row simply doesn't appear */ });
+
+  // 📋 Manager Reports — flips each row's 📋 button green when a manager has submitted
+  // a report for that event (saved to manager_reports.json by the cloud-save Worker). Lauren 2026-06-03.
+  fetch("../state/manager_reports.json?_=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => { if (data && data.reports) { MANAGER_REPORTS = data.reports; renderSchedule(); } })
+    .catch(() => { /* fail-silent — buttons simply stay black until a report lands */ });
 
   // FB Event stats (Going/Interested per event) — refreshed every 6h by fb-event-stats.yml (Lauren 2026-05-23)
   fetch("../state/fb_event_stats.json?_=" + Date.now(), { cache: "no-store" })
