@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex">
+<title>Event Manager Report — The Makeup Blowout</title>
+<style>
+  :root{
+    --pink:#ec4899; --pink-d:#be185d; --ink:#1f2937; --muted:#6b7280;
+    --line:#e5e7eb; --bg:#fdf2f8; --card:#ffffff; --green:#16a34a; --green-d:#15803d;
+    --amber:#f59e0b; --blue:#0ea5e9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+       background:var(--bg);color:var(--ink);line-height:1.45;-webkit-text-size-adjust:100%}
+  .wrap{max-width:720px;margin:0 auto;padding:14px 14px 120px}
+  header.top{background:linear-gradient(135deg,#ec4899,#be185d);color:#fff;border-radius:16px;
+       padding:18px 18px 16px;box-shadow:0 6px 18px rgba(190,24,93,.28);margin-bottom:14px}
+  header.top .brand{font-size:12px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;opacity:.9}
+  header.top h1{margin:6px 0 2px;font-size:22px;line-height:1.15}
+  header.top .ev{font-size:14px;font-weight:700;opacity:.95}
+  header.top .meta{font-size:12px;opacity:.9;margin-top:4px}
+  .hello{background:#fff7fb;border:1px dashed var(--pink);border-radius:12px;padding:10px 12px;
+       font-size:13px;color:#9d174d;margin-bottom:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px;
+       box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .sec-title{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--pink-d);
+       margin:0 0 10px;display:flex;align-items:center;gap:7px}
+  .field{padding:9px 2px;border-top:1px solid #f1f1f4}
+  .field:first-of-type{border-top:none}
+  .field label.lab{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
+  .field .hint{font-size:11px;color:var(--muted);font-weight:400}
+  select,input[type=text],input[type=number],textarea{
+       width:100%;font-size:16px;padding:10px 11px;border:1.5px solid var(--line);border-radius:10px;
+       background:#fff;color:var(--ink);font-family:inherit}
+  select:focus,input:focus,textarea:focus{outline:none;border-color:var(--pink);box-shadow:0 0 0 3px rgba(236,72,153,.15)}
+  textarea{min-height:76px;resize:vertical}
+  /* yes/no toggle for "needed?" checkboxes */
+  .yn{display:flex;gap:8px}
+  .yn button{flex:1;font-size:14px;font-weight:700;padding:10px;border-radius:10px;border:1.5px solid var(--line);
+       background:#fff;color:var(--muted);cursor:pointer;font-family:inherit}
+  .yn button.on-yes{background:var(--green);border-color:var(--green);color:#fff}
+  .yn button.on-no{background:#9ca3af;border-color:#9ca3af;color:#fff}
+  .req{color:var(--pink-d)}
+  /* sticky action bar */
+  .bar{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.97);border-top:1px solid var(--line);
+       padding:10px 12px;backdrop-filter:blur(6px);box-shadow:0 -4px 14px rgba(0,0,0,.06);z-index:30}
+  .bar-inner{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:800;
+       padding:14px;border-radius:12px;border:none;cursor:pointer;font-family:inherit;text-decoration:none;width:100%}
+  .btn.primary{background:linear-gradient(180deg,#22c55e,#15803d);color:#fff;box-shadow:0 3px 10px rgba(21,128,61,.35)}
+  .btn.wa{background:linear-gradient(180deg,#25d366,#128c4b);color:#fff}
+  .row-btns{display:flex;gap:8px}
+  .btn.sm{font-size:13px;font-weight:700;padding:11px 8px}
+  .btn.ghost{background:#fff;border:1.5px solid var(--line);color:var(--ink)}
+  .btn:active{transform:translateY(1px)}
+  .btn.copied{background:linear-gradient(180deg,#16a34a,#15803d)!important;color:#fff!important;border-color:#15803d!important}
+  /* read-only report view */
+  .ro-line{display:flex;justify-content:space-between;gap:12px;padding:8px 2px;border-top:1px solid #f1f1f4;font-size:14px}
+  .ro-line:first-child{border-top:none}
+  .ro-line .k{color:var(--muted);font-weight:600;flex:1}
+  .ro-line .v{font-weight:800;text-align:left;white-space:pre-wrap}
+  .ro-line .v.yes{color:var(--green)}
+  .ro-line .v.no{color:#9ca3af}
+  .pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;background:#fce7f3;color:#9d174d}
+  .inbox-item{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;background:#fff}
+  .inbox-item h3{margin:0 0 2px;font-size:15px}
+  .inbox-item .sub{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#111827;color:#fff;
+       font-size:13px;font-weight:700;padding:10px 16px;border-radius:999px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+  .footnote{font-size:11px;color:var(--muted);text-align:center;margin-top:8px}
+  a.inline{color:var(--pink-d);font-weight:700}
+  /* photos */
+  .photo-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .ph{position:relative;width:78px;height:78px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+  .ph img{width:100%;height:100%;object-fit:cover}
+  .ph-x{position:absolute;top:2px;right:2px;width:22px;height:22px;border:none;border-radius:999px;background:rgba(0,0,0,.62);color:#fff;font-size:12px;cursor:pointer;line-height:1;padding:0}
+  input[type=file]{display:none}
+  /* repeatable financial rows */
+  .frow{padding:9px 0;border-top:1px solid #f1f1f4}
+  .frow:first-of-type{border-top:none}
+  .frow.team{display:flex;flex-direction:column;gap:6px}
+  .team-l2{display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:6px;align-items:center}
+  .frow.exp{display:grid;grid-template-columns:1.5fr .8fr auto;gap:6px;align-items:center}
+  .frow input{font-size:15px;padding:9px 9px}
+  .frow .rtot{font-weight:800;font-size:13px;white-space:nowrap;text-align:center;color:var(--pink-d)}
+  .frow .del{width:34px;height:34px;border:none;border-radius:8px;background:#fee2e2;color:#b91c1c;font-weight:800;cursor:pointer;font-size:13px}
+  .mini{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:6px;padding:0 0 2px}
+  .add-row{margin-top:8px;background:#fff7fb;border:1.5px dashed var(--pink);color:var(--pink-d);font-weight:800;padding:10px;border-radius:10px;width:100%;cursor:pointer;font-family:inherit;font-size:13px}
+  .calc{display:flex;justify-content:space-between;padding:8px 2px;font-size:14px;border-top:1px solid #f1f1f4}
+  .calc .v{font-weight:800}
+  .calc.big{font-size:17px;font-weight:800;color:var(--pink-d);border-top:2px solid var(--line)}
+  .sug{font-size:11px;color:var(--muted);padding:2px 2px 0}
+  @media print{.bar,.hello,.no-print{display:none!important}body{background:#fff}.wrap{padding:0}}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <header class="top">
+    <div class="brand">The Makeup Blowout · Event Report</div>
+    <h1 id="h-title">Event Manager Report</h1>
+    <div class="ev" id="h-ev"></div>
+    <div class="meta" id="h-meta"></div>
+  </header>
+  <div id="app"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================================
+   Event Manager Report — per-event supplies/inventory checklist.
+   One page, three modes:
+     (default)      manager fills the form for the event in the URL
+     #r=<base64>    read-only view of a submitted report (what Lauren opens)
+     ?mode=inbox    Lauren's list of every submitted report (manager_reports.json)
+   Fields mirror "NEW Report 2026.xlsx" + manager name + free notes.
+   Saving options (Lauren can test all): cloud auto-save (Cloudflare Worker),
+   WhatsApp, copy-link, copy-text, print. When Lauren opens a #r= link with her
+   GitHub token, the report is auto-persisted to docs/state/manager_reports.json.
+   ========================================================================== */
+
+var LAUREN_WA = "14243547625";                 // wa.me number (Zelle/phone)
+var REPO = "laurenlev10/lauren-agent-hub-data";
+var STATE_FILE = "docs/state/manager_reports.json";
+var STATE_URL  = "../state/manager_reports.json";
+var GH_TOKEN_KEY = "lauren_gh_token_v1";       // per IRON RULE #7 — secrets only in localStorage
+var ENDPOINT_KEY = "mbs_report_save_endpoint";  // optional Cloudflare Worker URL (per-device override)
+var CONFIG = {};                                 // loaded from ./config.json (shared across all devices)
+async function loadConfig(){ try{ var r=await fetch("./config.json?_="+Date.now(),{cache:"no-store"}); if(r.ok) CONFIG=await r.json(); }catch(e){} }
+function saveEndpoint(){ return ((localStorage.getItem(ENDPOINT_KEY)||"").trim()) || ((CONFIG && CONFIG.save_endpoint || "").trim()); }
+
+var BOX = ["No More","Less than 1/2 box","1/2 box","1 full box","1.5 box","2 boxes"];
+
+/* The form definition — easy to edit later. type: select|yesno|number|text */
+var SECTIONS = [
+  { title: "🧰 Check if needed — Low Stock", icon:"",
+    fields: [
+      { key:"plastic_bags",  label:"500 Plastic Bags",                     type:"select", options:BOX },
+      { key:"trash_bags",    label:"1 box Trash bags",                     type:"yesno", hint:"Need more?" },
+      { key:"tester_stickers",label:"1 pack Testers Stickers",             type:"yesno", hint:"Need more?" },
+      { key:"neon_stars",    label:"1 pack Neon stars for signs",          type:"yesno", hint:"Need more?" },
+      { key:"shrink_roll",   label:"1 Roll Shrink",                        type:"yesno", hint:"Need more?" },
+      { key:"table_covers",  label:"How many clean table covers for next event?", type:"number", hint:"Enter a number" },
+      { key:"scotch_tape",   label:"Scotch tape",                          type:"yesno", hint:"Need more?" },
+      { key:"price_numbers", label:"Price numbers? (Which numbers?)",      type:"text", hint:"Type which price numbers are needed" }
+    ]
+  },
+  { title: "📦 On hand — count / level", icon:"",
+    fields: [
+      { key:"glitters",         label:"Glitters on hand",                  type:"select", options:BOX },
+      { key:"eyeshadow_gifts",  label:"Eyeshadows gifts on hand",          type:"select", options:BOX },
+      { key:"brush_set_gifts",  label:"$5 Brush Set gifts on hand",        type:"select", options:BOX },
+      { key:"xime_irresistible",label:"Xime Irresistible Eyeshadow Palette", type:"number", hint:"How many?" },
+      { key:"xime_goddess",     label:"Xime Goddess Eyeshadow Palette",    type:"number", hint:"How many?" }
+    ]
+  }
+];
+
+/* ---------- small helpers ---------- */
+function qp(name){ return new URLSearchParams(location.search).get(name) || ""; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+function b64enc(obj){ return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); }
+function b64dec(s){ return JSON.parse(decodeURIComponent(escape(atob(s)))); }
+function toast(msg){ var t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(function(){ t.classList.remove("show"); }, 2200); }
+function fieldByKey(k){ for(var i=0;i<SECTIONS.length;i++){ for(var j=0;j<SECTIONS[i].fields.length;j++){ if(SECTIONS[i].fields[j].key===k) return SECTIONS[i].fields[j]; } } return null; }
+async function copyText(text){
+  try{ await navigator.clipboard.writeText(text); return true; }
+  catch(e){
+    try{ var ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.focus(); ta.select(); var ok=document.execCommand("copy"); document.body.removeChild(ta); return ok; }
+    catch(e2){ return false; }
+  }
+}
+
+/* ---------- photos: in-memory, resized client-side so uploads stay small ---------- */
+var PHOTOS = [];   // [{ blob, url(objectURL), name }]
+function resizeImage(file, maxDim, quality){
+  return new Promise(function(resolve){
+    var img = new Image();
+    img.onload = function(){
+      var w = img.width, h = img.height;
+      if(w>maxDim || h>maxDim){ if(w>=h){ h=Math.round(h*maxDim/w); w=maxDim; } else { w=Math.round(w*maxDim/h); h=maxDim; } }
+      var c = document.createElement("canvas"); c.width=w; c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      c.toBlob(function(blob){ resolve(blob || file); }, "image/jpeg", quality);
+    };
+    img.onerror = function(){ resolve(file); };
+    img.src = URL.createObjectURL(file);
+  });
+}
+function blobToDataURL(blob){ return new Promise(function(res){ var r=new FileReader(); r.onload=function(){ res(r.result); }; r.readAsDataURL(blob); }); }
+async function addPhotos(fileList){
+  for(var i=0;i<fileList.length;i++){
+    var f = fileList[i]; if(!f.type || f.type.indexOf("image/")!==0) continue;
+    if(PHOTOS.length>=8){ toast("Up to 8 photos"); break; }
+    var blob = await resizeImage(f, 1280, 0.78);
+    PHOTOS.push({ blob:blob, url:URL.createObjectURL(blob), name:(f.name||("photo"+(PHOTOS.length+1))).replace(/[^\w.\-]+/g,"_").replace(/\.[^.]*$/,"")+".jpg" });
+  }
+  renderPhotoGrid();
+}
+function renderPhotoGrid(){
+  var g = document.getElementById("photo-grid"); if(!g) return;
+  if(!PHOTOS.length){ g.innerHTML = '<div class="hint" style="padding:4px 0">No photos yet — tap “Add photos” to attach (camera or gallery).</div>'; return; }
+  var html = "";
+  for(var i=0;i<PHOTOS.length;i++){ html += '<div class="ph"><img src="'+PHOTOS[i].url+'" alt=""><button type="button" class="ph-x" data-i="'+i+'">✕</button></div>'; }
+  g.innerHTML = html;
+}
+
+/* ---------- financial model: team payouts, expenses, cash reconciliation ---------- */
+var TEAM = [];     // [{name,base,bonus,extra}]
+var EXPENSES = []; // [{desc,amount}]
+var CASH = { total_cash:"", deposit:"", register_coins:"", register_bills:"" };
+function num(x){ var n=parseFloat(String(x==null?"":x).replace(/[^0-9.\-]/g,"")); return isFinite(n)?n:0; }
+function money(n){ return "$" + (Math.round(n*100)/100).toLocaleString(); }
+function teamTotal(t){ return num(t.base)+num(t.bonus)+num(t.extra); }
+function sumTeam(){ return TEAM.reduce(function(a,t){ return a+teamTotal(t); },0); }
+function sumExpenses(){ return EXPENSES.reduce(function(a,x){ return a+num(x.amount); },0); }
+function grandTotal(){ return sumTeam()+sumExpenses(); }
+
+function renderTeamGrid(){
+  var g = document.getElementById("team-grid"); if(!g) return;
+  var html = "";
+  for(var i=0;i<TEAM.length;i++){ var t=TEAM[i];
+    html += '<div class="frow team">' +
+      '<input type="text" placeholder="Team member name" data-sec="team" data-i="'+i+'" data-k="name" value="'+esc(t.name)+'">' +
+      '<div class="team-l2">' +
+        '<input type="number" inputmode="numeric" placeholder="Base" data-sec="team" data-i="'+i+'" data-k="base" value="'+esc(t.base)+'">' +
+        '<input type="number" inputmode="numeric" placeholder="Bonus" data-sec="team" data-i="'+i+'" data-k="bonus" value="'+esc(t.bonus)+'">' +
+        '<input type="number" inputmode="numeric" placeholder="Extra" data-sec="team" data-i="'+i+'" data-k="extra" value="'+esc(t.extra)+'">' +
+        '<span class="rtot" data-rtot="'+i+'">= '+money(teamTotal(t))+'</span>' +
+        '<button type="button" class="del" data-del="team" data-i="'+i+'" title="Remove">✕</button>' +
+      '</div></div>';
+  }
+  g.innerHTML = html;
+}
+function renderExpensesGrid(){
+  var g = document.getElementById("exp-grid"); if(!g) return;
+  var html = "";
+  for(var i=0;i<EXPENSES.length;i++){ var x=EXPENSES[i];
+    html += '<div class="frow exp">' +
+      '<input type="text" placeholder="Description (e.g. Dinner)" data-sec="exp" data-i="'+i+'" data-k="desc" value="'+esc(x.desc)+'">' +
+      '<input type="number" inputmode="numeric" placeholder="$" data-sec="exp" data-i="'+i+'" data-k="amount" value="'+esc(x.amount)+'">' +
+      '<button type="button" class="del" data-del="exp" data-i="'+i+'" title="Remove">✕</button>' +
+    '</div>';
+  }
+  g.innerHTML = html;
+}
+function recalcTotals(){
+  var payouts=sumTeam(), exp=sumExpenses(), total=payouts+exp;
+  function set(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; }
+  set("calc-payouts", money(payouts));
+  set("calc-exp", money(exp));
+  set("calc-total", money(total));
+  var tc=num(CASH.total_cash);
+  set("calc-deposit-sug", tc ? ("Suggested: total cash − total = " + money(tc-total)) : "Suggested: enter Total cash to auto-calc");
+}
+
+/* ---------- event context (from URL params, set by the launch dashboard) ---------- */
+function getEvent(){
+  return {
+    evkey: qp("evkey"),
+    city:  qp("city"),
+    state: qp("state"),
+    start_date: qp("start_date"),
+    end_date:   qp("end_date"),
+    venue:  qp("venue"),
+    address:qp("address")
+  };
+}
+function eventTitle(ev){
+  var c = [ev.city, ev.state].filter(Boolean).join(", ");
+  return c || (ev.evkey || "Event");
+}
+function dateRange(ev){
+  if(!ev.start_date) return "";
+  if(ev.end_date && ev.end_date!==ev.start_date) return ev.start_date + " → " + ev.end_date;
+  return ev.start_date;
+}
+
+/* ============================ MODE: FILL ============================ */
+function renderForm(){
+  var ev = getEvent();
+  document.getElementById("h-title").textContent = "Event Manager Report";
+  document.getElementById("h-ev").textContent = eventTitle(ev);
+  document.getElementById("h-meta").textContent = [dateRange(ev), ev.venue, ev.address].filter(Boolean).join(" · ");
+
+  var html = "";
+  html += '<div class="hello no-print">📝 Please fill this in during / at the end of the event, then tap <b>Submit</b>. ' +
+          'מלאי בזמן האירוע ולחצי "שליחה ושמירה" בסוף.</div>';
+
+  // manager name
+  html += '<div class="card"><div class="sec-title">👤 Manager</div>' +
+          '<div class="field"><label class="lab">Your name <span class="req">*</span> <span class="hint">/ שם המנהלת</span></label>' +
+          '<input type="text" id="f-manager_name" placeholder="Manager name"></div></div>';
+
+  // sections
+  for(var s=0;s<SECTIONS.length;s++){
+    var sec = SECTIONS[s];
+    html += '<div class="card"><div class="sec-title">' + esc(sec.title) + '</div>';
+    for(var i=0;i<sec.fields.length;i++){
+      var f = sec.fields[i];
+      html += '<div class="field"><label class="lab" for="f-'+f.key+'">' + esc(f.label) +
+              (f.hint? ' <span class="hint">'+esc(f.hint)+'</span>':'') + '</label>';
+      if(f.type==="select"){
+        html += '<select id="f-'+f.key+'"><option value="">— Choose —</option>';
+        for(var o=0;o<f.options.length;o++){ html += '<option value="'+esc(f.options[o])+'">'+esc(f.options[o])+'</option>'; }
+        html += '</select>';
+      } else if(f.type==="yesno"){
+        html += '<div class="yn" id="f-'+f.key+'" data-val="">' +
+                '<button type="button" data-yn="yes">✅ Yes — need it</button>' +
+                '<button type="button" data-yn="no">— No</button></div>';
+      } else if(f.type==="number"){
+        html += '<input type="number" inputmode="numeric" id="f-'+f.key+'" placeholder="0">';
+      } else {
+        html += '<input type="text" id="f-'+f.key+'" placeholder="">';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  // 💵 Team payouts
+  html += '<div class="card"><div class="sec-title">💵 Team payouts</div>' +
+          '<div class="mini"><span>Base</span><span>Bonus</span><span>Extra</span><span style="text-align:center">Total</span><span></span></div>' +
+          '<div id="team-grid"></div>' +
+          '<button type="button" class="add-row" id="add-team">➕ Add team member</button>' +
+          '<div class="calc big"><span>Total payouts</span><span class="v" id="calc-payouts">$0</span></div></div>';
+
+  // 🧾 Other expenses / adjustments
+  html += '<div class="card"><div class="sec-title">🧾 Other expenses / adjustments</div>' +
+          '<div id="exp-grid"></div>' +
+          '<button type="button" class="add-row" id="add-exp">➕ Add expense</button>' +
+          '<div class="calc"><span>Expenses subtotal</span><span class="v" id="calc-exp">$0</span></div></div>';
+
+  // 🏦 Cash reconciliation
+  html += '<div class="card"><div class="sec-title">🏦 Cash reconciliation</div>' +
+          '<div class="calc big"><span>TOTAL (payouts + expenses)</span><span class="v" id="calc-total">$0</span></div>' +
+          '<div class="field"><label class="lab">Total cash</label><input type="number" inputmode="numeric" id="f-total_cash" data-sec="cash" data-k="total_cash" placeholder="$"></div>' +
+          '<div class="field"><label class="lab">Deposit to be made</label><input type="number" inputmode="numeric" id="f-deposit" data-sec="cash" data-k="deposit" placeholder="$"><div class="sug" id="calc-deposit-sug"></div></div>' +
+          '<div class="field"><label class="lab">Register — coins</label><input type="number" inputmode="numeric" id="f-register_coins" data-sec="cash" data-k="register_coins" placeholder="$"></div>' +
+          '<div class="field"><label class="lab">Register — bills</label><input type="number" inputmode="numeric" id="f-register_bills" data-sec="cash" data-k="register_bills" placeholder="$"></div></div>';
+
+  // 📷 Photos
+  html += '<div class="card"><div class="sec-title">📷 Photos</div>' +
+          '<input type="file" id="photo-input" accept="image/*" multiple>' +
+          '<button type="button" class="add-row" id="add-photo-btn">📷 Add photos (camera or gallery)</button>' +
+          '<div class="photo-grid" id="photo-grid"></div></div>';
+
+  // notes
+  html += '<div class="card"><div class="sec-title">🗒️ Notes / הערות</div>' +
+          '<div class="field"><textarea id="f-notes" placeholder="Anything else Lauren should know..."></textarea></div></div>';
+
+  document.getElementById("app").innerHTML = html;
+
+  // init financial models + photos
+  if(!TEAM.length) TEAM = [{name:"",base:"",bonus:"100",extra:""}];
+  if(!EXPENSES.length) EXPENSES = [{desc:"",amount:""}];
+  renderTeamGrid(); renderExpensesGrid(); renderPhotoGrid(); recalcTotals();
+
+  // delegated input/click for the dynamic sections
+  var appEl = document.getElementById("app");
+  appEl.addEventListener("input", function(e){
+    var el=e.target, sec=el.getAttribute("data-sec"); if(!sec) return;
+    var k=el.getAttribute("data-k");
+    if(sec==="team"){ var i=+el.getAttribute("data-i"); TEAM[i][k]=el.value; var rt=appEl.querySelector('[data-rtot="'+i+'"]'); if(rt) rt.textContent="= "+money(teamTotal(TEAM[i])); }
+    else if(sec==="exp"){ EXPENSES[+el.getAttribute("data-i")][k]=el.value; }
+    else if(sec==="cash"){ CASH[k]=el.value; }
+    recalcTotals();
+  });
+  appEl.addEventListener("click", function(e){
+    var del=e.target.closest("[data-del]");
+    if(del){ var s=del.getAttribute("data-del"), i=+del.getAttribute("data-i");
+      if(s==="team"){ TEAM.splice(i,1); if(!TEAM.length) TEAM.push({name:"",base:"",bonus:"100",extra:""}); renderTeamGrid(); }
+      else { EXPENSES.splice(i,1); if(!EXPENSES.length) EXPENSES.push({desc:"",amount:""}); renderExpensesGrid(); }
+      recalcTotals(); return; }
+    if(e.target.id==="add-team"){ TEAM.push({name:"",base:"",bonus:"100",extra:""}); renderTeamGrid(); recalcTotals(); return; }
+    if(e.target.id==="add-exp"){ EXPENSES.push({desc:"",amount:""}); renderExpensesGrid(); recalcTotals(); return; }
+    if(e.target.id==="add-photo-btn"){ document.getElementById("photo-input").click(); return; }
+    var phx=e.target.closest(".ph-x"); if(phx){ PHOTOS.splice(+phx.getAttribute("data-i"),1); renderPhotoGrid(); return; }
+  });
+  document.getElementById("photo-input").addEventListener("change", function(e){ addPhotos(e.target.files); e.target.value=""; });
+
+  // action bar
+  var bar = document.createElement("div");
+  bar.className = "bar no-print";
+  bar.innerHTML =
+    '<div class="bar-inner">' +
+      '<button class="btn primary" id="btn-submit">✅ Submit &amp; Send · שליחה לקבוצה</button>' +
+      '<div class="row-btns">' +
+        '<button class="btn wa sm" id="btn-wa">📲 Send to Lauren</button>' +
+        '<button class="btn ghost sm" id="btn-link">🔗 Copy link</button>' +
+      '</div>' +
+      '<div class="row-btns">' +
+        '<button class="btn ghost sm" id="btn-textcopy">📋 Copy as text</button>' +
+        '<button class="btn ghost sm" id="btn-print">🖨️ Print / PDF</button>' +
+      '</div>' +
+      '<div class="footnote">Tap Submit to post the report (and photos) to your WhatsApp group. It also saves for Lauren when cloud-save is on.</div>' +
+    '</div>';
+  document.body.appendChild(bar);
+
+  // yes/no toggles
+  Array.prototype.forEach.call(document.querySelectorAll(".yn"), function(yn){
+    yn.addEventListener("click", function(e){
+      var b = e.target.closest("button[data-yn]"); if(!b) return;
+      var v = b.getAttribute("data-yn");
+      yn.setAttribute("data-val", v);
+      Array.prototype.forEach.call(yn.querySelectorAll("button"), function(x){ x.classList.remove("on-yes","on-no"); });
+      b.classList.add(v==="yes"?"on-yes":"on-no");
+    });
+  });
+
+  document.getElementById("btn-submit").addEventListener("click", onSubmit);
+  document.getElementById("btn-wa").addEventListener("click", function(){ var p=collect(); if(!p) return; waDirect(p); });
+  document.getElementById("btn-link").addEventListener("click", async function(){ var p=collect(); if(!p) return; var url=reportLink(p); var ok=await copyText(url); flash(this, ok?"✓ Link copied":"Copy failed"); });
+  document.getElementById("btn-textcopy").addEventListener("click", async function(){ var p=collect(); if(!p) return; var ok=await copyText(reportText(p)); flash(this, ok?"✓ Copied":"Copy failed"); });
+  document.getElementById("btn-print").addEventListener("click", function(){ window.print(); });
+}
+
+function flash(btn, msg){
+  var orig = btn.innerHTML; btn.innerHTML = msg; btn.classList.add("copied");
+  setTimeout(function(){ btn.innerHTML = orig; btn.classList.remove("copied"); }, 1900);
+}
+
+function collect(){
+  var ev = getEvent();
+  var name = (document.getElementById("f-manager_name").value || "").trim();
+  if(!name){ toast("Please enter your name / נא למלא שם"); document.getElementById("f-manager_name").focus(); return null; }
+  var answers = {};
+  for(var s=0;s<SECTIONS.length;s++){
+    for(var i=0;i<SECTIONS[s].fields.length;i++){
+      var f = SECTIONS[s].fields[i];
+      var el = document.getElementById("f-"+f.key);
+      if(!el) continue;
+      if(f.type==="yesno") answers[f.key] = el.getAttribute("data-val") || "";
+      else answers[f.key] = (el.value || "").trim();
+    }
+  }
+  var team = TEAM.map(function(t){ return { name:(t.name||"").trim(), base:num(t.base), bonus:num(t.bonus), extra:num(t.extra), total:teamTotal(t) }; })
+                 .filter(function(t){ return t.name || t.total; });
+  var expenses = EXPENSES.map(function(x){ return { desc:(x.desc||"").trim(), amount:num(x.amount) }; })
+                         .filter(function(x){ return x.desc || x.amount; });
+  var cash = { payouts_total:grandTotal(), total_cash:num(CASH.total_cash), deposit:num(CASH.deposit),
+               register_coins:num(CASH.register_coins), register_bills:num(CASH.register_bills) };
+  return {
+    v:1, evkey:ev.evkey, event:ev, manager_name:name,
+    team:team, expenses:expenses, cash:cash,
+    answers:answers, notes:(document.getElementById("f-notes").value||"").trim(),
+    photo_count:PHOTOS.length,
+    submitted_at:new Date().toISOString(), source:"form"
+  };
+}
+
+function reportLink(payload){
+  var base = location.origin + location.pathname;
+  return base + "#r=" + b64enc(payload);
+}
+function reportText(p){
+  var lines = [];
+  lines.push("📋 EVENT MANAGER REPORT");
+  lines.push(eventTitle(p.event) + (dateRange(p.event)? "  ("+dateRange(p.event)+")":""));
+  if(p.event.venue) lines.push("Venue: " + p.event.venue);
+  lines.push("Manager: " + p.manager_name);
+  lines.push("Submitted: " + new Date(p.submitted_at).toLocaleString());
+  lines.push("");
+  // Financial summary (mirrors the WhatsApp summary format)
+  if(p.team && p.team.length){
+    lines.push("💵 TEAM PAYOUTS");
+    for(var ti=0; ti<p.team.length; ti++){ var t=p.team[ti];
+      var parts=[t.base,t.bonus,t.extra].filter(function(n){return n;}).join("+");
+      lines.push(t.name + ": " + (parts? parts+" = ":"") + "$" + t.total);
+    }
+    lines.push("");
+  }
+  if(p.expenses && p.expenses.length){
+    lines.push("🧾 EXPENSES / ADJUSTMENTS");
+    for(var ei=0; ei<p.expenses.length; ei++){ lines.push("✅ " + p.expenses[ei].desc + " $" + p.expenses[ei].amount); }
+    lines.push("");
+  }
+  if(p.cash){
+    lines.push("Total: $" + p.cash.payouts_total);
+    if(p.cash.total_cash) lines.push("Total cash: $" + p.cash.total_cash);
+    if(p.cash.deposit) lines.push("Deposit to be made: $" + p.cash.deposit);
+    if(p.cash.register_coins || p.cash.register_bills) lines.push("Register: $" + p.cash.register_coins + " coins & $" + p.cash.register_bills + " bills");
+    lines.push("");
+  }
+  if(p.photo_count) lines.push("📷 " + p.photo_count + " photo(s) attached");
+  if(p.photo_count) lines.push("");
+  for(var s=0;s<SECTIONS.length;s++){
+    lines.push("— " + SECTIONS[s].title.replace(/^[^A-Za-z0-9א-ת]+/,"").trim() + " —");
+    for(var i=0;i<SECTIONS[s].fields.length;i++){
+      var f = SECTIONS[s].fields[i]; var val = p.answers[f.key];
+      if(f.type==="yesno") val = val==="yes" ? "YES — need it" : (val==="no" ? "no" : "—");
+      if(val===""||val==null) val = "—";
+      lines.push("• " + f.label + ": " + val);
+    }
+    lines.push("");
+  }
+  if(p.notes) lines.push("Notes: " + p.notes);
+  return lines.join("\n");
+}
+async function buildPhotoData(){
+  var out=[];
+  for(var i=0;i<PHOTOS.length;i++){ out.push({ name:PHOTOS[i].name, data: await blobToDataURL(PHOTOS[i].blob) }); }
+  return out;
+}
+/* Native share sheet — lets the manager post the report + photos straight into
+   the WhatsApp GROUP (or any chat). Falls back to a wa.me deep-link. */
+async function shareReport(p, btn){
+  var text = reportText(p) + "\n\n🔗 " + reportLink(p);
+  try{
+    if(navigator.canShare && PHOTOS.length){
+      var files = PHOTOS.map(function(ph){ return new File([ph.blob], ph.name, {type:"image/jpeg"}); });
+      if(navigator.canShare({ files:files })){
+        await navigator.share({ files:files, text:text, title:"Event Manager Report" });
+        if(btn) flash(btn,"✓ Shared"); return true;
+      }
+    }
+    if(navigator.share){
+      await navigator.share({ text:text, title:"Event Manager Report" });
+      if(btn) flash(btn,"✓ Shared"); return true;
+    }
+  }catch(e){ if(e && e.name==="AbortError") return false; }
+  window.open("https://wa.me/"+LAUREN_WA+"?text="+encodeURIComponent(text),"_blank");
+  if(PHOTOS.length) toast("Now attach your "+PHOTOS.length+" photo(s) in WhatsApp");
+  if(btn) flash(btn,"✓ Opening WhatsApp");
+  return true;
+}
+/* Direct DM to Lauren */
+function waDirect(p){
+  var text = reportText(p) + "\n\n🔗 " + reportLink(p);
+  window.open("https://wa.me/"+LAUREN_WA+"?text="+encodeURIComponent(text),"_blank");
+  if(PHOTOS.length) toast("Attach your "+PHOTOS.length+" photo(s) in the chat");
+}
+
+async function onSubmit(){
+  var p = collect(); if(!p) return;
+  var btn = document.getElementById("btn-submit");
+  var endpoint = saveEndpoint();
+  if(endpoint){
+    btn.innerHTML = "⏳ Saving...";
+    try{
+      var payload = Object.assign({}, p, { photos: await buildPhotoData() });
+      var r = await fetch(endpoint, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
+      if(r.ok){ flash(btn, "✓ Saved — Lauren will see it"); toast("Saved ✓"); return; }
+      throw new Error("HTTP " + r.status);
+    }catch(e){
+      toast("Auto-save unavailable — sharing instead");
+      btn.innerHTML = "✅ Submit &amp; Send · שליחה";
+    }
+  }
+  await shareReport(p, btn);
+}
+
+/* ============================ MODE: READ-ONLY (#r=) ============================ */
+function renderReadonly(payload){
+  var p = payload;
+  document.getElementById("h-title").textContent = "Submitted Report";
+  document.getElementById("h-ev").textContent = eventTitle(p.event);
+  document.getElementById("h-meta").textContent = [dateRange(p.event), p.event.venue].filter(Boolean).join(" · ");
+
+  var html = "";
+  html += '<div class="card"><div class="sec-title">👤 Submission</div>' +
+          '<div class="ro-line"><span class="k">Manager</span><span class="v">'+esc(p.manager_name)+'</span></div>' +
+          '<div class="ro-line"><span class="k">Submitted</span><span class="v">'+esc(new Date(p.submitted_at).toLocaleString())+'</span></div>' +
+          (p.event.address? '<div class="ro-line"><span class="k">Address</span><span class="v">'+esc(p.event.address)+'</span></div>':'') +
+          '</div>';
+  // financial summary
+  if(p.team && p.team.length){
+    html += '<div class="card"><div class="sec-title">💵 Team payouts</div>';
+    for(var t1=0;t1<p.team.length;t1++){ var tt=p.team[t1]; var br=[tt.base,tt.bonus,tt.extra].filter(function(n){return n;}).join("+");
+      html += '<div class="ro-line"><span class="k">'+esc(tt.name||"—")+(br?' <span class="hint">('+esc(br)+')</span>':'')+'</span><span class="v">'+esc(money(tt.total))+'</span></div>'; }
+    var teamSum = p.team.reduce(function(a,x){ return a+(x.total||0); },0);
+    html += '<div class="ro-line"><span class="k"><b>Total payouts</b></span><span class="v">'+esc(money(teamSum))+'</span></div></div>';
+  }
+  if(p.expenses && p.expenses.length){
+    html += '<div class="card"><div class="sec-title">🧾 Expenses / adjustments</div>';
+    for(var e1=0;e1<p.expenses.length;e1++){ html += '<div class="ro-line"><span class="k">✅ '+esc(p.expenses[e1].desc)+'</span><span class="v">'+esc(money(p.expenses[e1].amount))+'</span></div>'; }
+    html += '</div>';
+  }
+  if(p.cash && (p.cash.payouts_total||p.cash.total_cash||p.cash.deposit||p.cash.register_coins||p.cash.register_bills)){
+    html += '<div class="card"><div class="sec-title">🏦 Cash reconciliation</div>' +
+            '<div class="ro-line"><span class="k">Total</span><span class="v">'+esc(money(p.cash.payouts_total))+'</span></div>' +
+            (p.cash.total_cash? '<div class="ro-line"><span class="k">Total cash</span><span class="v">'+esc(money(p.cash.total_cash))+'</span></div>':'') +
+            (p.cash.deposit? '<div class="ro-line"><span class="k">Deposit to be made</span><span class="v">'+esc(money(p.cash.deposit))+'</span></div>':'') +
+            ((p.cash.register_coins||p.cash.register_bills)? '<div class="ro-line"><span class="k">Register</span><span class="v">'+esc(money(p.cash.register_coins))+' coins · '+esc(money(p.cash.register_bills))+' bills</span></div>':'') +
+            '</div>';
+  }
+  if(p.photos && p.photos.length){
+    html += '<div class="card"><div class="sec-title">📷 Photos</div><div class="photo-grid">';
+    for(var pp=0;pp<p.photos.length;pp++){ var src=(typeof p.photos[pp]==="string")?p.photos[pp]:(p.photos[pp].url||p.photos[pp].data||""); if(src) html += '<a class="ph" href="'+esc(src)+'" target="_blank" rel="noopener"><img src="'+esc(src)+'" alt=""></a>'; }
+    html += '</div></div>';
+  } else if(p.photo_count){
+    html += '<div class="card"><div class="sec-title">📷 Photos</div><div class="hint">'+p.photo_count+' photo(s) were attached and sent via WhatsApp.</div></div>';
+  }
+  for(var s=0;s<SECTIONS.length;s++){
+    html += '<div class="card"><div class="sec-title">'+esc(SECTIONS[s].title)+'</div>';
+    for(var i=0;i<SECTIONS[s].fields.length;i++){
+      var f = SECTIONS[s].fields[i]; var raw = p.answers ? p.answers[f.key] : "";
+      var cls = "", disp = raw;
+      if(f.type==="yesno"){ if(raw==="yes"){cls="yes";disp="✅ Yes — need it";} else if(raw==="no"){cls="no";disp="No";} else disp="—"; }
+      if(disp===""||disp==null) disp="—";
+      html += '<div class="ro-line"><span class="k">'+esc(f.label)+'</span><span class="v '+cls+'">'+esc(disp)+'</span></div>';
+    }
+    html += '</div>';
+  }
+  if(p.notes) html += '<div class="card"><div class="sec-title">🗒️ Notes</div><div style="white-space:pre-wrap;font-size:14px">'+esc(p.notes)+'</div></div>';
+
+  document.getElementById("app").innerHTML = html;
+
+  // action bar — copy/print + (Lauren) save to dashboard
+  var hasToken = !!(localStorage.getItem(GH_TOKEN_KEY) || "").trim();
+  var bar = document.createElement("div");
+  bar.className = "bar no-print";
+  bar.innerHTML = '<div class="bar-inner">' +
+      (hasToken ? '<button class="btn primary" id="btn-save-gh">💾 Save to my dashboard</button>' : '') +
+      '<div class="row-btns">' +
+        '<button class="btn ghost sm" id="btn-textcopy">📋 Copy as text</button>' +
+        '<button class="btn ghost sm" id="btn-print">🖨️ Print / PDF</button>' +
+      '</div>' +
+      (hasToken ? '<div class="row-btns"><a class="btn ghost sm" href="?mode=inbox">📥 All reports</a></div>' : '') +
+    '</div>';
+  document.body.appendChild(bar);
+  document.getElementById("btn-textcopy").addEventListener("click", async function(){ var ok=await copyText(reportText(p)); flash(this, ok?"✓ Copied":"Copy failed"); });
+  document.getElementById("btn-print").addEventListener("click", function(){ window.print(); });
+  if(hasToken){
+    document.getElementById("btn-save-gh").addEventListener("click", function(){ saveToGitHub(p, this); });
+    // auto-persist silently for Lauren
+    saveToGitHub(p, null);
+  }
+}
+
+/* ---------- GitHub persistence (IRON RULE #7 — Lauren only, token in localStorage) ---------- */
+async function ghGet(token, path){
+  var url = "https://api.github.com/repos/"+REPO+"/contents/"+path+"?ref=main";
+  var r = await fetch(url, { headers:{ "Authorization":"token "+token, "Accept":"application/vnd.github+json" }});
+  if(r.status===404) return { sha:null, json:{ _updated_at:null, reports:{} } };
+  if(!r.ok) throw new Error("GET "+r.status);
+  var j = await r.json();
+  var content = JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,"")))));
+  return { sha:j.sha, json:content };
+}
+async function ghPut(token, path, obj, sha, msg){
+  var url = "https://api.github.com/repos/"+REPO+"/contents/"+path;
+  var body = { message:msg, content:btoa(unescape(encodeURIComponent(JSON.stringify(obj,null,2)))), branch:"main" };
+  if(sha) body.sha = sha;
+  var r = await fetch(url, { method:"PUT", headers:{ "Authorization":"token "+token, "Accept":"application/vnd.github+json", "Content-Type":"application/json" }, body:JSON.stringify(body) });
+  if(!r.ok) throw new Error("PUT "+r.status);
+  return true;
+}
+async function saveToGitHub(p, btn){
+  var token = (localStorage.getItem(GH_TOKEN_KEY) || "").trim();
+  if(!token){ if(btn) toast("No GitHub token on this device"); return; }
+  if(btn){ btn.innerHTML = "⏳ Saving..."; }
+  try{
+    var cur = await ghGet(token, STATE_FILE);
+    var data = cur.json; if(!data.reports) data.reports = {};
+    var key = p.evkey || "unknown";
+    var arr = data.reports[key] || [];
+    // de-dupe by submitted_at + manager_name
+    var dup = arr.some(function(x){ return x.submitted_at===p.submitted_at && x.manager_name===p.manager_name; });
+    if(!dup){ arr.push(p); data.reports[key] = arr; data._updated_at = new Date().toISOString();
+      await ghPut(token, STATE_FILE, data, cur.sha, "manager-report: "+key+" — "+p.manager_name);
+    }
+    if(btn){ flash(btn, "✓ Saved to dashboard"); }
+  }catch(e){
+    if(btn){ btn.innerHTML="💾 Save to my dashboard"; toast("Save failed: "+e.message); }
+  }
+}
+
+/* ============================ MODE: INBOX (?mode=inbox) ============================ */
+async function renderInbox(){
+  document.getElementById("h-title").textContent = "📥 Manager Reports";
+  document.getElementById("h-ev").textContent = "All submitted event reports";
+  document.getElementById("h-meta").textContent = "";
+  var app = document.getElementById("app");
+  app.innerHTML = '<div class="card">Loading…</div>';
+  var data = { reports:{} };
+  try{ var r = await fetch(STATE_URL + "?_=" + Date.now(), { cache:"no-store" }); if(r.ok) data = await r.json(); }
+  catch(e){}
+  var items = [];
+  Object.keys(data.reports||{}).forEach(function(k){ (data.reports[k]||[]).forEach(function(p){ items.push(p); }); });
+  items.sort(function(a,b){ return (b.submitted_at||"").localeCompare(a.submitted_at||""); });
+  if(!items.length){ app.innerHTML = '<div class="card">No reports yet. When a manager submits a report it appears here.<br><span class="footnote">(Cloud auto-save must be enabled, or open a report link Lauren received.)</span></div>'; return; }
+  var html = "";
+  for(var i=0;i<items.length;i++){
+    var p = items[i];
+    html += '<div class="inbox-item"><h3>'+esc(eventTitle(p.event))+'</h3>' +
+            '<div class="sub">'+esc(p.manager_name)+' · '+esc(new Date(p.submitted_at).toLocaleString())+' · <span class="pill">'+esc(p.evkey||"")+'</span></div>' +
+            '<a class="inline" href="#r='+b64enc(p)+'">Open full report →</a></div>';
+  }
+  app.innerHTML = html;
+}
+
+/* ============================ ROUTER ============================ */
+function route(){
+  // clear any existing bars (hash navigation)
+  Array.prototype.forEach.call(document.querySelectorAll(".bar"), function(b){ b.remove(); });
+  var hash = location.hash || "";
+  if(hash.indexOf("#r=")===0){
+    try{ renderReadonly(b64dec(hash.slice(3))); return; }
+    catch(e){ document.getElementById("app").innerHTML = '<div class="card">⚠️ This report link is invalid or corrupted.</div>'; return; }
+  }
+  if(qp("mode")==="inbox"){ renderInbox(); return; }
+  renderForm();
+}
+window.addEventListener("hashchange", route);
+loadConfig().then(route);
+</script>
+</body>
+</html>

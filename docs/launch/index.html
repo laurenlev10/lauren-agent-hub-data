@@ -451,6 +451,10 @@
   .btn-recount-row{background:linear-gradient(180deg,#7c3aed,#5b21b6)} /* purple per recount landing accent — flips green via .done */
   .btn-summary-row{background:linear-gradient(180deg,#111827,#000000)} /* black until summary built — flips green via .done */
   .btn-fbevent-row{background:linear-gradient(180deg,#000000,#1c1e21)} /* Facebook Event — black per Lauren's spec 2026-05-23, flips green via .done when @fbevent has created the FB event */
+  .btn-mreport-row{background:linear-gradient(180deg,#6366f1,#4338ca)} /* Manager Report — indigo, opens the per-event manager form (added 2026-06-03) */
+  .mreport-copy-btn{display:inline-flex;align-items:center;justify-content:center;margin-top:6px;margin-left:2px;padding:4px 7px;background:transparent;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:11px;color:#6b7280;transition:all .12s;vertical-align:middle}
+  .mreport-copy-btn:hover{border-color:#4338ca;color:#4338ca;background:#eef2ff}
+  .mreport-copy-btn.copied{background:#16a34a;border-color:#16a34a;color:#fff}
   /* 'needs-summary' — past event without a published summary yet (call-to-action,
      Lauren 2026-05-05: 'הפעילות הכי חשובה לעשות כשאירוע נגמר'). Pulsing
      orange/red gradient grabs attention until the agent runs and the button
@@ -2428,6 +2432,21 @@ End date: </div>
             rowBtn += '<a class="btn-agent-row btn-fbevent-row" href="../facebook-events/?' + fbParams + '" target="_blank" rel="noopener" title="צרי דף אירוע בפייסבוק עבור האירוע — @fbevent יזין את פרטי האירוע, תמונה, וכיתוב דו-לשוני">📘 Facebook Event</a>';
           }
 
+          // 📋 Manager Report — per-event end-of-event form (added 2026-06-03)
+          // Standalone page the event manager fills during/after the event: supplies checklist,
+          // team payouts, expenses, cash reconciliation, photos. Renders on BOTH future + past tabs.
+          // 🔗 chip copies the absolute shareable link so Lauren can send it to the manager in WhatsApp.
+          {
+            const mrParams = new URLSearchParams({
+              evkey: evKey, city: _evCity, state: _evState,
+              start_date: ev.start_date, end_date: ev.end_date,
+              venue: ev.venue || "", address: ev.address || ""
+            }).toString();
+            rowBtn += '<a class="btn-agent-row btn-mreport-row" href="../manager-report/?' + mrParams + '" target="_blank" rel="noopener" title="טופס דוח מנהלת לאירוע — מלאי, תשלומים לצוות וקופה. המנהלת ממלאת בזמן האירוע ושולחת בוואטסאפ.">📋 דוח מנהלת</a>';
+            const mrAbs = "https://dashboard.themakeupblowout.com/manager-report/?" + mrParams;
+            rowBtn += '<button type="button" class="mreport-copy-btn" data-mrurl="' + escapeHtml(mrAbs) + '" title="העתקת הלינק של טופס המנהלת — לשליחה למנהלת בוואטסאפ">🔗</button>';
+          }
+
           // 📊 Post-event summary — past events ONLY (Lauren 2026-05-05: can't summarize an event
           // before it happens). When the event is done AND no summary exists yet, render a HIGHLIGHTED
           // call-to-action ("📊 לסיכום!") since Lauren says this is the most important post-event task.
@@ -3410,6 +3429,17 @@ End date: </div>
   // Auto-scan runs via .github/workflows/insta-reel-share-scan.yml.
   // Manual override here just sets MANUAL_TASKS[evKey].insta_reel_url + _set_by="manual".
   // ────────────────────────────────────────────────────────────
+  // 📋 Manager Report — copy the per-event form link to clipboard (added 2026-06-03)
+  document.addEventListener("click", (e) => {
+    const mrc = e.target.closest(".mreport-copy-btn");
+    if (!mrc) return;
+    e.stopPropagation();
+    const url = mrc.dataset.mrurl || "";
+    navigator.clipboard.writeText(url).catch(() => {});
+    const o = mrc.textContent; mrc.textContent = "✓"; mrc.classList.add("copied");
+    setTimeout(() => { mrc.textContent = o; mrc.classList.remove("copied"); }, 1600);
+  });
+
   document.addEventListener("click", (e) => {
     // Manual URL paste chip (🔗)
     const chip = e.target.closest(".reel-link-paste-btn");
