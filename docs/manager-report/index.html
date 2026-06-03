@@ -162,8 +162,8 @@ var SECTIONS = [
 /* ---------- small helpers ---------- */
 function qp(name){ return new URLSearchParams(location.search).get(name) || ""; }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
-function b64enc(obj){ return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))); }
-function b64dec(s){ return JSON.parse(decodeURIComponent(escape(atob(s)))); }
+function b64enc(obj){ return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
+function b64dec(s){ s=String(s).replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4) s+="="; return JSON.parse(decodeURIComponent(escape(atob(s)))); }
 function toast(msg){ var t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(function(){ t.classList.remove("show"); }, 2200); }
 function fieldByKey(k){ for(var i=0;i<SECTIONS.length;i++){ for(var j=0;j<SECTIONS[i].fields.length;j++){ if(SECTIONS[i].fields[j].key===k) return SECTIONS[i].fields[j]; } } return null; }
 async function copyText(text){
@@ -698,7 +698,9 @@ function route(){
   Array.prototype.forEach.call(document.querySelectorAll(".bar"), function(b){ b.remove(); });
   var hash = location.hash || "";
   if(hash.indexOf("#r=")===0){
-    try{ renderReadonly(b64dec(hash.slice(3))); return; }
+    var raw = hash.slice(3);
+    try{ raw = decodeURIComponent(raw); }catch(e){}
+    try{ renderReadonly(b64dec(raw)); return; }
     catch(e){ document.getElementById("app").innerHTML = '<div class="card">⚠️ This report link is invalid or corrupted.</div>'; return; }
   }
   if(qp("mode")==="inbox"){ renderInbox(); return; }
