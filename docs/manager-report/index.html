@@ -703,6 +703,17 @@ function route(){
     try{ renderReadonly(b64dec(raw)); return; }
     catch(e){ document.getElementById("app").innerHTML = '<div class="card">⚠️ This report link is invalid or corrupted.</div>'; return; }
   }
+  if(qp("demo")==="1"){
+    renderReadonly({ v:1, evkey:"demo-event", event:{city:"Demo City",state:"NE",start_date:"2026-06-05",end_date:"2026-06-07",venue:"Sample Venue"},
+      manager_name:"Demo Manager",
+      team:[{name:"Brit",base:1000,bonus:100,extra:800,total:1900},{name:"Goni",base:800,bonus:100,extra:600,total:1500}],
+      expenses:[{desc:"Dinner",amount:150}],
+      cash:{payouts_total:3550,total_cash:9701,deposit:2252,register_coins:32,register_bills:268},
+      answers:{plastic_bags:"1 full box",trash_bags:"yes",glitters:"1/2 box"},
+      notes:"This is a demo — it confirms reports open correctly.", photo_count:0,
+      submitted_at:new Date().toISOString(), source:"demo" });
+    return;
+  }
   if(qp("mode")==="inbox"){ renderInbox(); return; }
   renderForm();
 }
