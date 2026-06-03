@@ -14,7 +14,7 @@
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
        background:var(--bg);color:var(--ink);line-height:1.45;-webkit-text-size-adjust:100%}
-  .wrap{max-width:720px;margin:0 auto;padding:14px 14px 120px}
+  .wrap{max-width:720px;margin:0 auto;padding:14px 14px 178px}
   header.top{background:linear-gradient(135deg,#ec4899,#be185d);color:#fff;border-radius:16px;
        padding:18px 18px 16px;box-shadow:0 6px 18px rgba(190,24,93,.28);margin-bottom:14px}
   header.top .brand{font-size:12px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;opacity:.9}
@@ -44,11 +44,10 @@
   .yn button.on-no{background:#9ca3af;border-color:#9ca3af;color:#fff}
   .req{color:var(--pink-d)}
   /* sticky action bar */
-  .bar{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.97);border-top:1px solid var(--line);
-       padding:10px 12px;backdrop-filter:blur(6px);box-shadow:0 -4px 14px rgba(0,0,0,.06);z-index:30}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.97);border-top:1px solid var(--line);padding:8px 12px;backdrop-filter:blur(6px);box-shadow:0 -4px 14px rgba(0,0,0,.06);z-index:30}
   .bar-inner{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
-  .btn{display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:800;
-       padding:14px;border-radius:12px;border:none;cursor:pointer;font-family:inherit;text-decoration:none;width:100%}
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:800;
+       padding:11px;border-radius:11px;border:none;cursor:pointer;font-family:inherit;text-decoration:none;width:100%}
   .btn.primary{background:linear-gradient(180deg,#22c55e,#15803d);color:#fff;box-shadow:0 3px 10px rgba(21,128,61,.35)}
   .btn.wa{background:linear-gradient(180deg,#25d366,#128c4b);color:#fff}
   .row-btns{display:flex;gap:8px}
@@ -391,15 +390,7 @@ function renderForm(){
       '<div id="draft-status"></div>' +
       '<button class="btn primary" id="btn-submit">✅ Submit — I am done</button>' +
       '<button class="btn draft" id="btn-draft">💾 Save draft — finish later</button>' +
-      '<div class="row-btns">' +
-        '<button class="btn wa sm" id="btn-wa">📲 Send to Lauren</button>' +
-        '<button class="btn ghost sm" id="btn-link">🔗 Copy link</button>' +
-      '</div>' +
-      '<div class="row-btns">' +
-        '<button class="btn ghost sm" id="btn-textcopy">📋 Copy as text</button>' +
-        '<button class="btn ghost sm" id="btn-print">🖨️ Print / PDF</button>' +
-      '</div>' +
-      '<div class="footnote">“Save draft” keeps your progress so you can come back and finish during the event. “Submit” sends the final report.</div>' +
+      '<button class="btn ghost sm" id="btn-textcopy">📋 Copy as text</button>' +
     '</div>';
   document.body.appendChild(bar);
 
@@ -415,10 +406,7 @@ function renderForm(){
   });
 
   document.getElementById("btn-submit").addEventListener("click", onSubmit);
-  document.getElementById("btn-wa").addEventListener("click", function(){ var p=collect(); if(!p) return; waDirect(p); });
-  document.getElementById("btn-link").addEventListener("click", async function(){ var p=collect(); if(!p) return; var url=reportLink(p); var ok=await copyText(url); flash(this, ok?"✓ Link copied":"Copy failed"); });
   document.getElementById("btn-textcopy").addEventListener("click", async function(){ var p=collect(); if(!p) return; var ok=await copyText(reportText(p)); flash(this, ok?"✓ Copied":"Copy failed"); });
-  document.getElementById("btn-print").addEventListener("click", function(){ window.print(); });
   document.getElementById("btn-draft").addEventListener("click", onSaveDraft);
   loadDraftIntoForm();
 }
