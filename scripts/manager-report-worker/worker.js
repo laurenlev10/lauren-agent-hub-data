@@ -24,7 +24,7 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors });
     if (request.method !== "POST")    return reply({ error: "POST only" }, 405, cors);
 
-    const TOKEN = env.GH_TOKEN;
+    const TOKEN = (env.GH_TOKEN || "").trim();   // trim so a trailing newline/space in the secret can't cause 401
     if (!TOKEN) return reply({ error: "server not configured (no GH_TOKEN)" }, 500, cors);
 
     let report;
