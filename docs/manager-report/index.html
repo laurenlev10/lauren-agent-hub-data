@@ -287,12 +287,11 @@ function renderForm(){
   document.getElementById("h-meta").textContent = [dateRange(ev), ev.venue, ev.address].filter(Boolean).join(" · ");
 
   var html = "";
-  html += '<div class="hello no-print">📝 Please fill this in during / at the end of the event, then tap <b>Submit</b>. ' +
-          'מלאי בזמן האירוע ולחצי "שליחה ושמירה" בסוף.</div>';
+  html += '<div class="hello no-print">📝 Please fill this in during / at the end of the event, then tap <b>Submit</b> to send it to the team.</div>';
 
   // manager name
   html += '<div class="card"><div class="sec-title">👤 Manager</div>' +
-          '<div class="field"><label class="lab">Your name <span class="req">*</span> <span class="hint">/ שם המנהלת</span></label>' +
+          '<div class="field"><label class="lab">Your name <span class="req">*</span></label>' +
           '<input type="text" id="f-manager_name" placeholder="Manager name"></div></div>';
 
   // sections
@@ -349,7 +348,7 @@ function renderForm(){
           '<div class="photo-grid" id="photo-grid"></div></div>';
 
   // notes
-  html += '<div class="card"><div class="sec-title">🗒️ Notes / הערות</div>' +
+  html += '<div class="card"><div class="sec-title">🗒️ Notes</div>' +
           '<div class="field"><textarea id="f-notes" placeholder="Anything else Lauren should know..."></textarea></div></div>';
 
   document.getElementById("app").innerHTML = html;
@@ -387,7 +386,7 @@ function renderForm(){
   bar.className = "bar no-print";
   bar.innerHTML =
     '<div class="bar-inner">' +
-      '<button class="btn primary" id="btn-submit">✅ Submit &amp; Send · שליחה לקבוצה</button>' +
+      '<button class="btn primary" id="btn-submit">✅ Submit &amp; Send to WhatsApp</button>' +
       '<div class="row-btns">' +
         '<button class="btn wa sm" id="btn-wa">📲 Send to Lauren</button>' +
         '<button class="btn ghost sm" id="btn-link">🔗 Copy link</button>' +
@@ -426,7 +425,7 @@ function flash(btn, msg){
 function collect(){
   var ev = getEvent();
   var name = (document.getElementById("f-manager_name").value || "").trim();
-  if(!name){ toast("Please enter your name / נא למלא שם"); document.getElementById("f-manager_name").focus(); return null; }
+  if(!name){ toast("Please enter your name"); document.getElementById("f-manager_name").focus(); return null; }
   var answers = {};
   for(var s=0;s<SECTIONS.length;s++){
     for(var i=0;i<SECTIONS[s].fields.length;i++){
@@ -488,7 +487,7 @@ function reportText(p){
   if(p.photo_count) lines.push("📷 " + p.photo_count + " photo(s) attached");
   if(p.photo_count) lines.push("");
   for(var s=0;s<SECTIONS.length;s++){
-    lines.push("— " + SECTIONS[s].title.replace(/^[^A-Za-z0-9א-ת]+/,"").trim() + " —");
+    lines.push("— " + SECTIONS[s].title.replace(/^[^A-Za-z0-9]+/,"").trim() + " —");
     for(var i=0;i<SECTIONS[s].fields.length;i++){
       var f = SECTIONS[s].fields[i]; var val = p.answers[f.key];
       if(f.type==="yesno") val = val==="yes" ? "YES — need it" : (val==="no" ? "no" : "—");
@@ -547,7 +546,7 @@ async function onSubmit(){
       throw new Error("HTTP " + r.status);
     }catch(e){
       toast("Auto-save unavailable — sharing instead");
-      btn.innerHTML = "✅ Submit &amp; Send · שליחה";
+      btn.innerHTML = "✅ Submit &amp; Send to WhatsApp";
     }
   }
   await shareReport(p, btn);
