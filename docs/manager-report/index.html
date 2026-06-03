@@ -677,7 +677,8 @@ function renderReadonly(payload){
   var bar = document.createElement("div");
   bar.className = "bar no-print";
   bar.innerHTML = '<div class="bar-inner">' +
-      (hasToken ? '<button class="btn primary" id="btn-save-gh">💾 Save to my dashboard</button>' : '') +
+      '<button class="btn primary" id="btn-edit-report">✏️ Edit / add more</button>' +
+      (hasToken ? '<button class="btn draft" id="btn-save-gh">💾 Save to my dashboard</button>' : '') +
       '<div class="row-btns">' +
         '<button class="btn ghost sm" id="btn-textcopy">📋 Copy as text</button>' +
         '<button class="btn ghost sm" id="btn-print">🖨️ Print / PDF</button>' +
@@ -685,6 +686,12 @@ function renderReadonly(payload){
       (hasToken ? '<div class="row-btns"><a class="btn ghost sm" href="?mode=inbox">📥 All reports</a></div>' : '') +
     '</div>';
   document.body.appendChild(bar);
+  document.getElementById("btn-edit-report").addEventListener("click", function(){
+    var ev = p.event || {};
+    try{ localStorage.setItem("mbs_draft_" + (p.evkey || "x"), JSON.stringify(p)); }catch(e){}
+    var q = new URLSearchParams({ evkey:p.evkey||"", city:ev.city||"", state:ev.state||"", start_date:ev.start_date||"", end_date:ev.end_date||"", venue:ev.venue||"", address:ev.address||"" }).toString();
+    location.href = location.pathname + "?" + q;
+  });
   document.getElementById("btn-textcopy").addEventListener("click", async function(){ var ok=await copyText(reportText(p)); flash(this, ok?"✓ Copied":"Copy failed"); });
   document.getElementById("btn-print").addEventListener("click", function(){ window.print(); });
   if(hasToken){
