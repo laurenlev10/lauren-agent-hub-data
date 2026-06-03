@@ -56,6 +56,8 @@
   .btn.ghost{background:#fff;border:1.5px solid var(--line);color:var(--ink)}
   .btn:active{transform:translateY(1px)}
   .btn.copied{background:linear-gradient(180deg,#16a34a,#15803d)!important;color:#fff!important;border-color:#15803d!important}
+  .btn.draft{background:linear-gradient(180deg,#f59e0b,#b45309);color:#fff}
+  #draft-status{display:none;font-size:12.5px;font-weight:700;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:8px 11px;text-align:center}
   /* read-only report view */
   .ro-line{display:flex;justify-content:space-between;gap:12px;padding:8px 2px;border-top:1px solid #f1f1f4;font-size:14px}
   .ro-line:first-child{border-top:none}
@@ -386,7 +388,9 @@ function renderForm(){
   bar.className = "bar no-print";
   bar.innerHTML =
     '<div class="bar-inner">' +
-      '<button class="btn primary" id="btn-submit">✅ Submit &amp; Send to WhatsApp</button>' +
+      '<div id="draft-status"></div>' +
+      '<button class="btn primary" id="btn-submit">✅ Submit — I am done</button>' +
+      '<button class="btn draft" id="btn-draft">💾 Save draft — finish later</button>' +
       '<div class="row-btns">' +
         '<button class="btn wa sm" id="btn-wa">📲 Send to Lauren</button>' +
         '<button class="btn ghost sm" id="btn-link">🔗 Copy link</button>' +
@@ -395,7 +399,7 @@ function renderForm(){
         '<button class="btn ghost sm" id="btn-textcopy">📋 Copy as text</button>' +
         '<button class="btn ghost sm" id="btn-print">🖨️ Print / PDF</button>' +
       '</div>' +
-      '<div class="footnote">Tap Submit to post the report (and photos) to your WhatsApp group. It also saves for Lauren when cloud-save is on.</div>' +
+      '<div class="footnote">“Save draft” keeps your progress so you can come back and finish during the event. “Submit” sends the final report.</div>' +
     '</div>';
   document.body.appendChild(bar);
 
@@ -415,6 +419,8 @@ function renderForm(){
   document.getElementById("btn-link").addEventListener("click", async function(){ var p=collect(); if(!p) return; var url=reportLink(p); var ok=await copyText(url); flash(this, ok?"✓ Link copied":"Copy failed"); });
   document.getElementById("btn-textcopy").addEventListener("click", async function(){ var p=collect(); if(!p) return; var ok=await copyText(reportText(p)); flash(this, ok?"✓ Copied":"Copy failed"); });
   document.getElementById("btn-print").addEventListener("click", function(){ window.print(); });
+  document.getElementById("btn-draft").addEventListener("click", onSaveDraft);
+  loadDraftIntoForm();
 }
 
 function flash(btn, msg){
@@ -422,10 +428,10 @@ function flash(btn, msg){
   setTimeout(function(){ btn.innerHTML = orig; btn.classList.remove("copied"); }, 1900);
 }
 
-function collect(){
+function collect(allowEmptyName){
   var ev = getEvent();
   var name = (document.getElementById("f-manager_name").value || "").trim();
-  if(!name){ toast("Please enter your name"); document.getElementById("f-manager_name").focus(); return null; }
+  if(!name && !allowEmptyName){ toast("Please enter your name"); document.getElementById("f-manager_name").focus(); return null; }
   var answers = {};
   for(var s=0;s<SECTIONS.length;s++){
     for(var i=0;i<SECTIONS[s].fields.length;i++){
@@ -535,6 +541,7 @@ function waDirect(p){
 
 async function onSubmit(){
   var p = collect(); if(!p) return;
+  p.mode = "final";
   var btn = document.getElementById("btn-submit");
   var endpoint = saveEndpoint();
   if(endpoint){
@@ -542,14 +549,71 @@ async function onSubmit(){
     try{
       var payload = Object.assign({}, p, { photos: await buildPhotoData() });
       var r = await fetch(endpoint, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
-      if(r.ok){ flash(btn, "✓ Saved — Lauren will see it"); toast("Saved ✓"); return; }
+      if(r.ok){ clearLocalDraft(); flash(btn, "✓ Saved — Lauren will see it"); toast("Saved ✓"); await shareReport(p, null); return; }
       throw new Error("HTTP " + r.status);
     }catch(e){
       toast("Auto-save unavailable — sharing instead");
-      btn.innerHTML = "✅ Submit &amp; Send to WhatsApp";
+      btn.innerHTML = "✅ Submit — I am done";
     }
   }
   await shareReport(p, btn);
+  clearLocalDraft();
+}
+
+/* ---------- drafts: save progress, resume on the same form ---------- */
+function draftKey(){ return "mbs_draft_" + (getEvent().evkey || "x"); }
+function clearLocalDraft(){ try{ localStorage.removeItem(draftKey()); }catch(e){} setDraftStatus(""); }
+function setDraftStatus(msg){ var el=document.getElementById("draft-status"); if(!el) return; if(msg){ el.textContent="\uD83D\uDCBE "+msg; el.style.display="block"; } else { el.style.display="none"; } }
+async function onSaveDraft(){
+  var btn = document.getElementById("btn-draft");
+  var p = collect(true);
+  p.mode = "draft"; p.source = "draft";
+  p._raw = { team: TEAM, expenses: EXPENSES, cash: CASH };
+  try{ localStorage.setItem(draftKey(), JSON.stringify(p)); }catch(e){}
+  var endpoint = saveEndpoint();
+  if(endpoint){
+    btn.innerHTML = "\u23F3 Saving...";
+    try{
+      var r = await fetch(endpoint, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(Object.assign({}, p, { photos:[] })) });
+      if(r.ok){ setDraftStatus("Progress saved \u2014 you can close this and come back to finish."); flash(btn,"\u2713 Saved"); return; }
+      throw new Error("HTTP "+r.status);
+    }catch(e){ setDraftStatus("Saved on this device \u2014 you can come back to finish."); flash(btn,"\u2713 Saved on device"); return; }
+  }
+  setDraftStatus("Saved on this device \u2014 you can come back to finish.");
+  flash(btn,"\u2713 Saved on device");
+}
+async function fetchServerDraft(){
+  try{
+    var url = "https://raw.githubusercontent.com/laurenlev10/lauren-agent-hub-data/main/docs/state/manager_reports.json?_="+Date.now();
+    var r = await fetch(url, { cache:"no-store" });
+    if(!r.ok) return null;
+    var d = await r.json();
+    var k = getEvent().evkey;
+    return (d && d.drafts && d.drafts[k]) ? d.drafts[k] : null;
+  }catch(e){ return null; }
+}
+function _setVal(id,v){ var el=document.getElementById(id); if(el && v!==undefined && v!==null && v!=="") el.value=v; }
+function applyDraft(p){
+  if(!p) return;
+  _setVal("f-manager_name", p.manager_name);
+  if(p.answers){ for(var k in p.answers){ var f=fieldByKey(k); var el=document.getElementById("f-"+k); if(!el) continue;
+    if(f && f.type==="yesno"){ var v=p.answers[k]; if(v){ el.setAttribute("data-val",v); Array.prototype.forEach.call(el.querySelectorAll("button"),function(x){x.classList.remove("on-yes","on-no");}); var b=el.querySelector('button[data-yn="'+v+'"]'); if(b) b.classList.add(v==="yes"?"on-yes":"on-no"); } }
+    else { el.value = p.answers[k]; } } }
+  var rt = (p._raw && p._raw.team) ? p._raw.team : p.team;
+  if(Array.isArray(rt) && rt.length){ TEAM = rt.map(function(t){ return { name:(t.name||""), base:(t.base===0?"":(t.base||"")), bonus:(t.bonus===0?"0":(t.bonus===""||t.bonus==null?"":t.bonus)), extra:(t.extra===0?"":(t.extra||"")) }; }); renderTeamGrid(); }
+  var rx = (p._raw && p._raw.expenses) ? p._raw.expenses : p.expenses;
+  if(Array.isArray(rx) && rx.length){ EXPENSES = rx.map(function(x){ return { desc:(x.desc||""), amount:(x.amount===0?"":(x.amount||"")) }; }); renderExpensesGrid(); }
+  var rc = (p._raw && p._raw.cash) ? p._raw.cash : p.cash;
+  if(rc){ CASH = { total_cash:(rc.total_cash===0?"":(rc.total_cash||"")), deposit:(rc.deposit===0?"":(rc.deposit||"")), register_coins:(rc.register_coins===0?"":(rc.register_coins||"")), register_bills:(rc.register_bills===0?"":(rc.register_bills||"")) };
+    _setVal("f-total_cash",CASH.total_cash); _setVal("f-deposit",CASH.deposit); _setVal("f-register_coins",CASH.register_coins); _setVal("f-register_bills",CASH.register_bills); }
+  if(p.notes) _setVal("f-notes", p.notes);
+  recalcTotals();
+}
+async function loadDraftIntoForm(){
+  var p = null;
+  try{ var l = localStorage.getItem(draftKey()); if(l) p = JSON.parse(l); }catch(e){}
+  if(!p) p = await fetchServerDraft();
+  if(p){ applyDraft(p); setDraftStatus("Resumed your saved progress \u2014 finish the rest and tap Submit."); }
 }
 
 /* ============================ MODE: READ-ONLY (#r=) ============================ */

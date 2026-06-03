@@ -48,18 +48,27 @@ export default {
     delete report.photos;                       // never store the heavy base64
     if (photoUrls.length) report.photos = photoUrls;
 
-    // 2) Append the report to manager_reports.json (read-modify-write, retry on conflict).
+    // 2) Save to manager_reports.json (read-modify-write, retry on conflict).
+    //    A "draft" overwrites a single per-event draft slot; a final report appends
+    //    to reports[evkey] and clears any draft for that event.
+    const isDraft = report.mode === "draft";
     for (let attempt = 0; attempt < 4; attempt++) {
       const cur = await ghGet(TOKEN, STATE);
-      const data = cur.json || { _updated_at: null, reports: {} };
+      const data = cur.json || { _updated_at: null, reports: {}, drafts: {} };
       if (!data.reports) data.reports = {};
-      const arr = data.reports[rawKey] || [];
-      arr.push(report);
-      data.reports[rawKey] = arr;
+      if (!data.drafts) data.drafts = {};
+      if (isDraft) {
+        data.drafts[rawKey] = report;                 // one draft per event (overwrite)
+      } else {
+        const arr = data.reports[rawKey] || [];
+        arr.push(report);
+        data.reports[rawKey] = arr;
+        delete data.drafts[rawKey];                   // final submit clears the draft
+      }
       data._updated_at = new Date().toISOString();
       const res = await ghPutJson(TOKEN, STATE, data, cur.sha,
-        `manager-report: ${rawKey} — ${report.manager_name || ""}`);
-      if (res === true) return reply({ ok: true, photos: photoUrls.length }, 200, cors);
+        `manager-report ${isDraft ? "draft" : "final"}: ${rawKey} — ${report.manager_name || ""}`);
+      if (res === true) return reply({ ok: true, draft: isDraft, photos: photoUrls.length }, 200, cors);
       if (res !== 409)  return reply({ error: "github write failed " + res }, 502, cors);
       // 409 = someone else committed; loop and retry with fresh sha
     }

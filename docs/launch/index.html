@@ -452,6 +452,7 @@
   .btn-summary-row{background:linear-gradient(180deg,#111827,#000000)} /* black until summary built — flips green via .done */
   .btn-fbevent-row{background:linear-gradient(180deg,#000000,#1c1e21)} /* Facebook Event — black per Lauren's spec 2026-05-23, flips green via .done when @fbevent has created the FB event */
   .btn-mreport-row{background:linear-gradient(180deg,#6366f1,#4338ca)} /* Manager Report — indigo, opens the per-event manager form (added 2026-06-03) */
+  .btn-mreport-row.draft{background:linear-gradient(180deg,#f59e0b,#b45309)} /* draft in progress (not yet finally submitted) */
   .mreport-copy-btn{display:inline-flex;align-items:center;justify-content:center;margin-top:6px;margin-left:2px;padding:4px 7px;background:transparent;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:11px;color:#6b7280;transition:all .12s;vertical-align:middle}
   .mreport-copy-btn:hover{border-color:#4338ca;color:#4338ca;background:#eef2ff}
   .mreport-copy-btn.copied{background:#16a34a;border-color:#16a34a;color:#fff}
@@ -801,6 +802,7 @@ let SUBSCRIBE_TARGET = null;
 // fetch in the init block (../state/manager_reports.json). A row's 📋 button flips GREEN
 // when a report exists for that event. Lauren 2026-06-03.
 let MANAGER_REPORTS = {};
+let MANAGER_DRAFTS = {};
 function mrEnc(obj){ try{ return btoa(unescape(encodeURIComponent(JSON.stringify(obj)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }catch(e){ return ""; } }
 
 // 🏠 Home Page button state. Owner: homepage-publish-check.yml (every 30 min) writes
@@ -2456,6 +2458,10 @@ End date: </div>
               const mrWhen = (mrLatest.submitted_at || "").slice(0,10);
               const mrTip = "✓ דוח מנהלת מולא · " + mrWho + " · " + mrWhen + (mrList.length>1 ? " · " + mrList.length + " דוחות" : "") + " — לחצי לצפייה בדוח המלא";
               rowBtn += '<a class="btn-agent-row btn-mreport-row done" href="../manager-report/#r=' + mrEnc(mrLatest) + '" target="_blank" rel="noopener" title="' + escapeHtml(mrTip) + '">📋 דוח מנהלת ✓</a>';
+            } else if (typeof MANAGER_DRAFTS !== "undefined" && MANAGER_DRAFTS[evKey]) {
+              const mrDraft = MANAGER_DRAFTS[evKey];
+              const mrDTip = "📝 טיוטה בתהליך — " + (mrDraft.manager_name || "המנהלת") + " מילאה חלקית, טרם נשלח סופית. לחצי לפתיחת הטופס.";
+              rowBtn += '<a class="btn-agent-row btn-mreport-row draft" href="' + mrAbs + '" target="_blank" rel="noopener" title="' + escapeHtml(mrDTip) + '">📋 דוח מנהלת 📝</a>';
             } else {
               rowBtn += '<a class="btn-agent-row btn-mreport-row" href="' + mrAbs + '" target="_blank" rel="noopener" title="טופס דוח מנהלת לאירוע (דומיין ציבורי — נפתח בלי התחברות). מלאי, תשלומים לצוות וקופה. המנהלת ממלאת בזמן האירוע ושולחת בוואטסאפ.">📋 דוח מנהלת</a>';
             }
@@ -3875,7 +3881,7 @@ End date: </div>
   // a report for that event (saved to manager_reports.json by the cloud-save Worker). Lauren 2026-06-03.
   fetch("../state/manager_reports.json?_=" + Date.now(), { cache: "no-store" })
     .then(r => r.ok ? r.json() : null)
-    .then(data => { if (data && data.reports) { MANAGER_REPORTS = data.reports; renderSchedule(); } })
+    .then(data => { if (data) { MANAGER_REPORTS = data.reports || {}; MANAGER_DRAFTS = data.drafts || {}; renderSchedule(); } })
     .catch(() => { /* fail-silent — buttons simply stay black until a report lands */ });
 
   // FB Event stats (Going/Interested per event) — refreshed every 6h by fb-event-stats.yml (Lauren 2026-05-23)
