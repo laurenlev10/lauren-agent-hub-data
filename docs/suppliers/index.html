@@ -43,6 +43,7 @@ function money(v){return "$"+(Number(v)||0).toLocaleString("en-US",{minimumFract
 function esc(s){const d=document.createElement("div");d.textContent=(s==null?"":s);return d.innerHTML;}
 function toast(m){const t=document.getElementById("toast");t.textContent=m;t.className="show";setTimeout(()=>t.className="",2400);}
 function rec(id){return (PAY.invoices&&PAY.invoices[id])||{};}
+function effAmt(iv){if(iv.manual)return +iv.amount||0;const o=rec(iv.id).amount_override;return (typeof o==="number")?o:(+iv.amount||0);}
 function slug(s){return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");}
 
 async function load(){
@@ -72,8 +73,8 @@ function renderList(){
  let allTotal=0,allPaid=0,allCount=0;
  const rows=names.map(name=>{
    const invs=supInvoices(name);
-   const tot=invs.reduce((x,i)=>x+(+i.amount||0),0);
-   const pd=invs.filter(i=>isPaid(i.id)).reduce((x,i)=>x+(+i.amount||0),0);
+   const tot=invs.reduce((x,i)=>x+effAmt(i),0);
+   const pd=invs.filter(i=>isPaid(i.id)).reduce((x,i)=>x+effAmt(i),0);
    allTotal+=tot;allPaid+=pd;allCount+=invs.length;
    return {name,n:invs.length,tot,pd,out:tot-pd};
  }).sort((a,b)=>b.tot-a.tot);
@@ -98,7 +99,7 @@ function renderList(){
 function openSup(name){
  VIEW=name;
  const invs=supInvoices(name);
- const tot=invs.reduce((x,i)=>x+(+i.amount||0),0);
+ const tot=invs.reduce((x,i)=>x+effAmt(i),0);
  let h="<span class='back' onclick='renderList()'>← חזרה לכל הספקים</span>";
  h+="<h1>"+esc(name)+"</h1><div class='sub'>"+invs.length+" חשבוניות · סה״כ "+money(tot)+"</div>";
  h+="<table><tr><th>תאריך</th><th>אירוע</th><th>סכום</th><th>מס׳ חשבונית</th><th>שולם?</th><th>תאריך תשלום</th><th>אופן תשלום</th><th></th></tr>";
@@ -108,7 +109,7 @@ function openSup(name){
    h+="<tr class='"+(iv.manual?"man":"")+"'>"+
      "<td>"+(iv.manual?"<input type='date' style='width:135px' id='md-"+iv.id+"' value='"+esc(iv.date||"")+"' onchange=\"editMan('"+iv.id+"')\">":esc(iv.date||"—"))+"</td>"+
      "<td>"+(iv.manual?"<span class='tag'>ידני</span><input style='width:130px' id='me-"+iv.id+"' value='"+esc(iv.event||"")+"' onchange=\"editMan('"+iv.id+"')\">":esc(iv.event||"—"))+"</td>"+
-     "<td class='num'>"+(iv.manual?"<input style='width:90px' id='ma-"+iv.id+"' value='"+esc(iv.amount||"")+"' onchange=\"editMan('"+iv.id+"')\">":money(iv.amount)+(iv.shipping?" <span style='color:#999;font-size:11px'>(+"+money(iv.shipping)+")</span>":""))+"</td>"+
+     "<td class='num'>"+(iv.manual?"<input style='width:90px' id='ma-"+iv.id+"' value='"+esc(iv.amount||"")+"' onchange=\"editMan('"+iv.id+"')\">":"<input style='width:95px' id='amt-"+iv.id+"' value='"+effAmt(iv)+"' onchange=\"saveAmount('"+iv.id+"',"+(+iv.amount||0)+")\">"+(rec(iv.id).amount_override!=null?" <span class='tag'>✏️ תוקן</span>":"")+(iv.shipping?" <span style='color:#999;font-size:11px'>(+"+money(iv.shipping)+")</span>":""))+"</td>"+
      "<td><input class='invno' id='no-"+iv.id+"' value='"+esc(r.invoice_number||"")+"' placeholder='מס׳' onchange=\"save('"+iv.id+"')\"></td>"+
      "<td style='text-align:center'><input type='checkbox' class='paidbox' id='pd-"+iv.id+"' "+(r.paid?"checked":"")+" onchange=\"save('"+iv.id+"')\"></td>"+
      "<td><input class='pdate' type='date' id='dt-"+iv.id+"' value='"+esc(r.paid_date||"")+"' onchange=\"save('"+iv.id+"')\"></td>"+
@@ -149,8 +150,17 @@ async function save(id){
    paid:(document.getElementById("pd-"+id)||{}).checked||false,
    paid_date:(document.getElementById("dt-"+id)||{}).value||"",
    payment_method:(document.getElementById("pm-"+id)||{}).value||""};
- const m=await putFile(PAY_FILE,cur=>{cur=cur||{invoices:{}};if(!cur.invoices)cur.invoices={};cur.invoices[id]=r;return cur;},"supplier-payment: "+id);
+ const m=await putFile(PAY_FILE,cur=>{cur=cur||{invoices:{}};if(!cur.invoices)cur.invoices={};cur.invoices[id]=Object.assign({},cur.invoices[id]||{},r);return cur;},"supplier-payment: "+id);
  if(m){PAY=m;toast("✓ נשמר");}
+}
+async function saveAmount(id,base){
+ const raw=(document.getElementById("amt-"+id)||{}).value;const val=parseFloat(raw);
+ toast("שומר…");
+ const m=await putFile(PAY_FILE,cur=>{cur=cur||{invoices:{}};if(!cur.invoices)cur.invoices={};
+   const r=Object.assign({},cur.invoices[id]||{});
+   if(isNaN(val)||Math.abs(val-base)<0.005){delete r.amount_override;}else{r.amount_override=Math.round(val*100)/100;}
+   cur.invoices[id]=r;return cur;},"supplier-amount override: "+id);
+ if(m){PAY=m;toast("✓ נשמר");openSup(VIEW);}
 }
 async function addMan(name){
  const date=(document.getElementById("add-date")||{}).value||"";
