@@ -1,0 +1,137 @@
+<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ספקים — מעקב חשבוניות ותשלומים</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;background:#f5f5f7;color:#1d1d1f;margin:0;padding:22px;line-height:1.45}
+.wrap{max-width:1000px;margin:0 auto}
+h1{font-size:24px;margin:0 0 4px}.sub{color:#666;margin-bottom:16px;font-size:14px}
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}
+.sc{background:#fff;border-radius:12px;padding:14px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.sc .v{font-size:20px;font-weight:800}.sc .l{color:#777;font-size:13px}
+.sc.out .v{color:#dc2626}.sc.paid .v{color:#16a34a}
+table{width:100%;border-collapse:collapse;font-size:14px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+th,td{padding:9px 10px;text-align:right;border-bottom:1px solid #eee}
+th{color:#666;font-weight:600;font-size:12px;background:#fafafa}
+tr.sup{cursor:pointer}tr.sup:hover{background:#faf5ff}
+.num{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.pill{font-size:11px;border-radius:20px;padding:2px 9px;font-weight:700}
+.pill.ok{background:#dcfce7;color:#166534}.pill.no{background:#fee2e2;color:#991b1b}
+.back{cursor:pointer;color:#7c3aed;font-weight:600;margin-bottom:10px;display:inline-block;user-select:none}
+input,select{font-size:13px;padding:4px 6px;border:1px solid #ccc;border-radius:6px}
+input.invno{width:120px}input.pdate{width:140px}
+.paidbox{transform:scale(1.25);cursor:pointer}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1d1d1f;color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;opacity:0;transition:.3s;pointer-events:none}
+#toast.show{opacity:1}
+.bar{height:7px;background:#eee;border-radius:6px;overflow:hidden;margin-top:5px}
+.bar>div{height:100%;background:#16a34a}
+.tokrow{font-size:12px;color:#888;text-align:center;margin-top:14px}
+</style></head><body><div class="wrap" id="app">טוען…</div><div id="toast"></div>
+<script>
+const REPO="laurenlev10/lauren-agent-hub-data";
+const PAY_FILE="docs/state/supplier_payments.json";
+const METHODS=["Zelle","Check","Credit Card","Cash"];
+let INV=null, PAY=null, VIEW=null;
+
+function money(v){return "$"+(Number(v)||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});}
+function esc(s){const d=document.createElement("div");d.textContent=(s==null?"":s);return d.innerHTML;}
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.className="show";setTimeout(()=>t.className="",2400);}
+function rec(id){return (PAY.invoices&&PAY.invoices[id])||{};}
+
+async function load(){
+ try{
+  const r=await fetch("../state/supplier_invoices.json?_="+Date.now(),{cache:"no-store"});
+  INV=await r.json();
+ }catch(e){document.getElementById("app").innerHTML="<h1>שגיאה בטעינת ספקים</h1>";return;}
+ try{const r2=await fetch("../state/supplier_payments.json?_="+Date.now(),{cache:"no-store"});if(r2.ok)PAY=await r2.json();}catch(e){}
+ if(!PAY)PAY={_updated_at:null,invoices:{}};
+ if(!PAY.invoices)PAY.invoices={};
+ renderList();
+}
+
+function allInvoices(){
+ let a=[];const s=INV.suppliers||{};
+ for(const name in s) s[name].invoices.forEach(iv=>a.push({...iv,supplier:name}));
+ return a;
+}
+function isPaid(id){return !!rec(id).paid;}
+
+function renderList(){
+ VIEW=null;
+ const s=INV.suppliers||{};
+ const all=allInvoices();
+ const total=all.reduce((x,i)=>x+i.amount,0);
+ const paid=all.filter(i=>isPaid(i.id)).reduce((x,i)=>x+i.amount,0);
+ const out=total-paid;
+ let h="<h1>📦 ספקים — מעקב חשבוניות ותשלומים</h1><div class='sub'>כל החשבוניות מתחילת 2026 · לחצי על ספק לפירוט ההזמנות</div>";
+ h+="<div class='sum'>"+
+   "<div class='sc'><div class='v'>"+Object.keys(s).length+"</div><div class='l'>ספקים</div></div>"+
+   "<div class='sc'><div class='v'>"+all.length+"</div><div class='l'>חשבוניות</div></div>"+
+   "<div class='sc'><div class='v'>"+money(total)+"</div><div class='l'>סה״כ</div></div>"+
+   "<div class='sc paid'><div class='v'>"+money(paid)+"</div><div class='l'>שולם</div></div>"+
+   "<div class='sc out'><div class='v'>"+money(out)+"</div><div class='l'>נותר לתשלום</div></div></div>";
+ h+="<table><tr><th>ספק</th><th>חשבוניות</th><th>סה״כ</th><th>שולם</th><th>נותר</th><th>סטטוס</th></tr>";
+ for(const name in s){
+   const rs=s[name]; const invs=rs.invoices;
+   const pd=invs.filter(i=>isPaid(i.id)).reduce((x,i)=>x+i.amount,0);
+   const o=rs.total-pd; const pct=rs.total?Math.round(pd/rs.total*100):0;
+   h+="<tr class='sup' onclick=\"openSup('"+esc(name).replace(/'/g,"\\'")+"')\">"+
+     "<td><b>"+esc(name)+"</b></td><td>"+invs.length+"</td>"+
+     "<td class='num'>"+money(rs.total)+"</td><td class='num'>"+money(pd)+"</td>"+
+     "<td class='num' style='color:"+(o>0?'#dc2626':'#16a34a')+"'>"+money(o)+"</td>"+
+     "<td style='min-width:90px'><span class='pill "+(o<=0?'ok':'no')+"'>"+(o<=0?'שולם':pct+'%')+"</span><div class='bar'><div style='width:"+pct+"%'></div></div></td></tr>";
+ }
+ h+="</table>";
+ h+="<div class='tokrow'>שמירה דורשת GitHub token (אותו אחד של שאר הדשבורדים). <a href='#' onclick='setTok();return false'>הגדרה</a></div>";
+ document.getElementById("app").innerHTML=h;
+}
+
+function openSup(name){
+ VIEW=name;
+ const rs=(INV.suppliers||{})[name]; if(!rs)return;
+ let h="<span class='back' onclick='renderList()'>← חזרה לכל הספקים</span>";
+ h+="<h1>"+esc(name)+"</h1><div class='sub'>"+rs.invoices.length+" חשבוניות · סה״כ "+money(rs.total)+"</div>";
+ h+="<table><tr><th>תאריך הזמנה</th><th>אירוע</th><th>סכום</th><th>מס׳ חשבונית</th><th>שולם?</th><th>תאריך תשלום</th><th>אופן תשלום</th></tr>";
+ rs.invoices.forEach(iv=>{
+   const r=rec(iv.id);
+   const opts=METHODS.map(m=>"<option "+(r.payment_method===m?"selected":"")+">"+m+"</option>").join("");
+   h+="<tr>"+
+     "<td>"+esc(iv.date||"—")+"</td><td>"+esc(iv.event||"—")+"</td>"+
+     "<td class='num'>"+money(iv.amount)+(iv.shipping?" <span style='color:#999;font-size:11px'>(+"+money(iv.shipping)+" משלוח)</span>":"")+"</td>"+
+     "<td><input class='invno' id='no-"+iv.id+"' value='"+esc(r.invoice_number||"")+"' placeholder='מס׳' onchange=\"save('"+iv.id+"')\"></td>"+
+     "<td style='text-align:center'><input type='checkbox' class='paidbox' id='pd-"+iv.id+"' "+(r.paid?"checked":"")+" onchange=\"save('"+iv.id+"')\"></td>"+
+     "<td><input class='pdate' type='date' id='dt-"+iv.id+"' value='"+esc(r.paid_date||"")+"' onchange=\"save('"+iv.id+"')\"></td>"+
+     "<td><select id='pm-"+iv.id+"' onchange=\"save('"+iv.id+"')\"><option value=''>—</option>"+opts+"</select></td></tr>";
+ });
+ h+="</table>";
+ document.getElementById("app").innerHTML=h;
+}
+
+async function save(id){
+ const tok=(localStorage.getItem("lauren_gh_token_v1")||"").trim();
+ if(!tok){toast("צריך GitHub token");setTok();return;}
+ const r={
+   invoice_number:(document.getElementById("no-"+id)||{}).value||"",
+   paid:(document.getElementById("pd-"+id)||{}).checked||false,
+   paid_date:(document.getElementById("dt-"+id)||{}).value||"",
+   payment_method:(document.getElementById("pm-"+id)||{}).value||""
+ };
+ toast("שומר…");
+ try{
+   const g=await fetch("https://api.github.com/repos/"+REPO+"/contents/"+PAY_FILE+"?ref=main&_="+Date.now(),
+     {headers:{"Authorization":"token "+tok,"Accept":"application/vnd.github+json"},cache:"no-store"});
+   let sha=null,data={_updated_at:null,invoices:{}};
+   if(g.ok){const j=await g.json();sha=j.sha;try{data=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,"")))));}catch(e){}}
+   if(!data.invoices)data.invoices={};
+   data.invoices[id]=r; data._updated_at=new Date().toISOString();
+   const body={message:"supplier-payment: "+id,content:btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2)))),branch:"main"};
+   if(sha)body.sha=sha;
+   const put=await fetch("https://api.github.com/repos/"+REPO+"/contents/"+PAY_FILE,
+     {method:"PUT",headers:{"Authorization":"token "+tok,"Accept":"application/vnd.github+json","Content-Type":"application/json"},body:JSON.stringify(body)});
+   if(!put.ok){toast("שמירה נכשלה ("+put.status+")");return;}
+   PAY=data; toast("✓ נשמר");
+ }catch(e){toast("שגיאה: "+e.message);}
+}
+function setTok(){const t=prompt("הדביקי GitHub token (Contents: write):");if(t){localStorage.setItem("lauren_gh_token_v1",t.trim());toast("נשמר במכשיר");}}
+load();
+</script></body></html>
