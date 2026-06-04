@@ -4,7 +4,7 @@
 <style>
 *{box-sizing:border-box}
 body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;background:#f5f5f7;color:#1d1d1f;margin:0;padding:22px;line-height:1.45}
-.wrap{max-width:1000px;margin:0 auto}
+.wrap{max-width:1040px;margin:0 auto}
 h1{font-size:24px;margin:0 0 4px}.sub{color:#666;margin-bottom:16px;font-size:14px}
 .sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}
 .sc{background:#fff;border-radius:12px;padding:14px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
@@ -14,123 +14,173 @@ table{width:100%;border-collapse:collapse;font-size:14px;background:#fff;border-
 th,td{padding:9px 10px;text-align:right;border-bottom:1px solid #eee}
 th{color:#666;font-weight:600;font-size:12px;background:#fafafa}
 tr.sup{cursor:pointer}tr.sup:hover{background:#faf5ff}
+tr.man{background:#f5f3ff}
 .num{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
 .pill{font-size:11px;border-radius:20px;padding:2px 9px;font-weight:700}
 .pill.ok{background:#dcfce7;color:#166534}.pill.no{background:#fee2e2;color:#991b1b}
+.tag{font-size:10px;background:#ede9fe;color:#6d28d9;border-radius:5px;padding:1px 5px;margin-right:5px}
 .back{cursor:pointer;color:#7c3aed;font-weight:600;margin-bottom:10px;display:inline-block;user-select:none}
 input,select{font-size:13px;padding:4px 6px;border:1px solid #ccc;border-radius:6px}
-input.invno{width:120px}input.pdate{width:140px}
+input.invno{width:115px}input.pdate{width:140px}
 .paidbox{transform:scale(1.25);cursor:pointer}
+button{font-size:13px;padding:6px 12px;border-radius:7px;border:0;background:#7c3aed;color:#fff;cursor:pointer}
+button.del{background:#fff;color:#dc2626;border:1px solid #f3c0c0;padding:3px 8px;font-size:12px}
+.addrow td{background:#faf5ff}
+.addrow input{width:100%}
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1d1d1f;color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;opacity:0;transition:.3s;pointer-events:none}
 #toast.show{opacity:1}
-.bar{height:7px;background:#eee;border-radius:6px;overflow:hidden;margin-top:5px}
-.bar>div{height:100%;background:#16a34a}
+.bar{height:7px;background:#eee;border-radius:6px;overflow:hidden;margin-top:5px}.bar>div{height:100%;background:#16a34a}
 .tokrow{font-size:12px;color:#888;text-align:center;margin-top:14px}
 </style></head><body><div class="wrap" id="app">טוען…</div><div id="toast"></div>
 <script>
 const REPO="laurenlev10/lauren-agent-hub-data";
 const PAY_FILE="docs/state/supplier_payments.json";
+const MAN_FILE="docs/state/supplier_manual_invoices.json";
 const METHODS=["Zelle","Check","Credit Card","Cash"];
-let INV=null, PAY=null, VIEW=null;
+let INV=null, PAY=null, MAN=null, VIEW=null;
 
 function money(v){return "$"+(Number(v)||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});}
 function esc(s){const d=document.createElement("div");d.textContent=(s==null?"":s);return d.innerHTML;}
 function toast(m){const t=document.getElementById("toast");t.textContent=m;t.className="show";setTimeout(()=>t.className="",2400);}
 function rec(id){return (PAY.invoices&&PAY.invoices[id])||{};}
+function slug(s){return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");}
 
 async function load(){
- try{
-  const r=await fetch("../state/supplier_invoices.json?_="+Date.now(),{cache:"no-store"});
-  INV=await r.json();
- }catch(e){document.getElementById("app").innerHTML="<h1>שגיאה בטעינת ספקים</h1>";return;}
- try{const r2=await fetch("../state/supplier_payments.json?_="+Date.now(),{cache:"no-store"});if(r2.ok)PAY=await r2.json();}catch(e){}
- if(!PAY)PAY={_updated_at:null,invoices:{}};
- if(!PAY.invoices)PAY.invoices={};
+ try{INV=await (await fetch("../state/supplier_invoices.json?_="+Date.now(),{cache:"no-store"})).json();}
+ catch(e){document.getElementById("app").innerHTML="<h1>שגיאה בטעינה</h1>";return;}
+ try{const r=await fetch("../state/supplier_payments.json?_="+Date.now(),{cache:"no-store"});if(r.ok)PAY=await r.json();}catch(e){}
+ try{const r=await fetch("../state/supplier_manual_invoices.json?_="+Date.now(),{cache:"no-store"});if(r.ok)MAN=await r.json();}catch(e){}
+ if(!PAY)PAY={_updated_at:null,invoices:{}}; if(!PAY.invoices)PAY.invoices={};
+ if(!MAN)MAN={_updated_at:null,invoices:[]}; if(!MAN.invoices)MAN.invoices=[];
  renderList();
 }
-
-function allInvoices(){
- let a=[];const s=INV.suppliers||{};
- for(const name in s) s[name].invoices.forEach(iv=>a.push({...iv,supplier:name}));
- return a;
+function supNames(){
+ const s=new Set(Object.keys(INV.suppliers||{}));
+ MAN.invoices.forEach(i=>s.add(i.supplier));
+ return [...s];
+}
+function supInvoices(name){
+ const auto=((INV.suppliers||{})[name]||{invoices:[]}).invoices.map(x=>({...x,manual:false}));
+ const man=MAN.invoices.filter(i=>i.supplier===name).map(x=>({...x,manual:true}));
+ return auto.concat(man).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
 }
 function isPaid(id){return !!rec(id).paid;}
 
 function renderList(){
  VIEW=null;
- const s=INV.suppliers||{};
- const all=allInvoices();
- const total=all.reduce((x,i)=>x+i.amount,0);
- const paid=all.filter(i=>isPaid(i.id)).reduce((x,i)=>x+i.amount,0);
- const out=total-paid;
- let h="<h1>📦 ספקים — מעקב חשבוניות ותשלומים</h1><div class='sub'>כל החשבוניות מתחילת 2026 · לחצי על ספק לפירוט ההזמנות</div>";
+ let names=supNames();
+ let allTotal=0,allPaid=0,allCount=0;
+ const rows=names.map(name=>{
+   const invs=supInvoices(name);
+   const tot=invs.reduce((x,i)=>x+(+i.amount||0),0);
+   const pd=invs.filter(i=>isPaid(i.id)).reduce((x,i)=>x+(+i.amount||0),0);
+   allTotal+=tot;allPaid+=pd;allCount+=invs.length;
+   return {name,n:invs.length,tot,pd,out:tot-pd};
+ }).sort((a,b)=>b.tot-a.tot);
+ let h="<h1>📦 ספקים — מעקב חשבוניות ותשלומים</h1><div class='sub'>כל החשבוניות מתחילת 2026 · לחצי על ספק לפירוט והוספה</div>";
  h+="<div class='sum'>"+
-   "<div class='sc'><div class='v'>"+Object.keys(s).length+"</div><div class='l'>ספקים</div></div>"+
-   "<div class='sc'><div class='v'>"+all.length+"</div><div class='l'>חשבוניות</div></div>"+
-   "<div class='sc'><div class='v'>"+money(total)+"</div><div class='l'>סה״כ</div></div>"+
-   "<div class='sc paid'><div class='v'>"+money(paid)+"</div><div class='l'>שולם</div></div>"+
-   "<div class='sc out'><div class='v'>"+money(out)+"</div><div class='l'>נותר לתשלום</div></div></div>";
+  "<div class='sc'><div class='v'>"+names.length+"</div><div class='l'>ספקים</div></div>"+
+  "<div class='sc'><div class='v'>"+allCount+"</div><div class='l'>חשבוניות</div></div>"+
+  "<div class='sc'><div class='v'>"+money(allTotal)+"</div><div class='l'>סה״כ</div></div>"+
+  "<div class='sc paid'><div class='v'>"+money(allPaid)+"</div><div class='l'>שולם</div></div>"+
+  "<div class='sc out'><div class='v'>"+money(allTotal-allPaid)+"</div><div class='l'>נותר לתשלום</div></div></div>";
  h+="<table><tr><th>ספק</th><th>חשבוניות</th><th>סה״כ</th><th>שולם</th><th>נותר</th><th>סטטוס</th></tr>";
- for(const name in s){
-   const rs=s[name]; const invs=rs.invoices;
-   const pd=invs.filter(i=>isPaid(i.id)).reduce((x,i)=>x+i.amount,0);
-   const o=rs.total-pd; const pct=rs.total?Math.round(pd/rs.total*100):0;
-   h+="<tr class='sup' onclick=\"openSup('"+esc(name).replace(/'/g,"\\'")+"')\">"+
-     "<td><b>"+esc(name)+"</b></td><td>"+invs.length+"</td>"+
-     "<td class='num'>"+money(rs.total)+"</td><td class='num'>"+money(pd)+"</td>"+
-     "<td class='num' style='color:"+(o>0?'#dc2626':'#16a34a')+"'>"+money(o)+"</td>"+
-     "<td style='min-width:90px'><span class='pill "+(o<=0?'ok':'no')+"'>"+(o<=0?'שולם':pct+'%')+"</span><div class='bar'><div style='width:"+pct+"%'></div></div></td></tr>";
- }
- h+="</table>";
- h+="<div class='tokrow'>שמירה דורשת GitHub token (אותו אחד של שאר הדשבורדים). <a href='#' onclick='setTok();return false'>הגדרה</a></div>";
+ rows.forEach(r=>{const pct=r.tot?Math.round(r.pd/r.tot*100):0;
+   h+="<tr class='sup' onclick=\"openSup('"+esc(r.name).replace(/'/g,"\\'")+"')\">"+
+   "<td><b>"+esc(r.name)+"</b></td><td>"+r.n+"</td><td class='num'>"+money(r.tot)+"</td><td class='num'>"+money(r.pd)+"</td>"+
+   "<td class='num' style='color:"+(r.out>0?'#dc2626':'#16a34a')+"'>"+money(r.out)+"</td>"+
+   "<td style='min-width:90px'><span class='pill "+(r.out<=0?'ok':'no')+"'>"+(r.out<=0?'שולם':pct+'%')+"</span><div class='bar'><div style='width:"+pct+"%'></div></div></td></tr>";
+ });
+ h+="</table><div class='tokrow'>שמירה דורשת GitHub token (אותו אחד של שאר הדשבורדים). <a href='#' onclick='setTok();return false'>הגדרה</a></div>";
  document.getElementById("app").innerHTML=h;
 }
 
 function openSup(name){
  VIEW=name;
- const rs=(INV.suppliers||{})[name]; if(!rs)return;
+ const invs=supInvoices(name);
+ const tot=invs.reduce((x,i)=>x+(+i.amount||0),0);
  let h="<span class='back' onclick='renderList()'>← חזרה לכל הספקים</span>";
- h+="<h1>"+esc(name)+"</h1><div class='sub'>"+rs.invoices.length+" חשבוניות · סה״כ "+money(rs.total)+"</div>";
- h+="<table><tr><th>תאריך הזמנה</th><th>אירוע</th><th>סכום</th><th>מס׳ חשבונית</th><th>שולם?</th><th>תאריך תשלום</th><th>אופן תשלום</th></tr>";
- rs.invoices.forEach(iv=>{
+ h+="<h1>"+esc(name)+"</h1><div class='sub'>"+invs.length+" חשבוניות · סה״כ "+money(tot)+"</div>";
+ h+="<table><tr><th>תאריך</th><th>אירוע</th><th>סכום</th><th>מס׳ חשבונית</th><th>שולם?</th><th>תאריך תשלום</th><th>אופן תשלום</th><th></th></tr>";
+ invs.forEach(iv=>{
    const r=rec(iv.id);
    const opts=METHODS.map(m=>"<option "+(r.payment_method===m?"selected":"")+">"+m+"</option>").join("");
-   h+="<tr>"+
-     "<td>"+esc(iv.date||"—")+"</td><td>"+esc(iv.event||"—")+"</td>"+
-     "<td class='num'>"+money(iv.amount)+(iv.shipping?" <span style='color:#999;font-size:11px'>(+"+money(iv.shipping)+" משלוח)</span>":"")+"</td>"+
+   h+="<tr class='"+(iv.manual?"man":"")+"'>"+
+     "<td>"+(iv.manual?"<input type='date' style='width:135px' id='md-"+iv.id+"' value='"+esc(iv.date||"")+"' onchange=\"editMan('"+iv.id+"')\">":esc(iv.date||"—"))+"</td>"+
+     "<td>"+(iv.manual?"<span class='tag'>ידני</span><input style='width:130px' id='me-"+iv.id+"' value='"+esc(iv.event||"")+"' onchange=\"editMan('"+iv.id+"')\">":esc(iv.event||"—"))+"</td>"+
+     "<td class='num'>"+(iv.manual?"<input style='width:90px' id='ma-"+iv.id+"' value='"+esc(iv.amount||"")+"' onchange=\"editMan('"+iv.id+"')\">":money(iv.amount)+(iv.shipping?" <span style='color:#999;font-size:11px'>(+"+money(iv.shipping)+")</span>":""))+"</td>"+
      "<td><input class='invno' id='no-"+iv.id+"' value='"+esc(r.invoice_number||"")+"' placeholder='מס׳' onchange=\"save('"+iv.id+"')\"></td>"+
      "<td style='text-align:center'><input type='checkbox' class='paidbox' id='pd-"+iv.id+"' "+(r.paid?"checked":"")+" onchange=\"save('"+iv.id+"')\"></td>"+
      "<td><input class='pdate' type='date' id='dt-"+iv.id+"' value='"+esc(r.paid_date||"")+"' onchange=\"save('"+iv.id+"')\"></td>"+
-     "<td><select id='pm-"+iv.id+"' onchange=\"save('"+iv.id+"')\"><option value=''>—</option>"+opts+"</select></td></tr>";
+     "<td><select id='pm-"+iv.id+"' onchange=\"save('"+iv.id+"')\"><option value=''>—</option>"+opts+"</select></td>"+
+     "<td>"+(iv.manual?"<button class='del' onclick=\"delMan('"+iv.id+"')\">מחק</button>":"")+"</td></tr>";
  });
+ // add-invoice row
+ const sn=esc(name).replace(/'/g,"\\'");
+ h+="<tr class='addrow'><td><input type='date' id='add-date'></td>"+
+    "<td><input id='add-event' placeholder='אירוע / תיאור'></td>"+
+    "<td><input id='add-amount' placeholder='סכום'></td>"+
+    "<td colspan='3'><input id='add-invno' placeholder='מס׳ חשבונית (לא חובה)'></td>"+
+    "<td colspan='2'><button onclick=\"addMan('"+sn+"')\">+ הוסף חשבונית</button></td></tr>";
  h+="</table>";
  document.getElementById("app").innerHTML=h;
 }
 
-async function save(id){
+async function putFile(file,data,msg){
  const tok=(localStorage.getItem("lauren_gh_token_v1")||"").trim();
- if(!tok){toast("צריך GitHub token");setTok();return;}
- const r={
-   invoice_number:(document.getElementById("no-"+id)||{}).value||"",
+ if(!tok){toast("צריך GitHub token");setTok();return false;}
+ const g=await fetch("https://api.github.com/repos/"+REPO+"/contents/"+file+"?ref=main&_="+Date.now(),
+   {headers:{"Authorization":"token "+tok,"Accept":"application/vnd.github+json"},cache:"no-store"});
+ let sha=null,cur=null;
+ if(g.ok){const j=await g.json();sha=j.sha;try{cur=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,"")))));}catch(e){}}
+ const merged=data(cur);
+ merged._updated_at=new Date().toISOString();
+ const body={message:msg,content:btoa(unescape(encodeURIComponent(JSON.stringify(merged,null,2)))),branch:"main"};
+ if(sha)body.sha=sha;
+ const put=await fetch("https://api.github.com/repos/"+REPO+"/contents/"+file,
+   {method:"PUT",headers:{"Authorization":"token "+tok,"Accept":"application/vnd.github+json","Content-Type":"application/json"},body:JSON.stringify(body)});
+ if(!put.ok){toast("שמירה נכשלה ("+put.status+")");return false;}
+ return merged;
+}
+
+async function save(id){
+ toast("שומר…");
+ const r={invoice_number:(document.getElementById("no-"+id)||{}).value||"",
    paid:(document.getElementById("pd-"+id)||{}).checked||false,
    paid_date:(document.getElementById("dt-"+id)||{}).value||"",
-   payment_method:(document.getElementById("pm-"+id)||{}).value||""
- };
- toast("שומר…");
- try{
-   const g=await fetch("https://api.github.com/repos/"+REPO+"/contents/"+PAY_FILE+"?ref=main&_="+Date.now(),
-     {headers:{"Authorization":"token "+tok,"Accept":"application/vnd.github+json"},cache:"no-store"});
-   let sha=null,data={_updated_at:null,invoices:{}};
-   if(g.ok){const j=await g.json();sha=j.sha;try{data=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,"")))));}catch(e){}}
-   if(!data.invoices)data.invoices={};
-   data.invoices[id]=r; data._updated_at=new Date().toISOString();
-   const body={message:"supplier-payment: "+id,content:btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2)))),branch:"main"};
-   if(sha)body.sha=sha;
-   const put=await fetch("https://api.github.com/repos/"+REPO+"/contents/"+PAY_FILE,
-     {method:"PUT",headers:{"Authorization":"token "+tok,"Accept":"application/vnd.github+json","Content-Type":"application/json"},body:JSON.stringify(body)});
-   if(!put.ok){toast("שמירה נכשלה ("+put.status+")");return;}
-   PAY=data; toast("✓ נשמר");
- }catch(e){toast("שגיאה: "+e.message);}
+   payment_method:(document.getElementById("pm-"+id)||{}).value||""};
+ const m=await putFile(PAY_FILE,cur=>{cur=cur||{invoices:{}};if(!cur.invoices)cur.invoices={};cur.invoices[id]=r;return cur;},"supplier-payment: "+id);
+ if(m){PAY=m;toast("✓ נשמר");}
+}
+async function addMan(name){
+ const date=(document.getElementById("add-date")||{}).value||"";
+ const event=(document.getElementById("add-event")||{}).value||"";
+ const amount=parseFloat((document.getElementById("add-amount")||{}).value||"0")||0;
+ const invno=(document.getElementById("add-invno")||{}).value||"";
+ if(!amount&&!event){toast("צריך לפחות סכום או תיאור");return;}
+ const id="man-"+slug(name)+"-"+Date.now();
+ toast("מוסיף…");
+ const m=await putFile(MAN_FILE,cur=>{cur=cur||{invoices:[]};if(!cur.invoices)cur.invoices=[];
+   cur.invoices.push({id,supplier:name,date,event,amount});return cur;},"supplier-manual-invoice add: "+id);
+ if(!m)return; MAN=m;
+ if(invno){await save(id);} // store invoice number via payments file (also writes id)
+ // ensure payment record has the invoice number even if save() not triggered
+ if(invno){const p=await putFile(PAY_FILE,cur=>{cur=cur||{invoices:{}};if(!cur.invoices)cur.invoices={};
+   cur.invoices[id]=Object.assign({},cur.invoices[id]||{},{invoice_number:invno});return cur;},"supplier-payment invno: "+id);if(p)PAY=p;}
+ toast("✓ נוספה"); openSup(name);
+}
+async function editMan(id){
+ const date=(document.getElementById("md-"+id)||{}).value;
+ const event=(document.getElementById("me-"+id)||{}).value;
+ const amount=parseFloat((document.getElementById("ma-"+id)||{}).value||"0")||0;
+ const m=await putFile(MAN_FILE,cur=>{cur=cur||{invoices:[]};
+   cur.invoices=(cur.invoices||[]).map(i=>i.id===id?Object.assign({},i,{date,event,amount}):i);return cur;},"supplier-manual-invoice edit: "+id);
+ if(m){MAN=m;toast("✓ עודכן");}
+}
+async function delMan(id){
+ if(!confirm("למחוק את החשבונית הידנית?"))return;
+ const m=await putFile(MAN_FILE,cur=>{cur=cur||{invoices:[]};cur.invoices=(cur.invoices||[]).filter(i=>i.id!==id);return cur;},"supplier-manual-invoice del: "+id);
+ if(m){MAN=m;toast("✓ נמחק");openSup(VIEW);}
 }
 function setTok(){const t=prompt("הדביקי GitHub token (Contents: write):");if(t){localStorage.setItem("lauren_gh_token_v1",t.trim());toast("נשמר במכשיר");}}
 load();
