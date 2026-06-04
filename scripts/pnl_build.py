@@ -105,7 +105,7 @@ def _line(amount, source, status="ok", note=""):
 
 
 def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analytics_path=None,
-              meta_spend=None, tiktok_spend=None, qb_expenses=None):
+              overrides_path=None, meta_spend=None, tiktok_spend=None, qb_expenses=None):
     ev = find_event(evkey, launch_html=launch_html)
     start = (ev or {}).get("start_date") or evkey[-10:]
     end = (ev or {}).get("end_date") or start
@@ -180,6 +180,25 @@ def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analyt
                           if "travel" in qb else _line(None, "quickbooks", "pending", "QB production in review"))
     expenses["venue"] = (_line(qb.get("venue"), "quickbooks", "ok")
                          if "venue" in qb else _line(None, "quickbooks", "pending", "QB production in review"))
+    # ULINE — event supplies/packing ordered straight to the venue. From QuickBooks
+    # (vendor ULINE) in future; manually overridable because the charge may bundle
+    # other things and need correcting.
+    expenses["uline"] = (_line(qb.get("uline"), "quickbooks (ULINE)", "ok")
+                         if "uline" in qb else _line(None, "quickbooks (ULINE)", "pending",
+                                                     "QB production in review — or set manually"))
+
+    # ---- manual overrides (IRON RULE #7: GitHub-synced state, browser-owned) ----
+    overrides = _load_overrides(evkey, overrides_path)
+    applied_overrides = {}
+    for line_key, val in overrides.items():
+        if line_key.startswith("_"):
+            continue
+        try:
+            amt = float(val)
+        except (TypeError, ValueError):
+            continue
+        expenses[line_key] = _line(amt, "manual override", "ok", "set manually by Lauren")
+        applied_overrides[line_key] = amt
 
     # ---- profit (preliminary if anything pending/missing) ----
     net = sales.get("net")
@@ -205,6 +224,7 @@ def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analyt
         "profit_preliminary": profit, "margin": margin,
         "preliminary": preliminary,
         "pending_or_missing": pending,
+        "manual_overrides": applied_overrides,
         "cash_check": mgr.get("cash_check"),
         "top_products": sales.get("top_products", [])[:15],
         "warnings": (inv.get("warnings", []) + mgr.get("warnings", [])),
@@ -221,6 +241,24 @@ def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analyt
             "mystery_box": sales.get("mystery_box", {}),
         },
     }
+
+
+def _load_overrides(evkey, overrides_path=None):
+    """Read manual per-event line overrides from docs/state/pnl_overrides.json."""
+    try:
+        if overrides_path:
+            p = Path(overrides_path)
+        else:
+            p = _repo_root() / "docs/state/pnl_overrides.json"
+            if not p.exists():
+                for c in Path("/").glob("**/docs/state/pnl_overrides.json"):
+                    p = c; break
+        if not p.exists():
+            return {}
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return (data.get("events") or data).get(evkey, {}) or {}
+    except Exception:
+        return {}
 
 
 def _num(x):

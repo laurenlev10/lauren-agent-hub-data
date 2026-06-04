@@ -83,6 +83,8 @@ def render_pnl_page(p):
 
     def exp_status(key):
         e = exp.get(key, {})
+        if e.get("source") == "manual override":
+            return "<span class='manual'>✏️ ידני</span>"
         return "" if e.get("status") == "ok" else f"<span class='pend'>{_esc(e.get('status'))}</span>"
 
     # P&L summary rows
@@ -97,6 +99,7 @@ def render_pnl_page(p):
         ("שיווק — TikTok", exp.get("marketing_tiktok", {}).get("amount"), exp_status("marketing_tiktok")),
         ("נסיעות (QB)", exp.get("travel", {}).get("amount"), exp_status("travel")),
         ("מקום (QB)", exp.get("venue", {}).get("amount"), exp_status("venue")),
+        ("ULINE — ציוד לאירוע", exp.get("uline", {}).get("amount"), exp_status("uline")),
     ]
     pl_html = "".join(
         f"<tr><td>{_esc(l)} {s}</td><td class='num'>{_m(a)}</td></tr>" for l, a, s in pl_rows)
