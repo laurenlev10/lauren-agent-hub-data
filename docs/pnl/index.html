@@ -96,6 +96,8 @@ function render(){
  h+="<div class='sub'>"+esc(ev.start_date||"")+" – "+esc(ev.end_date||"")+" · "+esc(ev.venue||"")+"</div>";
  h+="<div class='banner' style='background:"+accent+"'><div>"+rw+(prelim?" (ראשוני)":"")+"</div><div class='big'>"+money(t.profit)+(t.margin!=null?" · "+(t.margin*100).toFixed(1)+"%":"")+"</div></div>";
  if(prelim)h+="<div class='warn'>⏳ עדיין ממתין/חסר: "+esc(t.pending.join(", "))+" — הרווח <b>ראשוני</b>. אפשר להזין ידנית כל שורה למטה (✏️).</div>";
+ (PNL.warnings||[]).forEach(function(w){h+="<div class='warn'>"+esc(w)+"</div>";});
+ if(PNL.historical){h+="<div class='warn' style='background:#eef2ff;border-color:#c7d2fe'>📄 מקור: הגיליון הידני של 2026."+(typeof PNL.sheet_profit==="number"&&Math.abs((t.profit||0)-PNL.sheet_profit)>=5?(" הרווח הרשום בגיליון: "+money(PNL.sheet_profit)+"."):"")+" אפשר להשלים/לתקן כל שורה ידנית (✏️).</div>";}
  h+="<div class='kpis'>"+kpis.map(k=>"<div class='kpi'><div class='kv'>"+esc(k[1])+"</div><div class='kl'>"+esc(k[0])+"</div></div>").join("")+"</div>";
 
  // income
