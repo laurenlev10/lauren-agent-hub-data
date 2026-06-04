@@ -32,6 +32,43 @@ from pathlib import Path
 # import sibling source modules
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pnl_octopos, pnl_inventory, pnl_manager
+import urllib.request
+
+EVENT_ANALYTICS_URL = "https://events.themakeupblowout.com/state/event_analytics.json"
+
+
+def _slugify(s):
+    out = "".join(c if c.isalnum() else "-" for c in (s or "").lower())
+    while "--" in out:
+        out = out.replace("--", "-")
+    return out.strip("-")
+
+
+def fetch_marketing(ev, analytics_path=None):
+    """Return {meta_spend, tiktok_spend} from event_analytics.json.
+    event_analytics keys events as <city-slug>-<state>-<year> (e.g. roseville-mn-2026).
+    Meta is auto (API); TikTok is whatever is recorded (manual override until the
+    Reporting scope clears review)."""
+    if not ev:
+        return {}
+    slug = f"{_slugify(ev.get('city'))}-{(ev.get('state') or '').lower()}-{(ev.get('start_date') or '')[:4]}"
+    try:
+        if analytics_path:
+            data = json.loads(Path(analytics_path).read_text(encoding="utf-8"))
+        else:
+            req = urllib.request.Request(EVENT_ANALYTICS_URL, headers={"User-Agent": "mbs-pnl"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                data = json.loads(r.read())
+    except Exception as e:
+        return {"_error": str(e)}
+    node = (data.get("events") or {}).get(slug)
+    if not node:
+        return {"_slug": slug, "_found": False}
+    meta = (node.get("meta") or {}).get("spend")
+    tt = (node.get("tiktok") or {}).get("spend")
+    return {"meta_spend": (round(float(meta), 2) if meta is not None else None),
+            "tiktok_spend": (round(float(tt), 2) if tt is not None else None),
+            "_slug": slug, "_found": True}
 
 
 def _repo_root():
@@ -67,7 +104,7 @@ def _line(amount, source, status="ok", note=""):
             "source": source, "status": status, "note": note}
 
 
-def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None,
+def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analytics_path=None,
               meta_spend=None, tiktok_spend=None, qb_expenses=None):
     ev = find_event(evkey, launch_html=launch_html)
     start = (ev or {}).get("start_date") or evkey[-10:]
@@ -111,13 +148,23 @@ def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None,
     else:
         for k in ("staff", "meals", "other"):
             expenses[k] = _line(None, "manager_reports", "missing", mgr.get("error", ""))
-    # Marketing — Meta (auto) + TikTok (pending review)
-    expenses["marketing_meta"] = (_line(meta_spend, "meta_api", "ok")
-                                  if meta_spend is not None
-                                  else _line(None, "meta_api", "pending", "wire from event_analytics"))
-    expenses["marketing_tiktok"] = (_line(tiktok_spend, "tiktok_api", "ok")
-                                    if tiktok_spend is not None
-                                    else _line(None, "tiktok_api", "pending", "Reporting scope in review"))
+    # Marketing — auto-pull Meta + TikTok from event_analytics.json (Meta=API, TikTok=manual until review clears)
+    if meta_spend is None or tiktok_spend is None:
+        mkt = fetch_marketing(ev, analytics_path=analytics_path)
+        if meta_spend is None:
+            meta_spend = mkt.get("meta_spend")
+        if tiktok_spend is None:
+            tiktok_spend = mkt.get("tiktok_spend")
+    if meta_spend is not None:
+        expenses["marketing_meta"] = _line(meta_spend, "event_analytics(meta)", "ok")
+    else:
+        expenses["marketing_meta"] = _line(None, "meta_api", "pending", "no meta in event_analytics")
+    if tiktok_spend:
+        expenses["marketing_tiktok"] = _line(tiktok_spend, "event_analytics(tiktok)", "ok")
+    elif tiktok_spend == 0:
+        expenses["marketing_tiktok"] = _line(0.0, "event_analytics(tiktok)", "ok", "no TikTok spend recorded (auto API in review)")
+    else:
+        expenses["marketing_tiktok"] = _line(None, "tiktok_api", "pending", "Reporting scope in review")
     # Travel / Venue (non-cash, from QuickBooks — pending review)
     qb = qb_expenses or {}
     for k in ("travel", "venue", "other_nonloud"):
@@ -168,10 +215,11 @@ def main():
     ap.add_argument("--inv-state")
     ap.add_argument("--mgr-state")
     ap.add_argument("--meta-spend", type=float, default=None)
+    ap.add_argument("--analytics")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
     pnl = build_pnl(args.evkey, launch_html=args.launch, inv_state=args.inv_state,
-                    mgr_state=args.mgr_state, meta_spend=args.meta_spend)
+                    mgr_state=args.mgr_state, analytics_path=args.analytics, meta_spend=args.meta_spend)
     if args.json:
         print(json.dumps(pnl, indent=2, ensure_ascii=False)); return 0
     e = pnl["event"]; r = pnl["revenue"]
