@@ -1,37 +1,40 @@
 #!/usr/bin/env python3
-"""build_supplier_invoices.py — consolidate per-supplier invoices across all 2026 events.
+"""build_supplier_invoices.py — consolidate per-supplier invoices for the AP dashboard.
 
-Reads every docs/state/event_pnl/<evkey>.json (which carries detail.inventory_lines:
-supplier + invoiced + shipping per event) and produces docs/state/supplier_invoices.json:
-a supplier-grouped list of invoices for the supplier-payments dashboard.
+SOURCES (per event, live-first):
+  1. inventory_orders.json  — the REAL invoices Lauren enters in the inventory dashboard
+     (per-supplier invoice_total_usd + shipping, anomaly-guarded via pnl_inventory).
+     This is the live source: any invoice she enters flows in on the next run.
+  2. event_pnl/<evkey>.json — historical sheet-derived inventory_lines, used ONLY for
+     events that aren't in inventory_orders.json (the pre-system Jan–Apr events).
 
-    suppliers: { <canonical supplier>: { total, count, invoices: [
-        { id, evkey, event, date, amount, shipping, supplier_raw } ] } }
+Output: docs/state/supplier_invoices.json (supplier-grouped). Payment tracking + manual
+edits live in supplier_payments.json / supplier_manual_invoices.json (browser-owned).
 
-Payment tracking (invoice #, paid date, method) is stored SEPARATELY in
-docs/state/supplier_payments.json (browser-owned, GitHub-synced) keyed by `id`.
+Run by .github/workflows/supplier-invoices-rebuild.yml (daily) so the dashboard stays live.
 """
 from __future__ import annotations
-import json, re
+import json, re, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 EVDIR = ROOT / "docs/state/event_pnl"
+INV_ORDERS = ROOT / "docs/state/inventory_orders.json"
+sys.path.insert(0, str(ROOT / "scripts"))
+import pnl_inventory  # noqa: E402
 
-# canonicalize supplier-name variants across the sheet + inventory_orders
 ALIASES = {
     "she": "She Makeup", "she makeup": "She Makeup",
     "amuse": "Amuse Cosmetics", "amuse cosmetics": "Amuse Cosmetics",
     "bc": "Beauty Creations", "beauty creations": "Beauty Creations",
-    "bb&w": "BB&W", "bb and w": "BB&W", "bb-and-w": "BB&W",
+    "bb&w": "BB&W", "bb and w": "BB&W",
     "romantic": "Romantic Beauty", "romantic beauty": "Romantic Beauty",
     "kara": "Kara Beauty", "kara beauty": "Kara Beauty",
     "xime": "Xime Beauty", "xime beauty": "Xime Beauty",
     "nabi": "Nabi", "prolux": "Prolux", "rude": "Rude", "lurella": "Lurella",
-    "ebc": "EBC", "ebs perfumes": "EBC", "ebs": "EBC", "ebs perfume": "EBC", "golden touch": "Golden Touch",
-    "feral edge": "Feral Edge", "feral-edge": "Feral Edge",
+    "ebc": "EBC", "ebs perfumes": "EBC", "ebs": "EBC",
+    "golden touch": "Golden Touch", "feral edge": "Feral Edge",
     "market": "Market", "mystery box": "Mystery Box", "garage": "Mystery Box",
-    "mystery-box": "Mystery Box",
 }
 
 
@@ -44,42 +47,67 @@ def slug(s):
     return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", (s or "").lower())).strip("-")
 
 
+def add(suppliers, raw, evkey, ename, date, amount, shipping):
+    if not amount:
+        return
+    cname = canon(raw)
+    inv_id = f"{evkey}__{slug(cname)}"
+    rec = suppliers.setdefault(cname, {"total": 0.0, "count": 0, "invoices": []})
+    rec["invoices"].append({"id": inv_id, "evkey": evkey, "event": ename, "date": date,
+                            "amount": round(float(amount), 2),
+                            "shipping": round(float(shipping or 0), 2), "supplier_raw": raw})
+    rec["total"] = round(rec["total"] + float(amount), 2)
+    rec["count"] += 1
+
+
 def build():
     suppliers = {}
+    live_evkeys = set()
+
+    # 1) LIVE — inventory_orders.json (real invoices)
+    if INV_ORDERS.exists():
+        data = json.loads(INV_ORDERS.read_text(encoding="utf-8"))
+        for evkey, node in (data.get("events") or {}).items():
+            inv = pnl_inventory.fetch_inventory_pnl(evkey, state_path=str(INV_ORDERS))
+            lines = [l for l in inv.get("supplier_lines", []) if (l.get("invoiced") or 0) > 0]
+            if not lines:
+                continue
+            live_evkeys.add(evkey)
+            ename = f"{node.get('city','')}, {node.get('state','')}".strip(", ")
+            date = node.get("start_date")
+            for l in lines:
+                add(suppliers, l.get("supplier") or l.get("supplier_code"), evkey, ename, date,
+                    l.get("invoiced"), l.get("shipping"))
+
+    # 2) HISTORICAL — event_pnl for events NOT already live-sourced
     for f in sorted(EVDIR.glob("*.json")):
         if f.name == "_index.json":
             continue
         j = json.loads(f.read_text(encoding="utf-8"))
-        ev = j.get("event", {})
         evkey = j.get("evkey") or f.stem
+        if evkey in live_evkeys:
+            continue
+        ev = j.get("event", {})
         ename = f"{ev.get('city','')}, {ev.get('state','')}".strip(", ")
         date = ev.get("start_date")
         for line in (j.get("detail", {}).get("inventory_lines") or []):
-            amt = line.get("invoiced") or 0
-            if not amt:
-                continue
-            raw = line.get("supplier") or line.get("supplier_code") or "?"
-            cname = canon(raw)
-            inv_id = f"{evkey}__{slug(cname)}"
-            rec = suppliers.setdefault(cname, {"total": 0.0, "count": 0, "invoices": []})
-            rec["invoices"].append({
-                "id": inv_id, "evkey": evkey, "event": ename, "date": date,
-                "amount": round(float(amt), 2), "shipping": round(float(line.get("shipping") or 0), 2),
-                "supplier_raw": raw})
-            rec["total"] = round(rec["total"] + float(amt), 2)
-            rec["count"] += 1
-    # sort each supplier's invoices by date
+            add(suppliers, line.get("supplier") or line.get("supplier_code"), evkey, ename,
+                date, line.get("invoiced"), line.get("shipping"))
+
     for rec in suppliers.values():
         rec["invoices"].sort(key=lambda x: x.get("date") or "")
-    out = {"_updated_at": None, "_note": "auto-built from event_pnl; payment tracking lives in supplier_payments.json",
-           "suppliers": dict(sorted(suppliers.items(), key=lambda kv: -kv[1]["total"]))}
-    return out
+    return {"_updated_at": None,
+            "_note": "auto-built: inventory_orders.json (live) + event_pnl (historical). Payment/manual edits live in supplier_payments.json / supplier_manual_invoices.json.",
+            "_live_events": sorted(live_evkeys),
+            "suppliers": dict(sorted(suppliers.items(), key=lambda kv: -kv[1]["total"]))}
 
 
 if __name__ == "__main__":
+    import datetime as dt
     out = build()
+    out["_updated_at"] = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     (ROOT / "docs/state/supplier_invoices.json").write_text(
         json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"suppliers: {len(out['suppliers'])}")
+    print(f"suppliers: {len(out['suppliers'])} · live events: {out['_live_events']}")
     for name, rec in list(out["suppliers"].items()):
-        print(f"  {name:20} {rec['count']:3} invoices  ${rec['total']:>10,.0f}")
+        print(f"  {name:18} {rec['count']:3} inv  ${rec['total']:>10,.2f}")

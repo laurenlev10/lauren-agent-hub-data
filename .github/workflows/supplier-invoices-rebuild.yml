@@ -1,0 +1,87 @@
+name: supplier-invoices-rebuild
+
+# Rebuilds docs/state/supplier_invoices.json so the supplier AP dashboard stays live.
+# Reads inventory_orders.json (the real invoices Lauren enters in the inventory dashboard)
+# + event_pnl historical, and regroups by supplier. Any invoice she enters flows to the
+# /suppliers/ dashboard automatically on the next run.
+
+on:
+  schedule:
+    - cron: '30 15 * * *'   # daily 08:30 PT
+    - cron: '0 2 * * 1'     # Mon 18:00–19:00 PT (post-event weekend)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Rebuild supplier_invoices.json
+        run: python3 scripts/build_supplier_invoices.py
+
+      - name: Commit + push if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/state/supplier_invoices.json; then
+            git add docs/state/supplier_invoices.json
+            git commit -m "suppliers: rebuild invoice list from inventory_orders (auto)"
+            for attempt in 1 2 3; do
+              git pull --rebase origin main || true
+              if git push origin main; then echo "✓ pushed (attempt $attempt)"; break; fi
+              echo "push attempt $attempt failed, retrying..."; sleep $((attempt * 5))
+            done
+          else
+            echo "no changes"
+          fi
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "supplier-invoices-rebuild":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump supplier-invoices-rebuild lastRunAt"
+            for attempt in 1 2 3; do
+              git pull --rebase origin main || true
+              if git push origin main; then break; fi
+              sleep $((attempt * 5))
+            done
+          fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
