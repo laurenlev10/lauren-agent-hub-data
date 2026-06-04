@@ -108,10 +108,22 @@ def find_max_product_id(token, start=1500, ceiling=50000):
     return lo
 
 
-def fetch_product(token, pid):
-    code, resp = _request("GET", f"/products/{pid}", token=token, timeout=12)
-    if code == 200 and isinstance(resp, dict) and "id" in resp:
-        return resp
+def fetch_product(token, pid, tries=4):
+    # OCTOPOS/Cloudflare throttles bursts of concurrent requests -> transient 429/5xx/timeouts.
+    # Without retry these silently return None and the product is DROPPED from the snapshot
+    # (Lauren 2026-06-04: SpongeBob sets id 899/900 vanished -> invoice match failed). Retry
+    # with backoff; only a real 404 means "no such product".
+    import time as _t
+    for _a in range(tries):
+        try:
+            code, resp = _request("GET", f"/products/{pid}", token=token, timeout=15)
+        except Exception:
+            code, resp = 0, None
+        if code == 200 and isinstance(resp, dict) and "id" in resp:
+            return resp
+        if code == 404:
+            return None
+        _t.sleep(0.4 * (_a + 1))
     return None
 
 
@@ -149,7 +161,7 @@ def fetch_all_purchase_orders(token, max_id, concurrency=25):
     return pos
 
 
-def fetch_all_products(token, max_id, concurrency=50):
+def fetch_all_products(token, max_id, concurrency=10):
     products = []
 
     def task(pid):
