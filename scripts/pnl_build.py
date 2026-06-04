@@ -186,6 +186,12 @@ def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analyt
     expenses["uline"] = (_line(qb.get("uline"), "quickbooks (ULINE)", "ok")
                          if "uline" in qb else _line(None, "quickbooks (ULINE)", "pending",
                                                      "QB production in review — or set manually"))
+    # Lyft — staff ride-share, recurring ~$500/event. From QuickBooks (Transportation)
+    # by Class; manually overridable. (Lyft Business API needs account-manager approval;
+    # Gmail receipt parsing is a fallback — see research notes.)
+    expenses["lyft"] = (_line(qb.get("lyft"), "quickbooks (Lyft)", "ok")
+                        if "lyft" in qb else _line(None, "quickbooks (Lyft)", "pending",
+                                                   "QB production in review — or set manually"))
 
     # ---- manual overrides (IRON RULE #7: GitHub-synced state, browser-owned) ----
     overrides = _load_overrides(evkey, overrides_path)

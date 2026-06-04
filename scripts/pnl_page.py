@@ -100,6 +100,7 @@ def render_pnl_page(p):
         ("נסיעות (QB)", exp.get("travel", {}).get("amount"), exp_status("travel")),
         ("מקום (QB)", exp.get("venue", {}).get("amount"), exp_status("venue")),
         ("ULINE — ציוד לאירוע", exp.get("uline", {}).get("amount"), exp_status("uline")),
+        ("Lyft — נסיעות צוות", exp.get("lyft", {}).get("amount"), exp_status("lyft")),
     ]
     pl_html = "".join(
         f"<tr><td>{_esc(l)} {s}</td><td class='num'>{_m(a)}</td></tr>" for l, a, s in pl_rows)

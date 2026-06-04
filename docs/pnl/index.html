@@ -1,0 +1,196 @@
+<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>סיכום אירוע — P&L</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;background:#f5f5f7;color:#1d1d1f;margin:0;padding:24px;line-height:1.5}
+.wrap{max-width:920px;margin:0 auto}
+h1{font-size:25px;margin:0 0 2px}.sub{color:#666;margin-bottom:16px}
+.banner{color:#fff;border-radius:14px;padding:18px 22px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.banner .big{font-size:30px;font-weight:800}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:12px;padding:14px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.kpi .kv{font-size:20px;font-weight:700}.kpi .kl{color:#777;font-size:13px;margin-top:2px}
+.card{background:#fff;border-radius:12px;padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.card h2{font-size:17px;margin:0 0 10px;border-bottom:2px solid #f0c;padding-bottom:6px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:7px 8px;text-align:right;border-bottom:1px solid #eee}
+th{color:#888;font-weight:600;font-size:12px}
+.num{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.subtot td{font-weight:800;border-top:2px solid #ddd}
+.pl .grand td{font-size:18px;font-weight:800;border-top:3px solid #333}
+.pend{background:#fde68a;color:#92400e;font-size:11px;border-radius:6px;padding:1px 6px;margin:0 6px}
+.manual{background:#dbeafe;color:#1e40af;font-size:11px;border-radius:6px;padding:1px 6px;margin:0 6px}
+.edit{cursor:pointer;color:#a21caf;font-size:13px;margin-right:8px;user-select:none}
+.warn{background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:14px}
+.warn ul{margin:6px 0 0;padding-right:18px}
+.cash{border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:14px}
+.cash.good{background:#ecfdf5;border:1px solid #a7f3d0}.cash.bad{background:#fef2f2;border:1px solid #fecaca}
+.foot{color:#999;font-size:12px;text-align:center;margin-top:18px}
+input.amt{width:110px;font-size:14px;padding:3px 6px;border:1px solid #a21caf;border-radius:6px;text-align:right}
+button.sv{font-size:12px;padding:3px 9px;border-radius:6px;border:0;background:#a21caf;color:#fff;cursor:pointer;margin-right:4px}
+button.cx{font-size:12px;padding:3px 8px;border-radius:6px;border:1px solid #ccc;background:#fff;cursor:pointer}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1d1d1f;color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;opacity:0;transition:.3s;pointer-events:none}
+#toast.show{opacity:1}
+.tokrow{font-size:12px;color:#888;text-align:center;margin-top:10px}
+</style></head><body><div class="wrap" id="app">טוען…</div>
+<div id="toast"></div>
+<script>
+const REPO="laurenlev10/lauren-agent-hub-data";
+const OVERRIDES_FILE="docs/state/pnl_overrides.json";
+const qs=new URLSearchParams(location.search);
+const EVKEY=qs.get("evkey")||"";
+const EXP_ORDER=[
+ ["inventory","מלאי"],["shipping","משלוח"],["mystery_box","מיסטרי בוקס"],
+ ["staff","צוות"],["meals","אוכל"],["other","שונות"],
+ ["marketing_meta","שיווק — Meta"],["marketing_tiktok","שיווק — TikTok"],
+ ["travel","נסיעות (QB)"],["venue","מקום (QB)"],
+ ["uline","ULINE — ציוד לאירוע"],["lyft","Lyft — נסיעות צוות"]];
+let PNL=null, OVR=null, OVR_SHA=null;
+
+function money(v){return (typeof v==="number")?("$"+v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})):"— ממתין";}
+function esc(s){const d=document.createElement("div");d.textContent=(s==null?"":s);return d.innerHTML;}
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.className="show";setTimeout(()=>t.className="",2600);}
+
+async function load(){
+ if(!EVKEY){document.getElementById("app").innerHTML="<h1>חסר evkey</h1><p>פתחי עם <code>?evkey=city-YYYY-MM-DD</code></p>";return;}
+ try{
+   const r=await fetch("../state/event_pnl/"+EVKEY+".json?_="+Date.now(),{cache:"no-store"});
+   if(!r.ok)throw new Error("אין נתוני P&L לאירוע הזה עדיין");
+   PNL=await r.json();
+ }catch(e){document.getElementById("app").innerHTML="<h1>סיכום אירוע</h1><p>"+esc(e.message)+"</p>";return;}
+ try{const r2=await fetch("../state/pnl_overrides.json?_="+Date.now(),{cache:"no-store"});if(r2.ok)OVR=await r2.json();}catch(e){}
+ if(!OVR)OVR={_updated_at:null,events:{}};
+ render();
+}
+
+function effExpenses(){
+ // start from PNL.expenses, apply overrides for this event
+ const ov=((OVR.events||{})[EVKEY])||{};
+ const out={};
+ for(const[k,lbl]of EXP_ORDER){
+   const base=(PNL.expenses||{})[k]||{amount:null,status:"pending",source:""};
+   if(k in ov && ov[k]!=null && ov[k]!==""){
+     out[k]={amount:Number(ov[k]),source:"manual override",status:"ok"};
+   }else out[k]={amount:base.amount,source:base.source,status:base.status};
+ }
+ return out;
+}
+function totals(){
+ const e=effExpenses();let sum=0,pending=[];
+ for(const[k,lbl]of EXP_ORDER){const a=e[k].amount;if(typeof a==="number")sum+=a;if(e[k].status!=="ok")pending.push(lbl);}
+ const net=PNL.revenue?PNL.revenue.net_sales:null;
+ const profit=(typeof net==="number")?+(net-sum).toFixed(2):null;
+ const margin=(profit!=null&&net)?profit/net:null;
+ return {exp:e,sum:+sum.toFixed(2),net,profit,margin,pending};
+}
+
+function render(){
+ const t=totals();const r=PNL.revenue||{};const ev=PNL.event||{};const d=PNL.detail||{};
+ const pos=(t.profit!=null&&t.profit>=0);const accent=pos?"#16a34a":"#dc2626";const rw=pos?"רווח":"הפסד";
+ const prelim=t.pending.length>0;
+ let kpis=[["מכירות נטו",money(r.net_sales)],["ברוטו",money(r.gross_sales)],[rw,money(t.profit)],
+   ["מרווח",t.margin!=null?(t.margin*100).toFixed(1)+"%":"—"],["עסקאות",r.transactions||"—"],["ממוצע",money(r.avg_ticket)]];
+ let h="";
+ h+="<h1>סיכום אירוע — "+esc(ev.city||"")+", "+esc(ev.state||"")+"</h1>";
+ h+="<div class='sub'>"+esc(ev.start_date||"")+" – "+esc(ev.end_date||"")+" · "+esc(ev.venue||"")+"</div>";
+ h+="<div class='banner' style='background:"+accent+"'><div>"+rw+(prelim?" (ראשוני)":"")+"</div><div class='big'>"+money(t.profit)+(t.margin!=null?" · "+(t.margin*100).toFixed(1)+"%":"")+"</div></div>";
+ if(prelim)h+="<div class='warn'>⏳ עדיין ממתין/חסר: "+esc(t.pending.join(", "))+" — הרווח <b>ראשוני</b>. אפשר להזין ידנית כל שורה למטה (✏️).</div>";
+ h+="<div class='kpis'>"+kpis.map(k=>"<div class='kpi'><div class='kv'>"+esc(k[1])+"</div><div class='kl'>"+esc(k[0])+"</div></div>").join("")+"</div>";
+
+ // income
+ h+="<div class='card'><h2>💰 הכנסות</h2><table>"+
+    "<tr><td>מכירות נטו</td><td class='num'>"+money(r.net_sales)+"</td></tr>"+
+    "<tr><td>ברוטו (כולל מס)</td><td class='num'>"+money(r.gross_sales)+"</td></tr>"+
+    "<tr><td>מס</td><td class='num'>"+money(r.tax)+"</td></tr>"+
+    "<tr><td>עסקאות</td><td class='num'>"+(r.transactions||"—")+"</td></tr>"+
+    "<tr><td>ממוצע לעסקה</td><td class='num'>"+money(r.avg_ticket)+"</td></tr></table>";
+ const pay=d.payment_breakdown||{};
+ if(Object.keys(pay).length){h+="<h2 style='margin-top:14px'>פירוט תשלומים</h2><table>"+Object.entries(pay).map(([k,v])=>"<tr><td>"+esc(k)+"</td><td class='num'>"+money(v)+"</td></tr>").join("")+"</table>";}
+ h+="</div>";
+
+ // top products
+ const tp=PNL.top_products||[];
+ if(tp.length){h+="<div class='card'><h2>🏆 מוצרים מובילים</h2><table><tr><th>#</th><th>מוצר</th><th>ספק</th><th>יח׳</th><th>הכנסה</th></tr>"+
+   tp.map((p,i)=>"<tr><td>"+(i+1)+"</td><td>"+esc(p.name)+"</td><td>"+esc(p.vendor)+"</td><td class='num'>"+(p.units_sold||0).toFixed(0)+"</td><td class='num'>"+money(p.revenue)+"</td></tr>").join("")+"</table></div>";}
+
+ // inventory by supplier
+ const inv=d.inventory_lines||[];
+ h+="<div class='card'><h2>📦 מלאי לפי ספק</h2><table><tr><th>ספק</th><th>חשבונית</th><th>משלוח</th><th>סטטוס</th></tr>"+
+   (inv.length?inv.map(x=>"<tr><td>"+esc(x.supplier)+"</td><td class='num'>"+money(x.invoiced)+"</td><td class='num'>"+money(x.shipping)+"</td><td>"+(x.status==="anomaly-excluded"?"⚠ הוחרג":(x.status==="invoiced"?"✓":"—"))+"</td></tr>").join(""):"<tr><td colspan=4>אין נתוני חשבוניות</td></tr>")+"</table></div>";
+
+ // mystery box
+ const mb=d.mystery_box||{};
+ h+="<div class='card'><h2>🎁 מיסטרי בוקס</h2><table><tr><th>מוצר</th><th>יח׳</th><th>עלות ליח׳</th><th>סה״כ</th></tr>"+
+    "<tr><td>"+esc(mb.name||"—")+"</td><td class='num'>"+(mb.units||0).toFixed(0)+"</td><td class='num'>"+money(mb.unit_cost||15)+"</td><td class='num'>"+money((PNL.expenses.mystery_box||{}).amount)+"</td></tr></table></div>";
+
+ // staff
+ const st=d.staff_lines||[];
+ h+="<div class='card'><h2>👥 צוות</h2><table>"+(st.length?st.map(x=>"<tr><td>"+esc(x.name)+"</td><td class='num'>"+money(x.amount)+"</td></tr>").join(""):"<tr><td colspan=2>—</td></tr>")+"</table></div>";
+
+ // meals/other
+ const ml=d.manager_expense_lines||[];
+ const meals=ml.filter(x=>x.category==="meals"),oth=ml.filter(x=>x.category!=="meals");
+ h+="<div class='card'><h2>🍽️ אוכל</h2><table>"+(meals.length?meals.map(x=>"<tr><td>"+esc(x.desc)+"</td><td class='num'>"+money(x.amount)+"</td></tr>").join(""):"<tr><td colspan=2>—</td></tr>")+"</table>"+
+    "<h2 style='margin-top:14px'>🧾 שונות</h2><table>"+(oth.length?oth.map(x=>"<tr><td>"+esc(x.desc)+"</td><td class='num'>"+money(x.amount)+"</td></tr>").join(""):"<tr><td colspan=2>—</td></tr>")+"</table></div>";
+
+ // P&L summary — editable per line
+ h+="<div class='card pl'><h2>📊 רווח והפסד — לחצי ✏️ לעריכה ידנית</h2><table>";
+ h+="<tr><td>מכירות נטו (הכנסה)</td><td class='num'>"+money(r.net_sales)+"</td></tr>";
+ for(const[k,lbl]of EXP_ORDER){
+   const e=t.exp[k];let badge="";
+   if(e.source==="manual override")badge="<span class='manual'>✏️ ידני</span>";
+   else if(e.status!=="ok")badge="<span class='pend'>"+esc(e.status)+"</span>";
+   h+="<tr data-k='"+k+"'><td>"+esc(lbl)+badge+"<span class='edit' onclick='startEdit(\""+k+"\")'>✏️</span></td>"+
+      "<td class='num' id='amt-"+k+"'>"+money(e.amount)+"</td></tr>";
+ }
+ h+="<tr class='subtot'><td>סך הוצאות</td><td class='num'>"+money(t.sum)+"</td></tr>";
+ h+="<tr class='grand' style='color:"+accent+"'><td>"+rw+(prelim?" ראשוני":"")+"</td><td class='num'>"+money(t.profit)+"</td></tr>";
+ h+="</table>";
+ const cc=PNL.cash_check;
+ if(cc){const ok=Math.abs(cc.pct||0)<=0.02;h+="<div class='cash "+(ok?"good":"bad")+"'>הצלבת מזומן: מנהלת "+money(cc.manager_cash)+" מול OCTOPOS "+money(cc.octopos_cash)+" — פער "+money(cc.diff)+" ("+(cc.pct*100).toFixed(1)+"%)</div>";}
+ h+="</div>";
+ h+="<div class='foot'>מקורות: OCTOPOS · inventory_orders · דוח מנהלת · event_analytics (פרסום) · QuickBooks (נסיעות/מקום/ULINE/Lyft). עריכה ידנית נשמרת ב-GitHub.</div>";
+ h+="<div class='tokrow'>אם עריכה לא נשמרת — צריך GitHub token. <a href='#' onclick='setTok();return false'>הגדרת token</a></div>";
+ document.getElementById("app").innerHTML=h;
+}
+
+function startEdit(k){
+ const cell=document.getElementById("amt-"+k);if(!cell)return;
+ const cur=(totals().exp[k].amount);
+ cell.innerHTML="<input class='amt' id='in-"+k+"' value='"+(cur!=null?cur:"")+"' placeholder='סכום'> "+
+   "<button class='sv' onclick='saveEdit(\""+k+"\")'>שמור</button>"+
+   "<button class='cx' onclick='render()'>בטל</button>";
+ const i=document.getElementById("in-"+k);i.focus();
+ i.addEventListener("keydown",e=>{if(e.key==="Enter")saveEdit(k);if(e.key==="Escape")render();});
+}
+
+async function saveEdit(k){
+ const i=document.getElementById("in-"+k);if(!i)return;
+ const raw=i.value.trim();const val=raw===""?null:Number(raw);
+ if(raw!==""&&isNaN(val)){toast("סכום לא תקין");return;}
+ const tok=(localStorage.getItem("lauren_gh_token_v1")||"").trim();
+ if(!tok){toast("צריך GitHub token כדי לשמור");setTok();return;}
+ toast("שומר…");
+ // read-merge-write (IRON RULE #18): fetch live, overlay this event/line, PUT
+ try{
+   const getR=await fetch("https://api.github.com/repos/"+REPO+"/contents/"+OVERRIDES_FILE+"?ref=main&_="+Date.now(),
+     {headers:{"Authorization":"token "+tok,"Accept":"application/vnd.github+json"},cache:"no-store"});
+   let sha=null,data={_updated_at:null,events:{}};
+   if(getR.ok){const j=await getR.json();sha=j.sha;try{data=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,"")))));}catch(e){}}
+   if(!data.events)data.events={};
+   if(!data.events[EVKEY])data.events[EVKEY]={};
+   if(val===null)delete data.events[EVKEY][k];else data.events[EVKEY][k]=val;
+   data._updated_at=new Date().toISOString();
+   const body={message:"pnl-override: "+EVKEY+" "+k+"="+(val===null?"(cleared)":val),
+     content:btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2)))),branch:"main"};
+   if(sha)body.sha=sha;
+   const putR=await fetch("https://api.github.com/repos/"+REPO+"/contents/"+OVERRIDES_FILE,
+     {method:"PUT",headers:{"Authorization":"token "+tok,"Accept":"application/vnd.github+json","Content-Type":"application/json"},body:JSON.stringify(body)});
+   if(!putR.ok){toast("שמירה נכשלה ("+putR.status+")");return;}
+   OVR=data;toast("✓ נשמר ב-GitHub");render();
+ }catch(e){toast("שגיאה: "+e.message);}
+}
+function setTok(){const t=prompt("הדביקי GitHub token (Contents: write):");if(t){localStorage.setItem("lauren_gh_token_v1",t.trim());toast("נשמר במכשיר");}}
+load();
+</script></body></html>
