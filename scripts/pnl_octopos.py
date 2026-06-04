@@ -41,6 +41,11 @@ LOCATION = {"label": "THE MAKEUP BLOWOUT SALE GROUP INC",
 ALWAYS_TOP_RE = ("hair clip", "hair clips", "hair pin", "bobby pin", "mirror",
                  "scrunchie", "hair tie", "hair band", "headband")
 
+# Mystery Box — costed as units_sold x flat unit cost (Lauren's rule), NOT by invoice.
+MYSTERY_BOX_ID = 630
+MYSTERY_BOX_NAME = "special mystery box"
+MYSTERY_BOX_UNIT_COST = 15.0
+
 
 def _http(url, body, headers, timeout=30):
     data = json.dumps(body).encode() if body is not None else None
@@ -133,11 +138,11 @@ def fetch_all_vendors(jwt):
     return [(int(x["id"]), x.get("name") or "") for x in v]
 
 
-def fetch_top_products(jwt, start, end, limit=25):
-    """Union per-vendor products by units_sold, drop structural always-top-sellers."""
+def fetch_all_vendor_products(jwt, start, end):
+    """Per-product units_sold + revenue across all vendors for the window."""
     vendors = fetch_all_vendors(jwt)
     if not vendors:
-        print("WARN empty vendor list — top products skipped", file=sys.stderr); return []
+        print("WARN empty vendor list", file=sys.stderr); return {}
     df, dt_ = _fmt(start), _fmt(end, end=True)
     hdr = {"Authorization": f"Bearer {jwt}", "Permission": "report-total-sales-vendor"}
     sales = {}
@@ -153,28 +158,48 @@ def fetch_top_products(jwt, start, end, limit=25):
             except (KeyError, TypeError, ValueError): continue
             units = float(p.get("units_sold") or 0)
             if units <= 0: continue
-            revenue = float(p.get("total_sales") or 0)
             sales[pid] = {"product_id": pid, "name": p.get("name") or p.get("product_name") or "",
                           "sku": p.get("sku") or "", "vendor": vname,
-                          "units_sold": units, "revenue": round(revenue, 2)}
-    rows = list(sales.values())
+                          "units_sold": units, "revenue": round(float(p.get("total_sales") or 0), 2)}
+    return sales
 
+
+def top_products_from(sales, limit=25):
     def is_always_top(r):
         nm = (r["name"] or "").lower()
         return any(k in nm for k in ALWAYS_TOP_RE)
+    rows = sorted(sales.values(), key=lambda r: -r["units_sold"])
+    return [r for r in rows if not is_always_top(r)][:limit]
 
-    rows.sort(key=lambda r: -r["units_sold"])
-    filtered = [r for r in rows if not is_always_top(r)]
-    return filtered[:limit]
+
+def mystery_box_from(sales, unit_cost=MYSTERY_BOX_UNIT_COST):
+    """Find the Mystery Box and cost it as units_sold x unit_cost (Lauren's rule)."""
+    match = sales.get(MYSTERY_BOX_ID)
+    if not match:
+        for r in sales.values():
+            if MYSTERY_BOX_NAME in (r.get("name") or "").lower():
+                match = r; break
+    if not match:
+        return {"found": False, "units": 0, "unit_cost": unit_cost, "cost": 0.0, "name": None}
+    units = float(match.get("units_sold") or 0)
+    return {"found": True, "units": units, "unit_cost": unit_cost,
+            "cost": round(units * unit_cost, 2), "name": match.get("name"),
+            "product_id": match.get("product_id"), "revenue": match.get("revenue")}
+
+
+def fetch_top_products(jwt, start, end, limit=25):
+    return top_products_from(fetch_all_vendor_products(jwt, start, end), limit)
 
 
 def fetch_octopos_pnl(start, end, top_limit=25):
     jwt = octopos_jwt()
     totals = fetch_sales_totals(jwt, start, end)
-    top = fetch_top_products(jwt, start, end, limit=top_limit)
+    sales = fetch_all_vendor_products(jwt, start, end)
+    top = top_products_from(sales, limit=top_limit)
+    mbox = mystery_box_from(sales)
     return {"source": "octopos", "window": {"start": start, "end": end},
             "generated_at": dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-            **totals, "top_products": top}
+            **totals, "top_products": top, "mystery_box": mbox}
 
 
 def main():

@@ -62,6 +62,7 @@ def fetch_inventory_pnl(evkey, state_path=None):
     raw_invoiced = 0.0
     anomalies = []
     trusted_codes = set()
+    supplier_lines = []
 
     all_codes = set(suppliers.keys()) | set(orders_by_code.keys())
     for code in all_codes:
@@ -81,6 +82,14 @@ def fetch_inventory_pnl(evkey, state_path=None):
             sup_ship = 0.0
 
         supplier_total = sup_inv + ord_inv
+        supplier_name = (s.get("name") or (ords[0].get("supplier_name") if ords else None) or code)
+        is_anom = any(code + ":" in a for a in anomalies)
+        supplier_lines.append({
+            "supplier_code": code, "supplier": supplier_name,
+            "invoiced": round(supplier_total, 2),
+            "shipping": round(sup_ship + ord_ship, 2),
+            "estimate": round(est, 2),
+            "status": ("anomaly-excluded" if is_anom else ("invoiced" if supplier_total > 0 else "no-invoice"))})
         if supplier_total > 0:
             trusted_invoiced += supplier_total
             trusted_shipping += sup_ship + ord_ship
@@ -120,7 +129,7 @@ def fetch_inventory_pnl(evkey, state_path=None):
             "counts": {"suppliers": len(suppliers) or n_codes, "orders": len(orders),
                        "supplier_codes": n_codes, "invoiced_trusted": distinct_invoiced,
                        "coverage": coverage},
-            "anomalies": anomalies,
+            "anomalies": anomalies, "supplier_lines": sorted(supplier_lines, key=lambda x: -x["invoiced"]),
             "complete": complete, "warnings": warnings}
 
 

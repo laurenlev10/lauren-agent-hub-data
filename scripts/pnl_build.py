@@ -140,6 +140,13 @@ def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analyt
     else:
         expenses["inventory"] = _line(None, "inventory_orders", "missing", inv.get("error", ""))
         expenses["shipping"] = _line(None, "inventory_orders", "missing")
+    # Mystery Box — costed from OCTOPOS units x $15 (Lauren's rule), its own COGS line
+    mbox = sales.get("mystery_box") or {}
+    if mbox.get("found"):
+        expenses["mystery_box"] = _line(mbox.get("cost"), "octopos (units x $15)", "ok",
+                                        f"{mbox.get('units'):.0f} units x ${mbox.get('unit_cost'):.0f}")
+    else:
+        expenses["mystery_box"] = _line(0.0, "octopos (units x $15)", "ok", "no Mystery Box sold")
     # Staff / Meals / Other (cash, from manager)
     if mgr.get("found"):
         expenses["staff"] = _line(mgr["staff"], "manager_reports", "ok")
@@ -201,7 +208,24 @@ def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analyt
         "cash_check": mgr.get("cash_check"),
         "top_products": sales.get("top_products", [])[:15],
         "warnings": (inv.get("warnings", []) + mgr.get("warnings", [])),
+        "detail": {
+            "payment_breakdown": sales.get("payment_breakdown", {}),
+            "inventory_lines": inv.get("supplier_lines", []),
+            "staff_lines": [{"name": (t.get("name") or "—"),
+                             "amount": round((t.get("total") or (_num(t.get("base"))+_num(t.get("bonus"))+_num(t.get("extra")))), 2)}
+                            for t in (mgr.get("team") or [])],
+            "manager_expense_lines": mgr.get("expense_lines", []),
+            "manager_name": mgr.get("manager_name"),
+            "manager_notes": mgr.get("notes", ""),
+            "marketing": {"meta": meta_spend, "tiktok": tiktok_spend},
+            "mystery_box": sales.get("mystery_box", {}),
+        },
     }
+
+
+def _num(x):
+    try: return float(x or 0)
+    except (TypeError, ValueError): return 0.0
 
 
 def _fmt(v):
