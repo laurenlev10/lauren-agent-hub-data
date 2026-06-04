@@ -1131,6 +1131,54 @@ function renderSummary(){
 
 function refreshSummary(){ renderSummary(); }
 
+
+/* 🔄 Refresh supplier invoice list on-demand (Lauren 2026-06-04) — pushes this
+   supplier's invoice for the current event into docs/state/supplier_invoices.json
+   immediately, so /suppliers/ updates without waiting for the daily rebuild.
+   Supplier-level invoice OVERRIDES order-level (no double-count). */
+const SUP_ALIASES_JS = {"she":"She Makeup","she makeup":"She Makeup","amuse":"Amuse Cosmetics","amuse cosmetics":"Amuse Cosmetics","bc":"Beauty Creations","beauty creations":"Beauty Creations","bb&w":"BB&W","bb and w":"BB&W","romantic":"Romantic Beauty","romantic beauty":"Romantic Beauty","kara":"Kara Beauty","kara beauty":"Kara Beauty","xime":"Xime Beauty","xime beauty":"Xime Beauty","nabi":"Nabi","prolux":"Prolux","rude":"Rude","lurella":"Lurella","ebc":"EBC","ebs perfumes":"EBC","ebs":"EBC","golden touch":"Golden Touch","feral edge":"Feral Edge","market":"Market","mystery box":"Mystery Box","garage":"Mystery Box"};
+function canonSupplier(name){ var n=(name||"").replace(/[-_]/g," ").replace(/\s+/g," ").trim(); return SUP_ALIASES_JS[n.toLowerCase()]||n; }
+function slugSup(x){ return (x||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); }
+async function refreshSupplierList(code){
+  var tok=(localStorage.getItem(TOKEN_KEY)||"").trim();
+  if(!tok){ toast("צריך GitHub token כדי לרענן","error"); return; }
+  if(!CURRENT_EVKEY){ toast("אין אירוע נבחר","error"); return; }
+  var ev=(STATE.events||{})[CURRENT_EVKEY]||{};
+  var s=(ev.suppliers||{})[code]||{};
+  var orders=(ev.local_orders||[]).filter(function(o){return o.supplier_code===code && !o.cancelled_at && !o.moved_to;});
+  var supInv=Number(s.invoice_total_usd||0), supShip=Number(s.shipping_cost_usd||0), amount, ship;
+  if(supInv>0){ amount=supInv; ship=supShip; }
+  else { amount=orders.reduce(function(x,o){return x+Number(o.invoice_total_usd||0);},0); ship=orders.reduce(function(x,o){return x+Number(o.shipping_cost_usd||0);},0); }
+  var supObj=(SUPPLIERS||[]).find(function(x){return x.code===code;})||{};
+  var rawName=supObj.name||s.supplier_name||code;
+  var canon=canonSupplier(rawName);
+  var evName=((ev.city||"")+", "+(ev.state||"")).replace(/^,\s*|,\s*$/g,"");
+  var date=ev.start_date||CURRENT_EVKEY.slice(-10);
+  var id=CURRENT_EVKEY+"__"+slugSup(canon);
+  toast("מרענן רשימת חשבוניות…");
+  try{
+    var file="docs/state/supplier_invoices.json";
+    var base="https://api.github.com/repos/"+REPO_OWNER+"/"+REPO_NAME+"/contents/"+file;
+    var getR=await fetch(base+"?ref="+REPO_BRANCH+"&_="+Date.now(),{cache:"no-store",headers:{Authorization:"token "+tok,Accept:"application/vnd.github+json"}});
+    var sha=null,data={_updated_at:null,suppliers:{}};
+    if(getR.ok){ var j=await getR.json(); sha=j.sha; try{data=JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,"")))));}catch(_){} }
+    if(!data.suppliers) data.suppliers={};
+    Object.keys(data.suppliers).forEach(function(nm){ var r=data.suppliers[nm]; if(r&&r.invoices) r.invoices=r.invoices.filter(function(i){return i.id!==id;}); });
+    if(amount>0){ if(!data.suppliers[canon]) data.suppliers[canon]={total:0,count:0,invoices:[]};
+      data.suppliers[canon].invoices.push({id:id,evkey:CURRENT_EVKEY,event:evName,date:date,amount:Math.round(amount*100)/100,shipping:Math.round(ship*100)/100,supplier_raw:rawName}); }
+    Object.keys(data.suppliers).forEach(function(nm){ var r=data.suppliers[nm];
+      r.invoices=(r.invoices||[]).sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
+      r.total=Math.round(r.invoices.reduce(function(x,i){return x+Number(i.amount||0);},0)*100)/100; r.count=r.invoices.length;
+      if(r.count===0) delete data.suppliers[nm]; });
+    data._updated_at=new Date().toISOString();
+    var putBody={message:"suppliers: refresh "+canon+" "+CURRENT_EVKEY+" (inventory compare)",content:btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2)))),branch:REPO_BRANCH};
+    if(sha) putBody.sha=sha;
+    var putR=await fetch(base,{method:"PUT",headers:{Authorization:"token "+tok,Accept:"application/vnd.github+json","Content-Type":"application/json"},body:JSON.stringify(putBody)});
+    if(putR.ok) toast("✓ רשימת החשבוניות של "+canon+" עודכנה ($"+amount.toFixed(2)+")","success");
+    else toast("רענון נכשל ("+putR.status+")","error");
+  }catch(e){ toast("שגיאה: "+e.message,"error"); }
+}
+
 function renderSuppliers(){
   const slice = STATE.events[CURRENT_EVKEY];
   if (!slice) return;
@@ -1483,6 +1531,7 @@ function renderSupplierCard(sup, s, idx){
           '<input type="number" step="0.01" min="0" data-bind="shipping_cost_usd" value="'+(s.shipping_cost_usd||"")+'" placeholder="0.00" title="מתעדכן אוטומטית כשבוחרים 💰 הוצאת משלוח בהשוואת חשבונית">'+
         '</div>'+
       '</div>'+
+      '<div class="row" style="margin-top:2px"><button type="button" onclick="refreshSupplierList(\''+sup.code+'\')" title="עדכן מיד את רשימת החשבוניות של הספק לפי הסכום שהזנת" style="background:#7c3aed;color:#fff;border:0;border-radius:7px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600">🔄 רענן רשימת חשבוניות</button></div>'+
       '<div class="row">'+
         '<div class="field" data-show-if-shipped style="'+(s.delivery_mode==="shipped"?"":"display:none")+'">'+
           '<label>מספר מעקב</label>'+
