@@ -81,18 +81,22 @@ def fetch_inventory_pnl(evkey, state_path=None):
             sup_inv = 0.0
             sup_ship = 0.0
 
-        supplier_total = sup_inv + ord_inv
+        # supplier-level invoice OVERRIDES order-level (Lauren 2026-06-04) — no double-count
+        if sup_inv > 0:
+            supplier_total = sup_inv; supplier_ship = sup_ship
+        else:
+            supplier_total = ord_inv; supplier_ship = ord_ship
         supplier_name = (s.get("name") or (ords[0].get("supplier_name") if ords else None) or code)
         is_anom = any(code + ":" in a for a in anomalies)
         supplier_lines.append({
             "supplier_code": code, "supplier": supplier_name,
             "invoiced": round(supplier_total, 2),
-            "shipping": round(sup_ship + ord_ship, 2),
+            "shipping": round(supplier_ship, 2),
             "estimate": round(est, 2),
             "status": ("anomaly-excluded" if is_anom else ("invoiced" if supplier_total > 0 else "no-invoice"))})
         if supplier_total > 0:
             trusted_invoiced += supplier_total
-            trusted_shipping += sup_ship + ord_ship
+            trusted_shipping += supplier_ship
             trusted_codes.add(code)
 
     trusted_invoiced = round(trusted_invoiced, 2)

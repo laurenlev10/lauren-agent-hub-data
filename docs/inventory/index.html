@@ -1068,7 +1068,7 @@ function recomputeSummary(evkey){
     var invSum = Number(s.invoice_total_usd||0);
     try {
       var _supOrdersSum = (slice.local_orders || []).filter(function(o){ return o.supplier_code === sup.code && !o.cancelled_at && !o.moved_to; });
-      _supOrdersSum.forEach(function(o){ invSum += Number(o.invoice_total_usd || 0); });
+      if (!(Number(s.invoice_total_usd||0) > 0)) _supOrdersSum.forEach(function(o){ invSum += Number(o.invoice_total_usd || 0); });  // Lauren 2026-06-04: supplier-level invoice OVERRIDES order-level (no double-count)
     } catch(_){}
     invoiceTotal += invSum;
     if (s.invoice_compared_at) {
@@ -1323,7 +1323,7 @@ function renderSupplierCard(sup, s, idx){
   var _rowInvoiceTotal = Number(s.invoice_total_usd || 0);
   try {
     var _rowOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === sup.code && !o.cancelled_at && !o.moved_to; });
-    _rowOrders.forEach(function(o){ _rowInvoiceTotal += Number(o.invoice_total_usd || 0); });
+    if (!(Number(s.invoice_total_usd||0) > 0)) _rowOrders.forEach(function(o){ _rowInvoiceTotal += Number(o.invoice_total_usd || 0); });  // supplier-level overrides
   } catch(_){}
   // Check if invoice has been compared+confirmed for this supplier in this event
   // Lauren 2026-05-27 PM #7 — also check per-order. If ANY order is compared, mark.
@@ -1365,7 +1365,7 @@ function renderSupplierCard(sup, s, idx){
   var _rowGrand = Number(s.invoice_total_usd||0);
   try {
     var _gOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === sup.code && !o.cancelled_at && !o.moved_to; });
-    _gOrders.forEach(function(o){ _rowGrand += Number(o.invoice_total_usd || 0); });
+    if (!(Number(s.invoice_total_usd||0) > 0)) _gOrders.forEach(function(o){ _rowGrand += Number(o.invoice_total_usd || 0); });  // supplier-level overrides
   } catch(_){}
   const totalDisp = _rowGrand > 0
     ? '<span style="color:#15803d;font-weight:800">' + fmtUsd(_rowGrand) + '</span>'
