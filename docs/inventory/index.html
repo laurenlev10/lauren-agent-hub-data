@@ -1163,9 +1163,16 @@ async function refreshSupplierList(code){
   var ev=(STATE.events||{})[CURRENT_EVKEY]||{};
   var s=(ev.suppliers||{})[code]||{};
   var orders=(ev.local_orders||[]).filter(function(o){return o.supplier_code===code && !o.cancelled_at && !o.moved_to;});
-  var supInv=Number(s.invoice_total_usd||0), supShip=Number(s.shipping_cost_usd||0), amount, ship;
-  if(supInv>0){ amount=supInv; ship=supShip; }
-  else { amount=orders.reduce(function(x,o){return x+Number(o.invoice_total_usd||0);},0); ship=orders.reduce(function(x,o){return x+Number(o.shipping_cost_usd||0);},0); }
+  // Lauren 2026-06-05: invoices are ADDITIVE across the two levels — a standalone
+  // supplier-level "invoice without order" PLUS each order's comparison invoice. Sum
+  // both so the manual refresh matches the daily AP builder (pnl_inventory.py, which
+  // does suppliers[code].invoice_total_usd + Σ local_orders[i].invoice_total_usd).
+  // Previously this took ONLY the supplier-level amount when present, dropping the
+  // per-order invoice totals from the list.
+  var supInv=Number(s.invoice_total_usd||0), supShip=Number(s.shipping_cost_usd||0);
+  var ordInv=orders.reduce(function(x,o){return x+Number(o.invoice_total_usd||0);},0);
+  var ordShip=orders.reduce(function(x,o){return x+Number(o.shipping_cost_usd||0);},0);
+  var amount=Math.round((supInv+ordInv)*100)/100, ship=Math.round((supShip+ordShip)*100)/100;
   var supObj=(SUPPLIERS||[]).find(function(x){return x.code===code;})||{};
   var rawName=supObj.name||s.supplier_name||code;
   var canon=canonSupplier(rawName);
