@@ -1848,11 +1848,14 @@ function renderInvoiceDetailsForSupplier(supplierCode){
     '</tr>';
   }).join('');
 
+  // Lauren 2026-06-05: header sum shows the manually-entered invoice total when set
+  // (invoice_total_usd), falling back to the computed line subtotal.
+  var _hdrTotal = (Number(supState.invoice_total_usd||0) > 0) ? Number(supState.invoice_total_usd) : subtotal;
   return '<div class="invoice-details-section" style="margin-top:18px;padding:14px;background:#f0f9ff;border:1px solid #93c5fd;border-radius:10px;">' +
     '<details open>' +
       '<summary style="cursor:pointer;font-weight:700;color:#1e3a8a;font-size:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
-        '<span>📋 פרטי חשבונית · ' + lines.length + ' פריטים' + (excludedCount > 0 ? ' (' + excludedCount + ' לא לאירוע)' : '') + '</span>' +
-        '<span style="color:#0c4a6e">סכום: <b>$' + subtotal.toFixed(2) + '</b></span>' +
+        '<span>📋 פרטי חשבונית "ללא הזמנה" · ' + lines.length + ' פריטים' + (excludedCount > 0 ? ' (' + excludedCount + ' לא לאירוע)' : '') + '</span>' +
+        '<span style="color:#0c4a6e">סכום: <b>$' + _hdrTotal.toFixed(2) + '</b></span>' +
       '</summary>' +
       '<div style="margin-top:6px;font-size:11px;color:var(--muted)">' +
         (parsedAt ? '📄 הועלתה: ' + escHtml(parsedAt) : '') +
@@ -1869,6 +1872,8 @@ function renderInvoiceDetailsForSupplier(supplierCode){
         '<tbody>' + rows + '</tbody>' +
       '</table>' +
       '<div style="margin-top:12px;padding:8px 10px;background:#ecfdf5;border:1px dashed #6ee7b7;border-radius:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<span style="color:#166534;font-weight:800;font-size:12px">מס׳ חשבונית:</span>' +
+        '<input type="text" data-bind="invoice_number" value="' + escHtml(supState.invoice_number || (pi.invoice_number || '')) + '" placeholder="לא חובה — ימולא ידנית" title="מספר החשבונית של הספק — ידני (או ימולא אוטומטית אם זוהה בקובץ)" style="width:140px;padding:6px 8px;border:1px solid #16a34a;border-radius:6px;font-weight:600;text-align:center">' +
         '<span style="color:#166534;font-weight:800;font-size:12px">🧾 סכום החשבונית בפועל ($):</span>' +
         '<input type="number" min="0" step="0.01" data-bind="invoice_total_usd" value="' + (Number(supState.invoice_total_usd||0) > 0 ? Number(supState.invoice_total_usd) : '') + '" placeholder="הקלידי סכום" title="הסכום האמיתי לפי החשבונית — נכנס לרשימת החשבוניות (במקום סכום השורות המחושב)" style="width:120px;padding:6px 8px;border:1px solid #16a34a;border-radius:6px;text-align:center;font-weight:700;color:#15803d">' +
         '<span style="color:#475569;font-size:11px">↩ נכנס לרשימת החשבוניות' + (subtotal > 0 ? ' · סכום השורות המחושב: $' + subtotal.toFixed(2) : '') + '</span>' +
