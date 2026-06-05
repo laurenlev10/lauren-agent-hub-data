@@ -1504,8 +1504,19 @@ function renderSupplierCard(sup, s, idx){
             if (_orderEstimateSum > 0) {
               pills += '<div class="status" style="background:#fef3c7;color:#854d0e;border-color:#fde68a;margin-top:4px;font-size:11px"><b>הזמנה:</b> ' + fmtUsd(_orderEstimateSum) + '</div>';
             }
-            // Green pill: invoice total (only after invoice confirmed AND total > 0)
-            if (_invoiceCompared && _rowInvoiceTotal > 0) {
+            // Invoice pills — Lauren 2026-06-05: distinguish a standalone "invoice without
+            // order" (supplier-level) from per-order comparison invoices, so the header
+            // reminds you that a חשבונית ללא הזמנה was entered.
+            var _supInv = Number(s.invoice_total_usd || 0);
+            var _hasStandaloneInv = _supInv > 0 || (s._pending_invoice && s._pending_invoice.invoice_lines && s._pending_invoice.invoice_lines.length > 0);
+            var _ordInvSum = Math.max(0, _rowInvoiceTotal - _supInv);
+            if (_hasStandaloneInv) {
+              pills += '<div class="status" style="background:#fff7ed;color:#9a3412;border-color:#fdba74;margin-top:4px;font-size:11px"><b>🧾 חשבונית ללא הזמנה' + (_supInv > 0 ? ':</b> ' + fmtUsd(_supInv) : '</b>') + '</div>';
+            }
+            if (_ordInvSum > 0) {
+              pills += '<div class="status" style="background:#dcfce7;color:#14532d;border-color:#86efac;margin-top:4px;font-size:11px"><b>חשבונית הזמנות:</b> ' + fmtUsd(_ordInvSum) + '</div>';
+            }
+            if (!_hasStandaloneInv && _ordInvSum <= 0 && _invoiceCompared && _rowInvoiceTotal > 0) {
               pills += '<div class="status" style="background:#dcfce7;color:#14532d;border-color:#86efac;margin-top:4px;font-size:11px"><b>חשבונית:</b> ' + fmtUsd(_rowInvoiceTotal) + '</div>';
             }
             return '<div style="display:flex;flex-direction:column;gap:0;align-items:flex-end">' + pills + '</div>';
@@ -1950,6 +1961,8 @@ function renderLocalOrdersForSupplier(supplierCode){
     var _titleStyle = _isInactive ? 'text-decoration:line-through;color:#94a3b8;' : '';
     var _invEditBlock = _isInactive ? '' :
       '<div style="margin-top:10px;padding:8px 10px;background:#f0fdf4;border:1px dashed #86efac;border-radius:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<span style="color:#166534;font-weight:800;font-size:12px">מס׳ חשבונית:</span>' +
+        '<input type="text" class="ord-invno-input" data-ord-inv-index="' + oi + '" value="' + escHtml(o.invoice_number || (o._pending_invoice && o._pending_invoice.invoice_number) || '') + '" placeholder="לא חובה" title="מספר החשבונית של הספק להזמנה זו — נשמר על ההזמנה" style="width:130px;padding:6px 8px;border:1px solid #16a34a;border-radius:6px;font-weight:600;text-align:center">' +
         '<span style="color:#166534;font-weight:800;font-size:12px">🧾 סכום החשבונית בפועל ($):</span>' +
         '<input type="number" min="0" step="0.01" class="ord-inv-input" data-ord-inv-index="' + oi + '" value="' + (_orderInvoiceTotal > 0 ? _orderInvoiceTotal : '') + '" placeholder="הקלידי סכום" title="הסכום האמיתי לפי החשבונית — זה מה שנכנס לרשימת החשבוניות (לא ההערכה)" style="width:120px;padding:6px 8px;border:1px solid #16a34a;border-radius:6px;text-align:center;font-weight:700;color:#15803d">' +
         '<span style="color:#475569;font-size:11px">↩ נכנס לרשימת החשבוניות · "הערכת עלות" למעלה היא רק אומדן</span>' +
@@ -2064,6 +2077,24 @@ function bindCardEvents(card){
       bindCardEvents(card);
       scheduleSave();
       try { toast('✓ סכום החשבונית של ההזמנה עודכן ($' + (Math.round(v * 100) / 100).toFixed(2) + ')', 'success'); } catch(_){}
+    });
+  });
+
+  // Lauren 2026-06-05 — per-order invoice NUMBER edit (saved on the order; synced with
+  // the same field in the compare modal).
+  card.querySelectorAll('.ord-invno-input').forEach(function(el){
+    el.addEventListener('change', function(){
+      var oi = Number(el.dataset.ordInvIndex);
+      var slc = STATE.events[CURRENT_EVKEY];
+      var ords = (slc.local_orders || []).filter(function(o){ return o.supplier_code === code && !o.cancelled_at && !o.moved_to; });
+      var ord = ords[oi];
+      if (!ord) return;
+      ord.invoice_number = (el.value || '').trim();
+      if (ord._pending_invoice) ord._pending_invoice.invoice_number = ord.invoice_number;
+      ord.last_edited_at = nowIso();
+      slc.updated_at = nowIso();
+      scheduleSave();
+      try { toast('✓ מספר החשבונית של ההזמנה נשמר', 'success'); } catch(_){}
     });
   });
 
