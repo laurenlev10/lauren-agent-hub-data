@@ -9410,7 +9410,8 @@ function openAddProductForm(){
       ? '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;margin-bottom:12px">' +
           '<label style="display:flex;flex-direction:column;gap:5px;font-size:13px">' +
             '<span style="color:#1e3a8a;font-weight:700">📦 בחרי מוצר קיים של הספק (' + _existingForPicker.length + ' זמינים):</span>' +
-            '<select id="addP_picker" style="padding:8px;border:1px solid #93c5fd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer">' + _pickerOptions + '</select>' +
+            '<input type="text" id="addP_search" autocomplete="off" placeholder="\uD83D\uDD0D \u05D7\u05D9\u05E4\u05D5\u05E9 \u05DC\u05E4\u05D9 SKU \u05D0\u05D5 \u05E9\u05DD\u2026" style="padding:8px;border:1px solid #93c5fd;border-radius:6px;font-size:13px">' +
+            '<select id="addP_picker" size="6" style="padding:8px;border:1px solid #93c5fd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer">' + _pickerOptions + '</select>' +
             '<span style="font-size:11px;color:#475569">בחירה תמלא אוטומטית את שם המוצר, SKU ועלות. תוכלי לעדכן ידנית אם צריך.</span>' +
           '</label>' +
         '</div>'
@@ -9454,6 +9455,27 @@ function openAddProductForm(){
       // Focus qty since name/sku/cost are now filled
       if (qtyEl) qtyEl.focus();
     });
+  }
+  // Lauren 2026-06-05: live SKU/name search over the existing-product picker.
+  // Rebuilds the <select> options filtered by query; option values stay the original
+  // _pickerList index so the change handler's auto-fill keeps working.
+  var searchEl = card.querySelector('#addP_search');
+  if (searchEl && pickerEl) {
+    var _buildPickerOptions = function(q){
+      q = (q || '').trim().toLowerCase();
+      var html = '<option value="">— בחרי מוצר קיים של הספק שלא נמצא ברשימה —</option>';
+      var shown = 0;
+      (card._pickerList || []).forEach(function(p, idx){
+        var hay = ((p.sku || '') + ' ' + (p.name || '')).toLowerCase();
+        if (q && hay.indexOf(q) === -1) return;
+        var label = (p.sku ? '[' + p.sku + '] ' : '') + p.name + (p.inactive ? ' (לא פעיל)' : '') + ' · עלות $' + Number(p.cost || 0).toFixed(2) + ' · במלאי ' + p.stock;
+        html += '<option value="' + idx + '">' + escHtml(label) + '</option>';
+        shown++;
+      });
+      if (q && shown === 0) html += '<option value="" disabled>— אין תוצאות —</option>';
+      pickerEl.innerHTML = html;
+    };
+    searchEl.addEventListener('input', function(){ _buildPickerOptions(searchEl.value); });
   }
   bg.addEventListener('click', function(e){
     if (e.target === bg || e.target.id === 'addP_cancel') { bg.remove(); return; }
