@@ -530,15 +530,20 @@ def fetch_tiktok_pixel_events(start_date: str, end_date: str, slugs: list = None
     params = {
         "advertiser_id": advertiser_id,
         "report_type": "BASIC",
-        "data_level": "AUCTION_AD",
-        "dimensions": _json.dumps(["ad_id", "campaign_name", "adgroup_name", "ad_name"]),
+        # City+year lives in the AD SET (adgroup) name — NOT the campaign or ad
+        # name — verified with Lauren 2026-06-03. AUCTION_AD returns 0 rows for her
+        # automated campaigns, so we pull at AUCTION_ADGROUP level.
+        "data_level": "AUCTION_ADGROUP",
+        "dimensions": _json.dumps(["adgroup_id"]),
+        "page_size": 1000,
         # Richer metrics so the stats page can show CTR/CPL/CPM per event,
         # not just spend. landing_page_view is critical because that's the
         # optimization event Lauren picked in the Traffic campaign (2026-05-12).
         "metrics": _json.dumps([
+            "campaign_name", "adgroup_name",
             "spend", "impressions", "clicks", "ctr", "cpc", "cpm",
             "conversion", "cost_per_conversion", "conversion_rate",
-            "landing_page_view", "cost_per_landing_page_view",
+            "total_landing_page_view", "cost_per_landing_page_view",
             "complete_payment",
         ]),
         "start_date": start_date,
@@ -565,12 +570,12 @@ def fetch_tiktok_pixel_events(start_date: str, end_date: str, slugs: list = None
 
     out = {}
     for row in data.get("data", {}).get("list", []):
-        meta = row.get("dimensions", {})
+        dims = row.get("dimensions", {})
         metrics = row.get("metrics", {})
+        attrs = {**dims, **metrics}  # TikTok returns campaign/adgroup names under metrics
         combined = " ".join([
-            str(meta.get("campaign_name", "")),
-            str(meta.get("adgroup_name", "")),
-            str(meta.get("ad_name", "")),
+            str(attrs.get("campaign_name", "")),
+            str(attrs.get("adgroup_name", "")),
         ])
         slug = _match_tiktok_slug(combined, slugs)
         if not slug:
@@ -588,7 +593,7 @@ def fetch_tiktok_pixel_events(start_date: str, end_date: str, slugs: list = None
         spend = float(metrics.get("spend", 0))
         imp = int(float(metrics.get("impressions", 0)))
         clk = int(float(metrics.get("clicks", 0)))
-        lpv = int(float(metrics.get("landing_page_view", 0)))
+        lpv = int(float(metrics.get("total_landing_page_view", 0)))
         conv = int(float(metrics.get("conversion", 0)))
         cp = int(float(metrics.get("complete_payment", 0)))
         ev["tiktok_spend"] += spend
@@ -598,8 +603,8 @@ def fetch_tiktok_pixel_events(start_date: str, end_date: str, slugs: list = None
         ev["tiktok_conversions"] += conv
         ev["tiktok_complete_payment"] += cp
         ev["tiktok_top_ads"].append({
-            "ad_id": str(meta.get("ad_id", "")),
-            "ad_name": str(meta.get("ad_name", ""))[:60],
+            "ad_id": str(attrs.get("adgroup_id", "")),
+            "ad_name": str(attrs.get("adgroup_name", ""))[:60],  # ad set name
             "spend": round(spend, 2),
             "impressions": imp,
             "clicks": clk,
