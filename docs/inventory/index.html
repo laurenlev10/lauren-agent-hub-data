@@ -7269,7 +7269,7 @@ function renderDiffRowHtml(r){
 
   return '<tr class="' + cls + '" data-key="' + r._key + '">' +
     '<td>' + badge + '</td>' +
-    '<td><div class="name">' + escHtml(r.name||'') + '</div>' +
+    '<td><div class="name">' + escHtml((po && po.product_name) ? po.product_name : (r.name||'')) + '</div>' +  /* Lauren 2026-06-04: prefer clean OCTOPOS/PO product name over garbled invoice text */
       (r.sub_for ? '<div style="font-size:11px;color:#1e3a8a;margin-top:2px">↪︎ במקום ' + escHtml(r.sub_for) + '</div>' : '') +
       (r.matched_by === 'name' ? '<div style="font-size:10px;color:#7c3aed;margin-top:2px;font-weight:700">📛 התאמה לפי שם המוצר (SKU בחשבונית שונה)</div>' : '') +
       (r.matched_by === 'alias' ? '<div style="font-size:10px;color:#1d4ed8;margin-top:2px;font-weight:700">🧠 התאמה אוטומטית (למדתי מהפעם הקודמת)</div>' : '') +
@@ -9886,7 +9886,7 @@ async function confirmInvoiceCompared(){
       var effQty = qty;
       // Existing product — adjust stock + sale_price + clearance + rules
       if (addToSystem && effQty > 0) {
-        actions.push({type:'stock', productId: existing.id, name: name, qty: effQty, currentStock: Number(existing.in_stock_qty||0)});
+        actions.push({type:'stock', productId: existing.id, name: (existing.name || name), qty: effQty, currentStock: Number(existing.in_stock_qty||0)});  // Lauren 2026-06-04: show OCTOPOS product name (clean), not garbled invoice text
       }
       if (salePrice !== null && salePrice > 0 && salePrice !== Number(existing.sale_price||0)) {
         actions.push({type:'sale_price', productId: existing.id, name: name, salePrice: salePrice});
