@@ -10799,16 +10799,37 @@ async function confirmInvoiceCompared(){
           results.errors.push({action:a, status:r.status, body:errBody});
         }
       } else if (a.type === 'stock') {
-        // Update existing product's in_stock_qty
-        var newStock = a.currentStock + a.qty;
+        // Update existing product's in_stock_qty by ADDING the received qty to the LIVE
+        // current stock. Lauren 2026-06-05: the cached snapshot (a.currentStock) can be
+        // stale — e.g. it won't reflect event sales that pushed a product NEGATIVE. Using
+        // it as the base for an absolute PUT overwrote the real value (a -5 that sold +
+        // 12 received must become 7, not 12). Fetch live in_stock_qty right before the PUT
+        // so the delta lands on the true value (incl. negatives), then set the sum.
+        var liveCur = Number(a.currentStock || 0);
+        var _liveOk = false;
+        try {
+          var gLive = await fetch('https://themakeup.octoretail.com/api/v2/products/' + a.productId, {
+            headers:{'Authorization':octToken,'Accept':'application/json'}
+          });
+          if (gLive.ok) {
+            var gJson = await gLive.json();
+            var gProd = (gJson && gJson.data) ? gJson.data : gJson;
+            if (gProd && gProd.in_stock_qty !== undefined && gProd.in_stock_qty !== null && !isNaN(Number(gProd.in_stock_qty))) {
+              liveCur = Number(gProd.in_stock_qty); _liveOk = true;
+            }
+          }
+        } catch(_){}
+        if (!_liveOk) { log('  ⚠ לא הצלחתי למשוך מלאי חי — משתמשת ב-snapshot (' + liveCur + ')', false); }
+        var newStock = liveCur + a.qty;
         var r2 = await fetch('https://themakeup.octoretail.com/api/v2/products/' + a.productId, {
           method:'PUT', headers:{'Authorization':octToken,'Content-Type':'application/json','Accept':'application/json'},
           body: JSON.stringify({in_stock_qty: newStock})
         });
         var mergedHint = (a._mergedCount && a._mergedCount > 1) ? ' (אוחד מ-' + a._mergedCount + ' שורות)' : '';
+        var staleHint = (_liveOk && liveCur !== Number(a.currentStock || 0)) ? ' (מלאי חי; snapshot היה ' + Number(a.currentStock||0) + ')' : '';
         if (r2.ok) {
-          log('  ✓ מלאי: ' + a.currentStock + ' → ' + newStock + mergedHint, true);
-          _queueStockAudit(a.productId, '', a.name, a.currentStock, newStock); // Improvement C — audit log
+          log('  ✓ מלאי: ' + liveCur + ' → ' + newStock + ' (קלט +' + a.qty + ')' + staleHint + mergedHint, true);
+          _queueStockAudit(a.productId, '', a.name, liveCur, newStock); // Improvement C — audit log
           _markCompleted(a); results.ok++;
         }
         else { log('  ✗ מלאי נכשל: ' + r2.status, false); results.fail++; results.errors.push({action:a,status:r2.status}); }
