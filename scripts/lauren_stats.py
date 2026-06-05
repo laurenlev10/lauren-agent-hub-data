@@ -514,8 +514,10 @@ def fetch_tiktok_pixel_events(start_date: str, end_date: str, slugs: list = None
       - tiktok_ctr, tiktok_cpc, tiktok_cpm, tiktok_cost_per_lpv (derived)
       - tiktok_top_ads: [{ad_id, ad_name, spend, impressions, clicks, lpv}] sorted by LPV desc, max 5
 
-    Requires Marketing API access (status: PENDING as of 2026-05-12 — see CLAUDE.md
-    IRON RULE about TikTok ticket). Returns {} gracefully if token absent.
+    Marketing API access: LIVE since 2026-06-03 (app MBS Stats Agent approved,
+    OAuth completed, TIKTOK_ACCESS_TOKEN + TIKTOK_ADVERTISER_ID set as GH Secrets).
+    Returns {} gracefully if token absent. NOTE: per-event attribution needs the
+    city+year in the TikTok campaign/adgroup/ad name (see _match_tiktok_slug).
     """
     token = _os.environ.get("TIKTOK_ACCESS_TOKEN")
     advertiser_id = _os.environ.get("TIKTOK_ADVERTISER_ID")
@@ -756,7 +758,7 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
     meta_daily = fetch_meta_daily_timeseries(start_date, end_date, slugs=slugs)
     tt = fetch_tiktok_pixel_events(start_date, end_date, slugs=slugs)
 
-    # Manual TikTok fallback (2026-05-13 PM) — until TikTok Marketing API ticket
+    # Manual TikTok fallback (2026-05-13 PM) — (legacy note — API now LIVE 2026-06-03) until TikTok Marketing API ticket
     # #4080917 is approved, Lauren uploads her TikTok Ads Manager CSV manually
     # and we store the parsed data in docs/state/manual_tiktok_overrides.json.
     # If the live API returned nothing for a slug, merge the manual data in.
