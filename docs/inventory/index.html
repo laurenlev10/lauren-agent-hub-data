@@ -1156,9 +1156,10 @@ function refreshSummary(){ renderSummary(); }
 const SUP_ALIASES_JS = {"she":"She Makeup","she makeup":"She Makeup","amuse":"Amuse Cosmetics","amuse cosmetics":"Amuse Cosmetics","bc":"Beauty Creations","beauty creations":"Beauty Creations","bb&w":"BB&W","bb and w":"BB&W","romantic":"Romantic Beauty","romantic beauty":"Romantic Beauty","kara":"Kara Beauty","kara beauty":"Kara Beauty","xime":"Xime Beauty","xime beauty":"Xime Beauty","nabi":"Nabi","prolux":"Prolux","rude":"Rude","lurella":"Lurella","ebc":"EBC","ebs perfumes":"EBC","ebs":"EBC","golden touch":"Golden Touch","feral edge":"Feral Edge","market":"Market","mystery box":"Mystery Box","garage":"Mystery Box"};
 function canonSupplier(name){ var n=(name||"").replace(/[-_]/g," ").replace(/\s+/g," ").trim(); return SUP_ALIASES_JS[n.toLowerCase()]||n; }
 function slugSup(x){ return (x||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); }
-async function refreshSupplierList(code){
+async function refreshSupplierList(code, opts){
+  opts = opts || {}; var _quiet = !!opts.quiet;
   var tok=(localStorage.getItem(TOKEN_KEY)||"").trim();
-  if(!tok){ toast("צריך GitHub token כדי לרענן","error"); return; }
+  if(!tok){ if(!_quiet) toast("צריך GitHub token כדי לרענן","error"); return; }
   if(!CURRENT_EVKEY){ toast("אין אירוע נבחר","error"); return; }
   var ev=(STATE.events||{})[CURRENT_EVKEY]||{};
   var s=(ev.suppliers||{})[code]||{};
@@ -1189,7 +1190,7 @@ async function refreshSupplierList(code){
   });
   var single=(invs.length===1);
   var amount=invs.reduce(function(x,e){return x+e.amount;},0);
-  toast("מרענן רשימת חשבוניות…");
+  if(!_quiet) toast("מרענן רשימת חשבוניות…");
   try{
     var file="docs/state/supplier_invoices.json";
     var base="https://api.github.com/repos/"+REPO_OWNER+"/"+REPO_NAME+"/contents/"+file;
@@ -1212,8 +1213,8 @@ async function refreshSupplierList(code){
     var putBody={message:"suppliers: refresh "+canon+" "+CURRENT_EVKEY+" (inventory compare)",content:btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2)))),branch:REPO_BRANCH};
     if(sha) putBody.sha=sha;
     var putR=await fetch(base,{method:"PUT",headers:{Authorization:"token "+tok,Accept:"application/vnd.github+json","Content-Type":"application/json"},body:JSON.stringify(putBody)});
-    if(putR.ok) toast("✓ רשימת החשבוניות של "+canon+" עודכנה ("+invs.length+" חשבוניות · $"+amount.toFixed(2)+")","success");
-    else toast("רענון נכשל ("+putR.status+")","error");
+    if(putR.ok){ if(!_quiet) toast("✓ רשימת החשבוניות של "+canon+" עודכנה ("+invs.length+" חשבוניות · $"+amount.toFixed(2)+")","success"); }
+    else if(!_quiet) toast("רענון נכשל ("+putR.status+")","error");
   }catch(e){ toast("שגיאה: "+e.message,"error"); }
 }
 
@@ -2055,6 +2056,7 @@ function bindCardEvents(card){
       if (expanded){ card.classList.add("expanded"); s._expanded = true; }
       bindCardEvents(card);
       scheduleSave();
+      if (path === 'invoice_total_usd' || path === 'invoice_number') { try { refreshSupplierList(code, {quiet:true}); } catch(_){} }
     });
   });
 
@@ -2077,6 +2079,7 @@ function bindCardEvents(card){
       if (expanded){ card.classList.add('expanded'); s._expanded = true; }
       bindCardEvents(card);
       scheduleSave();
+      try { refreshSupplierList(code, {quiet:true}); } catch(_){}
       try { toast('✓ סכום החשבונית של ההזמנה עודכן ($' + (Math.round(v * 100) / 100).toFixed(2) + ')', 'success'); } catch(_){}
     });
   });
@@ -2095,6 +2098,7 @@ function bindCardEvents(card){
       ord.last_edited_at = nowIso();
       slc.updated_at = nowIso();
       scheduleSave();
+      try { refreshSupplierList(code, {quiet:true}); } catch(_){}
       try { toast('✓ מספר החשבונית של ההזמנה נשמר', 'success'); } catch(_){}
     });
   });
@@ -9200,6 +9204,7 @@ function openCompareInvoiceModal(supplierCode, supplierName, orderIndex, opts){
             supIN.invoice_number = invNo;
             if (supIN._pending_invoice) supIN._pending_invoice.invoice_number = invNo;
             if (typeof scheduleSave === 'function') scheduleSave();
+            try { if (CMP_CTX && CMP_CTX.supplier_code) refreshSupplierList(CMP_CTX.supplier_code, {quiet:true}); } catch(_){}
             if (ev.type === 'change') { try { if (typeof renderSuppliersWithBindings === 'function') renderSuppliersWithBindings(); } catch(_){} }
           }
         } catch(_){}
@@ -10897,6 +10902,9 @@ async function confirmInvoiceCompared(){
     }
     if (typeof scheduleSave === 'function') scheduleSave();
   } catch(_){}
+
+  // Lauren 2026-06-05: auto-push this supplier's invoices (amounts + numbers) to the AP list.
+  try { refreshSupplierList(supplierCode, {quiet:true}); } catch(_){}
 
   log('--- סיום ---');
   log('✓ ' + results.ok + ' פעולות הצליחו · ✗ ' + results.fail + ' נכשלו' + (results.skipped > 0 ? ' · ⏭ ' + results.skipped + ' דולגו (כבר הצליחו)' : ''), results.fail === 0);
