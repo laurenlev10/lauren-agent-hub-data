@@ -1170,15 +1170,25 @@ async function refreshSupplierList(code){
   // Previously this took ONLY the supplier-level amount when present, dropping the
   // per-order invoice totals from the list.
   var supInv=Number(s.invoice_total_usd||0), supShip=Number(s.shipping_cost_usd||0);
-  var ordInv=orders.reduce(function(x,o){return x+Number(o.invoice_total_usd||0);},0);
-  var ordShip=orders.reduce(function(x,o){return x+Number(o.shipping_cost_usd||0);},0);
-  var amount=Math.round((supInv+ordInv)*100)/100, ship=Math.round((supShip+ordShip)*100)/100;
   var supObj=(SUPPLIERS||[]).find(function(x){return x.code===code;})||{};
   var rawName=supObj.name||s.supplier_name||code;
   var canon=canonSupplier(rawName);
   var evName=((ev.city||"")+", "+(ev.state||"")).replace(/^,\s*|,\s*$/g,"");
   var date=ev.start_date||CURRENT_EVKEY.slice(-10);
-  var id=CURRENT_EVKEY+"__"+slugSup(canon);
+  var idPrefix=CURRENT_EVKEY+"__"+slugSup(canon);
+  // Lauren 2026-06-05: one entry PER REAL INVOICE (invoice_total_usd) — standalone
+  // "invoice without order" (supplier-level) + each order's comparison invoice. total_cost
+  // is the order ESTIMATE and is NEVER used here.
+  var invs=[];
+  if(supInv>0){ invs.push({amount:Math.round(supInv*100)/100, shipping:Math.round(supShip*100)/100, suffix:"", label:"חשבונית ללא הזמנה"}); }
+  orders.forEach(function(o,oi){
+    var oa=Number(o.invoice_total_usd||0); if(oa<=0) return;
+    var est=Number(o.total_cost||0);
+    if(est>0 && oa>3*est && oa>1000){ return; }
+    invs.push({amount:Math.round(oa*100)/100, shipping:Math.round(Number(o.shipping_cost_usd||0)*100)/100, suffix:"ord"+oi, label:"הזמנה #"+(oi+1)});
+  });
+  var single=(invs.length===1);
+  var amount=invs.reduce(function(x,e){return x+e.amount;},0);
   toast("מרענן רשימת חשבוניות…");
   try{
     var file="docs/state/supplier_invoices.json";
@@ -1187,9 +1197,13 @@ async function refreshSupplierList(code){
     var sha=null,data={_updated_at:null,suppliers:{}};
     if(getR.ok){ var j=await getR.json(); sha=j.sha; try{data=JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,"")))));}catch(_){} }
     if(!data.suppliers) data.suppliers={};
-    Object.keys(data.suppliers).forEach(function(nm){ var r=data.suppliers[nm]; if(r&&r.invoices) r.invoices=r.invoices.filter(function(i){return i.id!==id;}); });
-    if(amount>0){ if(!data.suppliers[canon]) data.suppliers[canon]={total:0,count:0,invoices:[]};
-      data.suppliers[canon].invoices.push({id:id,evkey:CURRENT_EVKEY,event:evName,date:date,amount:Math.round(amount*100)/100,shipping:Math.round(ship*100)/100,supplier_raw:rawName}); }
+    Object.keys(data.suppliers).forEach(function(nm){ var r=data.suppliers[nm]; if(r&&r.invoices) r.invoices=r.invoices.filter(function(i){ return !(i.id===idPrefix || (typeof i.id==="string" && i.id.indexOf(idPrefix+"__ord")===0)); }); });
+    if(invs.length){ if(!data.suppliers[canon]) data.suppliers[canon]={total:0,count:0,invoices:[]};
+      invs.forEach(function(e){
+        var eid = single ? idPrefix : (e.suffix ? (idPrefix+"__"+e.suffix) : idPrefix);
+        var elabel = single ? evName : (evName+" · "+e.label);
+        data.suppliers[canon].invoices.push({id:eid,evkey:CURRENT_EVKEY,event:elabel,date:date,amount:e.amount,shipping:e.shipping,supplier_raw:rawName});
+      }); }
     Object.keys(data.suppliers).forEach(function(nm){ var r=data.suppliers[nm];
       r.invoices=(r.invoices||[]).sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
       r.total=Math.round(r.invoices.reduce(function(x,i){return x+Number(i.amount||0);},0)*100)/100; r.count=r.invoices.length;
@@ -1198,7 +1212,7 @@ async function refreshSupplierList(code){
     var putBody={message:"suppliers: refresh "+canon+" "+CURRENT_EVKEY+" (inventory compare)",content:btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2)))),branch:REPO_BRANCH};
     if(sha) putBody.sha=sha;
     var putR=await fetch(base,{method:"PUT",headers:{Authorization:"token "+tok,Accept:"application/vnd.github+json","Content-Type":"application/json"},body:JSON.stringify(putBody)});
-    if(putR.ok) toast("✓ רשימת החשבוניות של "+canon+" עודכנה ($"+amount.toFixed(2)+")","success");
+    if(putR.ok) toast("✓ רשימת החשבוניות של "+canon+" עודכנה ("+invs.length+" חשבוניות · $"+amount.toFixed(2)+")","success");
     else toast("רענון נכשל ("+putR.status+")","error");
   }catch(e){ toast("שגיאה: "+e.message,"error"); }
 }
@@ -1934,14 +1948,15 @@ function renderLocalOrdersForSupplier(supplierCode){
     }
     var _titleStyle = _isInactive ? 'text-decoration:line-through;color:#94a3b8;' : '';
     var _invEditBlock = _isInactive ? '' :
-      '<div style="margin-top:10px;display:flex;align-items:center;gap:6px;font-size:12px;flex-wrap:wrap">' +
-        '<span style="color:#475569">💵 סכום חשבונית (\$):</span>' +
-        '<input type="number" min="0" step="0.01" class="ord-inv-input" data-ord-inv-index="' + oi + '" value="' + (_orderInvoiceTotal > 0 ? _orderInvoiceTotal : '') + '" placeholder="אוטומטי" title="הקלידי את הסכום הסופי לפי החשבונית — מחליף את החישוב האוטומטי ונכנס לרשימת החשבוניות" style="width:120px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;text-align:center;font-weight:700;color:#15803d">' +
+      '<div style="margin-top:10px;padding:8px 10px;background:#f0fdf4;border:1px dashed #86efac;border-radius:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<span style="color:#166534;font-weight:800;font-size:12px">🧾 סכום החשבונית בפועל ($):</span>' +
+        '<input type="number" min="0" step="0.01" class="ord-inv-input" data-ord-inv-index="' + oi + '" value="' + (_orderInvoiceTotal > 0 ? _orderInvoiceTotal : '') + '" placeholder="הקלידי סכום" title="הסכום האמיתי לפי החשבונית — זה מה שנכנס לרשימת החשבוניות (לא ההערכה)" style="width:120px;padding:6px 8px;border:1px solid #16a34a;border-radius:6px;text-align:center;font-weight:700;color:#15803d">' +
+        '<span style="color:#475569;font-size:11px">↩ נכנס לרשימת החשבוניות · "הערכת עלות" למעלה היא רק אומדן</span>' +
       '</div>';
     html += '<details' + ((oi === 0 && !_isInactive) ? ' open' : '') + ' style="' + _detStyle + '">' +
       '<summary style="cursor:pointer;font-weight:600;">' +
         '<span style="' + _titleStyle + '">💾 הזמנה #' + (oi+1) + ' · ' + (o.items || []).length + ' פריטים · ' +
-        '<b>' + (o.total_qty || 0) + ' pcs</b> · <b>צפוי: $' + Number(o.total_cost || 0).toFixed(2) + '</b></span>' +
+        '<b>' + (o.total_qty || 0) + ' pcs</b> · <b>📊 הערכת עלות: $' + Number(o.total_cost || 0).toFixed(2) + '</b></span>' +
         _cancelBadge +
         invoiceTotalHtml +
         ' <span style="color:var(--muted);font-size:11px;font-weight:400;margin-right:8px;">נשמר ' + when + '</span>' +
@@ -1985,7 +2000,7 @@ function renderLocalOrdersForSupplier(supplierCode){
         ? '<table style="width:100%;font-size:12px;margin-top:8px;"><thead><tr><th style="text-align:right;color:var(--muted);font-size:11px;">מוצר</th><th style="text-align:center;color:var(--muted);font-size:11px;">SKU</th><th style="text-align:center;color:var(--muted);font-size:11px;">כמות</th><th style="text-align:center;color:var(--muted);font-size:11px;">$/יח׳</th><th style="text-align:left;color:var(--muted);font-size:11px;">סה"כ</th></tr></thead><tbody>' + _sRows + '</tbody></table>'
         : '<div style="margin-top:8px;font-size:12px;color:#854d0e">חשבונית בסך ' + fmtUsd(_supInvTotal) + ' (פרטי השורות לא נשמרו).</div>') +
       '<div style="margin-top:10px;display:flex;align-items:center;gap:6px;font-size:12px;flex-wrap:wrap">' +
-        '<span style="color:#475569">💵 סכום חשבונית (\$):</span>' +
+        '<span style="color:#475569">💵 סכום חשבונית ($):</span>' +
         '<input type="number" min="0" step="0.01" data-bind="invoice_total_usd" value="' + (_supInvTotal > 0 ? _supInvTotal : '') + '" placeholder="אוטומטי" title="הקלידי את הסכום הסופי לפי החשבונית — מחליף את החישוב האוטומטי ונכנס לרשימת החשבוניות" style="width:120px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;text-align:center;font-weight:700;color:#15803d">' +
       '</div>' +
     '</details>';

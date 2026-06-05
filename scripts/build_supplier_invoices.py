@@ -47,13 +47,26 @@ def slug(s):
     return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", (s or "").lower())).strip("-")
 
 
-def add(suppliers, raw, evkey, ename, date, amount, shipping):
+def _ff(x):
+    try:
+        return float(x or 0)
+    except Exception:
+        return 0.0
+
+# Per-order anomaly guard (mirrors pnl_inventory): an invoice wildly above the order
+# estimate is almost certainly a mis-keyed lump sum — skip it.
+_ANOM_RATIO = 3.0
+_ANOM_ABS = 1000.0
+
+
+def add(suppliers, raw, evkey, ename, date, amount, shipping, id_suffix="", label_suffix=""):
     if not amount:
         return
     cname = canon(raw)
-    inv_id = f"{evkey}__{slug(cname)}"
+    inv_id = f"{evkey}__{slug(cname)}" + (("__" + id_suffix) if id_suffix else "")
+    ev_label = ename + (" · " + label_suffix if label_suffix else "")
     rec = suppliers.setdefault(cname, {"total": 0.0, "count": 0, "invoices": []})
-    rec["invoices"].append({"id": inv_id, "evkey": evkey, "event": ename, "date": date,
+    rec["invoices"].append({"id": inv_id, "evkey": evkey, "event": ev_label, "date": date,
                             "amount": round(float(amount), 2),
                             "shipping": round(float(shipping or 0), 2), "supplier_raw": raw})
     rec["total"] = round(rec["total"] + float(amount), 2)
@@ -67,17 +80,51 @@ def build():
     # 1) LIVE — inventory_orders.json (real invoices)
     if INV_ORDERS.exists():
         data = json.loads(INV_ORDERS.read_text(encoding="utf-8"))
+        from collections import defaultdict
         for evkey, node in (data.get("events") or {}).items():
             inv = pnl_inventory.fetch_inventory_pnl(evkey, state_path=str(INV_ORDERS))
-            lines = [l for l in inv.get("supplier_lines", []) if (l.get("invoiced") or 0) > 0]
-            if not lines:
-                continue
-            live_evkeys.add(evkey)
+            status_by_code = {l.get("supplier_code"): l.get("status") for l in inv.get("supplier_lines", [])}
             ename = f"{node.get('city','')}, {node.get('state','')}".strip(", ")
             date = node.get("start_date")
-            for l in lines:
-                add(suppliers, l.get("supplier") or l.get("supplier_code"), evkey, ename, date,
-                    l.get("invoiced"), l.get("shipping"))
+            sups = node.get("suppliers") or {}
+            obc = defaultdict(list)
+            for o in (node.get("local_orders") or []):
+                if o.get("cancelled_at") or o.get("moved_to"):
+                    continue
+                obc[o.get("supplier_code")].append(o)
+            added_here = False
+            for code in (set(sups.keys()) | set(obc.keys())):
+                if status_by_code.get(code) == "anomaly-excluded":
+                    continue  # mis-keyed supplier-level lump sum — excluded by pnl guard
+                s_node = sups.get(code) if isinstance(sups.get(code), dict) else {}
+                raw = (s_node.get("name") or (obc[code][0].get("supplier_name") if obc[code] else None) or code)
+                sup_inv = _ff(s_node.get("invoice_total_usd"))
+                # Build the list of REAL invoices for this supplier+event (invoice_total_usd,
+                # NOT total_cost which is only the order estimate).
+                invs = []  # (amount, shipping, id_suffix, label_suffix)
+                if sup_inv > 0:
+                    invs.append((sup_inv, _ff(s_node.get("shipping_cost_usd")), "", "חשבונית ללא הזמנה"))
+                for oi, o in enumerate(obc[code]):
+                    oa = _ff(o.get("invoice_total_usd"))
+                    if oa <= 0:
+                        continue
+                    est = _ff(o.get("total_cost"))
+                    if est > 0 and oa > _ANOM_RATIO * est and oa > _ANOM_ABS:
+                        continue  # per-order mis-keyed lump sum — skip
+                    invs.append((oa, _ff(o.get("shipping_cost_usd")), "ord%d" % oi, "הזמנה #%d" % (oi + 1)))
+                if not invs:
+                    continue
+                # Stability: if there's exactly ONE invoice, keep the legacy id/label
+                # (evkey__slug, no suffix) so historical payment-tracking ids don't orphan.
+                if len(invs) == 1:
+                    amt, shp, _, _ = invs[0]
+                    add(suppliers, raw, evkey, ename, date, amt, shp)
+                else:
+                    for amt, shp, idsuf, lblsuf in invs:
+                        add(suppliers, raw, evkey, ename, date, amt, shp, id_suffix=idsuf, label_suffix=lblsuf)
+                added_here = True
+            if added_here:
+                live_evkeys.add(evkey)
 
     # 2) HISTORICAL — event_pnl for events NOT already live-sourced
     for f in sorted(EVDIR.glob("*.json")):
