@@ -1868,6 +1868,11 @@ function renderInvoiceDetailsForSupplier(supplierCode){
         '</tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table>' +
+      '<div style="margin-top:12px;padding:8px 10px;background:#ecfdf5;border:1px dashed #6ee7b7;border-radius:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<span style="color:#166534;font-weight:800;font-size:12px">🧾 סכום החשבונית בפועל ($):</span>' +
+        '<input type="number" min="0" step="0.01" data-bind="invoice_total_usd" value="' + (Number(supState.invoice_total_usd||0) > 0 ? Number(supState.invoice_total_usd) : '') + '" placeholder="הקלידי סכום" title="הסכום האמיתי לפי החשבונית — נכנס לרשימת החשבוניות (במקום סכום השורות המחושב)" style="width:120px;padding:6px 8px;border:1px solid #16a34a;border-radius:6px;text-align:center;font-weight:700;color:#15803d">' +
+        '<span style="color:#475569;font-size:11px">↩ נכנס לרשימת החשבוניות' + (subtotal > 0 ? ' · סכום השורות המחושב: $' + subtotal.toFixed(2) : '') + '</span>' +
+      '</div>' +
     '</details>' +
   '</div>';
 }
@@ -1876,18 +1881,9 @@ function renderLocalOrdersForSupplier(supplierCode){
   if (typeof CURRENT_EVKEY === 'undefined' || !CURRENT_EVKEY) return '';
   var slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || {};
   var localOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === supplierCode; });
-  // Lauren 2026-06-05: also surface a supplier-level "invoice without order" (the
-  // standalone-invoice flow) as a visible record here — previously it lived only on
-  // the supplier slice (invoice_total_usd + _pending_invoice) and never showed as a
-  // row, so it looked like it "disappeared".
-  var _supSlice = (slice.suppliers || {})[supplierCode] || {};
-  var _supInvLines = (_supSlice._pending_invoice && Array.isArray(_supSlice._pending_invoice.invoice_lines)) ? _supSlice._pending_invoice.invoice_lines : [];
-  var _supInvTotal = Number(_supSlice.invoice_total_usd || 0);
-  var _supHasInvoice = (_supInvLines.length > 0) || (_supInvTotal > 0);
-  if (!localOrders.length && !_supHasInvoice) return '';
-  var _recCount = localOrders.length + (_supHasInvoice ? 1 : 0);
+  if (!localOrders.length) return '';
   var html = '<div class="local-orders-section" style="margin-top:18px;padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">' +
-    '<h3 style="margin:0 0 10px;font-size:15px;color:#166534;">📋 הזמנות / חשבוניות שמורות לספק הזה (' + _recCount + ')</h3>';
+    '<h3 style="margin:0 0 10px;font-size:15px;color:#166534;">📋 הזמנות שמורות לספק הזה (' + localOrders.length + ')</h3>';
   localOrders.forEach(function(o, oi){
     var when = (o.saved_at || '').slice(0, 16).replace('T', ' ');
     var rows = (o.items || []).map(function(it){
@@ -1971,40 +1967,6 @@ function renderLocalOrdersForSupplier(supplierCode){
       _invEditBlock +
     '</details>';
   });
-  // Lauren 2026-06-05 — supplier-level "invoice without order" card (standalone invoice).
-  if (_supHasInvoice) {
-    var _sCompared = !!_supSlice.invoice_compared_at;
-    var _sWhen = _supSlice.invoice_compared_at ? new Date(_supSlice.invoice_compared_at).toLocaleString('he-IL', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
-    var _sQty = _supInvLines.reduce(function(a,l){ return a + Number(l.qty || 0); }, 0);
-    var _sName = (SUPPLIERS.find(function(x){ return x.code === supplierCode; }) || {}).name || supplierCode;
-    var _sRows = _supInvLines.map(function(l){
-      var q = Number(l.qty || 0); var pr = Number(l.price || 0); var tt = Number(l.total != null ? l.total : q * pr);
-      return '<tr><td>' + escHtml(l.name || '') + '</td>' +
-        '<td style="text-align:center;color:var(--muted);font-size:11px"><code>' + escHtml(l.sku || '') + '</code></td>' +
-        '<td style="text-align:center;font-weight:700">' + q + '</td>' +
-        '<td style="text-align:center;color:var(--muted)">$' + pr.toFixed(2) + '</td>' +
-        '<td style="text-align:left;color:#15803d;font-weight:600">$' + tt.toFixed(2) + '</td></tr>';
-    }).join('');
-    var _sBadge = _sCompared
-      ? '<span style="display:inline-block;background:#dcfce7;color:#166534;border:1px solid #86efac;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:800;margin-left:6px">✓ עודכן באוקטופוס' + (_sWhen ? ' · ' + _sWhen : '') + '</span>'
-      : '<span style="display:inline-block;background:#fef3c7;color:#854d0e;border:1px solid #fde68a;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:800;margin-left:6px">⏳ טיוטה</span>';
-    var _sActions = ' <span style="display:inline-block;margin-right:auto;float:left">' +
-      '<button type="button" class="btn-standalone-invoice" data-supplier-code="' + escHtml(supplierCode) + '" data-supplier-name="' + escHtml(_sName) + '" title="פתחי שוב את החשבונית ללא ההזמנה (צפייה / עריכה)" style="font-size:11px;padding:4px 10px;background:linear-gradient(180deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-left:4px">🧾 פתחי חשבונית</button>' +
-      '</span>';
-    html += '<details open style="margin-bottom:10px;padding:8px;background:#fffdf5;border:1px solid #fde68a;border-radius:6px;">' +
-      '<summary style="cursor:pointer;font-weight:600;">' +
-        '<span>🧾 חשבונית ללא הזמנה · ' + _supInvLines.length + ' פריטים' + (_sQty ? ' · <b>' + _sQty + ' pcs</b>' : '') + (_supInvTotal > 0 ? ' · <b>חשבונית: ' + fmtUsd(_supInvTotal) + '</b>' : '') + '</span>' +
-        _sBadge + _sActions +
-      '</summary>' +
-      (_sRows
-        ? '<table style="width:100%;font-size:12px;margin-top:8px;"><thead><tr><th style="text-align:right;color:var(--muted);font-size:11px;">מוצר</th><th style="text-align:center;color:var(--muted);font-size:11px;">SKU</th><th style="text-align:center;color:var(--muted);font-size:11px;">כמות</th><th style="text-align:center;color:var(--muted);font-size:11px;">$/יח׳</th><th style="text-align:left;color:var(--muted);font-size:11px;">סה"כ</th></tr></thead><tbody>' + _sRows + '</tbody></table>'
-        : '<div style="margin-top:8px;font-size:12px;color:#854d0e">חשבונית בסך ' + fmtUsd(_supInvTotal) + ' (פרטי השורות לא נשמרו).</div>') +
-      '<div style="margin-top:10px;display:flex;align-items:center;gap:6px;font-size:12px;flex-wrap:wrap">' +
-        '<span style="color:#475569">💵 סכום חשבונית ($):</span>' +
-        '<input type="number" min="0" step="0.01" data-bind="invoice_total_usd" value="' + (_supInvTotal > 0 ? _supInvTotal : '') + '" placeholder="אוטומטי" title="הקלידי את הסכום הסופי לפי החשבונית — מחליף את החישוב האוטומטי ונכנס לרשימת החשבוניות" style="width:120px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;text-align:center;font-weight:700;color:#15803d">' +
-      '</div>' +
-    '</details>';
-  }
   html += '</div>';
   return html;
 }
