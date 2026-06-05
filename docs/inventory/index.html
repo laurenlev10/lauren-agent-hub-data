@@ -9158,6 +9158,21 @@ function openCompareInvoiceModal(supplierCode, supplierName, orderIndex, opts){
   var resBox = document.getElementById('cmpResult');
   if (resBox && !resBox._editListenerBound) {
     var captureEdit = function(ev){
+      // Lauren 2026-06-05 — invoice-number field in the compare modal. Saves to the
+      // pending slot (supplier-level or per-order) so it surfaces in "פרטי חשבונית".
+      if (ev.target.id === 'cmpInvoiceNumInput') {
+        var invNo = (ev.target.value || '').trim();
+        try {
+          var supIN = _getPendingInvoiceSlotReadonly();
+          if (supIN) {
+            supIN.invoice_number = invNo;
+            if (supIN._pending_invoice) supIN._pending_invoice.invoice_number = invNo;
+            if (typeof scheduleSave === 'function') scheduleSave();
+            if (ev.type === 'change') { try { if (typeof renderSuppliersWithBindings === 'function') renderSuppliersWithBindings(); } catch(_){} }
+          }
+        } catch(_){}
+        return;
+      }
       // Lauren 2026-05-26 PM — handle the editable "actual paid" total input. When set,
       // it overrides the auto-computed total everywhere it appears (supplier-row pill,
       // global subtotal, totals popup). When cleared (empty), falls back to computed.
@@ -11354,7 +11369,19 @@ function renderCompareDiff(){
     return BRAND_PREFIX + ' ' + name;
   }
 
-  var html = totalsHtml +
+  // Lauren 2026-06-05: invoice-number field — always available while comparing. Saved to
+  // the pending slot (supplier-level or per-order) and surfaced in "פרטי חשבונית".
+  var _invNumCur = '';
+  try {
+    var _sN = _getPendingInvoiceSlotReadonly();
+    _invNumCur = (_sN && (_sN.invoice_number || (_sN._pending_invoice && _sN._pending_invoice.invoice_number))) || '';
+  } catch(_){}
+  var invNumHtml = '<div style="margin-bottom:12px;padding:10px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px">' +
+    '<span style="color:#1e3a8a;font-weight:800">🧾 מספר חשבונית:</span>' +
+    '<input type="text" id="cmpInvoiceNumInput" value="' + escHtml(_invNumCur) + '" placeholder="הקלידי את מספר החשבונית" style="width:200px;padding:5px 8px;border:1px solid #93c5fd;border-radius:6px;font-weight:600" title="מספר החשבונית של הספק — יישמר ויופיע אוטומטית בשדה מס׳ חשבונית">' +
+    '<span style="color:#475569;font-size:11px">נשמר ומופיע אוטומטית ב\u05be"פרטי חשבונית"</span>' +
+  '</div>';
+  var html = invNumHtml + totalsHtml +
     '<div class="cmp-summary">' +
       '<span class="pill match">✅ תאמו: ' + counts.match + '</span>' +
       '<span class="pill qty-diff">⚠️ פערי כמות: ' + counts['qty-diff'] + '</span>' +
