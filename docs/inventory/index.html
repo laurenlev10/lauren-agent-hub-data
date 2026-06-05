@@ -1577,10 +1577,11 @@ function renderSupplierCard(sup, s, idx){
             '<option value="shipped" '+(s.delivery_mode==="shipped"?"selected":"")+'>נשלח (משלוח)</option>'+
           '</select>'+
         '</div>'+
+        ((s._pending_invoice && s._pending_invoice.invoice_lines && s._pending_invoice.invoice_lines.length) ? '' :
         '<div class="field">'+
-          '<label>סה"כ חשבונית ($)</label>'+
-          '<input type="number" step="0.01" min="0" data-bind="invoice_total_usd" value="'+(s.invoice_total_usd||"")+'" placeholder="0.00" title="הסכום הסופי ששילמת לפי החשבונית (כולל משלוח)">'+
-        '</div>'+
+          '<label>🧾 חשבונית ללא הזמנה — סכום ($)</label>'+
+          '<input type="number" step="0.01" min="0" data-bind="invoice_total_usd" value="'+(s.invoice_total_usd||"")+'" placeholder="0.00" title="סכום חשבונית ללא הזמנה. אם העלית קובץ חשבונית — הסכום נערך בקטע פרטי חשבונית למטה.">'+
+        '</div>')+
         '<div class="field">'+
           '<label>הוצאות משלוח ($)</label>'+
           '<input type="number" step="0.01" min="0" data-bind="shipping_cost_usd" value="'+(s.shipping_cost_usd||"")+'" placeholder="0.00" title="מתעדכן אוטומטית כשבוחרים 💰 הוצאת משלוח בהשוואת חשבונית">'+
@@ -1970,7 +1971,7 @@ function renderLocalOrdersForSupplier(supplierCode){
     html += '<details' + ((oi === 0 && !_isInactive) ? ' open' : '') + ' style="' + _detStyle + '">' +
       '<summary style="cursor:pointer;font-weight:600;">' +
         '<span style="' + _titleStyle + '">💾 הזמנה #' + (oi+1) + ' · ' + (o.items || []).length + ' פריטים · ' +
-        '<b>' + (o.total_qty || 0) + ' pcs</b> · <b>📊 הערכת עלות: $' + Number(o.total_cost || 0).toFixed(2) + '</b></span>' +
+        '<b>' + (o.total_qty || 0) + ' pcs</b> · <span style="color:#94a3b8;font-weight:500;font-size:11px">📊 הערכת עלות (אומדן): $' + Number(o.total_cost || 0).toFixed(2) + '</span></span>' +
         _cancelBadge +
         invoiceTotalHtml +
         ' <span style="color:var(--muted);font-size:11px;font-weight:400;margin-right:8px;">נשמר ' + when + '</span>' +
