@@ -161,7 +161,7 @@ def fetch_all_purchase_orders(token, max_id, concurrency=25):
     return pos
 
 
-def fetch_all_products(token, max_id, concurrency=10):
+def fetch_all_products(token, max_id, concurrency=4):
     products = []
 
     def task(pid):
