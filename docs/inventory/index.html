@@ -1085,7 +1085,7 @@ function recomputeSummary(evkey){
     var invSum = Number(s.invoice_total_usd||0);
     try {
       var _supOrdersSum = (slice.local_orders || []).filter(function(o){ return o.supplier_code === sup.code && !o.cancelled_at && !o.moved_to; });
-      if (!(Number(s.invoice_total_usd||0) > 0)) _supOrdersSum.forEach(function(o){ invSum += Number(o.invoice_total_usd || 0); });  // Lauren 2026-06-04: supplier-level invoice OVERRIDES order-level (no double-count)
+      _supOrdersSum.forEach(function(o){ invSum += Number(o.invoice_total_usd || 0); });  // Lauren 2026-06-05: ADDITIVE — standalone supplier-level invoice + per-order invoices (matches pnl_inventory / AP builder)
     } catch(_){}
     invoiceTotal += invSum;
     if (s.invoice_compared_at) {
@@ -1395,7 +1395,7 @@ function renderSupplierCard(sup, s, idx){
   var _rowInvoiceTotal = Number(s.invoice_total_usd || 0);
   try {
     var _rowOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === sup.code && !o.cancelled_at && !o.moved_to; });
-    if (!(Number(s.invoice_total_usd||0) > 0)) _rowOrders.forEach(function(o){ _rowInvoiceTotal += Number(o.invoice_total_usd || 0); });  // supplier-level overrides
+    _rowOrders.forEach(function(o){ _rowInvoiceTotal += Number(o.invoice_total_usd || 0); });  // Lauren 2026-06-05: additive
   } catch(_){}
   // Check if invoice has been compared+confirmed for this supplier in this event
   // Lauren 2026-05-27 PM #7 — also check per-order. If ANY order is compared, mark.
@@ -1437,7 +1437,7 @@ function renderSupplierCard(sup, s, idx){
   var _rowGrand = Number(s.invoice_total_usd||0);
   try {
     var _gOrders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === sup.code && !o.cancelled_at && !o.moved_to; });
-    if (!(Number(s.invoice_total_usd||0) > 0)) _gOrders.forEach(function(o){ _rowGrand += Number(o.invoice_total_usd || 0); });  // supplier-level overrides
+    _gOrders.forEach(function(o){ _rowGrand += Number(o.invoice_total_usd || 0); });  // Lauren 2026-06-05: additive
   } catch(_){}
   const totalDisp = _rowGrand > 0
     ? '<span style="color:#15803d;font-weight:800">' + fmtUsd(_rowGrand) + '</span>'
@@ -1933,6 +1933,11 @@ function renderLocalOrdersForSupplier(supplierCode){
       _cancelBadge = '<span style="display:inline-block;background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:800;margin-left:6px">➡️ הועברה' + (o.moved_to_label ? ' → ' + escHtml(o.moved_to_label) : '') + (o.moved_at ? ' · ' + _fmtTs(o.moved_at) : '') + '</span>';
     }
     var _titleStyle = _isInactive ? 'text-decoration:line-through;color:#94a3b8;' : '';
+    var _invEditBlock = _isInactive ? '' :
+      '<div style="margin-top:10px;display:flex;align-items:center;gap:6px;font-size:12px;flex-wrap:wrap">' +
+        '<span style="color:#475569">💵 סכום חשבונית (\$):</span>' +
+        '<input type="number" min="0" step="0.01" class="ord-inv-input" data-ord-inv-index="' + oi + '" value="' + (_orderInvoiceTotal > 0 ? _orderInvoiceTotal : '') + '" placeholder="אוטומטי" title="הקלידי את הסכום הסופי לפי החשבונית — מחליף את החישוב האוטומטי ונכנס לרשימת החשבוניות" style="width:120px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;text-align:center;font-weight:700;color:#15803d">' +
+      '</div>';
     html += '<details' + ((oi === 0 && !_isInactive) ? ' open' : '') + ' style="' + _detStyle + '">' +
       '<summary style="cursor:pointer;font-weight:600;">' +
         '<span style="' + _titleStyle + '">💾 הזמנה #' + (oi+1) + ' · ' + (o.items || []).length + ' פריטים · ' +
@@ -1948,6 +1953,7 @@ function renderLocalOrdersForSupplier(supplierCode){
         '<thead><tr><th style="text-align:right;color:var(--muted);font-size:11px;">מוצר</th><th style="text-align:center;color:var(--muted);font-size:11px;">SKU</th><th style="text-align:center;color:var(--muted);font-size:11px;">כמות</th><th style="text-align:center;color:var(--muted);font-size:11px;">$/יח׳</th><th style="text-align:left;color:var(--muted);font-size:11px;">סה"כ</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table>' +
+      _invEditBlock +
     '</details>';
   });
   // Lauren 2026-06-05 — supplier-level "invoice without order" card (standalone invoice).
@@ -1978,6 +1984,10 @@ function renderLocalOrdersForSupplier(supplierCode){
       (_sRows
         ? '<table style="width:100%;font-size:12px;margin-top:8px;"><thead><tr><th style="text-align:right;color:var(--muted);font-size:11px;">מוצר</th><th style="text-align:center;color:var(--muted);font-size:11px;">SKU</th><th style="text-align:center;color:var(--muted);font-size:11px;">כמות</th><th style="text-align:center;color:var(--muted);font-size:11px;">$/יח׳</th><th style="text-align:left;color:var(--muted);font-size:11px;">סה"כ</th></tr></thead><tbody>' + _sRows + '</tbody></table>'
         : '<div style="margin-top:8px;font-size:12px;color:#854d0e">חשבונית בסך ' + fmtUsd(_supInvTotal) + ' (פרטי השורות לא נשמרו).</div>') +
+      '<div style="margin-top:10px;display:flex;align-items:center;gap:6px;font-size:12px;flex-wrap:wrap">' +
+        '<span style="color:#475569">💵 סכום חשבונית (\$):</span>' +
+        '<input type="number" min="0" step="0.01" data-bind="invoice_total_usd" value="' + (_supInvTotal > 0 ? _supInvTotal : '') + '" placeholder="אוטומטי" title="הקלידי את הסכום הסופי לפי החשבונית — מחליף את החישוב האוטומטי ונכנס לרשימת החשבוניות" style="width:120px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;text-align:center;font-weight:700;color:#15803d">' +
+      '</div>' +
     '</details>';
   }
   html += '</div>';
@@ -2049,6 +2059,29 @@ function bindCardEvents(card){
       if (expanded){ card.classList.add("expanded"); s._expanded = true; }
       bindCardEvents(card);
       scheduleSave();
+    });
+  });
+
+  // Lauren 2026-06-05 — per-order invoice-amount edit. Writes the order's own
+  // invoice_total_usd, re-renders the card (keeps it open), and persists. The AP
+  // list sums supplier-level + per-order invoices, so this flows through correctly.
+  card.querySelectorAll('.ord-inv-input').forEach(function(el){
+    el.addEventListener('change', function(){
+      var oi = Number(el.dataset.ordInvIndex);
+      var v = el.value === '' ? 0 : Number(el.value);
+      var slc = STATE.events[CURRENT_EVKEY];
+      var ords = (slc.local_orders || []).filter(function(o){ return o.supplier_code === code && !o.cancelled_at && !o.moved_to; });
+      var ord = ords[oi];
+      if (!ord) return;
+      ord.invoice_total_usd = Math.round(v * 100) / 100;
+      ord.last_edited_at = nowIso();
+      slc.updated_at = nowIso();
+      var expanded = card.classList.contains('expanded');
+      card.innerHTML = renderSupplierCard(sup, s, SUPPLIERS.indexOf(sup));
+      if (expanded){ card.classList.add('expanded'); s._expanded = true; }
+      bindCardEvents(card);
+      scheduleSave();
+      try { toast('✓ סכום החשבונית של ההזמנה עודכן ($' + (Math.round(v * 100) / 100).toFixed(2) + ')', 'success'); } catch(_){}
     });
   });
 
