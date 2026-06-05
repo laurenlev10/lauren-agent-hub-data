@@ -763,6 +763,22 @@ const LS_LOCAL   = "lauren_inventory_local_v1";
 let STATE = { _updated_at: null, events: {} };
 // OCTOPOS daily snapshot — populated by loadOctopos(). Shape: {vendors: {[code]: {products, summary, contact, octopos_name, ...}}, _updated_at}
 let OCTOPOS = { vendors: {}, _updated_at: null };
+// Clean OCTOPOS product name by product_id (for invoice-compare display). Lauren 2026-06-04:
+// matched rows must show the product name AS IN OCTOPOS, not the garbled invoice line text.
+var _OCT_NAME_BY_ID = null;
+function octName(pid){
+  if (pid === null || pid === undefined || pid === '') return null;
+  if (!_OCT_NAME_BY_ID){
+    _OCT_NAME_BY_ID = {};
+    var vs = (OCTOPOS && OCTOPOS.vendors) || {};
+    Object.keys(vs).forEach(function(c){
+      (vs[c].products||[]).concat(vs[c].inactive_products||[]).forEach(function(p){
+        if (p && p.id !== undefined && p.id !== null) _OCT_NAME_BY_ID[String(p.id)] = p.name || '';
+      });
+    });
+  }
+  return _OCT_NAME_BY_ID[String(pid)] || null;
+}
 const OCTOPOS_STATE_URL = "../state/octopos_products.json";
 let CURRENT_EVKEY = null;
 let CURRENT_EVENT = null;
@@ -2146,7 +2162,7 @@ async function loadOctopos(){
   try{
     const r = await fetch(OCTOPOS_STATE_URL + "?_=" + Date.now(), { cache: "no-store" });
     if (r.ok){
-      OCTOPOS = await r.json();
+      OCTOPOS = await r.json(); _OCT_NAME_BY_ID = null;
       if (!OCTOPOS.vendors) OCTOPOS.vendors = {};
     } else {
       OCTOPOS = { vendors: {}, _updated_at: null };
@@ -7269,7 +7285,7 @@ function renderDiffRowHtml(r){
 
   return '<tr class="' + cls + '" data-key="' + r._key + '">' +
     '<td>' + badge + '</td>' +
-    '<td><div class="name">' + escHtml((po && po.product_name) ? po.product_name : (r.name||'')) + '</div>' +  /* Lauren 2026-06-04: prefer clean OCTOPOS/PO product name over garbled invoice text */
+    '<td><div class="name">' + escHtml((po && octName(po.product_id)) || (po && po.product_name) || (r.name||'')) + '</div>' +  /* Lauren 2026-06-04: OCTOPOS product name (by id) > PO name > invoice text */
       (r.sub_for ? '<div style="font-size:11px;color:#1e3a8a;margin-top:2px">↪︎ במקום ' + escHtml(r.sub_for) + '</div>' : '') +
       (r.matched_by === 'name' ? '<div style="font-size:10px;color:#7c3aed;margin-top:2px;font-weight:700">📛 התאמה לפי שם המוצר (SKU בחשבונית שונה)</div>' : '') +
       (r.matched_by === 'alias' ? '<div style="font-size:10px;color:#1d4ed8;margin-top:2px;font-weight:700">🧠 התאמה אוטומטית (למדתי מהפעם הקודמת)</div>' : '') +
@@ -8374,7 +8390,7 @@ function initReceiveMode(){
       // 1) Snapshot refresh
       var r = await fetch(OCTOPOS_STATE_URL + '?t=' + Date.now());
       if (r.ok){
-        OCTOPOS = await r.json();
+        OCTOPOS = await r.json(); _OCT_NAME_BY_ID = null;
       }
       // 2) Live append — fetch any POs created AFTER the snapshot
       var added = await refreshLivePOs();
