@@ -59,7 +59,7 @@ _ANOM_RATIO = 3.0
 _ANOM_ABS = 1000.0
 
 
-def add(suppliers, raw, evkey, ename, date, amount, shipping, id_suffix="", label_suffix=""):
+def add(suppliers, raw, evkey, ename, date, amount, shipping, id_suffix="", label_suffix="", invoice_number=""):
     if not amount:
         return
     cname = canon(raw)
@@ -68,7 +68,8 @@ def add(suppliers, raw, evkey, ename, date, amount, shipping, id_suffix="", labe
     rec = suppliers.setdefault(cname, {"total": 0.0, "count": 0, "invoices": []})
     rec["invoices"].append({"id": inv_id, "evkey": evkey, "event": ev_label, "date": date,
                             "amount": round(float(amount), 2),
-                            "shipping": round(float(shipping or 0), 2), "supplier_raw": raw})
+                            "shipping": round(float(shipping or 0), 2), "supplier_raw": raw,
+                            "invoice_number": (invoice_number or "")})
     rec["total"] = round(rec["total"] + float(amount), 2)
     rec["count"] += 1
 
@@ -101,9 +102,12 @@ def build():
                 sup_inv = _ff(s_node.get("invoice_total_usd"))
                 # Build the list of REAL invoices for this supplier+event (invoice_total_usd,
                 # NOT total_cost which is only the order estimate).
-                invs = []  # (amount, shipping, id_suffix, label_suffix)
+                def _inv_no(node):
+                    pi = node.get("_pending_invoice") if isinstance(node, dict) else None
+                    return (node.get("invoice_number") if isinstance(node, dict) else None) or (pi.get("invoice_number") if isinstance(pi, dict) else None) or ""
+                invs = []  # (amount, shipping, id_suffix, label_suffix, invoice_number)
                 if sup_inv > 0:
-                    invs.append((sup_inv, _ff(s_node.get("shipping_cost_usd")), "", "חשבונית ללא הזמנה"))
+                    invs.append((sup_inv, _ff(s_node.get("shipping_cost_usd")), "", "חשבונית ללא הזמנה", _inv_no(s_node)))
                 for oi, o in enumerate(obc[code]):
                     oa = _ff(o.get("invoice_total_usd"))
                     if oa <= 0:
@@ -111,17 +115,17 @@ def build():
                     est = _ff(o.get("total_cost"))
                     if est > 0 and oa > _ANOM_RATIO * est and oa > _ANOM_ABS:
                         continue  # per-order mis-keyed lump sum — skip
-                    invs.append((oa, _ff(o.get("shipping_cost_usd")), "ord%d" % oi, "הזמנה #%d" % (oi + 1)))
+                    invs.append((oa, _ff(o.get("shipping_cost_usd")), "ord%d" % oi, "הזמנה #%d" % (oi + 1), _inv_no(o)))
                 if not invs:
                     continue
                 # Stability: if there's exactly ONE invoice, keep the legacy id/label
                 # (evkey__slug, no suffix) so historical payment-tracking ids don't orphan.
                 if len(invs) == 1:
-                    amt, shp, _, _ = invs[0]
-                    add(suppliers, raw, evkey, ename, date, amt, shp)
+                    amt, shp, _, _, invno = invs[0]
+                    add(suppliers, raw, evkey, ename, date, amt, shp, invoice_number=invno)
                 else:
-                    for amt, shp, idsuf, lblsuf in invs:
-                        add(suppliers, raw, evkey, ename, date, amt, shp, id_suffix=idsuf, label_suffix=lblsuf)
+                    for amt, shp, idsuf, lblsuf, invno in invs:
+                        add(suppliers, raw, evkey, ename, date, amt, shp, id_suffix=idsuf, label_suffix=lblsuf, invoice_number=invno)
                 added_here = True
             if added_here:
                 live_evkeys.add(evkey)

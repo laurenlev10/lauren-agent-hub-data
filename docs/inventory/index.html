@@ -1180,12 +1180,12 @@ async function refreshSupplierList(code){
   // "invoice without order" (supplier-level) + each order's comparison invoice. total_cost
   // is the order ESTIMATE and is NEVER used here.
   var invs=[];
-  if(supInv>0){ invs.push({amount:Math.round(supInv*100)/100, shipping:Math.round(supShip*100)/100, suffix:"", label:"חשבונית ללא הזמנה"}); }
+  if(supInv>0){ invs.push({amount:Math.round(supInv*100)/100, shipping:Math.round(supShip*100)/100, suffix:"", label:"חשבונית ללא הזמנה", invoice_number:(s.invoice_number || (s._pending_invoice && s._pending_invoice.invoice_number) || "")}); }
   orders.forEach(function(o,oi){
     var oa=Number(o.invoice_total_usd||0); if(oa<=0) return;
     var est=Number(o.total_cost||0);
     if(est>0 && oa>3*est && oa>1000){ return; }
-    invs.push({amount:Math.round(oa*100)/100, shipping:Math.round(Number(o.shipping_cost_usd||0)*100)/100, suffix:"ord"+oi, label:"הזמנה #"+(oi+1)});
+    invs.push({amount:Math.round(oa*100)/100, shipping:Math.round(Number(o.shipping_cost_usd||0)*100)/100, suffix:"ord"+oi, label:"הזמנה #"+(oi+1), invoice_number:(o.invoice_number || (o._pending_invoice && o._pending_invoice.invoice_number) || "")});
   });
   var single=(invs.length===1);
   var amount=invs.reduce(function(x,e){return x+e.amount;},0);
@@ -1202,7 +1202,7 @@ async function refreshSupplierList(code){
       invs.forEach(function(e){
         var eid = single ? idPrefix : (e.suffix ? (idPrefix+"__"+e.suffix) : idPrefix);
         var elabel = single ? evName : (evName+" · "+e.label);
-        data.suppliers[canon].invoices.push({id:eid,evkey:CURRENT_EVKEY,event:elabel,date:date,amount:e.amount,shipping:e.shipping,supplier_raw:rawName});
+        data.suppliers[canon].invoices.push({id:eid,evkey:CURRENT_EVKEY,event:elabel,date:date,amount:e.amount,shipping:e.shipping,supplier_raw:rawName,invoice_number:(e.invoice_number||"")});
       }); }
     Object.keys(data.suppliers).forEach(function(nm){ var r=data.suppliers[nm];
       r.invoices=(r.invoices||[]).sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
