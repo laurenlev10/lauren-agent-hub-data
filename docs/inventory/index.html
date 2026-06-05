@@ -1512,6 +1512,12 @@ function renderSupplierCard(sup, s, idx){
             ? '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="סימנת כעודכן ידנית. לחיצה כדי להסיר את הסימון" style="background:linear-gradient(180deg,#7c3aed,#5b21b6);font-size:11px;padding:5px 10px;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;white-space:nowrap">✓ עודכן ידנית · '+_fmtMMDDHHMM(s.manually_updated_at)+'</button>'
             : '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="לחצי כדי לסמן שעדכנת את ההזמנה ידנית ב-OCTOPOS" style="background:#ede9fe;color:#5b21b6;font-size:11px;padding:5px 10px;border:1px solid #c4b5fd;border-radius:6px;cursor:pointer;font-weight:700;white-space:nowrap">✋ עודכן ידנית</button>')
         : '')+
+      // Lauren 2026-06-05: '🧾 חשבונית ללא הזמנה' — available even when orders already
+      // exist. Skips the order step entirely: opens the invoice modal in standalone mode
+      // (no order comparison) → upload → OCTOPOS stock update.
+      ((_hasOrderOrInvoice)
+        ? '<button type="button" class="btn-standalone-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="\u05D4\u05D5\u05E1\u05D9\u05E4\u05D9 \u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA \u05D9\u05E9\u05D9\u05E8\u05D5\u05EA \u05D1\u05DC\u05D9 \u05DC\u05D9\u05E6\u05D5\u05E8 \u05D4\u05D6\u05DE\u05E0\u05D4 \u2014 \u05EA\u05E2\u05DC\u05D9 \u05D0\u05EA \u05D4\u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA \u05D5\u05D4\u05DE\u05DC\u05D0\u05D9 \u05D9\u05EA\u05E2\u05D3\u05DB\u05DF \u05D1\u05D0\u05D5\u05E7\u05D8\u05D5\u05E4\u05D5\u05E1 \u05DC\u05E4\u05D9 \u05D4\u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;box-shadow:0 1px 3px rgba(217,119,6,.3);white-space:nowrap">\uD83E\uDDFE \u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA \u05DC\u05DC\u05D0 \u05D4\u05D6\u05DE\u05E0\u05D4</button>'
+        : '')+
       // Lauren 2026-05-26 PM: '+ הזמנה נוספת' — only when there's already a saved order
       // (or a confirmed/uploaded invoice). Opens the wizard in "additional order" mode
       // where the suggested qtys subtract what's already on prior orders for this event.
@@ -9013,7 +9019,8 @@ function _getPendingInvoiceSlotReadonly(){
   } catch(_) { return null; }
 }
 
-function openCompareInvoiceModal(supplierCode, supplierName, orderIndex){
+function openCompareInvoiceModal(supplierCode, supplierName, orderIndex, opts){
+  opts = opts || {};
   // Lauren 2026-05-27 PM #7 — orderIndex (optional, integer): when set, scope
   // the compare flow to ONE saved order instead of aggregating all orders for
   // the supplier. Each order gets its own _pending_invoice + invoice_compared_at
@@ -9034,18 +9041,23 @@ function openCompareInvoiceModal(supplierCode, supplierName, orderIndex){
     });
   });
   var expected = Object.values(aggMap);
+  // Lauren 2026-06-05: standalone invoice (skip order) — ignore saved orders so the flow
+  // is pure invoice \u2192 OCTOPOS, with no order comparison.
+  var _standalone = !!opts.standalone;
+  if (_standalone) expected = [];
 
   CMP_CTX = {
     supplier_code: supplierCode,
     supplier_name: supplierName,
     expected: expected,
     invoice_lines: [],
-    order_index: (orderIndex !== undefined && orderIndex !== null) ? Number(orderIndex) : null
+    order_index: (orderIndex !== undefined && orderIndex !== null) ? Number(orderIndex) : null,
+    standalone: _standalone
   };
 
   // Render expected block
   var expHtml = expected.length === 0
-    ? '<div style="padding:12px;background:#fef3c7;border-radius:8px;color:#854d0e;font-size:13px">⚠️ אין הזמנה שמורה לספק הזה — אפשר עדיין להעלות חשבונית, היא תוצג רק כרשימה ללא השוואה.</div>'
+    ? '<div style="padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;color:#854d0e;font-size:13px">' + (_standalone ? '\uD83E\uDDFE \u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA \u05DC\u05DC\u05D0 \u05D4\u05D6\u05DE\u05E0\u05D4 \u2014 \u05D4\u05E2\u05DC\u05D9 \u05D0\u05EA \u05E7\u05D5\u05D1\u05E5 \u05D4\u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA; \u05D4\u05DE\u05DC\u05D0\u05D9 \u05D9\u05EA\u05E2\u05D3\u05DB\u05DF \u05D1\u05D0\u05D5\u05E7\u05D8\u05D5\u05E4\u05D5\u05E1 \u05DC\u05E4\u05D9 \u05D4\u05DB\u05DE\u05D5\u05D9\u05D5\u05EA \u05D1\u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA, \u05D1\u05DC\u05D9 \u05D4\u05E9\u05D5\u05D5\u05D0\u05D4 \u05DC\u05D4\u05D6\u05DE\u05E0\u05D4.' : '\u26A0\uFE0F \u05D0\u05D9\u05DF \u05D4\u05D6\u05DE\u05E0\u05D4 \u05E9\u05DE\u05D5\u05E8\u05D4 \u05DC\u05E1\u05E4\u05E7 \u05D4\u05D6\u05D4 \u2014 \u05D0\u05E4\u05E9\u05E8 \u05E2\u05D3\u05D9\u05D9\u05DF \u05DC\u05D4\u05E2\u05DC\u05D5\u05EA \u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA, \u05D4\u05D9\u05D0 \u05EA\u05D5\u05E6\u05D2 \u05E8\u05E7 \u05DB\u05E8\u05E9\u05D9\u05DE\u05D4 \u05DC\u05DC\u05D0 \u05D4\u05E9\u05D5\u05D5\u05D0\u05D4.') + '</div>'
     : '<details style="background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px 14px">'+
         '<summary style="cursor:pointer;font-weight:700;color:#0f172a">📋 ההזמנה השמורה: '+expected.length+' פריטים · '+expected.reduce(function(a,e){return a+e.qty},0)+' יח׳</summary>'+
         '<table style="width:100%;font-size:12px;margin-top:8px"><thead><tr><th style="text-align:right;color:var(--muted);padding:4px">מוצר</th><th style="text-align:center;color:var(--muted);padding:4px">SKU</th><th style="text-align:center;color:var(--muted);padding:4px">כמות</th></tr></thead><tbody>'+
@@ -9054,7 +9066,7 @@ function openCompareInvoiceModal(supplierCode, supplierName, orderIndex){
       '</details>';
 
   // Lauren 2026-05-27 PM #7 — per-order title shows the order # too
-  $("#cmpTitle").textContent = "📋 השוואת חשבונית · " + supplierName + ((CMP_CTX.order_index !== null) ? " · הזמנה #" + (CMP_CTX.order_index + 1) : "");
+  $("#cmpTitle").textContent = (CMP_CTX.standalone ? "🧾 חשבונית ללא הזמנה · " : "📋 השוואת חשבונית · ") + supplierName + ((CMP_CTX.order_index !== null) ? " · הזמנה #" + (CMP_CTX.order_index + 1) : "");
   $("#cmpExpectedBlock").innerHTML = expHtml;
   $("#cmpResult").innerHTML = '';
   $("#cmpFile").value = '';
@@ -12232,6 +12244,13 @@ function openResendSmsForSavedOrder(supplierCode, orderIndex){
 
 // Wire the buttons
 document.addEventListener('click', function(e){
+  // Lauren 2026-06-05 — standalone invoice (skip order step) button
+  var bsi = e.target.closest('.btn-standalone-invoice');
+  if (bsi){
+    e.preventDefault(); e.stopPropagation();
+    openCompareInvoiceModal(bsi.dataset.supplierCode, bsi.dataset.supplierName, null, {standalone:true});
+    return;
+  }
   // Lauren 2026-05-27 PM #7 — per-order compare invoice button
   var bcoi = e.target.closest('.btn-compare-order-invoice');
   if (bcoi){
