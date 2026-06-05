@@ -3219,6 +3219,10 @@ function openReviewModal(){
         '<button class="qty-btn" data-action="close">✕ סגור</button>' +
       '</div>' +
       '<div class="rev-tabs">' + tabsHtml + '</div>' +
+      '<div class="rev-search" style="padding:8px 14px;border-bottom:1px solid var(--line);background:var(--panel);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+        '<input type="text" id="revSearch" autocomplete="off" placeholder="\uD83D\uDD0D \u05D7\u05D9\u05E4\u05D5\u05E9 \u05DC\u05E4\u05D9 SKU \u05D0\u05D5 \u05E9\u05DD \u05DE\u05D5\u05E6\u05E8\u2026" style="flex:1;min-width:220px;max-width:440px;padding:8px 12px;font-size:13px;border:1px solid var(--line);border-radius:8px;">' +
+        '<span id="revSearchCount" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>' +
+      '</div>' +
       '<div class="rev-body" id="revBody"></div>' +
       '<div class="rev-actions">' +
         '<button class="secondary" data-action="sms">📱 צור SMS לספק זה</button>' +
@@ -3447,6 +3451,33 @@ function openReviewModal(){
       laneHtml('borderline', '🤔 על הגבול — לבדוק', 'borderline') +
       laneHtml('skip',       '🔴 הצעה לדלג',     'skip');
     refreshTabBadges();
+    applyRevSearch();
+  }
+  // Lauren 2026-06-05: SKU / name search inside the review modal. Filters the
+  // currently-shown supplier tab's rows by matching against the .nm cell text
+  // (which contains both the product name AND its SKU). Lanes with no match hide.
+  function applyRevSearch(){
+    var box = document.getElementById('revSearch');
+    var q = (box ? box.value : '').trim().toLowerCase();
+    var body = document.getElementById('revBody');
+    if (!body) return;
+    var lanes = body.querySelectorAll('.rev-lane');
+    var totalMatch = 0;
+    lanes.forEach(function(lane){
+      var rows = lane.querySelectorAll('.rev-row:not(.rev-row-head)');
+      var shown = 0;
+      rows.forEach(function(row){
+        if (!q){ row.style.display=''; shown++; return; }
+        var nmEl = row.querySelector('.nm');
+        var hay = (nmEl ? nmEl.textContent : '').toLowerCase();
+        if (hay.indexOf(q) !== -1){ row.style.display=''; shown++; }
+        else { row.style.display='none'; }
+      });
+      lane.style.display = (q && shown===0) ? 'none' : '';
+      totalMatch += shown;
+    });
+    var cnt = document.getElementById('revSearchCount');
+    if (cnt) cnt.textContent = q ? (totalMatch + ' תוצאות') : '';
   }
   function refreshTabBadges(){
     data.suppliers.forEach(function(s,i){
@@ -3461,6 +3492,10 @@ function openReviewModal(){
     modal.querySelector('.grand-total').textContent = 'סה"כ: $' + newGrand.toFixed(0);
   }
   renderTab();
+
+  modal.addEventListener('input', function(e){
+    if (e.target && e.target.id === 'revSearch') applyRevSearch();
+  });
 
   modal.addEventListener('click', function(e){
     if (e.target.matches('[data-action="close"]') || e.target === modal){ modal.remove(); return; }
