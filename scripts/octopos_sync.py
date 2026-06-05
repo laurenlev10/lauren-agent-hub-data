@@ -110,9 +110,7 @@ def find_max_product_id(token, start=1500, ceiling=50000):
 
 def fetch_product(token, pid, tries=4):
     # OCTOPOS/Cloudflare throttles bursts of concurrent requests -> transient 429/5xx/timeouts.
-    # Without retry these silently return None and the product is DROPPED from the snapshot
-    # (Lauren 2026-06-04: SpongeBob sets id 899/900 vanished -> invoice match failed). Retry
-    # with backoff; only a real 404 means "no such product".
+    # Returns: product dict (200) | None (real 404) | "RETRY" (exhausted on throttle -> pass-2).
     import time as _t
     for _a in range(tries):
         try:
@@ -124,7 +122,7 @@ def fetch_product(token, pid, tries=4):
         if code == 404:
             return None
         _t.sleep(0.4 * (_a + 1))
-    return None
+    return "RETRY"
 
 
 def find_max_po_id(token, start=250, ceiling=10000):
@@ -161,18 +159,35 @@ def fetch_all_purchase_orders(token, max_id, concurrency=25):
     return pos
 
 
-def fetch_all_products(token, max_id, concurrency=4):
+def fetch_all_products(token, max_id, concurrency=10):
+    # TWO-PASS (Lauren 2026-06-04): pass 1 parallel captures most; throttled ids return
+    # "RETRY" and are re-fetched SERIALLY in pass 2 (serial avoids the throttling that
+    # dropped them). Fixes the chronically-incomplete snapshot (178/358 of the full catalog).
     products = []
+    retry_ids = []
 
     def task(pid):
-        return fetch_product(token, pid)
+        return (pid, fetch_product(token, pid))
 
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
-        for i, p in enumerate(pool.map(task, range(1, max_id + 1)), start=1):
-            if p:
+        for i, (pid, p) in enumerate(pool.map(task, range(1, max_id + 1)), start=1):
+            if p == "RETRY":
+                retry_ids.append(pid)
+            elif p:
                 products.append(p)
             if i % 200 == 0:
-                print(f"  …scanned {i}/{max_id} ids, {len(products)} products so far")
+                print(f"  …scanned {i}/{max_id} ids, {len(products)} products, {len(retry_ids)} to retry")
+
+    if retry_ids:
+        import time as _t
+        print(f"  pass-2: serial re-fetch of {len(retry_ids)} throttled ids")
+        for n, pid in enumerate(retry_ids, start=1):
+            p = fetch_product(token, pid, tries=6)
+            if p and p != "RETRY":
+                products.append(p)
+            if n % 50 == 0:
+                print(f"    …pass-2 {n}/{len(retry_ids)}")
+            _t.sleep(0.05)
     return products
 
 
