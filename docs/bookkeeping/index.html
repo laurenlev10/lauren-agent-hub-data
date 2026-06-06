@@ -430,7 +430,13 @@ function ruleKey(t) {
   const base = (t.qb_vendor || (t.desc||"").split("·")[0] || "").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
   return base.slice(0,40) || "misc";
 }
-async function ghPutJson(path, mutate, msg) {
+let PUT_CHAIN = Promise.resolve();   // serialize writes — rapid Done clicks must not race each other
+function ghPutJson(path, mutate, msg) {
+  const run = PUT_CHAIN.then(() => _ghPutJsonOnce(path, mutate, msg, true));
+  PUT_CHAIN = run.catch(() => {});   // keep the chain alive after failures
+  return run;
+}
+async function _ghPutJsonOnce(path, mutate, msg, retry) {
   const token = getToken();
   if (!token) { toast("⚠ אין GitHub token", "error"); return null; }
   const base = `https://api.github.com/repos/${GH_REPO}/contents/${path}`;
@@ -442,7 +448,14 @@ async function ghPutJson(path, mutate, msg) {
   const body = { message: msg, content: btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2)))), branch:"main" };
   if (sha) body.sha = sha;
   const putR = await fetch(base, { method:"PUT", headers:{ "Authorization":"token "+token, "Accept":"application/vnd.github+json", "Content-Type":"application/json" }, body: JSON.stringify(body) });
-  if (!putR.ok) { toast("שמירה נכשלה ("+putR.status+") — "+path.split("/").pop(), "error"); return null; }
+  if (!putR.ok) {
+    if (retry && (putR.status === 409 || putR.status === 422)) {
+      await new Promise(r => setTimeout(r, 800));            // sha race — refetch + one retry
+      return _ghPutJsonOnce(path, mutate, msg, false);
+    }
+    toast("שמירה נכשלה ("+putR.status+") — "+path.split("/").pop(), "error");
+    return null;
+  }
   return data;
 }
 function setToken(v) { localStorage.setItem(TOKEN_KEY, v.trim()); renderTokenArea(); }
@@ -989,17 +1002,19 @@ async function stageRow(t) {
   const s = CURRENT_SESSION; if (!s) return false;
   const now = new Date().toISOString();
   const entry = buildQueueEntry(t, "staged");
-  await ghPutJson("docs/state/qb_post_queue.json", d => {
+  const r1 = await ghPutJson("docs/state/qb_post_queue.json", d => {
     d = d || { queue: [] }; if (!d.queue) d.queue = [];
     const i = d.queue.findIndex(q => q.key === entry.key && q.status !== "applied");
     if (i >= 0) d.queue[i] = entry; else d.queue.push(entry);
     return d;
   }, "bookkeeping: stage " + entry.key);
-  await ghPutJson("docs/state/qb_processed.json", d => {
+  if (!r1) return false;
+  const r2 = await ghPutJson("docs/state/qb_processed.json", d => {
     d = d || { processed: {} }; if (!d.processed) d.processed = {};
     d.processed[entry.key] = { status: "staged", at: now };
     return d;
   }, "bookkeeping: mark staged");
+  if (!r2) return false;
   await ghPutJson("docs/state/qb_filing_rules.json", d => learnFromRows(d, [t], now),
     "bookkeeping: learn from staged row");
   STAGED_TOTAL += 1;
@@ -1220,7 +1235,14 @@ async function toggleDone(txId) {
     if (t.done) {
       t.recognized = true;
       const ok = await stageRow(t);
-      if (ok) toast("✓ טופל ונשמר — יידחף לקוויקבוקס בלחיצת 📤", "success");
+      if (ok) {
+        toast("✓ טופל ונשמר — יידחף לקוויקבוקס בלחיצת 📤", "success");
+      } else {
+        t.done = false;                       // not saved → bring the row back
+        renderTracker();
+        toast("⚠ לא נשמר — השורה חזרה לרשימה, נסי Done שוב", "error");
+        return;
+      }
     } else {
       await unstageRow(t);
       toast("↩ הוחזר לרשימה", "success");
