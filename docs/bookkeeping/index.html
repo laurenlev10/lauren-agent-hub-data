@@ -170,6 +170,7 @@
     <button class="tab-btn active" data-tab="work">🗂 עבודה</button>
     <button class="tab-btn" data-tab="fixed">🟣 קבועות</button>
     <button class="tab-btn" data-tab="fixed_accum">🔵 קבועות מצטברות</button>
+    <button class="tab-btn" data-tab="bank_fees">🏦 עמלות בנק</button>
     <button class="tab-btn" data-tab="loans">🔴 הלוואות</button>
     <button class="tab-btn" data-tab="owner">⚫ Owner</button>
   </div>
@@ -860,6 +861,7 @@ function renderTracker() {
       <button class="btn-post" id="btn-post">🚀 POST לקוויקבוקס (<span id="pick-count">${picked}</span>)</button>
       <button class="btn-selall" id="btn-email-check">📧 שיוך אירוע</button>
       <button class="btn-post" id="btn-push-staged" ${STAGED_TOTAL ? "" : "disabled"}>📤 דחוף לקוויקבוקס (${STAGED_TOTAL})</button>
+      <button class="btn-selall" id="btn-refresh-lists" style="background:#dcfce7;color:#166534" title="מושך מחדש קטגוריות/Classes/ספקים והוצאות מקוויקבוקס (כדקה)">🔄 רענן מ-QB</button>
       <button class="btn-selall" id="btn-clear-reviewed" style="background:#fef3c7;color:#92400e" title="שורות שכבר טופלו בקוויקבוקס בעבר — הסרה מהרשימה בלי לדחוף שום שינוי">🧹 כבר עברתי על אלה</button>
       <select id="qb-sort" style="font-size:12px;padding:5px 8px;border:1px solid #d1d5db;border-radius:8px">
         <option value="date_desc" ${QB_SORT==="date_desc"?"selected":""}>תאריך: חדש→ישן</option>
@@ -917,6 +919,20 @@ function renderTracker() {
   if (sortSel) sortSel.onchange = () => { QB_SORT = sortSel.value; localStorage.setItem("bk_qb_sort", QB_SORT); renderTracker(); };
   const clearBtn = document.getElementById("btn-clear-reviewed");
   if (clearBtn) clearBtn.onclick = clearReviewed;
+  const refreshBtn = document.getElementById("btn-refresh-lists");
+  if (refreshBtn) refreshBtn.onclick = async () => {
+    const token = getToken();
+    if (!token) { toast("⚠ אין GitHub token", "error"); return; }
+    refreshBtn.disabled = true; refreshBtn.textContent = "⏳ מרענן...";
+    try {
+      const r = await fetch(`https://api.github.com/repos/${GH_REPO}/actions/workflows/qb-untagged-refresh.yml/dispatches`, {
+        method: "POST",
+        headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json", "Content-Type": "application/json" },
+        body: JSON.stringify({ ref: "main" }) });
+      toast(r.ok || r.status === 204 ? "🔄 רענון הופעל — תוך כדקה רעננו את הדף" : "⚠ רענון נכשל (" + r.status + ")", r.ok || r.status === 204 ? "success" : "error");
+    } catch(e) { toast("⚠ " + e.message, "error"); }
+    refreshBtn.disabled = false; refreshBtn.textContent = "🔄 רענן מ-QB";
+  };
   const showDone = document.getElementById("lnk-show-done");
   if (showDone) showDone.onclick = (e) => { e.preventDefault(); SHOW_DONE_QB = !SHOW_DONE_QB; renderTracker(); };
   $("sections").querySelectorAll(".done-btn").forEach(b => {
@@ -1185,7 +1201,7 @@ async function postSelected() {
 
 // ── tracking tabs: fixed / loans / owner (Lauren 2026-06-06) ──
 let TRACKER_DATA = null;
-const TT_DEFS = { fixed: ["🟣 הוצאות קבועות", "#7c3aed"], fixed_accum: ["🔵 קבועות מצטברות (פרסום וכו׳)", "#2563eb"], loans: ["🔴 תשלומי הלוואות", "#b91c1c"], owner: ["⚫ Owner / אישי", "#475569"] };
+const TT_DEFS = { fixed: ["🟣 הוצאות קבועות", "#7c3aed"], fixed_accum: ["🔵 קבועות מצטברות (פרסום וכו׳)", "#2563eb"], bank_fees: ["🏦 עמלות בנק", "#b45309"], loans: ["🔴 תשלומי הלוואות", "#b91c1c"], owner: ["⚫ Owner / אישי", "#475569"] };
 async function showTab(tab) {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.getAttribute("data-tab") === tab));
   const tv = $("tab-view"), fc = $("form-card"), tr = $("tracker");
