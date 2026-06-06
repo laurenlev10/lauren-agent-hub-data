@@ -1152,6 +1152,29 @@ def aggregate_with_funnel(slugs: list, events: list, setups: dict,
     sms_data = fetch_simpletexting_list_sizes(slug_to_list)
     eventbrite_stats = eventbrite_stats or {}
 
+    # 2026-06-05 — realized POS sales per event = the TRUE success/ROAS signal.
+    # Pixel-attributed revenue is ~0 (sales happen in person at the event), so real
+    # ROAS must come from OCTOPOS. Two sources, keyed by ev["_evkey"] = "<city>-<start_date>":
+    #   • event_summary/_index.json  → final per-event revenue (post-event, @mbs-event-summary)
+    #   • octopos_live.json          → cumulative-so-far for the currently-running weekend
+    import pathlib as _pl2
+    _realized_index = {}
+    try:
+        _ri = _pl2.Path(__file__).resolve().parent.parent / "docs" / "state" / "event_summary" / "_index.json"
+        if _ri.exists():
+            _realized_index = _json.loads(_ri.read_text())
+    except Exception as _e:
+        print(f"  ⚠ realized index load failed (non-fatal): {_e}")
+    _live_realized = {}
+    try:
+        _lv = _pl2.Path(__file__).resolve().parent.parent / "docs" / "state" / "octopos_live.json"
+        if _lv.exists():
+            _l = _json.loads(_lv.read_text())
+            if _l.get("event_key") and (_l.get("total_payments") or 0) > 0:
+                _live_realized[_l["event_key"]] = _l
+    except Exception as _e:
+        print(f"  ⚠ octopos_live load failed (non-fatal): {_e}")
+
     today = _dt.date.today()
     ev_by_slug = {}
     for ev in events:
@@ -1180,6 +1203,35 @@ def aggregate_with_funnel(slugs: list, events: list, setups: dict,
         ev_out["eventbrite_registered"] = eventbrite_reg
         ev_out["eventbrite_capacity"] = eventbrite_cap
         ev_out["eventbrite_history"] = eventbrite_history
+
+        # 2026-06-05 — realized sales -> true ROAS (see load block above).
+        realized = None
+        _sumrec = _realized_index.get(evkey) if evkey else None
+        if _sumrec:
+            _st = _sumrec.get("stats", {})
+            realized = {
+                "revenue": round(float(_st.get("total_revenue", 0) or 0), 2),
+                "units":   float(_st.get("total_units_sold", 0) or 0),
+                "source":  "event_summary",
+                "as_of":   _sumrec.get("generated_at"),
+                "status":  "final",
+            }
+        _liverec = _live_realized.get(evkey) if evkey else None
+        if _liverec and (realized is None or realized.get("revenue", 0) == 0):
+            realized = {
+                "revenue":      round(float(_liverec.get("total_payments", 0) or 0), 2),
+                "units":        None,
+                "transactions": _liverec.get("transaction_count"),
+                "source":       "octopos_live",
+                "as_of":        _liverec.get("fetched_at"),
+                "status":       "live",
+            }
+        if realized is not None:
+            _spend = float((ev_out.get("meta") or {}).get("spend", 0) or 0) + float((ev_out.get("tiktok") or {}).get("spend", 0) or 0)
+            realized["ad_spend"] = round(_spend, 2)
+            realized["roas"] = round(realized["revenue"] / _spend, 2) if _spend > 0 else None
+            realized["cost_per_dollar_sales"] = round(_spend / realized["revenue"], 4) if realized["revenue"] > 0 else None
+            ev_out["realized"] = realized
 
         target = eventbrite_cap or 250
         days_until = None
