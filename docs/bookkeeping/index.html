@@ -373,6 +373,8 @@ let QB_RULES = { rules: {} };
 let QB_PROCESSED = { processed: {} };
 let QB_TYPES = { types: {}, supplier_map: {} };
 let EVENTS_INDEX = { events: [] };
+let STAGED_TOTAL = 0;          // staged rows waiting for the big push (across sessions)
+let SHOW_DONE_QB = false;      // staged rows are hidden by default ("מהעיניים")
 async function loadQBRefs() {
   const ts = "?_=" + Date.now();
   try { const r = await fetch("../state/qb_lists.json"+ts,{cache:"no-store"}); if (r.ok) QB_LISTS = await r.json(); } catch(e){}
@@ -380,6 +382,8 @@ async function loadQBRefs() {
   try { const r = await fetch("../state/qb_processed.json"+ts,{cache:"no-store"}); if (r.ok) QB_PROCESSED = await r.json(); } catch(e){}
   try { const r = await fetch("../state/qb_expense_types.json"+ts,{cache:"no-store"}); if (r.ok) QB_TYPES = await r.json(); } catch(e){}
   try { const r = await fetch("../state/events_index.json"+ts,{cache:"no-store"}); if (r.ok) EVENTS_INDEX = await r.json(); } catch(e){}
+  try { const r = await fetch("../state/qb_post_queue.json"+ts,{cache:"no-store"});
+        if (r.ok) STAGED_TOTAL = ((await r.json()).queue || []).filter(q => q.status === "staged").length; } catch(e){}
   if (!QB_RULES.rules) QB_RULES.rules = {};
   if (!QB_PROCESSED.processed) QB_PROCESSED.processed = {};
 }
@@ -838,6 +842,8 @@ function renderTracker() {
       <button class="btn-selall" id="btn-sel-all">סמן הכל</button>
       <button class="btn-post" id="btn-post">🚀 POST לקוויקבוקס (<span id="pick-count">${picked}</span>)</button>
       <button class="btn-selall" id="btn-email-check">📧 שיוך אירוע</button>
+      <button class="btn-post" id="btn-push-staged" ${STAGED_TOTAL ? "" : "disabled"}>📤 דחוף לקוויקבוקס (${STAGED_TOTAL})</button>
+      <a href="#" id="lnk-show-done" style="font-size:12px;color:#64748b">${SHOW_DONE_QB ? "הסתר שטופלו" : "הצג שטופלו"}</a>
       <span style="font-size:12px;color:#64748b">שורות ירוקות זוהו אוטומטית לפי תיוקים קודמים שלך. POST שומר את הבחירות ומעביר לתור עדכון בקוויקבוקס.</span>
     </div>`;
   }
@@ -873,12 +879,17 @@ function renderTracker() {
   if (postBtn) postBtn.onclick = postSelected;
   const emailBtn = document.getElementById("btn-email-check");
   if (emailBtn) emailBtn.onclick = queueEmailCheck;
+  const pushBtn = document.getElementById("btn-push-staged");
+  if (pushBtn) pushBtn.onclick = pushStaged;
+  const showDone = document.getElementById("lnk-show-done");
+  if (showDone) showDone.onclick = (e) => { e.preventDefault(); SHOW_DONE_QB = !SHOW_DONE_QB; renderTracker(); };
   $("sections").querySelectorAll(".done-btn").forEach(b => {
     b.onclick = () => toggleDone(b.getAttribute("data-tx"));
   });
 }
 
 function renderQBCard(t) {
+  if (t.done && !SHOW_DONE_QB) return "";   // staged rows disappear from sight
   const cls = (t.done ? "done " : "") + (t.recognized ? "rec" : "");
   const amtCls = t.isCredit ? "amt credit" : "amt";
   const recBadge = t.recognized ? '<span class="badge rec">✓ זוהה</span>' : "";
@@ -927,6 +938,96 @@ function renderCard(t) {
       <span class="badge ${badgeClass}">${escapeHtml(t.tag)}${gmailMark}</span>
       <button class="done-btn" data-tx="${escapeHtml(t.id)}">${t.done ? "בוצע" : "Done"}</button>
     </div>`;
+}
+
+function buildQueueEntry(t, status) {
+  return { key: t.qb_key, txn_type: t.qb_txn_type, txn_id: t.qb_txn_id, line_id: t.qb_line_id,
+    date: t.date, amount: Math.abs(t.amt), desc: (t.desc||"").slice(0,80),
+    etype: t.etype || "", vendor: t.qb_vendor || "", paid_from: t.qb_paid_from || "", payment_type: t.qb_payment_type || "",
+    set: { account: t.sel_account || "", cls: t.sel_class || "", vendor: t.sel_vendor || "" },
+    status: status, queued_at: new Date().toISOString() };
+}
+function learnFromRows(d, rows, now) {
+  d = d || { rules: {} }; if (!d.rules) d.rules = {};
+  rows.forEach(t => {
+    const k = ruleKey(t);
+    const rule = { account: t.sel_account || "", vendor: t.sel_vendor || "" };
+    if (t.sel_class && !/\d{4}\s*$/.test(t.sel_class)) rule.cls = t.sel_class;
+    const acc = (t.sel_account || "").toLowerCase();
+    rule.etype = t.etype_manual ? (t.etype || "")
+               : (/loan/.test(acc) ? "loan" : (/owner|personal/.test(acc) ? "owner" : (t.etype || "")));
+    d.rules[k] = Object.assign({}, d.rules[k] || {}, rule, { learned_at: now });
+    QB_RULES.rules[k] = d.rules[k];
+  });
+  return d;
+}
+
+// ── stage / unstage: Done on a QB row = "טופל" — saved + learned + hidden, pushed later ──
+async function stageRow(t) {
+  const s = CURRENT_SESSION; if (!s) return false;
+  const now = new Date().toISOString();
+  const entry = buildQueueEntry(t, "staged");
+  await ghPutJson("docs/state/qb_post_queue.json", d => {
+    d = d || { queue: [] }; if (!d.queue) d.queue = [];
+    const i = d.queue.findIndex(q => q.key === entry.key && q.status !== "applied");
+    if (i >= 0) d.queue[i] = entry; else d.queue.push(entry);
+    return d;
+  }, "bookkeeping: stage " + entry.key);
+  await ghPutJson("docs/state/qb_processed.json", d => {
+    d = d || { processed: {} }; if (!d.processed) d.processed = {};
+    d.processed[entry.key] = { status: "staged", at: now };
+    return d;
+  }, "bookkeeping: mark staged");
+  await ghPutJson("docs/state/qb_filing_rules.json", d => learnFromRows(d, [t], now),
+    "bookkeeping: learn from staged row");
+  STAGED_TOTAL += 1;
+  return true;
+}
+async function unstageRow(t) {
+  await ghPutJson("docs/state/qb_post_queue.json", d => {
+    d = d || { queue: [] };
+    d.queue = (d.queue || []).filter(q => !(q.key === t.qb_key && q.status === "staged"));
+    return d;
+  }, "bookkeeping: unstage " + t.qb_key);
+  await ghPutJson("docs/state/qb_processed.json", d => {
+    d = d || { processed: {} };
+    if (d.processed && d.processed[t.qb_key] && d.processed[t.qb_key].status === "staged") delete d.processed[t.qb_key];
+    return d;
+  }, "bookkeeping: unmark staged");
+  STAGED_TOTAL = Math.max(0, STAGED_TOTAL - 1);
+  return true;
+}
+
+// ── the big push: everything staged → queued → CI applies to QuickBooks ──
+async function pushStaged() {
+  const btn = document.getElementById("btn-push-staged");
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ דוחף..."; }
+  try {
+    let stagedEntries = [];
+    await ghPutJson("docs/state/qb_post_queue.json", d => {
+      d = d || { queue: [] };
+      (d.queue || []).forEach(q => { if (q.status === "staged") { q.status = "queued"; q.queued_at = new Date().toISOString(); stagedEntries.push(q); } });
+      return d;
+    }, "bookkeeping: push " + STAGED_TOTAL + " staged rows to QuickBooks");
+    await ghPutJson("docs/state/qb_processed.json", d => {
+      d = d || { processed: {} };
+      stagedEntries.forEach(e => { d.processed[e.key] = { status: "queued", at: new Date().toISOString() }; });
+      return d;
+    }, "bookkeeping: staged → queued");
+    // supplier invoices: mark matching unpaid invoices as paid
+    const supRows = stagedEntries.filter(e => e.etype === "supplier").map(e => ({
+      etype: e.etype, qb_vendor: e.vendor, desc: e.desc, amt: e.amount, date: e.date,
+      qb_payment_type: e.payment_type, qb_paid_from: e.paid_from }));
+    const nPaid = await syncSupplierPayments(supRows);
+    if (nPaid) toast("🧾 " + nPaid + " חשבוניות סומנו כשולמו בדשבורד הספקים", "success");
+    toast("🚀 " + stagedEntries.length + " הוצאות נדחפו לקוויקבוקס — יוחלו תוך כדקה", "success");
+    STAGED_TOTAL = 0;
+    renderTracker();
+  } catch (e) {
+    toast("⚠ " + (e.message || "שגיאה בדחיפה"), "error");
+  } finally {
+    if (btn) { btn.disabled = false; }
+  }
 }
 
 async function queueEmailCheck() {
@@ -996,11 +1097,7 @@ async function postSelected() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ שולח..."; }
   try {
     const now = new Date().toISOString();
-    const entries = picked.map(t => ({
-      key: t.qb_key, txn_type: t.qb_txn_type, txn_id: t.qb_txn_id, line_id: t.qb_line_id,
-      date: t.date, amount: Math.abs(t.amt), desc: (t.desc||"").slice(0,80),
-      set: { account: t.sel_account || "", cls: t.sel_class || "", vendor: t.sel_vendor || "" },
-      queued_at: now }));
+    const entries = picked.map(t => buildQueueEntry(t, "queued"));
     await ghPutJson("docs/state/qb_post_queue.json", d => {
       d = d || { queue: [] }; if (!d.queue) d.queue = [];
       const have = new Set(d.queue.map(q => q.key));
@@ -1012,21 +1109,8 @@ async function postSelected() {
       entries.forEach(e => { d.processed[e.key] = { status: "queued", at: now }; });
       return d;
     }, "bookkeeping: mark " + entries.length + " processed");
-    await ghPutJson("docs/state/qb_filing_rules.json", d => {
-      d = d || { rules: {} }; if (!d.rules) d.rules = {};
-      picked.forEach(t => {
-        const k = ruleKey(t);
-        const rule = { account: t.sel_account || "", vendor: t.sel_vendor || "" };
-        // learn class only if it is NOT event-specific (event classes end with a year)
-        if (t.sel_class && !/\d{4}\s*$/.test(t.sel_class)) rule.cls = t.sel_class;
-        // learn the expense TYPE too (color next time) — final account wins over pattern
-        const acc = (t.sel_account || "").toLowerCase();
-        rule.etype = t.etype_manual ? (t.etype || "")
-                   : (/loan/.test(acc) ? "loan" : (/owner|personal/.test(acc) ? "owner" : (t.etype || "")));
-        d.rules[k] = Object.assign({}, d.rules[k] || {}, rule, { learned_at: now });
-      });
-      return d;
-    }, "bookkeeping: learn " + picked.length + " filing rules");
+    await ghPutJson("docs/state/qb_filing_rules.json", d => learnFromRows(d, picked, now),
+      "bookkeeping: learn " + picked.length + " filing rules");
     const nPaid = await syncSupplierPayments(picked);
     if (nPaid) toast("🧾 " + nPaid + " חשבוניות סומנו כשולמו בדשבורד הספקים", "success");
     picked.forEach(t => { t.done = true; t.picked = false; t.posted = true; });
@@ -1089,6 +1173,20 @@ async function toggleDone(txId) {
   t.done = !t.done;
   renderTracker();
   ALL_SESSIONS[s.session_key] = s;
+  if (t.qb_key) {
+    // QB row: Done = טופל — save final values + learn + hide; pushed in bulk later
+    if (t.done) {
+      t.recognized = true;
+      const ok = await stageRow(t);
+      if (ok) toast("✓ טופל ונשמר — יידחף לקוויקבוקס בלחיצת 📤", "success");
+    } else {
+      await unstageRow(t);
+      toast("↩ הוחזר לרשימה", "success");
+    }
+    await saveState(`bookkeeping: ${t.done ? "stage" : "unstage"} ${txId.slice(0,18)} (${s.session_key})`);
+    renderTracker();
+    return;
+  }
   const ok = await saveState(`bookkeeping: toggle done on ${txId.slice(0,18)} (${s.session_key})`);
   if (ok) toast("✓ נשמר", "success");
 }

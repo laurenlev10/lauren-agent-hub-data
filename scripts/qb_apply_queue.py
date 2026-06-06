@@ -78,7 +78,7 @@ def apply_entry_group(entity, txn_id, entries, cats, classes, vendors):
 
 def main():
     q = json.loads(QUEUE.read_text(encoding="utf-8"))
-    pending = [e for e in q.get("queue", []) if e.get("status") not in ("applied",) and int(e.get("attempts") or 0) < 3]
+    pending = [e for e in q.get("queue", []) if e.get("status") not in ("applied", "staged") and int(e.get("attempts") or 0) < 3]
     if not pending:
         print("queue empty — nothing to apply"); return 0
     cats, classes, vendors = build_maps()
