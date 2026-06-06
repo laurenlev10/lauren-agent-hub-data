@@ -156,12 +156,8 @@
     <h2>🆕 התחל סשן חדש</h2>
     <div class="field-row">
       <div class="field">
-        <label>מתאריך</label>
-        <input type="date" id="f-date-from">
-      </div>
-      <div class="field">
-        <label>עד תאריך</label>
-        <input type="date" id="f-date-to">
+        <label>תאריך טיפול</label>
+        <input type="date" id="f-session-date">
       </div>
       <div class="field">
         <label>חשבון</label>
@@ -170,6 +166,8 @@
           <option value="cc7945">WF CC #7945</option>
           <option value="ck1955">WF Checking #1955</option>
           <option value="mc9800">Manager #9800</option>
+          <option value="dm3977">Daniel Manager #3977</option>
+          <option value="bm8884">Brit Manager #8884</option>
         </select>
       </div>
     </div>
@@ -703,8 +701,8 @@ function renderTracker() {
   $("progress-fill").style.width = pct + "%";
   $("progress-text").textContent = `${done} / ${total} סומנו (${pct}%)`;
   $("tracker-pills").innerHTML = `
+    <div class="pill" style="font-size:15px">💳 <b>${escapeHtml(s.account_label)}</b></div>
     <div class="pill">📅 <b>${escapeHtml(s.month_label_he)}</b></div>
-    <div class="pill">💳 ${escapeHtml(s.account_label)}</div>
     <div class="pill">📋 <b>${total}</b> טרנזקציות</div>
     <div class="pill">🎯 <b>${s.events_tagged.length}</b> אירועים</div>`;
 
@@ -806,8 +804,7 @@ async function sendToGmailAgent() {
 function setupForm() {
   const today = new Date();
   const fmtD = (dt) => dt.getFullYear() + "-" + String(dt.getMonth()+1).padStart(2,"0") + "-" + String(dt.getDate()).padStart(2,"0");
-  $("f-date-from").value = fmtD(new Date(today.getFullYear(), today.getMonth(), 1));
-  $("f-date-to").value = fmtD(today);
+  $("f-session-date").value = fmtD(today);
 
   const zone = $("file-zone");
   const input = $("f-file");
@@ -839,7 +836,8 @@ async function startSession() {
   try {
     if (!SCHEDULE_LOADED) await loadSchedule();
     const account = $("f-account").value;
-    const range = { from: $("f-date-from").value || null, to: $("f-date-to").value || null };
+    const sd = $("f-session-date").value || null;   // bookkeeping handling date
+    const range = sd ? { from: sd.slice(0,7) + "-01", to: sd } : null;
     const session = await buildSession(SELECTED_FILE, account, range);
     ALL_SESSIONS[session.session_key] = session;
     const ok = await saveState(`bookkeeping: new session ${session.session_key} (${session.total_tx} tx)`);
@@ -865,12 +863,17 @@ async function startQBSession() {
   btn.disabled = true; btn.textContent = "⏳ מושך מ-QuickBooks...";
   try {
     if (!SCHEDULE_LOADED) await loadSchedule();
-    const from = $("f-date-from").value || null;
-    const to = $("f-date-to").value || null;
+    const sd = $("f-session-date").value || new Date().toISOString().slice(0,10);
+    const fromD = new Date(sd + "T12:00:00"); fromD.setDate(fromD.getDate() - 60);
+    const from = fromD.toISOString().slice(0,10);   // default window: 60 days back from the handling date
+    const to = sd;
+    const acct = $("f-account").value;
+    const ACCT_QB_MATCH = { cc7945: "7945", ck1955: "1955", mc9800: "9800", dm3977: "3977", bm8884: "8884" };
     const r = await fetch("../state/qb_untagged.json?_=" + Date.now(), { cache: "no-store" });
     if (!r.ok) throw new Error("qb_untagged.json לא נמצא — תבקשי ממני רענון משיכה");
     const data = await r.json();
-    const rows = (data.rows || []).filter(x => (!from || (x.date || "") >= from) && (!to || (x.date || "") <= to));
+    let rows = (data.rows || []).filter(x => (x.date || "") >= from && (x.date || "") <= to);
+    if (acct !== "auto" && ACCT_QB_MATCH[acct]) rows = rows.filter(x => (x.paid_from || "").indexOf(ACCT_QB_MATCH[acct]) !== -1);
     if (!rows.length) throw new Error("אין הוצאות ללא Class בטווח שנבחר");
     if (rows.length > 800) throw new Error("יותר מ-800 שורות בטווח (" + rows.length + ") — צמצמי את טווח התאריכים");
     const tx = rows.map((x, i) => {
@@ -884,11 +887,12 @@ async function startQBSession() {
                qb_txn_id: x.txn_id, qb_txn_type: x.txn_type, qb_line_id: x.line_id,
                qb_paid_from: x.paid_from || "", qb_payment_type: x.payment_type || "" };
     });
-    const sessionKey = "qb-" + (from || "start") + "-" + (to || "now");
+    const acctLabel = (acct === "auto") ? "כל החשבונות" : ($("f-account").selectedOptions[0].textContent);
+    const sessionKey = "qb-" + sd + "-" + acct;
     const session = {
-      session_key: sessionKey, account: "qb", account_label: "QuickBooks (ללא Class)",
-      month_iso: (from || "").slice(0, 7), date_from: from, date_to: to,
-      month_label_he: "QuickBooks · " + (from || "") + " → " + (to || ""),
+      session_key: sessionKey, account: acct, account_label: "🏦 " + acctLabel + " · QuickBooks",
+      month_iso: sd.slice(0, 7), date_from: from, date_to: to, session_date: sd,
+      month_label_he: "טיפול " + sd.split("-").reverse().join("/"),
       tx, total_tx: tx.length, generated_at: new Date().toISOString(),
       source: "quickbooks_api", qb_pulled_at: data._updated_at || null,
       events_tagged: [...new Set(tx.filter(t => t.cls === "event" || t.cls === "pending").map(t => t.evkey).filter(Boolean))],
