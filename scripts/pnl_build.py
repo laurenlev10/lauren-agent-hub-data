@@ -229,6 +229,7 @@ def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analyt
 
     return {
         "evkey": evkey,
+        "generated_at": dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
         "event": {"city": (ev or {}).get("city"), "state": (ev or {}).get("state"),
                   "start_date": start, "end_date": end,
                   "venue": (ev or {}).get("venue"), "tier": (ev or {}).get("tier")},
