@@ -156,8 +156,12 @@
     <h2>🆕 התחל סשן חדש</h2>
     <div class="field-row">
       <div class="field">
-        <label>חודש</label>
-        <input type="month" id="f-month">
+        <label>מתאריך</label>
+        <input type="date" id="f-date-from">
+      </div>
+      <div class="field">
+        <label>עד תאריך</label>
+        <input type="date" id="f-date-to">
       </div>
       <div class="field">
         <label>חשבון</label>
@@ -179,8 +183,10 @@
       </label>
     </div>
     <div class="btn-row">
-      <button class="btn btn-primary" id="btn-start" disabled>🚀 התחל סשן</button>
+      <button class="btn btn-primary" id="btn-qb">📥 משוך מ-QuickBooks (הוצאות ללא Class)</button>
+      <button class="btn btn-primary" id="btn-start" disabled>🚀 התחל סשן מקובץ</button>
     </div>
+    <div style="font-size:12px;color:#64748b;margin-top:6px">📥 המשיכה מ-QuickBooks טוענת אוטומטית את כל ההוצאות שעדיין <b>בלי Class</b> בטווח התאריכים — בלי צורך בקובץ. העלאת קובץ נשארת כגיבוי.</div>
   </div>
 
   <!-- Existing-sessions list -->
@@ -613,11 +619,10 @@ function buildSession(file, accountKey, monthVal) {
       const amt = parseAmount(row[cols.amtCol]);
       const desc = String(row[cols.descCol] || "").trim();
       if (!date || !desc || amt === 0) continue;
-      // Filter by month if provided
-      if (monthVal) {
-        const ym = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`;
-        if (ym !== monthVal) continue;
-      }
+      // Filter by full date range if provided (Lauren 2026-06-05)
+      const _iso = dateISO(date);
+      if (monthVal && monthVal.from && _iso < monthVal.from) continue;
+      if (monthVal && monthVal.to && _iso > monthVal.to) continue;
       const cls = classify({ date, amt, desc });
       tx.push({
         id: "tx-" + i + "-" + Math.abs(amt).toFixed(2).replace(".", "") + "-" + date.getTime(),
@@ -626,14 +631,15 @@ function buildSession(file, accountKey, monthVal) {
       });
     }
 
-    const sessionKey = (monthVal || dateISO(new Date()).slice(0,7)) + "-" + account;
-    const ymY = monthVal ? parseInt(monthVal.slice(0,4)) : new Date().getFullYear();
-    const ymM = monthVal ? parseInt(monthVal.slice(5,7)) - 1 : new Date().getMonth();
+    const fromIso = (monthVal && monthVal.from) || (dateISO(new Date()).slice(0,8) + "01");
+    const sessionKey = fromIso.slice(0,7) + "-" + account;
+    const ymY = parseInt(fromIso.slice(0,4));
+    const ymM = parseInt(fromIso.slice(5,7)) - 1;
 
     return {
       session_key: sessionKey,
       account, account_label: ACCOUNT_LABELS[account],
-      month_iso: monthVal || dateISO(new Date()).slice(0,7),
+      month_iso: fromIso.slice(0,7), date_from: (monthVal && monthVal.from) || null, date_to: (monthVal && monthVal.to) || null,
       month_label_he: HEBREW_MONTHS[ymM] + " " + ymY,
       tx, total_tx: tx.length,
       generated_at: new Date().toISOString(),
@@ -799,7 +805,9 @@ async function sendToGmailAgent() {
 // ─────────── Form handlers ───────────
 function setupForm() {
   const today = new Date();
-  $("f-month").value = today.getFullYear() + "-" + String(today.getMonth()+1).padStart(2,"0");
+  const fmtD = (dt) => dt.getFullYear() + "-" + String(dt.getMonth()+1).padStart(2,"0") + "-" + String(dt.getDate()).padStart(2,"0");
+  $("f-date-from").value = fmtD(new Date(today.getFullYear(), today.getMonth(), 1));
+  $("f-date-to").value = fmtD(today);
 
   const zone = $("file-zone");
   const input = $("f-file");
@@ -812,6 +820,7 @@ function setupForm() {
   };
 
   $("btn-start").onclick = startSession;
+  $("btn-qb").onclick = startQBSession;
   $("btn-back").onclick = closeSession;
   $("btn-gmail").onclick = sendToGmailAgent;
 }
@@ -830,8 +839,8 @@ async function startSession() {
   try {
     if (!SCHEDULE_LOADED) await loadSchedule();
     const account = $("f-account").value;
-    const month = $("f-month").value;
-    const session = await buildSession(SELECTED_FILE, account, month);
+    const range = { from: $("f-date-from").value || null, to: $("f-date-to").value || null };
+    const session = await buildSession(SELECTED_FILE, account, range);
     ALL_SESSIONS[session.session_key] = session;
     const ok = await saveState(`bookkeeping: new session ${session.session_key} (${session.total_tx} tx)`);
     if (!ok) toast("⚠ סשן נוצר אבל לא נשמר ב-GitHub", "error");
@@ -847,6 +856,55 @@ async function startSession() {
   } finally {
     $("btn-start").disabled = false;
     $("btn-start").textContent = "🚀 התחל סשן";
+  }
+}
+
+// ─────────── QB auto-pull session (Lauren 2026-06-05) ───────────
+async function startQBSession() {
+  const btn = $("btn-qb");
+  btn.disabled = true; btn.textContent = "⏳ מושך מ-QuickBooks...";
+  try {
+    if (!SCHEDULE_LOADED) await loadSchedule();
+    const from = $("f-date-from").value || null;
+    const to = $("f-date-to").value || null;
+    const r = await fetch("../state/qb_untagged.json?_=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) throw new Error("qb_untagged.json לא נמצא — תבקשי ממני רענון משיכה");
+    const data = await r.json();
+    const rows = (data.rows || []).filter(x => (!from || (x.date || "") >= from) && (!to || (x.date || "") <= to));
+    if (!rows.length) throw new Error("אין הוצאות ללא Class בטווח שנבחר");
+    if (rows.length > 800) throw new Error("יותר מ-800 שורות בטווח (" + rows.length + ") — צמצמי את טווח התאריכים");
+    const tx = rows.map((x, i) => {
+      const dateObj = new Date(x.date + "T12:00:00");
+      const amt = -Math.abs(Number(x.amount) || 0);
+      const desc = [x.vendor || "", x.account || "", x.memo || ""].filter(Boolean).join(" · ");
+      const cls = classify({ date: dateObj, amt, desc });
+      return { id: "qb-" + (x.txn_type || "") + "-" + (x.txn_id || i) + "-" + (x.line_id || 0),
+               row: i, date: x.date, date_human: (x.date || "").slice(5).split("-").reverse().join("/"),
+               amt, desc, ...cls, done: false, gmail_verified: false,
+               qb_txn_id: x.txn_id, qb_txn_type: x.txn_type, qb_line_id: x.line_id,
+               qb_paid_from: x.paid_from || "", qb_payment_type: x.payment_type || "" };
+    });
+    const sessionKey = "qb-" + (from || "start") + "-" + (to || "now");
+    const session = {
+      session_key: sessionKey, account: "qb", account_label: "QuickBooks (ללא Class)",
+      month_iso: (from || "").slice(0, 7), date_from: from, date_to: to,
+      month_label_he: "QuickBooks · " + (from || "") + " → " + (to || ""),
+      tx, total_tx: tx.length, generated_at: new Date().toISOString(),
+      source: "quickbooks_api", qb_pulled_at: data._updated_at || null,
+      events_tagged: [...new Set(tx.filter(t => t.cls === "event" || t.cls === "pending").map(t => t.evkey).filter(Boolean))],
+    };
+    ALL_SESSIONS[session.session_key] = session;
+    const ok = await saveState("bookkeeping: QB session " + sessionKey + " (" + tx.length + " tx)");
+    if (!ok) toast("⚠ סשן נוצר אבל לא נשמר ב-GitHub", "error");
+    CURRENT_SESSION = session;
+    $("form-card").classList.add("hidden");
+    $("sessions-list").classList.add("hidden");
+    $("tracker").classList.remove("hidden");
+    renderTracker(); window.scrollTo(0, 0);
+  } catch (e) {
+    console.error(e); toast("⚠ " + (e.message || "שגיאה במשיכה מ-QuickBooks"), "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "📥 משוך מ-QuickBooks (הוצאות ללא Class)";
   }
 }
 
