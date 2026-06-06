@@ -434,7 +434,7 @@ function ruleKey(t) {
 }
 let PUT_CHAIN = Promise.resolve();   // serialize writes — rapid Done clicks must not race each other
 function ghPutJson(path, mutate, msg) {
-  const run = PUT_CHAIN.then(() => _ghPutJsonOnce(path, mutate, msg, true));
+  const run = PUT_CHAIN.then(() => _ghPutJsonOnce(path, mutate, msg, 3));
   PUT_CHAIN = run.catch(() => {});   // keep the chain alive after failures
   return run;
 }
@@ -451,9 +451,9 @@ async function _ghPutJsonOnce(path, mutate, msg, retry) {
   if (sha) body.sha = sha;
   const putR = await fetch(base, { method:"PUT", headers:{ "Authorization":"token "+token, "Accept":"application/vnd.github+json", "Content-Type":"application/json" }, body: JSON.stringify(body) });
   if (!putR.ok) {
-    if (retry && (putR.status === 409 || putR.status === 422)) {
-      await new Promise(r => setTimeout(r, 800));            // sha race — refetch + one retry
-      return _ghPutJsonOnce(path, mutate, msg, false);
+    if (retry > 0 && (putR.status === 409 || putR.status === 422)) {
+      await new Promise(r => setTimeout(r, (4 - retry) * 1200));   // commit race — backoff + refetch
+      return _ghPutJsonOnce(path, mutate, msg, retry - 1);
     }
     toast("שמירה נכשלה ("+putR.status+") — "+path.split("/").pop(), "error");
     return null;
@@ -506,7 +506,12 @@ async function loadState() {
   }
 }
 
-async function saveState(commitMsg) {
+function saveState(commitMsg) {
+  const run = PUT_CHAIN.then(() => _saveStateOnce(commitMsg));
+  PUT_CHAIN = run.catch(() => {});
+  return run;
+}
+async function _saveStateOnce(commitMsg) {
   const token = getToken();
   if (!token) { toast("⚠ אין token — סימון נשמר רק במכשיר", "error"); return false; }
   const payload = { _updated_at: new Date().toISOString(), _schema_version: 1, sessions: ALL_SESSIONS };
@@ -1118,7 +1123,7 @@ async function pushStaged() {
       d = d || { queue: [] };
       (d.queue || []).forEach(q => { if (q.status === "staged") { q.status = "queued"; q.queued_at = new Date().toISOString(); stagedEntries.push(q); } });
       return d;
-    }, "bookkeeping: push " + STAGED_TOTAL + " staged rows to QuickBooks");
+    }, "bookkeeping: push " + STAGED_TOTAL + " staged rows to QuickBooks [qb-go]");
     await ghPutJson("docs/state/qb_processed.json", d => {
       d = d || { processed: {} };
       stagedEntries.forEach(e => { d.processed[e.key] = { status: "queued", at: new Date().toISOString() }; });
@@ -1243,7 +1248,7 @@ async function postSelected() {
       const have = new Set(d.queue.map(q => q.key));
       entries.forEach(e => { if (!have.has(e.key)) d.queue.push(e); });
       return d;
-    }, "bookkeeping: queue " + entries.length + " QB updates");
+    }, "bookkeeping: queue " + entries.length + " QB updates [qb-go]");
     await ghPutJson("docs/state/qb_processed.json", d => {
       d = d || { processed: {} }; if (!d.processed) d.processed = {};
       entries.forEach(e => { d.processed[e.key] = { status: "queued", at: now }; });
