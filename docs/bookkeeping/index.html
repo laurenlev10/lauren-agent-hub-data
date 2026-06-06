@@ -1200,7 +1200,7 @@ async function showTab(tab) {
     const mr = byMonth[m];
     const tot = mr.reduce((a, r) => a + r.amount, 0);
     html += `<div class="tt-month"><h3><span>${m}</span><span style="direction:ltr">$${tot.toLocaleString(undefined,{minimumFractionDigits:2})}</span></h3>` +
-      mr.map(r => `<div class="tt-row"><span class="d">${r.date.slice(5)}</span><span class="p">${escapeHtml(r.payee)}</span><span class="acct">${escapeHtml(r.line_accounts || r.account || "")}</span><span class="a">$${r.amount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>`).join("") + "</div>";
+      mr.map(r => `<div class="tt-row"><span class="d">${r.date.slice(5).replace("-", "/")}</span><span class="p">${escapeHtml(r.payee)}</span><span class="acct">${escapeHtml(r.line_accounts || r.account || "")}</span><span class="a">$${r.amount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>`).join("") + "</div>";
   }
   tv.innerHTML = html;
 }
@@ -1347,7 +1347,7 @@ async function startQBSession() {
       const desc = [x.vendor || "", x.account || "", x.memo || ""].filter(Boolean).join(" · ");
       const cls = classify({ date: dateObj, amt, desc });
       return { id: "qb-" + (x.txn_type || "") + "-" + (x.txn_id || i) + "-" + (x.line_id || 0),
-               row: i, date: x.date, date_human: (x.date || "").slice(5).split("-").reverse().join("/"),
+               row: i, date: x.date, date_human: (x.date || "").slice(5).replace("-", "/"),
                amt, desc, ...cls, done: false, gmail_verified: false,
                qb_txn_id: x.txn_id, qb_txn_type: x.txn_type, qb_line_id: x.line_id,
                qb_key: (x.txn_type||"") + "-" + (x.txn_id||"") + "-" + (x.line_id||""),
