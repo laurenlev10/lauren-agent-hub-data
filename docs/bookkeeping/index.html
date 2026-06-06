@@ -117,6 +117,16 @@
   .post-bar button{font-size:13px;padding:7px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:700}
   .btn-post{background:linear-gradient(180deg,#16a34a,#15803d);color:#fff}
   .btn-selall{background:#ede9fe;color:#5b21b6}
+  .tabs-nav{display:flex;gap:8px;justify-content:center;margin:10px 0 4px}
+  .tab-btn{font-size:13px;padding:7px 16px;border-radius:20px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-weight:700}
+  .tab-btn.active{background:#1f2937;color:#fff;border-color:#1f2937}
+  .tt-month{background:#fff;border:1px solid #e2e2e8;border-radius:12px;margin:12px 0;overflow:hidden}
+  .tt-month h3{margin:0;padding:10px 14px;background:#f8fafc;font-size:14px;display:flex;justify-content:space-between}
+  .tt-row{display:flex;gap:10px;padding:7px 14px;border-top:1px solid #f1f5f9;font-size:13px;align-items:center}
+  .tt-row .d{color:#64748b;width:48px}.tt-row .p{flex:1;font-weight:600}.tt-row .a{font-weight:700;direction:ltr}
+  .tt-row .acct{color:#94a3b8;font-size:11px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tt-sum{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .tt-chip{background:#fff;border:1px solid #e2e2e8;border-radius:10px;padding:6px 10px;font-size:12px}
   .badge.recurring { background: #6366f1; }
   .badge.owner { background: #6e6e73; }
   .badge.inventory { background: #15803d; }
@@ -155,6 +165,12 @@
 <body>
 <header>
   <h1>📚 הנהלת חשבונות — סשנים</h1>
+  <div class="tabs-nav">
+    <button class="tab-btn active" data-tab="work">🗂 עבודה</button>
+    <button class="tab-btn" data-tab="fixed">🟣 קבועות</button>
+    <button class="tab-btn" data-tab="loans">🔴 הלוואות</button>
+    <button class="tab-btn" data-tab="owner">⚫ Owner</button>
+  </div>
   <div class="subtitle">תיוק חודשי של הוצאות מ-Wells Fargo / QuickBooks</div>
 </header>
 
@@ -202,6 +218,7 @@
   <div id="sessions-list"></div>
 
   <!-- Active session tracker -->
+  <div id="tab-view" class="hidden"></div>
   <div id="tracker" class="hidden">
     <div class="pills" id="tracker-pills"></div>
     <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
@@ -355,12 +372,14 @@ let QB_LISTS = { categories: [], classes: [], vendors: [] };
 let QB_RULES = { rules: {} };
 let QB_PROCESSED = { processed: {} };
 let QB_TYPES = { types: {}, supplier_map: {} };
+let EVENTS_INDEX = { events: [] };
 async function loadQBRefs() {
   const ts = "?_=" + Date.now();
   try { const r = await fetch("../state/qb_lists.json"+ts,{cache:"no-store"}); if (r.ok) QB_LISTS = await r.json(); } catch(e){}
   try { const r = await fetch("../state/qb_filing_rules.json"+ts,{cache:"no-store"}); if (r.ok) QB_RULES = await r.json(); } catch(e){}
   try { const r = await fetch("../state/qb_processed.json"+ts,{cache:"no-store"}); if (r.ok) QB_PROCESSED = await r.json(); } catch(e){}
   try { const r = await fetch("../state/qb_expense_types.json"+ts,{cache:"no-store"}); if (r.ok) QB_TYPES = await r.json(); } catch(e){}
+  try { const r = await fetch("../state/events_index.json"+ts,{cache:"no-store"}); if (r.ok) EVENTS_INDEX = await r.json(); } catch(e){}
   if (!QB_RULES.rules) QB_RULES.rules = {};
   if (!QB_PROCESSED.processed) QB_PROCESSED.processed = {};
 }
@@ -374,7 +393,24 @@ function classifyType(t) {
   const acc = (t.sel_account || t.qb_account || "").toLowerCase();
   if (/loan/.test(acc)) return "loan";
   if (/owner|personal/.test(acc)) return "owner";
+  if (/travel|lodging|accommodation|airfare|meals/.test(acc)) return "event";
   return "";
+}
+function addDays(iso, n) {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function findEventForDate(dateIso, before, after) {
+  const cands = (EVENTS_INDEX.events || []).filter(e =>
+    dateIso >= addDays(e.start_date, -before) && dateIso <= addDays(e.end_date, after));
+  if (!cands.length) return null;
+  if (cands.length === 1) return cands[0];
+  // nearest event midpoint wins
+  const mid = e => new Date(e.start_date) * 0.5 + new Date(e.end_date) * 0.5;
+  const d0 = new Date(dateIso).getTime();
+  cands.sort((a, b) => Math.abs(mid(a) - d0) - Math.abs(mid(b) - d0));
+  return cands[0];
 }
 function matchSupplierName(t) {
   const hay = ((t.qb_vendor || "") + " " + (t.desc || "")).toLowerCase();
@@ -817,7 +853,9 @@ function renderTracker() {
   $("sections").querySelectorAll(".qb-f").forEach(el => {
     el.onchange = () => {
       const t = s.tx.find(x => x.id === el.getAttribute("data-tx")); if (!t) return;
-      t[el.getAttribute("data-f")] = el.value;
+      const f = el.getAttribute("data-f");
+      t[f] = el.value;
+      if (f === "etype") { t.etype_manual = true; renderTracker(); }
     };
   });
   $("sections").querySelectorAll(".qb-pick").forEach(el => {
@@ -844,6 +882,7 @@ function renderQBCard(t) {
   const cls = (t.done ? "done " : "") + (t.recognized ? "rec" : "");
   const amtCls = t.isCredit ? "amt credit" : "amt";
   const recBadge = t.recognized ? '<span class="badge rec">✓ זוהה</span>' : "";
+  const acBadge = t.auto_class ? '<span class="badge rec" title="שויך לאירוע לפי התאריך">🏷 לפי תאריך</span>' : "";
   const tdef = (QB_TYPES.types || {})[t.etype];
   const tStyle = tdef ? ` style="background:${tdef.bg};border-right:4px solid ${tdef.color}"` : "";
   const tChip = tdef ? `<span class="tchip" style="background:${tdef.color}">${escapeHtml(tdef.label)}</span>` : "";
@@ -855,12 +894,16 @@ function renderQBCard(t) {
   return `
     <div class="card ${cls}"${tStyle}>
       <div class="info" style="width:100%">
-        <div class="top-line">${escapeHtml((t.qb_vendor || t.desc).slice(0, 60))} ${tChip} ${recBadge}</div>
+        <div class="top-line">${escapeHtml((t.qb_vendor || t.desc).slice(0, 60))} ${tChip} ${acBadge} ${recBadge}</div>
         <div class="bottom-line">${escapeHtml(t.date_human)} · <span class="${amtCls}">${fmtMoney(t.amt)}</span> · ${escapeHtml(t.qb_paid_from || "")} · ${escapeHtml((t.desc||"").slice(0,70))}</div>
         <div class="qb-edit">
           <input class="w-cat qb-f" list="dl-cats" data-f="sel_account" data-tx="${escapeHtml(t.id)}" value="${catVal}" placeholder="קטגוריה">
           <select class="w-cls qb-f" data-f="sel_class" data-tx="${escapeHtml(t.id)}">${classOpts}</select>
           <input class="w-ven qb-f" list="dl-vens" data-f="sel_vendor" data-tx="${escapeHtml(t.id)}" value="${venVal}" placeholder="ספק">
+          <select class="qb-f" data-f="etype" data-tx="${escapeHtml(t.id)}" title="צבע / סוג הוצאה">
+            <option value="">— צבע —</option>
+            ${Object.entries(QB_TYPES.types || {}).map(([ty, d]) => `<option value="${ty}" ${ty===t.etype?"selected":""}>${escapeHtml(d.label)}</option>`).join("")}
+          </select>
         </div>
       </div>
       <input type="checkbox" class="qb-pick" data-tx="${escapeHtml(t.id)}" ${t.picked ? "checked" : ""} title="סמני לפרסום">
@@ -978,7 +1021,8 @@ async function postSelected() {
         if (t.sel_class && !/\d{4}\s*$/.test(t.sel_class)) rule.cls = t.sel_class;
         // learn the expense TYPE too (color next time) — final account wins over pattern
         const acc = (t.sel_account || "").toLowerCase();
-        rule.etype = /loan/.test(acc) ? "loan" : (/owner|personal/.test(acc) ? "owner" : (t.etype || ""));
+        rule.etype = t.etype_manual ? (t.etype || "")
+                   : (/loan/.test(acc) ? "loan" : (/owner|personal/.test(acc) ? "owner" : (t.etype || "")));
         d.rules[k] = Object.assign({}, d.rules[k] || {}, rule, { learned_at: now });
       });
       return d;
@@ -996,6 +1040,48 @@ async function postSelected() {
     if (btn) { btn.disabled = false; btn.textContent = "🚀 POST לקוויקבוקס"; }
   }
 }
+
+// ── tracking tabs: fixed / loans / owner (Lauren 2026-06-06) ──
+let TRACKER_DATA = null;
+const TT_DEFS = { fixed: ["🟣 הוצאות קבועות", "#7c3aed"], loans: ["🔴 תשלומי הלוואות", "#b91c1c"], owner: ["⚫ Owner / אישי", "#475569"] };
+async function showTab(tab) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.getAttribute("data-tab") === tab));
+  const tv = $("tab-view"), fc = $("form-card"), tr = $("tracker");
+  if (tab === "work") { tv.classList.add("hidden"); fc.classList.remove("hidden"); if (CURRENT_SESSION) tr.classList.remove("hidden"); return; }
+  fc.classList.add("hidden"); tr.classList.add("hidden"); tv.classList.remove("hidden");
+  if (!TRACKER_DATA) {
+    tv.innerHTML = "<p style='text-align:center'>⏳ טוען...</p>";
+    try {
+      const r = await fetch("../state/qb_fixed_loan_tracker.json?_=" + Date.now(), { cache: "no-store" });
+      TRACKER_DATA = r.ok ? await r.json() : null;
+    } catch(e) {}
+    if (!TRACKER_DATA) { tv.innerHTML = "<p style='text-align:center'>⚠ אין נתונים עדיין — הרענון היומי ימלא</p>"; return; }
+  }
+  const [title, color] = TT_DEFS[tab];
+  const rows = TRACKER_DATA[tab] || [];
+  // per-payee totals (top chips)
+  const byPayee = {};
+  rows.forEach(r => { byPayee[r.payee] = (byPayee[r.payee] || 0) + r.amount; });
+  const chips = Object.entries(byPayee).sort((a,b) => b[1]-a[1]).slice(0, 14)
+    .map(([p, v]) => `<span class="tt-chip"><b>${escapeHtml(p)}</b> · $${v.toLocaleString(undefined,{maximumFractionDigits:0})}</span>`).join("");
+  // month groups
+  const byMonth = {};
+  rows.forEach(r => { (byMonth[r.date.slice(0,7)] = byMonth[r.date.slice(0,7)] || []).push(r); });
+  const months = Object.keys(byMonth).sort().reverse();
+  let html = `<h2 style="color:${color};margin:14px 0 4px">${title}</h2>
+    <p style="color:#64748b;font-size:12px;margin:0 0 6px">${rows.length} חיובים · 12 חודשים אחרונים · עודכן ${escapeHtml((TRACKER_DATA._updated_at||"").slice(0,10))}</p>
+    <div class="tt-sum">${chips}</div>`;
+  for (const m of months) {
+    const mr = byMonth[m];
+    const tot = mr.reduce((a, r) => a + r.amount, 0);
+    html += `<div class="tt-month"><h3><span>${m}</span><span style="direction:ltr">$${tot.toLocaleString(undefined,{minimumFractionDigits:2})}</span></h3>` +
+      mr.map(r => `<div class="tt-row"><span class="d">${r.date.slice(5)}</span><span class="p">${escapeHtml(r.payee)}</span><span class="acct">${escapeHtml(r.line_accounts || r.account || "")}</span><span class="a">$${r.amount.toLocaleString(undefined,{minimumFractionDigits:2})}</span></div>`).join("") + "</div>";
+  }
+  tv.innerHTML = html;
+}
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".tab-btn").forEach(b => b.onclick = () => showTab(b.getAttribute("data-tab")));
+});
 
 async function toggleDone(txId) {
   const s = CURRENT_SESSION; if (!s) return;
@@ -1143,6 +1229,16 @@ async function startQBSession() {
         t.recognized = true;
       }
       t.etype = classifyType(t);
+      // Lauren 2026-06-06: manager-card expenses (food/gas/lyft/coffee/supplies/parking)
+      // auto-assigned to the event whose window [start-3d .. end+1d] contains the date
+      const AC = QB_TYPES.auto_class || {};
+      if (!t.sel_class && (AC.cards || []).some(c => (t.qb_paid_from || "").indexOf(c) !== -1)) {
+        const hay = ((t.qb_vendor || "") + " " + (t.desc || "")).toLowerCase();
+        if ((AC.patterns || []).some(pat => hay.indexOf(pat) !== -1)) {
+          const ev = findEventForDate(t.date, AC.days_before || 3, AC.days_after || 1);
+          if (ev) { t.sel_class = ev.class_name; t.auto_class = true; if (!t.etype) t.etype = "event"; }
+        }
+      }
     });
     const sessionKey = "qb-" + sd + "-" + acct;
     const session = {
