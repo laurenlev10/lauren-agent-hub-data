@@ -843,6 +843,7 @@ function renderTracker() {
       <button class="btn-post" id="btn-post">🚀 POST לקוויקבוקס (<span id="pick-count">${picked}</span>)</button>
       <button class="btn-selall" id="btn-email-check">📧 שיוך אירוע</button>
       <button class="btn-post" id="btn-push-staged" ${STAGED_TOTAL ? "" : "disabled"}>📤 דחוף לקוויקבוקס (${STAGED_TOTAL})</button>
+      <button class="btn-selall" id="btn-clear-reviewed" style="background:#fef3c7;color:#92400e" title="שורות שכבר טופלו בקוויקבוקס בעבר — הסרה מהרשימה בלי לדחוף שום שינוי">🧹 כבר עברתי על אלה</button>
       <a href="#" id="lnk-show-done" style="font-size:12px;color:#64748b">${SHOW_DONE_QB ? "הסתר שטופלו" : "הצג שטופלו"}</a>
       <span style="font-size:12px;color:#64748b">שורות ירוקות זוהו אוטומטית לפי תיוקים קודמים שלך. POST שומר את הבחירות ומעביר לתור עדכון בקוויקבוקס.</span>
     </div>`;
@@ -881,6 +882,8 @@ function renderTracker() {
   if (emailBtn) emailBtn.onclick = queueEmailCheck;
   const pushBtn = document.getElementById("btn-push-staged");
   if (pushBtn) pushBtn.onclick = pushStaged;
+  const clearBtn = document.getElementById("btn-clear-reviewed");
+  if (clearBtn) clearBtn.onclick = clearReviewed;
   const showDone = document.getElementById("lnk-show-done");
   if (showDone) showDone.onclick = (e) => { e.preventDefault(); SHOW_DONE_QB = !SHOW_DONE_QB; renderTracker(); };
   $("sections").querySelectorAll(".done-btn").forEach(b => {
@@ -1028,6 +1031,26 @@ async function pushStaged() {
   } finally {
     if (btn) { btn.disabled = false; }
   }
+}
+
+async function clearReviewed() {
+  const s = CURRENT_SESSION; if (!s) return;
+  const picked = s.tx.filter(t => t.picked && !t.done && t.qb_key);
+  const targets = picked.length ? picked : s.tx.filter(t => !t.done && t.qb_key);
+  if (!targets.length) { toast("אין שורות", "error"); return; }
+  const what = picked.length ? (picked.length + " שורות מסומנות") : ("כל " + targets.length + " השורות");
+  if (!confirm("להסיר " + what + " מהרשימה? (כבר טופלו בקוויקבוקס — לא יידחף שום שינוי והן לא יחזרו)")) return;
+  const now = new Date().toISOString();
+  await ghPutJson("docs/state/qb_processed.json", d => {
+    d = d || { processed: {} }; if (!d.processed) d.processed = {};
+    targets.forEach(t => { d.processed[t.qb_key] = { status: "reviewed_in_qb", at: now }; });
+    return d;
+  }, "bookkeeping: " + targets.length + " rows marked already-reviewed in QB");
+  targets.forEach(t => { t.done = true; t.picked = false; t.reviewed_in_qb = true; });
+  ALL_SESSIONS[s.session_key] = s;
+  await saveState("bookkeeping: clear reviewed (" + s.session_key + ")");
+  toast("🧹 " + targets.length + " שורות הוסרו — לא יופיעו שוב", "success");
+  renderTracker();
 }
 
 async function queueEmailCheck() {
