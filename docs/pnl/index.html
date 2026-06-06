@@ -47,7 +47,7 @@ const EXP_ORDER=[
  ["marketing_meta","שיווק — Meta"],["marketing_tiktok","שיווק — TikTok"],
  ["travel","נסיעות (QB)"],["venue","מקום (QB)"],
  ["uline","ULINE — ציוד לאירוע"],["lyft","Lyft — נסיעות צוות"]];
-let PNL=null, OVR=null, OVR_SHA=null;
+let PNL=null, OVR=null, OVR_SHA=null, LIVE=[];
 
 function money(v){return (typeof v==="number")?("$"+v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})):"— ממתין";}
 function esc(s){const d=document.createElement("div");d.textContent=(s==null?"":s);return d.innerHTML;}
@@ -61,6 +61,17 @@ async function load(){
    PNL=await r.json();
  }catch(e){document.getElementById("app").innerHTML="<h1>סיכום אירוע</h1><p>"+esc(e.message)+"</p>";return;}
  try{const r2=await fetch("../state/pnl_overrides.json?_="+Date.now(),{cache:"no-store"});if(r2.ok)OVR=await r2.json();}catch(e){}
+ try{
+   const r3=await fetch("../state/pnl_qb_live.json?_="+Date.now(),{cache:"no-store"});
+   if(r3.ok){
+     const lv=((await r3.json()).events||{})[EVKEY];
+     const gen=PNL.generated_at||"";
+     // include: staged (not in QB yet) OR pushed after the last build (not yet in the built numbers)
+     LIVE=Object.entries((lv&&lv.entries)||{}).map(([k,e])=>({key:k,...e}))
+       .filter(e=>e.status==="staged"||!gen||((e.pushed_at||e.added_at||"")>gen))
+       .sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+   }
+ }catch(e){}
  if(!OVR)OVR={_updated_at:null,events:{}};
  render();
 }
@@ -80,6 +91,7 @@ function effExpenses(){
 function totals(){
  const e=effExpenses();let sum=0,pending=[];
  for(const[k,lbl]of EXP_ORDER){const a=e[k].amount;if(typeof a==="number")sum+=a;if(e[k].status!=="ok")pending.push(lbl);}
+ const liveSum=LIVE.reduce((a,x)=>a+(x.amount||0),0);sum+=liveSum;
  const net=PNL.revenue?PNL.revenue.net_sales:null;
  const profit=(typeof net==="number")?+(net-sum).toFixed(2):null;
  const margin=(profit!=null&&net)?profit/net:null;
@@ -146,6 +158,13 @@ function render(){
    else if(e.status!=="ok")badge="<span class='pend'>"+esc(e.status)+"</span>";
    h+="<tr data-k='"+k+"'><td>"+esc(lbl)+badge+"<span class='edit' onclick='startEdit(\""+k+"\")'>✏️</span></td>"+
       "<td class='num' id='amt-"+k+"'>"+money(e.amount)+"</td></tr>";
+ }
+ if(LIVE.length){
+   const lsum=LIVE.reduce((a,x)=>a+(x.amount||0),0);
+   h+="<tr><td>🧾 תיוקים חדשים מהנהלת חשבונות <span class='pend'>"+LIVE.length+" הוצאות</span></td><td class='num'>"+money(lsum)+"</td></tr>";
+   for(const e of LIVE){
+     h+="<tr style='font-size:12px;color:#64748b'><td style='padding-right:24px'>"+esc((e.date||"").slice(5).replace("-","/"))+" · "+esc(e.desc||"")+(e.status==="staged"?" <span class='pend'>ממתין לדחיפה</span>":"")+"</td><td class='num'>"+money(e.amount)+"</td></tr>";
+   }
  }
  h+="<tr class='subtot'><td>סך הוצאות</td><td class='num'>"+money(t.sum)+"</td></tr>";
  h+="<tr class='grand' style='color:"+accent+"'><td>"+rw+(prelim?" ראשוני":"")+"</td><td class='num'>"+money(t.profit)+"</td></tr>";

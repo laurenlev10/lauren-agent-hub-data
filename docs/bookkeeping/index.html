@@ -1044,6 +1044,30 @@ function learnFromRows(d, rows, now) {
   return d;
 }
 
+function evkeyForClass(clsName) {
+  if (!clsName) return null;
+  const ev = (EVENTS_INDEX.events || []).find(e => e.class_name === clsName);
+  return ev ? ev.evkey : null;
+}
+async function pnlLiveAdd(t, status) {
+  const evkey = evkeyForClass(t.sel_class); if (!evkey) return;
+  await ghPutJson("docs/state/pnl_qb_live.json", d => {
+    d = d || { events: {} }; if (!d.events) d.events = {};
+    const ev = d.events[evkey] = d.events[evkey] || { entries: {} };
+    ev.entries[t.qb_key] = { date: t.date, amount: Math.abs(t.amt),
+      desc: (t.qb_vendor || t.desc || "").slice(0, 60), account: t.sel_account || "",
+      etype: t.etype || "", status: status, added_at: new Date().toISOString() };
+    return d;
+  }, "pnl-live: " + evkey + " ← " + t.qb_key);
+}
+async function pnlLiveRemove(key) {
+  await ghPutJson("docs/state/pnl_qb_live.json", d => {
+    d = d || { events: {} };
+    for (const ev of Object.values(d.events || {})) { if (ev.entries) delete ev.entries[key]; }
+    return d;
+  }, "pnl-live: remove " + key);
+}
+
 // ── stage / unstage: Done on a QB row = "טופל" — saved + learned + hidden, pushed later ──
 async function stageRow(t) {
   const s = CURRENT_SESSION; if (!s) return false;
@@ -1064,6 +1088,7 @@ async function stageRow(t) {
   if (!r2) return false;
   await ghPutJson("docs/state/qb_filing_rules.json", d => learnFromRows(d, [t], now),
     "bookkeeping: learn from staged row");
+  await pnlLiveAdd(t, "staged");        // expense joins the event P&L immediately
   STAGED_TOTAL += 1;
   return true;
 }
@@ -1078,6 +1103,7 @@ async function unstageRow(t) {
     if (d.processed && d.processed[t.qb_key] && d.processed[t.qb_key].status === "staged") delete d.processed[t.qb_key];
     return d;
   }, "bookkeeping: unmark staged");
+  await pnlLiveRemove(t.qb_key);
   STAGED_TOTAL = Math.max(0, STAGED_TOTAL - 1);
   return true;
 }
@@ -1104,6 +1130,16 @@ async function pushStaged() {
       qb_payment_type: e.payment_type, qb_paid_from: e.paid_from }));
     const nPaid = await syncSupplierPayments(supRows);
     if (nPaid) toast("🧾 " + nPaid + " חשבוניות סומנו כשולמו בדשבורד הספקים", "success");
+    await ghPutJson("docs/state/pnl_qb_live.json", d => {
+      d = d || { events: {} };
+      const keys = new Set(stagedEntries.map(e => e.key));
+      for (const ev of Object.values(d.events || {})) {
+        for (const [k, ent] of Object.entries(ev.entries || {})) {
+          if (keys.has(k)) { ent.status = "pushed"; ent.pushed_at = new Date().toISOString(); }
+        }
+      }
+      return d;
+    }, "pnl-live: mark pushed");
     toast("🚀 " + stagedEntries.length + " הוצאות נדחפו לקוויקבוקס — יוחלו תוך כדקה", "success");
     STAGED_TOTAL = 0;
     renderTracker();
