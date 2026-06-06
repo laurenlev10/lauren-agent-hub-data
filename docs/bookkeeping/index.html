@@ -854,6 +854,9 @@ function renderTracker() {
   if (s.source === "quickbooks_api") {
     html += '<datalist id="dl-cats">' + (QB_LISTS.categories||[]).map(c => `<option>${escapeHtml(c.name)}</option>`).join("") + "</datalist>";
     html += '<datalist id="dl-vens">' + (QB_LISTS.vendors||[]).map(v => `<option>${escapeHtml(v.name)}</option>`).join("") + "</datalist>";
+    const allCls = new Set((QB_LISTS.classes||[]).map(c => c.name));
+    (EVENTS_INDEX.events||[]).forEach(e => allCls.add(e.class_name));
+    html += '<datalist id="dl-classes">' + [...allCls].sort().map(n => `<option>${escapeHtml(n)}</option>`).join("") + "</datalist>";
     const picked = s.tx.filter(t => t.picked && !t.done).length;
     html += `<div class="post-bar">
       <button class="btn-selall" id="btn-sel-rec">סמן מזוהות ✓</button>
@@ -894,6 +897,15 @@ function renderTracker() {
     el.onchange = () => {
       const t = s.tx.find(x => x.id === el.getAttribute("data-tx")); if (!t) return;
       const f = el.getAttribute("data-f");
+      if (f === "sel_class" && el.value === "__search__") {
+        const inp = document.createElement("input");
+        inp.className = "w-cls qb-f"; inp.setAttribute("list", "dl-classes");
+        inp.setAttribute("placeholder", "הקלידי שם אירוע...");
+        inp.setAttribute("data-f", "sel_class"); inp.setAttribute("data-tx", el.getAttribute("data-tx"));
+        inp.onchange = () => { t.sel_class = inp.value; };
+        el.replaceWith(inp); inp.focus();
+        return;
+      }
       t[f] = el.value;
       if (f === "etype") { t.etype_manual = true; renderTracker(); }
     };
@@ -940,6 +952,25 @@ function renderTracker() {
   });
 }
 
+function buildClassOptions(selVal) {
+  const today = new Date().toISOString().slice(0, 10);
+  const evs = EVENTS_INDEX.events || [];
+  const qbSet = new Set((QB_LISTS.classes || []).map(c => c.name));
+  const mark = n => qbSet.has(n) ? n : n + " ⚠";   // ⚠ = Class not created in QB yet
+  const opt = (v, label) => `<option value="${escapeHtml(v)}" ${v === selVal ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  const recent = evs.filter(e => e.start_date <= today).slice(-5).reverse();
+  const next = evs.filter(e => e.start_date > today).slice(0, 3);
+  const fixedCls = (QB_LISTS.classes || []).filter(c => !/\d{4}\s*$/.test(c.name));
+  let html = '<option value="">— Class —</option>';
+  const inLists = new Set([...recent, ...next].map(e => e.class_name).concat(fixedCls.map(c => c.name)));
+  if (selVal && !inLists.has(selVal)) html += opt(selVal, selVal);
+  if (recent.length) html += '<optgroup label="🕘 אירועים אחרונים">' + recent.map(e => opt(e.class_name, mark(e.class_name))).join("") + "</optgroup>";
+  if (next.length) html += '<optgroup label="📅 אירועים קרובים">' + next.map(e => opt(e.class_name, mark(e.class_name))).join("") + "</optgroup>";
+  if (fixedCls.length) html += '<optgroup label="🏬 קבועים">' + fixedCls.map(c => opt(c.name, c.name)).join("") + "</optgroup>";
+  html += '<option value="__search__">🔍 אירוע אחר — חיפוש...</option>';
+  return html;
+}
+
 function renderQBCard(t) {
   if (t.done && !SHOW_DONE_QB) return "";   // staged rows disappear from sight
   const cls = (t.done ? "done " : "") + (t.recognized ? "rec" : "");
@@ -952,8 +983,7 @@ function renderQBCard(t) {
   const catVal = escapeHtml(t.sel_account || "");
   const clsVal = escapeHtml(t.sel_class || "");
   const venVal = escapeHtml(t.sel_vendor || "");
-  const classOpts = ['<option value="">— Class —</option>']
-    .concat((QB_LISTS.classes||[]).map(c => `<option ${c.name===t.sel_class?"selected":""}>${escapeHtml(c.name)}</option>`)).join("");
+  const classOpts = buildClassOptions(t.sel_class || "");
   return `
     <div class="card ${cls}"${tStyle}>
       <div class="info" style="width:100%">
