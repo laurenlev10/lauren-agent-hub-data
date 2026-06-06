@@ -22,8 +22,9 @@ def main():
     fixed_pats = [p.lower() for p in types["types"]["fixed"]["patterns"]]
     loan_pats = [p.lower() for p in types["types"]["loan"]["patterns"]]
     owner_pats = [p.lower() for p in types["types"]["owner"]["patterns"]]
+    accum_pats = [p.lower() for p in types["types"].get("fixed_accum", {}).get("patterns", [])]
     since = (dt.date.today() - dt.timedelta(days=365)).isoformat()
-    fixed, loans, owner = [], [], []
+    fixed, loans, owner, accum = [], [], [], []
     for ent, vref in (("Purchase", "EntityRef"), ("Bill", "VendorRef")):
         start = 1
         while True:
@@ -42,17 +43,19 @@ def main():
                 hay_full = f"{hay} {line_accts.lower()}"
                 if any(p in hay for p in loan_pats) or "loan" in hay_full:
                     loans.append(row)
+                elif any(p in hay for p in accum_pats):
+                    accum.append(row)
                 elif any(p in hay for p in owner_pats) or "owner" in hay_full or "personal" in hay_full:
                     owner.append(row)
                 elif any(p in hay for p in fixed_pats):
                     fixed.append(row)
             if len(batch) < 500: break
             start += 500
-    for lst in (fixed, loans, owner): lst.sort(key=lambda r: r["date"], reverse=True)
+    for lst in (fixed, loans, owner, accum): lst.sort(key=lambda r: r["date"], reverse=True)
     out = {"_updated_at": dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-           "window_days": 365, "fixed": fixed, "loans": loans, "owner": owner}
+           "window_days": 365, "fixed": fixed, "fixed_accum": accum, "loans": loans, "owner": owner}
     (ROOT/"docs/state/qb_fixed_loan_tracker.json").write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"fixed: {len(fixed)} (${sum(r['amount'] for r in fixed):,.0f}) · loans: {len(loans)} (${sum(r['amount'] for r in loans):,.0f}) · owner: {len(owner)} (${sum(r['amount'] for r in owner):,.0f})")
+    print(f"fixed: {len(fixed)} (${sum(r['amount'] for r in fixed):,.0f}) · accum: {len(accum)} (${sum(r['amount'] for r in accum):,.0f}) · loans: {len(loans)} (${sum(r['amount'] for r in loans):,.0f}) · owner: {len(owner)} (${sum(r['amount'] for r in owner):,.0f})")
     return 0
 
 if __name__ == "__main__":
