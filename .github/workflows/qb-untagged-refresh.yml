@@ -1,0 +1,61 @@
+name: qb-untagged-refresh
+# Daily refresh of the bookkeeping work queue (unfiled QB expenses) + reference lists.
+on:
+  schedule:
+    - cron: "0 13 * * *"   # 6 AM PT
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull unfiled expenses + reference lists
+        env:
+          QB_CLIENT_ID:     ${{ secrets.QB_CLIENT_ID }}
+          QB_CLIENT_SECRET: ${{ secrets.QB_CLIENT_SECRET }}
+          QB_REALM_ID:      ${{ secrets.QB_REALM_ID }}
+          QB_TOKEN_KEY:     ${{ secrets.QB_TOKEN_KEY }}
+          GH_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/qb_untagged_pull.py
+          python3 scripts/qb_lists_pull.py
+      - name: Commit if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name  "Lauren (via Actions)"
+          git add docs/state/qb_untagged.json docs/state/qb_lists.json
+          if ! git diff --cached --quiet; then
+            git commit -m "qb: daily untagged + lists refresh [qb-applied]"
+            git pull --rebase origin main
+            git push origin main
+          fi
+      - name: Update scheduled-runs lastRunAt
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          p = "docs/scheduled-runs.json"
+          d = json.load(open(p, encoding="utf-8"))
+          now = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in d["tasks"]:
+              if t["id"] == "qb-untagged-refresh":
+                  t["lastRunAt"] = now
+          d["_updated_at"] = now
+          json.dump(d, open(p, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+          PY
+          git add docs/scheduled-runs.json
+          if ! git diff --cached --quiet; then
+            git commit -m "scheduled-runs: bump qb-untagged-refresh lastRunAt"
+            git pull --rebase origin main
+            git push origin main
+          fi
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py

@@ -9,24 +9,107 @@ Auth: production OAuth tokens in .claude/secrets/. 🛑 QBO ROTATES the refresh 
 every refresh — ALWAYS persist the new one or the chain dies.
 """
 from __future__ import annotations
-import base64, datetime as dt, json, sys, urllib.error, urllib.parse, urllib.request
+import base64, datetime as dt, json, os, subprocess, sys, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 
 def _secdir():
     for c in Path("/sessions").glob("*/mnt/Claude/.claude/secrets"):
         return c
-    return Path.home()/".claude/secrets"
+    d = Path.home()/".claude/secrets"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 SEC = _secdir()
 API = "https://quickbooks.api.intuit.com"
 TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
+GH_REPO = "laurenlev10/lauren-agent-hub-data"
+ENC_PATH = "docs/state/qb_token.enc"
 
-def _read(n): return (SEC/n).read_text().strip()
-def _write(n,v): (SEC/n).write_text(v)
+# env names for CI (GitHub Actions secrets); falls back to local secret files
+_ENV = {"qb_client_id_prod.txt": "QB_CLIENT_ID",
+        "qb_client_secret_prod.txt": "QB_CLIENT_SECRET",
+        "qb_realm_id.txt": "QB_REALM_ID"}
+
+def _read(n):
+    e = os.environ.get(_ENV.get(n, ""), "").strip()
+    if e: return e
+    return (SEC/n).read_text().strip()
+
+def _write(n,v):
+    try: (SEC/n).write_text(v)
+    except OSError: pass
+
+def _gh_token():
+    t = os.environ.get("GH_TOKEN", "").strip()
+    if t: return t
+    for name in ("github_pat.txt", "github_pat_stats_v1.txt"):
+        try: return (SEC/name).read_text().strip()
+        except OSError: continue
+    return ""
+
+def _enc_key():
+    k = os.environ.get("QB_TOKEN_KEY", "").strip()
+    if k: return k
+    return (SEC/"qb_token_key.txt").read_text().strip()
+
+def _openssl(args, data, key):
+    return subprocess.run(["openssl","enc"]+args+["-aes-256-cbc","-pbkdf2","-base64","-A","-pass","env:QBKEY"],
+        input=data, capture_output=True, text=True, env={**os.environ, "QBKEY": key}, check=True).stdout
+
+def _fetch_shared_refresh_token():
+    """Latest rotating refresh token = encrypted blob in the repo (shared between CI + Cowork)."""
+    tok = _gh_token()
+    try:
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/{GH_REPO}/contents/{ENC_PATH}?ref=main",
+            headers={"Authorization": "token "+tok, "Accept": "application/vnd.github+json"} if tok else {"Accept":"application/vnd.github+json"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            j = json.load(r)
+        blob = base64.b64decode(j["content"]).decode().strip()
+        return _openssl(["-d"], blob, _enc_key()).strip(), j.get("sha")
+    except Exception as e:
+        print(f"WARN qb_token.enc fetch failed ({e}) — falling back to local refresh token", file=sys.stderr)
+        try: return _read("qb_refresh_token.txt"), None
+        except OSError: raise SystemExit("no QB refresh token available (repo blob + local both missing)")
+
+def _push_shared_refresh_token(rt, sha):
+    """Persist the ROTATED refresh token back to the repo blob (🛑 rotation iron rule)."""
+    tok = _gh_token()
+    if not tok:
+        print("WARN no GH token — rotated refresh token NOT synced to repo", file=sys.stderr); return
+    blob = _openssl(["-salt"], rt, _enc_key()).strip()
+    body = {"message": "qb: rotate refresh token [qb-applied]",
+            "content": base64.b64encode(blob.encode()).decode(), "branch": "main"}
+    if sha: body["sha"] = sha
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/{GH_REPO}/contents/{ENC_PATH}",
+        data=json.dumps(body).encode(), method="PUT",
+        headers={"Authorization": "token "+tok, "Accept": "application/vnd.github+json",
+                 "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            r.read()
+    except urllib.error.HTTPError as e:
+        if e.code == 409:  # sha race — refetch + retry once
+            try:
+                _, sha2 = None, None
+                req2 = urllib.request.Request(
+                    f"https://api.github.com/repos/{GH_REPO}/contents/{ENC_PATH}?ref=main",
+                    headers={"Authorization": "token "+tok, "Accept": "application/vnd.github+json"})
+                with urllib.request.urlopen(req2, timeout=20) as r2: sha2 = json.load(r2).get("sha")
+                body["sha"] = sha2
+                req3 = urllib.request.Request(f"https://api.github.com/repos/{GH_REPO}/contents/{ENC_PATH}",
+                    data=json.dumps(body).encode(), method="PUT",
+                    headers={"Authorization": "token "+tok, "Accept": "application/vnd.github+json", "Content-Type": "application/json"})
+                with urllib.request.urlopen(req3, timeout=20) as r3: r3.read()
+            except Exception as e2:
+                print(f"WARN rotated-token repo sync failed after retry: {e2}", file=sys.stderr)
+        else:
+            print(f"WARN rotated-token repo sync failed: {e}", file=sys.stderr)
 
 def refresh_access_token():
     cid,csec = _read("qb_client_id_prod.txt"), _read("qb_client_secret_prod.txt")
-    rt = _read("qb_refresh_token.txt")
+    rt, sha = _fetch_shared_refresh_token()
     basic = base64.b64encode(f"{cid}:{csec}".encode()).decode()
     body = urllib.parse.urlencode({"grant_type":"refresh_token","refresh_token":rt}).encode()
     req = urllib.request.Request(TOKEN_URL, data=body, method="POST",
@@ -34,12 +117,20 @@ def refresh_access_token():
     with urllib.request.urlopen(req, timeout=30) as r:
         tok = json.load(r)
     _write("qb_access_token.txt", tok["access_token"])
-    if tok.get("refresh_token"):
+    os.environ["QB_ACCESS_TOKEN_RUNTIME"] = tok["access_token"]
+    if tok.get("refresh_token") and tok["refresh_token"] != rt:
         _write("qb_refresh_token.txt", tok["refresh_token"])
+        _push_shared_refresh_token(tok["refresh_token"], sha)
     return tok["access_token"]
 
+def _access_token():
+    at = os.environ.get("QB_ACCESS_TOKEN_RUNTIME", "").strip()
+    if at: return at
+    try: return _read("qb_access_token.txt")
+    except OSError: return refresh_access_token()
+
 def _get(path, params=None, _retry=True):
-    at = _read("qb_access_token.txt")
+    at = _access_token()
     url = API+path+("?"+urllib.parse.urlencode(params) if params else "")
     req = urllib.request.Request(url, headers={"Authorization":"Bearer "+at, "Accept":"application/json"})
     try:
@@ -54,6 +145,25 @@ def _get(path, params=None, _retry=True):
 def query(q):
     realm = _read("qb_realm_id.txt")
     return _get(f"/v3/company/{realm}/query", {"query": q, "minorversion": "70"})
+
+def qb_post(entity_path, payload, _retry=True):
+    """Full-object update POST (Purchase/Bill). Caller passes the complete object incl Id+SyncToken."""
+    realm = _read("qb_realm_id.txt")
+    at = _access_token()
+    url = f"{API}/v3/company/{realm}/{entity_path}?minorversion=70"
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
+        headers={"Authorization":"Bearer "+at, "Accept":"application/json", "Content-Type":"application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        if e.code==401 and _retry:
+            refresh_access_token()
+            return qb_post(entity_path, payload, _retry=False)
+        raise RuntimeError(f"QB POST {entity_path} HTTP {e.code}: {(e.read() or b'')[:400]}")
+
+def qb_get_entity(entity, eid):
+    return _get(f"/v3/company/{_read('qb_realm_id.txt')}/{entity.lower()}/{eid}", {"minorversion":"70"})
 
 def list_classes():
     r = query("select * from Class maxresults 200")
