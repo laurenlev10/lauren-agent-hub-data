@@ -112,6 +112,7 @@
   .qb-edit input, .qb-edit select { font-size:12px; padding:4px 6px; border:1px solid #d1d5db; border-radius:6px; background:#fff; }
   .qb-edit .w-cat{width:230px}.qb-edit .w-cls{width:160px}.qb-edit .w-ven{width:170px}
   .qb-pick{transform:scale(1.3);margin-left:8px;cursor:pointer}
+  .tchip{font-size:10px;padding:2px 7px;border-radius:8px;color:#fff;font-weight:700;white-space:nowrap}
   .post-bar{position:sticky;top:0;z-index:5;background:#fff;border:1px solid #e2e2e8;border-radius:10px;padding:10px 14px;margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 2px 6px rgba(0,0,0,.07)}
   .post-bar button{font-size:13px;padding:7px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:700}
   .btn-post{background:linear-gradient(180deg,#16a34a,#15803d);color:#fff}
@@ -353,13 +354,34 @@ function getToken() { return (localStorage.getItem(TOKEN_KEY) || "").trim(); }
 let QB_LISTS = { categories: [], classes: [], vendors: [] };
 let QB_RULES = { rules: {} };
 let QB_PROCESSED = { processed: {} };
+let QB_TYPES = { types: {}, supplier_map: {} };
 async function loadQBRefs() {
   const ts = "?_=" + Date.now();
   try { const r = await fetch("../state/qb_lists.json"+ts,{cache:"no-store"}); if (r.ok) QB_LISTS = await r.json(); } catch(e){}
   try { const r = await fetch("../state/qb_filing_rules.json"+ts,{cache:"no-store"}); if (r.ok) QB_RULES = await r.json(); } catch(e){}
   try { const r = await fetch("../state/qb_processed.json"+ts,{cache:"no-store"}); if (r.ok) QB_PROCESSED = await r.json(); } catch(e){}
+  try { const r = await fetch("../state/qb_expense_types.json"+ts,{cache:"no-store"}); if (r.ok) QB_TYPES = await r.json(); } catch(e){}
   if (!QB_RULES.rules) QB_RULES.rules = {};
   if (!QB_PROCESSED.processed) QB_PROCESSED.processed = {};
+}
+function classifyType(t) {
+  const rule = QB_RULES.rules[ruleKey(t)];
+  if (rule && rule.etype) return rule.etype;
+  const hay = ((t.qb_vendor || "") + " " + (t.desc || "")).toLowerCase();
+  for (const [ty, def] of Object.entries(QB_TYPES.types || {})) {
+    if ((def.patterns || []).some(pat => hay.indexOf(pat) !== -1)) return ty;
+  }
+  const acc = (t.sel_account || t.qb_account || "").toLowerCase();
+  if (/loan/.test(acc)) return "loan";
+  if (/owner|personal/.test(acc)) return "owner";
+  return "";
+}
+function matchSupplierName(t) {
+  const hay = ((t.qb_vendor || "") + " " + (t.desc || "")).toLowerCase();
+  for (const [pat, name] of Object.entries(QB_TYPES.supplier_map || {})) {
+    if (hay.indexOf(pat) !== -1) return name;
+  }
+  return null;
 }
 function ruleKey(t) {
   const base = (t.qb_vendor || (t.desc||"").split("·")[0] || "").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
@@ -779,6 +801,7 @@ function renderTracker() {
       <button class="btn-selall" id="btn-sel-rec">סמן מזוהות ✓</button>
       <button class="btn-selall" id="btn-sel-all">סמן הכל</button>
       <button class="btn-post" id="btn-post">🚀 POST לקוויקבוקס (<span id="pick-count">${picked}</span>)</button>
+      <button class="btn-selall" id="btn-email-check">📧 שיוך אירוע</button>
       <span style="font-size:12px;color:#64748b">שורות ירוקות זוהו אוטומטית לפי תיוקים קודמים שלך. POST שומר את הבחירות ומעביר לתור עדכון בקוויקבוקס.</span>
     </div>`;
   }
@@ -810,6 +833,8 @@ function renderTracker() {
   if (selAll) selAll.onclick = () => { s.tx.forEach(t => { if (!t.done) t.picked = true; }); renderTracker(); };
   const postBtn = document.getElementById("btn-post");
   if (postBtn) postBtn.onclick = postSelected;
+  const emailBtn = document.getElementById("btn-email-check");
+  if (emailBtn) emailBtn.onclick = queueEmailCheck;
   $("sections").querySelectorAll(".done-btn").forEach(b => {
     b.onclick = () => toggleDone(b.getAttribute("data-tx"));
   });
@@ -819,15 +844,18 @@ function renderQBCard(t) {
   const cls = (t.done ? "done " : "") + (t.recognized ? "rec" : "");
   const amtCls = t.isCredit ? "amt credit" : "amt";
   const recBadge = t.recognized ? '<span class="badge rec">✓ זוהה</span>' : "";
+  const tdef = (QB_TYPES.types || {})[t.etype];
+  const tStyle = tdef ? ` style="background:${tdef.bg};border-right:4px solid ${tdef.color}"` : "";
+  const tChip = tdef ? `<span class="tchip" style="background:${tdef.color}">${escapeHtml(tdef.label)}</span>` : "";
   const catVal = escapeHtml(t.sel_account || "");
   const clsVal = escapeHtml(t.sel_class || "");
   const venVal = escapeHtml(t.sel_vendor || "");
   const classOpts = ['<option value="">— Class —</option>']
     .concat((QB_LISTS.classes||[]).map(c => `<option ${c.name===t.sel_class?"selected":""}>${escapeHtml(c.name)}</option>`)).join("");
   return `
-    <div class="card ${cls}">
+    <div class="card ${cls}"${tStyle}>
       <div class="info" style="width:100%">
-        <div class="top-line">${escapeHtml((t.qb_vendor || t.desc).slice(0, 60))} ${recBadge}</div>
+        <div class="top-line">${escapeHtml((t.qb_vendor || t.desc).slice(0, 60))} ${tChip} ${recBadge}</div>
         <div class="bottom-line">${escapeHtml(t.date_human)} · <span class="${amtCls}">${fmtMoney(t.amt)}</span> · ${escapeHtml(t.qb_paid_from || "")} · ${escapeHtml((t.desc||"").slice(0,70))}</div>
         <div class="qb-edit">
           <input class="w-cat qb-f" list="dl-cats" data-f="sel_account" data-tx="${escapeHtml(t.id)}" value="${catVal}" placeholder="קטגוריה">
@@ -856,6 +884,65 @@ function renderCard(t) {
       <span class="badge ${badgeClass}">${escapeHtml(t.tag)}${gmailMark}</span>
       <button class="done-btn" data-tx="${escapeHtml(t.id)}">${t.done ? "בוצע" : "Done"}</button>
     </div>`;
+}
+
+async function queueEmailCheck() {
+  const s = CURRENT_SESSION; if (!s) return;
+  const picked = s.tx.filter(t => t.picked && !t.done && t.qb_key);
+  if (!picked.length) { toast("סמני קודם שורות ✓", "error"); return; }
+  const now = new Date().toISOString();
+  const entries = picked.map(t => ({ key: t.qb_key, session_key: s.session_key, tx_id: t.id,
+    date: t.date, amount: Math.abs(t.amt), vendor: t.qb_vendor || "", desc: (t.desc||"").slice(0,80),
+    status: "pending", queued_at: now }));
+  await ghPutJson("docs/state/qb_email_check_queue.json", d => {
+    d = d || { queue: [] }; if (!d.queue) d.queue = [];
+    const have = new Set(d.queue.filter(q => q.status === "pending").map(q => q.key));
+    entries.forEach(e => { if (!have.has(e.key)) d.queue.push(e); });
+    return d;
+  }, "bookkeeping: queue " + entries.length + " rows for Gmail event-matching");
+  ALL_SESSIONS[s.session_key] = s;
+  await saveState("bookkeeping: session saved before email check");
+  toast("✓ " + entries.length + ' שורות בתור. כתבי לקלוד בצ\'אט: "תריץ שיוך אירועים"', "success");
+}
+
+async function syncSupplierPayments(rows) {
+  // Lauren 2026-06-06 #4: a posted supplier expense marks the matching invoice as PAID
+  // in the suppliers dashboard. Conservative: only when exactly ONE unpaid invoice of
+  // that supplier matches the amount within $1.
+  const supRows = rows.filter(t => t.etype === "supplier" && matchSupplierName(t));
+  if (!supRows.length) return 0;
+  let invoices = {};
+  try {
+    const r = await fetch("../state/supplier_invoices.json?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok) invoices = (await r.json()).suppliers || {};
+  } catch(e) { return 0; }
+  let payState = {};
+  try {
+    const r = await fetch("../state/supplier_payments.json?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok) payState = (await r.json()).invoices || {};
+  } catch(e) {}
+  const updates = {};
+  for (const t of supRows) {
+    const supName = matchSupplierName(t);
+    const sup = invoices[supName]; if (!sup) continue;
+    const amt = Math.abs(t.amt);
+    const cands = (sup.invoices || []).filter(inv =>
+      !((payState[inv.id] || {}).paid) && !updates[inv.id] && Math.abs((inv.amount || 0) - amt) <= 1.0);
+    if (cands.length === 1) {
+      const pt = ((t.qb_payment_type || "") + " " + (t.qb_paid_from || "")).toLowerCase();
+      const method = pt.indexOf("credit") !== -1 ? "Credit Card" : (pt.indexOf("check") !== -1 ? "Check" : "Zelle");
+      updates[cands[0].id] = { paid: true, paid_date: t.date, payment_method: method,
+        auto_source: "bookkeeping POST " + t.qb_key };
+    }
+  }
+  const n = Object.keys(updates).length;
+  if (!n) return 0;
+  await ghPutJson("docs/state/supplier_payments.json", d => {
+    d = d || { invoices: {} }; if (!d.invoices) d.invoices = {};
+    for (const [id, u] of Object.entries(updates)) d.invoices[id] = Object.assign({}, d.invoices[id] || {}, u);
+    return d;
+  }, "suppliers: auto-mark " + n + " invoices paid (from bookkeeping POST)");
+  return n;
 }
 
 async function postSelected() {
@@ -889,10 +976,15 @@ async function postSelected() {
         const rule = { account: t.sel_account || "", vendor: t.sel_vendor || "" };
         // learn class only if it is NOT event-specific (event classes end with a year)
         if (t.sel_class && !/\d{4}\s*$/.test(t.sel_class)) rule.cls = t.sel_class;
+        // learn the expense TYPE too (color next time) — final account wins over pattern
+        const acc = (t.sel_account || "").toLowerCase();
+        rule.etype = /loan/.test(acc) ? "loan" : (/owner|personal/.test(acc) ? "owner" : (t.etype || ""));
         d.rules[k] = Object.assign({}, d.rules[k] || {}, rule, { learned_at: now });
       });
       return d;
     }, "bookkeeping: learn " + picked.length + " filing rules");
+    const nPaid = await syncSupplierPayments(picked);
+    if (nPaid) toast("🧾 " + nPaid + " חשבוניות סומנו כשולמו בדשבורד הספקים", "success");
     picked.forEach(t => { t.done = true; t.picked = false; t.posted = true; });
     ALL_SESSIONS[s.session_key] = s;
     await saveState("bookkeeping: POST " + picked.length + " rows (" + s.session_key + ")");
@@ -1050,6 +1142,7 @@ async function startQBSession() {
         if (rule.vendor) t.sel_vendor = rule.vendor;
         t.recognized = true;
       }
+      t.etype = classifyType(t);
     });
     const sessionKey = "qb-" + sd + "-" + acct;
     const session = {
