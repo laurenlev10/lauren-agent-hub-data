@@ -172,7 +172,19 @@ def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analyt
         expenses["marketing_tiktok"] = _line(0.0, "event_analytics(tiktok)", "ok", "no TikTok spend recorded (auto API in review)")
     else:
         expenses["marketing_tiktok"] = _line(None, "tiktok_api", "pending", "Reporting scope in review")
-    # Travel / Venue (non-cash, from QuickBooks — pending review)
+    # Travel / Venue / ULINE / Lyft (non-cash) — auto-fetch from QuickBooks by Class
+    # "{City} {Year}" (e.g. "Cleveland 2026"). Falls back to pending if QB not available.
+    if qb_expenses is None and ev:
+        try:
+            import pnl_quickbooks
+            cls = f"{ev.get('city')} {(start or '')[:4]}"
+            qbd = pnl_quickbooks.fetch_qb_expenses(cls)
+            if qbd.get("lines"):
+                bc = qbd.get("by_category", {})
+                qb_expenses = {k: bc[k] for k in ("travel", "venue", "uline", "lyft") if k in bc}
+        except Exception as e:
+            print(f"WARN QB fetch skipped: {e}", file=sys.stderr)
+    # Travel / Venue (non-cash, from QuickBooks)
     qb = qb_expenses or {}
     for k in ("travel", "venue", "other_nonloud"):
         pass
