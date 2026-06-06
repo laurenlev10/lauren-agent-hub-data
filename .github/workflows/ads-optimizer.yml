@@ -1,0 +1,85 @@
+# ads-optimizer.yml — refresh @ads-optimizer recommendations from @stats.
+#
+# Read-only brain: reads event_analytics.json (Meta + TikTok per-ad data + realized ROAS)
+# and writes PAUSE/SCALE recommendations to docs/state/ads_optimizer.json. NEVER touches
+# Meta/TikTok — execution only happens after Lauren approves each rec in /ads-optimizer/.
+# Lauren's approve/dismiss decisions are merge-preserved across runs (IRON RULE #7).
+#
+# IRON RULE #4 compliant: registers in scheduled-runs.json + SMS on failure.
+# Created 2026-06-05.
+
+name: ads-optimizer
+
+on:
+  schedule:
+    - cron: '0 14,22 * * *'   # twice daily — 14:00 & 22:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build ad recommendations
+        run: python3 scripts/ads_optimizer.py
+
+      - name: Commit + push if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name  "Lauren (via Actions)"
+          git add docs/state/ads_optimizer.json
+          if git diff --cached --quiet; then
+            echo "No changes."
+          else
+            git commit -m "ads-optimizer: refresh recommendations $(date -u +%Y-%m-%dT%H:%MZ)"
+            for i in 1 2 3 4 5; do
+              if git pull --rebase origin main && git push origin main; then
+                echo "pushed on attempt $i"; break
+              fi
+              echo "push attempt $i failed, retrying in 5s..."; sleep 5
+            done
+          fi
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "ads-optimizer":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump ads-optimizer lastRunAt"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py

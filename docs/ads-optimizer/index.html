@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@ads-optimizer — אופטימיזציית תקציב פרסום</title>
+<style>
+  :root{--bg:#0d0f14;--card:#161a22;--line:#262c38;--ink:#e8ecf3;--mut:#9aa6b8;
+        --pause:#ff5d6c;--scale:#22d39a;--meta:#1877f2;--tiktok:#25f4ee;--accent:#a98bff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Rubik,Arial,sans-serif;padding:18px}
+  h1{font-size:21px;margin:0 0 2px}
+  .sub{color:var(--mut);font-size:13px;margin-bottom:16px}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 16px;min-width:120px}
+  .stat .n{font-size:24px;font-weight:700}
+  .stat .l{color:var(--mut);font-size:12px}
+  .sec-h{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700;margin:22px 0 10px}
+  .pill{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px;
+        display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+  .card.pause{border-right:4px solid var(--pause)}
+  .card.scale{border-right:4px solid var(--scale)}
+  .adname{font-weight:600;font-size:15px}
+  .camp{color:var(--mut);font-size:12px;margin-top:1px}
+  .meta-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px;font-size:12px;color:var(--mut)}
+  .chip{background:#0d1017;border:1px solid var(--line);border-radius:7px;padding:2px 7px}
+  .chip.meta{color:#7eb6ff}.chip.tiktok{color:#67e8f9}
+  .reason{margin-top:7px;font-size:13px;color:var(--ink)}
+  .acts{display:flex;flex-direction:column;gap:6px;min-width:140px}
+  .sug{font-size:12px;color:var(--mut);text-align:center;margin-bottom:2px}
+  button{font:inherit;border-radius:9px;border:1px solid var(--line);padding:8px 10px;cursor:pointer;font-size:13px}
+  .apply{background:var(--scale);color:#06281e;border-color:transparent;font-weight:700}
+  .apply.pause{background:var(--pause);color:#2c0007}
+  .dismiss{background:transparent;color:var(--mut)}
+  .status{font-size:12px;text-align:center;padding:7px;border-radius:9px}
+  .status.approved{background:rgba(34,211,154,.14);color:var(--scale)}
+  .status.dismissed{background:rgba(154,166,184,.12);color:var(--mut)}
+  .status.executed{background:rgba(169,139,255,.16);color:var(--accent)}
+  .note{background:#12161e;border:1px dashed var(--line);border-radius:10px;padding:11px 13px;color:var(--mut);font-size:12.5px;margin:6px 0 18px}
+  .tok{margin-bottom:14px}
+  .tok input{background:#0d1017;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 10px;width:330px;max-width:60vw}
+  #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1d2330;border:1px solid var(--line);
+         padding:10px 16px;border-radius:10px;opacity:0;transition:.25s;pointer-events:none;font-size:13px}
+  #toast.on{opacity:1}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+  <h1>📈 @ads-optimizer</h1>
+  <div class="sub">המלצות אופטימיזציה לתקציב הפרסום — מבוסס על @stats (Meta + TikTok). שום שינוי לא רץ בלי האישור שלך.</div>
+
+  <div class="tok">
+    <input id="ghtok" type="password" placeholder="GitHub token (נשמר מקומית בלבד) — לאישור/דחייה">
+    <button onclick="saveTok()">שמירת token</button>
+  </div>
+
+  <div class="bar" id="bar"></div>
+
+  <div class="note" id="srcnote"></div>
+
+  <div id="paused"></div>
+  <div id="scaled"></div>
+
+  <div class="note">
+    🛠️ <b>איך הביצוע עובד:</b> לחיצה על "✅ אישור" מסמנת את ההמלצה כמאושרת ושומרת ב-GitHub.
+    מנוע הביצוע (phase 2) קורא את המאושרות ומריץ אותן ב-Meta/TikTok דרך ה-API, ומדווח לך ב-SMS.
+    "✖ דחייה" מסירה את ההמלצה ולא תחזור. כל ההחלטות נשמרות בין הרצות.
+  </div>
+
+  <div id="toast"></div>
+<script>
+  var REPO="laurenlev10/lauren-agent-hub-data";
+  var STATE_FILE="docs/state/ads_optimizer.json";
+  var DATA=null;
+  function toast(m){var t=document.getElementById("toast");t.textContent=m;t.classList.add("on");setTimeout(function(){t.classList.remove("on")},2200)}
+  function tok(){return (localStorage.getItem("lauren_gh_token_v1")||"").trim()}
+  function saveTok(){var v=document.getElementById("ghtok").value.trim();if(v){localStorage.setItem("lauren_gh_token_v1",v);toast("✓ token נשמר");document.getElementById("ghtok").value=""}}
+  function chBadge(c){return '<span class="chip '+c+'">'+(c==="meta"?"Meta":"TikTok")+'</span>'}
+  function esc(s){return (s||"").replace(/[&<>"]/g,function(m){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]})}
+
+  async function load(){
+    try{
+      var r=await fetch("../state/ads_optimizer.json?_="+Date.now(),{cache:"no-store"});
+      DATA=await r.json();
+    }catch(e){ document.getElementById("srcnote").textContent="⚠ לא הצלחתי לטעון ads_optimizer.json"; return }
+    render();
+  }
+  function render(){
+    var recs=DATA.recommendations||[], s=DATA.summary||{};
+    var open=recs.filter(function(r){return r.status==="open"});
+    document.getElementById("bar").innerHTML=
+      stat(s.pause_count||0,"לכיבוי 🔻")+stat(s.scale_count||0,"להגדלה 🔺")+
+      stat(s.events_covered||0,"אירועים")+stat(open.length,"ממתינות להחלטה");
+    var upd=DATA._updated_at?new Date(DATA._updated_at).toLocaleString("he-IL"):"—";
+    var th=DATA.thresholds||{};
+    document.getElementById("srcnote").innerHTML="עודכן: "+upd+
+      " · ספים: כיבוי כש-CPL/CPC ≥ "+(th.PAUSE_RATIO||"?")+"× מהממוצע בערוץ (וגם מעל הממוצע הכללי), "+
+      "הגדלה כש-≤ "+(th.SCALE_RATIO||"?")+"× עם תקציב משמעותי. נשפטות רק מודעות מאירועים שעדיין מפרסמים. "+
+      "ההמלצות מחושבות מ-top-ads ש-@stats שומר; זיהוי מלא של מודעות חלשות יתווסף כשהמנוע ימשוך את רשימת המודעות המלאה.";
+    document.getElementById("paused").innerHTML='<div class="sec-h">🔻 כיבוי מודעות חלשות <span class="pill">'+recs.filter(byA("pause")).length+'</span></div>'+
+      (recs.filter(byA("pause")).map(card).join("")||emptyMsg());
+    document.getElementById("scaled").innerHTML='<div class="sec-h">🔺 הגדלת תקציב למנצחים <span class="pill">'+recs.filter(byA("scale")).length+'</span></div>'+
+      (recs.filter(byA("scale")).map(card).join("")||emptyMsg());
+  }
+  function byA(a){return function(r){return r.action===a}}
+  function stat(n,l){return '<div class="stat"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'}
+  function emptyMsg(){return '<div class="note">אין כרגע המלצות בקטגוריה הזו ✓</div>'}
+  function card(r){
+    var actHtml;
+    if(r.status==="approved") actHtml='<div class="status approved">✓ מאושר — ממתין לביצוע</div>';
+    else if(r.status==="executed") actHtml='<div class="status executed">⚡ בוצע</div>';
+    else if(r.status==="dismissed") actHtml='<div class="status dismissed">נדחה</div>';
+    else actHtml='<div class="sug">'+esc(r.suggested_change)+'</div>'+
+      '<button class="apply '+(r.action==="pause"?"pause":"")+'" onclick="decide(\''+r.id+'\',\'approved\')">✅ אישור</button>'+
+      '<button class="dismiss" onclick="decide(\''+r.id+'\',\'dismissed\')">✖ דחייה</button>';
+    return '<div class="card '+r.action+'">'+
+      '<div><div class="adname">'+esc(r.ad_name)+'</div>'+
+      (r.campaign_name?'<div class="camp">'+esc(r.campaign_name)+'</div>':'')+
+      '<div class="meta-row">'+chBadge(r.channel)+
+        '<span class="chip">'+esc(r.event_slug)+'</span>'+
+        '<span class="chip">'+r.metric_name+' $'+r.metric_value+' (ממוצע $'+r.benchmark+', x'+r.ratio+')</span>'+
+        '<span class="chip">הוצאה $'+Math.round(r.spend)+'</span>'+
+        (r.roas!=null?'<span class="chip">ROAS '+r.roas+'</span>':'')+
+      '</div>'+
+      '<div class="reason">'+esc(r.reason)+'</div></div>'+
+      '<div class="acts">'+actHtml+'</div></div>';
+  }
+
+  async function decide(id,status){
+    var t=tok();
+    if(!t){toast("⚠ צריך GitHub token קודם");return}
+    // read-merge-write (IRON RULE #7): fetch live, set this rec's status, PUT back
+    try{
+      var api="https://api.github.com/repos/"+REPO+"/contents/"+STATE_FILE;
+      var g=await fetch(api+"?ref=main&_="+Date.now(),{headers:{Authorization:"token "+t,Accept:"application/vnd.github+json"},cache:"no-store"});
+      if(!g.ok){toast("⚠ קריאה נכשלה ("+g.status+")");return}
+      var j=await g.json();
+      var live=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,"")))));
+      var found=false;
+      (live.recommendations||[]).forEach(function(r){
+        if(r.id===id){r.status=status;r.decided_at=new Date().toISOString();found=true}
+      });
+      if(!found){toast("⚠ ההמלצה לא נמצאה (אולי רוענן)");return}
+      live.summary=live.summary||{};
+      live.summary.open_count=(live.recommendations||[]).filter(function(r){return r.status==="open"}).length;
+      var body={message:"ads-optimizer: "+status+" "+id,content:btoa(unescape(encodeURIComponent(JSON.stringify(live,null,2)))),branch:"main",sha:j.sha};
+      var p=await fetch(api,{method:"PUT",headers:{Authorization:"token "+t,Accept:"application/vnd.github+json","Content-Type":"application/json"},body:JSON.stringify(body)});
+      if(p.ok){toast(status==="approved"?"✅ אושר ונשמר":"✖ נדחה");DATA=live;render()}
+      else{toast("⚠ שמירה נכשלה ("+p.status+")")}
+    }catch(e){toast("⚠ שגיאה: "+e.message)}
+  }
+
+  load();
+</script>
+</body>
+</html>
