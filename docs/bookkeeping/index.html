@@ -398,7 +398,8 @@ function classifyType(t) {
   const acc = (t.sel_account || t.qb_account || "").toLowerCase();
   if (/loan/.test(acc)) return "loan";
   if (/owner|personal/.test(acc)) return "owner";
-  if (/travel|lodging|accommodation|airfare|meals/.test(acc)) return "event";
+  if (/meals|job supplies/.test(acc)) return "event_accum";
+  if (/travel|lodging|accommodation|airfare/.test(acc)) return "event_travel";
   return "";
 }
 function addDays(iso, n) {
@@ -1374,7 +1375,7 @@ async function startQBSession() {
         const hay = ((t.qb_vendor || "") + " " + (t.desc || "")).toLowerCase();
         if ((AC.patterns || []).some(pat => hay.indexOf(pat) !== -1)) {
           const ev = findEventForDate(t.date, AC.days_before || 3, AC.days_after || 1);
-          if (ev) { t.sel_class = ev.class_name; t.auto_class = true; if (!t.etype) t.etype = "event"; }
+          if (ev) { t.sel_class = ev.class_name; t.auto_class = true; if (!t.etype || t.etype === "event_travel") t.etype = "event_accum"; }
         }
       }
     });
