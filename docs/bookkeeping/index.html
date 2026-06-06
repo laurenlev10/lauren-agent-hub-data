@@ -433,32 +433,53 @@ function ruleKey(t) {
   return base.slice(0,40) || "misc";
 }
 let PUT_CHAIN = Promise.resolve();   // serialize writes — rapid Done clicks must not race each other
-function ghPutJson(path, mutate, msg) {
-  const run = PUT_CHAIN.then(() => _ghPutJsonOnce(path, mutate, msg, 3));
-  PUT_CHAIN = run.catch(() => {});   // keep the chain alive after failures
+function ghPutJson(path, mutate, msg) { return ghBatchJson([{ path, mutate }], msg); }
+function ghBatchJson(files, msg) {
+  const run = PUT_CHAIN.then(() => _ghBatchOnce(files, msg, 4));
+  PUT_CHAIN = run.catch(() => {});
   return run;
 }
-async function _ghPutJsonOnce(path, mutate, msg, retry) {
+// ONE commit for all files (Git Data API) — a Done used to make 4-5 commits that raced
+// the cron workflows' commits and produced constant 409s.
+async function _ghBatchOnce(files, msg, retry) {
   const token = getToken();
   if (!token) { toast("⚠ אין GitHub token", "error"); return null; }
-  const base = `https://api.github.com/repos/${GH_REPO}/contents/${path}`;
-  const getR = await fetch(base + "?ref=main&_=" + Date.now(), { cache:"no-store", headers:{ "Authorization":"token "+token, "Accept":"application/vnd.github+json" }});
-  let sha = null, data = null;
-  if (getR.ok) { const j = await getR.json(); sha = j.sha; try { data = JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,""))))); } catch(e){} }
-  data = mutate(data) || data;
-  data._updated_at = new Date().toISOString();
-  const body = { message: msg, content: btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2)))), branch:"main" };
-  if (sha) body.sha = sha;
-  const putR = await fetch(base, { method:"PUT", headers:{ "Authorization":"token "+token, "Accept":"application/vnd.github+json", "Content-Type":"application/json" }, body: JSON.stringify(body) });
-  if (!putR.ok) {
-    if (retry > 0 && (putR.status === 409 || putR.status === 422)) {
-      await new Promise(r => setTimeout(r, (4 - retry) * 1200));   // commit race — backoff + refetch
-      return _ghPutJsonOnce(path, mutate, msg, retry - 1);
+  const H = { "Authorization": "token " + token, "Accept": "application/vnd.github+json", "Content-Type": "application/json" };
+  const api = `https://api.github.com/repos/${GH_REPO}`;
+  try {
+    const ref = await (await fetch(`${api}/git/ref/heads/main?_=${Date.now()}`, { cache: "no-store", headers: H })).json();
+    const headSha = ref.object && ref.object.sha;
+    if (!headSha) throw new Error("ref read failed");
+    const headCommit = await (await fetch(`${api}/git/commits/${headSha}`, { headers: H })).json();
+    const entries = [];
+    let lastData = null;
+    for (const f of files) {
+      let data = null;
+      const cr = await fetch(`${api}/contents/${f.path}?ref=${headSha}&_=${Date.now()}`, { cache: "no-store", headers: H });
+      if (cr.ok) { const j = await cr.json(); try { data = JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,""))))); } catch(e){} }
+      data = f.mutate(data) || data;
+      data._updated_at = new Date().toISOString();
+      lastData = data;
+      entries.push({ path: f.path, mode: "100644", type: "blob", content: JSON.stringify(data, null, 2) });
     }
-    toast("שמירה נכשלה ("+putR.status+") — "+path.split("/").pop(), "error");
+    const tree = await (await fetch(`${api}/git/trees`, { method: "POST", headers: H,
+      body: JSON.stringify({ base_tree: headCommit.tree.sha, tree: entries }) })).json();
+    if (!tree.sha) throw new Error("tree failed");
+    const commit = await (await fetch(`${api}/git/commits`, { method: "POST", headers: H,
+      body: JSON.stringify({ message: msg, tree: tree.sha, parents: [headSha] }) })).json();
+    if (!commit.sha) throw new Error("commit failed");
+    const up = await fetch(`${api}/git/refs/heads/main`, { method: "PATCH", headers: H,
+      body: JSON.stringify({ sha: commit.sha, force: false }) });
+    if (!up.ok) throw new Error("ref " + up.status);   // someone committed meanwhile → retry whole batch
+    return lastData;
+  } catch (e) {
+    if (retry > 0) {
+      await new Promise(r => setTimeout(r, (5 - retry) * 1000));
+      return _ghBatchOnce(files, msg, retry - 1);
+    }
+    toast("שמירה נכשלה — נסי שוב (" + (e.message || "") + ")", "error");
     return null;
   }
-  return data;
 }
 function setToken(v) { localStorage.setItem(TOKEN_KEY, v.trim()); renderTokenArea(); }
 
@@ -1078,39 +1099,48 @@ async function stageRow(t) {
   const s = CURRENT_SESSION; if (!s) return false;
   const now = new Date().toISOString();
   const entry = buildQueueEntry(t, "staged");
-  const r1 = await ghPutJson("docs/state/qb_post_queue.json", d => {
-    d = d || { queue: [] }; if (!d.queue) d.queue = [];
-    const i = d.queue.findIndex(q => q.key === entry.key && q.status !== "applied");
-    if (i >= 0) d.queue[i] = entry; else d.queue.push(entry);
-    return d;
-  }, "bookkeeping: stage " + entry.key);
-  if (!r1) return false;
-  const r2 = await ghPutJson("docs/state/qb_processed.json", d => {
-    d = d || { processed: {} }; if (!d.processed) d.processed = {};
-    d.processed[entry.key] = { status: "staged", at: now };
-    return d;
-  }, "bookkeeping: mark staged");
-  if (!r2) return false;
-  await ghPutJson("docs/state/qb_filing_rules.json", d => learnFromRows(d, [t], now),
-    "bookkeeping: learn from staged row");
-  await pnlLiveAdd(t, "staged");        // expense joins the event P&L immediately
+  const evkey = evkeyForClass(t.sel_class);
+  const files = [
+    { path: "docs/state/qb_post_queue.json", mutate: d => {
+        d = d || { queue: [] }; if (!d.queue) d.queue = [];
+        const i = d.queue.findIndex(q => q.key === entry.key && q.status !== "applied");
+        if (i >= 0) d.queue[i] = entry; else d.queue.push(entry);
+        return d; } },
+    { path: "docs/state/qb_processed.json", mutate: d => {
+        d = d || { processed: {} }; if (!d.processed) d.processed = {};
+        d.processed[entry.key] = { status: "staged", at: now };
+        return d; } },
+    { path: "docs/state/qb_filing_rules.json", mutate: d => learnFromRows(d, [t], now) },
+  ];
+  if (evkey) files.push({ path: "docs/state/pnl_qb_live.json", mutate: d => {
+      d = d || { events: {} }; if (!d.events) d.events = {};
+      const ev = d.events[evkey] = d.events[evkey] || { entries: {} };
+      ev.entries[t.qb_key] = { date: t.date, amount: Math.abs(t.amt),
+        desc: (t.qb_vendor || t.desc || "").slice(0, 60), account: t.sel_account || "",
+        etype: t.etype || "", status: "staged", added_at: now };
+      return d; } });
+  const r = await ghBatchJson(files, "bookkeeping: stage " + entry.key);
+  if (!r) return false;
   STAGED_TOTAL += 1;
   return true;
 }
 async function unstageRow(t) {
-  await ghPutJson("docs/state/qb_post_queue.json", d => {
-    d = d || { queue: [] };
-    d.queue = (d.queue || []).filter(q => !(q.key === t.qb_key && q.status === "staged"));
-    return d;
-  }, "bookkeeping: unstage " + t.qb_key);
-  await ghPutJson("docs/state/qb_processed.json", d => {
-    d = d || { processed: {} };
-    if (d.processed && d.processed[t.qb_key] && d.processed[t.qb_key].status === "staged") delete d.processed[t.qb_key];
-    return d;
-  }, "bookkeeping: unmark staged");
-  await pnlLiveRemove(t.qb_key);
-  STAGED_TOTAL = Math.max(0, STAGED_TOTAL - 1);
-  return true;
+  const r = await ghBatchJson([
+    { path: "docs/state/qb_post_queue.json", mutate: d => {
+        d = d || { queue: [] };
+        d.queue = (d.queue || []).filter(q => !(q.key === t.qb_key && q.status === "staged"));
+        return d; } },
+    { path: "docs/state/qb_processed.json", mutate: d => {
+        d = d || { processed: {} };
+        if (d.processed && d.processed[t.qb_key] && d.processed[t.qb_key].status === "staged") delete d.processed[t.qb_key];
+        return d; } },
+    { path: "docs/state/pnl_qb_live.json", mutate: d => {
+        d = d || { events: {} };
+        for (const ev of Object.values(d.events || {})) { if (ev.entries) delete ev.entries[t.qb_key]; }
+        return d; } },
+  ], "bookkeeping: unstage " + t.qb_key);
+  if (r) STAGED_TOTAL = Math.max(0, STAGED_TOTAL - 1);
+  return !!r;
 }
 
 // ── the big push: everything staged → queued → CI applies to QuickBooks ──
@@ -1119,32 +1149,31 @@ async function pushStaged() {
   if (btn) { btn.disabled = true; btn.textContent = "⏳ דוחף..."; }
   try {
     let stagedEntries = [];
-    await ghPutJson("docs/state/qb_post_queue.json", d => {
-      d = d || { queue: [] };
-      (d.queue || []).forEach(q => { if (q.status === "staged") { q.status = "queued"; q.queued_at = new Date().toISOString(); stagedEntries.push(q); } });
-      return d;
-    }, "bookkeeping: push " + STAGED_TOTAL + " staged rows to QuickBooks [qb-go]");
-    await ghPutJson("docs/state/qb_processed.json", d => {
-      d = d || { processed: {} };
-      stagedEntries.forEach(e => { d.processed[e.key] = { status: "queued", at: new Date().toISOString() }; });
-      return d;
-    }, "bookkeeping: staged → queued");
-    // supplier invoices: mark matching unpaid invoices as paid
+    const nowIso = new Date().toISOString();
+    await ghBatchJson([
+      { path: "docs/state/qb_post_queue.json", mutate: d => {
+          d = d || { queue: [] };
+          (d.queue || []).forEach(q => { if (q.status === "staged") { q.status = "queued"; q.queued_at = nowIso; stagedEntries.push(q); } });
+          return d; } },
+      { path: "docs/state/qb_processed.json", mutate: d => {
+          d = d || { processed: {} };
+          stagedEntries.forEach(e => { d.processed[e.key] = { status: "queued", at: nowIso }; });
+          return d; } },
+      { path: "docs/state/pnl_qb_live.json", mutate: d => {
+          d = d || { events: {} };
+          const keys = new Set(stagedEntries.map(e => e.key));
+          for (const ev of Object.values(d.events || {})) {
+            for (const [k, ent] of Object.entries(ev.entries || {})) {
+              if (keys.has(k)) { ent.status = "pushed"; ent.pushed_at = nowIso; }
+            }
+          }
+          return d; } },
+    ], "bookkeeping: push " + STAGED_TOTAL + " staged rows to QuickBooks [qb-go]");
     const supRows = stagedEntries.filter(e => e.etype === "supplier").map(e => ({
       etype: e.etype, qb_vendor: e.vendor, desc: e.desc, amt: e.amount, date: e.date,
       qb_payment_type: e.payment_type, qb_paid_from: e.paid_from }));
     const nPaid = await syncSupplierPayments(supRows);
     if (nPaid) toast("🧾 " + nPaid + " חשבוניות סומנו כשולמו בדשבורד הספקים", "success");
-    await ghPutJson("docs/state/pnl_qb_live.json", d => {
-      d = d || { events: {} };
-      const keys = new Set(stagedEntries.map(e => e.key));
-      for (const ev of Object.values(d.events || {})) {
-        for (const [k, ent] of Object.entries(ev.entries || {})) {
-          if (keys.has(k)) { ent.status = "pushed"; ent.pushed_at = new Date().toISOString(); }
-        }
-      }
-      return d;
-    }, "pnl-live: mark pushed");
     toast("🚀 " + stagedEntries.length + " הוצאות נדחפו לקוויקבוקס — יוחלו תוך כדקה", "success");
     STAGED_TOTAL = 0;
     renderTracker();
@@ -1243,19 +1272,18 @@ async function postSelected() {
   try {
     const now = new Date().toISOString();
     const entries = picked.map(t => buildQueueEntry(t, "queued"));
-    await ghPutJson("docs/state/qb_post_queue.json", d => {
-      d = d || { queue: [] }; if (!d.queue) d.queue = [];
-      const have = new Set(d.queue.map(q => q.key));
-      entries.forEach(e => { if (!have.has(e.key)) d.queue.push(e); });
-      return d;
-    }, "bookkeeping: queue " + entries.length + " QB updates [qb-go]");
-    await ghPutJson("docs/state/qb_processed.json", d => {
-      d = d || { processed: {} }; if (!d.processed) d.processed = {};
-      entries.forEach(e => { d.processed[e.key] = { status: "queued", at: now }; });
-      return d;
-    }, "bookkeeping: mark " + entries.length + " processed");
-    await ghPutJson("docs/state/qb_filing_rules.json", d => learnFromRows(d, picked, now),
-      "bookkeeping: learn " + picked.length + " filing rules");
+    await ghBatchJson([
+      { path: "docs/state/qb_post_queue.json", mutate: d => {
+          d = d || { queue: [] }; if (!d.queue) d.queue = [];
+          const have = new Set(d.queue.map(q => q.key));
+          entries.forEach(e => { if (!have.has(e.key)) d.queue.push(e); });
+          return d; } },
+      { path: "docs/state/qb_processed.json", mutate: d => {
+          d = d || { processed: {} }; if (!d.processed) d.processed = {};
+          entries.forEach(e => { d.processed[e.key] = { status: "queued", at: now }; });
+          return d; } },
+      { path: "docs/state/qb_filing_rules.json", mutate: d => learnFromRows(d, picked, now) },
+    ], "bookkeeping: queue " + entries.length + " QB updates [qb-go]");
     const nPaid = await syncSupplierPayments(picked);
     if (nPaid) toast("🧾 " + nPaid + " חשבוניות סומנו כשולמו בדשבורד הספקים", "success");
     picked.forEach(t => { t.done = true; t.picked = false; t.posted = true; });
