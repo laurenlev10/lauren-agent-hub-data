@@ -74,6 +74,25 @@ jobs:
             git push origin main
           fi
 
+      - name: Cross-push ads_optimizer.json to events repo (for /stats.html)
+        env:
+          GH_PAT: ${{ secrets.EVENTS_REPO_PAT }}
+        run: |
+          if [ -z "$GH_PAT" ]; then echo "⚠ EVENTS_REPO_PAT not set — skipping cross-repo push"; exit 0; fi
+          git clone https://x-access-token:${GH_PAT}@github.com/laurenlev10/themakeupblowout-events.git /tmp/ev
+          mkdir -p /tmp/ev/docs/state
+          cp docs/state/ads_optimizer.json /tmp/ev/docs/state/ads_optimizer.json
+          cd /tmp/ev
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          git add docs/state/ads_optimizer.json
+          if git diff --cached --quiet; then
+            echo "No change."
+          else
+            git commit -m "ads-optimizer: refresh recommendations for /stats.html"
+            git push origin main
+          fi
+
       - name: SMS Lauren on failure
         if: failure()
         env:
