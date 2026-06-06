@@ -106,6 +106,16 @@
            white-space: nowrap; color: white; }
   .badge.event { background: linear-gradient(135deg, #ec4899, #9333ea); }
   .badge.pending { background: #fbbf24; color: #78350f; }
+  .card.rec { background: #ecfdf5; border-right: 4px solid #10b981; }
+  .badge.rec { background: #d1fae5; color: #065f46; }
+  .qb-edit { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; width:100%; }
+  .qb-edit input, .qb-edit select { font-size:12px; padding:4px 6px; border:1px solid #d1d5db; border-radius:6px; background:#fff; }
+  .qb-edit .w-cat{width:230px}.qb-edit .w-cls{width:160px}.qb-edit .w-ven{width:170px}
+  .qb-pick{transform:scale(1.3);margin-left:8px;cursor:pointer}
+  .post-bar{position:sticky;top:0;z-index:5;background:#fff;border:1px solid #e2e2e8;border-radius:10px;padding:10px 14px;margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 2px 6px rgba(0,0,0,.07)}
+  .post-bar button{font-size:13px;padding:7px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:700}
+  .btn-post{background:linear-gradient(180deg,#16a34a,#15803d);color:#fff}
+  .btn-selall{background:#ede9fe;color:#5b21b6}
   .badge.recurring { background: #6366f1; }
   .badge.owner { background: #6e6e73; }
   .badge.inventory { background: #15803d; }
@@ -338,6 +348,38 @@ function toast(msg, type) {
 
 // ─────────── GitHub token gate ───────────
 function getToken() { return (localStorage.getItem(TOKEN_KEY) || "").trim(); }
+
+// ── QB workstation state (Lauren 2026-06-06) ──
+let QB_LISTS = { categories: [], classes: [], vendors: [] };
+let QB_RULES = { rules: {} };
+let QB_PROCESSED = { processed: {} };
+async function loadQBRefs() {
+  const ts = "?_=" + Date.now();
+  try { const r = await fetch("../state/qb_lists.json"+ts,{cache:"no-store"}); if (r.ok) QB_LISTS = await r.json(); } catch(e){}
+  try { const r = await fetch("../state/qb_filing_rules.json"+ts,{cache:"no-store"}); if (r.ok) QB_RULES = await r.json(); } catch(e){}
+  try { const r = await fetch("../state/qb_processed.json"+ts,{cache:"no-store"}); if (r.ok) QB_PROCESSED = await r.json(); } catch(e){}
+  if (!QB_RULES.rules) QB_RULES.rules = {};
+  if (!QB_PROCESSED.processed) QB_PROCESSED.processed = {};
+}
+function ruleKey(t) {
+  const base = (t.qb_vendor || (t.desc||"").split("·")[0] || "").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
+  return base.slice(0,40) || "misc";
+}
+async function ghPutJson(path, mutate, msg) {
+  const token = getToken();
+  if (!token) { toast("⚠ אין GitHub token", "error"); return null; }
+  const base = `https://api.github.com/repos/${GH_REPO}/contents/${path}`;
+  const getR = await fetch(base + "?ref=main&_=" + Date.now(), { cache:"no-store", headers:{ "Authorization":"token "+token, "Accept":"application/vnd.github+json" }});
+  let sha = null, data = null;
+  if (getR.ok) { const j = await getR.json(); sha = j.sha; try { data = JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,""))))); } catch(e){} }
+  data = mutate(data) || data;
+  data._updated_at = new Date().toISOString();
+  const body = { message: msg, content: btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2)))), branch:"main" };
+  if (sha) body.sha = sha;
+  const putR = await fetch(base, { method:"PUT", headers:{ "Authorization":"token "+token, "Accept":"application/vnd.github+json", "Content-Type":"application/json" }, body: JSON.stringify(body) });
+  if (!putR.ok) { toast("שמירה נכשלה ("+putR.status+") — "+path.split("/").pop(), "error"); return null; }
+  return data;
+}
 function setToken(v) { localStorage.setItem(TOKEN_KEY, v.trim()); renderTokenArea(); }
 
 function renderTokenArea() {
@@ -729,6 +771,17 @@ function renderTracker() {
   ];
 
   let html = "";
+  if (s.source === "quickbooks_api") {
+    html += '<datalist id="dl-cats">' + (QB_LISTS.categories||[]).map(c => `<option>${escapeHtml(c.name)}</option>`).join("") + "</datalist>";
+    html += '<datalist id="dl-vens">' + (QB_LISTS.vendors||[]).map(v => `<option>${escapeHtml(v.name)}</option>`).join("") + "</datalist>";
+    const picked = s.tx.filter(t => t.picked && !t.done).length;
+    html += `<div class="post-bar">
+      <button class="btn-selall" id="btn-sel-rec">סמן מזוהות ✓</button>
+      <button class="btn-selall" id="btn-sel-all">סמן הכל</button>
+      <button class="btn-post" id="btn-post">🚀 POST לקוויקבוקס (<span id="pick-count">${picked}</span>)</button>
+      <span style="font-size:12px;color:#64748b">שורות ירוקות זוהו אוטומטית לפי תיוקים קודמים שלך. POST שומר את הבחירות ומעביר לתור עדכון בקוויקבוקס.</span>
+    </div>`;
+  }
   for (const sec of sections) {
     const rows = s.tx.filter(sec.filter);
     if (rows.length === 0) continue;
@@ -738,12 +791,57 @@ function renderTracker() {
   }
   $("sections").innerHTML = html;
 
+  $("sections").querySelectorAll(".qb-f").forEach(el => {
+    el.onchange = () => {
+      const t = s.tx.find(x => x.id === el.getAttribute("data-tx")); if (!t) return;
+      t[el.getAttribute("data-f")] = el.value;
+    };
+  });
+  $("sections").querySelectorAll(".qb-pick").forEach(el => {
+    el.onchange = () => {
+      const t = s.tx.find(x => x.id === el.getAttribute("data-tx")); if (!t) return;
+      t.picked = el.checked;
+      const pc = document.getElementById("pick-count"); if (pc) pc.textContent = s.tx.filter(x => x.picked && !x.done).length;
+    };
+  });
+  const selRec = document.getElementById("btn-sel-rec");
+  if (selRec) selRec.onclick = () => { s.tx.forEach(t => { if (t.recognized && !t.done) t.picked = true; }); renderTracker(); };
+  const selAll = document.getElementById("btn-sel-all");
+  if (selAll) selAll.onclick = () => { s.tx.forEach(t => { if (!t.done) t.picked = true; }); renderTracker(); };
+  const postBtn = document.getElementById("btn-post");
+  if (postBtn) postBtn.onclick = postSelected;
   $("sections").querySelectorAll(".done-btn").forEach(b => {
     b.onclick = () => toggleDone(b.getAttribute("data-tx"));
   });
 }
 
+function renderQBCard(t) {
+  const cls = (t.done ? "done " : "") + (t.recognized ? "rec" : "");
+  const amtCls = t.isCredit ? "amt credit" : "amt";
+  const recBadge = t.recognized ? '<span class="badge rec">✓ זוהה</span>' : "";
+  const catVal = escapeHtml(t.sel_account || "");
+  const clsVal = escapeHtml(t.sel_class || "");
+  const venVal = escapeHtml(t.sel_vendor || "");
+  const classOpts = ['<option value="">— Class —</option>']
+    .concat((QB_LISTS.classes||[]).map(c => `<option ${c.name===t.sel_class?"selected":""}>${escapeHtml(c.name)}</option>`)).join("");
+  return `
+    <div class="card ${cls}">
+      <div class="info" style="width:100%">
+        <div class="top-line">${escapeHtml((t.qb_vendor || t.desc).slice(0, 60))} ${recBadge}</div>
+        <div class="bottom-line">${escapeHtml(t.date_human)} · <span class="${amtCls}">${fmtMoney(t.amt)}</span> · ${escapeHtml(t.qb_paid_from || "")} · ${escapeHtml((t.desc||"").slice(0,70))}</div>
+        <div class="qb-edit">
+          <input class="w-cat qb-f" list="dl-cats" data-f="sel_account" data-tx="${escapeHtml(t.id)}" value="${catVal}" placeholder="קטגוריה">
+          <select class="w-cls qb-f" data-f="sel_class" data-tx="${escapeHtml(t.id)}">${classOpts}</select>
+          <input class="w-ven qb-f" list="dl-vens" data-f="sel_vendor" data-tx="${escapeHtml(t.id)}" value="${venVal}" placeholder="ספק">
+        </div>
+      </div>
+      <input type="checkbox" class="qb-pick" data-tx="${escapeHtml(t.id)}" ${t.picked ? "checked" : ""} title="סמני לפרסום">
+      <button class="done-btn" data-tx="${escapeHtml(t.id)}">${t.done ? "בוצע" : "Done"}</button>
+    </div>`;
+}
+
 function renderCard(t) {
+  if (t.qb_key) return renderQBCard(t);
   const cls = t.done ? "done" : "";
   const badgeClass = t.cls || "notag";
   const amtCls = t.isCredit ? "amt credit" : "amt";
@@ -758,6 +856,53 @@ function renderCard(t) {
       <span class="badge ${badgeClass}">${escapeHtml(t.tag)}${gmailMark}</span>
       <button class="done-btn" data-tx="${escapeHtml(t.id)}">${t.done ? "בוצע" : "Done"}</button>
     </div>`;
+}
+
+async function postSelected() {
+  const s = CURRENT_SESSION; if (!s) return;
+  const picked = s.tx.filter(t => t.picked && !t.done && t.qb_key);
+  if (!picked.length) { toast("לא סומנו שורות", "error"); return; }
+  const btn = document.getElementById("btn-post");
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ שולח..."; }
+  try {
+    const now = new Date().toISOString();
+    const entries = picked.map(t => ({
+      key: t.qb_key, txn_type: t.qb_txn_type, txn_id: t.qb_txn_id, line_id: t.qb_line_id,
+      date: t.date, amount: Math.abs(t.amt), desc: (t.desc||"").slice(0,80),
+      set: { account: t.sel_account || "", cls: t.sel_class || "", vendor: t.sel_vendor || "" },
+      queued_at: now }));
+    await ghPutJson("docs/state/qb_post_queue.json", d => {
+      d = d || { queue: [] }; if (!d.queue) d.queue = [];
+      const have = new Set(d.queue.map(q => q.key));
+      entries.forEach(e => { if (!have.has(e.key)) d.queue.push(e); });
+      return d;
+    }, "bookkeeping: queue " + entries.length + " QB updates");
+    await ghPutJson("docs/state/qb_processed.json", d => {
+      d = d || { processed: {} }; if (!d.processed) d.processed = {};
+      entries.forEach(e => { d.processed[e.key] = { status: "queued", at: now }; });
+      return d;
+    }, "bookkeeping: mark " + entries.length + " processed");
+    await ghPutJson("docs/state/qb_filing_rules.json", d => {
+      d = d || { rules: {} }; if (!d.rules) d.rules = {};
+      picked.forEach(t => {
+        const k = ruleKey(t);
+        const rule = { account: t.sel_account || "", vendor: t.sel_vendor || "" };
+        // learn class only if it is NOT event-specific (event classes end with a year)
+        if (t.sel_class && !/\d{4}\s*$/.test(t.sel_class)) rule.cls = t.sel_class;
+        d.rules[k] = Object.assign({}, d.rules[k] || {}, rule, { learned_at: now });
+      });
+      return d;
+    }, "bookkeeping: learn " + picked.length + " filing rules");
+    picked.forEach(t => { t.done = true; t.picked = false; t.posted = true; });
+    ALL_SESSIONS[s.session_key] = s;
+    await saveState("bookkeeping: POST " + picked.length + " rows (" + s.session_key + ")");
+    toast("✓ " + picked.length + " שורות נשלחו לעדכון בקוויקבוקס", "success");
+    renderTracker();
+  } catch (e) {
+    console.error(e); toast("⚠ " + (e.message || "שגיאה ב-POST"), "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "🚀 POST לקוויקבוקס"; }
+  }
 }
 
 async function toggleDone(txId) {
@@ -869,11 +1014,14 @@ async function startQBSession() {
     const to = sd;
     const acct = $("f-account").value;
     const ACCT_QB_MATCH = { cc7945: "7945", ck1955: "1955", mc9800: "9800", dm3977: "3977", bm8884: "8884" };
+    await loadQBRefs();
     const r = await fetch("../state/qb_untagged.json?_=" + Date.now(), { cache: "no-store" });
     if (!r.ok) throw new Error("qb_untagged.json לא נמצא — תבקשי ממני רענון משיכה");
     const data = await r.json();
     let rows = (data.rows || []).filter(x => (x.date || "") >= from && (x.date || "") <= to);
     if (acct !== "auto" && ACCT_QB_MATCH[acct]) rows = rows.filter(x => (x.paid_from || "").indexOf(ACCT_QB_MATCH[acct]) !== -1);
+    // skip rows Lauren already processed/queued (the real "pending" = not handled by Lauren yet)
+    rows = rows.filter(x => !QB_PROCESSED.processed[(x.txn_type||"") + "-" + (x.txn_id||"") + "-" + (x.line_id||"")]);
     if (!rows.length) throw new Error("אין הוצאות ללא Class בטווח שנבחר");
     if (rows.length > 800) throw new Error("יותר מ-800 שורות בטווח (" + rows.length + ") — צמצמי את טווח התאריכים");
     const tx = rows.map((x, i) => {
@@ -885,9 +1033,24 @@ async function startQBSession() {
                row: i, date: x.date, date_human: (x.date || "").slice(5).split("-").reverse().join("/"),
                amt, desc, ...cls, done: false, gmail_verified: false,
                qb_txn_id: x.txn_id, qb_txn_type: x.txn_type, qb_line_id: x.line_id,
-               qb_paid_from: x.paid_from || "", qb_payment_type: x.payment_type || "" };
+               qb_key: (x.txn_type||"") + "-" + (x.txn_id||"") + "-" + (x.line_id||""),
+               qb_vendor: x.vendor || "", qb_paid_from: x.paid_from || "", qb_payment_type: x.payment_type || "",
+               sel_account: x.account || "", sel_class: "", sel_vendor: x.vendor || "", picked: false };
     });
+    // apply learned filing rules → auto-recognized rows (green)
+    tx_apply_rules: {
+      // (rules applied below after tx built)
+    }
     const acctLabel = (acct === "auto") ? "כל החשבונות" : ($("f-account").selectedOptions[0].textContent);
+    tx.forEach(t => {
+      const rule = QB_RULES.rules[ruleKey(t)];
+      if (rule) {
+        t.sel_account = rule.account || t.sel_account;
+        if (rule.cls) t.sel_class = rule.cls;
+        if (rule.vendor) t.sel_vendor = rule.vendor;
+        t.recognized = true;
+      }
+    });
     const sessionKey = "qb-" + sd + "-" + acct;
     const session = {
       session_key: sessionKey, account: acct, account_label: "🏦 " + acctLabel + " · QuickBooks",
