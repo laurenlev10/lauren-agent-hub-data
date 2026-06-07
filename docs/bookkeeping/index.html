@@ -212,6 +212,7 @@
     </div>
     <div class="btn-row">
       <button class="btn btn-primary" id="btn-qb">📥 משוך מ-QuickBooks (הוצאות ללא Class)</button>
+      <button class="btn" id="btn-qb-refresh" style="background:#dcfce7;color:#166534" title="מושך מחדש מקוויקבוקס את ההוצאות, הקטגוריות וה-Classes (לוקח כדקה)">🔄 רענן מ-QB</button>
       <button class="btn btn-primary" id="btn-start" disabled>🚀 התחל סשן מקובץ</button>
     </div>
     <div style="font-size:12px;color:#64748b;margin-top:6px">📥 המשיכה מ-QuickBooks טוענת אוטומטית את כל ההוצאות שעדיין <b>בלי Class</b> בטווח התאריכים — בלי צורך בקובץ. העלאת קובץ נשארת כגיבוי.</div>
@@ -1419,6 +1420,19 @@ function setupForm() {
 
   $("btn-start").onclick = startSession;
   $("btn-qb").onclick = startQBSession;
+  $("btn-qb-refresh").onclick = async () => {
+    const token = getToken();
+    if (!token) { toast("⚠ אין GitHub token", "error"); return; }
+    const b = $("btn-qb-refresh"); b.disabled = true; b.textContent = "⏳ מרענן... (~דקה)";
+    try {
+      const r = await fetch(`https://api.github.com/repos/${GH_REPO}/actions/workflows/qb-untagged-refresh.yml/dispatches`, {
+        method: "POST",
+        headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json", "Content-Type": "application/json" },
+        body: JSON.stringify({ ref: "main" }) });
+      toast(r.ok || r.status === 204 ? "🔄 הרענון רץ — עוד כדקה אפשר למשוך" : "⚠ נכשל (" + r.status + ")", r.ok || r.status === 204 ? "success" : "error");
+    } catch(e) { toast("⚠ " + e.message, "error"); }
+    setTimeout(() => { b.disabled = false; b.textContent = "🔄 רענן מ-QB"; }, 60000);
+  };
   $("btn-back").onclick = closeSession;
   $("btn-gmail").onclick = sendToGmailAgent;
 }
