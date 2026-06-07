@@ -114,7 +114,7 @@ def main():
             if note: e["note"] = note
             if status == "applied": n_ok += 1
             else: n_err += 1
-            print(f"  {'✓' if status=='applied' else '✗'} {ent} {tid} line {e['line_id']} — {e['set']} {('['+note+']') if note else ''}")
+            print(f"  {'✓' if status=='applied' else '✗'} {ent} {tid} line {e['line_id']} — {e.get('set', e.get('action',''))} {('['+note+']') if note else ''}")
     q["_updated_at"] = now
     QUEUE.write_text(json.dumps(q, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\napplied {n_ok} · errors {n_err} · queue size {len(q.get('queue', []))}")
