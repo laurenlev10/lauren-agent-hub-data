@@ -838,13 +838,33 @@ function renderSessionsList() {
 }
 
 let EMAILQ = null;
-async function applyEmailResults() {
+let EMAILQ_BUSY = false;
+async function applyEmailResults(manual) {
+  if (EMAILQ_BUSY) return;
+  EMAILQ_BUSY = true;
+  try { await _applyEmailResults(manual); } finally { EMAILQ_BUSY = false; }
+}
+async function _applyEmailResults(manual) {
   const s = CURRENT_SESSION;
   if (!s || s.source !== "quickbooks_api") return;
   try {
     const r = await fetch("../state/qb_email_check_queue.json?_=" + Date.now(), { cache: "no-store" });
     if (r.ok) EMAILQ = await r.json();
   } catch(e) { return; }
+  // live status chip — never leave Lauren in the dark
+  const chip = document.getElementById("email-status");
+  if (chip && EMAILQ) {
+    const keys = new Set(s.tx.map(t => t.qb_key));
+    const mine = (EMAILQ.queue || []).filter(e => keys.has(e.key));
+    const pend = mine.filter(e => e.status === "pending").length;
+    const ready = mine.filter(e => e.status === "done").length;
+    const noRec = mine.filter(e => e.status === "no_receipt" || e.status === "error").length;
+    chip.textContent = (pend || ready || noRec)
+      ? `⏳ בבדיקה: ${pend} · ✓ נמצאו: ${ready}` + (noRec ? ` · ⚠ לא נמצאו: ${noRec}` : "")
+      : "";
+    if (manual && pend) toast("⏳ עדיין בבדיקה — " + pend + " ממתינות. האתר מתעדכן תוך ~דקה", "success");
+    if (manual && !pend && !ready && !noRec) toast("אין בדיקות פעילות לסשן הזה", "success");
+  }
   const done = {};
   (EMAILQ && EMAILQ.queue || []).forEach(e => { if (e.status === "done" && (e.result_cls || e.result_account)) done[e.key] = e; });
   let applied = 0;
@@ -932,6 +952,8 @@ function renderTracker() {
       <button class="btn-post" id="btn-done-sel" style="background:linear-gradient(180deg,#db2777,#be185d)">✓ Done למסומנות (<span class="pick-count">${picked}</span>)</button>
       <button class="btn-post" id="btn-post">🚀 POST לקוויקבוקס (<span class="pick-count" id="pick-count">${picked}</span>)</button>
       <button class="btn-selall" id="btn-email-check">📧 שיוך אירוע</button>
+      <span id="email-status" style="font-size:12px;color:#92400e;font-weight:700"></span>
+      <a href="#" id="lnk-email-now" style="font-size:12px">בדוק תשובות עכשיו</a>
       <button class="btn-post" id="btn-push-staged" ${STAGED_TOTAL ? "" : "disabled"}>📤 דחוף לקוויקבוקס (${STAGED_TOTAL})</button>
       <button class="btn-selall" id="btn-refresh-lists" style="background:#dcfce7;color:#166534" title="מושך מחדש קטגוריות/Classes/ספקים והוצאות מקוויקבוקס (כדקה)">🔄 רענן מ-QB</button>
       <button class="btn-selall" id="btn-clear-reviewed" style="background:#fef3c7;color:#92400e" title="שורות שכבר טופלו בקוויקבוקס בעבר — הסרה מהרשימה בלי לדחוף שום שינוי">🧹 כבר עברתי על אלה</button>
@@ -1027,6 +1049,9 @@ function renderTracker() {
   if (doneBtn) doneBtn.onclick = doneSelected;
   const emailBtn = document.getElementById("btn-email-check");
   if (emailBtn) emailBtn.onclick = queueEmailCheck;
+  const emailNow = document.getElementById("lnk-email-now");
+  if (emailNow) emailNow.onclick = (e) => { e.preventDefault(); applyEmailResults(true); };
+  applyEmailResults();   // refresh the status chip on every render
   const pushBtn = document.getElementById("btn-push-staged");
   if (pushBtn) pushBtn.onclick = pushStaged;
   const sortSel = document.getElementById("qb-sort");
@@ -1356,8 +1381,9 @@ async function queueEmailCheck() {
       headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json", "Content-Type": "application/json" },
       body: JSON.stringify({ ref: "main" }) });
     toast(r.ok || r.status === 204
-      ? "🔎 " + entries.length + " שורות נשלחו לבדיקה באימייל — ה-Class יתמלא לבד תוך ~2 דקות"
+      ? "🔎 " + entries.length + " שורות נשלחו לבדיקה באימייל — עקבי אחרי החיווי בסרגל"
       : "✓ בתור, אבל ההפעלה נכשלה (" + r.status + ") — כתבי לקלוד", (r.ok || r.status === 204) ? "success" : "error");
+    [20, 45, 75, 110, 150, 200, 260].forEach(sec => setTimeout(() => applyEmailResults(), sec * 1000));
   } catch(e) { toast("✓ בתור · הפעלה נכשלה: " + e.message, "error"); }
 }
 
