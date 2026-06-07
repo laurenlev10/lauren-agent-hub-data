@@ -224,6 +224,7 @@
       <button class="btn btn-primary" id="btn-update" style="font-size:16px;padding:12px 40px">🔄 UPDATE</button>
     </div>
     <div id="qb-tiles" class="qb-tiles"></div>
+    <div id="staged-row" style="text-align:center;margin-top:10px"></div>
     <div style="font-size:12px;color:#64748b;margin-top:6px;text-align:center">UPDATE מושך מקוויקבוקס את כל ההוצאות החדשות לכל החשבונות · לחיצה על ריבוע פותחת את רשימת העבודה של אותו חשבון</div>
   </div>
 
@@ -1567,6 +1568,22 @@ async function renderTiles() {
     $("f-account").value = t.getAttribute("data-acct");
     startQBSession();
   });
+  // staged rows waiting for the final push → main-screen button
+  try {
+    const r = await fetch("../state/qb_post_queue.json?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok) {
+      const staged = ((await r.json()).queue || []).filter(q => q.status === "staged");
+      STAGED_TOTAL = staged.length;
+      const sr = document.getElementById("staged-row");
+      if (sr) {
+        sr.innerHTML = staged.length
+          ? `<button class="btn-post" id="btn-push-staged" style="font-size:14px;padding:10px 26px;border:0;border-radius:10px;cursor:pointer;font-weight:700;background:linear-gradient(180deg,#16a34a,#15803d);color:#fff">📤 דחוף לקוויקבוקס (${staged.length} שטופלו)</button>`
+          : "";
+        const pb = document.getElementById("btn-push-staged");
+        if (pb) pb.onclick = async () => { await pushStaged(); renderTiles(); };
+      }
+    }
+  } catch(e) {}
 }
 async function doUpdate() {
   const token = getToken();
