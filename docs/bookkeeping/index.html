@@ -938,6 +938,36 @@ function renderTracker() {
       if (f === "etype") { t.etype_manual = true; renderTracker(); }
     };
   });
+  $("sections").querySelectorAll(".qb-return").forEach(el => {
+    el.onclick = async () => {
+      const t = s.tx.find(x => x.id === el.getAttribute("data-tx")); if (!t) return;
+      if (!confirm("להחזיר את \"" + (t.qb_vendor || t.desc || "").slice(0,40) + "\" (" + fmtMoney(t.amt) + ") ל-Pending בקוויקבוקס?\nההוצאה תימחק מהספרים ושורת הבנק תחזור ל-For Review.")) return;
+      el.disabled = true; el.textContent = "⏳";
+      const now = new Date().toISOString();
+      const entry = { key: t.qb_key, txn_type: t.qb_txn_type, txn_id: t.qb_txn_id, line_id: t.qb_line_id,
+        action: "return", date: t.date, amount: Math.abs(t.amt), desc: (t.desc||"").slice(0,80),
+        status: "queued", queued_at: now };
+      const r = await ghBatchJson([
+        { path: "docs/state/qb_post_queue.json", mutate: d => {
+            d = d || { queue: [] }; if (!d.queue) d.queue = [];
+            if (!d.queue.some(q => q.key === entry.key && q.action === "return")) d.queue.push(entry);
+            return d; } },
+        { path: "docs/state/qb_processed.json", mutate: d => {
+            d = d || { processed: {} }; if (!d.processed) d.processed = {};
+            d.processed[t.qb_key] = { status: "returned", at: now };
+            return d; } },
+      ], "bookkeeping: return " + t.qb_key + " to For Review [qb-go]");
+      if (r) {
+        t.done = true; t.returned = true; t.picked = false;
+        ALL_SESSIONS[s.session_key] = s;
+        await saveState("bookkeeping: return " + t.qb_key);
+        toast("↩ חוזרת ל-Pending בקוויקבוקס תוך כדקה", "success");
+        renderTracker();
+      } else {
+        el.disabled = false; el.textContent = "↩ החזר ל-Pending";
+      }
+    };
+  });
   $("sections").querySelectorAll(".qb-pick").forEach(el => {
     el.onchange = () => {
       const t = s.tx.find(x => x.id === el.getAttribute("data-tx")); if (!t) return;
@@ -1024,6 +1054,7 @@ function renderQBCard(t) {
           <input class="w-cat qb-f" list="dl-cats" data-f="sel_account" data-tx="${escapeHtml(t.id)}" value="${catVal}" placeholder="קטגוריה">
           <select class="w-cls qb-f" data-f="sel_class" data-tx="${escapeHtml(t.id)}">${classOpts}</select>
           <input class="w-ven qb-f" list="dl-vens" data-f="sel_vendor" data-tx="${escapeHtml(t.id)}" value="${venVal}" placeholder="ספק">
+          <button class="qb-return" data-tx="${escapeHtml(t.id)}" title="לא מזוהה? מחזיר את ההוצאה ל-Pending (For Review) בקוויקבוקס" style="font-size:11px;padding:4px 8px;border:1px solid #fca5a5;background:#fef2f2;color:#b91c1c;border-radius:6px;cursor:pointer">↩ החזר ל-Pending</button>
           <select class="qb-f" data-f="etype" data-tx="${escapeHtml(t.id)}" title="צבע / סוג הוצאה">
             <option value="">— צבע —</option>
             ${Object.entries(QB_TYPES.types || {}).map(([ty, d]) => `<option value="${ty}" ${ty===t.etype?"selected":""}>${escapeHtml(d.label)}</option>`).join("")}

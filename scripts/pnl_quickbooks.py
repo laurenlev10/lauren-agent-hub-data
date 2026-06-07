@@ -150,7 +150,8 @@ def qb_post(entity_path, payload, _retry=True):
     """Full-object update POST (Purchase/Bill). Caller passes the complete object incl Id+SyncToken."""
     realm = _read("qb_realm_id.txt")
     at = _access_token()
-    url = f"{API}/v3/company/{realm}/{entity_path}?minorversion=70"
+    sep = "&" if "?" in entity_path else "?"
+    url = f"{API}/v3/company/{realm}/{entity_path}{sep}minorversion=70"
     req = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
         headers={"Authorization":"Bearer "+at, "Accept":"application/json", "Content-Type":"application/json"})
     try:

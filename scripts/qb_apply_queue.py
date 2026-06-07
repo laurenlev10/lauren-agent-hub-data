@@ -76,6 +76,15 @@ def apply_entry_group(entity, txn_id, entries, cats, classes, vendors):
         QB.qb_post(entity.lower(), obj)
     return results
 
+def apply_return(entity, txn_id):
+    """Delete the posted txn — QBO sends the source bank-feed line back to For Review."""
+    obj = QB.qb_get_entity(entity, txn_id).get(entity)
+    if not obj:
+        return ("error", f"{entity} {txn_id} not found")
+    QB.qb_post(f"{entity.lower()}?operation=delete",
+               {"Id": obj["Id"], "SyncToken": obj["SyncToken"]})
+    return ("applied", "returned to For Review")
+
 def main():
     q = json.loads(QUEUE.read_text(encoding="utf-8"))
     pending = [e for e in q.get("queue", []) if e.get("status") not in ("applied", "staged") and int(e.get("attempts") or 0) < 3]
@@ -90,7 +99,11 @@ def main():
     n_ok = n_err = 0
     for (ent, tid), entries in groups.items():
         try:
-            res = apply_entry_group(ent, tid, entries, cats, classes, vendors)
+            if any(e.get("action") == "return" for e in entries):
+                st, note = apply_return(ent, tid)
+                res = {e["key"]: (st, note) for e in entries}
+            else:
+                res = apply_entry_group(ent, tid, entries, cats, classes, vendors)
         except Exception as ex:
             res = {e["key"]: ("error", str(ex)[:200]) for e in entries}
         for e in entries:
