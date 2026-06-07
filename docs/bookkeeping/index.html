@@ -1521,6 +1521,14 @@ async function startQBSession() {
         t.recognized = true;
       }
       t.etype = classifyType(t);
+      // category suggestion — rows arrive as "Uncategorized Expense" (auto-add architecture);
+      // learned rule fills first (above); otherwise suggest by payee pattern
+      if (!t.sel_account || /uncategorized/i.test(t.sel_account)) {
+        const hay = ((t.qb_vendor || "") + " " + (t.desc || "")).toLowerCase();
+        for (const [pat, cat] of (QB_TYPES.category_suggestions || [])) {
+          if (hay.indexOf(pat) !== -1) { t.sel_account = cat; t.cat_suggested = true; break; }
+        }
+      }
       // Lauren 2026-06-06: manager-card expenses (food/gas/lyft/coffee/supplies/parking)
       // auto-assigned to the event whose window [start-3d .. end+1d] contains the date
       const AC = QB_TYPES.auto_class || {};
