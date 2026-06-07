@@ -1528,6 +1528,8 @@ async function showTab(tab) {
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".tab-btn").forEach(b => b.onclick = () => showTab(b.getAttribute("data-tab")));
   setInterval(() => { applyEmailResults(); }, 90000);   // poll email-match answers every 1.5 min while working
+  // QB reference lists must be available on EVERY load — not only when starting a fresh pull
+  loadQBRefs().then(() => { if (CURRENT_SESSION) renderTracker(); });
 });
 
 // ── account tiles (Lauren 2026-06-07: QB-style squares with pending counts) ──
