@@ -536,6 +536,19 @@ function saveState(commitMsg) {
 async function _saveStateOnce(commitMsg) {
   const token = getToken();
   if (!token) { toast("⚠ אין token — סימון נשמר רק במכשיר", "error"); return false; }
+  // read-merge-write (IRON RULE #18): fetch cloud copy, overlay only the session(s) we own
+  let cloudSessions = {};
+  try {
+    const cr = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${STATE_FILE_PATH}?ref=main&_=${Date.now()}`,
+      { cache: "no-store", headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json" } });
+    if (cr.ok) {
+      const j = await cr.json();
+      cloudSessions = (JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,""))))).sessions) || {};
+      STATE_SHA = j.sha;
+    }
+  } catch(e) {}
+  const overlay = CURRENT_SESSION ? { [CURRENT_SESSION.session_key]: CURRENT_SESSION } : ALL_SESSIONS;
+  ALL_SESSIONS = Object.assign({}, cloudSessions, ALL_SESSIONS, overlay);
   const payload = { _updated_at: new Date().toISOString(), _schema_version: 1, sessions: ALL_SESSIONS };
   try {
     // Refresh SHA right before write
@@ -824,6 +837,33 @@ function renderSessionsList() {
   });
 }
 
+let EMAILQ = null;
+async function applyEmailResults() {
+  const s = CURRENT_SESSION;
+  if (!s || s.source !== "quickbooks_api") return;
+  try {
+    const r = await fetch("../state/qb_email_check_queue.json?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok) EMAILQ = await r.json();
+  } catch(e) { return; }
+  const done = {};
+  (EMAILQ && EMAILQ.queue || []).forEach(e => { if (e.status === "done" && (e.result_cls || e.result_account)) done[e.key] = e; });
+  let applied = 0;
+  s.tx.forEach(t => {
+    const e = t.qb_key && done[t.qb_key];
+    if (e && !t.done && !t.email_applied) {
+      if (e.result_cls) t.sel_class = e.result_cls;
+      if (e.result_account) t.sel_account = e.result_account;
+      t.recognized = true; t.email_applied = true; applied++;
+    }
+  });
+  if (applied) {
+    toast("📧 " + applied + " שיוכים הגיעו מבדיקת האימייל", "success");
+    ALL_SESSIONS[s.session_key] = s;
+    saveState("bookkeeping: applied " + applied + " email-match results");
+    renderTracker();
+  }
+}
+
 function openSession(key) {
   CURRENT_SESSION = ALL_SESSIONS[key];
   if (!CURRENT_SESSION) return;
@@ -831,6 +871,7 @@ function openSession(key) {
   $("sessions-list").classList.add("hidden");
   $("tracker").classList.remove("hidden");
   renderTracker();
+  applyEmailResults();
   window.scrollTo(0,0);
 }
 
@@ -1425,6 +1466,7 @@ async function showTab(tab) {
 }
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".tab-btn").forEach(b => b.onclick = () => showTab(b.getAttribute("data-tab")));
+  setInterval(() => { applyEmailResults(); }, 90000);   // poll email-match answers every 1.5 min while working
 });
 
 async function toggleDone(txId) {
