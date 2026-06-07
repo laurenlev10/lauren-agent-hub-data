@@ -129,12 +129,14 @@ def nearest_event(events, d):
 
 def classify_account(subj_from):
     t = subj_from.lower()
+    # order matters: rental → airline (sender domains are decisive) → hotel.
+    # "reservation" removed — too generic (airline cancellations say it too).
     if "car rental" in t or any(k in t for k in ("alamo", "hertz", "enterprise", "avis", "budget")):
         return "Travel Expense:Rental Car"
-    if any(k in t for k in ("hotel", "marriott", "hilton", "hyatt", "inn", "booking.com", "expedia", "reservation")):
-        return "Travel Expense:Accommodations"
-    if any(k in t for k in ("southwest", "aa.com", "american", "united", "delta", "frontier", "spirit", "alaska", "trip confirmation", "going to")):
+    if any(k in t for k in ("southwest", "aa.com", "american airlines", "united.com", "delta", "frontier", "spirit", "alaskaair", "trip confirmation", "going to", "flight")):
         return "Travel Expense:Airfare"
+    if any(k in t for k in ("hotel", "marriott", "hilton", "hyatt", "doubletree", "booking.com", "expedia", "check-in")):
+        return "Travel Expense:Accommodations"
     return None
 
 
