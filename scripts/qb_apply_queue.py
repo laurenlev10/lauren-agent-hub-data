@@ -76,14 +76,32 @@ def apply_entry_group(entity, txn_id, entries, cats, classes, vendors):
         QB.qb_post(entity.lower(), obj)
     return results
 
-def apply_return(entity, txn_id):
-    """Delete the posted txn — QBO sends the source bank-feed line back to For Review."""
+def apply_return(entity, txn_id, cats):
+    """Try to delete the posted txn (bank line returns to For Review). QBO blocks
+    deleting bank-MATCHED txns — fallback: park it in 'Ask My Accountant' so it is
+    uniformly flagged as unclear inside QB (Lauren can Undo manually if needed)."""
     obj = QB.qb_get_entity(entity, txn_id).get(entity)
     if not obj:
         return ("error", f"{entity} {txn_id} not found")
-    QB.qb_post(f"{entity.lower()}?operation=delete",
-               {"Id": obj["Id"], "SyncToken": obj["SyncToken"]})
-    return ("applied", "returned to For Review")
+    try:
+        QB.qb_post(f"{entity.lower()}?operation=delete",
+                   {"Id": obj["Id"], "SyncToken": obj["SyncToken"]})
+        return ("applied", "returned to For Review")
+    except RuntimeError as e:
+        if "Matched" not in str(e):
+            raise
+        ask = cats.get("ask my accountant")
+        if not ask:
+            return ("error", "matched txn — delete blocked, no Ask My Accountant account")
+        changed = False
+        for ln in obj.get("Line") or []:
+            det = ln.get("AccountBasedExpenseLineDetail")
+            if det:
+                det["AccountRef"] = {"value": ask["id"], "name": ask["name"]}
+                changed = True
+        if changed:
+            QB.qb_post(entity.lower(), obj)
+        return ("applied", "matched txn — parked in Ask My Accountant (Undo manually in QB to fully return)")
 
 def main():
     q = json.loads(QUEUE.read_text(encoding="utf-8"))
@@ -100,7 +118,7 @@ def main():
     for (ent, tid), entries in groups.items():
         try:
             if any(e.get("action") == "return" for e in entries):
-                st, note = apply_return(ent, tid)
+                st, note = apply_return(ent, tid, cats)
                 res = {e["key"]: (st, note) for e in entries}
             else:
                 res = apply_entry_group(ent, tid, entries, cats, classes, vendors)
