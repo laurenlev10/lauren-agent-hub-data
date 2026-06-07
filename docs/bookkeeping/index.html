@@ -888,7 +888,8 @@ function renderTracker() {
     html += `<div class="post-bar">
       <button class="btn-selall" id="btn-sel-rec">סמן מזוהות ✓</button>
       <button class="btn-selall" id="btn-sel-all">סמן הכל</button>
-      <button class="btn-post" id="btn-post">🚀 POST לקוויקבוקס (<span id="pick-count">${picked}</span>)</button>
+      <button class="btn-post" id="btn-done-sel" style="background:linear-gradient(180deg,#db2777,#be185d)">✓ Done למסומנות (<span class="pick-count">${picked}</span>)</button>
+      <button class="btn-post" id="btn-post">🚀 POST לקוויקבוקס (<span class="pick-count" id="pick-count">${picked}</span>)</button>
       <button class="btn-selall" id="btn-email-check">📧 שיוך אירוע</button>
       <button class="btn-post" id="btn-push-staged" ${STAGED_TOTAL ? "" : "disabled"}>📤 דחוף לקוויקבוקס (${STAGED_TOTAL})</button>
       <button class="btn-selall" id="btn-refresh-lists" style="background:#dcfce7;color:#166534" title="מושך מחדש קטגוריות/Classes/ספקים והוצאות מקוויקבוקס (כדקה)">🔄 רענן מ-QB</button>
@@ -941,7 +942,8 @@ function renderTracker() {
     el.onchange = () => {
       const t = s.tx.find(x => x.id === el.getAttribute("data-tx")); if (!t) return;
       t.picked = el.checked;
-      const pc = document.getElementById("pick-count"); if (pc) pc.textContent = s.tx.filter(x => x.picked && !x.done).length;
+      const n = s.tx.filter(x => x.picked && !x.done).length;
+      document.querySelectorAll(".pick-count").forEach(el => el.textContent = n);
     };
   });
   const selRec = document.getElementById("btn-sel-rec");
@@ -950,6 +952,8 @@ function renderTracker() {
   if (selAll) selAll.onclick = () => { s.tx.forEach(t => { if (!t.done) t.picked = true; }); renderTracker(); };
   const postBtn = document.getElementById("btn-post");
   if (postBtn) postBtn.onclick = postSelected;
+  const doneBtn = document.getElementById("btn-done-sel");
+  if (doneBtn) doneBtn.onclick = doneSelected;
   const emailBtn = document.getElementById("btn-email-check");
   if (emailBtn) emailBtn.onclick = queueEmailCheck;
   const pushBtn = document.getElementById("btn-push-staged");
@@ -1096,6 +1100,57 @@ async function pnlLiveRemove(key) {
 }
 
 // ── stage / unstage: Done on a QB row = "טופל" — saved + learned + hidden, pushed later ──
+async function stageRows(rows) {
+  const now = new Date().toISOString();
+  const entries = rows.map(t => buildQueueEntry(t, "staged"));
+  const files = [
+    { path: "docs/state/qb_post_queue.json", mutate: d => {
+        d = d || { queue: [] }; if (!d.queue) d.queue = [];
+        entries.forEach(entry => {
+          const i = d.queue.findIndex(q => q.key === entry.key && q.status !== "applied");
+          if (i >= 0) d.queue[i] = entry; else d.queue.push(entry);
+        });
+        return d; } },
+    { path: "docs/state/qb_processed.json", mutate: d => {
+        d = d || { processed: {} }; if (!d.processed) d.processed = {};
+        entries.forEach(e => { d.processed[e.key] = { status: "staged", at: now }; });
+        return d; } },
+    { path: "docs/state/qb_filing_rules.json", mutate: d => learnFromRows(d, rows, now) },
+  ];
+  const withEv = rows.filter(t => evkeyForClass(t.sel_class));
+  if (withEv.length) files.push({ path: "docs/state/pnl_qb_live.json", mutate: d => {
+      d = d || { events: {} }; if (!d.events) d.events = {};
+      withEv.forEach(t => {
+        const evkey = evkeyForClass(t.sel_class);
+        const ev = d.events[evkey] = d.events[evkey] || { entries: {} };
+        ev.entries[t.qb_key] = { date: t.date, amount: Math.abs(t.amt),
+          desc: (t.qb_vendor || t.desc || "").slice(0, 60), account: t.sel_account || "",
+          etype: t.etype || "", status: "staged", added_at: now };
+      });
+      return d; } });
+  const r = await ghBatchJson(files, "bookkeeping: stage " + rows.length + " rows (bulk Done)");
+  if (r) STAGED_TOTAL += rows.length;
+  return !!r;
+}
+
+async function doneSelected() {
+  const s = CURRENT_SESSION; if (!s) return;
+  const picked = s.tx.filter(t => t.picked && !t.done && t.qb_key);
+  if (!picked.length) { toast("סמני קודם שורות ✓", "error"); return; }
+  const btn = document.getElementById("btn-done-sel");
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ שומר..."; }
+  const ok = await stageRows(picked);
+  if (ok) {
+    picked.forEach(t => { t.done = true; t.picked = false; t.recognized = true; });
+    ALL_SESSIONS[s.session_key] = s;
+    await saveState("bookkeeping: bulk Done " + picked.length + " (" + s.session_key + ")");
+    toast("✓ " + picked.length + " טופלו ונשמרו — יידחפו בלחיצת 📤", "success");
+  } else {
+    toast("⚠ לא נשמר — השורות נשארו ברשימה, נסי שוב", "error");
+  }
+  renderTracker();
+}
+
 async function stageRow(t) {
   const s = CURRENT_SESSION; if (!s) return false;
   const now = new Date().toISOString();
