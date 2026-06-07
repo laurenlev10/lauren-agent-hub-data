@@ -3,7 +3,8 @@
 
 Feeds the bookkeeping dashboard's "משיכה אוטומטית" flow: instead of Lauren uploading a
 CSV, the dashboard reads docs/state/qb_untagged.json — every Purchase/Bill expense line
-in the window that has no ClassRef (= not yet filed to an event). Uses the production
+in the window sitting in "Uncategorized Expense" (= the not-yet-handled bucket, per
+Lauren's auto-add architecture 2026-06-06; previously: no ClassRef). Uses the production
 QB tokens via pnl_quickbooks (refresh-token rotation handled there).
 """
 from __future__ import annotations
@@ -33,8 +34,9 @@ def pull(date_from=None, date_to=None):
                     det = ln.get("AccountBasedExpenseLineDetail") or ln.get("ItemBasedExpenseLineDetail")
                     if not det:
                         continue
-                    if (det.get("ClassRef") or {}).get("value"):
-                        continue  # already classified
+                    acct_name = ((det.get("AccountRef") or {}).get("name") or "").lower()
+                    if "uncategorized" not in acct_name:
+                        continue  # handled = anything already given a real category
                     rows.append({
                         "txn_id": t.get("Id"), "txn_type": entity, "line_id": ln.get("Id"),
                         "date": t.get("TxnDate"), "vendor": vendor,
