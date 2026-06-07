@@ -1348,7 +1348,17 @@ async function queueEmailCheck() {
   }, "bookkeeping: queue " + entries.length + " rows for Gmail event-matching");
   ALL_SESSIONS[s.session_key] = s;
   await saveState("bookkeeping: session saved before email check");
-  toast("✓ " + entries.length + ' שורות בתור. כתבי לקלוד בצ\'אט: "תריץ שיוך אירועים"', "success");
+  // trigger the Gmail matcher in the cloud — answers land back in the queue, the page polls them
+  try {
+    const token = getToken();
+    const r = await fetch(`https://api.github.com/repos/${GH_REPO}/actions/workflows/qb-email-match.yml/dispatches`, {
+      method: "POST",
+      headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json", "Content-Type": "application/json" },
+      body: JSON.stringify({ ref: "main" }) });
+    toast(r.ok || r.status === 204
+      ? "🔎 " + entries.length + " שורות נשלחו לבדיקה באימייל — ה-Class יתמלא לבד תוך ~2 דקות"
+      : "✓ בתור, אבל ההפעלה נכשלה (" + r.status + ") — כתבי לקלוד", (r.ok || r.status === 204) ? "success" : "error");
+  } catch(e) { toast("✓ בתור · הפעלה נכשלה: " + e.message, "error"); }
 }
 
 async function syncSupplierPayments(rows) {
