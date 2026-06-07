@@ -549,6 +549,7 @@ async function _saveStateOnce(commitMsg) {
   } catch(e) {}
   const overlay = CURRENT_SESSION ? { [CURRENT_SESSION.session_key]: CURRENT_SESSION } : ALL_SESSIONS;
   ALL_SESSIONS = Object.assign({}, cloudSessions, ALL_SESSIONS, overlay);
+  DELETED_SESSIONS.forEach(k => delete ALL_SESSIONS[k]);
   const payload = { _updated_at: new Date().toISOString(), _schema_version: 1, sessions: ALL_SESSIONS };
   try {
     // Refresh SHA right before write
@@ -829,14 +830,27 @@ function renderSessionsList() {
             <div class="bottom-line">${escapeHtml(s.account_label || "")} · ${done}/${total} (${pct}%) · ${(s.events_tagged||[]).length} אירועים</div>
           </div>
           <button class="done-btn" data-open="${escapeHtml(k)}">פתיחה</button>
+          <button class="done-btn" data-del="${escapeHtml(k)}" style="background:#fee2e2;color:#b91c1c" title="מחיקת הסשן">🗑</button>
         </div>`;
     }).join("");
+  list.querySelectorAll("[data-del]").forEach(b => b.onclick = async (e) => {
+    e.stopPropagation();
+    const k = b.getAttribute("data-del");
+    if (!confirm("למחוק את הסשן הזה? (ההוצאות עצמן לא נמחקות — רק רשימת העבודה)")) return;
+    DELETED_SESSIONS.add(k);
+    delete ALL_SESSIONS[k];
+    if (CURRENT_SESSION && CURRENT_SESSION.session_key === k) CURRENT_SESSION = null;
+    renderSessionList();
+    const ok = await saveState("bookkeeping: delete session " + k);
+    toast(ok ? "🗑 הסשן נמחק" : "⚠ מחיקה לא נשמרה", ok ? "success" : "error");
+  });
   list.querySelectorAll("[data-open]").forEach(b => b.onclick = (e) => {
     e.stopPropagation();
     openSession(b.getAttribute("data-open"));
   });
 }
 
+const DELETED_SESSIONS = new Set();
 let EMAILQ = null;
 let EMAILQ_BUSY = false;
 async function applyEmailResults(manual) {
