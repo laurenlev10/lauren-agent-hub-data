@@ -35,6 +35,37 @@ def build_maps():
     for v in L.get("vendors", []): vendors[_norm(v["name"])] = v
     return cats, classes, vendors
 
+EVENTS_IDX = ROOT / "docs/state/events_index.json"
+
+def ensure_class(name, classes):
+    """Auto-create a missing QB Class — ONLY for known event classes from events_index.
+    (Lauren 2026-06-08: venue deposits for future events kept hitting "class not in QB"
+    because per-event Classes are created lazily. Arbitrary names are still never created.)"""
+    k = _norm(name)
+    if not name or k in classes:
+        return classes.get(k)
+    try:
+        evcls = {e["class_name"] for e in json.loads(EVENTS_IDX.read_text(encoding="utf-8"))["events"]}
+    except Exception:
+        evcls = set()
+    if name.strip() not in evcls:
+        return None                      # not a known event class — keep the old skip behavior
+    res = QB.qb_post("class", {"Name": name.strip()})
+    c = (res or {}).get("Class") or {}
+    if not c.get("Id"):
+        return None
+    rec = {"id": c["Id"], "name": c["Name"]}
+    classes[k] = rec
+    print(f"  + created QB Class '{c['Name']}' (id {c['Id']})")
+    try:                                  # persist so the dashboard ⚠ clears without waiting for daily pull
+        L = json.loads(LISTS.read_text(encoding="utf-8"))
+        if not any(_norm(x.get("name")) == k for x in L.get("classes", [])):
+            L.setdefault("classes", []).append(rec)
+            LISTS.write_text(json.dumps(L, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as ex:
+        print(f"  warn: qb_lists.json update failed: {ex}")
+    return rec
+
 def apply_entry_group(entity, txn_id, entries, cats, classes, vendors):
     """One QB update covering all queued lines of this txn. Returns per-entry results."""
     obj = QB.qb_get_entity(entity, txn_id).get(entity)
@@ -56,7 +87,7 @@ def apply_entry_group(entity, txn_id, entries, cats, classes, vendors):
             det["AccountRef"] = {"value": acc["id"], "name": acc["name"]}; changed = True
         elif st.get("account"):
             notes.append(f"category '{st['account']}' not in QB")
-        cls = classes.get(_norm(st.get("cls")))
+        cls = classes.get(_norm(st.get("cls"))) or ensure_class(st.get("cls"), classes)
         if st.get("cls") and cls:
             det["ClassRef"] = {"value": cls["id"], "name": cls["name"]}; changed = True
         elif st.get("cls"):
