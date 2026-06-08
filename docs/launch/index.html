@@ -2430,7 +2430,19 @@ End date: </div>
             rowBtn += '<a class="btn-agent-row btn-inventory-row" href="../inventory/?' + invParams + '" target="_blank" rel="noopener" title="Open Inventory Orders pre-filled with this event">📦 Inventory</a>';
           }
 
-          // 🔢 Recount button REMOVED 2026-05-27 — replaced by Inventory Summary's pre-event mode.
+          // 🔢 Recount — pre-event count worklist (re-added 2026-06-08, Lauren).
+          // Owner: recount-prebuild (Thursday evening). Black until the worklist is built;
+          // flips green with the count once built. Links to /recount/?evkey=... where the
+          // list can be copied as a text message for the event manager (ACTIVE products only,
+          // and the OCTOPOS Recount tag is synced to match the list exactly).
+          const rc = (typeof OCTOPOS_RECOUNT !== "undefined") ? OCTOPOS_RECOUNT[evKey] : null;
+          if (rc) {
+            const rcN = (rc.worklist_size != null) ? rc.worklist_size : 0;
+            const rcTip = "רשימת ספירה מוכנה · " + rcN + " מוצרים (🔴" + (rc.n_negative||0) + " 🔵" + (rc.n_preexisting||0) + " 💤" + (rc.n_stale||0) + ") · נבנתה " + (rc.generated_at||"").slice(0,10) + " · בדף אפשר להעתיק כהודעה למנהל";
+            rowBtn += '<a class="btn-agent-row btn-recount-row done" href="' + (rc.href || ("../recount/?evkey=" + evKey)) + '" target="_blank" rel="noopener" title="' + escapeHtml(rcTip) + '">🔢 Recount: ' + rcN + '</a>';
+          } else {
+            rowBtn += '<a class="btn-agent-row btn-recount-row" href="../recount/?evkey=' + evKey + '" target="_blank" rel="noopener" title="רשימת ספירה לאירוע — נבנית אוטומטית ביום חמישי בערב. שחור = טרם נבנתה · ירוק = מוכנה. בדף אפשר להעתיק את הרשימה כהודעת טקסט למנהל האירוע.">🔢 Recount</a>';
+          }
 
           // 📊 Post-event Summary — full 6-tab review dashboard (added 2026-05-26)
           // Owner: event-summary-build. Schema: EVENT_SUMMARY_INDEX[evKey] = {generated_at, stats:{counted_count, top_sellers_count, ...}}
@@ -3954,7 +3966,7 @@ var EVENT_SUMMARY_INDEX = {};
         m[evk] = {
           worklist_size: stats.final_worklist_size != null ? stats.final_worklist_size : wl.length,
           n_negative: stats.negative || 0,
-          n_stale: stats.stale || 0,
+          n_stale: stats.sat_unsold || 0,
           n_new_unverified: stats.new_unverified || 0,
           n_preexisting: stats.preexisting || 0,
           n_counted: stats.counted_last_event || 0,
