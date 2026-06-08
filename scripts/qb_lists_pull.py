@@ -19,8 +19,18 @@ def pull():
         if len(batch) < 500: break
         start += 500
     exp_types = {"Expense", "Other Expense", "Cost of Goods Sold"}
+    # Lauren 2026-06-07: loan-payment categories must appear in the dropdown too —
+    # her books post loan payments straight to the loan accounts (e.g. "Rv's Loan  Payments"
+    # is Other Current Asset, "Loan 2023 Ford Explr" is Long Term Liability). Include any
+    # ACTIVE account whose name contains "loan" from these types as well.
+    loan_types = {"Other Current Liability", "Long Term Liability", "Other Current Asset", "Other Asset"}
+    def _keep(a):
+        if not a.get("Active", True): return False
+        if a.get("AccountType") in exp_types: return True
+        nm = (a.get("FullyQualifiedName") or a.get("Name") or "").lower()
+        return a.get("AccountType") in loan_types and "loan" in nm
     cats = [{"id": a["Id"], "name": a.get("FullyQualifiedName") or a.get("Name"), "type": a.get("AccountType")}
-            for a in accounts if a.get("Active", True) and a.get("AccountType") in exp_types]
+            for a in accounts if _keep(a)]
     classes = [{"id": c["Id"], "name": c["Name"]}
                for c in QB.query("select Id, Name, Active from Class maxresults 500").get("QueryResponse", {}).get("Class", [])
                if c.get("Active", True)]
