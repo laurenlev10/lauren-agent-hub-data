@@ -148,17 +148,24 @@ def octopos_card(jwt, start, end):
             "transactions": s.get("transactions")}
 
 
+# Card processing fee is netted at settlement (dual-pricing surcharge ≈ fee), so deposits run
+# ~3-4% below OCTOPOS card. That's NORMAL, not missing money (Lauren 2026-06-08 — show gross+net+fee,
+# verify the deposits arrived; only flag clearly-abnormal cases like a missing batch or overpayment).
+ABNORMAL_FEE = 0.08   # >8% short = likely a missing settlement batch, worth a look
 def reconcile(dep_total, card):
-    if card["card_exact"] is not None:
-        diff = round(dep_total - card["card_exact"], 2)
-        return {"status": "match" if abs(diff) <= MATCH_TOL else ("gap_low" if diff < 0 else "gap_high"),
-                "diff": diff, "vs": "exact"}
-    lo, hi = card["card_min"], card["card_max"]
-    if dep_total < lo - MATCH_TOL:
-        return {"status": "gap_low", "diff": round(dep_total - lo, 2), "vs": "range"}
-    if dep_total > hi + MATCH_TOL:
-        return {"status": "gap_high", "diff": round(dep_total - hi, 2), "vs": "range"}
-    return {"status": "in_range", "diff": 0.0, "vs": "range"}
+    ref = card["card_exact"] if card["card_exact"] is not None else round((card["card_min"] + card["card_max"]) / 2, 2)
+    fee_usd = round(ref - dep_total, 2)
+    fee_pct = round(fee_usd / ref, 4) if ref else 0.0
+    if dep_total <= 0:
+        status = "missing"
+    elif dep_total > card["card_max"] + MATCH_TOL:
+        status = "over"          # deposited MORE than card sales — investigate
+    elif fee_pct > ABNORMAL_FEE:
+        status = "check"         # short by more than a normal fee — possible missing batch
+    else:
+        status = "received"      # deposits arrived; gap = processing fee (normal)
+    return {"status": status, "fee_usd": fee_usd, "fee_pct": fee_pct,
+            "card_ref": ref, "vs": "exact" if card["card_exact"] is not None else "range"}
 
 
 def main():
@@ -203,11 +210,11 @@ def main():
             "deposits": deps, "deposits_total": dep_total, "deposits_count": len(deps),
             "octopos": card, "reconcile": rec, "synced_at": _now(),
         }
-        flag = {"match": "✓", "in_range": "≈", "gap_low": "🔴", "gap_high": "🟠"}.get(rec["status"], "?")
+        flag = {"received": "✓", "check": "🔴", "missing": "⚫", "over": "🟠"}.get(rec["status"], "?")
         cardstr = (f"${card['card_exact']:,.2f}" if card["card_exact"] is not None
                    else f"${card['card_min']:,.2f}-${card['card_max']:,.2f}")
-        print(f"  {flag} {evkey}: deposits ${dep_total:,.2f} ({len(deps)}) vs card {cardstr} "
-              f"[{rec['status']} {rec['diff']:+,.2f}] class={qbclass}")
+        print(f"  {flag} {evkey}: net ${dep_total:,.2f} ({len(deps)}) vs gross {cardstr} "
+              f"fee ${rec['fee_usd']:,.2f} ({rec['fee_pct']*100:.1f}%) [{rec['status']}] class={qbclass}")
 
     if unassigned:
         out["_unassigned"] = unassigned

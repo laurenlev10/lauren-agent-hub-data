@@ -1,0 +1,93 @@
+name: income-reconcile — daily 16:00 UTC (merchant card deposits vs OCTOPOS)
+
+# Set up 2026-06-08. Pulls "Bnkcd Settle Merch" deposits from QuickBooks (#1955), maps each
+# to an event by date, reconciles vs OCTOPOS card sales, assigns the QB Class, and writes
+# docs/state/octopos_income.json (drives /income/ + the 💰 Income button on /launch/).
+
+on:
+  schedule:
+    - cron: "0 16 * * *"     # daily 16:00 UTC (09:00 PT) — after settlements post
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Backfill from this date (YYYY-MM-DD); empty = last 120 days"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reconcile merchant income
+        env:
+          QB_CLIENT_ID:     ${{ secrets.QB_CLIENT_ID }}
+          QB_CLIENT_SECRET: ${{ secrets.QB_CLIENT_SECRET }}
+          QB_REALM_ID:      ${{ secrets.QB_REALM_ID }}
+          QB_TOKEN_KEY:     ${{ secrets.QB_TOKEN_KEY }}
+          GH_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
+          OCTOPOS_EMAIL:    ${{ secrets.OCTOPOS_EMAIL }}
+          OCTOPOS_PASSWORD: ${{ secrets.OCTOPOS_PASSWORD }}
+          SINCE:            ${{ github.event.inputs.since }}
+        run: |
+          if [ -n "$SINCE" ]; then
+            python3 scripts/octopos_income_sync.py --since "$SINCE"
+          else
+            python3 scripts/octopos_income_sync.py
+          fi
+
+      - name: Commit if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/state/octopos_income.json; then
+            git add docs/state/octopos_income.json
+            git commit -m "income-reconcile: refresh merchant deposit reconciliation"
+            git pull --rebase origin main
+            git push origin main
+          else
+            echo "no changes"
+          fi
+
+      - name: Update scheduled-runs.json lastRunAt
+        run: |
+          python3 - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          p = "docs/scheduled-runs.json"
+          d = json.load(open(p))
+          now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in d.get("tasks", []):
+              if t.get("id") == "income-reconcile":
+                  t["lastRunAt"] = now
+                  break
+          d["_updated_at"] = now
+          json.dump(d, open(p, "w"), indent=2, ensure_ascii=False)
+          print("bumped income-reconcile ->", now)
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump income-reconcile lastRunAt"
+            git pull --rebase origin main
+            git push origin main
+          fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py

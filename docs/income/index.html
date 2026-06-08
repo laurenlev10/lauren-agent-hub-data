@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>הכנסות סליקה · התאמה לאירוע</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;
+--green:#15803d;--greenbg:#dcfce7;--red:#b91c1c;--redbg:#fee2e2;--amber:#92400e;--amberbg:#fef3c7;--violet:#7c3aed}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Arial,"Noto Sans Hebrew",sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:18px 14px 60px}
+h1{font-size:22px;margin:0 0 2px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+.totbar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}
+.tot{flex:1;min-width:150px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.tot .lbl{font-size:12px;color:var(--muted)}
+.tot .val{font-size:20px;font-weight:800;margin-top:2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.card.focus{outline:3px solid var(--violet);outline-offset:1px}
+.chead{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}
+.city{font-size:17px;font-weight:800}
+.dates{font-size:12px;color:var(--muted);font-weight:500;margin-right:6px}
+.pill{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.pill.received{background:var(--greenbg);color:var(--green)}
+.pill.check{background:var(--redbg);color:var(--red)}
+.pill.over{background:var(--amberbg);color:var(--amber)}
+.pill.missing{background:#e5e7eb;color:#374151}
+.nums{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px}
+.num{min-width:120px}
+.num .l{font-size:11px;color:var(--muted)}
+.num .v{font-size:19px;font-weight:800}
+.num .v.net{color:var(--green)}
+.num .v.fee{color:var(--amber)}
+.body{display:none;margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+.body.open{display:block}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600;font-size:12px}
+.muted{color:var(--muted)}
+.tag{display:inline-block;background:#ede9fe;color:#5b21b6;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:600}
+.tag.none{background:#fef2f2;color:#b91c1c}
+.note{font-size:12px;color:var(--muted);margin-top:8px}
+.err{background:#fee2e2;color:#991b1b;padding:12px;border-radius:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>💰 הכנסות סליקה — התאמה לאירוע</h1>
+  <div class="sub" id="sub">טוען…</div>
+  <div class="totbar" id="totbar"></div>
+  <div id="list"></div>
+  <div class="note">ברוטו = סך מכירות הכרטיס ב-OCTOPOS · נטו = ההפקדות שהגיעו לחשבון #1955 · עמלה = ההפרש (עמלת סליקה, נגבית מההפקדה). מקור: <code>state/octopos_income.json</code>.</div>
+</div>
+<script>
+var STATE_URL = "../state/octopos_income.json";
+function fmt(n){ return "$" + (Number(n)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
+function qp(n){ return new URLSearchParams(location.search).get(n)||""; }
+function cardStr(o){ return (o.card_exact!=null) ? fmt(o.card_exact) : (fmt(o.card_min)+" – "+fmt(o.card_max)); }
+var PILL = {received:"✓ הופקד",check:"🔴 חסר?",over:"🟠 עודף?",missing:"⚫ אין הפקדות"};
+
+function render(data){
+  var evs = Object.values(data.events||{}).sort(function(a,b){ return (b.start_date||"").localeCompare(a.start_date||""); });
+  var upd = data._updated_at ? new Date(data._updated_at).toLocaleString("he-IL") : "—";
+  document.getElementById("sub").textContent = evs.length + " אירועים · עודכן " + upd;
+
+  var tGross=0,tNet=0,tFee=0;
+  evs.forEach(function(e){ tNet+=e.deposits_total||0; tFee+=(e.reconcile&&e.reconcile.fee_usd)||0; tGross+=(e.reconcile&&e.reconcile.card_ref)||0; });
+  document.getElementById("totbar").innerHTML =
+    '<div class="tot"><div class="lbl">סה"כ ברוטו (כרטיס)</div><div class="val">'+fmt(tGross)+'</div></div>'+
+    '<div class="tot"><div class="lbl">סה"כ נטו (הופקד)</div><div class="val" style="color:var(--green)">'+fmt(tNet)+'</div></div>'+
+    '<div class="tot"><div class="lbl">סה"כ עמלות</div><div class="val" style="color:var(--amber)">'+fmt(tFee)+'</div></div>';
+
+  var focus = qp("evkey");
+  var html = evs.map(function(e){
+    var r=e.reconcile||{}, o=e.octopos||{};
+    var deps=(e.deposits||[]).slice().sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
+    var depRows = deps.map(function(d){
+      return '<tr><td>'+esc(d.date)+'</td><td>'+fmt(d.amount)+'</td><td class="muted">'+esc(d.memo||"")+'</td></tr>';
+    }).join("");
+    var pb=o.payment_breakdown||{};
+    var pbRows = Object.keys(pb).map(function(k){ return '<tr><td>'+esc(k)+'</td><td>'+fmt(pb[k])+'</td></tr>'; }).join("");
+    var feePct = r.fee_pct!=null ? (r.fee_pct*100).toFixed(1)+"%" : "—";
+    var cls = e.qb_class ? '<span class="tag">'+esc(e.qb_class)+'</span>' : '<span class="tag none">חסר Class ב-QB</span>';
+    var st = r.status||"missing";
+    var isFocus = (e.evkey===focus);
+    return '<div class="card'+(isFocus?' focus':'')+'" id="ev-'+esc(e.evkey)+'">'+
+      '<div class="chead" onclick="this.parentNode.querySelector(\'.body\').classList.toggle(\'open\')">'+
+        '<div><span class="city">'+esc(e.city)+(e.state?', '+esc(e.state):'')+'</span>'+
+          '<span class="dates">'+esc(e.start_date)+' – '+esc(e.end_date)+'</span></div>'+
+        '<span class="pill '+st+'">'+(PILL[st]||st)+'</span>'+
+      '</div>'+
+      '<div class="nums">'+
+        '<div class="num"><div class="l">נטו · הופקד ('+(e.deposits_count||0)+' הפקדות)</div><div class="v net">'+fmt(e.deposits_total)+'</div></div>'+
+        '<div class="num"><div class="l">ברוטו · כרטיס OCTOPOS</div><div class="v">'+cardStr(o)+'</div></div>'+
+        '<div class="num"><div class="l">עמלת סליקה</div><div class="v fee">'+fmt(r.fee_usd)+' · '+feePct+'</div></div>'+
+        '<div class="num"><div class="l">QB Class</div><div class="v" style="font-size:14px">'+cls+'</div></div>'+
+      '</div>'+
+      '<div class="body'+(isFocus?' open':'')+'">'+
+        '<div style="display:flex;gap:18px;flex-wrap:wrap">'+
+          '<div style="flex:1;min-width:280px"><div class="muted" style="font-size:12px;margin-bottom:4px">הפקדות סליקה (Bnkcd Settle Merch)</div>'+
+            '<table><thead><tr><th>תאריך</th><th>סכום</th><th>תיאור</th></tr></thead><tbody>'+depRows+'</tbody></table></div>'+
+          '<div style="flex:1;min-width:220px"><div class="muted" style="font-size:12px;margin-bottom:4px">פירוט תשלומים OCTOPOS</div>'+
+            '<table><thead><tr><th>סוג</th><th>סכום</th></tr></thead><tbody>'+pbRows+'</tbody></table>'+
+            '<div class="note">ברוטו מכירות: '+fmt(o.gross)+' · עסקאות: '+(o.transactions||"—")+'</div></div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join("");
+  document.getElementById("list").innerHTML = html || '<div class="err">אין נתוני הכנסות עדיין.</div>';
+  if(focus){ var el=document.getElementById("ev-"+focus); if(el) el.scrollIntoView({behavior:"smooth",block:"center"}); }
+}
+
+fetch(STATE_URL + "?_=" + Date.now(), {cache:"no-store"})
+  .then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+  .then(render)
+  .catch(function(e){ document.getElementById("sub").innerHTML='<div class="err">שגיאה בטעינת הנתונים: '+esc(e.message)+'<\/div>'; });
+</script>
+</body>
+</html>

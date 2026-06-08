@@ -447,6 +447,8 @@
   .btn-summary-row{background:linear-gradient(180deg,#0891b2,#155e75)}
   .btn-metaads-row{background:linear-gradient(180deg,#1f2937,#0f172a)} /* black per Lauren's spec — flips green via .done */
   .btn-inventory-row{background:linear-gradient(180deg,#d97706,#92400e)} /* brown-gold per Lauren's spec — flips green via .done */
+  .btn-income-row{background:linear-gradient(180deg,#111827,#000000)} /* black until reconciled — flips green via .done */
+  .btn-income-row.done{background:linear-gradient(180deg,#16a34a,#15803d)}
   .btn-qrlp-row{background:linear-gradient(180deg,#1f2937,#0f172a)} /* QR LP — black, flips green via .done when the public QR landing page (themakeupblowoutsale-group.com) currently points to this event. Lauren 2026-05-20. */
   .btn-recount-row{background:linear-gradient(180deg,#7c3aed,#5b21b6)} /* purple per recount landing accent — flips green via .done */
   .btn-summary-row{background:linear-gradient(180deg,#111827,#000000)} /* black until summary built — flips green via .done */
@@ -754,6 +756,7 @@ const META_CAMPAIGNS = {
 // Owner: inventory-orders — entry: { total_usd, suppliers_ordered, suppliers_received, href, generated_at }   (added 2026-05-12)
 // Done state: when at least one supplier has status != "pending", button flips green showing "$<total> · <ordered>/15".
 let INVENTORY_ORDERS = {};  // populated from docs/state/inventory_orders.json at page load (Lauren 2026-05-21)
+let INCOME_RECON = {};  // populated from docs/state/octopos_income.json (Lauren 2026-06-08) — merchant card-deposit reconciliation per event
 
 // Owner: octopos-recount — entry: { worklist_size, n_negative, n_stale, n_counted, window: {start, end}, href, generated_at }   (added 2026-05-17)
 // Done state: when the agent has built a worklist for this event window, button flips green showing the worklist size.
@@ -2500,6 +2503,13 @@ End date: </div>
               rowBtn += '<a class="btn-agent-row btn-summary-row needs-summary" href="../mbs/?' + params + '" target="_blank" rel="noopener" title="האירוע הסתיים — נדרש סיכום. לחיצה תפתח את MBS Event Summary עם פרטי האירוע מוכנים.">📊 לסיכום!</a>';
             }
             rowBtn += '<a class="btn-agent-row" style="background:linear-gradient(180deg,#7c3aed,#5b21b6)" href="../pnl/?evkey=' + evKey + '" target="_blank" rel="noopener" title="P&L מפורט וניתן לעריכה — כל ההכנסות וההוצאות שורה-שורה, עם עריכה ידנית">📋 P&L</a>';
+            // 💰 Income — merchant card-deposit reconciliation vs OCTOPOS card (Lauren 2026-06-08)
+            const incR = (typeof INCOME_RECON !== "undefined") ? INCOME_RECON[evKey] : null;
+            if (incR) {
+              rowBtn += '<a class="btn-agent-row btn-income-row done" href="../income/?evkey=' + evKey + '" target="_blank" rel="noopener" title="הופקד נטו ' + incR.net + ' מתוך כרטיס ' + incR.gross + ' · עמלה ' + incR.fee + ' · ' + (incR.deposits_count||0) + ' הפקדות">💰 Income ✓</a>';
+            } else {
+              rowBtn += '<a class="btn-agent-row btn-income-row" href="../income/?evkey=' + evKey + '" target="_blank" rel="noopener" title="התאמת הכנסות סליקה (Bnkcd Settle Merch) מול מכירות הכרטיס ב-OCTOPOS לאירוע זה">💰 Income</a>';
+            }
           }
         }
       }
@@ -3996,6 +4006,31 @@ var EVENT_SUMMARY_INDEX = {};
         }
       });
       INVENTORY_ORDERS = m;
+      renderSchedule();
+    })
+    .catch(() => { /* fail-silent — button stays black */ });
+
+  // Lauren 2026-06-08 — load INCOME_RECON so 💰 Income flips green once deposits are reconciled.
+  fetch("../state/octopos_income.json?_=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data || !data.events) return;
+      const m = {};
+      Object.keys(data.events).forEach(evk => {
+        const e = data.events[evk] || {};
+        if ((e.deposits_count || 0) > 0) {
+          const o = e.octopos || {}, r = e.reconcile || {};
+          const usd = n => "$" + (Number(n)||0).toLocaleString("en-US",{maximumFractionDigits:0});
+          m[evk] = {
+            net: usd(e.deposits_total),
+            gross: (o.card_exact != null ? usd(o.card_exact) : usd(o.card_min) + "-" + usd(o.card_max)),
+            fee: usd(r.fee_usd),
+            deposits_count: e.deposits_count,
+            href: "../income/?evkey=" + evk,
+          };
+        }
+      });
+      INCOME_RECON = m;
       renderSchedule();
     })
     .catch(() => { /* fail-silent — button stays black */ });
