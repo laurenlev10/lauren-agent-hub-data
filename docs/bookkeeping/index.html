@@ -389,6 +389,11 @@ let QB_RULES = { rules: {} };
 let QB_PROCESSED = { processed: {} };
 let QB_TYPES = { types: {}, supplier_map: {} };
 let EVENTS_INDEX = { events: [] };
+// Lauren 2026-06-07: AP invoice matching — supplier payments get their Class from the
+// invoice's event + the invoice is marked PAID on Done/POST (suppliers dashboard).
+let SUPPLIER_INV = { suppliers: {} };    // agent-built invoices (read-only here)
+let SUPPLIER_PAY = { invoices: {} };     // paid-state (browser-owned, merge-on-write)
+let SUPPLIER_MANUAL = { invoices: [] };  // Lauren's manual invoice rows
 let STAGED_TOTAL = 0;          // staged rows waiting for the big push (across sessions)
 let SHOW_DONE_QB = false;      // staged rows are hidden by default ("מהעיניים")
 let QB_SORT = localStorage.getItem("bk_qb_sort") || "date_desc";   // transient UI pref
@@ -399,6 +404,9 @@ async function loadQBRefs() {
   try { const r = await fetch("../state/qb_processed.json"+ts,{cache:"no-store"}); if (r.ok) QB_PROCESSED = await r.json(); } catch(e){}
   try { const r = await fetch("../state/qb_expense_types.json"+ts,{cache:"no-store"}); if (r.ok) QB_TYPES = await r.json(); } catch(e){}
   try { const r = await fetch("../state/events_index.json"+ts,{cache:"no-store"}); if (r.ok) EVENTS_INDEX = await r.json(); } catch(e){}
+  try { const r = await fetch("../state/supplier_invoices.json"+ts,{cache:"no-store"}); if (r.ok) SUPPLIER_INV = await r.json(); } catch(e){}
+  try { const r = await fetch("../state/supplier_payments.json"+ts,{cache:"no-store"}); if (r.ok) SUPPLIER_PAY = await r.json(); } catch(e){}
+  try { const r = await fetch("../state/supplier_manual_invoices.json"+ts,{cache:"no-store"}); if (r.ok) SUPPLIER_MANUAL = await r.json(); } catch(e){}
   try { const r = await fetch("../state/qb_post_queue.json"+ts,{cache:"no-store"});
         if (r.ok) STAGED_TOTAL = ((await r.json()).queue || []).filter(q => q.status === "staged").length; } catch(e){}
   if (!QB_RULES.rules) QB_RULES.rules = {};
@@ -441,6 +449,53 @@ function matchSupplierName(t) {
     if (hay.indexOf(pat) !== -1) return name;
   }
   return null;
+}
+function classForEvkey(evkey) {
+  const ev = (EVENTS_INDEX.events || []).find(e => e.evkey === evkey);
+  return ev ? ev.class_name : null;
+}
+// Match a supplier payment against the AP invoice list (agent invoices + manual rows,
+// unpaid only). Amount ±$1 first, then amount+shipping. Exactly ONE candidate or null.
+function matchSupplierInvoice(t) {
+  const supName = matchSupplierName(t); if (!supName) return null;
+  const paid = SUPPLIER_PAY.invoices || {};
+  const sup = (SUPPLIER_INV.suppliers || {})[supName] || {};
+  const man = (SUPPLIER_MANUAL.invoices || []).filter(i => (i.supplier || "") === supName);
+  const unpaid = (sup.invoices || []).concat(man).filter(inv => !((paid[inv.id] || {}).paid));
+  const amt = Math.abs(t.amt);
+  let cands = unpaid.filter(inv => Math.abs((inv.amount || 0) - amt) <= 1.0);
+  if (!cands.length) cands = unpaid.filter(inv => (inv.shipping || 0) && Math.abs((inv.amount || 0) + inv.shipping - amt) <= 1.0);
+  return cands.length === 1 ? cands[0] : null;
+}
+// Find an event mentioned by NAME in the bank memo (e.g. "ZELLE TO EASTB CORP ... OMAHA 2026").
+function eventFromText(txt) {
+  const hay = (txt || "").toLowerCase();
+  let best = null;
+  for (const ev of (EVENTS_INDEX.events || [])) {
+    const city = (ev.city || "").toLowerCase();
+    const yr = (ev.start_date || "").slice(0, 4);
+    if (city && hay.indexOf(city) !== -1 && yr && hay.indexOf(yr) !== -1) {
+      if (!best || ev.start_date > best.start_date) best = ev;
+    }
+  }
+  return best;
+}
+function applySupplierInvMatch(t) {
+  if (t.etype !== "supplier" || t.done) return;
+  const inv = matchSupplierInvoice(t);
+  if (!inv) {
+    // no invoice matched by amount — still suggest the Class when the event is named in the memo
+    if (!t.sel_class) {
+      const ev = eventFromText(bankMemoOf(t) + " " + (t.desc || ""));
+      if (ev) { t.sel_class = ev.class_name; t.auto_class = true; t.ev_from_memo = true; }
+    }
+    return;
+  }
+  t.inv_match = { id: inv.id, event: inv.event || "", number: inv.invoice_number || "", evkey: inv.evkey || null, amount: inv.amount };
+  if (!t.sel_class && inv.evkey) {
+    const cn = classForEvkey(inv.evkey);
+    if (cn) { t.sel_class = cn; t.auto_class = true; }
+  }
 }
 function bankMemoOf(t) {
   // the raw bank descriptor — best clue for unidentified charges (Lauren 2026-06-07)
@@ -1198,6 +1253,7 @@ function buildClassOptions(selVal) {
 
 function renderQBCard(t) {
   if (t.done && !SHOW_DONE_QB) return "";   // staged rows disappear from sight
+  if (t.etype === "supplier" && !t.done && !t.inv_match) applySupplierInvMatch(t);
   const cls = (t.done ? "done " : "") + (t.recognized ? "rec" : "");
   const amtCls = t.isCredit ? "amt credit" : "amt";
   const recBadge = t.recognized ? '<span class="badge rec">✓ זוהה</span>' : "";
@@ -1205,11 +1261,13 @@ function renderQBCard(t) {
   const venueBadge = t.venue_rent
     ? `<span class="badge" style="background:#ede9fe;color:#5b21b6" title="המלון הזה הוא מקום האירוע לפי לוח האירועים — כנראה תשלום אולם. לאמת לפני פרסום">🏛 אולם — ${escapeHtml(t.venue_match || "")}? לאמת</span>`
     : (t.venue_match ? `<span class="badge" style="background:#ede9fe;color:#5b21b6" title="המלון הזה הוא מקום האירוע — סכום קטן, כנראה לינות צוות">🏛 מלון האירוע ${escapeHtml(t.venue_match)}</span>` : "");
+  const invBadge = t.inv_match ? `<span class="badge" style="background:#ffedd5;color:#9a3412" title="הותאם לחשבונית ספק לפי הסכום — ה-Class הוצע מהאירוע של החשבונית. ב-Done/POST החשבונית תסומן כשולמה בדשבורד הספקים">🧾 ${escapeHtml((t.inv_match.number ? "#" + t.inv_match.number + " · " : "") + (t.inv_match.event || ""))} · ${fmtMoney(t.inv_match.amount)}</span>` : "";
   const memoFull = bankMemoOf(t);
   const merchGuess = merchantFromMemo(t);
   const needsId = t.venue_rent || t.venue_match || (!t.recognized && (!t.sel_account || /uncategorized/i.test(t.sel_account) || t.cat_suggested));
   const memoLine = (memoFull && needsId) ? `<div class="memo-line" title="הטקסט המלא מהבנק">🏦 ${escapeHtml(memoFull.replace(/\s{2,}/g, "  "))}</div>` : "";
-  const acBadge = t.auto_class ? '<span class="badge rec" title="שויך לאירוע לפי התאריך">🏷 לפי תאריך</span>' : "";
+  const acBadge = t.ev_from_memo ? '<span class="badge rec" title="שם האירוע זוהה בטקסט ההעברה הבנקאית — לאמת לפני פרסום">🏷 אירוע מההעברה</span>'
+                : (t.auto_class ? '<span class="badge rec" title="שויך לאירוע לפי התאריך">🏷 לפי תאריך</span>' : "");
   const tdef = (QB_TYPES.types || {})[t.etype];
   const tStyle = tdef ? ` style="background:${tdef.bg};border-right:4px solid ${tdef.color}"` : "";
   const tChip = tdef ? `<span class="tchip" style="background:${tdef.color}">${escapeHtml(tdef.label)}</span>` : "";
@@ -1220,7 +1278,7 @@ function renderQBCard(t) {
   return `
     <div class="card ${cls}"${tStyle}>
       <div class="info" style="width:100%">
-        <div class="top-line" title="${escapeHtml(memoFull)}">${escapeHtml((t.qb_vendor || merchGuess || t.desc).slice(0, 60))} ${tChip} ${acBadge} ${recBadge} ${sugBadge} ${venueBadge}</div>
+        <div class="top-line" title="${escapeHtml(memoFull)}">${escapeHtml((t.qb_vendor || merchGuess || t.desc).slice(0, 60))} ${tChip} ${acBadge} ${recBadge} ${sugBadge} ${venueBadge} ${invBadge}</div>
         <div class="bottom-line"><span class="dtx">${escapeHtml(t.date_human)}</span> · <span class="${amtCls}">${fmtMoney(t.amt)}</span> · ${escapeHtml(t.qb_paid_from || "")} · ${escapeHtml((t.desc||"").slice(0,70))}</div>
         ${memoLine}
         <div class="qb-edit">
@@ -1351,6 +1409,8 @@ async function doneSelected() {
     ALL_SESSIONS[s.session_key] = s;
     await saveState("bookkeeping: bulk Done " + picked.length + " (" + s.session_key + ")");
     toast("✓ " + picked.length + " טופלו ונשמרו — יידחפו בלחיצת 📤", "success");
+    const nPaid = await syncSupplierPayments(picked);
+    if (nPaid) toast("🧾 " + nPaid + " חשבוניות סומנו כשולמו בדשבורד הספקים", "success");
   } else {
     toast("⚠ לא נשמר — השורות נשארו ברשימה, נסי שוב", "error");
   }
@@ -1513,12 +1573,19 @@ async function syncSupplierPayments(rows) {
     if (r.ok) payState = (await r.json()).invoices || {};
   } catch(e) {}
   const updates = {};
+  let manual = [];
+  try {
+    const r = await fetch("../state/supplier_manual_invoices.json?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok) manual = (await r.json()).invoices || [];
+  } catch(e) {}
   for (const t of supRows) {
     const supName = matchSupplierName(t);
-    const sup = invoices[supName]; if (!sup) continue;
+    const all = ((invoices[supName] || {}).invoices || []).concat(manual.filter(i => (i.supplier || "") === supName));
+    if (!all.length) continue;
     const amt = Math.abs(t.amt);
-    const cands = (sup.invoices || []).filter(inv =>
-      !((payState[inv.id] || {}).paid) && !updates[inv.id] && Math.abs((inv.amount || 0) - amt) <= 1.0);
+    const unpaid = all.filter(inv => !((payState[inv.id] || {}).paid) && !updates[inv.id]);
+    let cands = unpaid.filter(inv => Math.abs((inv.amount || 0) - amt) <= 1.0);
+    if (!cands.length) cands = unpaid.filter(inv => (inv.shipping || 0) && Math.abs((inv.amount || 0) + inv.shipping - amt) <= 1.0);
     if (cands.length === 1) {
       const pt = ((t.qb_payment_type || "") + " " + (t.qb_paid_from || "")).toLowerCase();
       const method = pt.indexOf("credit") !== -1 ? "Credit Card" : (pt.indexOf("check") !== -1 ? "Check" : "Zelle");
@@ -1725,6 +1792,10 @@ async function toggleDone(txId) {
       const ok = await stageRow(t);
       if (ok) {
         toast("✓ טופל ונשמר — יידחף לקוויקבוקס בלחיצת 📤", "success");
+        if (t.etype === "supplier") {
+          const nPaid = await syncSupplierPayments([t]);
+          if (nPaid) toast("🧾 החשבונית סומנה כשולמה בדשבורד הספקים", "success");
+        }
       } else {
         t.done = false;                       // not saved → bring the row back
         renderTracker();
