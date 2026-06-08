@@ -1903,6 +1903,12 @@ async function startQBSession() {
         for (const [pat, cat] of (QB_TYPES.category_suggestions || [])) {
           if (hay.indexOf(pat) !== -1) { t.sel_account = cat; t.cat_suggested = true; break; }
         }
+        // Lauren 2026-06-07: personal expense -> suggest "Owner Expenses" (QB acct 284).
+        // Any payee matching the "owner" etype patterns in qb_expense_types.json lands here;
+        // after Lauren POSTs once, learnFromRows() stores a per-payee rule (acc matches /owner/ -> etype owner).
+        if ((!t.sel_account || /uncategorized/i.test(t.sel_account)) && t.etype === "owner") {
+          t.sel_account = "Owner Expenses"; t.cat_suggested = true;
+        }
       }
       // Lauren 2026-06-06: manager-card expenses (food/gas/lyft/coffee/supplies/parking)
       // auto-assigned to the event whose window [start-3d .. end+1d] contains the date
