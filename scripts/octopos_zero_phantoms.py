@@ -32,6 +32,7 @@ ZERO_MIN_QTY = 1
 ZERO_MAX_QTY = 3
 NEG_ZERO_MIN = -2   # small negatives -1,-2 are drift → zero too (Lauren 2026-06-08)
 NEG_ZERO_MAX = -1
+RECOUNT_CATEGORY_ID = 14   # OCTOPOS 'Recount' category — strip it when we zero (nothing to count at 0)
 LAST_EVENT_MAX_AGE_DAYS = 10
 AUDIT_PATH = REPO_ROOT / "docs/state/octopos_phantom_zeros.json"
 
@@ -48,9 +49,9 @@ def _get_product(pid, raw_token):
     return j.get("data", j)
 
 
-def _put_stock_zero(pid, raw_token):
+def _put_product(pid, raw_token, body):
     req = urllib.request.Request(f"{OCTO_BASE}/api/v2/products/{pid}",
-        data=json.dumps({"in_stock_qty": 0}).encode(),
+        data=json.dumps(body).encode(),
         headers={"Authorization": raw_token, "Content-Type": "application/json",
                  "Accept": "application/json", "User-Agent": OCTO_UA}, method="PUT")
     with urllib.request.urlopen(req, timeout=15) as r:
@@ -156,23 +157,28 @@ def main():
     for c in todo:
         pid = c["id"]
         try:
-            before = float(_get_product(pid, raw_token).get("in_stock_qty") or 0)
-            in_range = (ZERO_MIN_QTY <= before <= ZERO_MAX_QTY) or (NEG_ZERO_MIN <= before <= NEG_ZERO_MAX)
-            if not in_range:
-                # Already resolved. If it's already 0 it was zeroed by a prior run today —
-                # still record it (using snapshot qty as "before") so the per-event audit
-                # shows the complete set. Otherwise (restocked) drop silently.
+            cur = _get_product(pid, raw_token)
+            before = float(cur.get("in_stock_qty") or 0)
+            cat_ids = [x["id"] for x in (cur.get("categories") or []) if x.get("id") is not None]
+            has_tag = RECOUNT_CATEGORY_ID in cat_ids
+            need_zero = (ZERO_MIN_QTY <= before <= ZERO_MAX_QTY) or (NEG_ZERO_MIN <= before <= NEG_ZERO_MAX)
+            if not need_zero and not has_tag:
+                # Already resolved (0/clean, no RECOUNT tag). Record prior-zeroed ones so the
+                # per-event audit stays complete; otherwise drop silently.
                 if before == 0:
-                    zeroed.append({"id": pid, "sku": c["sku"], "name": c["name"],
-                                   "supplier": c["supplier"], "before": c["qty"], "after": 0,
-                                   "http": "prior", "kind": c.get("kind")})
+                    zeroed.append({"id": pid, "sku": c["sku"], "name": c["name"], "supplier": c["supplier"],
+                                   "before": c["qty"], "after": 0, "http": "prior", "kind": c.get("kind"),
+                                   "tag_removed": False})
                 skip += 1; continue
-            status, after = _put_stock_zero(pid, raw_token)
-            aq = float(after.get("in_stock_qty", 0) or 0)
-            rec = {"id": pid, "sku": c["sku"], "name": c["name"], "supplier": c["supplier"],
-                   "before": before, "after": aq, "http": status, "kind": c.get("kind")}
-            zeroed.append(rec)
-            if status == 200 and aq == 0: ok += 1
+            body = {}
+            if need_zero: body["in_stock_qty"] = 0
+            if has_tag:   body["category_ids"] = [x for x in cat_ids if x != RECOUNT_CATEGORY_ID]  # strip RECOUNT
+            status, after = _put_product(pid, raw_token, body)
+            aq = float(after.get("in_stock_qty", before) or 0)
+            zeroed.append({"id": pid, "sku": c["sku"], "name": c["name"], "supplier": c["supplier"],
+                           "before": before, "after": aq, "http": status, "kind": c.get("kind"),
+                           "tag_removed": has_tag})
+            if status == 200: ok += 1
             else: fail += 1
             time.sleep(0.15)
         except Exception as e:
