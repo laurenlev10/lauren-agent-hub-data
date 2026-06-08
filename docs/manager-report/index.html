@@ -134,6 +134,7 @@ async function loadConfig(){ try{ var r=await fetch("./config.json?_="+Date.now(
 function saveEndpoint(){ return ((localStorage.getItem(ENDPOINT_KEY)||"").trim()) || ((CONFIG && CONFIG.save_endpoint || "").trim()); }
 
 var BOX = ["No More","Less than 1/2 box","1/2 box","1 full box","1.5 box","2 boxes"];
+var BOX_ONHAND = ["No More","Less than 1/2 box","1/2 box","1 full box","1.5 box","2 boxes","3 boxes","4 boxes","5 boxes","6 boxes","7 boxes","8 boxes","9 boxes","10 boxes","More than 10 boxes"];  /* wider list for on-hand counts — Brit Omaha 2026-06-08 had 7 boxes eyeshadow, old BOX capped at 2 */
 
 /* The form definition — easy to edit later. type: select|yesno|number|text */
 var SECTIONS = [
@@ -151,9 +152,9 @@ var SECTIONS = [
   },
   { title: "📦 On hand — count / level", icon:"",
     fields: [
-      { key:"glitters",         label:"Glitters on hand",                  type:"select", options:BOX },
-      { key:"eyeshadow_gifts",  label:"Eyeshadows gifts on hand",          type:"select", options:BOX },
-      { key:"brush_set_gifts",  label:"$5 Brush Set gifts on hand",        type:"select", options:BOX },
+      { key:"glitters",         label:"Glitters on hand",                  type:"select", options:BOX_ONHAND },
+      { key:"eyeshadow_gifts",  label:"Eyeshadows gifts on hand",          type:"select", options:BOX_ONHAND },
+      { key:"brush_set_gifts",  label:"$5 Brush Set gifts on hand",        type:"select", options:BOX_ONHAND },
       { key:"xime_irresistible",label:"Xime Irresistible Eyeshadow Palette", type:"number", hint:"How many?" },
       { key:"xime_goddess",     label:"Xime Goddess Eyeshadow Palette",    type:"number", hint:"How many?" }
     ]
