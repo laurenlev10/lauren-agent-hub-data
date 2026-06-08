@@ -47,6 +47,10 @@ def main():
         except ValueError:
             continue
         if -45 <= (sd - today).days <= 400:
+            # resume support: skip events scanned in the last 12h (long runs may be killed mid-loop)
+            ts = rec.get("email_log_synced_at") or ""
+            if ts and (dt.datetime.utcnow() - dt.datetime.fromisoformat(ts.rstrip("Z"))).total_seconds() < 12 * 3600:
+                continue
             targets.append((k, rec))
     if not targets:
         print("no events in window"); return 0
@@ -72,11 +76,12 @@ def main():
             rec["email_log"] = log[:25]
             rec["email_log_synced_at"] = now
             synced += 1
-            print(f"  ✓ {k}: {len(log)} messages ({'contact' if emails else 'venue-name'})")
+            # incremental write — long Gmail runs can be killed mid-loop (2026-06-08)
+            state["_updated_at"] = now
+            STATE.write_text(json.dumps(state, indent=1, ensure_ascii=False), encoding="utf-8")
+            print(f"  ✓ {k}: {len(log)} messages ({'contact' if emails else 'venue-name'})", flush=True)
         except Exception as ex:
-            print(f"  ✗ {k}: {str(ex)[:100]}")
-    state["_updated_at"] = now
-    STATE.write_text(json.dumps(state, indent=1, ensure_ascii=False), encoding="utf-8")
+            print(f"  ✗ {k}: {str(ex)[:100]}", flush=True)
     print(f"email digest: {synced}/{len(targets)} events")
     return 0
 
