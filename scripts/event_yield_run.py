@@ -270,15 +270,8 @@ def main():
     # Build SMS body — only mention actionable signals
     n_stockout = counts.get("stockout_friday", 0) + counts.get("stockout_saturday", 0)
     n_overstock = counts.get("overstock_heavy", 0) + counts.get("overstock_light", 0)
-    body_lines = [f"@event-yield ✓ ניתחתי את {ev.get('city')}, {ev.get('state')} ({local.strftime('%H:%M %Z')})."]
-    if n_stockout:
-        body_lines.append(f"🚨 {n_stockout} מוצרים נגמרו מוקדם מידי (שישי/שבת) — Wizard ידחוף הזמנה גדולה יותר באירוע הבא.")
-    if n_overstock:
-        body_lines.append(f"📦 {n_overstock} מוצרים נשארו עם יתרה גדולה — Wizard יציע פחות באירוע הבא.")
-    if n_stockout == 0 and n_overstock == 0:
-        body_lines.append("הכמויות תאמו את הביקוש — אין התאמות נדרשות.")
-    body_lines.append("")
-    body_lines.append(f"https://dashboard.themakeupblowout.com/recount/?evkey={evkey}&tab=slow")
+    body_lines = [f"\u2713 \u05e0\u05d9\u05ea\u05d5\u05d7 \u05d0\u05d9\u05e8\u05d5\u05e2 \u2014 {ev.get('city')}"
+                  + (f" ({n_stockout} \u05e0\u05d2\u05de\u05e8\u05d5 \u05de\u05d5\u05e7\u05d3\u05dd)" if n_stockout else "") + "."]
 
     # Send SMS (best effort)
     try:

@@ -666,14 +666,8 @@ def main():
     state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # SMS Lauren
-    stale_note = "" if stale_enabled else "⚠️ לא היה אירוע בסוף\"ש האחרון — דילגתי על זיהוי STALE.\n"
     sms_body = (
-        f"@recount ✓ רשימת ספירה מוכנה ל-{city}, {state} ({upcoming_start} → {upcoming_end}).\n"
-        f"📋 {len(worklist)} מוצרים לספירה:\n"
-        f"🔴 {stats['negative']} מינוס · 🔵 {stats['preexisting']} מתויגי RECOUNT · "
-        f"💤 {stats['sat_unsold']} עם 3+ במלאי ו-0 מכירות באירוע האחרון.\n"
-        f"{stale_note}"
-        f"חלון נתונים מהאירוע הקודם: {prior_start} → {prior_end}\n"
+        f"\u2713 \u05e8\u05e9\u05d9\u05de\u05ea \u05e1\u05e4\u05d9\u05e8\u05d4 \u05de\u05d5\u05db\u05e0\u05d4 \u2014 {city} ({len(worklist)} \u05de\u05d5\u05e6\u05e8\u05d9\u05dd).\n"
         f"https://dashboard.themakeupblowout.com/recount/?evkey={upcoming_evkey}"
     )
     sms_lauren(sms_body)

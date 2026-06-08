@@ -182,10 +182,8 @@ def main():
     _save_audit_event(evkey, payload)
     print(f"\nDONE — zeroed {ok}, failed {fail}, skipped {skip}. Audit at {AUDIT_PATH}")
     if ok or fail:
-        body = (f"@inventory 🧹 איפוס פנטום אוטומטי ({prior.get('city')}): "
-                f"{ok} מוצרים (שאריות 1-3 ללא מכירה בשבת-ראשון + מינוס קטן -1/-2) אופסו ל-0"
-                + (f" · {fail} נכשלו" if fail else "") + ".\n"
-                f"https://dashboard.themakeupblowout.com/event-summary/?evkey={evkey}")
+        body = (f"\u2713 \u05d0\u05d9\u05e4\u05d5\u05e1 \u05e4\u05e0\u05d8\u05d5\u05dd \u2014 {prior.get('city')} ({ok} \u05de\u05d5\u05e6\u05e8\u05d9\u05dd \u05d0\u05d5\u05e4\u05e1\u05d5"
+                + (f", {fail} \u05e0\u05db\u05e9\u05dc\u05d5" if fail else "") + ").")
         try: sms_lauren(body)
         except Exception as e: print(f"(SMS failed: {e})")
     return 0
