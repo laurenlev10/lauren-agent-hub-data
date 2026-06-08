@@ -412,7 +412,7 @@ def build_no_threshold(snapshot, sales=None):
     return out
 
 
-def build_stocked_out_early(snapshot, sales, last_day_sold_pids):
+def build_stocked_out_early(snapshot, sales, last_day_sold_pids, sat_sold_pids):
     """Lauren 2026-06-08 — products that ran out BEFORE the last day: stock <=0 now,
     sold during the event, but ZERO sales on the final day (Sunday). They emptied
     early and missed sales → Lauren raises their Threshold from this tab."""
@@ -425,6 +425,9 @@ def build_stocked_out_early(snapshot, sales, last_day_sold_pids):
         s = sales.get(pid)
         if not s or (s.get("units_sold") or 0) <= 0: continue   # must have sold during the event
         if pid in last_day_sold_pids: continue                  # but nothing on the final day
+        # Precise stockout day from sales (replaces the dead event-yield signal, Lauren 2026-06-08):
+        # sold Saturday but not Sunday → ran out BY SATURDAY; only Friday sales → ran out BY FRIDAY.
+        stockout_when = "saturday" if pid in sat_sold_pids else "friday"
         cats, has_rc = cats_and_recount(snap)
         out.append({"product_id":pid,"name":snap.get("name") or "",
             "sku":snap.get("sku") or "","supplier":snap.get("_supplier_name") or s.get("vendor_name") or "",
@@ -433,6 +436,7 @@ def build_stocked_out_early(snapshot, sales, last_day_sold_pids):
             "threshold":snap.get("threshold"),
             "units_sold_at_event": s.get("units_sold") or 0,
             "revenue": s.get("revenue") or 0,
+            "stockout_when": stockout_when,
             "categories":cats,"has_recount_tag":has_rc})
     out.sort(key=lambda x: x["units_sold_at_event"], reverse=True)
     return out
@@ -447,6 +451,9 @@ def build_for_event(ev):
     recount_rows = fetch_recount_rows(jwt, start, end)
     sales = fetch_sales_by_vendor_product(jwt, start, end)
     last_day_sales = fetch_sales_by_vendor_product(jwt, end, end)  # Sunday-only — for stocked-out-early
+    import datetime as _dt
+    _sat = (_dt.date.fromisoformat(end) - _dt.timedelta(days=1)).isoformat()
+    sat_sales = fetch_sales_by_vendor_product(jwt, _sat, _sat)  # Saturday-only — for stockout-day classification
 
     # Hydrate orphan products (counted at event but missing from daily snapshot —
     # e.g. items with no vendor_id assigned in OCTOPOS). Look up live via /api/v2.
@@ -498,7 +505,7 @@ def build_for_event(ev):
     slow_movers = build_slow_movers(snapshot, sales)
     top_sellers = build_top_sellers(sales, snapshot)
     no_threshold = build_no_threshold(snapshot, sales)
-    stocked_out_early = build_stocked_out_early(snapshot, sales, set(last_day_sales.keys()))
+    stocked_out_early = build_stocked_out_early(snapshot, sales, set(last_day_sales.keys()), set(sat_sales.keys()))
 
     summary = {"evkey":evkey,
         "event":{"city":ev.get("city"),"state":ev.get("state"),
