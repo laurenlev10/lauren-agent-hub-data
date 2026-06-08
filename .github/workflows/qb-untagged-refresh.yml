@@ -20,6 +20,9 @@ jobs:
           GH_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
           OCTOPOS_EMAIL:    ${{ secrets.OCTOPOS_EMAIL }}
           OCTOPOS_PASSWORD: ${{ secrets.OCTOPOS_PASSWORD }}
+          GMAIL_CLIENT_ID:     ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
         run: |
           python3 scripts/qb_untagged_pull.py
           python3 scripts/qb_lists_pull.py
@@ -27,6 +30,7 @@ jobs:
           python3 scripts/qb_fixed_loan_tracker.py
           python3 scripts/pnl_auto_refresh.py || echo "pnl refresh partial — continuing"
           python3 scripts/venue_payments_sync.py || echo "venue payments sync partial — continuing"
+          python3 scripts/venue_email_digest.py || echo "venue email digest partial — continuing"
       - name: Commit if changed
         run: |
           git config user.email "lauren@noreply.github.com"

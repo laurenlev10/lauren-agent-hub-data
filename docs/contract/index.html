@@ -580,6 +580,13 @@ function vpRender(){
       const crit = it.critical ? " ⭐" : "";
       return `<button data-vp="check" data-id="${vpEsc(it.id)}" data-ev="${vpEsc(e.evkey)}" style="${css};border-radius:999px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit" title="${v === 1 ? "מוסכם בחוזה" : v === -1 ? "חסר / בעייתי" : "טרם נבדק"}">${mark}${vpEsc(it.label)}${crit}</button>`;
     }).join("");
+    const elog = rec.email_log || [];
+    const showLog = VP_FOCUS && !VP_SHOW_ALL;
+    const emailLog = !elog.length ? (showLog ? '<div style="font-size:11px;color:var(--muted);margin-top:8px">📧 עדיין אין התכתבויות שאותרו — הסריקה רצה כל בוקר לפי כתובת איש הקשר</div>' : "")
+      : (showLog
+        ? '<div style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px"><b style="font-size:12px">📧 התכתבות עם איש הקשר (' + elog.length + ')</b>' +
+          elog.map(m => `<div style="font-size:11px;margin-top:5px;display:flex;gap:8px"><span style="color:#1d4ed8;font-weight:700;white-space:nowrap" dir="ltr">${vpEsc((m.date || "").slice(0, 10))}</span><span style="min-width:0"><b>${vpEsc(m.subject || "")}</b> <span style="color:var(--muted)">· ${vpEsc((m.from || "").replace(/<[^>]*>/g, "").trim())}</span><br><span style="color:#475569">${vpEsc((m.snippet || "").slice(0, 160))}</span></span></div>`).join("") + "</div>"
+        : '<div style="font-size:11px;color:#1d4ed8;margin-top:6px">📧 ' + elog.length + ' התכתבויות — לפתיחה היכנסי דרך כפתור 🏛 Venue של האירוע</div>');
     const depRows = deps.map((d, i) => {
       const pd = vpDepPaid(rec, d);
       const chip = pd === "qb" ? '<span style="font-size:10px;background:#d1fae5;color:#059669;border-radius:6px;padding:1px 6px">✓ זוהה ב-QB</span>' : "";
@@ -596,6 +603,10 @@ function vpRender(){
         <div style="font-weight:700;font-size:14px;color:var(--text)">${vpEsc(e.class_name)} <span style="font-weight:400;font-size:12px;color:var(--muted)">· ${vpEsc(e.start_date)} · ${vpEsc(e.venue || rec.venue || "")}</span></div>
         <div><span class="badge" style="${stCss}">${stTxt}</span>
           <a class="btn" style="padding:3px 8px;font-size:11px;margin-right:6px" href="../pnl/?evkey=${encodeURIComponent(e.evkey)}" target="_blank">📊 P&amp;L</a></div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+        <span style="font-size:13px">👤</span>
+        <input type="text" data-vp="contact" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(rec.contact || "")}" placeholder="איש קשר — שם, אימייל, טלפון, הערות..." style="flex:1;font-size:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:5px 8px">
       </div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
         <label style="display:inline-flex;align-items:center;gap:6px;margin:0;font-size:12px">סה״כ חוזה:
@@ -621,6 +632,7 @@ function vpRender(){
         <button class="btn btn-primary" data-vp="save" data-ev="${vpEsc(e.evkey)}" style="padding:4px 12px;font-size:11px">💾 שמרי</button>
       </div>
       <div style="margin-top:8px">${qbLines}</div>
+      ${emailLog}
     </div>`;
   }).join("");
 }
@@ -637,6 +649,7 @@ document.addEventListener("change", ev => {
   const rec = vpRec(evkey);
   if (kind === "contract_total") rec.contract_total = el.value === "" ? null : +el.value;
   else if (kind === "note") rec.note = el.value;
+  else if (kind === "contact") rec.contact = el.value;
   else if (kind === "room_name") rec.room_name = el.value;
   else if (kind === "room_sqft") rec.room_sqft = el.value;
   else if (kind === "dep_label") (rec.deposits[i] = rec.deposits[i] || {}).label = el.value;
@@ -673,6 +686,7 @@ async function vpSave(evkey){
   rec.deposits = (rec.deposits || []).filter(d => d.label || d.due || d.amount);
   const mine = { contract_total: rec.contract_total ?? null, deposits: rec.deposits, note: rec.note || "",
                  contract_checks: rec.contract_checks || {}, room_name: rec.room_name || "", room_sqft: rec.room_sqft || "",
+                 contact: rec.contact || "",
                  updated_at: new Date().toISOString() };
   try {
     const api = "https://api.github.com/repos/" + VP_REPO + "/contents/" + VP_FILE;
