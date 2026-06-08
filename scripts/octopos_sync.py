@@ -493,4 +493,18 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import time as _time
+    # 2026-06-08 — OCTOPOS/Cloudflare occasionally times out mid-scan (saw 3/10 runs fail
+    # on "read operation timed out"). main() rebuilds the snapshot fresh (idempotent), so a
+    # single retry on a transient network error turns those flaky failures into successes.
+    for _attempt in range(2):
+        try:
+            main(); break
+        except Exception as _e:
+            _transient = ("timed out" in str(_e).lower()) or _e.__class__.__name__ in (
+                "TimeoutError", "URLError", "ConnectionError", "IncompleteRead", "RemoteDisconnected")
+            if _attempt == 0 and _transient:
+                print(f"[octopos-sync] transient network error: {_e} — retrying once in 25s")
+                _time.sleep(25)
+            else:
+                raise

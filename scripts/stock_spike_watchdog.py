@@ -38,15 +38,13 @@ def send_sms(phone, body):
     if not token:
         print(f"  (no SIMPLETEXTING_TOKEN — would have sent to {phone}: {body[:80]})")
         return False
+    # 2026-06-08 — was hitting the dead host app-api.simpletexting.com (DNS fail → every
+    # run errored). Route through the shared lauren_sms helper (app2.simpletexting.com).
     try:
-        req = urllib.request.Request(
-            "https://app-api.simpletexting.com/v1/contacts/" + phone + "/messages",
-            data=json.dumps({"text": body}).encode("utf-8"),
-            headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
-            method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=20) as r:
-            return r.status < 400
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from lauren_sms import send_sms as _send
+        _send(phone, body)
+        return True
     except Exception as e:
         print(f"  SMS to {phone} failed: {e}")
         return False
