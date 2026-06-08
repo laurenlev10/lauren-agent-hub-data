@@ -25,6 +25,18 @@ TRAVEL_SENDERS = ("southwest", "aa.com", "united", "delta", "flyfrontier", "spir
                   "alaskaair", "hotels.com", "marriott", "hilton", "hyatt", "ihg",
                   "choicehotels", "wyndham", "expedia", "booking.com", "priceline",
                   "alamo", "hertz", "enterprise", "avis", "budget")
+# Lauren 2026-06-08: venue payments (hotel = event hall) are matched too -
+# by venue/city name in the email, not by travel date (deposits precede events by months)
+VENUE_HINTS = ("banquet", "event order", "beo", "catering", "ballroom", "event space",
+               "rental", "deposit", "agreement", "contract", "group sales", "sales & catering",
+               "function space", "invoice", "docusign", "exhibit", "vendor")
+VENUE_STOPWORDS = ("hotel", "hotels", "center", "centre", "suites", "event", "events",
+                   "conference", "community", "inn")
+
+def _norm(s):
+    return re.sub(r"[^a-z0-9]+", "", (s or "").lower())
+
+
 MONTHS = {m: i + 1 for i, m in enumerate(
     ["january", "february", "march", "april", "may", "june", "july",
      "august", "september", "october", "november", "december"])}
@@ -111,20 +123,54 @@ def dates_in(text, charge):
 
 
 def load_events():
-    evs = json.loads(EVENTS.read_text(encoding="utf-8"))["events"]
-    out = []
-    for e in evs:
-        out.append((dt.date.fromisoformat(e["start_date"]), dt.date.fromisoformat(e["end_date"]), e["class_name"]))
-    return out
+    return json.loads(EVENTS.read_text(encoding="utf-8"))["events"]
 
 
 def nearest_event(events, d):
     best, bd = None, 99999
-    for s, e, cls in events:
+    for ev in events:
+        s, e = dt.date.fromisoformat(ev["start_date"]), dt.date.fromisoformat(ev["end_date"])
         dist = 0 if s <= d <= e else min(abs((d - s).days), abs((d - e).days))
         if dist < bd:
-            best, bd = cls, dist
+            best, bd = ev["class_name"], dist
     return best, bd
+
+
+def venue_config():
+    try:
+        t = json.loads((ROOT / "docs/state/qb_expense_types.json").read_text(encoding="utf-8"))
+        vr = t.get("venue_rent") or {}
+        return float(vr.get("min_amount") or 1500), vr.get("account") or "Rent Expense:Trade Show Rent"
+    except Exception:
+        return 1500.0, "Rent Expense:Trade Show Rent"
+
+
+def match_venue_event(events, subj, sender, text, charge):
+    # does this email talk about one of OUR event venues? (hall-rent path)
+    hay = (subj + " " + sender + " " + text).lower()
+    hayn = _norm(hay)
+    best, bs = None, 0
+    for ev in events:
+        if not ev.get("venue"):
+            continue
+        vwords = [w for w in re.split(r"[^a-z0-9]+", ev["venue"].lower())
+                  if len(w) >= 4 and w not in VENUE_STOPWORDS]
+        hits = sum(1 for w in vwords if w in hay)
+        score = 0
+        if vwords and hits >= min(2, len(vwords)):
+            score += 2
+        cityn = _norm(ev.get("city"))
+        if cityn and cityn in hayn:
+            score += 2
+        try:
+            sd = dt.date.fromisoformat(ev["start_date"])
+            if -30 <= (sd - charge).days <= 400:
+                score += 1   # deposits are paid in advance of the event
+        except Exception:
+            pass
+        if score > bs:
+            bs, best = score, ev
+    return (best, bs) if bs >= 3 else (None, 0)
 
 
 def classify_account(subj_from):
@@ -167,6 +213,18 @@ def process(tok, events, e):
         scored.append((score, subj, sender, text))
     scored.sort(key=lambda x: -x[0])
     score, subj, sender, text = scored[0]
+    # venue path FIRST - hall payments have no travel date and must not become Accommodations
+    ven_ev, vscore = match_venue_event(events, subj, sender, text, charge)
+    venue_hint = any(k in (subj + " " + text).lower() for k in VENUE_HINTS)
+    if ven_ev and (venue_hint or vscore >= 4):
+        v_min, v_account = venue_config()
+        note = subj[:60] + " · 🏛 אולם — " + (ven_ev.get("venue") or "")[:40]
+        res = {"status": "done", "result_cls": ven_ev["class_name"], "result_note": note}
+        if amt >= v_min:
+            res["result_account"] = v_account
+        else:
+            res["result_note"] += " · סכום קטן — כנראה לינות צוות"
+        return res
     ds = dates_in(subj, charge) or dates_in(text, charge)
     if not ds:
         return {"status": "no_receipt", "result_note": f"נמצא אימייל ({subj[:60]}) אבל בלי תאריך נסיעה ברור"}
