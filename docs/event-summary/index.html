@@ -246,6 +246,20 @@ async function attachPhantomZeros(evkey){
     }));
     SUMMARY._phantom_meta = { generated_at: ev.generated_at, window: (ev.last_event || {}),
                               rule: (ev.rule || {}), summary: (ev.apply_summary || {}) };
+    // Zeroed products are resolved — drop them from the OTHER tabs so they don't
+    // double-appear (e.g. as slow-movers at their pre-zero stock). Lauren 2026-06-08.
+    const _zpids = new Set((SUMMARY.tabs.phantom_zeros || []).map(r => r.product_id));
+    if (_zpids.size){
+      ['slow_movers','negatives','no_threshold','missed_from_worklist','counted_at_event','top_sellers'].forEach(tb => {
+        if (Array.isArray(SUMMARY.tabs[tb]))
+          SUMMARY.tabs[tb] = SUMMARY.tabs[tb].filter(r => !_zpids.has(r.product_id != null ? r.product_id : r.id));
+      });
+      if (SUMMARY.stats){
+        if ('slow_movers_count' in SUMMARY.stats) SUMMARY.stats.slow_movers_count = (SUMMARY.tabs.slow_movers || []).length;
+        if ('negatives_count' in SUMMARY.stats)   SUMMARY.stats.negatives_count   = (SUMMARY.tabs.negatives || []).length;
+        if ('no_threshold_count' in SUMMARY.stats) SUMMARY.stats.no_threshold_count = (SUMMARY.tabs.no_threshold || []).length;
+      }
+    }
   } catch(e){ if (SUMMARY){ SUMMARY.tabs = SUMMARY.tabs || {}; SUMMARY.tabs.phantom_zeros = []; } }
 }
 
