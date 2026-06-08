@@ -30,6 +30,8 @@ from recount_prebuild import (
 
 ZERO_MIN_QTY = 1
 ZERO_MAX_QTY = 3
+NEG_ZERO_MIN = -2   # small negatives -1,-2 are drift → zero too (Lauren 2026-06-08)
+NEG_ZERO_MAX = -1
 LAST_EVENT_MAX_AGE_DAYS = 10
 AUDIT_PATH = REPO_ROOT / "docs/state/octopos_phantom_zeros.json"
 
@@ -67,13 +69,14 @@ def find_candidates(snapshot, sold_satsun_pids):
                 qty = float(p.get("in_stock_qty") or 0)
             except (TypeError, ValueError):
                 continue
-            if not (ZERO_MIN_QTY <= qty <= ZERO_MAX_QTY):
-                continue
             pid = int(p.get("id") or 0)
-            if pid in sold_satsun_pids:
+            is_pos = (ZERO_MIN_QTY <= qty <= ZERO_MAX_QTY) and (pid not in sold_satsun_pids)
+            is_neg = (NEG_ZERO_MIN <= qty <= NEG_ZERO_MAX)   # -1, -2 small drift — always zero
+            if not (is_pos or is_neg):
                 continue
             out.append({"id": pid, "sku": (p.get("sku") or "").strip(),
-                        "name": (p.get("name") or "").strip(), "supplier": supplier, "qty": qty})
+                        "name": (p.get("name") or "").strip(), "supplier": supplier, "qty": qty,
+                        "kind": ("neg_drift" if is_neg else "pos_residual")})
     out.sort(key=lambda x: (x["supplier"], -x["qty"], x["name"]))
     return out
 
@@ -132,7 +135,7 @@ def main():
         "generated_at": dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
         "last_event": {"city": prior.get("city"), "state": prior.get("state"),
                        "start": prior.get("start_date"), "sat": sat.isoformat(), "sun": sun.isoformat()},
-        "rule": {"qty_min": ZERO_MIN_QTY, "qty_max": ZERO_MAX_QTY, "window": "sat-sun", "no_recount": True},
+        "rule": {"pos_min": ZERO_MIN_QTY, "pos_max": ZERO_MAX_QTY, "neg_min": NEG_ZERO_MIN, "neg_max": NEG_ZERO_MAX, "window": "sat-sun", "no_recount": True},
         "candidate_count": len(cands),
         "applied": False,
         "zeroed": [],
@@ -154,12 +157,20 @@ def main():
         pid = c["id"]
         try:
             before = float(_get_product(pid, raw_token).get("in_stock_qty") or 0)
-            if not (ZERO_MIN_QTY <= before <= ZERO_MAX_QTY):
+            in_range = (ZERO_MIN_QTY <= before <= ZERO_MAX_QTY) or (NEG_ZERO_MIN <= before <= NEG_ZERO_MAX)
+            if not in_range:
+                # Already resolved. If it's already 0 it was zeroed by a prior run today —
+                # still record it (using snapshot qty as "before") so the per-event audit
+                # shows the complete set. Otherwise (restocked) drop silently.
+                if before == 0:
+                    zeroed.append({"id": pid, "sku": c["sku"], "name": c["name"],
+                                   "supplier": c["supplier"], "before": c["qty"], "after": 0,
+                                   "http": "prior", "kind": c.get("kind")})
                 skip += 1; continue
             status, after = _put_stock_zero(pid, raw_token)
             aq = float(after.get("in_stock_qty", 0) or 0)
             rec = {"id": pid, "sku": c["sku"], "name": c["name"], "supplier": c["supplier"],
-                   "before": before, "after": aq, "http": status}
+                   "before": before, "after": aq, "http": status, "kind": c.get("kind")}
             zeroed.append(rec)
             if status == 200 and aq == 0: ok += 1
             else: fail += 1
@@ -172,7 +183,7 @@ def main():
     print(f"\nDONE — zeroed {ok}, failed {fail}, skipped {skip}. Audit at {AUDIT_PATH}")
     if ok or fail:
         body = (f"@inventory 🧹 איפוס פנטום אוטומטי ({prior.get('city')}): "
-                f"{ok} מוצרים עם 1-3 יח׳ שלא נמכרו בשבת-ראשון אופסו ל-0"
+                f"{ok} מוצרים (שאריות 1-3 ללא מכירה בשבת-ראשון + מינוס קטן -1/-2) אופסו ל-0"
                 + (f" · {fail} נכשלו" if fail else "") + ".\n"
                 f"https://dashboard.themakeupblowout.com/event-summary/?evkey={evkey}")
         try: sms_lauren(body)

@@ -335,7 +335,7 @@ def build_negatives(snapshot):
     for pid, snap in snapshot.items():
         try: qty = float(snap.get("in_stock_qty") or 0)
         except: continue
-        if qty >= 0 or not snap.get("active", True): continue
+        if qty > -3 or not snap.get("active", True): continue  # small negs (-1,-2) auto-zeroed (Lauren 2026-06-08); only <=-3 here
         if is_excluded(snap): continue
         cats, has_rc = cats_and_recount(snap)
         out.append({"product_id":pid,"name":snap.get("name") or "",

@@ -376,6 +376,10 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
             if not p.get("active", True):
                 continue  # Lauren 2026-06-08 — ACTIVE products only on the count list
             qty = float(p.get("in_stock_qty") or 0)
+            # Lauren 2026-06-08 — small negatives (-1,-2) are tiny drift, auto-zeroed by
+            # octopos_zero_phantoms.py at event end. Never recount them.
+            if -2 <= qty <= -1:
+                continue
             # Lauren 2026-05-21 PM #8 — read from 'categories' (OCTOPOS's tag mechanism),
             # NOT 'tags'. octopos_sync.py stores them under 'categories' since 2026-05-13.
             # Previously was reading 'tags' which always returned empty → preexisting was
