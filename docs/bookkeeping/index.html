@@ -469,6 +469,47 @@ function isGenericRuleKey(k) {
   return !k || k === "misc" || /^uncategorized/.test(k) || /\bexpense\b/.test(k) ||
          ["purchase","payment","pos debit","debit","credit","check","withdrawal","deposit","transfer"].indexOf(k) !== -1;
 }
+// Lauren 2026-06-08: hotel charges that are actually the EVENT VENUE (hall rent).
+// Match merchant/memo against SCHEDULE venue names (events_index now carries venue+address).
+const HOTEL_BRANDS = ["doubletree","holidayinn","hiltongarden","hilton","marriott","embassysuites","sheraton","radisson","hyatt","crowneplaza","wyndham","ramada","renaissance","westin","courtyard","bestwestern","comfortinn","laquinta","redlion","clarion"];
+function normTxt(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, ""); }
+function findVenueEvent(t) {
+  const rawHay = (t.qb_vendor || "") + " " + bankMemoOf(t);
+  const hay = normTxt(rawHay);
+  if (!hay) return null;
+  let best = null, bestScore = 0;
+  for (const e of (EVENTS_INDEX.events || [])) {
+    if (!e.venue) continue;
+    const vn = normTxt(e.venue);
+    let score = 0;
+    // brand must AGREE on both sides ("hilton garden" charge must not match a "doubletree by hilton" venue)
+    const detectBrand = s => { for (const b of HOTEL_BRANDS) { if (s.indexOf(b) !== -1) return b; } return null; };
+    const bv = detectBrand(vn), bh = detectBrand(hay);
+    if (bv && bh && bv === bh) score += 2;
+    if (!score) {
+      // non-hotel venues (expo centers etc.): significant venue words present in the charge text
+      const words = (e.venue || "").toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 4 && ["hotel","hotels","center","centre","suites","event","events","conference","community"].indexOf(w) === -1);
+      const hits = words.filter(w => hay.indexOf(w) !== -1).length;
+      if (words.length && hits >= Math.min(2, words.length)) score += 2;
+    }
+    if (!score) continue;
+    const city = normTxt(e.city);
+    for (let L = Math.min(city.length, 8); L >= 4; L--) { if (hay.indexOf(city.slice(0, L)) !== -1) { score += 2; break; } }
+    if (e.state && new RegExp("\\b" + e.state + "\\b", "i").test(rawHay)) score += 1;
+    // negative signal: the charge text names a location that is NOT this event's city
+    if (score < 4) {
+      const STOP = new Set(["PURCHASE","AUTHORIZED","RECURRING","PAYMENT","CARD","DOUBLE","TREE","DOUBLETREE","HOLIDAY","HILTON","GARDEN","MARRIOTT","EMBASSY","SUITES","SHERATON","RADISSON","HYATT","CROWNE","PLAZA","WYNDHAM","RAMADA","RENAISSANCE","WESTIN","COURTYARD","BEST","WESTERN","COMFORT","QUINTA","HOTEL","HOTELS","RESORT","CONVENTION","CENTER","EXPO"]);
+      const cityN = normTxt(e.city);
+      const toks = rawHay.toUpperCase().split(/[^A-Z]+/).filter(w => w.length >= 4 && !STOP.has(w) && !/X{3,}/.test(w));
+      const offCity = toks.length && !toks.some(w => { const wl = w.toLowerCase(); return cityN.indexOf(wl.slice(0, 6)) !== -1 || wl.indexOf(cityN.slice(0, 5)) !== -1; });
+      if (offCity) score -= 1;
+    }
+    const better = score > bestScore ||
+      (score === bestScore && best && e.start_date >= (t.date || "") && best.start_date < (t.date || ""));
+    if (better) { bestScore = score; best = e; }
+  }
+  return (bestScore >= 3 && best) ? { ev: best, score: bestScore } : null;
+}
 let PUT_CHAIN = Promise.resolve();   // serialize writes — rapid Done clicks must not race each other
 function ghPutJson(path, mutate, msg) { return ghBatchJson([{ path, mutate }], msg); }
 function ghBatchJson(files, msg) {
@@ -1161,9 +1202,12 @@ function renderQBCard(t) {
   const amtCls = t.isCredit ? "amt credit" : "amt";
   const recBadge = t.recognized ? '<span class="badge rec">✓ זוהה</span>' : "";
   const sugBadge = (t.cat_suggested && !t.recognized) ? '<span class="badge" style="background:#fef9c3;color:#854d0e" title="ניחוש לפי שם המוכר — לאמת לפני פרסום">💡 הצעה — לאמת</span>' : "";
+  const venueBadge = t.venue_rent
+    ? `<span class="badge" style="background:#ede9fe;color:#5b21b6" title="המלון הזה הוא מקום האירוע לפי לוח האירועים — כנראה תשלום אולם. לאמת לפני פרסום">🏛 אולם — ${escapeHtml(t.venue_match || "")}? לאמת</span>`
+    : (t.venue_match ? `<span class="badge" style="background:#ede9fe;color:#5b21b6" title="המלון הזה הוא מקום האירוע — סכום קטן, כנראה לינות צוות">🏛 מלון האירוע ${escapeHtml(t.venue_match)}</span>` : "");
   const memoFull = bankMemoOf(t);
   const merchGuess = merchantFromMemo(t);
-  const needsId = !t.recognized && (!t.sel_account || /uncategorized/i.test(t.sel_account) || t.cat_suggested);
+  const needsId = t.venue_rent || t.venue_match || (!t.recognized && (!t.sel_account || /uncategorized/i.test(t.sel_account) || t.cat_suggested));
   const memoLine = (memoFull && needsId) ? `<div class="memo-line" title="הטקסט המלא מהבנק">🏦 ${escapeHtml(memoFull.replace(/\s{2,}/g, "  "))}</div>` : "";
   const acBadge = t.auto_class ? '<span class="badge rec" title="שויך לאירוע לפי התאריך">🏷 לפי תאריך</span>' : "";
   const tdef = (QB_TYPES.types || {})[t.etype];
@@ -1176,7 +1220,7 @@ function renderQBCard(t) {
   return `
     <div class="card ${cls}"${tStyle}>
       <div class="info" style="width:100%">
-        <div class="top-line" title="${escapeHtml(memoFull)}">${escapeHtml((t.qb_vendor || merchGuess || t.desc).slice(0, 60))} ${tChip} ${acBadge} ${recBadge} ${sugBadge}</div>
+        <div class="top-line" title="${escapeHtml(memoFull)}">${escapeHtml((t.qb_vendor || merchGuess || t.desc).slice(0, 60))} ${tChip} ${acBadge} ${recBadge} ${sugBadge} ${venueBadge}</div>
         <div class="bottom-line"><span class="dtx">${escapeHtml(t.date_human)}</span> · <span class="${amtCls}">${fmtMoney(t.amt)}</span> · ${escapeHtml(t.qb_paid_from || "")} · ${escapeHtml((t.desc||"").slice(0,70))}</div>
         ${memoLine}
         <div class="qb-edit">
@@ -1868,6 +1912,17 @@ async function startQBSession() {
         if ((AC.patterns || []).some(pat => hay.indexOf(pat) !== -1)) {
           const ev = findEventForDate(t.date, AC.days_before || 3, AC.days_after || 1);
           if (ev) { t.sel_class = ev.class_name; t.auto_class = true; if (!t.etype || t.etype === "event_travel") t.etype = "event_accum"; }
+        }
+      }
+      // venue payment? (hotel that IS the event hall — Lauren 2026-06-08)
+      const vm = findVenueEvent(t);
+      if (vm) {
+        t.venue_match = vm.ev.class_name;
+        if (!t.sel_class) t.sel_class = vm.ev.class_name;
+        const VR = QB_TYPES.venue_rent || {};
+        if (Math.abs(t.amt) >= (VR.min_amount || 1500) && !t.recognized) {
+          t.sel_account = VR.account || "Rent Expense:Trade Show Rent";
+          t.venue_rent = true; t.cat_suggested = false;
         }
       }
     });

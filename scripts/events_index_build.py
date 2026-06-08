@@ -23,7 +23,8 @@ def main():
             slug = re.sub(r"^-|-$", "", re.sub(r"[^a-z0-9]+", "-", city.lower()))
             events.append({"evkey": f"{slug}-{start}", "city": city, "state": ev.get("state") or "",
                            "start_date": start, "end_date": end,
-                           "class_name": f"{city} {start[:4]}"})
+                           "class_name": f"{city} {start[:4]}",
+                           "venue": ev.get("venue") or "", "address": ev.get("address") or ""})
     events.sort(key=lambda e: e["start_date"])
     out = {"_updated_at": dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"), "events": events}
     (ROOT/"docs/state/events_index.json").write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
