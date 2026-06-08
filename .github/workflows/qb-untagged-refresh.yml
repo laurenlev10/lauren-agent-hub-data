@@ -33,7 +33,7 @@ jobs:
           git add docs/state/qb_untagged.json docs/state/qb_lists.json docs/state/events_index.json docs/state/qb_fixed_loan_tracker.json docs/state/event_pnl/
           if ! git diff --cached --quiet; then
             git commit -m "qb: daily untagged + lists refresh [qb-applied]"
-            git pull --rebase origin main
+            git pull --no-rebase -X ours origin main   # regenerated snapshots — ours wins on race
             git push origin main
           fi
       - name: Update scheduled-runs lastRunAt
@@ -52,7 +52,7 @@ jobs:
           git add docs/scheduled-runs.json
           if ! git diff --cached --quiet; then
             git commit -m "scheduled-runs: bump qb-untagged-refresh lastRunAt"
-            git pull --rebase origin main
+            git pull --no-rebase -X ours origin main
             git push origin main
           fi
       - name: SMS Lauren on failure
