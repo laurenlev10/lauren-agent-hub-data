@@ -1379,6 +1379,32 @@ function renderBananaCard(sup, s){
   });
 })();
 
+// GARAGE prep notes — manager's low-stock/on-hand answers carried from the previous
+// event's manager report, shown on the GARAGE (mystery-box) card. Source data:
+// inventory_orders.json events[evkey].garage_prep_notes (Lauren 2026-06-08).
+function renderGaragePrepNotes(slice){
+  try{
+    var g = slice && slice.garage_prep_notes;
+    if (!g) return '';
+    function li(arr, color){
+      return (arr||[]).map(function(x){
+        var item = escHtml(x.item||''); var det = escHtml(x.detail||'');
+        return '<li style="margin:2px 0"><b>'+item+'</b>'+(det?' — <span style="color:'+color+'">'+det+'</span>':'')+'</li>';
+      }).join('');
+    }
+    var need = li(g.need_to_order, '#b91c1c');
+    var onh  = li(g.on_hand, '#15803d');
+    var dont = (g.dont_need||[]).map(function(s){return escHtml(s);}).join(' · ');
+    return '<div style="border:2px solid #f9a8d4;background:#fdf2f8;border-radius:10px;padding:12px 14px;margin:0 0 12px">'+
+      '<div style="font-weight:800;color:#9d174d;margin-bottom:6px">📋 הערות מלאי מהמנהלת — מהאירוע הקודם</div>'+
+      '<div style="font-size:12px;color:#6b7280;margin-bottom:8px">'+escHtml(g.from_event||'')+' · '+escHtml(g.manager||'')+'</div>'+
+      (need ? '<div style="margin-bottom:8px"><div style="font-weight:700;color:#b91c1c">🔴 צריך להזמין:</div><ul style="margin:4px 0 0;padding-right:18px;font-size:13px">'+need+'</ul></div>' : '')+
+      (onh ? '<div style="margin-bottom:8px"><div style="font-weight:700;color:#15803d">📦 יש במלאי:</div><ul style="margin:4px 0 0;padding-right:18px;font-size:13px">'+onh+'</ul></div>' : '')+
+      (dont ? '<div style="font-size:12px;color:#6b7280;margin-bottom:6px"><b>✅ לא צריך:</b> '+dont+'</div>' : '')+
+      (g.manager_notes ? '<div style="font-size:12px;color:#374151;background:#fff;border-radius:6px;padding:8px;margin-top:4px"><b>📝 הערות:</b> '+escHtml(g.manager_notes)+'</div>' : '')+
+    '</div>';
+  } catch(e){ return ''; }
+}
 function renderSupplierCard(sup, s, idx){
   if (sup && sup.special === "banana") return renderBananaCard(sup, s);
   // Lauren 2026-06-01 — define slice in THIS function's scope. It was referenced
@@ -1563,6 +1589,7 @@ function renderSupplierCard(sup, s, idx){
       '<div class="chev">▾</div>'+
     '</div>'+
     '<div class="body">'+
+      ((sup.code === 'mystery-box') ? renderGaragePrepNotes(slice) : '')+
       '<div class="row">'+
         '<div class="field">'+
           '<label>סטטוס</label>'+
