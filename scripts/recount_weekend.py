@@ -285,12 +285,10 @@ def main():
     state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Wrote state slice for {evkey}")
 
-    cleanup_line = f"🧹 הוסרתי תג RECOUNT מ-{cleaned_count} מוצרים" if cleaned_count else ""
     body = (
-        f"@recount ✓ סיימתי סריקה אוטומטית של {city}, {state} ({local.strftime('%H:%M %Z')}).\n"
-        f"📊 {len(events)} תנועות ספירה · {len(counted_pids)} מוצרים יחודיים נספרו.\n"
-        + (cleanup_line + "\n" if cleanup_line else "")
-        + f"\nhttps://dashboard.themakeupblowout.com/recount/?evkey={evkey}"
+        f"✓ ספירת אירוע הושלמה — {city} ({len(counted_pids)} נספרו, {cleaned_count} תגיות הוסרו).
+"
+        f"https://dashboard.themakeupblowout.com/recount/?evkey={evkey}"
     )
     sms_lauren(body)
     print("Done.")
