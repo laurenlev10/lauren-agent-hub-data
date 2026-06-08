@@ -800,6 +800,8 @@ let FB_EVENT_STATS = null;  // populated from docs/state/fb_event_stats.json on 
 // Read by the 🔳 QR LP button on each row: green if SUBSCRIBE_TARGET.event_key === evKey (i.e. the QR landing page is currently pointing here), black otherwise.
 // Populated by an async fetch in the init block at the bottom of this script. Lauren 2026-05-20.
 let SUBSCRIBE_TARGET = null;
+// 🏛 Venue closing-status (Lauren 2026-06-08) — docs/state/venue_payments.json; colors the Venue button
+let VENUE_PAY = null;
 
 // 📋 Manager Report state — reports[evKey] = [submission, ...]. Populated by an async
 // fetch in the init block (../state/manager_reports.json). A row's 📋 button flips GREEN
@@ -2089,7 +2091,19 @@ End date: </div>
           if (con) {
             rowBtn += '<a class="btn-agent-row btn-contract-row done" href="' + con.href + '" target="_blank" rel="noopener" title="Contract reviewed · ' + (con.generated_at||"").slice(0,10) + '">🏛 Venue ' + (con.verdict||"✓") + '</a>';
           } else {
-            rowBtn += '<a class="btn-agent-row btn-contract-row" href="../contract/?' + params + '" target="_blank" rel="noopener" title="Venue — תשלומים, צ׳קליסט חוזה ואיש קשר של האירוע">🏛 Venue</a>';
+            // closing-status color: green = signed + deposit; red = <35d and not there; yellow = in progress
+            var vpRec2 = (VENUE_PAY && VENUE_PAY.events) ? VENUE_PAY.events[evKey] : null;
+            var vpStyle = "", vpMark = "", vpTip = "Venue — תשלומים, צ׳קליסט חוזה ואיש קשר של האירוע";
+            if (vpRec2) {
+              var vpSig = vpRec2.signals || {}, vpMan = vpRec2.milestones || {};
+              var vpSigned = !!(vpSig.contract_signed || vpMan.contract_signed);
+              var vpPaid = (vpRec2.qb_paid_total || 0) > 0 || (vpRec2.deposits || []).some(function(d){ return d.paid; }) || vpMan.deposit;
+              var vpDays = Math.round((new Date(ev.start_date + "T12:00:00") - Date.now()) / 864e5);
+              if (vpSigned && vpPaid) { vpStyle = ' style="background:linear-gradient(180deg,#059669,#047857)"'; vpMark = " ✓"; vpTip = "אולם סגור — חוזה חתום + דיפוזיט שולם"; }
+              else if (vpDays >= -3 && vpDays <= 35) { vpStyle = ' style="background:linear-gradient(180deg,#dc2626,#7f1d1d);box-shadow:0 0 0 2px #fecaca"'; vpMark = " ⚠"; vpTip = "דחוף: " + (vpSigned ? "" : "חוזה לא חתום · ") + (vpPaid ? "" : "אין דיפוזיט · ") + vpDays + " ימים לאירוע"; }
+              else if (vpSigned || vpPaid) { vpStyle = ' style="background:linear-gradient(180deg,#b45309,#92400e)"'; vpMark = " …"; vpTip = "בתהליך: " + (vpSigned ? "חוזה חתום" : "חוזה לא חתום") + " · " + (vpPaid ? "דיפוזיט שולם" : "אין דיפוזיט"); }
+            }
+            rowBtn += '<a class="btn-agent-row btn-contract-row"' + vpStyle + ' href="../contract/?' + params + '" target="_blank" rel="noopener" title="' + vpTip + '">🏛 Venue' + vpMark + '</a>';
           }
 
           // 🔍 City Scout — orange opens the per-event Scout Brief dashboard (pre-filled details + Copy-Prompt for Cowork NEW TASK); green opens the finished report from SCOUTS map
@@ -3863,6 +3877,12 @@ End date: </div>
     .then(r => r.ok ? r.json() : null)
     .then(data => { SUBSCRIBE_TARGET = data; renderSchedule(); })
     .catch(() => { /* fail-silent — button stays black */ });
+
+  // 🏛 Venue payments/closing status — colors the Venue button by readiness (Lauren 2026-06-08)
+  fetch("../state/venue_payments.json?_=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => { VENUE_PAY = data; renderSchedule(); })
+    .catch(() => { /* fail-silent */ });
 
   // 🏠 Home Page publish-status — written every 30 min by homepage-publish-check.yml.
   // Button turns green when the live homepage already shows the current event. Lauren 2026-06-01.

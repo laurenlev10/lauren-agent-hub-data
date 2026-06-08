@@ -503,6 +503,26 @@ function vpChecklistItems(){
   VP_EXTRA_CHECKS.forEach(x => { if (!have.has(x.id)) cl.push(x); });
   return cl;
 }
+// closing-pipeline milestones (Lauren 2026-06-08) - auto from signals/payments/checklist, manual fallback toggles
+function vpMilestones(rec){
+  const sig = rec.signals || {}, man = rec.milestones || {};
+  const anyPaid = (rec.deposits || []).some(d => d.paid) || (rec.qb_paid_total || 0) > 0;
+  const crit = vpChecklistItems().filter(it => it.critical);
+  const checks = rec.contract_checks || {};
+  const critOk = crit.length > 0 && crit.every(it => checks[it.id] === 1);
+  const total = rec.contract_total;
+  const paidSum = (rec.deposits || []).filter(d => d.paid).reduce((s, d) => s + (+d.amount || 0), 0) + (rec.qb_paid_total || 0);
+  const balPaid = (total > 0 && paidSum >= total - 1);
+  return [
+    { id: "contacted", label: "יצירת קשר", done: !!(rec.email_log || []).length || !!rec.contact, auto: true },
+    { id: "contract_signed", label: "חוזה חתום", done: !!sig.contract_signed || !!man.contract_signed, auto: !!sig.contract_signed, date: sig.contract_signed || "", manual: true },
+    { id: "deposit", label: "דיפוזיט שולם", done: anyPaid || !!man.deposit, auto: anyPaid, manual: true },
+    { id: "terms", label: "תנאים קריטיים", done: critOk, auto: true },
+    { id: "beo", label: "BEO", done: !!sig.beo || !!man.beo, auto: !!sig.beo, date: sig.beo || "", manual: true },
+    { id: "balance", label: "יתרה שולמה", done: balPaid || !!man.balance, auto: balPaid, manual: true },
+  ];
+}
+function vpDaysTo(e){ return Math.round((new Date(e.start_date + "T12:00:00") - Date.now()) / 864e5); }
 
 function vpEsc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function vpFmt(n){ return (n == null || isNaN(n)) ? "—" : "$" + Number(n).toLocaleString("en-US", {maximumFractionDigits: 0}); }
@@ -568,6 +588,19 @@ function vpRender(){
     const balance = (total != null && total !== "") ? Math.max(0, total - paid) : null;
     const qbLines = (rec.qb_lines || []).map(l =>
       `<span style="display:inline-block;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;border-radius:6px;padding:1px 7px;margin:2px;font-size:11px" title="${vpEsc(l.account)}">${vpEsc((l.date || "").slice(5))} · ${vpFmt(l.amount)} · ${vpEsc((l.vendor || "").slice(0, 20))}</span>`).join("") || '<span style="font-size:11px;color:var(--muted)">עדיין אין תשלומים ב-QB עם ה-Class של האירוע</span>';
+    const ms = vpMilestones(rec);
+    const daysTo = vpDaysTo(e);
+    const msMissing = ms.filter(m => !m.done && ["contract_signed", "deposit", "terms"].indexOf(m.id) !== -1);
+    const msAlert = (daysTo >= -3 && daysTo <= 35 && msMissing.length)
+      ? `<span style="background:#fee2e2;color:#b91c1c;border-radius:8px;padding:2px 9px;font-size:11px;font-weight:700">⚠ ${daysTo} ימים לאירוע — חסר: ${msMissing.map(m => m.label).join(" · ")}</span>` : "";
+    const msRow = `<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-bottom:8px">` + ms.map(m => {
+      const css = m.done ? "background:#d1fae5;color:#059669;border:1px solid #a7f3d0" : "background:#f3f4f6;color:#9ca3af;border:1px solid #e5e7eb";
+      const clickable = m.manual && !m.auto;
+      const tag = clickable ? "button" : "span";
+      const attrs = clickable ? `data-vp="milestone" data-id="${vpEsc(m.id)}" data-ev="${vpEsc(e.evkey)}"` : "";
+      const tip = m.done ? ((m.auto ? "זוהה אוטומטית" : "סומן ידנית") + (m.date ? " · " + m.date : "")) : (clickable ? "לחיצה לסימון ידני" : "מתמלא אוטומטית");
+      return `<${tag} ${attrs} style="${css};border-radius:8px;padding:3px 9px;font-size:11px;font-weight:600;${clickable ? "cursor:pointer;" : ""}font-family:inherit" title="${vpEsc(tip)}">${m.done ? "✓" : "○"} ${vpEsc(m.label)}</${tag}>`;
+    }).join(`<span style="color:#d1d5db">–</span>`) + " " + msAlert + `</div>`;
     const checks = rec.contract_checks || {};
     const items = vpChecklistItems();
     const chkDone = items.filter(it => checks[it.id] === 1).length, chkAll = items.length;
@@ -603,6 +636,7 @@ function vpRender(){
         <div><span class="badge" style="${stCss}">${stTxt}</span>
           <a class="btn" style="padding:3px 8px;font-size:11px;margin-right:6px" href="../pnl/?evkey=${encodeURIComponent(e.evkey)}" target="_blank">📊 P&amp;L</a></div>
       </div>
+      ${msRow}
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
         <span style="font-size:13px">👤</span>
         <input type="text" data-vp="contact" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(rec.contact || "")}" placeholder="איש קשר — שם, אימייל, טלפון, הערות..." style="flex:1;font-size:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:5px 8px">
@@ -661,7 +695,14 @@ document.addEventListener("click", async ev => {
   const el = ev.target.closest("[data-vp]");
   if (!el) return;
   const kind = el.getAttribute("data-vp"), evkey = el.getAttribute("data-ev");
-  if (kind === "check") {
+  if (kind === "milestone") {
+    const rec = vpRec(evkey);
+    if (!rec.milestones) rec.milestones = {};
+    const id = el.getAttribute("data-id");
+    rec.milestones[id] = !rec.milestones[id];
+    vpRender();
+  }
+  else if (kind === "check") {
     const rec = vpRec(evkey);
     if (!rec.contract_checks) rec.contract_checks = {};
     const id = el.getAttribute("data-id"), v = rec.contract_checks[id];
@@ -697,7 +738,7 @@ async function vpSave(evkey){
   rec.deposits = (rec.deposits || []).filter(d => d.label || d.due || d.amount);
   const mine = { contract_total: rec.contract_total ?? null, deposits: rec.deposits, note: rec.note || "",
                  contract_checks: rec.contract_checks || {}, room_name: rec.room_name || "", room_sqft: rec.room_sqft || "",
-                 contact: rec.contact || "", check_notes: rec.check_notes || {},
+                 contact: rec.contact || "", check_notes: rec.check_notes || {}, milestones: rec.milestones || {},
                  updated_at: new Date().toISOString() };
   try {
     const api = "https://api.github.com/repos/" + VP_REPO + "/contents/" + VP_FILE;

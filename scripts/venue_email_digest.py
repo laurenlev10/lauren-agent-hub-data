@@ -75,6 +75,21 @@ def main():
             log.sort(key=lambda x: x["date"], reverse=True)
             rec["email_log"] = log[:25]
             rec["email_log_synced_at"] = now
+            # milestone signals from the correspondence (Lauren 2026-06-08: closing-stage tracking)
+            sig = rec.get("signals") or {}
+            for m in log:
+                blob = ((m.get("from") or "") + " " + (m.get("subject") or "") + " " + (m.get("snippet") or "")).lower()
+                day = (m.get("date") or "")[:10]
+                if ("sertifi" in blob and ("signed" in blob or "have been received" in blob)) or "completed the e-signature" in blob or "i just signed the contract" in blob:
+                    if not sig.get("contract_signed") or day < sig["contract_signed"]:
+                        sig["contract_signed"] = day
+                if "beo" in blob or "banquet event order" in blob:
+                    if not sig.get("beo") or day > sig["beo"]:
+                        sig["beo"] = day
+                if "credit card authorization" in blob or "cc auth" in blob:
+                    if not sig.get("cc_auth") or day > sig["cc_auth"]:
+                        sig["cc_auth"] = day
+            rec["signals"] = sig
             synced += 1
             # incremental write — long Gmail runs can be killed mid-loop (2026-06-08)
             state["_updated_at"] = now
