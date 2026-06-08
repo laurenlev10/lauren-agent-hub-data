@@ -185,6 +185,7 @@ const TABS = [
   { id: 'phantom_zeros',         label: '🧹 אופסו אוטומטית',        color: 'muted' },
   { id: 'slow_movers',           label: '💤 לא זזו (מעל יחידה)',    color: 'muted' },
   { id: 'top_sellers',           label: '🏆 הכי נמכרו',             color: 'success' },
+  { id: 'stocked_out_early',     label: '🚨 נגמרו לפני הזמן',       color: 'danger' },
   { id: 'no_threshold',          label: '⚙️ ללא Threshold',         color: 'info' },
 ];
 let SUMMARY = null;
@@ -511,6 +512,7 @@ function renderTabsBar(){
     if (isPre && (t.id === 'counted_at_event' || t.id === 'missed_from_worklist' || t.id === 'top_sellers' || t.id === 'slow_movers')) return false;
     if (!isPre && t.id === 'to_recount') return false;  // post-event has actual counted/missed instead
     if (t.id === 'phantom_zeros' && !((SUMMARY.tabs && SUMMARY.tabs.phantom_zeros) || []).length) return false;
+    if (t.id === 'stocked_out_early' && !((SUMMARY.tabs && SUMMARY.tabs.stocked_out_early) || []).length) return false;
     return true;
   });
   // Auto-pick first tab if active is hidden
@@ -1379,6 +1381,38 @@ function promptOctopusToken(){
 }
 
 // ─── Tab orchestrator ───────────────────────────────────────────────────
+function renderStockedOutEarly(){
+  const total = (SUMMARY.tabs.stocked_out_early || []).length;
+  const rows = getSortedFiltered('stocked_out_early');
+  const info = '<div class="tab-header"><div><div class="title">🚨 נגמרו לפני הזמן</div>'
+    + '<div class="description">מוצרים שאזל מלאים (0 או מינוס) ולא נמכרו ביום האחרון של האירוע — נגמרו מוקדם ופספסו מכירות. העלי את ה-Threshold כדי להזמין יותר בפעם הבאה — השינוי נשמר ישירות ל-OCTOPOS.</div></div></div>';
+  if (rows.length === 0){
+    $('#tabContent').innerHTML = info + renderSearchAndCount('stocked_out_early', total, 0)
+      + '<div class="empty"><div class="emoji">✅</div><div>לא נמצאו מוצרים שנגמרו לפני הזמן.</div></div>';
+    wireSearch(); return;
+  }
+  let html = info + renderSearchAndCount('stocked_out_early', total, rows.length);
+  html += '<table class="data"><thead><tr>'
+    + sortableHeader('name', 'מוצר', 'stocked_out_early')
+    + sortableHeader('supplier', 'ספק', 'stocked_out_early')
+    + sortableHeader('units_sold_at_event', '🔥 נמכרו באירוע', 'stocked_out_early')
+    + sortableHeader('in_stock_qty', '📦 מלאי כעת', 'stocked_out_early')
+    + '<th>⚙️ Threshold (עריכה)</th>'
+    + '</tr></thead><tbody>';
+  for (const r of rows){
+    html += `<tr>
+      <td><div class="product-name">${escHtml(r.name)}</div>${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
+      <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
+      <td class="num" style="color:#dc2626;font-weight:800">${fmt(r.units_sold_at_event)}</td>
+      <td class="num">${fmt(r.in_stock_qty)}</td>
+      <td class="num">${renderThresholdEditCell(r)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  $('#tabContent').innerHTML = html;
+  wireSortHandlers('stocked_out_early'); wireSearch(); wireAllInteractiveHandlers();
+}
+
 function renderPhantomZeros(){
   const total = (SUMMARY.tabs.phantom_zeros || []).length;
   const rows = getSortedFiltered('phantom_zeros');
@@ -1425,6 +1459,7 @@ function renderTabContent(){
     case 'top_sellers': renderTopSellers(); break;
     case 'no_threshold': renderNoThreshold(); break;
     case 'phantom_zeros': renderPhantomZeros(); break;
+    case 'stocked_out_early': renderStockedOutEarly(); break;
   }
   renderTabsBar();
 }

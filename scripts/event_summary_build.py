@@ -412,6 +412,32 @@ def build_no_threshold(snapshot, sales=None):
     return out
 
 
+def build_stocked_out_early(snapshot, sales, last_day_sold_pids):
+    """Lauren 2026-06-08 — products that ran out BEFORE the last day: stock <=0 now,
+    sold during the event, but ZERO sales on the final day (Sunday). They emptied
+    early and missed sales → Lauren raises their Threshold from this tab."""
+    out = []
+    for pid, snap in snapshot.items():
+        try: qty = float(snap.get("in_stock_qty") or 0)
+        except: continue
+        if qty > 0 or not snap.get("active", True): continue
+        if is_excluded(snap): continue
+        s = sales.get(pid)
+        if not s or (s.get("units_sold") or 0) <= 0: continue   # must have sold during the event
+        if pid in last_day_sold_pids: continue                  # but nothing on the final day
+        cats, has_rc = cats_and_recount(snap)
+        out.append({"product_id":pid,"name":snap.get("name") or "",
+            "sku":snap.get("sku") or "","supplier":snap.get("_supplier_name") or s.get("vendor_name") or "",
+            "department":snap.get("department") or "",
+            "in_stock_qty":qty,"current_stock":qty,
+            "threshold":snap.get("threshold"),
+            "units_sold_at_event": s.get("units_sold") or 0,
+            "revenue": s.get("revenue") or 0,
+            "categories":cats,"has_recount_tag":has_rc})
+    out.sort(key=lambda x: x["units_sold_at_event"], reverse=True)
+    return out
+
+
 def build_for_event(ev):
     evkey = evkey_of(ev); start = ev["start_date"]; end = ev["end_date"]
     print(f"\n=== Building {evkey} ({start}→{end}) ===")
@@ -420,6 +446,7 @@ def build_for_event(ev):
     worklist = load_worklist(evkey); print(f"worklist: {len(worklist)}")
     recount_rows = fetch_recount_rows(jwt, start, end)
     sales = fetch_sales_by_vendor_product(jwt, start, end)
+    last_day_sales = fetch_sales_by_vendor_product(jwt, end, end)  # Sunday-only — for stocked-out-early
 
     # Hydrate orphan products (counted at event but missing from daily snapshot —
     # e.g. items with no vendor_id assigned in OCTOPOS). Look up live via /api/v2.
@@ -471,6 +498,7 @@ def build_for_event(ev):
     slow_movers = build_slow_movers(snapshot, sales)
     top_sellers = build_top_sellers(sales, snapshot)
     no_threshold = build_no_threshold(snapshot, sales)
+    stocked_out_early = build_stocked_out_early(snapshot, sales, set(last_day_sales.keys()))
 
     summary = {"evkey":evkey,
         "event":{"city":ev.get("city"),"state":ev.get("state"),
@@ -480,12 +508,14 @@ def build_for_event(ev):
         "generated_at":dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
         "tabs":{"counted_at_event":counted,"missed_from_worklist":missed,
                 "negatives":negatives,"slow_movers":slow_movers,
-                "top_sellers":top_sellers,"no_threshold":no_threshold},
+                "top_sellers":top_sellers,"no_threshold":no_threshold,
+                "stocked_out_early":stocked_out_early},
         "stats":{"counted_count":len(counted),"missed_count":len(missed),
                  "negatives_count":len(negatives),
                  "slow_movers_count":len(slow_movers),
                  "top_sellers_count":len(top_sellers),
                  "no_threshold_count":len(no_threshold),
+                 "stocked_out_early_count":len(stocked_out_early),
                  "total_units_sold":sum(s["units_sold"] for s in sales.values()),
                  "total_revenue":sum(s["revenue"] for s in sales.values()),
                  "unique_products_sold":len(sales)}}
@@ -495,7 +525,7 @@ def build_for_event(ev):
     p = out_dir / f"{evkey}.json"
     p.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\n✓ Wrote {p.relative_to(REPO_ROOT)} ({p.stat().st_size:,} bytes)")
-    print(f"  counted={len(counted)} missed={len(missed)} negatives={len(negatives)} slow={len(slow_movers)} top={len(top_sellers)} no_thr={len(no_threshold)}")
+    print(f"  counted={len(counted)} missed={len(missed)} negatives={len(negatives)} slow={len(slow_movers)} top={len(top_sellers)} no_thr={len(no_threshold)} stocked_out_early={len(stocked_out_early)}")
     print(f"  revenue ${summary['stats']['total_revenue']:,.2f} from {summary['stats']['unique_products_sold']} products")
 
     idx_path = out_dir / "_index.json"
