@@ -1,4 +1,4 @@
-name: recount-prebuild — Thursday morning pre-event worklist build
+name: recount-prebuild — Thursday evening pre-event worklist build
 
 # Lauren's directive 2026-05-21 PM: "אני אמורה להכין רשימה לספירה לצוות בזמן האירוע".
 # This workflow builds the @recount worklist BEFORE the upcoming weekend's event
@@ -6,13 +6,13 @@ name: recount-prebuild — Thursday morning pre-event worklist build
 #
 # Companion to recount-weekly.yml (which runs Sunday DURING the event for cleanup).
 #
-# Cron: Thursday 8 AM PT = 15:00 UTC (PDT) / 16:00 UTC (PST). The script self-checks
+# Cron: Thursday 6 PM PT = Fri 01:00 UTC (PDT) / Fri 02:00 UTC (PST). The script self-checks
 # that an upcoming event exists within the next 1-7 days; exits silent otherwise.
 
 on:
   schedule:
-    - cron: "0 15 * * 4"   # Thursday 08:00 PDT (DST, March-November)
-    - cron: "0 16 * * 4"   # Thursday 08:00 PST (winter)
+    - cron: "0 1 * * 5"    # Thursday 18:00 PDT = Fri 01:00 UTC (DST, Mar-Nov)
+    - cron: "0 2 * * 5"    # Thursday 18:00 PST = Fri 02:00 UTC (winter)
   workflow_dispatch: {}
 
 permissions:
@@ -40,7 +40,7 @@ jobs:
           git config user.name "Lauren (via Actions)"
           if ! git diff --quiet docs/state/octopos_recount.json; then
             git add docs/state/octopos_recount.json
-            git commit -m "@recount: pre-event worklist build (Thursday morning)"
+            git commit -m "@recount: pre-event worklist build (Thursday evening)"
             git pull --rebase origin main
             git push origin main
           fi

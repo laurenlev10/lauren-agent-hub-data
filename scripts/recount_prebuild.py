@@ -327,7 +327,7 @@ def fetch_activity_pids(jwt, start_date, end_date):
     return {"sale_pids": set(), "count_pids": count_pids}
 
 
-def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids, real_sold_pids, real_sold_qty):
+def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids, real_sold_pids, real_sold_qty, stale_enabled=True):
     """Iterate the OCTOPOS snapshot. Return enriched worklist entries.
 
     Lauren 2026-05-21 PM #4 — only list products that WERE at the prior event.
@@ -373,6 +373,8 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
             if is_permanent_exclude(p):
                 n_excluded += 1
                 continue
+            if not p.get("active", True):
+                continue  # Lauren 2026-06-08 — ACTIVE products only on the count list
             qty = float(p.get("in_stock_qty") or 0)
             # Lauren 2026-05-21 PM #8 — read from 'categories' (OCTOPOS's tag mechanism),
             # NOT 'tags'. octopos_sync.py stores them under 'categories' since 2026-05-13.
@@ -421,22 +423,18 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
             # a count problem. If it was created mid-cycle, she counted it manually when
             # adding it to OCTOPOS.
 
-            elif qty > 0 and was_physically_counted:
-                # Already counted at the prior event → trust the count, skip.
-                n_already_counted += 1
-                continue
-            elif qty > 0 and had_sale:
-                # Had a sale (DR) → trust the qty, skip.
+            elif had_sale:
+                # Sold ≥1 unit at the last event → qty is trustworthy, NOT stale.
                 n_sold += 1
                 continue
-            elif qty > 0 and was_at_event:
-                # Was at the event (proof via updated_at) but no DR and no CR →
-                # sat unsold and uncounted. THIS is the suspicious bucket.
+            elif stale_enabled and qty > 2:
+                # Lauren 2026-06-08 — SINGLE stale rule: 3+ units in stock AND zero units
+                # sold at the last CONFIRMED Fri-Sun event. Count status, prior RECOUNT
+                # tag and updated_at are intentionally NOT conditions anymore.
                 reason = "sat_unsold"
                 n_sat_unsold += 1
             else:
-                # qty > 0 + no activity at all → wasn't at the prior event. Skip
-                # (Lauren 2026-05-21 PM #4 — that's WHY it didn't move).
+                # qty ≤ 2, or no confirmed event last weekend → not a stale signal. Skip.
                 n_not_at_event += 1
                 continue
             if reason:
@@ -623,8 +621,20 @@ def main():
     real_sold_pids, real_sold_qty = fetch_real_sales_pids(jwt, prior_start, prior_end)
     print(f"Activity in prior window ({prior_start} → {prior_end}): sale={len(activity['sale_pids'])} count={len(activity['count_pids'])}")
 
+    # Lauren 2026-06-08 — STALE only fires when there was a real event LAST WEEKEND.
+    # If the most recent event ended >10 days ago, zero-sales is meaningless → skip stale.
+    today_pt = dt.datetime.now(dt.timezone.utc).astimezone(ZoneInfo("America/Los_Angeles")).date()
+    if prior:
+        last_event_age = (today_pt - dt.date.fromisoformat(prior_end)).days
+        stale_enabled = 0 <= last_event_age <= 10
+    else:
+        last_event_age = None
+        stale_enabled = False
+    print(f"STALE {'ENABLED' if stale_enabled else 'DISABLED'} — last event end={prior_end if prior else None}, age={last_event_age}d")
+
     # Build worklist
-    worklist, stats = build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids, real_sold_pids, real_sold_qty)
+    worklist, stats = build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids, real_sold_pids, real_sold_qty, stale_enabled=stale_enabled)
+    stats["stale_enabled"] = stale_enabled
     print(f"Worklist: {stats}")
 
     # Write to state
@@ -652,11 +662,13 @@ def main():
     state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # SMS Lauren
+    stale_note = "" if stale_enabled else "⚠️ לא היה אירוע בסוף\"ש האחרון — דילגתי על זיהוי STALE.\n"
     sms_body = (
         f"@recount ✓ רשימת ספירה מוכנה ל-{city}, {state} ({upcoming_start} → {upcoming_end}).\n"
         f"📋 {len(worklist)} מוצרים לספירה:\n"
-        f"🔴 {stats['negative']} מינוס (לא נספרו) · 🔵 {stats['preexisting']} מתויגי RECOUNT · "
-        f"💤 {stats['sat_unsold']} היו ולא נמכרו.\n"
+        f"🔴 {stats['negative']} מינוס · 🔵 {stats['preexisting']} מתויגי RECOUNT · "
+        f"💤 {stats['sat_unsold']} עם 3+ במלאי ו-0 מכירות באירוע האחרון.\n"
+        f"{stale_note}"
         f"חלון נתונים מהאירוע הקודם: {prior_start} → {prior_end}\n"
         f"https://dashboard.themakeupblowout.com/recount/?evkey={upcoming_evkey}"
     )
