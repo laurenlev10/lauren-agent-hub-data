@@ -6,6 +6,30 @@ import urllib.error, urllib.request
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Lauren 2026-06-08 — mirror the @recount exclusion set so the event-summary tabs
+# match the recount task exactly (no Market / Clearance / permanently-excluded noise).
+EXCL_CATEGORIES = {"Market"}
+EXCL_PRODUCT_IDS = {1000, 1001, 1002, 1003, 1011, 921}
+EXCL_NAMES = {
+    "Roll Shrink", "Plastic Bags", "Gifts - Glitters", "Gifts - Eyeshadows",
+    "Romantic Soft Focus Setting Powder - Translucent", "Mini Fan",
+}
+def is_excluded(snap, name=None, supplier=None):
+    pid = snap.get("id") if isinstance(snap, dict) else None
+    if pid in EXCL_PRODUCT_IDS:
+        return True
+    nm = (name if name is not None else (snap.get("name") if isinstance(snap, dict) else "")) or ""
+    nm = nm.strip()
+    if nm in EXCL_NAMES or nm.startswith("Clearance!"):
+        return True
+    cats = {(c.get("name") or "").strip() for c in ((snap.get("categories") if isinstance(snap, dict) else None) or [])}
+    if cats & EXCL_CATEGORIES:
+        return True
+    sup = (supplier if supplier is not None else (snap.get("_supplier_name") if isinstance(snap, dict) else "")) or ""
+    if sup.strip().lower() == "market":
+        return True
+    return False
 OCTO_BASE = "https://themakeup.octoretail.com"
 OCTO_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -312,6 +336,7 @@ def build_negatives(snapshot):
         try: qty = float(snap.get("in_stock_qty") or 0)
         except: continue
         if qty >= 0 or not snap.get("active", True): continue
+        if is_excluded(snap): continue
         cats, has_rc = cats_and_recount(snap)
         out.append({"product_id":pid,"name":snap.get("name") or "",
             "sku":snap.get("sku") or "","supplier":snap.get("_supplier_name") or "",
@@ -332,6 +357,7 @@ def build_slow_movers(snapshot, sales):
         except: continue
         if qty <= 1 or not snap.get("active", True): continue
         if pid in sales: continue
+        if is_excluded(snap): continue
         cost = float(snap.get("unit_cost") or 0)
         cats, has_rc = cats_and_recount(snap)
         out.append({"product_id":pid,"name":snap.get("name") or "",
@@ -349,6 +375,8 @@ def build_top_sellers(sales, snapshot, limit=100):
     rows = []
     for pid, s in sales.items():
         snap = snapshot.get(pid) or {}
+        if is_excluded(snap, name=(s.get("name") or snap.get("name")), supplier=(s.get("vendor_name") or snap.get("_supplier_name"))):
+            continue
         cats, has_rc = cats_and_recount(snap)
         rows.append({"product_id":pid,
             "name":s["name"] or snap.get("name") or "",
@@ -367,6 +395,7 @@ def build_no_threshold(snapshot, sales=None):
         try: thr = float(snap.get("threshold") or 0)
         except: thr = 0
         if thr > 0 or not snap.get("active", True): continue
+        if is_excluded(snap): continue
         cats, has_rc = cats_and_recount(snap)
         s = (sales or {}).get(pid) or {}
         out.append({"product_id":pid,"name":snap.get("name") or "",
