@@ -286,8 +286,7 @@ def main():
     print(f"Wrote state slice for {evkey}")
 
     body = (
-        f"✓ ספירת אירוע הושלמה — {city} ({len(counted_pids)} נספרו, {cleaned_count} תגיות הוסרו).
-"
+        f"✓ ספירת אירוע הושלמה — {city} ({len(counted_pids)} נספרו, {cleaned_count} תגיות הוסרו).\n"
         f"https://dashboard.themakeupblowout.com/recount/?evkey={evkey}"
     )
     sms_lauren(body)
