@@ -48,7 +48,6 @@ th{color:var(--muted);font-weight:600;font-size:12px}
 <div class="wrap">
   <h1>💰 הכנסות סליקה — התאמה לאירוע</h1>
   <div class="sub" id="sub">טוען…</div>
-  <div class="totbar" id="totbar"></div>
   <div id="list"></div>
   <div class="note">ברוטו = סך מכירות הכרטיס ב-OCTOPOS · נטו = ההפקדות שהגיעו לחשבון #1955 · עמלה = ההפרש (עמלת סליקה, נגבית מההפקדה). מקור: <code>state/octopos_income.json</code>.</div>
 </div>
@@ -63,16 +62,9 @@ var PILL = {received:"✓ הופקד",check:"🔴 חסר?",over:"🟠 עודף?"
 function render(data){
   var evs = Object.values(data.events||{}).sort(function(a,b){ return (b.start_date||"").localeCompare(a.start_date||""); });
   var upd = data._updated_at ? new Date(data._updated_at).toLocaleString("he-IL") : "—";
-  document.getElementById("sub").textContent = evs.length + " אירועים · עודכן " + upd;
-
-  var tGross=0,tNet=0,tFee=0;
-  evs.forEach(function(e){ tNet+=e.deposits_total||0; tFee+=(e.reconcile&&e.reconcile.fee_usd)||0; tGross+=(e.reconcile&&e.reconcile.card_ref)||0; });
-  document.getElementById("totbar").innerHTML =
-    '<div class="tot"><div class="lbl">סה"כ ברוטו (כרטיס)</div><div class="val">'+fmt(tGross)+'</div></div>'+
-    '<div class="tot"><div class="lbl">סה"כ נטו (הופקד)</div><div class="val" style="color:var(--green)">'+fmt(tNet)+'</div></div>'+
-    '<div class="tot"><div class="lbl">סה"כ עמלות</div><div class="val" style="color:var(--amber)">'+fmt(tFee)+'</div></div>';
 
   var focus = qp("evkey");
+  if (focus) evs = evs.filter(function(e){ return e.evkey===focus; });  // single-event view from the 💰 button
   var html = evs.map(function(e){
     var r=e.reconcile||{}, o=e.octopos||{};
     var deps=(e.deposits||[]).slice().sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
@@ -84,7 +76,7 @@ function render(data){
     var feePct = r.fee_pct!=null ? (r.fee_pct*100).toFixed(1)+"%" : "—";
     var cls = e.qb_class ? '<span class="tag">'+esc(e.qb_class)+'</span>' : '<span class="tag none">חסר Class ב-QB</span>';
     var st = r.status||"missing";
-    var isFocus = (e.evkey===focus);
+    var isFocus = true;  // always show the per-event deposit detail
     return '<div class="card'+(isFocus?' focus':'')+'" id="ev-'+esc(e.evkey)+'">'+
       '<div class="chead" onclick="this.parentNode.querySelector(\'.body\').classList.toggle(\'open\')">'+
         '<div><span class="city">'+esc(e.city)+(e.state?', '+esc(e.state):'')+'</span>'+
@@ -108,6 +100,7 @@ function render(data){
       '</div>'+
     '</div>';
   }).join("");
+  document.getElementById("sub").textContent = (focus && evs.length ? (evs[0].city + " " + (evs[0].state||"")) : (evs.length + " אירועים")) + " · עודכן " + upd;
   document.getElementById("list").innerHTML = html || '<div class="err">אין נתוני הכנסות עדיין.</div>';
   if(focus){ var el=document.getElementById("ev-"+focus); if(el) el.scrollIntoView({behavior:"smooth",block:"center"}); }
 }
