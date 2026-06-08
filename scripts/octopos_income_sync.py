@@ -148,9 +148,12 @@ def octopos_card(jwt, start, end):
             "transactions": s.get("transactions")}
 
 
-# Card processing fee is netted at settlement (dual-pricing surcharge ≈ fee), so deposits run
-# ~3-4% below OCTOPOS card. That's NORMAL, not missing money (Lauren 2026-06-08 — show gross+net+fee,
-# verify the deposits arrived; only flag clearly-abnormal cases like a missing batch or overpayment).
+# NO merchant processing fees (Lauren 2026-06-08): with DUAL PRICING the customer pays the card
+# surcharge directly to the processor — it never belongs to us. So OCTOPOS "card" (gross) INCLUDES
+# that customer-paid surcharge, while the bank deposit (net) is our actual revenue. The ~3-4% gap is
+# the surcharge passing through to the processor, NOT a cost to us. Show gross+net+gap, verify the
+# deposits arrived; only flag clearly-abnormal cases (missing batch / overpayment). fee_usd/fee_pct
+# below = that pass-through surcharge gap, kept for display only.
 ABNORMAL_FEE = 0.08   # >8% short = likely a missing settlement batch, worth a look
 def reconcile(dep_total, card):
     ref = card["card_exact"] if card["card_exact"] is not None else round((card["card_min"] + card["card_max"]) / 2, 2)
