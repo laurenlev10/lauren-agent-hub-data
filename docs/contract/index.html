@@ -578,7 +578,9 @@ function vpRender(){
                 : "background:#fff;color:#6b7280;border:1px solid #e5e7eb";
       const mark = v === 1 ? "✓ " : v === -1 ? "✗ " : "• ";
       const crit = it.critical ? " ⭐" : "";
-      return `<button data-vp="check" data-id="${vpEsc(it.id)}" data-ev="${vpEsc(e.evkey)}" style="${css};border-radius:999px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit" title="${v === 1 ? "מוסכם בחוזה" : v === -1 ? "חסר / בעייתי" : "טרם נבדק"}">${mark}${vpEsc(it.label)}${crit}</button>`;
+      const evid = (rec.check_notes || {})[it.id] || "";
+      const tip = (v === 1 ? "מוסכם" : v === -1 ? "חסר / בעייתי" : "טרם נבדק") + (evid ? " — " + evid : "");
+      return `<button data-vp="check" data-id="${vpEsc(it.id)}" data-ev="${vpEsc(e.evkey)}" style="${css};border-radius:999px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit" title="${vpEsc(tip)}">${mark}${vpEsc(it.label)}${crit}${evid ? " 💬" : ""}</button>`;
     }).join("");
     const elog = rec.email_log || [];
     const showLog = VP_FOCUS && !VP_SHOW_ALL;
@@ -630,6 +632,7 @@ function vpRender(){
         <button class="btn" data-vp="dep_add" data-ev="${vpEsc(e.evkey)}" style="padding:4px 10px;font-size:11px">+ דיפוזיט</button>
         <input type="text" data-vp="note" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(rec.note || "")}" placeholder="הערה (תנאי תשלום, מס׳ חוזה...)" style="flex:1;min-width:160px;font-size:12px">
         <button class="btn btn-primary" data-vp="save" data-ev="${vpEsc(e.evkey)}" style="padding:4px 12px;font-size:11px">💾 שמרי</button>
+        <button class="btn" data-vp="aicheck" data-ev="${vpEsc(e.evkey)}" style="padding:4px 12px;font-size:11px" title="מעתיק פקודה לקלוד — הוא יקרא את ההתכתבות והחוזה, יסיק לכל נקודה, ימלא ✓/✗ עם אסמכתאות">🤖 בדוק עם קלוד</button>
       </div>
       <div style="margin-top:8px">${qbLines}</div>
       ${emailLog}
@@ -668,6 +671,17 @@ document.addEventListener("click", async ev => {
     rec.contract_checks[id] = (v === 1) ? -1 : (v === -1) ? null : 1;
     vpRender();
   }
+  else if (kind === "aicheck") {
+    const rec = vpRec(evkey);
+    const cmd = "בדיקת נקודות חוזה לאולם — " + (rec.class_name || evkey) + " (evkey: " + evkey + ")\n" +
+      "קרא את ההתכתבות בג'ימייל עם איש הקשר (" + (rec.contact || "ראה venue_payments.json") + ") ואת החוזה אם מצורף/באימייל. " +
+      "עבור על כל הנקודות בצ'קליסט של האירוע (contract_checks ב-docs/state/venue_payments.json + רשימת ה-clauses בדשבורד), " +
+      "קבע לכל נקודה: מוסכם (1) / חסר-בעייתי (-1) / לא ידוע (null), עם אסמכתה קצרה (ציטוט+תאריך) ב-check_notes. " +
+      "עדכן את venue_payments.json בגיט per IRON RULE #1 (merge — אל תדרוס שדות אחרים) ושלח לי סיכום קצר.";
+    navigator.clipboard.writeText(cmd).then(() => {
+      el.textContent = "✓ הועתק — הדביקי בצ'אט"; setTimeout(() => { el.textContent = "🤖 בדוק עם קלוד"; }, 2500);
+    });
+  }
   else if (kind === "dep_add") { vpRec(evkey).deposits.push({label: "", due: "", amount: null, paid: false}); vpRender(); }
   else if (kind === "dep_del") { vpRec(evkey).deposits.splice(+(el.getAttribute("data-i") || 0), 1); vpRender(); }
   else if (kind === "save") {
@@ -686,7 +700,7 @@ async function vpSave(evkey){
   rec.deposits = (rec.deposits || []).filter(d => d.label || d.due || d.amount);
   const mine = { contract_total: rec.contract_total ?? null, deposits: rec.deposits, note: rec.note || "",
                  contract_checks: rec.contract_checks || {}, room_name: rec.room_name || "", room_sqft: rec.room_sqft || "",
-                 contact: rec.contact || "",
+                 contact: rec.contact || "", check_notes: rec.check_notes || {},
                  updated_at: new Date().toISOString() };
   try {
     const api = "https://api.github.com/repos/" + VP_REPO + "/contents/" + VP_FILE;
