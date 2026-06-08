@@ -468,25 +468,36 @@ function matchSupplierInvoice(t) {
   return cands.length === 1 ? cands[0] : null;
 }
 // Find an event mentioned by NAME in the bank memo (e.g. "ZELLE TO EASTB CORP ... OMAHA 2026").
-function eventFromText(txt) {
+function eventFromText(txt, txDate) {
   const hay = (txt || "").toLowerCase();
-  let best = null;
+  let best = null, bestGap = 1e9;
   for (const ev of (EVENTS_INDEX.events || [])) {
     const city = (ev.city || "").toLowerCase();
+    if (!city || hay.indexOf(city) === -1) continue;
     const yr = (ev.start_date || "").slice(0, 4);
-    if (city && hay.indexOf(city) !== -1 && yr && hay.indexOf(yr) !== -1) {
-      if (!best || ev.start_date > best.start_date) best = ev;
+    if (yr && hay.indexOf(yr) !== -1) {        // city+year in the memo — strongest signal
+      if (bestGap >= 0 || !best || ev.start_date > best.start_date) { best = ev; bestGap = -1; }
+    } else if (bestGap >= 0 && txDate) {       // city only (e.g. "CLEVELAND") — nearest event to the tx date
+      const gap = Math.abs((new Date(txDate) - new Date(ev.start_date)) / 86400000);
+      if (gap <= 45 && gap < bestGap) { best = ev; bestGap = gap; }
     }
   }
   return best;
 }
 function applySupplierInvMatch(t) {
   if (t.etype !== "supplier" || t.done) return;
+  // supplier defaults — merchandise category + the QB vendor record for this supplier
+  if (!t.sel_account || /uncategorized/i.test(t.sel_account)) { t.sel_account = "Merchandise Purchase"; t.cat_suggested = true; }
+  if (!t.sel_vendor) {
+    const sn = (matchSupplierName(t) || "").toLowerCase();
+    const v = sn ? (QB_LISTS.vendors || []).filter(x => (x.name || "").toLowerCase().indexOf(sn) !== -1) : [];
+    if (v.length === 1) t.sel_vendor = v[0].name;
+  }
   const inv = matchSupplierInvoice(t);
   if (!inv) {
     // no invoice matched by amount — still suggest the Class when the event is named in the memo
     if (!t.sel_class) {
-      const ev = eventFromText(bankMemoOf(t) + " " + (t.desc || ""));
+      const ev = eventFromText(bankMemoOf(t) + " " + (t.desc || ""), t.date);
       if (ev) { t.sel_class = ev.class_name; t.auto_class = true; t.ev_from_memo = true; }
     }
     return;
@@ -1253,6 +1264,7 @@ function buildClassOptions(selVal) {
 
 function renderQBCard(t) {
   if (t.done && !SHOW_DONE_QB) return "";   // staged rows disappear from sight
+  if (!t.etype && !t.done) t.etype = classifyType(t);   // existing sessions pick up new patterns
   if (t.etype === "supplier" && !t.done && !t.inv_match) applySupplierInvMatch(t);
   const cls = (t.done ? "done " : "") + (t.recognized ? "rec" : "");
   const amtCls = t.isCredit ? "amt credit" : "amt";
