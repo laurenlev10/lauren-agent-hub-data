@@ -583,12 +583,9 @@ function vpRender(){
       return `<button data-vp="check" data-id="${vpEsc(it.id)}" data-ev="${vpEsc(e.evkey)}" style="${css};border-radius:999px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit" title="${vpEsc(tip)}">${mark}${vpEsc(it.label)}${crit}${evid ? " 💬" : ""}</button>`;
     }).join("");
     const elog = rec.email_log || [];
-    const showLog = VP_FOCUS && !VP_SHOW_ALL;
-    const emailLog = !elog.length ? (showLog ? '<div style="font-size:11px;color:var(--muted);margin-top:8px">📧 עדיין אין התכתבויות שאותרו — הסריקה רצה כל בוקר לפי כתובת איש הקשר</div>' : "")
-      : (showLog
-        ? '<div style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px"><b style="font-size:12px">📧 התכתבות עם איש הקשר (' + elog.length + ')</b>' +
-          elog.map(m => `<div style="font-size:11px;margin-top:5px;display:flex;gap:8px"><span style="color:#1d4ed8;font-weight:700;white-space:nowrap" dir="ltr">${vpEsc((m.date || "").slice(0, 10))}</span><span style="min-width:0"><b>${vpEsc(m.subject || "")}</b> <span style="color:var(--muted)">· ${vpEsc((m.from || "").replace(/<[^>]*>/g, "").trim())}</span><br><span style="color:#475569">${vpEsc((m.snippet || "").slice(0, 160))}</span></span></div>`).join("") + "</div>"
-        : '<div style="font-size:11px;color:#1d4ed8;margin-top:6px">📧 ' + elog.length + ' התכתבויות — לפתיחה היכנסי דרך כפתור 🏛 Venue של האירוע</div>');
+    const last = elog[0] || null;
+    const emailLog = !elog.length ? ""
+      : `<div style="font-size:11px;color:var(--muted);margin-top:6px">📧 ${elog.length} התכתבויות · אחרונה: <span dir="ltr">${vpEsc((last.date || "").slice(0, 10))}</span> — ${vpEsc((last.subject || last.snippet || "").slice(0, 60))} <span style="color:#1d4ed8">· לתובנות: 🤖 בדוק עם קלוד</span></div>`;
     const depRows = deps.map((d, i) => {
       const pd = vpDepPaid(rec, d);
       const chip = pd === "qb" ? '<span style="font-size:10px;background:#d1fae5;color:#059669;border-radius:6px;padding:1px 6px">✓ זוהה ב-QB</span>' : "";
