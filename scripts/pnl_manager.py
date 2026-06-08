@@ -61,7 +61,8 @@ def _classify(desc):
     return "meals" if any(k in d for k in MEAL_KEYWORDS) else "other"
 
 
-def fetch_manager_pnl(evkey, state_path=None, octopos_cash=None):
+def fetch_manager_pnl(evkey, state_path=None, octopos_cash=None,
+                      octopos_cash_min=None, octopos_cash_max=None):
     path = _find_state_file(state_path)
     if path is None or not Path(path).exists():
         return {"source": "manager_reports", "evkey": evkey, "found": False,
@@ -115,7 +116,23 @@ def fetch_manager_pnl(evkey, state_path=None, octopos_cash=None):
         pct = abs(diff) / octopos_cash if octopos_cash else 0
         cash_check = {"manager_cash": round(cash_total, 2), "octopos_cash": round(octopos_cash, 2),
                       "diff": round(diff, 2), "pct": round(pct, 3)}
-        if pct > 0.02:
+        # Range-based reconciliation (Lauren 2026-06-08 — split-ticket fix). OCTOPOS can't tell
+        # us the cash vs card portion of a split ("CASH, VISA") ticket, so true cash is bounded:
+        #   min = pure-CASH tickets ; max = min + all split-cash tickets (full value).
+        # Only flag a mismatch when the manager's count falls OUTSIDE [min, max] (+/- 2% tol).
+        # This kills the false "cash mismatch — investigate" that fired on every event with
+        # split tickets (e.g. Omaha: octo full-sum $14,017 vs true cash $13,103 = $914 card portion).
+        if octopos_cash_min is not None and octopos_cash_max is not None and octopos_cash_max:
+            tol = 0.02
+            lo = octopos_cash_min * (1 - tol)
+            hi = octopos_cash_max * (1 + tol)
+            cash_check["octopos_cash_min"] = round(octopos_cash_min, 2)
+            cash_check["octopos_cash_max"] = round(octopos_cash_max, 2)
+            cash_check["in_range"] = bool(lo <= cash_total <= hi)
+            if not cash_check["in_range"]:
+                warnings.append(f"cash mismatch: manager ${cash_total:,.0f} outside OCTOPOS range "
+                                f"${octopos_cash_min:,.0f}-${octopos_cash_max:,.0f} — investigate")
+        elif pct > 0.02:
             warnings.append(f"cash mismatch: manager ${cash_total:,.0f} vs OCTOPOS ${octopos_cash:,.0f} "
                             f"({pct:.0%} > 2%) — investigate")
 

@@ -124,16 +124,32 @@ def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analyt
             sales = {"gross": None, "net": None, "tax": None, "transactions": None,
                      "avg_ticket": None, "payment_breakdown": {}, "top_products": []}
             sales_status = f"error: {e}"
-    octo_cash = None
+    # Cash reconciliation RANGE (Lauren 2026-06-08 — split-ticket fix).
+    # OCTOPOS order-level data gives a payment_types STRING per ticket (e.g. "CASH, VISA")
+    # but not the per-method split amount. So a ticket tagged "CASH, VISA" had SOME cash and
+    # SOME card — we can't know the split from this data. Counting the full ticket as cash
+    # (the old behaviour) over-counts; counting only pure-"CASH" tickets under-counts.
+    # True cash is therefore bounded: [pure_cash, pure_cash + all_split_cash_tickets].
+    # We pass the MIDPOINT as octo_cash (best single estimate) plus the bounds, and the
+    # reconciliation only flags a mismatch when the manager's count falls OUTSIDE the range.
+    octo_cash_min = 0.0   # pure-CASH tickets only
+    octo_cash_max = 0.0   # any ticket whose payment_types contains CASH (full ticket value)
     for k, v in (sales.get("payment_breakdown") or {}).items():
-        if "CASH" in k.upper():
-            octo_cash = (octo_cash or 0) + v
+        ku = k.upper()
+        if "CASH" in ku:
+            octo_cash_max += v
+            if ku.strip() == "CASH":
+                octo_cash_min += v
+    octo_cash_min = round(octo_cash_min, 2)
+    octo_cash_max = round(octo_cash_max, 2)
+    octo_cash = round((octo_cash_min + octo_cash_max) / 2, 2) if octo_cash_max else None
 
     # ---- B. Inventory ----
     inv = pnl_inventory.fetch_inventory_pnl(evkey, state_path=inv_state)
 
     # ---- C. Manager report (cash: staff/meals/other) ----
-    mgr = pnl_manager.fetch_manager_pnl(evkey, state_path=mgr_state, octopos_cash=octo_cash)
+    mgr = pnl_manager.fetch_manager_pnl(evkey, state_path=mgr_state, octopos_cash=octo_cash,
+                                       octopos_cash_min=octo_cash_min, octopos_cash_max=octo_cash_max)
 
     # ---- assemble expense lines ----
     expenses = {}
