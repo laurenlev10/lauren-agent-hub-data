@@ -784,6 +784,7 @@ let CURRENT_EVKEY = null;
 let CURRENT_EVENT = null;
 let SYNC_BUSY = false;
 let PENDING_SAVE = null;
+let SAVE_DIRTY = false;   // set by scheduleSave; cleared only after the LATEST state is pushed OK
 
 const $ = (s, root) => (root||document).querySelector(s);
 const $$ = (s, root) => Array.from((root||document).querySelectorAll(s));
@@ -951,6 +952,7 @@ function scheduleSave(){
   STATE._localUpdatedAt = nowIso();
   STATE._updated_at = nowIso();
   localStorage.setItem(LS_LOCAL, JSON.stringify(STATE));
+  SAVE_DIRTY = true;   // mark unsaved
   PENDING_SAVE = setTimeout(pushToGitHub, 1500);
   refreshSummary();
 }
@@ -958,48 +960,60 @@ function scheduleSave(){
 async function pushToGitHub(){
   const tok = (localStorage.getItem(TOKEN_KEY)||"").trim();
   if (!tok) return;
-  if (SYNC_BUSY) { PENDING_SAVE = setTimeout(pushToGitHub, 800); return; }
+  if (PENDING_SAVE){ clearTimeout(PENDING_SAVE); PENDING_SAVE = null; }
+  // A push is already running. Don't drop this request — the in-flight loop will
+  // notice SAVE_DIRTY and push again before it declares success.
+  if (SYNC_BUSY) { SAVE_DIRTY = true; return; }
   SYNC_BUSY = true;
   try{
-    const getUrl = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/" + REPO_FILE + "?ref=" + REPO_BRANCH + "&_=" + Date.now();
-    let sha = null;
-    let cloud = { _updated_at: null, events: {} };
-    const getR = await fetch(getUrl, { cache: "no-store", headers: { Authorization: "token " + tok, Accept: "application/vnd.github+json" }});
-    if (getR.ok){
-      const j = await getR.json();
-      sha = j.sha;
-      try { cloud = JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,""))))); } catch(_){ cloud = { _updated_at: null, events: {} }; }
-    } else if (getR.status !== 404){
-      throw new Error("GET failed: " + getR.status);
-    }
-    if (!cloud || typeof cloud !== "object") cloud = { _updated_at: null, events: {} };
-    if (!cloud.events) cloud.events = {};
-    const putUrl = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/" + REPO_FILE;
-    // IRON RULE — MERGE, never clobber: overlay this session's events onto the live
-    // cloud copy so events not held in memory (e.g. past events) are preserved.
-    // Fixes the 2026-05-31 save-clobber that wiped Roseville + Cleveland orders.
-    Object.keys(STATE.events || {}).forEach(function(k){ cloud.events[k] = STATE.events[k]; });
-    cloud._updated_at = new Date().toISOString();
-    const json = JSON.stringify(cloud, null, 2);
-    const body = {
-      message: "@inventory: update state (" + (CURRENT_EVKEY||"overview") + ")",
-      content: btoa(unescape(encodeURIComponent(json))),
-      branch: REPO_BRANCH
-    };
-    if (sha) body.sha = sha;
-    const putR = await fetch(putUrl, {
-      method: "PUT",
-      headers: { Authorization: "token " + tok, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-    if (!putR.ok){
-      const t = await putR.text();
-      throw new Error("PUT failed: " + putR.status + " " + t.slice(0, 200));
-    }
-    toast("נשמר ב-GitHub ✓", "success");
+    let didToast = false;
+    // Loop until the state we pushed is the latest. If a change arrives mid-push
+    // (SAVE_DIRTY set again), push once more rather than reporting a stale "saved".
+    do {
+      SAVE_DIRTY = false;
+      const getUrl = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/" + REPO_FILE + "?ref=" + REPO_BRANCH + "&_=" + Date.now();
+      let sha = null;
+      let cloud = { _updated_at: null, events: {} };
+      const getR = await fetch(getUrl, { cache: "no-store", headers: { Authorization: "token " + tok, Accept: "application/vnd.github+json" }});
+      if (getR.ok){
+        const j = await getR.json();
+        sha = j.sha;
+        try { cloud = JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,""))))); } catch(_){ cloud = { _updated_at: null, events: {} }; }
+      } else if (getR.status !== 404){
+        throw new Error("GET failed: " + getR.status);
+      }
+      if (!cloud || typeof cloud !== "object") cloud = { _updated_at: null, events: {} };
+      if (!cloud.events) cloud.events = {};
+      const putUrl = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/" + REPO_FILE;
+      // IRON RULE #18 — MERGE, never clobber: overlay this session's events onto the
+      // live cloud copy so events not held in memory (e.g. past events) are preserved.
+      // Fixes the 2026-05-31 save-clobber that wiped Roseville + Cleveland orders.
+      Object.keys(STATE.events || {}).forEach(function(k){ cloud.events[k] = STATE.events[k]; });
+      cloud._updated_at = new Date().toISOString();
+      const json = JSON.stringify(cloud, null, 2);
+      const body = {
+        message: "@inventory: update state (" + (CURRENT_EVKEY||"overview") + ")",
+        content: btoa(unescape(encodeURIComponent(json))),
+        branch: REPO_BRANCH
+      };
+      if (sha) body.sha = sha;
+      const putR = await fetch(putUrl, {
+        method: "PUT",
+        headers: { Authorization: "token " + tok, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (!putR.ok){
+        const t = await putR.text();
+        throw new Error("PUT failed: " + putR.status + " " + t.slice(0, 200));
+      }
+      if (!didToast){ toast("נשמר ב-GitHub ✓", "success"); didToast = true; }
+    } while (SAVE_DIRTY);
   } catch(e){
     console.error("pushToGitHub failed:", e);
-    toast("שגיאת סנכרון — שמור מקומית", "error");
+    SAVE_DIRTY = true;   // not actually saved — keep dirty and retry shortly
+    if (PENDING_SAVE) clearTimeout(PENDING_SAVE);
+    PENDING_SAVE = setTimeout(pushToGitHub, 4000);
+    toast("שגיאת סנכרון — מנסה שוב…", "error");
   } finally {
     SYNC_BUSY = false;
   }
@@ -5652,6 +5666,26 @@ function saveReceiveState(commitMsg){
   return p;
 }
 
+// IRON RULE #18 (read-merge-write) — overlay THIS session's RECV_STATE onto the
+// live cloud copy so a concurrent editor (e.g. Eli on another computer) is not
+// clobbered. Before 2026-06-08 _saveReceiveStateNow wrote the whole in-memory
+// RECV_STATE straight over the file, so whoever saved second silently wiped the
+// other's reconciled invoices / aliases — both saw "נשמר", one lost their work.
+// Per-key policy: additive dicts union (mem wins, cloud-only kept); skipped_pos
+// + scalars are mem-authoritative so removals (restore PO) are honored.
+function _mergeRecvForSave(cloud, mem){
+  if (!cloud || typeof cloud !== "object") cloud = {};
+  if (!mem   || typeof mem   !== "object") mem   = {};
+  var out = {};
+  Object.keys(mem).forEach(function(k){ out[k] = mem[k]; });
+  Object.keys(cloud).forEach(function(k){ if (!(k in out)) out[k] = cloud[k]; });
+  ["aliases","supplier_discounts","supplier_pack_sizes","supplier_ignore_patterns","reconciled_pos","in_progress","supplier_format_profiles"].forEach(function(k){
+    out[k] = Object.assign({}, (cloud[k] && typeof cloud[k]==="object" ? cloud[k] : {}), (mem[k] && typeof mem[k]==="object" ? mem[k] : {}));
+  });
+  out._updated_at = new Date().toISOString();
+  return out;
+}
+
 async function _saveReceiveStateNow(commitMsg){
   RECV_STATE._updated_at = new Date().toISOString();
   var token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
@@ -5660,16 +5694,24 @@ async function _saveReceiveStateNow(commitMsg){
     return false;
   }
   async function attempt(){
-    var getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RECV_STATE_REPO_FILE + "?ref=main";
-    var sha = null;
-    var getR = await fetch(getUrl, { headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
+    var getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RECV_STATE_REPO_FILE + "?ref=main&_=" + Date.now();
+    var sha = null, cloud = {};
+    var getR = await fetch(getUrl, { cache: "no-store", headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
     if (getR.status === 401) return { ok: false, status: 401 };
-    if (getR.ok){ var j = await getR.json(); sha = j.sha; }
+    if (getR.ok){
+      var j = await getR.json();
+      sha = j.sha;
+      try { cloud = JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,""))))); } catch(_){ cloud = {}; }
+    } else if (getR.status !== 404){
+      return { ok: false, status: getR.status };
+    }
+    var merged = _mergeRecvForSave(cloud, RECV_STATE);
     var putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RECV_STATE_REPO_FILE;
-    var content = JSON.stringify(RECV_STATE, null, 2);
+    var content = JSON.stringify(merged, null, 2);
     var body = { message: commitMsg || "@inventory/receive: update state", content: btoa(unescape(encodeURIComponent(content))), branch: "main" };
     if (sha) body.sha = sha;
     var r = await fetch(putUrl, { method: "PUT", headers: {"Authorization":"token "+token,"Accept":"application/vnd.github+json","Content-Type":"application/json"}, body: JSON.stringify(body) });
+    if (r.ok) { RECV_STATE = merged; }
     return { ok: r.ok, status: r.status };
   }
   try{
