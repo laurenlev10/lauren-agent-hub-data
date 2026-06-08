@@ -182,6 +182,7 @@ const TABS = [
   { id: 'counted_at_event',      label: '🧮 נספרו באירוע',          color: 'primary' },
   { id: 'missed_from_worklist',  label: '⚠ לא נספרו (היו ברשימה)',  color: 'warning' },
   { id: 'negatives',             label: '🔴 מינוס במלאי',           color: 'danger' },
+  { id: 'phantom_zeros',         label: '🧹 אופסו אוטומטית',        color: 'muted' },
   { id: 'slow_movers',           label: '💤 לא זזו (מעל יחידה)',    color: 'muted' },
   { id: 'top_sellers',           label: '🏆 הכי נמכרו',             color: 'success' },
   { id: 'no_threshold',          label: '⚙️ ללא Threshold',         color: 'info' },
@@ -228,6 +229,26 @@ async function loadIndex(){
   } catch(e){ console.warn('index load failed', e); }
 }
 
+async function attachPhantomZeros(evkey){
+  // Lauren 2026-06-08 — surface auto-zeroed phantom residuals (octopos_phantom_zeros.json,
+  // written by scripts/octopos_zero_phantoms.py each Thursday evening) per event.
+  try {
+    if (!SUMMARY) return;
+    if (!SUMMARY.tabs) SUMMARY.tabs = {};
+    const r = await fetch('../state/octopos_phantom_zeros.json?_=' + Date.now(), {cache:'no-store'});
+    if (!r.ok){ SUMMARY.tabs.phantom_zeros = []; return; }
+    const d = await r.json();
+    const ev = (d.events || {})[evkey];
+    if (!ev){ SUMMARY.tabs.phantom_zeros = []; return; }
+    SUMMARY.tabs.phantom_zeros = (ev.zeroed || []).map(z => ({
+      product_id: z.id, id: z.id, sku: z.sku || '', name: z.name || '',
+      supplier: z.supplier || '', before: z.before, after: (z.after != null ? z.after : 0)
+    }));
+    SUMMARY._phantom_meta = { generated_at: ev.generated_at, window: (ev.last_event || {}),
+                              rule: (ev.rule || {}), summary: (ev.apply_summary || {}) };
+  } catch(e){ if (SUMMARY){ SUMMARY.tabs = SUMMARY.tabs || {}; SUMMARY.tabs.phantom_zeros = []; } }
+}
+
 async function loadEvent(evkey){
   $('#tabContent').innerHTML = '<div class="loading"><div class="spinner"></div><div>טוען...</div></div>';
   try {
@@ -236,6 +257,7 @@ async function loadEvent(evkey){
     if (r.ok) {
       SUMMARY = await r.json();
       SUMMARY._pre_event_mode = false;
+      await attachPhantomZeros(evkey);
       render(); return;
     }
     if (r.status === 404) {
@@ -340,6 +362,7 @@ async function loadPreEventMode(evkey){
       total_units_sold: 0, total_revenue: 0, unique_products_sold: 0,
     },
   };
+  await attachPhantomZeros(evkey);
   render();
   // Auto-sync the to_recount tab in the background — snapshot can be 1+ day stale
   // and Lauren's complaint is exactly that. Background fetch validates each tagged
@@ -473,6 +496,7 @@ function renderTabsBar(){
   const showTabs = TABS.filter(t => {
     if (isPre && (t.id === 'counted_at_event' || t.id === 'missed_from_worklist' || t.id === 'top_sellers' || t.id === 'slow_movers')) return false;
     if (!isPre && t.id === 'to_recount') return false;  // post-event has actual counted/missed instead
+    if (t.id === 'phantom_zeros' && !((SUMMARY.tabs && SUMMARY.tabs.phantom_zeros) || []).length) return false;
     return true;
   });
   // Auto-pick first tab if active is hidden
@@ -1341,6 +1365,41 @@ function promptOctopusToken(){
 }
 
 // ─── Tab orchestrator ───────────────────────────────────────────────────
+function renderPhantomZeros(){
+  const total = (SUMMARY.tabs.phantom_zeros || []).length;
+  const rows = getSortedFiltered('phantom_zeros');
+  const meta = SUMMARY._phantom_meta || {};
+  const w = meta.window || {};
+  const info = '<div class="tab-header"><div><div class="title">🧹 מוצרים שאופסו אוטומטית</div>'
+    + '<div class="description">מלאי 1–3 יח׳ שלא נמכרו בשבת–ראשון של האירוע → אופסו אוטומטית ל-0 (סטייה מצטברת, ללא צורך בספירה מחדש).'
+    + (w.sat ? ' חלון מכירות: ' + escHtml(w.sat) + ' → ' + escHtml(w.sun) + '.' : '')
+    + (meta.generated_at ? ' בוצע: ' + new Date(meta.generated_at).toLocaleString('he-IL') + '.' : '')
+    + '</div></div></div>';
+  if (rows.length === 0){
+    $('#tabContent').innerHTML = info + renderSearchAndCount('phantom_zeros', total, 0)
+      + '<div class="empty"><div class="emoji">✨</div><div>לא אופסו מוצרים באירוע זה.</div></div>';
+    wireSearch(); return;
+  }
+  let html = info + renderSearchAndCount('phantom_zeros', total, rows.length);
+  html += '<table class="data"><thead><tr>'
+    + sortableHeader('name', 'מוצר', 'phantom_zeros')
+    + sortableHeader('supplier', 'ספק', 'phantom_zeros')
+    + sortableHeader('before', '📦 היה במלאי', 'phantom_zeros')
+    + '<th>➡️ אופס ל</th>'
+    + '</tr></thead><tbody>';
+  for (const r of rows){
+    html += `<tr>
+      <td><div class="product-name">${escHtml(r.name)}</div>${r.sku ? '<div class="product-sku">'+escHtml(r.sku)+'</div>' : ''}</td>
+      <td><span class="supplier-tag">${escHtml(r.supplier||'—')}</span></td>
+      <td class="num">${fmt(r.before)}</td>
+      <td class="num" style="color:#16a34a;font-weight:800">0</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  $('#tabContent').innerHTML = html;
+  wireSortHandlers('phantom_zeros'); wireSearch();
+}
+
 function renderTabContent(){
   if (!SUMMARY){ return; }
   switch(ACTIVE_TAB){
@@ -1351,6 +1410,7 @@ function renderTabContent(){
     case 'slow_movers': renderSlowMovers(); break;
     case 'top_sellers': renderTopSellers(); break;
     case 'no_threshold': renderNoThreshold(); break;
+    case 'phantom_zeros': renderPhantomZeros(); break;
   }
   renderTabsBar();
 }
