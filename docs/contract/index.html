@@ -480,6 +480,14 @@ renderReviews();
 const VP_REPO = "laurenlev10/lauren-agent-hub-data";
 const VP_FILE = "docs/state/venue_payments.json";
 let VP = { events: {} }, VP_EVS = [], VP_SHOW_ALL = false;
+// Lauren 2026-06-08: via the per-event 📑 Contract button the URL carries ?city=..&start_date=..
+// → show ONLY that event's payments (evkey per IRON RULE #17: slugify(full city) + start_date)
+const VP_FOCUS = (() => {
+  const p = new URLSearchParams(location.search);
+  const c = (p.get("city") || "").split(",")[0].trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const sd = p.get("start_date") || "";
+  return (c && sd) ? c + "-" + sd : null;
+})();
 
 function vpEsc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function vpFmt(n){ return (n == null || isNaN(n)) ? "—" : "$" + Number(n).toLocaleString("en-US", {maximumFractionDigits: 0}); }
@@ -510,6 +518,10 @@ function vpStatus(rec){
   return ["▫ אין נתונים עדיין", "background:#f3f4f6;color:#6b7280"];
 }
 function vpRows(){
+  if (VP_FOCUS && !VP_SHOW_ALL) {
+    const hit = VP_EVS.filter(e => e.evkey === VP_FOCUS);
+    if (hit.length) return hit;
+  }
   const today = new Date().toISOString().slice(0, 10);
   const lo = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
   const hi = new Date(Date.now() + 400 * 864e5).toISOString().slice(0, 10);
@@ -524,6 +536,14 @@ function vpRender(){
   const box = document.getElementById("vp-list");
   if (!box) return;
   const evs = vpRows();
+  const h2 = document.querySelector("#vp-card h2");
+  if (h2 && VP_FOCUS && !VP_SHOW_ALL && evs.length === 1) {
+    h2.firstChild.textContent = "🏛 תשלומי אולם — " + evs[0].class_name + " ";
+  } else if (h2) {
+    h2.firstChild.textContent = "🏛 תשלומי אולם ודיפוזיטים ";
+  }
+  const sb = document.getElementById("vp-showall");
+  if (sb) sb.textContent = VP_SHOW_ALL ? (VP_FOCUS ? "חזרה לאירוע הזה בלבד" : "הצג רק אירועים פעילים") : "הצג את כל האירועים";
   if (!evs.length) { box.innerHTML = "אין אירועים בטווח המעקב"; return; }
   box.innerHTML = evs.map(e => {
     const rec = VP.events[e.evkey] || {};
@@ -622,7 +642,7 @@ async function vpSave(evkey){
   } catch(e) { console.error("vpSave", e); return false; }
 }
 const vpShowAllBtn = document.getElementById("vp-showall");
-if (vpShowAllBtn) vpShowAllBtn.onclick = () => { VP_SHOW_ALL = !VP_SHOW_ALL; vpShowAllBtn.textContent = VP_SHOW_ALL ? "הצג רק אירועים פעילים" : "הצג את כל האירועים בטווח"; vpRender(); };
+if (vpShowAllBtn) vpShowAllBtn.onclick = () => { VP_SHOW_ALL = !VP_SHOW_ALL; vpRender(); };
 vpLoad();
 </script>
 </body>
