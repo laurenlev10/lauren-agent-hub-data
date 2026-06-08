@@ -488,6 +488,21 @@ const VP_FOCUS = (() => {
   const sd = p.get("start_date") || "";
   return (c && sd) ? c + "-" + sd : null;
 })();
+// Lauren 2026-06-08: per-event contract checklist — the clause list from the Clauses editor
+// (loadClauses, first script block) + venue-detail points Lauren asked for explicitly.
+const VP_EXTRA_CHECKS = [
+  { id: "double_doors",   label: "דלתות דאבל-דור (כניסה רחבה לסחורה)" },
+  { id: "first_floor",    label: "קומה ראשונה / גישה ללא מדרגות" },
+  { id: "folding_tables", label: "שולחנות מתקפלים מסופקים" },
+  { id: "water_station",  label: "עמדת מים" },
+];
+function vpChecklistItems(){
+  let cl = [];
+  try { cl = (loadClauses() || []).filter(c => c.enabled !== false).map(c => ({ id: c.id, label: c.label, critical: !!c.critical })); } catch(e){}
+  const have = new Set(cl.map(c => c.id));
+  VP_EXTRA_CHECKS.forEach(x => { if (!have.has(x.id)) cl.push(x); });
+  return cl;
+}
 
 function vpEsc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function vpFmt(n){ return (n == null || isNaN(n)) ? "—" : "$" + Number(n).toLocaleString("en-US", {maximumFractionDigits: 0}); }
@@ -553,6 +568,18 @@ function vpRender(){
     const balance = (total != null && total !== "") ? Math.max(0, total - paid) : null;
     const qbLines = (rec.qb_lines || []).map(l =>
       `<span style="display:inline-block;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;border-radius:6px;padding:1px 7px;margin:2px;font-size:11px" title="${vpEsc(l.account)}">${vpEsc((l.date || "").slice(5))} · ${vpFmt(l.amount)} · ${vpEsc((l.vendor || "").slice(0, 20))}</span>`).join("") || '<span style="font-size:11px;color:var(--muted)">עדיין אין תשלומים ב-QB עם ה-Class של האירוע</span>';
+    const checks = rec.contract_checks || {};
+    const items = vpChecklistItems();
+    const chkDone = items.filter(it => checks[it.id] === 1).length, chkAll = items.length;
+    const chkChips = items.map(it => {
+      const v = checks[it.id];
+      const css = v === 1 ? "background:#d1fae5;color:#059669;border:1px solid #a7f3d0"
+                : v === -1 ? "background:#fee2e2;color:#b91c1c;border:1px solid #fecaca"
+                : "background:#fff;color:#6b7280;border:1px solid #e5e7eb";
+      const mark = v === 1 ? "✓ " : v === -1 ? "✗ " : "• ";
+      const crit = it.critical ? " ⭐" : "";
+      return `<button data-vp="check" data-id="${vpEsc(it.id)}" data-ev="${vpEsc(e.evkey)}" style="${css};border-radius:999px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit" title="${v === 1 ? "מוסכם בחוזה" : v === -1 ? "חסר / בעייתי" : "טרם נבדק"}">${mark}${vpEsc(it.label)}${crit}</button>`;
+    }).join("");
     const depRows = deps.map((d, i) => {
       const pd = vpDepPaid(rec, d);
       const chip = pd === "qb" ? '<span style="font-size:10px;background:#d1fae5;color:#059669;border-radius:6px;padding:1px 6px">✓ זוהה ב-QB</span>' : "";
@@ -575,6 +602,17 @@ function vpRender(){
           <input type="number" step="0.01" data-vp="contract_total" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(total ?? "")}" placeholder="$" style="width:110px"></label>
         <span style="font-size:12px">שולם ב-QB: <b style="color:#059669">${vpFmt(paid)}</b></span>
         <span style="font-size:12px">יתרה: <b style="color:${balance > 0 ? "#b45309" : "#059669"}">${balance == null ? "—" : vpFmt(balance)}</b></span>
+      </div>
+      <div style="border-top:1px dashed var(--border);margin:6px 0;padding-top:8px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:6px">
+          <b style="font-size:12px">📋 נקודות החוזה ${chkDone}/${chkAll}</b>
+          <label style="display:inline-flex;align-items:center;gap:5px;margin:0;font-size:12px">שם החדר:
+            <input type="text" data-vp="room_name" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(rec.room_name || "")}" placeholder="Grand Ballroom..." style="width:150px;font-size:12px"></label>
+          <label style="display:inline-flex;align-items:center;gap:5px;margin:0;font-size:12px">גודל (sq ft):
+            <input type="text" data-vp="room_sqft" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(rec.room_sqft || "")}" placeholder="2500" style="width:70px;font-size:12px"></label>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${chkChips}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">לחיצה על נקודה: • לא נבדק ← ✓ מוסכם בחוזה ← ✗ חסר/בעייתי ← •. אל תשכחי 💾 שמרי.</div>
       </div>
       <table style="border-collapse:collapse;width:100%;font-size:12px">${depRows}</table>
       <div style="margin:8px 0 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -599,6 +637,8 @@ document.addEventListener("change", ev => {
   const rec = vpRec(evkey);
   if (kind === "contract_total") rec.contract_total = el.value === "" ? null : +el.value;
   else if (kind === "note") rec.note = el.value;
+  else if (kind === "room_name") rec.room_name = el.value;
+  else if (kind === "room_sqft") rec.room_sqft = el.value;
   else if (kind === "dep_label") (rec.deposits[i] = rec.deposits[i] || {}).label = el.value;
   else if (kind === "dep_due") (rec.deposits[i] = rec.deposits[i] || {}).due = el.value;
   else if (kind === "dep_amount") (rec.deposits[i] = rec.deposits[i] || {}).amount = el.value === "" ? null : +el.value;
@@ -608,7 +648,14 @@ document.addEventListener("click", async ev => {
   const el = ev.target.closest("[data-vp]");
   if (!el) return;
   const kind = el.getAttribute("data-vp"), evkey = el.getAttribute("data-ev");
-  if (kind === "dep_add") { vpRec(evkey).deposits.push({label: "", due: "", amount: null, paid: false}); vpRender(); }
+  if (kind === "check") {
+    const rec = vpRec(evkey);
+    if (!rec.contract_checks) rec.contract_checks = {};
+    const id = el.getAttribute("data-id"), v = rec.contract_checks[id];
+    rec.contract_checks[id] = (v === 1) ? -1 : (v === -1) ? null : 1;
+    vpRender();
+  }
+  else if (kind === "dep_add") { vpRec(evkey).deposits.push({label: "", due: "", amount: null, paid: false}); vpRender(); }
   else if (kind === "dep_del") { vpRec(evkey).deposits.splice(+(el.getAttribute("data-i") || 0), 1); vpRender(); }
   else if (kind === "save") {
     el.disabled = true; el.textContent = "⏳";
@@ -624,7 +671,9 @@ async function vpSave(evkey){
   if (!token) return false;
   const rec = vpRec(evkey);
   rec.deposits = (rec.deposits || []).filter(d => d.label || d.due || d.amount);
-  const mine = { contract_total: rec.contract_total ?? null, deposits: rec.deposits, note: rec.note || "", updated_at: new Date().toISOString() };
+  const mine = { contract_total: rec.contract_total ?? null, deposits: rec.deposits, note: rec.note || "",
+                 contract_checks: rec.contract_checks || {}, room_name: rec.room_name || "", room_sqft: rec.room_sqft || "",
+                 updated_at: new Date().toISOString() };
   try {
     const api = "https://api.github.com/repos/" + VP_REPO + "/contents/" + VP_FILE;
     const g = await fetch(api + "?ref=main&_=" + Date.now(), { headers: {"Authorization": "token " + token, "Accept": "application/vnd.github+json"}, cache: "no-store" });
