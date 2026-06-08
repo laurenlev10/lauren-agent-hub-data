@@ -427,9 +427,9 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
                 # Sold ≥1 unit at the last event → qty is trustworthy, NOT stale.
                 n_sold += 1
                 continue
-            elif stale_enabled and qty > 2:
-                # Lauren 2026-06-08 — SINGLE stale rule: 3+ units in stock AND zero units
-                # sold at the last CONFIRMED Fri-Sun event. Count status, prior RECOUNT
+            elif stale_enabled and qty >= 5:
+                # Lauren 2026-06-08 — SINGLE stale rule: 5+ units in stock AND zero units
+                # sold at the last CONFIRMED Fri-Sun event (threshold 5+). Count status, prior RECOUNT
                 # tag and updated_at are intentionally NOT conditions anymore.
                 reason = "sat_unsold"
                 n_sat_unsold += 1
