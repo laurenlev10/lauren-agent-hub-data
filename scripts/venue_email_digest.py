@@ -58,7 +58,7 @@ def main():
     now = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     synced = 0
     for k, rec in sorted(targets):
-        emails = EMAIL_RE.findall(rec.get("contact") or "")
+        emails = EMAIL_RE.findall((rec.get("contact") or "") + " " + (rec.get("contact_email") or ""))
         if emails:
             q = "(" + " OR ".join(f"from:{e} OR to:{e}" for e in emails[:3]) + ")"
         else:
