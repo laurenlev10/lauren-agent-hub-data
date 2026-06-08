@@ -1208,9 +1208,18 @@ function renderTracker() {
   if (emailBtn) emailBtn.onclick = queueEmailCheck;
   const emailNow = document.getElementById("lnk-email-now");
   if (emailNow) emailNow.onclick = (e) => { e.preventDefault(); applyEmailResults(true); };
-  applyEmailResults();   // refresh the status chip on every render
+  try { applyEmailResults(); } catch(e) { console.warn("applyEmailResults failed:", e); }   // must never break the wiring below (2026-06-08)
   const pushBtn = document.getElementById("btn-push-staged");
   if (pushBtn) pushBtn.onclick = pushStaged;
+  // 2026-06-08 (Lauren: "אני לוחצת ושום דבר לא קורה") — delegated fallback so the push
+  // button works even if per-render wiring was interrupted by an earlier error.
+  if (!window.__pushDelegated) {
+    window.__pushDelegated = true;
+    document.addEventListener("click", e => {
+      const b = e.target && e.target.closest ? e.target.closest("#btn-push-staged") : null;
+      if (b && !b.onclick && !b.disabled) pushStaged();
+    });
+  }
   const sortSel = document.getElementById("qb-sort");
   if (sortSel) sortSel.onchange = () => { QB_SORT = sortSel.value; localStorage.setItem("bk_qb_sort", QB_SORT); renderTracker(); };
   const clearBtn = document.getElementById("btn-clear-reviewed");
@@ -1514,7 +1523,10 @@ async function pushStaged() {
   } catch (e) {
     toast("⚠ " + (e.message || "שגיאה בדחיפה"), "error");
   } finally {
-    if (btn) { btn.disabled = false; }
+    if (btn) {
+      btn.disabled = false;
+      if (/דוחף/.test(btn.textContent || "")) btn.textContent = "📤 דחוף לקוויקבוקס (" + STAGED_TOTAL + " שטופלו)";
+    }
   }
 }
 
