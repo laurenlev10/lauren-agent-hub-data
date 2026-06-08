@@ -76,6 +76,17 @@
     <div style="margin-top:8px"><a class="back" href="../">← Back to Agent Hub</a></div>
   </header>
 
+  <!-- 🏛 Venue payments tracker (Lauren 2026-06-08) — QB actuals agent-synced daily; edits GitHub-synced (IRON RULE #7/#18) -->
+  <div class="card" dir="rtl" style="text-align:right" id="vp-card">
+    <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">🏛 תשלומי אולם ודיפוזיטים
+      <span style="font-weight:400;font-size:11px;color:var(--muted)">סכומי QB מתעדכנים אוטומטית כל יום · העריכות נשמרות ב-GitHub</span></h2>
+    <div id="vp-list" style="font-size:13px;color:var(--muted)">טוען נתוני תשלומים...</div>
+    <div class="toolbar" style="margin-top:10px">
+      <button class="btn" id="vp-showall">הצג את כל האירועים בטווח</button>
+      <span class="saved-toast" id="vp-saved">✓ נשמר ב-GitHub</span>
+    </div>
+  </div>
+
   <div class="tabs">
     <button class="tab active" data-tab="clauses">📋 Clauses editor</button>
     <button class="tab" data-tab="run">🚀 Run for a contract</button>
@@ -400,7 +411,7 @@ document.getElementById("gen-cmd").addEventListener("click", async () => {
 renderClauses();
 rebuildPreview();
 
-// Recent reviews (server-side, sourced from <script id="reviews-data">)
+// Recent reviews (server-side, sourced from the reviews-data script tag)
 function fmtReviewedAt(iso){
   try {
     const d = new Date(iso);
@@ -461,6 +472,158 @@ renderReviews();
   setIf("ev-hotel", "venue");
   rebuildPreview();
 })();
+</script>
+<script>
+// ───────────── 🏛 Venue payments & deposits (Lauren 2026-06-08) ─────────────
+// agent owns qb_lines/qb_paid_total (venue_payments_sync.py, daily); browser owns
+// contract_total/deposits/note. Save = read-merge-write per IRON RULE #18.
+const VP_REPO = "laurenlev10/lauren-agent-hub-data";
+const VP_FILE = "docs/state/venue_payments.json";
+let VP = { events: {} }, VP_EVS = [], VP_SHOW_ALL = false;
+
+function vpEsc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function vpFmt(n){ return (n == null || isNaN(n)) ? "—" : "$" + Number(n).toLocaleString("en-US", {maximumFractionDigits: 0}); }
+function vpToken(){
+  let t = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+  if (!t) { t = (prompt("GitHub token (נדרש פעם אחת לשמירה):") || "").trim(); if (t) localStorage.setItem("lauren_gh_token_v1", t); }
+  return t;
+}
+async function vpLoad(){
+  try { const r = await fetch("../state/venue_payments.json?_=" + Date.now(), {cache: "no-store"}); if (r.ok) VP = await r.json(); } catch(e){}
+  try { const r = await fetch("../state/events_index.json?_=" + Date.now(), {cache: "no-store"}); if (r.ok) VP_EVS = (await r.json()).events || []; } catch(e){}
+  if (!VP.events) VP.events = {};
+  vpRender();
+}
+function vpDepPaid(rec, d){
+  if (d.paid) return "manual";
+  if (d.amount && (rec.qb_lines || []).some(l => Math.abs(l.amount - d.amount) <= 1)) return "qb";
+  return "";
+}
+function vpStatus(rec){
+  const today = new Date().toISOString().slice(0, 10);
+  const soon = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
+  const deps = rec.deposits || [], paid = rec.qb_paid_total || 0;
+  if (deps.some(d => !vpDepPaid(rec, d) && d.due && d.due < today)) return ["🔴 דיפוזיט באיחור", "background:#fee2e2;color:#b91c1c"];
+  if (deps.some(d => !vpDepPaid(rec, d) && d.due && d.due <= soon)) return ["⏳ דיפוזיט קרוב", "background:#fef3c7;color:#b45309"];
+  if (rec.contract_total && paid >= rec.contract_total - 1) return ["✓ שולם במלואו", "background:#d1fae5;color:#059669"];
+  if (rec.contract_total || deps.length || paid) return ["📒 במעקב", "background:#e0f2fe;color:#0369a1"];
+  return ["▫ אין נתונים עדיין", "background:#f3f4f6;color:#6b7280"];
+}
+function vpRows(){
+  const today = new Date().toISOString().slice(0, 10);
+  const lo = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const hi = new Date(Date.now() + 400 * 864e5).toISOString().slice(0, 10);
+  let evs = VP_EVS.filter(e => e.start_date >= lo && e.start_date <= hi);
+  if (!VP_SHOW_ALL) {
+    const hasData = e => { const r = VP.events[e.evkey]; return r && (r.contract_total || (r.deposits || []).length || (r.qb_lines || []).length); };
+    evs = evs.filter(e => hasData(e) || e.start_date >= today).slice(0, 12);
+  }
+  return evs;
+}
+function vpRender(){
+  const box = document.getElementById("vp-list");
+  if (!box) return;
+  const evs = vpRows();
+  if (!evs.length) { box.innerHTML = "אין אירועים בטווח המעקב"; return; }
+  box.innerHTML = evs.map(e => {
+    const rec = VP.events[e.evkey] || {};
+    const deps = rec.deposits || [];
+    const [stTxt, stCss] = vpStatus(rec);
+    const total = rec.contract_total, paid = rec.qb_paid_total || 0;
+    const balance = (total != null && total !== "") ? Math.max(0, total - paid) : null;
+    const qbLines = (rec.qb_lines || []).map(l =>
+      `<span style="display:inline-block;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;border-radius:6px;padding:1px 7px;margin:2px;font-size:11px" title="${vpEsc(l.account)}">${vpEsc((l.date || "").slice(5))} · ${vpFmt(l.amount)} · ${vpEsc((l.vendor || "").slice(0, 20))}</span>`).join("") || '<span style="font-size:11px;color:var(--muted)">עדיין אין תשלומים ב-QB עם ה-Class של האירוע</span>';
+    const depRows = deps.map((d, i) => {
+      const pd = vpDepPaid(rec, d);
+      const chip = pd === "qb" ? '<span style="font-size:10px;background:#d1fae5;color:#059669;border-radius:6px;padding:1px 6px">✓ זוהה ב-QB</span>' : "";
+      return `<tr>
+        <td><input type="text" data-vp="dep_label" data-ev="${vpEsc(e.evkey)}" data-i="${i}" value="${vpEsc(d.label || "")}" placeholder="דיפוזיט ${i + 1}" style="width:110px"></td>
+        <td><input type="date" data-vp="dep_due" data-ev="${vpEsc(e.evkey)}" data-i="${i}" value="${vpEsc(d.due || "")}" style="width:130px"></td>
+        <td><input type="number" step="0.01" data-vp="dep_amount" data-ev="${vpEsc(e.evkey)}" data-i="${i}" value="${vpEsc(d.amount ?? "")}" placeholder="$" style="width:90px"></td>
+        <td style="white-space:nowrap"><label class="toggle" style="display:inline-flex"><input type="checkbox" data-vp="dep_paid" data-ev="${vpEsc(e.evkey)}" data-i="${i}" ${d.paid ? "checked" : ""}> שולם</label> ${chip}</td>
+        <td><button class="btn" data-vp="dep_del" data-ev="${vpEsc(e.evkey)}" data-i="${i}" style="padding:3px 8px;font-size:11px">🗑</button></td>
+      </tr>`;
+    }).join("");
+    return `<div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;background:#fafbfc">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        <div style="font-weight:700;font-size:14px;color:var(--text)">${vpEsc(e.class_name)} <span style="font-weight:400;font-size:12px;color:var(--muted)">· ${vpEsc(e.start_date)} · ${vpEsc(e.venue || rec.venue || "")}</span></div>
+        <div><span class="badge" style="${stCss}">${stTxt}</span>
+          <a class="btn" style="padding:3px 8px;font-size:11px;margin-right:6px" href="../pnl/?evkey=${encodeURIComponent(e.evkey)}" target="_blank">📊 P&amp;L</a></div>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+        <label style="display:inline-flex;align-items:center;gap:6px;margin:0;font-size:12px">סה״כ חוזה:
+          <input type="number" step="0.01" data-vp="contract_total" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(total ?? "")}" placeholder="$" style="width:110px"></label>
+        <span style="font-size:12px">שולם ב-QB: <b style="color:#059669">${vpFmt(paid)}</b></span>
+        <span style="font-size:12px">יתרה: <b style="color:${balance > 0 ? "#b45309" : "#059669"}">${balance == null ? "—" : vpFmt(balance)}</b></span>
+      </div>
+      <table style="border-collapse:collapse;width:100%;font-size:12px">${depRows}</table>
+      <div style="margin:8px 0 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn" data-vp="dep_add" data-ev="${vpEsc(e.evkey)}" style="padding:4px 10px;font-size:11px">+ דיפוזיט</button>
+        <input type="text" data-vp="note" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(rec.note || "")}" placeholder="הערה (תנאי תשלום, מס׳ חוזה...)" style="flex:1;min-width:160px;font-size:12px">
+        <button class="btn btn-primary" data-vp="save" data-ev="${vpEsc(e.evkey)}" style="padding:4px 12px;font-size:11px">💾 שמרי</button>
+      </div>
+      <div style="margin-top:8px">${qbLines}</div>
+    </div>`;
+  }).join("");
+}
+function vpRec(evkey){
+  if (!VP.events[evkey]) VP.events[evkey] = {};
+  if (!VP.events[evkey].deposits) VP.events[evkey].deposits = [];
+  return VP.events[evkey];
+}
+document.addEventListener("change", ev => {
+  const el = ev.target.closest("[data-vp]");
+  if (!el) return;
+  const kind = el.getAttribute("data-vp"), evkey = el.getAttribute("data-ev"), i = +(el.getAttribute("data-i") || 0);
+  if (!evkey) return;
+  const rec = vpRec(evkey);
+  if (kind === "contract_total") rec.contract_total = el.value === "" ? null : +el.value;
+  else if (kind === "note") rec.note = el.value;
+  else if (kind === "dep_label") (rec.deposits[i] = rec.deposits[i] || {}).label = el.value;
+  else if (kind === "dep_due") (rec.deposits[i] = rec.deposits[i] || {}).due = el.value;
+  else if (kind === "dep_amount") (rec.deposits[i] = rec.deposits[i] || {}).amount = el.value === "" ? null : +el.value;
+  else if (kind === "dep_paid") (rec.deposits[i] = rec.deposits[i] || {}).paid = el.checked;
+});
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest("[data-vp]");
+  if (!el) return;
+  const kind = el.getAttribute("data-vp"), evkey = el.getAttribute("data-ev");
+  if (kind === "dep_add") { vpRec(evkey).deposits.push({label: "", due: "", amount: null, paid: false}); vpRender(); }
+  else if (kind === "dep_del") { vpRec(evkey).deposits.splice(+(el.getAttribute("data-i") || 0), 1); vpRender(); }
+  else if (kind === "save") {
+    el.disabled = true; el.textContent = "⏳";
+    const ok = await vpSave(evkey);
+    el.disabled = false; el.textContent = "💾 שמרי";
+    const t = document.getElementById("vp-saved");
+    if (t) { t.textContent = ok ? "✓ נשמר ב-GitHub" : "⚠ השמירה נכשלה"; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 3000); }
+    if (ok) vpRender();
+  }
+});
+async function vpSave(evkey){
+  const token = vpToken();
+  if (!token) return false;
+  const rec = vpRec(evkey);
+  rec.deposits = (rec.deposits || []).filter(d => d.label || d.due || d.amount);
+  const mine = { contract_total: rec.contract_total ?? null, deposits: rec.deposits, note: rec.note || "", updated_at: new Date().toISOString() };
+  try {
+    const api = "https://api.github.com/repos/" + VP_REPO + "/contents/" + VP_FILE;
+    const g = await fetch(api + "?ref=main&_=" + Date.now(), { headers: {"Authorization": "token " + token, "Accept": "application/vnd.github+json"}, cache: "no-store" });
+    let sha = null, cloud = { events: {} };
+    if (g.ok) { const j = await g.json(); sha = j.sha; try { cloud = JSON.parse(decodeURIComponent(escape(atob((j.content || "").replace(/\n/g, ""))))); } catch(e){} }
+    if (!cloud.events) cloud.events = {};
+    // MERGE: overlay only the browser-owned fields of THIS event (IRON RULE #18)
+    cloud.events[evkey] = Object.assign({}, cloud.events[evkey] || {}, mine);
+    cloud._updated_at = new Date().toISOString();
+    const body = { message: "contract: venue payments " + evkey, content: btoa(unescape(encodeURIComponent(JSON.stringify(cloud, null, 1)))), branch: "main" };
+    if (sha) body.sha = sha;
+    const r = await fetch(api, { method: "PUT", headers: {"Authorization": "token " + token, "Accept": "application/vnd.github+json", "Content-Type": "application/json"}, body: JSON.stringify(body) });
+    if (r.ok) { VP.events[evkey] = Object.assign({}, VP.events[evkey] || {}, mine); }
+    return r.ok;
+  } catch(e) { console.error("vpSave", e); return false; }
+}
+const vpShowAllBtn = document.getElementById("vp-showall");
+if (vpShowAllBtn) vpShowAllBtn.onclick = () => { VP_SHOW_ALL = !VP_SHOW_ALL; vpShowAllBtn.textContent = VP_SHOW_ALL ? "הצג רק אירועים פעילים" : "הצג את כל האירועים בטווח"; vpRender(); };
+vpLoad();
 </script>
 </body>
 </html>

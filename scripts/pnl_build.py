@@ -180,14 +180,22 @@ def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analyt
         expenses["marketing_tiktok"] = _line(None, "tiktok_api", "pending", "Reporting scope in review")
     # Travel / Venue / ULINE / Lyft (non-cash) — auto-fetch from QuickBooks by Class
     # "{City} {Year}" (e.g. "Cleveland 2026"). Falls back to pending if QB not available.
+    qb_venue_note = ""
     if qb_expenses is None and ev:
         try:
             import pnl_quickbooks
             cls = f"{ev.get('city')} {(start or '')[:4]}"
-            qbd = pnl_quickbooks.fetch_qb_expenses(cls)
+            # wide per-event window — hall deposits are paid months before the event (Lauren 2026-06-08)
+            _d0 = (dt.date.fromisoformat(start) - dt.timedelta(days=400)).isoformat() if start else None
+            _d1 = (dt.date.fromisoformat(end) + dt.timedelta(days=30)).isoformat() if end else None
+            qbd = pnl_quickbooks.fetch_qb_expenses(cls, date_from=_d0, date_to=_d1)
             if qbd.get("lines"):
                 bc = qbd.get("by_category", {})
                 qb_expenses = {k: bc[k] for k in ("travel", "venue", "uline", "lyft") if k in bc}
+                vlines = [l for l in qbd["lines"] if l.get("category") == "venue"]
+                if vlines:
+                    qb_venue_note = " + ".join(f"{l['date'][5:]} ${l['amount']:,.0f}" for l in vlines[:6])
+                    if len(vlines) > 6: qb_venue_note += f" (+{len(vlines)-6})" 
         except Exception as e:
             print(f"WARN QB fetch skipped: {e}", file=sys.stderr)
     # Travel / Venue (non-cash, from QuickBooks)
@@ -196,7 +204,7 @@ def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analyt
         pass
     expenses["travel"] = (_line(qb.get("travel"), "quickbooks", "ok")
                           if "travel" in qb else _line(None, "quickbooks", "pending", "QB production in review"))
-    expenses["venue"] = (_line(qb.get("venue"), "quickbooks", "ok")
+    expenses["venue"] = (_line(qb.get("venue"), "quickbooks", "ok", qb_venue_note)
                          if "venue" in qb else _line(None, "quickbooks", "pending", "QB production in review"))
     # ULINE — event supplies/packing ordered straight to the venue. From QuickBooks
     # (vendor ULINE) in future; manually overridable because the charge may bundle

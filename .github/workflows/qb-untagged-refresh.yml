@@ -26,11 +26,12 @@ jobs:
           python3 scripts/events_index_build.py
           python3 scripts/qb_fixed_loan_tracker.py
           python3 scripts/pnl_auto_refresh.py || echo "pnl refresh partial — continuing"
+          python3 scripts/venue_payments_sync.py || echo "venue payments sync partial — continuing"
       - name: Commit if changed
         run: |
           git config user.email "lauren@noreply.github.com"
           git config user.name  "Lauren (via Actions)"
-          git add docs/state/qb_untagged.json docs/state/qb_lists.json docs/state/events_index.json docs/state/qb_fixed_loan_tracker.json docs/state/event_pnl/
+          git add docs/state/qb_untagged.json docs/state/qb_lists.json docs/state/events_index.json docs/state/qb_fixed_loan_tracker.json docs/state/event_pnl/ docs/state/venue_payments.json
           if ! git diff --cached --quiet; then
             git commit -m "qb: daily untagged + lists refresh [qb-applied]"
             git pull --no-rebase -X ours origin main   # regenerated snapshots — ours wins on race
