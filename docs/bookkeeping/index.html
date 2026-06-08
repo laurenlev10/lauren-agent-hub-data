@@ -112,6 +112,7 @@
   .qb-edit { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; width:100%; }
   .qb-edit input, .qb-edit select { font-size:12px; padding:4px 6px; border:1px solid #d1d5db; border-radius:6px; background:#fff; }
   .qb-edit .w-cat{width:230px}.qb-edit .w-cls{width:160px}.qb-edit .w-ven{width:170px}
+  .memo-line{font-size:11px;color:#475569;direction:ltr;text-align:left;word-break:break-word;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:6px;padding:2px 8px;margin-top:4px;display:inline-block;max-width:100%;font-family:ui-monospace,Menlo,monospace}
   .qb-pick{transform:scale(1.3);margin-left:8px;cursor:pointer}
   .tchip{font-size:10px;padding:2px 7px;border-radius:8px;color:#fff;font-weight:700;white-space:nowrap}
   .dtx{font-size:14px;font-weight:800;color:#1d4ed8;background:#dbeafe;padding:1px 7px;border-radius:7px;white-space:nowrap}
@@ -404,7 +405,8 @@ async function loadQBRefs() {
   if (!QB_PROCESSED.processed) QB_PROCESSED.processed = {};
 }
 function classifyType(t) {
-  const rule = QB_RULES.rules[ruleKey(t)];
+  const _rk = ruleKey(t);
+  const rule = isGenericRuleKey(_rk) ? null : QB_RULES.rules[_rk];
   if (rule && rule.etype) return rule.etype;
   const hay = ((t.qb_vendor || "") + " " + (t.desc || "")).toLowerCase();
   for (const [ty, def] of Object.entries(QB_TYPES.types || {})) {
@@ -440,9 +442,32 @@ function matchSupplierName(t) {
   }
   return null;
 }
+function bankMemoOf(t) {
+  // the raw bank descriptor — best clue for unidentified charges (Lauren 2026-06-07)
+  if (t.qb_memo) return t.qb_memo;
+  const parts = (t.desc || "").split(" · ");
+  return parts.length > 1 ? parts[parts.length - 1] : "";
+}
+function merchantFromMemo(t) {
+  let m = " " + bankMemoOf(t) + " ";
+  if (!m.trim()) return "";
+  m = m.replace(/\b(PURCHASE|RECURRING PAYMENT|POS DEBIT|DEBIT CARD PURCHASE|BILL PAY|ATM WITHDRAWAL)\b/gi, " ")
+       .replace(/\bAUTHORIZED ON\s+\d{1,2}\/\d{1,2}\b/gi, " ")
+       .replace(/\b\S*X{3,}\S*\b/g, " ")
+       .replace(/\bCARD\s*\d{2,}\b/gi, " ");
+  const fields = m.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
+  while (fields.length && /^[\d\/\-\. ]+$/.test(fields[0])) fields.shift();
+  return (fields[0] || "").replace(/\s+/g, " ").trim();
+}
 function ruleKey(t) {
-  const base = (t.qb_vendor || (t.desc||"").split("·")[0] || "").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
+  const base = (t.qb_vendor || merchantFromMemo(t) || (t.desc||"").split("·")[0] || "").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
   return base.slice(0,40) || "misc";
+}
+// Lauren 2026-06-07: generic keys (account names / bank boilerplate) must never act as filing rules.
+// Root cause of the "everything becomes Meals Expense" bug: a learned rule keyed "uncategorized expense".
+function isGenericRuleKey(k) {
+  return !k || k === "misc" || /^uncategorized/.test(k) || /\bexpense\b/.test(k) ||
+         ["purchase","payment","pos debit","debit","credit","check","withdrawal","deposit","transfer"].indexOf(k) !== -1;
 }
 let PUT_CHAIN = Promise.resolve();   // serialize writes — rapid Done clicks must not race each other
 function ghPutJson(path, mutate, msg) { return ghBatchJson([{ path, mutate }], msg); }
@@ -1099,6 +1124,13 @@ function renderTracker() {
   };
   const showDone = document.getElementById("lnk-show-done");
   if (showDone) showDone.onclick = (e) => { e.preventDefault(); SHOW_DONE_QB = !SHOW_DONE_QB; renderTracker(); };
+  $("sections").querySelectorAll(".qb-google").forEach(el => {
+    el.onclick = () => {
+      const t = s.tx.find(x => x.id === el.getAttribute("data-tx")); if (!t) return;
+      const q = (t.qb_vendor || merchantFromMemo(t) || (t.desc || "").slice(0, 40)).trim();
+      window.open("https://www.google.com/search?q=" + encodeURIComponent('"' + q + '"' + " charge"), "_blank");
+    };
+  });
   $("sections").querySelectorAll(".done-btn").forEach(b => {
     b.onclick = () => toggleDone(b.getAttribute("data-tx"));
   });
@@ -1128,6 +1160,11 @@ function renderQBCard(t) {
   const cls = (t.done ? "done " : "") + (t.recognized ? "rec" : "");
   const amtCls = t.isCredit ? "amt credit" : "amt";
   const recBadge = t.recognized ? '<span class="badge rec">✓ זוהה</span>' : "";
+  const sugBadge = (t.cat_suggested && !t.recognized) ? '<span class="badge" style="background:#fef9c3;color:#854d0e" title="ניחוש לפי שם המוכר — לאמת לפני פרסום">💡 הצעה — לאמת</span>' : "";
+  const memoFull = bankMemoOf(t);
+  const merchGuess = merchantFromMemo(t);
+  const needsId = !t.recognized && (!t.sel_account || /uncategorized/i.test(t.sel_account) || t.cat_suggested);
+  const memoLine = (memoFull && needsId) ? `<div class="memo-line" title="הטקסט המלא מהבנק">🏦 ${escapeHtml(memoFull.replace(/\s{2,}/g, "  "))}</div>` : "";
   const acBadge = t.auto_class ? '<span class="badge rec" title="שויך לאירוע לפי התאריך">🏷 לפי תאריך</span>' : "";
   const tdef = (QB_TYPES.types || {})[t.etype];
   const tStyle = tdef ? ` style="background:${tdef.bg};border-right:4px solid ${tdef.color}"` : "";
@@ -1139,13 +1176,15 @@ function renderQBCard(t) {
   return `
     <div class="card ${cls}"${tStyle}>
       <div class="info" style="width:100%">
-        <div class="top-line">${escapeHtml((t.qb_vendor || t.desc).slice(0, 60))} ${tChip} ${acBadge} ${recBadge}</div>
+        <div class="top-line" title="${escapeHtml(memoFull)}">${escapeHtml((t.qb_vendor || merchGuess || t.desc).slice(0, 60))} ${tChip} ${acBadge} ${recBadge} ${sugBadge}</div>
         <div class="bottom-line"><span class="dtx">${escapeHtml(t.date_human)}</span> · <span class="${amtCls}">${fmtMoney(t.amt)}</span> · ${escapeHtml(t.qb_paid_from || "")} · ${escapeHtml((t.desc||"").slice(0,70))}</div>
+        ${memoLine}
         <div class="qb-edit">
           <input class="w-cat qb-f" list="dl-cats" data-f="sel_account" data-tx="${escapeHtml(t.id)}" value="${catVal}" placeholder="קטגוריה">
           <select class="w-cls qb-f" data-f="sel_class" data-tx="${escapeHtml(t.id)}">${classOpts}</select>
           <input class="w-ven qb-f" list="dl-vens" data-f="sel_vendor" data-tx="${escapeHtml(t.id)}" value="${venVal}" placeholder="ספק">
           <button class="qb-return" data-tx="${escapeHtml(t.id)}" title="לא מזוהה? מחזיר את ההוצאה ל-Pending (For Review) בקוויקבוקס" style="font-size:11px;padding:4px 8px;border:1px solid #fca5a5;background:#fef2f2;color:#b91c1c;border-radius:6px;cursor:pointer">↩ החזר ל-Pending</button>
+          <button class="qb-google" data-tx="${escapeHtml(t.id)}" title="מי המוכר הזה? פותח חיפוש בגוגל לזיהוי החיוב" style="font-size:11px;padding:4px 8px;border:1px solid #93c5fd;background:#eff6ff;color:#1d4ed8;border-radius:6px;cursor:pointer">🔍 מי זה?</button>
           <select class="qb-f" data-f="etype" data-tx="${escapeHtml(t.id)}" title="צבע / סוג הוצאה">
             <option value="">— צבע —</option>
             ${Object.entries(QB_TYPES.types || {}).map(([ty, d]) => `<option value="${ty}" ${ty===t.etype?"selected":""}>${escapeHtml(d.label)}</option>`).join("")}
@@ -1186,6 +1225,7 @@ function learnFromRows(d, rows, now) {
   d = d || { rules: {} }; if (!d.rules) d.rules = {};
   rows.forEach(t => {
     const k = ruleKey(t);
+    if (isGenericRuleKey(k)) return;   // never learn a rule from a generic key (2026-06-07)
     const rule = { account: t.sel_account || "", vendor: t.sel_vendor || "" };
     if (t.sel_class && !/\d{4}\s*$/.test(t.sel_class)) rule.cls = t.sel_class;
     const acc = (t.sel_account || "").toLowerCase();
@@ -1794,6 +1834,7 @@ async function startQBSession() {
                qb_txn_id: x.txn_id, qb_txn_type: x.txn_type, qb_line_id: x.line_id,
                qb_key: (x.txn_type||"") + "-" + (x.txn_id||"") + "-" + (x.line_id||""),
                qb_vendor: x.vendor || "", qb_paid_from: x.paid_from || "", qb_payment_type: x.payment_type || "",
+               qb_memo: x.memo || "",
                sel_account: x.account || "", sel_class: "", sel_vendor: x.vendor || "", picked: false };
     });
     // apply learned filing rules → auto-recognized rows (green)
@@ -1802,7 +1843,8 @@ async function startQBSession() {
     }
     const acctLabel = (acct === "auto") ? "כל החשבונות" : ($("f-account").selectedOptions[0].textContent);
     tx.forEach(t => {
-      const rule = QB_RULES.rules[ruleKey(t)];
+      const _rk = ruleKey(t);
+      const rule = isGenericRuleKey(_rk) ? null : QB_RULES.rules[_rk];
       if (rule) {
         t.sel_account = rule.account || t.sel_account;
         if (rule.cls) t.sel_class = rule.cls;
