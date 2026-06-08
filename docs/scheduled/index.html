@@ -41,10 +41,10 @@
   }
   .back-link:hover { border-color: #4f46e5; color: #4f46e5; }
 
-  .sched-wrap { max-width: 900px; margin: 0 auto; }
+  .sched-wrap { max-width: 760px; margin: 0 auto; }
   .sched-card {
     background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%);
-    color: #fff; border-radius: 18px; padding: 26px 30px;
+    color: #fff; border-radius: 18px; padding: 26px 26px 30px;
     box-shadow: 0 8px 32px rgba(79, 70, 229, 0.25);
     position: relative; overflow: hidden;
   }
@@ -60,26 +60,53 @@
   .sched-content { position: relative; z-index: 1; }
   .sched-name { font-size: 26px; font-weight: 800; margin: 18px 0 4px; letter-spacing: -0.3px; }
   .sched-tag { font-size: 13px; opacity: 0.95; margin-bottom: 14px; direction: rtl; text-align: right; line-height: 1.5; }
-  .sched-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  @media (max-width: 700px) { .sched-list { grid-template-columns: 1fr; } }
-  .sched-task {
-    background: rgba(255,255,255,0.13); border-radius: 10px; padding: 12px 14px;
-    display: flex; flex-direction: column; gap: 6px; transition: all 0.15s ease;
+
+  .sched-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .day-title {
+    font-size: 12px; font-weight: 800; letter-spacing: 0.4px; opacity: 0.92;
+    margin: 18px 0 2px; direction: rtl; text-align: right;
   }
-  .sched-task:hover { background: rgba(255,255,255,0.22); }
-  .sched-task .task-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .sched-task .task-name { font-size: 14px; font-weight: 700; flex: 1; direction: rtl; text-align: right; }
-  .sched-task .task-status { font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; letter-spacing: 0.3px; }
-  .sched-task .task-status.ok    { background: #d1fae5; color: #065f46; }
-  .sched-task .task-status.late  { background: #fef3c7; color: #92400e; }
-  .sched-task .task-status.off   { background: rgba(255,255,255,0.18); color: #e0e7ff; }
-  .sched-task .task-status.never { background: rgba(255,255,255,0.18); color: #fff; }
-  .sched-task .task-meta { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; opacity: 0.9; direction: rtl; }
-  .sched-task .task-meta .freq { font-weight: 700; opacity: 1; }
-  .sched-task .task-meta .task-last { direction: ltr; opacity: 0.85; }
+  .day-title:first-child { margin-top: 2px; }
+
+  .now-divider { display: flex; align-items: center; gap: 10px; margin: 8px 0; direction: rtl; }
+  .now-divider .ln { flex: 1; height: 2px; background: rgba(255,255,255,0.30); border-radius: 2px; }
+  .now-divider .lbl { font-size: 11px; font-weight: 800; background: #fde047; color: #713f12; padding: 4px 11px; border-radius: 999px; white-space: nowrap; direction: ltr; }
+
+  .tl-item {
+    display: grid; grid-template-columns: 58px 1fr; gap: 12px; align-items: center;
+    background: rgba(255,255,255,0.13); border-radius: 10px; padding: 10px 14px;
+    transition: all 0.15s ease;
+  }
+  .tl-item:hover { background: rgba(255,255,255,0.22); }
+  .tl-item.dim { opacity: 0.62; }
+
+  .tl-time {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    border-inline-start: 2px solid rgba(255,255,255,0.20); padding-inline-start: 8px;
+  }
+  .tl-time .gl { font-size: 13px; line-height: 1; }
+  .tl-time .gl.ok { color: #6ee7b7; }
+  .tl-time .gl.late { color: #fcd34d; }
+  .tl-time .gl.wait { color: #c7d2fe; }
+  .tl-time .hm { font-size: 15px; font-weight: 800; direction: ltr; letter-spacing: 0.3px; }
+  .tl-time .ap { font-size: 9px; opacity: 0.8; white-space: nowrap; }
+
+  .tl-body { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .tl-body .task-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .tl-body .task-name { font-size: 14px; font-weight: 700; flex: 1; direction: rtl; text-align: right; }
+  .tl-body .task-status { font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; letter-spacing: 0.3px; }
+  .tl-body .task-status.ok    { background: #d1fae5; color: #065f46; }
+  .tl-body .task-status.late  { background: #fef3c7; color: #92400e; }
+  .tl-body .task-status.off   { background: rgba(255,255,255,0.18); color: #e0e7ff; }
+  .tl-body .task-status.never { background: #fee2e2; color: #991b1b; }
+  .tl-body .task-meta { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; opacity: 0.9; direction: rtl; }
+  .tl-body .task-meta .freq { font-weight: 700; opacity: 1; }
+  .tl-body .task-meta .task-last { direction: ltr; opacity: 0.85; }
+
   .sched-empty {
     background: rgba(255,255,255,0.13); border-radius: 10px; padding: 14px;
-    text-align: center; font-size: 12px; opacity: 0.92; direction: rtl; grid-column: 1 / -1;
+    text-align: center; font-size: 12px; opacity: 0.92; direction: rtl;
   }
 </style>
 </head>
@@ -91,7 +118,7 @@
   <div class="sched-card">
     <div class="sched-content">
       <div class="sched-name">⏱️ משימות אוטומטיות</div>
-      <div class="sched-tag">סוכנים שרצים אוטומטית בלוח זמנים — סטטוס חי מקובץ <code style="opacity:0.85">scheduled-runs.json</code> ב־Git. כל סוכן מעדכן בסיום ריצה.</div>
+      <div class="sched-tag">לוח היום לפי הסדר (שעון PT) — מה כבר רץ היום, ומה עוד צפוי. סטטוס חי מקובץ <code style="opacity:0.85">scheduled-runs.json</code> ב־Git.</div>
       <div class="sched-list" id="sched-list">
         <div class="sched-empty">טוען נתונים...</div>
       </div>
@@ -102,72 +129,203 @@
 <script id="sched-data">
 (function initSched() {
   const list = document.getElementById("sched-list");
-  const URL_ = "../scheduled-runs.json?_=" + Date.now();
-  fetch(URL_)
+  const TZ = "America/Los_Angeles";
+
+  fetch("../scheduled-runs.json?_=" + Date.now())
     .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
     .then(function (data) { render(data.tasks || []); })
     .catch(function (err) {
       list.innerHTML = '<div class="sched-empty">לא ניתן לטעון את הנתונים (' + err + ')</div>';
     });
 
+  function fmtParts(date) {
+    const f = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+    const o = {}; f.formatToParts(date).forEach(function (p) { o[p.type] = p.value; }); return o;
+  }
+  function ptDate(d) { const p = fmtParts(d); return p.year + '-' + p.month + '-' + p.day; }
+  function ptHM(d) { const p = fmtParts(d); var h = p.hour; if (h === '24') h = '00'; return h + ':' + p.minute; }
+  function ranToday(t, today) { return t.lastRunAt && ptDate(new Date(t.lastRunAt)) === today; }
+
   function timeAgo(iso) {
     if (!iso) return "מעולם לא רץ";
     const d = new Date(iso); if (isNaN(d)) return "—";
-    const diff = (Date.now() - d.getTime()) / 1000;
-    if (diff < 60) return "now";
-    if (diff < 3600) return Math.round(diff/60) + "m ago";
-    if (diff < 86400) return Math.round(diff/3600) + "h ago";
-    if (diff < 86400*7) return Math.round(diff/86400) + "d ago";
+    const s = (Date.now() - d.getTime()) / 1000;
+    if (s < 60) return "now";
+    if (s < 3600) return Math.round(s / 60) + "m ago";
+    if (s < 86400) return Math.round(s / 3600) + "h ago";
+    if (s < 86400 * 7) return Math.round(s / 86400) + "d ago";
     return d.toLocaleDateString('en-CA');
   }
 
   function statusFor(t) {
     if (!t.enabled) return { cls: "off", txt: "OFF" };
-    if (!t.lastRunAt) return { cls: "never", txt: "—" };
-    const diffH = (Date.now() - new Date(t.lastRunAt).getTime()) / 3600000;
-    let limit = 25;
-    if (t.frequency === "hourly") limit = 1.2;
-    else if (t.frequency === "daily") limit = 25;
-    else if (t.frequency === "weekly") limit = 24*8;
-    if (diffH > limit) return { cls: "late", txt: "⚠ LATE" };
-    return { cls: "ok", txt: "OK" };
+    if (!t.lastRunAt) return { cls: "never", txt: "✗ נכשל" };
+    const h = (Date.now() - new Date(t.lastRunAt).getTime()) / 3600000;
+    let lim = t.frequency === "hourly" ? 1.2 : (t.frequency === "weekly" ? 24 * 8 : 25);
+    return h > lim ? { cls: "late", txt: "⚠ LATE" } : { cls: "ok", txt: "OK" };
   }
 
-  function render(tasks) {
-    if (!tasks.length) {
-      list.innerHTML = '<div class="sched-empty">אין עדיין משימות מתוזמנות.</div>';
-      return;
-    }
-    list.innerHTML = "";
-    tasks.forEach(function (t) {
-      const s = statusFor(t);
-      const safeName = String(t.label || t.id || "").replace(/[<>&"]/g, "");
-      const freq = String(t.scheduleHuman || t.frequency || "").replace(/[<>&"]/g, "");
-      const dashHref = String(t.dashboard || "").replace(/[<>"\\]/g, "");
-      const card = document.createElement(dashHref ? "a" : "div");
-      card.className = "sched-task";
-      if (dashHref) {
-        var isAbsolute = /^https?:\/\//.test(dashHref);
-        card.href = isAbsolute ? dashHref : ("../" + dashHref);
-        if (isAbsolute) {
-          card.target = "_blank";
-          card.rel = "noopener";
-        }
-        card.style.textDecoration = "none";
-        card.style.color = "inherit";
-        card.style.display = "block";
+  function expandField(f, lo, hi) {
+    const out = new Set();
+    String(f).split(',').forEach(function (part) {
+      let step = 1, range = part;
+      if (part.indexOf('/') >= 0) { const a = part.split('/'); range = a[0]; step = parseInt(a[1]) || 1; }
+      let a, b;
+      if (range === '*') { a = lo; b = hi; }
+      else if (range.indexOf('-') >= 0) { const x = range.split('-'); a = parseInt(x[0]); b = parseInt(x[1]); }
+      else { a = b = parseInt(range); }
+      if (isNaN(a)) return;
+      for (let i = a; i <= b; i += step) out.add(i);
+    });
+    return out;
+  }
+
+  function cronPieces(cron) {
+    if (!cron) return [];
+    return String(cron).replace(/\([^)]*\)/g, ' ').split(/;|\s+\+\s+|\s+\/\s+/)
+      .map(function (s) { return s.trim(); }).filter(Boolean)
+      .map(function (s) { return s.split(/\s+/); }).filter(function (a) { return a.length === 5; });
+  }
+
+  function slotsToday(cron, today) {
+    const pieces = cronPieces(cron); const slots = []; let cont = false; const base = new Date();
+    pieces.forEach(function (p) {
+      const mF = p[0], hF = p[1], dowF = p[4];
+      if (hF === '*' || /\*\//.test(hF)) cont = true;
+      const mins = Array.from(expandField(mF, 0, 59));
+      const hrs = Array.from(expandField(hF, 0, 23));
+      const dows = expandField(dowF, 0, 7);
+      for (let off = -1; off <= 1; off++) {
+        const day = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + off));
+        const dU = day.getUTCDay();
+        const dm = (dowF === '*') || dows.has(dU) || (dU === 0 && dows.has(7));
+        if (!dm) continue;
+        hrs.forEach(function (h) {
+          mins.forEach(function (m) {
+            const inst = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), h, m));
+            if (ptDate(inst) === today) slots.push(inst);
+          });
+        });
       }
-      card.innerHTML =
+    });
+    slots.sort(function (a, b) { return a - b; });
+    const seen = {}, u = [];
+    slots.forEach(function (s) { const k = s.getTime(); if (!seen[k]) { seen[k] = 1; u.push(s); } });
+    if (u.length > 6) cont = true;
+    return { slots: u, cont: cont };
+  }
+
+  function makeCard(t, chipHtml, dim) {
+    const s = statusFor(t);
+    const name = String(t.label || t.id || "").replace(/[<>&"]/g, "");
+    const freq = String(t.scheduleHuman || t.frequency || "").replace(/[<>&"]/g, "");
+    const href = String(t.dashboard || "").replace(/[<>"\\]/g, "");
+    const el = document.createElement(href ? "a" : "div");
+    el.className = "tl-item" + (dim ? " dim" : "");
+    if (href) {
+      var abs = /^https?:\/\//.test(href);
+      el.href = abs ? href : ("../" + href);
+      if (abs) { el.target = "_blank"; el.rel = "noopener"; }
+      el.style.textDecoration = "none"; el.style.color = "inherit";
+    }
+    el.innerHTML =
+      '<div class="tl-time">' + chipHtml + '</div>' +
+      '<div class="tl-body">' +
         '<div class="task-row">' +
-          '<div class="task-name">' + safeName + '</div>' +
+          '<div class="task-name">' + name + '</div>' +
           '<span class="task-status ' + s.cls + '">' + s.txt + '</span>' +
         '</div>' +
         '<div class="task-meta">' +
           '<span class="freq">' + freq + '</span>' +
           '<span class="task-last">last: ' + timeAgo(t.lastRunAt) + '</span>' +
-        '</div>';
-      list.appendChild(card);
+        '</div>' +
+      '</div>';
+    return el;
+  }
+
+  function chipFixed(slot, all, glcls, gl) {
+    var extra = (all && all.length > 1) ? '<span class="ap">×' + all.length + ' ביום</span>' : '';
+    return '<span class="gl ' + glcls + '">' + gl + '</span>' +
+           '<span class="hm">' + ptHM(slot) + '</span>' + extra;
+  }
+
+  function render(tasks) {
+    if (!tasks.length) { list.innerHTML = '<div class="sched-empty">אין עדיין משימות מתוזמנות.</div>'; return; }
+    const now = new Date(), nowMs = now.getTime(), today = ptDate(now);
+    const done = [], upcoming = [], cont = [], notToday = [], off = [];
+
+    tasks.forEach(function (t) {
+      if (!t.enabled) { off.push(t); return; }
+      const r = slotsToday(t.cron, today);
+      if (r.cont) {
+        if (!r.slots.length) { notToday.push(t); return; }
+        let next = null, last = null;
+        r.slots.forEach(function (sl) { if (sl.getTime() > nowMs && !next) next = sl; if (sl.getTime() <= nowMs) last = sl; });
+        cont.push({ t: t, next: next }); return;
+      }
+      if (!r.slots.length) { notToday.push(t); return; }
+      let next = null;
+      r.slots.forEach(function (sl) { if (sl.getTime() > nowMs && !next) next = sl; });
+      if (next) { upcoming.push({ t: t, anchor: next.getTime(), slot: next, all: r.slots }); }
+      else { done.push({ t: t, anchor: r.slots[r.slots.length - 1].getTime(), slot: r.slots[r.slots.length - 1], all: r.slots }); }
     });
+
+    done.sort(function (a, b) { return a.anchor - b.anchor; });
+    upcoming.sort(function (a, b) { return a.anchor - b.anchor; });
+    cont.sort(function (a, b) { return (a.next ? a.next.getTime() : Infinity) - (b.next ? b.next.getTime() : Infinity); });
+
+    list.innerHTML = "";
+    function title(txt) { const d = document.createElement("div"); d.className = "day-title"; d.textContent = txt; list.appendChild(d); }
+
+    // ✅ Already happened earlier today (scheduled before now)
+    if (done.length) {
+      title("🌅 מוקדם יותר היום (" + done.length + ")");
+      done.forEach(function (it) {
+        var ran = it.t.lastRunAt && new Date(it.t.lastRunAt).getTime() >= it.slot.getTime();
+        var glcls = ran ? "ok" : "wait", gl = ran ? "✓" : "⌛";
+        list.appendChild(makeCard(it.t, chipFixed(it.slot, it.all, glcls, gl), true));
+      });
+    }
+
+    // ⏰ NOW
+    const nd = document.createElement("div"); nd.className = "now-divider";
+    nd.innerHTML = '<div class="ln"></div><div class="lbl">⏰ עכשיו ' + ptHM(now) + ' PT</div><div class="ln"></div>';
+    list.appendChild(nd);
+
+    // ⏳ Still to come today
+    if (upcoming.length) {
+      title("⏳ עוד צפוי היום (" + upcoming.length + ")");
+      upcoming.forEach(function (it) {
+        list.appendChild(makeCard(it.t, chipFixed(it.slot, it.all, "wait", "⌛"), false));
+      });
+    }
+
+    // 🔄 Runs continuously through the day
+    if (cont.length) {
+      title("🔄 רץ ברצף לאורך כל היום (" + cont.length + ")");
+      cont.forEach(function (it) {
+        var chip = it.next
+          ? ('<span class="gl wait">🔄</span><span class="hm">' + ptHM(it.next) + '</span><span class="ap">הבא</span>')
+          : '<span class="gl wait">🔄</span><span class="ap">רץ ברצף</span>';
+        list.appendChild(makeCard(it.t, chip, false));
+      });
+    }
+
+    // 🗓️ Not scheduled today (weekend / other weekday)
+    if (notToday.length) {
+      title("🗓️ לא מתוזמן להיום (" + notToday.length + ")");
+      notToday.forEach(function (t) {
+        list.appendChild(makeCard(t, '<span class="ap" style="opacity:.7">—</span>', true));
+      });
+    }
+
+    // ⏸️ Disabled
+    if (off.length) {
+      title("⏸️ מושבת (" + off.length + ")");
+      off.forEach(function (t) {
+        list.appendChild(makeCard(t, '<span class="ap" style="opacity:.7">off</span>', true));
+      });
+    }
   }
 })();
 </script>
