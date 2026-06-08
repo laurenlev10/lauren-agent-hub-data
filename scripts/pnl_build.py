@@ -26,7 +26,7 @@ runnable today with sources C/D/E pending. Usage:
                     qb_expenses=None)         # None => pending (in review)
 """
 from __future__ import annotations
-import argparse, json, re, sys
+import argparse, datetime as dt, json, re, sys
 from pathlib import Path
 
 # import sibling source modules
@@ -105,19 +105,25 @@ def _line(amount, source, status="ok", note=""):
 
 
 def build_pnl(evkey, *, launch_html=None, inv_state=None, mgr_state=None, analytics_path=None,
-              overrides_path=None, meta_spend=None, tiktok_spend=None, qb_expenses=None):
+              overrides_path=None, meta_spend=None, tiktok_spend=None, qb_expenses=None,
+              skip_sales=False):
     ev = find_event(evkey, launch_html=launch_html)
     start = (ev or {}).get("start_date") or evkey[-10:]
     end = (ev or {}).get("end_date") or start
 
     # ---- A. Sales (OCTOPOS) ----
-    try:
-        sales = pnl_octopos.fetch_octopos_pnl(start, end)
-        sales_status = "ok"
-    except SystemExit as e:
+    if skip_sales:
         sales = {"gross": None, "net": None, "tax": None, "transactions": None,
                  "avg_ticket": None, "payment_breakdown": {}, "top_products": []}
-        sales_status = f"error: {e}"
+        sales_status = "pending (event not started)"
+    else:
+        try:
+            sales = pnl_octopos.fetch_octopos_pnl(start, end)
+            sales_status = "ok"
+        except SystemExit as e:
+            sales = {"gross": None, "net": None, "tax": None, "transactions": None,
+                     "avg_ticket": None, "payment_breakdown": {}, "top_products": []}
+            sales_status = f"error: {e}"
     octo_cash = None
     for k, v in (sales.get("payment_breakdown") or {}).items():
         if "CASH" in k.upper():

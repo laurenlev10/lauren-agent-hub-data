@@ -17,30 +17,32 @@ import pnl_build as PB
 
 def main():
     today = dt.date.today()
-    lo, hi = today - dt.timedelta(days=21), today + dt.timedelta(days=45)
+    lo = today - dt.timedelta(days=21)
+    hi = max(dt.date(today.year, 12, 31), today + dt.timedelta(days=45))  # all of this year ahead — hotel deposits are paid months early
     events = json.loads((ROOT / "docs/state/events_index.json").read_text(encoding="utf-8"))["events"]
     targets = [e for e in events if lo <= dt.date.fromisoformat(e["start_date"]) <= hi]
+    print(f"targets: {len(targets)} events · window {lo} .. {hi}", flush=True)
     outdir = ROOT / "docs/state/event_pnl"
     outdir.mkdir(exist_ok=True)
     ok = err = 0
     for e in targets:
         evkey = e["evkey"]
+        future = dt.date.fromisoformat(e["start_date"]) > today
+        old_p = outdir / f"{evkey}.json"
+        if old_p.exists():
+            try:
+                if json.loads(old_p.read_text(encoding="utf-8")).get("historical"):
+                    print(f"  skip {evkey} (historical/manual)", flush=True); continue
+            except Exception: pass
         try:
-            pnl = PB.build_pnl(evkey)
-            # never clobber a finalized/manual historical file with an auto build
-            old_p = outdir / f"{evkey}.json"
-            if old_p.exists():
-                try:
-                    old = json.loads(old_p.read_text(encoding="utf-8"))
-                    if old.get("historical"):
-                        print(f"  skip {evkey} (historical/manual)"); continue
-                except Exception: pass
+            pnl = PB.build_pnl(evkey, skip_sales=future)
             old_p.write_text(json.dumps(pnl, indent=2, ensure_ascii=False), encoding="utf-8")
             prof = pnl.get("profit_preliminary")
-            print(f"  ✓ {evkey} · expenses ${pnl.get('total_known_expenses',0):,.0f} · profit {'$%,.0f' % prof if isinstance(prof,(int,float)) else 'pending'}")
+            ptxt = f"${prof:,.0f}" if isinstance(prof, (int, float)) else "pending"
+            print(f"  ✓ {evkey} · expenses ${pnl.get('total_known_expenses',0):,.0f} · profit {ptxt}", flush=True)
             ok += 1
-        except Exception as ex:
-            print(f"  ✗ {evkey}: {str(ex)[:120]}")
+        except BaseException as ex:           # SystemExit from OCTOPOS must not kill the whole loop
+            print(f"  ✗ {evkey}: {type(ex).__name__}: {str(ex)[:120]}", flush=True)
             err += 1
     print(f"\nrefreshed {ok} · errors {err} · window {lo} .. {hi}")
     return 0
