@@ -64,9 +64,10 @@ function supNames(){
 function supInvoices(name){
  const auto=((INV.suppliers||{})[name]||{invoices:[]}).invoices.map(x=>({...x,manual:false}));
  const man=MAN.invoices.filter(i=>i.supplier===name).map(x=>({...x,manual:true}));
- return auto.concat(man).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+ return auto.concat(man).filter(i=>!isDeleted(i.id)).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
 }
 function isPaid(id){return !!rec(id).paid;}
+function isDeleted(id){return !!rec(id).deleted;}
 
 function renderList(){
  VIEW=null;
@@ -115,7 +116,7 @@ function openSup(name){
      "<td style='text-align:center'><input type='checkbox' class='paidbox' id='pd-"+iv.id+"' "+(r.paid?"checked":"")+" onchange=\"save('"+iv.id+"')\"></td>"+
      "<td><input class='pdate' type='date' id='dt-"+iv.id+"' value='"+esc(r.paid_date||"")+"' onchange=\"save('"+iv.id+"')\"></td>"+
      "<td><select id='pm-"+iv.id+"' onchange=\"save('"+iv.id+"')\"><option value=''>—</option>"+opts+"</select></td>"+
-     "<td>"+(iv.manual?"<button class='del' onclick=\"delMan('"+iv.id+"')\">מחק</button>":"")+"</td></tr>";
+     "<td><button class='del' onclick=\"delInv('"+iv.id+"',"+(iv.manual?"true":"false")+")\">מחק</button></td></tr>";
  });
  // add-invoice row
  const sn=esc(name).replace(/'/g,"\\'");
@@ -188,10 +189,17 @@ async function editMan(id){
    cur.invoices=(cur.invoices||[]).map(i=>i.id===id?Object.assign({},i,{date,event,amount}):i);return cur;},"supplier-manual-invoice edit: "+id);
  if(m){MAN=m;toast("✓ עודכן");}
 }
-async function delMan(id){
- if(!confirm("למחוק את החשבונית הידנית?"))return;
- const m=await putFile(MAN_FILE,cur=>{cur=cur||{invoices:[]};cur.invoices=(cur.invoices||[]).filter(i=>i.id!==id);return cur;},"supplier-manual-invoice del: "+id);
- if(m){MAN=m;toast("✓ נמחק");openSup(VIEW);}
+async function delInv(id,isMan){
+ if(!confirm(isMan?"למחוק את החשבונית הידנית?":"למחוק את החשבונית הזו מהרשימה? (חשבונית מיובאת — תוסתר לצמיתות)"))return;
+ toast("מוחק…");
+ if(isMan){
+  const m=await putFile(MAN_FILE,cur=>{cur=cur||{invoices:[]};cur.invoices=(cur.invoices||[]).filter(i=>i.id!==id);return cur;},"supplier-manual-invoice del: "+id);
+  if(!m)return; MAN=m;
+ }else{
+  const m=await putFile(PAY_FILE,cur=>{cur=cur||{invoices:{}};if(!cur.invoices)cur.invoices={};cur.invoices[id]=Object.assign({},cur.invoices[id]||{},{deleted:true});return cur;},"supplier-invoice hide: "+id);
+  if(!m)return; PAY=m;
+ }
+ toast("✓ נמחק");openSup(VIEW);
 }
 function setTok(){const t=prompt("הדביקי GitHub token (Contents: write):");if(t){localStorage.setItem("lauren_gh_token_v1",t.trim());toast("נשמר במכשיר");}}
 load();
