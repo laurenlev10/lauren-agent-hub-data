@@ -95,6 +95,7 @@
   .tl-body { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
   .tl-body .task-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .tl-body .task-name { font-size: 14px; font-weight: 700; flex: 1; direction: rtl; text-align: right; }
+  .tl-body .task-desc { font-size: 11px; opacity: 0.82; direction: rtl; text-align: right; line-height: 1.4; margin-top: -1px; }
   .tl-body .task-status { font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; letter-spacing: 0.3px; }
   .tl-body .task-status.ok    { background: #d1fae5; color: #065f46; }
   .tl-body .task-status.late  { background: #fef3c7; color: #92400e; }
@@ -220,6 +221,7 @@
     const name = String(t.label || t.id || "").replace(/[<>&"]/g, "");
     const freq = String(t.scheduleHuman || t.frequency || "").replace(/[<>&"]/g, "");
     const href = String(t.dashboard || "").replace(/[<>"\\]/g, "");
+    const desc = String(t.desc || "").replace(/[<>&"]/g, "");
     const el = document.createElement(href ? "a" : "div");
     el.className = "tl-item" + (dim ? " dim" : "");
     if (href) {
@@ -235,6 +237,7 @@
           '<div class="task-name">' + name + '</div>' +
           '<span class="task-status ' + s.cls + '">' + s.txt + '</span>' +
         '</div>' +
+        (desc ? '<div class="task-desc">' + desc + '</div>' : '') +
         '<div class="task-meta">' +
           '<span class="freq">' + freq + '</span>' +
           '<span class="task-last">last: ' + timeAgo(t.lastRunAt) + '</span>' +
@@ -252,18 +255,24 @@
   function render(tasks) {
     if (!tasks.length) { list.innerHTML = '<div class="sched-empty">אין עדיין משימות מתוזמנות.</div>'; return; }
     const now = new Date(), nowMs = now.getTime(), today = ptDate(now);
-    const done = [], upcoming = [], cont = [], notToday = [], off = [];
+    const yday = ptDate(new Date(nowMs - 24 * 3600 * 1000));
+    const done = [], yesterday = [], upcoming = [], cont = [], notToday = [], off = [];
+    function bucketIdle(t) {
+      if (ranToday(t, today)) { var d = new Date(t.lastRunAt); done.push({ t: t, anchor: d.getTime(), slot: d, all: null }); }
+      else if (t.lastRunAt && ptDate(new Date(t.lastRunAt)) === yday) { yesterday.push({ t: t, slot: new Date(t.lastRunAt) }); }
+      else { notToday.push(t); }
+    }
 
     tasks.forEach(function (t) {
       if (!t.enabled) { off.push(t); return; }
       const r = slotsToday(t.cron, today);
       if (r.cont) {
-        if (!r.slots.length) { notToday.push(t); return; }
+        if (!r.slots.length) { bucketIdle(t); return; }
         let next = null, last = null;
         r.slots.forEach(function (sl) { if (sl.getTime() > nowMs && !next) next = sl; if (sl.getTime() <= nowMs) last = sl; });
         cont.push({ t: t, next: next }); return;
       }
-      if (!r.slots.length) { notToday.push(t); return; }
+      if (!r.slots.length) { bucketIdle(t); return; }
       let next = null;
       r.slots.forEach(function (sl) { if (sl.getTime() > nowMs && !next) next = sl; });
       if (next) { upcoming.push({ t: t, anchor: next.getTime(), slot: next, all: r.slots }); }
@@ -271,11 +280,20 @@
     });
 
     done.sort(function (a, b) { return a.anchor - b.anchor; });
+    yesterday.sort(function (a, b) { return a.slot - b.slot; });
     upcoming.sort(function (a, b) { return a.anchor - b.anchor; });
     cont.sort(function (a, b) { return (a.next ? a.next.getTime() : Infinity) - (b.next ? b.next.getTime() : Infinity); });
 
     list.innerHTML = "";
     function title(txt) { const d = document.createElement("div"); d.className = "day-title"; d.textContent = txt; list.appendChild(d); }
+
+    // ✅ Done yesterday (weekend / event tasks that already ran)
+    if (yesterday.length) {
+      title("✅ נעשה אתמול (" + yesterday.length + ")");
+      yesterday.forEach(function (it) {
+        list.appendChild(makeCard(it.t, chipFixed(it.slot, null, "ok", "✓"), true));
+      });
+    }
 
     // ✅ Already happened earlier today (scheduled before now)
     if (done.length) {
