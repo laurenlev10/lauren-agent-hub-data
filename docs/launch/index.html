@@ -2189,20 +2189,8 @@ End date: </div>
           // 🔗 attach-link chip — always visible next to Images
           rowBtn += '<button class="image-link-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(imgOverride || "").replace(/"/g, "&quot;") + '" title="' + (imgOverride ? "Edit / clear the manual Canva link" : "Attach a Canva link directly (skip the agent)") + '">🔗</button>';
 
-          // 🎬 Canva Reel — Lauren creates TWO reels per event: primary + last-week refresh.
-          // Schema: REELS[key] = { canva_url (primary), canva_url_2 (refresh), canva_folder, generated_at, ... }
-          const rl = (typeof REELS !== "undefined") ? REELS[evKey] : null;
-          if (rl) {
-            const primaryUrl = rl.canva_url || rl.href || "#";
-            const refreshUrl = rl.canva_url_2;
-            const reelTip = (rl.canva_url ? "Primary reel" : "Reel ready") + " · " + (rl.generated_at||"").slice(0,10) + (rl.canva_folder ? " · folder: " + rl.canva_folder : "");
-            rowBtn += '<a class="btn-agent-row btn-reel-row done" href="' + primaryUrl + '" target="_blank" rel="noopener" title="' + escapeHtml(reelTip) + '">🎬 Reel ✓</a>';
-            if (refreshUrl) {
-              rowBtn += '<a class="reel-v2-chip" href="' + refreshUrl + '" target="_blank" rel="noopener" title="Last-week refresh reel (v2) — for the final week of campaigns">↻v2</a>';
-            }
-          } else {
-            rowBtn += '<a class="btn-agent-row btn-reel-row" href="../canva-reel/?' + params + '" target="_blank" rel="noopener" title="Open Canva Reel pre-filled with this event">🎬 Reel</a>';
-          }
+          // 🎬 Canva Reel button removed from all event rows per Lauren 2026-06-09 (redundant for now).
+          // REELS map + canva-reel agent stay intact; only the per-row button render is disabled.
 
           // 📝 Reel caption — copy a pre-built IG/FB Reel caption for this event to clipboard.
           // Lauren's IRON RULE (2026-05-23): every IG Reel caption MUST embed the landing-page URL
