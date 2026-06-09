@@ -552,6 +552,14 @@
   .bn-add-input:focus{outline:none;border-color:#f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.2)}
   .bn-add-btn{background:linear-gradient(180deg,#facc15,#eab308);color:#422006;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
   .bn-add-btn:disabled{opacity:.6;cursor:wait}
+  .bn-qty{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  .bn-qty-label{font-size:12px;color:var(--muted);white-space:nowrap}
+  .bn-qty-input{width:90px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;font-family:ui-monospace,monospace}
+  .bn-qty-input:focus{outline:none;border-color:#16a34a;box-shadow:0 0 0 2px rgba(22,163,74,.2)}
+  .bn-qty-preview{font-size:12px;font-weight:800;color:#15803d}
+  .bn-qty-footer{display:flex;justify-content:flex-end;margin-top:12px}
+  .bn-update-qty{background:linear-gradient(180deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:800;cursor:pointer}
+  .bn-update-qty:disabled{opacity:.6;cursor:wait}
 </style>
 </head>
 <body>
@@ -1324,6 +1332,30 @@ function bananaSetMem(pid, list){
     });
   });
 }
+// Update the in-memory snapshot product's stock so the UI shows the new total at once.
+function bananaSetStockMem(pid, qty){
+  ["products","inactive_products"].forEach(function(bucket){
+    var v = (OCTOPOS.vendors||{})["banana-brands"]; if (!v) return;
+    (v[bucket]||[]).forEach(function(p){
+      if (String(p.id) === String(pid)) p.in_stock_qty = qty;
+    });
+  });
+}
+// Live write to OCTOPOS — sets absolute in_stock_qty for a product.
+async function bananaPutStock(pid, qty){
+  var token = (localStorage.getItem("lauren_octopos_token") || "").trim();
+  if (!token){ toast("⚠️ צריך OCTOPOS token — היכנסי לדשבורד תחילה", "error"); return false; }
+  try{
+    var r = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
+      method: "PUT",
+      headers: { "Authorization": token, "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ in_stock_qty: qty })
+    });
+    if (r.status === 401){ localStorage.removeItem("lauren_octopos_token"); toast("⚠️ ה-token פג תוקף — נסי שוב", "error"); return false; }
+    if (!r.ok){ toast("⚠️ OCTOPOS דחה את עדכון הכמות (HTTP " + r.status + ")", "error"); return false; }
+    return true;
+  } catch(e){ console.error("bananaPutStock", e); toast("⚠️ שגיאת רשת מול OCTOPOS", "error"); return false; }
+}
 // ── Banana barcode overlay (GitHub-synced) ──────────────────────────────────
 // The dashboard renders a DAILY OCTOPOS snapshot (octopos_products.json). Barcodes
 // added via the scan card write LIVE to OCTOPOS immediately, but the snapshot only
@@ -1351,12 +1383,13 @@ function applyBananaOverlay(){
   var prods = bananaProducts();
   for (var pidS in BANANA_OVERLAY.products){
     var rec = BANANA_OVERLAY.products[pidS];
-    if (!rec || !Array.isArray(rec.barcodes)) continue;
+    if (!rec) continue;
     var setTs = rec.set_at ? Date.parse(rec.set_at) : 0;
     if (snapTs && setTs && setTs <= snapTs) continue;   // snapshot is fresher → skip
     for (var i=0;i<prods.length;i++){
       if (String(prods[i].id) === String(pidS)){
-        prods[i].additional_barcodes = rec.barcodes.map(function(c){ return { barcode: c }; });
+        if (Array.isArray(rec.barcodes)) prods[i].additional_barcodes = rec.barcodes.map(function(c){ return { barcode: c }; });
+        if (typeof rec.stock === "number") prods[i].in_stock_qty = rec.stock;
         break;
       }
     }
@@ -1367,8 +1400,9 @@ function applyBananaOverlay(){
 // fast (no GitHub round-trip per scan) and avoids concurrent-write races.
 var _bananaDirty = {};
 var _bananaSaveTimer = null;
-function bananaQueuePersist(pid, list){
-  _bananaDirty[String(pid)] = (list || []).slice();
+function bananaQueuePersist(pid, partial){
+  var k = String(pid);
+  _bananaDirty[k] = Object.assign({}, _bananaDirty[k] || {}, partial || {});
   if (_bananaSaveTimer) clearTimeout(_bananaSaveTimer);
   _bananaSaveTimer = setTimeout(bananaFlushPersist, 1200);
 }
@@ -1385,7 +1419,7 @@ async function bananaFlushPersist(){
     if (getR.ok){ var j = await getR.json(); sha = j.sha; try { content = JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,""))))); } catch(_){ content = { _updated_at:null, products:{} }; } }
     content.products = content.products || {};
     var now = new Date().toISOString();
-    for (var pid in dirty){ content.products[pid] = { barcodes: dirty[pid], set_at: now }; }
+    for (var pid in dirty){ content.products[pid] = Object.assign({}, content.products[pid] || {}, dirty[pid], { set_at: now }); }
     content._updated_at = now;
     var body = { message: "banana barcodes: sync "+Object.keys(dirty).length+" product(s) to dashboard overlay", content: btoa(unescape(encodeURIComponent(JSON.stringify(content, null, 2)))), branch: "main" };
     if (sha) body.sha = sha;
@@ -1428,13 +1462,19 @@ function renderBananaCard(sup, s){
           '<input type="text" class="bn-add-input" data-pid="'+p.id+'" placeholder="סרקי או הקלידי ברקוד חדש…" autocomplete="off" inputmode="numeric">'+
           '<button type="button" class="bn-add-btn" data-pid="'+p.id+'">➕ הוסף ברקוד</button>'+
         '</div>'+
+        '<div class="bn-qty">'+
+          '<span class="bn-qty-label">מלאי נוכחי '+stock+' · להוסיף יחידות:</span>'+
+          '<input type="number" class="bn-qty-input" data-pid="'+p.id+'" data-cur="'+stock+'" data-name="'+escHtml(p.name||('#'+p.id))+'" min="0" step="1" placeholder="0" inputmode="numeric">'+
+          '<span class="bn-qty-preview" data-pid="'+p.id+'"></span>'+
+        '</div>'+
       '</div>';
   }).join('');
   return ''+
     '<div class="sup-head"><div class="sup-title"><span class="sup-name">🍌 Banana Brands</span> '+
       '<span class="sup-cat">מוצרים זמניים · סריקה · '+prods.length+' מוצרים</span></div></div>'+
     note +
-    '<div class="bn-wrap">'+rows+'</div>';
+    '<div class="bn-wrap">'+rows+'</div>'+
+    '<div class="bn-qty-footer"><button type="button" class="bn-update-qty">📦 עדכן כמויות</button></div>';
 }
 // Delegated handlers for the banana card (registered once).
 (function(){
@@ -1467,7 +1507,7 @@ function renderBananaCard(sup, s){
       addBtn.disabled = false; addBtn.textContent = "➕ הוסף ברקוד";
       if (ok){
         bananaSetMem(pid, newList);
-        bananaQueuePersist(pid, newList);
+        bananaQueuePersist(pid, {barcodes: newList});
         toast("✓ נוסף ברקוד ל-"+(prod.name||("#"+pid))+" — חי ב-OCTOPOS", "success");
         // Lauren 2026-06-08: continuous scanning. Update the row IN PLACE instead of a
         // full re-render so the input keeps focus (and the page keeps its scroll position) —
@@ -1496,10 +1536,51 @@ function renderBananaCard(sup, s){
       if (!confirm("להסיר את הברקוד "+bc+" מ-"+(prodD.name||("#"+pidD))+"?")) return;
       var listD = bananaBarcodeList(prodD).filter(function(c){ return c !== bc; });
       var okD = await bananaPutBarcodes(pidD, listD);
-      if (okD){ bananaSetMem(pidD, listD); bananaQueuePersist(pidD, listD); toast("✓ הברקוד הוסר — חי ב-OCTOPOS", "success"); renderSuppliersWithBindings(); }
+      if (okD){ bananaSetMem(pidD, listD); bananaQueuePersist(pidD, {barcodes: listD}); toast("✓ הברקוד הוסר — חי ב-OCTOPOS", "success"); renderSuppliersWithBindings(); }
       return;
     }
   });
+  // Live preview of the new total as units are typed (current + entered).
+  document.addEventListener("input", function(ev){
+    var qi = ev.target;
+    if (!qi || !qi.classList || !qi.classList.contains("bn-qty-input")) return;
+    var cur = Math.round(Number(qi.dataset.cur)||0);
+    var add = Math.round(Number(qi.value)||0);
+    var row = qi.closest(".bn-row");
+    var pv = row && row.querySelector(".bn-qty-preview");
+    if (pv) pv.textContent = (qi.value.trim()==="" || add===0) ? "" : ('→ סה"כ ' + (cur+add));
+  });
+
+  // "📦 עדכן כמויות" — write every row that has a number entered to OCTOPOS at once.
+  document.addEventListener("click", async function(ev){
+    var upBtn = ev.target.closest && ev.target.closest(".bn-update-qty");
+    if (!upBtn) return;
+    var inputs = Array.prototype.slice.call(document.querySelectorAll(".bn-qty-input"));
+    var jobs = [];
+    inputs.forEach(function(qi){
+      var add = Math.round(Number(qi.value)||0);
+      if (!qi.value.trim() || add === 0) return;
+      var cur = Math.round(Number(qi.dataset.cur)||0);
+      jobs.push({ pid: qi.dataset.pid, name: qi.dataset.name||("#"+qi.dataset.pid), cur: cur, add: add, next: cur+add });
+    });
+    if (!jobs.length){ toast("לא הוזנו כמויות להוספה", "error"); return; }
+    var summary = jobs.map(function(j){ return j.name + ": " + j.cur + " + " + j.add + " = " + j.next; }).join("\n");
+    if (!confirm("לעדכן את הכמויות הבאות ב-OCTOPOS?\n\n" + summary)) return;
+    upBtn.disabled = true; var _orig = upBtn.textContent; upBtn.textContent = "מעדכן…";
+    var okN = 0, failN = 0;
+    for (var i=0;i<jobs.length;i++){
+      var j = jobs[i];
+      var ok = await bananaPutStock(j.pid, j.next);
+      if (ok){ okN++; bananaSetStockMem(j.pid, j.next); bananaQueuePersist(j.pid, {stock: j.next}); }
+      else { failN++; }
+    }
+    upBtn.disabled = false; upBtn.textContent = _orig;
+    if (okN) toast("✓ עודכנו "+okN+" כמויות — חי ב-OCTOPOS" + (failN?(" · "+failN+" נכשלו"):""), failN?"error":"success");
+    else toast("⚠️ עדכון הכמויות נכשל", "error");
+    renderSuppliersWithBindings();
+    return;
+  });
+
   // Enter key inside the add-input triggers add
   document.addEventListener("keydown", function(ev){
     if (ev.key === "Enter" && ev.target && ev.target.classList && ev.target.classList.contains("bn-add-input")){
