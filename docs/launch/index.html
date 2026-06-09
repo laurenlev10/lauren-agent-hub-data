@@ -370,9 +370,14 @@
   .btn-insta-row{background:linear-gradient(135deg,#f58529 0%,#dd2a7b 50%,#8134af 100%)}
   .btn-insta-row.done{background:linear-gradient(180deg,#16a34a,#15803d) !important}
   .btn-insta-row .scan-count{background:rgba(255,255,255,.22);padding:1px 5px;border-radius:4px;font-size:10px;margin-left:3px}
+  /* keep each platform button glued to its 🔗 chip on the same line (Lauren 2026-06-09) */
+  .btn-chip-pair{display:inline-flex;align-items:center}
   .reel-link-btn{display:inline-flex;align-items:center;justify-content:center;margin-top:6px;margin-left:2px;padding:4px 7px;background:transparent;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:11px;color:#6b7280;transition:all .12s;vertical-align:middle}
   .reel-link-btn:hover{border-color:#dd2a7b;color:#dd2a7b;background:#fdf4ff}
   .reel-link-btn.set{border-color:#dd2a7b;color:#dd2a7b;background:#fdf4ff}
+  /* verified IG reel: valid format + unique to this event (Lauren 2026-06-09) → GREEN frame (Lauren 2026-06-09) */
+  .reel-link-btn.verified{border-color:#15803d;color:#fff;background:#16a34a;font-weight:700}
+  .reel-link-btn.verified:hover{border-color:#166534;color:#fff;background:#15803d}
   /* Reel insights modal */
   .reel-modal{position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;animation:hpFadeIn .15s ease-out}
   .reel-modal-card{background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4);direction:rtl}
@@ -1438,6 +1443,39 @@ End date: </div>
     return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
   }
   function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  // IG reel link validation (Lauren 2026-06-09) — the 🔗 chip turns YELLOW only when the
+  // pasted link is a valid Instagram reel/post URL AND not already assigned to another event.
+  function isValidInstaReelUrl(u){
+    if(!u) return false;
+    return /^https?:\/\/(www\.)?instagram\.com\/(reel|reels|p)\/[A-Za-z0-9_-]+\/?(\?.*)?$/i.test(String(u).trim());
+  }
+  function instaReelUsedByOtherEvent(u, evKey){
+    if(!u || typeof MANUAL_TASKS==="undefined") return false;
+    const norm = s => String(s||"").trim().replace(/\?.*$/,"").replace(/\/+$/,"").toLowerCase();
+    const target = norm(u);
+    for(const k in MANUAL_TASKS){
+      if(k===evKey) continue;
+      const other = MANUAL_TASKS[k] && MANUAL_TASKS[k].insta_reel_url;
+      if(other && norm(other)===target) return k;
+    }
+    return false;
+  }
+  function isValidTikTokUrl(u){ return !!u && /^https?:\/\/((www|vt|vm|m)\.)?tiktok\.com\/.+/i.test(String(u).trim()); }
+  function isValidFbReelUrl(u){
+    const s=String(u||"").trim();
+    return /^https?:\/\/((www|web|m)\.)?facebook\.com\/.+/i.test(s) || /^https?:\/\/fb\.watch\/.+/i.test(s);
+  }
+  function urlUsedByOtherEvent(u, evKey, field){
+    if(!u || typeof MANUAL_TASKS==="undefined") return false;
+    const norm = s => String(s||"").trim().replace(/\?.*$/,"").replace(/\/+$/,"").toLowerCase();
+    const target = norm(u);
+    for(const k in MANUAL_TASKS){
+      if(k===evKey) continue;
+      const other = MANUAL_TASKS[k] && MANUAL_TASKS[k][field];
+      if(other && norm(other)===target) return k;
+    }
+    return false;
+  }
 
   // US state → IANA timezone. Mirrors STATE_TZ in scripts/insta_reel_scan.py.
   // Convert ISO UTC timestamp → "YYYY-MM-DD HH:mm" formatted in America/Los_Angeles.
@@ -1883,7 +1921,7 @@ End date: </div>
           //   pre-event / past (once/day at 12:00 local or after the weekend) → >25h is stale
           const _staleLimit = isLive ? 120 : (25 * 60);
           const stale = (scanMins !== null && scanMins > _staleLimit);
-          const metaTxt = (scanMins === null) ? '📸 INSTA REEL' :
+          const metaTxt = (scanMins === null) ? '📸 Instagram' :
                           (scanMins < 1) ? '📸 INSTA REEL · just now' :
                           (scanMins < 60) ? `📸 INSTA REEL · ${scanMins}m ago` :
                           `📸 INSTA REEL · ${Math.round(scanMins/60)}h ago`;
@@ -2151,20 +2189,8 @@ End date: </div>
           // 🔗 attach-link chip — always visible next to Images
           rowBtn += '<button class="image-link-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(imgOverride || "").replace(/"/g, "&quot;") + '" title="' + (imgOverride ? "Edit / clear the manual Canva link" : "Attach a Canva link directly (skip the agent)") + '">🔗</button>';
 
-          // 🎬 Canva Reel — Lauren creates TWO reels per event: primary + last-week refresh.
-          // Schema: REELS[key] = { canva_url (primary), canva_url_2 (refresh), canva_folder, generated_at, ... }
-          const rl = (typeof REELS !== "undefined") ? REELS[evKey] : null;
-          if (rl) {
-            const primaryUrl = rl.canva_url || rl.href || "#";
-            const refreshUrl = rl.canva_url_2;
-            const reelTip = (rl.canva_url ? "Primary reel" : "Reel ready") + " · " + (rl.generated_at||"").slice(0,10) + (rl.canva_folder ? " · folder: " + rl.canva_folder : "");
-            rowBtn += '<a class="btn-agent-row btn-reel-row done" href="' + primaryUrl + '" target="_blank" rel="noopener" title="' + escapeHtml(reelTip) + '">🎬 Reel ✓</a>';
-            if (refreshUrl) {
-              rowBtn += '<a class="reel-v2-chip" href="' + refreshUrl + '" target="_blank" rel="noopener" title="Last-week refresh reel (v2) — for the final week of campaigns">↻v2</a>';
-            }
-          } else {
-            rowBtn += '<a class="btn-agent-row btn-reel-row" href="../canva-reel/?' + params + '" target="_blank" rel="noopener" title="Open Canva Reel pre-filled with this event">🎬 Reel</a>';
-          }
+          // 🎬 Canva Reel button removed from all event rows per Lauren 2026-06-09 (redundant for now).
+          // REELS map + canva-reel agent stay intact; only the per-row button render is disabled.
 
           // 📝 Reel caption — copy a pre-built IG/FB Reel caption for this event to clipboard.
           // Lauren's IRON RULE (2026-05-23): every IG Reel caption MUST embed the landing-page URL
@@ -2217,17 +2243,18 @@ End date: </div>
             const irBtnClass = (hasUrl && hasScans) ? "btn-agent-row btn-insta-row done" : "btn-agent-row btn-insta-row";
             const irLabel = hasUrl
               ? ('📸 INSTA REEL' + (hasScans ? ' <span class="scan-count">' + scans.length + '</span>' : ''))
-              : '📸 + INSTA REEL';
+              : '📸 Instagram';
             const irTitle = hasUrl
               ? ('Reel: ' + reelUrl + (hasScans ? ' · ' + scans.length + ' סריקות' : ' · אין עדיין סריקות'))
               : 'הדבקי URL של הריל הסגור הפינו';
-            rowBtn += '<button type="button" class="' + irBtnClass + ' insta-reel-btn" data-evkey="' + evKey + '" title="' + escapeHtml(irTitle) + '">' + irLabel + '</button>';
+            rowBtn += '<span class="btn-chip-pair"><button type="button" class="' + irBtnClass + ' insta-reel-btn" data-evkey="' + evKey + '" title="' + escapeHtml(irTitle) + '">' + irLabel + '</button>';
             // Always show the 🔗 manual paste chip — Lauren needs to be able to override anytime
-            const chipCls = hasUrl ? "reel-link-btn set" : "reel-link-btn";
+            const reelVerified = hasUrl && isValidInstaReelUrl(reelUrl) && !instaReelUsedByOtherEvent(reelUrl, evKey);
+            const chipCls = reelVerified ? "reel-link-btn verified" : (hasUrl ? "reel-link-btn set" : "reel-link-btn");
             const chipTitle = hasUrl
-              ? ('הריל הנוכחי: ' + reelUrl + (setBy === 'auto' ? ' (אותר אוטומטית)' : ' (ידני)') + ' — לחיצה לעריכה')
+              ? ((reelVerified ? '✅ ריל מאומת (פורמט תקין + ייחודי לאירוע) — ' : 'הריל הנוכחי: ') + reelUrl + (setBy === 'auto' ? ' (אותר אוטומטית)' : ' (ידני)') + ' — לחיצה לעריכה')
               : 'הדבקי URL של הריל ידנית (אופציונלי — נסרק גם אוטומטית)';
-            rowBtn += '<button type="button" class="' + chipCls + ' reel-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(reelUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(chipTitle) + '">🔗</button>';
+            rowBtn += '<button type="button" class="' + chipCls + ' reel-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(reelUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(chipTitle) + '">🔗</button></span>';
           }
 
           // 🎵 TikTok button + manual URL paste chip (Lauren 2026-05-11)
@@ -2244,12 +2271,13 @@ End date: </div>
             const ttTitle = hasTT
               ? ('TikTok post: ' + ttUrl + ' — לחיצה לפתיחה')
               : 'אין עדיין URL לפוסט בטיקטוק. לחיצה תפתח את TikTok Studio להעלאת הסרטון. לחצי על 🔗 כדי להדביק URL.';
-            rowBtn += '<a class="' + ttBtnClass + '" href="' + ttHref + '" target="_blank" rel="noopener" title="' + escapeHtml(ttTitle) + '">' + ttLabel + '</a>';
-            const ttChipCls = hasTT ? "reel-link-btn set" : "reel-link-btn";
+            rowBtn += '<span class="btn-chip-pair"><a class="' + ttBtnClass + '" href="' + ttHref + '" target="_blank" rel="noopener" title="' + escapeHtml(ttTitle) + '">' + ttLabel + '</a>';
+            const ttVerified = hasTT && isValidTikTokUrl(ttUrl) && !urlUsedByOtherEvent(ttUrl, evKey, "tiktok_url");
+            const ttChipCls = ttVerified ? "reel-link-btn verified" : (hasTT ? "reel-link-btn set" : "reel-link-btn");
             const ttChipTitle = hasTT
-              ? ('הפוסט בטיקטוק: ' + ttUrl + ' — לחיצה לעריכה')
+              ? ((ttVerified ? '✅ פוסט מאומת (פורמט תקין + ייחודי) — ' : 'הפוסט בטיקטוק: ') + ttUrl + ' — לחיצה לעריכה')
               : 'הדבקי URL של הפוסט בטיקטוק (לאחר העלאת הסרטון)';
-            rowBtn += '<button type="button" class="' + ttChipCls + ' tiktok-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(ttUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(ttChipTitle) + '">🔗</button>';
+            rowBtn += '<button type="button" class="' + ttChipCls + ' tiktok-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(ttUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(ttChipTitle) + '">🔗</button></span>';
           }
 
           // 📘 Facebook button + manual URL paste chip (Lauren 2026-05-11 — same pattern as TikTok)
@@ -2265,12 +2293,13 @@ End date: </div>
             const fbTitle = hasFB
               ? ('FB post: ' + fbUrl + ' — לחיצה לפתיחה')
               : 'אין עדיין URL לפוסט בפייסבוק. לחיצה תפתח את FB Reels composer. לחצי על 🔗 כדי להדביק URL.';
-            rowBtn += '<a class="' + fbBtnClass + '" href="' + fbHref + '" target="_blank" rel="noopener" title="' + escapeHtml(fbTitle) + '">' + fbLabel + '</a>';
-            const fbChipCls = hasFB ? "reel-link-btn set" : "reel-link-btn";
+            rowBtn += '<span class="btn-chip-pair"><a class="' + fbBtnClass + '" href="' + fbHref + '" target="_blank" rel="noopener" title="' + escapeHtml(fbTitle) + '">' + fbLabel + '</a>';
+            const fbVerified = hasFB && isValidFbReelUrl(fbUrl) && !urlUsedByOtherEvent(fbUrl, evKey, "fb_url");
+            const fbChipCls = fbVerified ? "reel-link-btn verified" : (hasFB ? "reel-link-btn set" : "reel-link-btn");
             const fbChipTitle = hasFB
-              ? ('הפוסט בפייסבוק: ' + fbUrl + ' — לחיצה לעריכה')
+              ? ((fbVerified ? '✅ פוסט מאומת (פורמט תקין + ייחודי) — ' : 'הפוסט בפייסבוק: ') + fbUrl + ' — לחיצה לעריכה')
               : 'הדבקי URL של הפוסט בפייסבוק (לאחר העלאת ה-Reel)';
-            rowBtn += '<button type="button" class="' + fbChipCls + ' fb-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(fbUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(fbChipTitle) + '">🔗</button>';
+            rowBtn += '<button type="button" class="' + fbChipCls + ' fb-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(fbUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(fbChipTitle) + '">🔗</button></span>';
           }
 
           // 📲 SMS Campaigns
@@ -3525,6 +3554,16 @@ End date: </div>
         delete MANUAL_TASKS[evKey].insta_reel_url_set_by;
         delete MANUAL_TASKS[evKey].insta_reel_url_set_at;
       } else {
+        // Validate: must be a real IG reel/post URL, and unique to this event (Lauren 2026-06-09)
+        if(!isValidInstaReelUrl(trimmed)){
+          alert("⚠️ הקישור לא נראה כמו ריל אינסטגרם תקין.\nדוגמה תקינה:\n  https://www.instagram.com/reel/DXxbbJhRHEE/");
+          return;
+        }
+        const dupKey = instaReelUsedByOtherEvent(trimmed, evKey);
+        if(dupKey){
+          alert("⚠️ הריל הזה כבר משויך לאירוע אחר (" + dupKey + ").\nכל אירוע צריך ריל ייחודי משלו.");
+          return;
+        }
         MANUAL_TASKS[evKey].insta_reel_url = trimmed;
         MANUAL_TASKS[evKey].insta_reel_url_set_by = "manual";
         MANUAL_TASKS[evKey].insta_reel_url_set_at = new Date().toISOString();
@@ -3555,6 +3594,15 @@ End date: </div>
         delete MANUAL_TASKS[evKey].tiktok_url_set_by;
         delete MANUAL_TASKS[evKey].tiktok_url_set_at;
       } else {
+        if(!isValidTikTokUrl(trimmed)){
+          alert("⚠️ הקישור לא נראה כמו פוסט TikTok תקין.\nדוגמה תקינה:\n  https://www.tiktok.com/@makeupblowoutsale/video/7638634023014698271");
+          return;
+        }
+        const dupKey = urlUsedByOtherEvent(trimmed, evKey, "tiktok_url");
+        if(dupKey){
+          alert("⚠️ הפוסט הזה כבר משויך לאירוע אחר (" + dupKey + ").\nכל אירוע צריך פוסט ייחודי משלו.");
+          return;
+        }
         MANUAL_TASKS[evKey].tiktok_url = trimmed;
         MANUAL_TASKS[evKey].tiktok_url_set_by = "manual";
         MANUAL_TASKS[evKey].tiktok_url_set_at = new Date().toISOString();
@@ -3585,6 +3633,15 @@ End date: </div>
         delete MANUAL_TASKS[evKey].fb_url_set_by;
         delete MANUAL_TASKS[evKey].fb_url_set_at;
       } else {
+        if(!isValidFbReelUrl(trimmed)){
+          alert("⚠️ הקישור לא נראה כמו פוסט פייסבוק תקין.\nדוגמה תקינה:\n  https://www.facebook.com/reel/2245982816143690/  או  https://fb.watch/H2lW3P7zL9/");
+          return;
+        }
+        const dupKey = urlUsedByOtherEvent(trimmed, evKey, "fb_url");
+        if(dupKey){
+          alert("⚠️ הפוסט הזה כבר משויך לאירוע אחר (" + dupKey + ").\nכל אירוע צריך פוסט ייחודי משלו.");
+          return;
+        }
         MANUAL_TASKS[evKey].fb_url = trimmed;
         MANUAL_TASKS[evKey].fb_url_set_by = "manual";
         MANUAL_TASKS[evKey].fb_url_set_at = new Date().toISOString();
