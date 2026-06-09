@@ -1282,6 +1282,24 @@ function bananaBarcodeList(p){
   });
   return out;
 }
+// Search the ENTIRE OCTOPOS snapshot (all vendors, active + inactive) for a barcode.
+// Returns {name, supplierCode, pid} of the first product that already holds it, or null.
+function bananaFindBarcodeOwner(code){
+  code = String(code||"").trim();
+  if (!code) return null;
+  var vendors = (OCTOPOS && OCTOPOS.vendors) || {};
+  for (var sc in vendors){
+    var v = vendors[sc]; if (!v) continue;
+    var arr = (v.products||[]).concat(v.inactive_products||[]);
+    for (var i=0;i<arr.length;i++){
+      var p = arr[i];
+      if ((p.barcode||"").trim() === code) return { name: p.name||("#"+p.id), supplierCode: sc, pid: p.id };
+      if (bananaBarcodeList(p).indexOf(code) !== -1) return { name: p.name||("#"+p.id), supplierCode: sc, pid: p.id };
+    }
+  }
+  return null;
+}
+
 // Live write to OCTOPOS — REPLACES the whole additional_barcodes list with `list`.
 async function bananaPutBarcodes(pid, list){
   var token = (localStorage.getItem("lauren_octopos_token") || "").trim();
@@ -1362,7 +1380,16 @@ function renderBananaCard(sup, s){
       var prod = bananaProducts().find(function(p){ return String(p.id)===String(pid); });
       if (!prod) return;
       var list = bananaBarcodeList(prod);
-      if (list.indexOf(code) !== -1 || (prod.barcode||"").trim()===code){ toast("הברקוד כבר קיים תחת המוצר הזה", "error"); return; }
+      var _owner = bananaFindBarcodeOwner(code);
+      if (_owner){
+        if (String(_owner.pid) === String(pid)){
+          toast("הברקוד כבר קיים תחת המוצר הזה: "+_owner.name, "error");
+        } else {
+          toast("⚠️ הברקוד כבר קיים במערכת תחת: "+_owner.name, "error");
+        }
+        if (inp) inp.focus();
+        return;
+      }
       addBtn.disabled = true; addBtn.textContent = "שומר…";
       var newList = list.concat([code]);
       var ok = await bananaPutBarcodes(pid, newList);
