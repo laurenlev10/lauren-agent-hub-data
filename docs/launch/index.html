@@ -373,9 +373,9 @@
   .reel-link-btn{display:inline-flex;align-items:center;justify-content:center;margin-top:6px;margin-left:2px;padding:4px 7px;background:transparent;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:11px;color:#6b7280;transition:all .12s;vertical-align:middle}
   .reel-link-btn:hover{border-color:#dd2a7b;color:#dd2a7b;background:#fdf4ff}
   .reel-link-btn.set{border-color:#dd2a7b;color:#dd2a7b;background:#fdf4ff}
-  /* verified IG reel: valid format + unique to this event (Lauren 2026-06-09) → YELLOW */
-  .reel-link-btn.verified{border-color:#f59e0b;color:#92400e;background:#fef9c3;font-weight:700}
-  .reel-link-btn.verified:hover{border-color:#d97706;color:#92400e;background:#fef3c7}
+  /* verified IG reel: valid format + unique to this event (Lauren 2026-06-09) → GREEN frame (Lauren 2026-06-09) */
+  .reel-link-btn.verified{border-color:#16a34a;color:#15803d;background:#f0fdf4;font-weight:700}
+  .reel-link-btn.verified:hover{border-color:#15803d;color:#15803d;background:#dcfce7}
   /* Reel insights modal */
   .reel-modal{position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;animation:hpFadeIn .15s ease-out}
   .reel-modal-card{background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4);direction:rtl}
@@ -1458,6 +1458,22 @@ End date: </div>
     }
     return false;
   }
+  function isValidTikTokUrl(u){ return !!u && /^https?:\/\/((www|vt|vm|m)\.)?tiktok\.com\/.+/i.test(String(u).trim()); }
+  function isValidFbReelUrl(u){
+    const s=String(u||"").trim();
+    return /^https?:\/\/((www|web|m)\.)?facebook\.com\/.+/i.test(s) || /^https?:\/\/fb\.watch\/.+/i.test(s);
+  }
+  function urlUsedByOtherEvent(u, evKey, field){
+    if(!u || typeof MANUAL_TASKS==="undefined") return false;
+    const norm = s => String(s||"").trim().replace(/\?.*$/,"").replace(/\/+$/,"").toLowerCase();
+    const target = norm(u);
+    for(const k in MANUAL_TASKS){
+      if(k===evKey) continue;
+      const other = MANUAL_TASKS[k] && MANUAL_TASKS[k][field];
+      if(other && norm(other)===target) return k;
+    }
+    return false;
+  }
 
   // US state → IANA timezone. Mirrors STATE_TZ in scripts/insta_reel_scan.py.
   // Convert ISO UTC timestamp → "YYYY-MM-DD HH:mm" formatted in America/Los_Angeles.
@@ -2266,9 +2282,10 @@ End date: </div>
               ? ('TikTok post: ' + ttUrl + ' — לחיצה לפתיחה')
               : 'אין עדיין URL לפוסט בטיקטוק. לחיצה תפתח את TikTok Studio להעלאת הסרטון. לחצי על 🔗 כדי להדביק URL.';
             rowBtn += '<a class="' + ttBtnClass + '" href="' + ttHref + '" target="_blank" rel="noopener" title="' + escapeHtml(ttTitle) + '">' + ttLabel + '</a>';
-            const ttChipCls = hasTT ? "reel-link-btn set" : "reel-link-btn";
+            const ttVerified = hasTT && isValidTikTokUrl(ttUrl) && !urlUsedByOtherEvent(ttUrl, evKey, "tiktok_url");
+            const ttChipCls = ttVerified ? "reel-link-btn verified" : (hasTT ? "reel-link-btn set" : "reel-link-btn");
             const ttChipTitle = hasTT
-              ? ('הפוסט בטיקטוק: ' + ttUrl + ' — לחיצה לעריכה')
+              ? ((ttVerified ? '✅ פוסט מאומת (פורמט תקין + ייחודי) — ' : 'הפוסט בטיקטוק: ') + ttUrl + ' — לחיצה לעריכה')
               : 'הדבקי URL של הפוסט בטיקטוק (לאחר העלאת הסרטון)';
             rowBtn += '<button type="button" class="' + ttChipCls + ' tiktok-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(ttUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(ttChipTitle) + '">🔗</button>';
           }
@@ -2287,9 +2304,10 @@ End date: </div>
               ? ('FB post: ' + fbUrl + ' — לחיצה לפתיחה')
               : 'אין עדיין URL לפוסט בפייסבוק. לחיצה תפתח את FB Reels composer. לחצי על 🔗 כדי להדביק URL.';
             rowBtn += '<a class="' + fbBtnClass + '" href="' + fbHref + '" target="_blank" rel="noopener" title="' + escapeHtml(fbTitle) + '">' + fbLabel + '</a>';
-            const fbChipCls = hasFB ? "reel-link-btn set" : "reel-link-btn";
+            const fbVerified = hasFB && isValidFbReelUrl(fbUrl) && !urlUsedByOtherEvent(fbUrl, evKey, "fb_url");
+            const fbChipCls = fbVerified ? "reel-link-btn verified" : (hasFB ? "reel-link-btn set" : "reel-link-btn");
             const fbChipTitle = hasFB
-              ? ('הפוסט בפייסבוק: ' + fbUrl + ' — לחיצה לעריכה')
+              ? ((fbVerified ? '✅ פוסט מאומת (פורמט תקין + ייחודי) — ' : 'הפוסט בפייסבוק: ') + fbUrl + ' — לחיצה לעריכה')
               : 'הדבקי URL של הפוסט בפייסבוק (לאחר העלאת ה-Reel)';
             rowBtn += '<button type="button" class="' + fbChipCls + ' fb-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(fbUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(fbChipTitle) + '">🔗</button>';
           }
@@ -3586,6 +3604,15 @@ End date: </div>
         delete MANUAL_TASKS[evKey].tiktok_url_set_by;
         delete MANUAL_TASKS[evKey].tiktok_url_set_at;
       } else {
+        if(!isValidTikTokUrl(trimmed)){
+          alert("⚠️ הקישור לא נראה כמו פוסט TikTok תקין.\nדוגמה תקינה:\n  https://www.tiktok.com/@makeupblowoutsale/video/7638634023014698271");
+          return;
+        }
+        const dupKey = urlUsedByOtherEvent(trimmed, evKey, "tiktok_url");
+        if(dupKey){
+          alert("⚠️ הפוסט הזה כבר משויך לאירוע אחר (" + dupKey + ").\nכל אירוע צריך פוסט ייחודי משלו.");
+          return;
+        }
         MANUAL_TASKS[evKey].tiktok_url = trimmed;
         MANUAL_TASKS[evKey].tiktok_url_set_by = "manual";
         MANUAL_TASKS[evKey].tiktok_url_set_at = new Date().toISOString();
@@ -3616,6 +3643,15 @@ End date: </div>
         delete MANUAL_TASKS[evKey].fb_url_set_by;
         delete MANUAL_TASKS[evKey].fb_url_set_at;
       } else {
+        if(!isValidFbReelUrl(trimmed)){
+          alert("⚠️ הקישור לא נראה כמו פוסט פייסבוק תקין.\nדוגמה תקינה:\n  https://www.facebook.com/reel/2245982816143690/  או  https://fb.watch/H2lW3P7zL9/");
+          return;
+        }
+        const dupKey = urlUsedByOtherEvent(trimmed, evKey, "fb_url");
+        if(dupKey){
+          alert("⚠️ הפוסט הזה כבר משויך לאירוע אחר (" + dupKey + ").\nכל אירוע צריך פוסט ייחודי משלו.");
+          return;
+        }
         MANUAL_TASKS[evKey].fb_url = trimmed;
         MANUAL_TASKS[evKey].fb_url_set_by = "manual";
         MANUAL_TASKS[evKey].fb_url_set_at = new Date().toISOString();
