@@ -484,6 +484,24 @@
   .manual-tasks input[type=checkbox]{margin:0;cursor:pointer;accent-color:#16a34a;width:17px;height:17px;flex-shrink:0}
   .manual-tasks .mt-timing{font-size:10px;color:#9ca3af;font-weight:600;margin-right:auto;background:#f1f5f9;padding:2px 7px;border-radius:6px}
   .manual-tasks label.done .mt-timing{background:rgba(22,163,74,.18);color:#166534}
+  /* 📋 Per-event prep checklist (Lauren 2026-06-09) */
+  .prep-tasks{display:flex;flex-direction:column;gap:6px;margin-top:8px;padding:12px 14px;background:linear-gradient(180deg,#fffbeb,#fef9c3);border:1px solid #fde68a;border-radius:12px;direction:rtl}
+  .prep-tasks .pt-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+  .prep-tasks .pt-title{font-size:13px;font-weight:800;color:#92400e;letter-spacing:.2px}
+  .prep-tasks .pt-progress{font-size:12px;font-weight:800;color:#15803d;background:#dcfce7;border:1px solid #86efac;border-radius:999px;padding:2px 10px}
+  .prep-tasks .pt-item{display:flex;align-items:center;gap:8px;font-size:13px;color:#1e293b;cursor:pointer;padding:8px 12px;border-radius:8px;background:#fff;border:1px solid #e5e7eb;transition:all .15s;user-select:none;line-height:1.4;font-weight:500}
+  .prep-tasks .pt-item:hover{border-color:#f59e0b;background:#fffbeb}
+  .prep-tasks .pt-item.done{background:linear-gradient(180deg,#dcfce7,#bbf7d0);border-color:#16a34a;color:#14532d;font-weight:700}
+  .prep-tasks .pt-item.done .pt-text{text-decoration:line-through;text-decoration-color:rgba(20,83,45,.4);text-decoration-thickness:1.5px}
+  .prep-tasks input[type=checkbox]{margin:0;cursor:pointer;accent-color:#16a34a;width:17px;height:17px;flex-shrink:0}
+  .prep-tasks .pt-text{flex:1 1 auto}
+  .prep-tasks .pt-pill{font-size:9px;font-weight:800;letter-spacing:.5px;padding:2px 7px;border-radius:5px;flex-shrink:0}
+  .prep-tasks .pt-pill.todo{background:#e2e8f0;color:#475569}
+  .prep-tasks .pt-pill.agent{background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff}
+  .prep-tasks .pt-icon{background:transparent;border:none;cursor:pointer;font-size:13px;padding:2px 3px;flex-shrink:0;opacity:.55;transition:opacity .12s}
+  .prep-tasks .pt-icon:hover{opacity:1}
+  .prep-tasks .pt-add{align-self:flex-start;margin-top:4px;background:#fff;border:1px dashed #f59e0b;color:#92400e;font-weight:700;font-size:12px;padding:6px 12px;border-radius:8px;cursor:pointer;transition:all .12s}
+  .prep-tasks .pt-add:hover{background:#fef3c7}
   /* RemoteSync status pill */
   /* Sync status pill — moved to top-right (RTL-natural) 2026-05-03 PM */
   #sync-status-pill{position:fixed;top:14px;right:14px;background:#fff;border:1px solid var(--border);border-radius:999px;padding:7px 16px;font-size:12px;font-weight:700;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.08);display:none;direction:rtl}
@@ -833,6 +851,21 @@ const MANUAL_TASK_DEFS = [
   // webform_id_saved) may still survive in notes.json for events Lauren previously ticked — they're
   // just not surfaced anymore. The empty array suppresses the entire "📋 משימות ידניות" container per
   // the guard added in the row-builder loop below.
+];
+
+// 📋 Per-event prep checklist defaults (Lauren 2026-06-09 — moved from /weekly/ into the event row).
+// Shared task list (same prep steps for every event); per-event CHECKMARKS live in MANUAL_TASKS[evKey].prep_done.
+// Lauren can add / edit / delete tasks — edits persist to docs/state/event_task_defs.json (shared across events).
+const EVENT_PREP_DEFAULTS = [
+  { id:'supplier-orders', label:'הזמנת סחורה חסרה מספקים לקראת סופ"ש הקרוב' },
+  { id:'octopos-update',  label:'עדכון מלאי ב-OCTOPOS אחרי קבלת הסחורה' },
+  { id:'campaigns-stop',  label:'וידוא שכל הקמפיינים של האירוע הקודם נעצרו (לא לבזבז כסף)' },
+  { id:'flights',         label:'הזמנת טיסות לאירוע הבא (יעד: ~חודש מראש)' },
+  { id:'hotels',          label:'הזמנת מלונות ללינת עובדים לאירוע הקרוב' },
+  { id:'supplier-pay',    label:'תשלום לספקים על חשבוניות פתוחות' },
+  { id:'event-summary',   label:'סיכום האירוע שהיה (Recap)', agent:'mbs-event-summary' },
+  { id:'sms-review',      label:'בדיקת טקסטים של Simple Texting לאירוע הבא', agent:'sms-campaigns' },
+  { id:'reel-campaign',   label:'עדכון ריל חדש ויצירת קמפיין חדש לריל בשבוע האחרון' }
 ];
 </script>
 
@@ -1577,6 +1610,19 @@ End date: </div>
         if (hit.length === 1 && M[hit[0].key] == null) M[hit[0].key] = M[key];
       });
     });
+  }
+
+  // ── Per-event prep checklist (Lauren 2026-06-09) ──
+  let EVENT_TASK_DEFS = null;  // loaded from docs/state/event_task_defs.json; null → use EVENT_PREP_DEFAULTS
+  function getEventTaskDefs(){
+    return (EVENT_TASK_DEFS && Array.isArray(EVENT_TASK_DEFS.tasks) && EVENT_TASK_DEFS.tasks.length)
+      ? EVENT_TASK_DEFS.tasks : EVENT_PREP_DEFAULTS;
+  }
+  function ensureDefsWritable(){
+    if (!EVENT_TASK_DEFS || !Array.isArray(EVENT_TASK_DEFS.tasks)) {
+      EVENT_TASK_DEFS = { tasks: getEventTaskDefs().map(function(t){ return Object.assign({}, t); }) };
+    }
+    return EVENT_TASK_DEFS;
   }
 
   function renderSchedule(){
@@ -2574,6 +2620,34 @@ End date: </div>
                        cells +
                      '</div></td></tr>';
       }
+      // 📋 Per-event prep checklist — render on the NEXT upcoming event only (Lauren 2026-06-09).
+      let prepHtml = "";
+      if (ev && isNext) {
+        const evKeyP = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
+        const doneMap = ((MANUAL_TASKS[evKeyP] || {}).prep_done) || {};
+        const defs = getEventTaskDefs();
+        let doneN = 0;
+        const items = defs.map(function(t){
+          const isDone = !!doneMap[t.id];
+          if (isDone) doneN++;
+          const pill = t.agent
+            ? '<span class="pt-pill agent" title="Agent: ' + escapeHtml(t.agent) + '">AGENT</span>'
+            : '<span class="pt-pill todo">TODO</span>';
+          return '<label class="pt-item' + (isDone ? ' done' : '') + '">' +
+                   '<input type="checkbox" class="pt-cb" data-evkey="' + evKeyP + '" data-taskid="' + escapeHtml(t.id) + '" ' + (isDone ? 'checked' : '') + '>' +
+                   '<span class="pt-text">' + escapeHtml(t.label) + '</span>' + pill +
+                   '<button type="button" class="pt-icon pt-edit" data-taskid="' + escapeHtml(t.id) + '" title="ערכי משימה">✏️</button>' +
+                   '<button type="button" class="pt-icon pt-del" data-taskid="' + escapeHtml(t.id) + '" title="מחקי משימה">🗑️</button>' +
+                 '</label>';
+        }).join("");
+        prepHtml = '<tr class="prep-tasks-row" data-evkey="' + evKeyP + '"><td colspan="4" style="padding:0 8px 12px">' +
+                     '<div class="prep-tasks">' +
+                       '<div class="pt-head"><span class="pt-title">📋 משימות לאירוע · ' + escapeHtml(ev.city + ", " + ev.state) + '</span>' +
+                         '<span class="pt-progress">' + doneN + ' / ' + defs.length + '</span></div>' +
+                       items +
+                       '<button type="button" class="pt-add" data-evkey="' + evKeyP + '">➕ הוסיפי משימה</button>' +
+                     '</div></td></tr>';
+      }
       // Tag the row with its period (past = end<today; future = end>=today)
       const periodTag = (end < today) ? "past" : "future";
       return {
@@ -2585,7 +2659,7 @@ End date: </div>
                '<td class="col-city">' + escapeHtml(cityCell) + tierBadge + '</td>' +
                '<td class="col-venue">' + venueCell + '</td>' +
                '<td class="col-status"><div>' + statusBadge + '</div>' + rowBtn + '</td>' +
-             '</tr>' + manualHtml
+             '</tr>' + manualHtml + prepHtml
       };
     });
     // Period counts for the sub-tab badges
@@ -3197,6 +3271,43 @@ End date: </div>
   })();
 
   // Click handler for manual-task checkboxes (event delegation)
+  // ── Shared prep-checklist defs sync → docs/state/event_task_defs.json (Lauren 2026-06-09) ──
+  const EventTaskDefsSync = (function(){
+    const OWNER="laurenlev10", REPO="lauren-agent-hub-data", BRANCH="main";
+    const PATH="docs/state/event_task_defs.json";
+    const TOKEN_KEY="lauren_gh_token_v1";
+    function getToken(){ try { return localStorage.getItem(TOKEN_KEY) || ""; } catch(e){ return ""; } }
+    async function load(){
+      try {
+        const r = await fetch("../state/event_task_defs.json?_=" + Date.now(), { cache:"no-store" });
+        if (r.ok){ const j = await r.json(); if (j && Array.isArray(j.tasks)) return j; }
+      } catch(e){}
+      return null;
+    }
+    let saving=false, pending=false;
+    async function save(){
+      const tok = getToken();
+      if (!tok){ alert("⚠️ צריך GitHub token כדי לסנכרן את רשימת המשימות (לחצי על כפתור ה-Sync למעלה)."); return false; }
+      if (saving){ pending=true; return; }
+      saving=true;
+      try {
+        const apiBase = "https://api.github.com/repos/" + OWNER + "/" + REPO + "/contents/" + PATH;
+        let sha=null;
+        try { const g = await fetch(apiBase + "?ref=" + BRANCH + "&_=" + Date.now(), { headers:{ Authorization:"Bearer "+tok, Accept:"application/vnd.github+json" }, cache:"no-store" }); if (g.ok){ sha=(await g.json()).sha; } } catch(e){}
+        if (!EVENT_TASK_DEFS || !Array.isArray(EVENT_TASK_DEFS.tasks)) EVENT_TASK_DEFS = { tasks: getEventTaskDefs().map(function(t){ return Object.assign({}, t); }) };
+        EVENT_TASK_DEFS._doc = "Shared per-event prep checklist. tasks=[{id,label,agent?}]. Per-event checkmarks live in launch/notes.json MANUAL_TASKS[evkey].prep_done. (Lauren 2026-06-09)";
+        EVENT_TASK_DEFS._updated_at = new Date().toISOString();
+        const content = JSON.stringify(EVENT_TASK_DEFS, null, 2);
+        const body = { message:"event-task-defs: update shared prep checklist", content: btoa(unescape(encodeURIComponent(content))), branch: BRANCH };
+        if (sha) body.sha = sha;
+        const r = await fetch(apiBase, { method:"PUT", headers:{ Authorization:"Bearer "+tok, Accept:"application/vnd.github+json", "Content-Type":"application/json" }, body: JSON.stringify(body) });
+        return r.ok;
+      } catch(e){ console.warn("EventTaskDefsSync save failed:", e); return false; }
+      finally { saving=false; if (pending){ pending=false; save(); } }
+    }
+    return { load, save };
+  })();
+
   document.addEventListener("change", (e) => {
     const cb = e.target;
     if (!(cb instanceof HTMLInputElement) || cb.type !== "checkbox") return;
@@ -3210,6 +3321,70 @@ End date: </div>
     const lbl = cb.closest("label");
     if (lbl) lbl.classList.toggle("done", cb.checked);
     ManualTasksSync.save(MANUAL_TASKS);
+  });
+
+  // 📋 Prep-checklist checkbox toggle — per-event done-state in MANUAL_TASKS[evKey].prep_done (Lauren 2026-06-09)
+  document.addEventListener("change", (e) => {
+    const cb = e.target;
+    if (!(cb instanceof HTMLInputElement) || !cb.classList.contains("pt-cb")) return;
+    const evKey = cb.dataset.evkey, taskid = cb.dataset.taskid;
+    if (!evKey || !taskid) return;
+    if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
+    if (!MANUAL_TASKS[evKey].prep_done) MANUAL_TASKS[evKey].prep_done = {};
+    if (cb.checked) MANUAL_TASKS[evKey].prep_done[taskid] = true; else delete MANUAL_TASKS[evKey].prep_done[taskid];
+    MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+    const lbl = cb.closest("label"); if (lbl) lbl.classList.toggle("done", cb.checked);
+    const wrap = cb.closest(".prep-tasks");
+    if (wrap){ const total = wrap.querySelectorAll(".pt-cb").length; const done = wrap.querySelectorAll(".pt-cb:checked").length; const pr = wrap.querySelector(".pt-progress"); if (pr) pr.textContent = done + " / " + total; }
+    ManualTasksSync.save(MANUAL_TASKS);
+  });
+
+  // 📋 Prep-checklist add / edit / delete (operate on the SHARED defs → event_task_defs.json) (Lauren 2026-06-09)
+  document.addEventListener("click", (e) => {
+    const addBtn = e.target.closest(".pt-add");
+    if (addBtn){
+      e.preventDefault();
+      const label = prompt("טקסט המשימה החדשה:");
+      if (!label || !label.trim()) return;
+      const agent = (prompt("שם סוכן ייעודי (אופציונלי, ENTER לדלג):", "") || "").trim();
+      const defs = ensureDefsWritable();
+      const t = { id: "custom-" + Date.now(), label: label.trim() };
+      if (agent) t.agent = agent;
+      defs.tasks.push(t);
+      EventTaskDefsSync.save();
+      renderSchedule();
+      return;
+    }
+    const editBtn = e.target.closest(".pt-edit");
+    if (editBtn){
+      e.preventDefault(); e.stopPropagation();
+      const id = editBtn.dataset.taskid;
+      const defs = ensureDefsWritable();
+      const t = defs.tasks.find(function(x){ return x.id === id; });
+      if (!t) return;
+      const nl = prompt("טקסט המשימה:", t.label);
+      if (nl === null) return;
+      if (!nl.trim()){ alert("הטקסט לא יכול להיות ריק"); return; }
+      const na = prompt("שם סוכן ייעודי (אופציונלי, ENTER לדלג):", t.agent || "");
+      t.label = nl.trim();
+      if (na && na.trim()) t.agent = na.trim(); else delete t.agent;
+      EventTaskDefsSync.save();
+      renderSchedule();
+      return;
+    }
+    const delBtn = e.target.closest(".pt-del");
+    if (delBtn){
+      e.preventDefault(); e.stopPropagation();
+      const id = delBtn.dataset.taskid;
+      const defs = ensureDefsWritable();
+      const t = defs.tasks.find(function(x){ return x.id === id; });
+      if (!t) return;
+      if (!confirm("למחוק את המשימה \"" + t.label + "\"?")) return;
+      defs.tasks = defs.tasks.filter(function(x){ return x.id !== id; });
+      EventTaskDefsSync.save();
+      renderSchedule();
+      return;
+    }
   });
 
   // Click handler for image-link (🔗) chip — prompts for Canva URL, saves to MANUAL_TASKS via ManualTasksSync
@@ -3945,10 +4120,15 @@ End date: </div>
   setActiveYear("2026");
 
   // Load manual-tasks state from GitHub on page load, then re-render to reflect saved checkboxes
-  ManualTasksSync.load().then(remote => {
-    MANUAL_TASKS = remote || {};
-    renderSchedule();
-  });
+  // Load shared prep-checklist task defs (event_task_defs.json), then manual-tasks state, then render.
+  EventTaskDefsSync.load().then(defs => { if (defs) EVENT_TASK_DEFS = defs; })
+    .catch(() => {})
+    .finally(() => {
+      ManualTasksSync.load().then(remote => {
+        MANUAL_TASKS = remote || {};
+        renderSchedule();
+      });
+    });
 
   // Load subscribe_target.json (which event is currently active on the public QR landing page) and re-render
   // so the 🔳 QR LP button flips green on the matching row. Updated weekly by update-subscribe-target.yml.
