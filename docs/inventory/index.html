@@ -1324,6 +1324,77 @@ function bananaSetMem(pid, list){
     });
   });
 }
+// ── Banana barcode overlay (GitHub-synced) ──────────────────────────────────
+// The dashboard renders a DAILY OCTOPOS snapshot (octopos_products.json). Barcodes
+// added via the scan card write LIVE to OCTOPOS immediately, but the snapshot only
+// catches up on the daily cron — so a page reload before that sync would drop the
+// new barcodes from the VIEW (they were still safe in OCTOPOS). This small,
+// browser-owned overlay records each banana product's full barcode list and applies
+// it over the snapshot until the daily sync supersedes it (timestamp-gated →
+// self-healing). IRON RULE #7 — synced through GitHub, not localStorage.
+var BANANA_OVERLAY = { _updated_at: null, products: {} };
+var BANANA_OVERLAY_URL = "../state/banana_barcodes.json";
+var BANANA_OVERLAY_REPO_FILE = "docs/state/banana_barcodes.json";
+async function loadBananaOverlay(){
+  try {
+    var r = await fetch(BANANA_OVERLAY_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok) BANANA_OVERLAY = await r.json();
+  } catch(e){ console.warn("loadBananaOverlay failed:", e); }
+  if (!BANANA_OVERLAY || typeof BANANA_OVERLAY !== "object") BANANA_OVERLAY = { _updated_at: null, products: {} };
+  BANANA_OVERLAY.products = BANANA_OVERLAY.products || {};
+}
+// Apply overlay lists over the snapshot — but ONLY entries newer than the snapshot's
+// _updated_at. Once the daily cron has pulled the real barcodes, trust the snapshot.
+function applyBananaOverlay(){
+  if (!BANANA_OVERLAY || !BANANA_OVERLAY.products) return;
+  var snapTs = (OCTOPOS && OCTOPOS._updated_at) ? Date.parse(OCTOPOS._updated_at) : 0;
+  var prods = bananaProducts();
+  for (var pidS in BANANA_OVERLAY.products){
+    var rec = BANANA_OVERLAY.products[pidS];
+    if (!rec || !Array.isArray(rec.barcodes)) continue;
+    var setTs = rec.set_at ? Date.parse(rec.set_at) : 0;
+    if (snapTs && setTs && setTs <= snapTs) continue;   // snapshot is fresher → skip
+    for (var i=0;i<prods.length;i++){
+      if (String(prods[i].id) === String(pidS)){
+        prods[i].additional_barcodes = rec.barcodes.map(function(c){ return { barcode: c }; });
+        break;
+      }
+    }
+  }
+}
+// Debounced, race-safe persist: collect dirty pids, then after a short idle do ONE
+// read-merge-write of the overlay file covering every dirty product. Keeps scanning
+// fast (no GitHub round-trip per scan) and avoids concurrent-write races.
+var _bananaDirty = {};
+var _bananaSaveTimer = null;
+function bananaQueuePersist(pid, list){
+  _bananaDirty[String(pid)] = (list || []).slice();
+  if (_bananaSaveTimer) clearTimeout(_bananaSaveTimer);
+  _bananaSaveTimer = setTimeout(bananaFlushPersist, 1200);
+}
+async function bananaFlushPersist(){
+  _bananaSaveTimer = null;
+  var dirty = _bananaDirty; _bananaDirty = {};
+  if (!Object.keys(dirty).length) return;
+  var ghToken = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+  if (!ghToken){ toast("⚠️ צריך GitHub token כדי לסנכרן את הברקודים לדשבורד", "error"); return; }
+  var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + BANANA_OVERLAY_REPO_FILE;
+  try {
+    var sha = null, content = { _updated_at: null, products: {} };
+    var getR = await fetch(url + "?ref=main&_=" + Date.now(), { cache:"no-store", headers:{ Authorization:"token "+ghToken, Accept:"application/vnd.github+json" } });
+    if (getR.ok){ var j = await getR.json(); sha = j.sha; try { content = JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,""))))); } catch(_){ content = { _updated_at:null, products:{} }; } }
+    content.products = content.products || {};
+    var now = new Date().toISOString();
+    for (var pid in dirty){ content.products[pid] = { barcodes: dirty[pid], set_at: now }; }
+    content._updated_at = now;
+    var body = { message: "banana barcodes: sync "+Object.keys(dirty).length+" product(s) to dashboard overlay", content: btoa(unescape(encodeURIComponent(JSON.stringify(content, null, 2)))), branch: "main" };
+    if (sha) body.sha = sha;
+    var put = await fetch(url, { method:"PUT", headers:{ Authorization:"token "+ghToken, Accept:"application/vnd.github+json", "Content-Type":"application/json" }, body: JSON.stringify(body) });
+    if (put.ok){ BANANA_OVERLAY = content; toast("✓ הברקודים סונכרנו לדשבורד", "success"); }
+    else { toast("⚠️ סנכרון הברקודים לדשבורד נכשל ("+put.status+")", "error"); }
+  } catch(e){ console.warn("bananaFlushPersist failed:", e); toast("⚠️ סנכרון הברקודים לדשבורד נכשל", "error"); }
+}
+
 function renderBananaCard(sup, s){
   var prods = bananaProducts();
   var note = '<div style="font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;margin-bottom:12px;line-height:1.5">'+
@@ -1396,6 +1467,7 @@ function renderBananaCard(sup, s){
       addBtn.disabled = false; addBtn.textContent = "➕ הוסף ברקוד";
       if (ok){
         bananaSetMem(pid, newList);
+        bananaQueuePersist(pid, newList);
         toast("✓ נוסף ברקוד ל-"+(prod.name||("#"+pid))+" — חי ב-OCTOPOS", "success");
         // Lauren 2026-06-08: continuous scanning. Update the row IN PLACE instead of a
         // full re-render so the input keeps focus (and the page keeps its scroll position) —
@@ -1424,7 +1496,7 @@ function renderBananaCard(sup, s){
       if (!confirm("להסיר את הברקוד "+bc+" מ-"+(prodD.name||("#"+pidD))+"?")) return;
       var listD = bananaBarcodeList(prodD).filter(function(c){ return c !== bc; });
       var okD = await bananaPutBarcodes(pidD, listD);
-      if (okD){ bananaSetMem(pidD, listD); toast("✓ הברקוד הוסר — חי ב-OCTOPOS", "success"); renderSuppliersWithBindings(); }
+      if (okD){ bananaSetMem(pidD, listD); bananaQueuePersist(pidD, listD); toast("✓ הברקוד הוסר — חי ב-OCTOPOS", "success"); renderSuppliersWithBindings(); }
       return;
     }
   });
@@ -9056,8 +9128,11 @@ async function init(){
       loadSkuAliases().catch(function(e){ console.warn("loadSkuAliases rejected:", e); }),
       loadInvoiceArchive().catch(function(e){ console.warn("loadInvoiceArchive rejected:", e); }),
       loadOrderRecs().catch(function(e){ console.warn("loadOrderRecs rejected:", e); }),
-      loadAllEvents().catch(function(e){ console.warn("loadAllEvents rejected:", e); })
+      loadAllEvents().catch(function(e){ console.warn("loadAllEvents rejected:", e); }),
+      loadBananaOverlay().catch(function(e){ console.warn("loadBananaOverlay rejected:", e); })
     ]);
+
+    try { applyBananaOverlay(); } catch(e){ console.warn("applyBananaOverlay failed:", e); }
 
     if (MODE === 'global'){
       $("#globalView").style.display = "";
