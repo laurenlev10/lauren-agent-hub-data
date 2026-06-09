@@ -485,11 +485,11 @@
   .manual-tasks .mt-timing{font-size:10px;color:#9ca3af;font-weight:600;margin-right:auto;background:#f1f5f9;padding:2px 7px;border-radius:6px}
   .manual-tasks label.done .mt-timing{background:rgba(22,163,74,.18);color:#166534}
   /* 📋 Per-event prep checklist (Lauren 2026-06-09) */
-  .prep-tasks{display:flex;flex-direction:column;gap:7px;margin-top:8px;width:100%;padding:14px 16px;background:linear-gradient(180deg,#fffbeb,#fef9c3);border:1px solid #fde68a;border-radius:12px;direction:rtl}
+  .prep-tasks{display:flex;flex-direction:column;gap:5px;margin-top:8px;width:100%;padding:12px 14px;background:linear-gradient(180deg,#fffbeb,#fef9c3);border:1px solid #fde68a;border-radius:12px;direction:rtl}
   .prep-tasks .pt-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
   .prep-tasks .pt-title{font-size:13px;font-weight:800;color:#92400e;letter-spacing:.2px}
   .prep-tasks .pt-progress{font-size:12px;font-weight:800;color:#15803d;background:#dcfce7;border:1px solid #86efac;border-radius:999px;padding:2px 10px}
-  .prep-tasks .pt-item{display:flex;align-items:center;gap:8px;font-size:13.5px;color:#1e293b;cursor:pointer;padding:10px 13px;border-radius:8px;background:#fff;border:1px solid #e5e7eb;transition:all .15s;user-select:none;line-height:1.4;font-weight:500}
+  .prep-tasks .pt-item{display:flex;align-items:center;gap:8px;font-size:13px;color:#1e293b;cursor:pointer;padding:6px 11px;border-radius:8px;background:#fff;border:1px solid #e5e7eb;transition:all .15s;user-select:none;line-height:1.4;font-weight:500}
   .prep-tasks .pt-item:hover{border-color:#f59e0b;background:#fffbeb}
   .prep-tasks .pt-item.done{background:linear-gradient(180deg,#dcfce7,#bbf7d0);border-color:#16a34a;color:#14532d;font-weight:700}
   .prep-tasks .pt-item.done .pt-text{text-decoration:line-through;text-decoration-color:rgba(20,83,45,.4);text-decoration-thickness:1.5px}
@@ -498,7 +498,9 @@
   .prep-tasks .pt-pill{font-size:9px;font-weight:800;letter-spacing:.5px;padding:2px 7px;border-radius:5px;flex-shrink:0}
   .prep-tasks .pt-pill.todo{background:#e2e8f0;color:#475569}
   .prep-tasks .pt-pill.agent{background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff}
-  .prep-tasks .pt-icon{background:transparent;border:none;cursor:pointer;font-size:13px;padding:2px 3px;flex-shrink:0;opacity:.55;transition:opacity .12s}
+  .prep-tasks .pt-actions{display:inline-flex;gap:2px;margin-right:auto;opacity:0;transition:opacity .12s}
+  .prep-tasks .pt-item:hover .pt-actions{opacity:1}
+  .prep-tasks .pt-icon{background:transparent;border:none;cursor:pointer;font-size:12px;padding:1px 2px;flex-shrink:0;opacity:.65;transition:opacity .12s}
   .prep-tasks .pt-icon:hover{opacity:1}
   .prep-tasks .pt-add{align-self:flex-start;margin-top:4px;background:#fff;border:1px dashed #f59e0b;color:#92400e;font-weight:700;font-size:12px;padding:6px 12px;border-radius:8px;cursor:pointer;transition:all .12s}
   .prep-tasks .pt-add:hover{background:#fef3c7}
@@ -2632,14 +2634,13 @@ End date: </div>
         const items = defs.map(function(t){
           const isDone = !!doneMap[t.id];
           if (isDone) doneN++;
-          const pill = t.agent
-            ? '<span class="pt-pill agent" title="Agent: ' + escapeHtml(t.agent) + '">AGENT</span>'
-            : '<span class="pt-pill todo">TODO</span>';
           return '<label class="pt-item' + (isDone ? ' done' : '') + '">' +
                    '<input type="checkbox" class="pt-cb" data-evkey="' + evKeyP + '" data-taskid="' + escapeHtml(t.id) + '" ' + (isDone ? 'checked' : '') + '>' +
-                   '<span class="pt-text">' + escapeHtml(t.label) + '</span>' + pill +
-                   '<button type="button" class="pt-icon pt-edit" data-taskid="' + escapeHtml(t.id) + '" title="ערכי משימה">✏️</button>' +
-                   '<button type="button" class="pt-icon pt-del" data-taskid="' + escapeHtml(t.id) + '" title="מחקי משימה">🗑️</button>' +
+                   '<span class="pt-text">' + escapeHtml(t.label) + '</span>' +
+                   '<span class="pt-actions">' +
+                     '<button type="button" class="pt-icon pt-edit" data-taskid="' + escapeHtml(t.id) + '" title="ערכי משימה">✏️</button>' +
+                     '<button type="button" class="pt-icon pt-del" data-taskid="' + escapeHtml(t.id) + '" title="מחקי משימה">🗑️</button>' +
+                   '</span>' +
                  '</label>';
         }).join("");
         prepHtml = '<div class="prep-tasks" data-evkey="' + evKeyP + '">' +
