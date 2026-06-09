@@ -1367,7 +1367,26 @@ function renderBananaCard(sup, s){
       var newList = list.concat([code]);
       var ok = await bananaPutBarcodes(pid, newList);
       addBtn.disabled = false; addBtn.textContent = "➕ הוסף ברקוד";
-      if (ok){ bananaSetMem(pid, newList); toast("✓ נוסף ברקוד ל-"+(prod.name||("#"+pid))+" — חי ב-OCTOPOS", "success"); renderSuppliersWithBindings(); }
+      if (ok){
+        bananaSetMem(pid, newList);
+        toast("✓ נוסף ברקוד ל-"+(prod.name||("#"+pid))+" — חי ב-OCTOPOS", "success");
+        // Lauren 2026-06-08: continuous scanning. Update the row IN PLACE instead of a
+        // full re-render so the input keeps focus (and the page keeps its scroll position) —
+        // she can keep scanning without re-clicking the field each time.
+        var row = addBtn.closest(".bn-row");
+        if (row){
+          var bcsEl = row.querySelector(".bn-bcs");
+          if (bcsEl){
+            var chip = document.createElement("span");
+            chip.className = "bn-chip";
+            chip.innerHTML = escHtml(code)+'<button type="button" class="bn-del" data-pid="'+pid+'" data-bc="'+escHtml(code)+'" title="הסר ברקוד">✕<\/button>';
+            bcsEl.appendChild(chip);
+          }
+          var cntEl = row.querySelector(".bn-count");
+          if (cntEl) cntEl.textContent = newList.length+" ברקודים";
+        }
+      }
+      if (inp){ inp.value=""; inp.focus(); }
       return;
     }
     var delBtn = ev.target.closest && ev.target.closest(".bn-del");
