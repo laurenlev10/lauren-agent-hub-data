@@ -1,0 +1,71 @@
+# verify-form-ids — weekly consistency guard for per-event SimpleTexting forms.
+#
+# Set 2026-06-09 after the form-routing audit (Lauren: "תעדכן קבצים ואת
+# הזיכרון שלא יהיו בעיות בעתיד"). Confirms that, for every upcoming event with
+# a landing page, the SimpleTexting webFormId is identical across: the live
+# landing-page embed (EN + ES, the source of truth that routes signups),
+# event_form_ids.json, and the FORM_IDS map in the launch dashboard. SMSes
+# Lauren if any drift is found, so a dark/wrong chip can't silently misroute
+# signups to the wrong list.
+name: verify-form-ids
+
+on:
+  schedule:
+    - cron: '0 15 * * 1'   # Mondays 15:00 UTC (08:00 PT) — weekly
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify FORM ID consistency (landing embed vs dashboard vs tracking)
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+        run: python3 scripts/verify_form_ids.py
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "verify-form-ids":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          print(f"updated lastRunAt = {now}")
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name  "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump verify-form-ids lastRunAt"
+            git pull --rebase origin main || true
+            git push origin main
+          fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
