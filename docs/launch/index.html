@@ -368,6 +368,8 @@
   .cap-footer .cap-status.err{color:#b91c1c}
   /* INSTA REEL — separate from Canva Reel; tracks pinned IG reel + share scans (Lauren 2026-05-10) */
   .btn-insta-row{background:linear-gradient(135deg,#f58529 0%,#dd2a7b 50%,#8134af 100%)}
+  .reel-new-btn{display:inline-flex;align-items:center;gap:4px;margin-top:6px;margin-left:6px;padding:5px 9px;background:linear-gradient(135deg,#8134af,#dd2a7b);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.18);letter-spacing:.2px}
+  .reel-new-btn:hover{filter:brightness(1.1)}
   .btn-insta-row.done{background:linear-gradient(180deg,#16a34a,#15803d) !important}
   .btn-insta-row .scan-count{background:rgba(255,255,255,.22);padding:1px 5px;border-radius:4px;font-size:10px;margin-left:3px}
   /* keep each platform button glued to its 🔗 chip on the same line (Lauren 2026-06-09) */
@@ -2360,6 +2362,12 @@ End date: </div>
               ? ((reelVerified ? '✅ ריל מאומת (פורמט תקין + ייחודי לאירוע) — ' : 'הריל הנוכחי: ') + reelUrl + (setBy === 'auto' ? ' (אותר אוטומטית)' : ' (ידני)') + ' — לחיצה לעריכה')
               : 'הדבקי URL של הריל ידנית (אופציונלי — נסרק גם אוטומטית)';
             rowBtn += '<button type="button" class="' + chipCls + ' reel-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(reelUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(chipTitle) + '">🔗</button></span>';
+            // 🔄 New Reel button — explicit switch to reel 2/3/... (archives current reel's data) (Lauren 2026-06-09)
+            if (hasUrl) {
+              const _histLen = Array.isArray(noteIR.insta_reel_history) ? noteIR.insta_reel_history.length : 0;
+              const _nextNum = _histLen + 2;
+              rowBtn += '<button type="button" class="reel-new-btn" data-evkey="' + evKey + '" title="' + escapeHtml('החלפה לריל חדש (ריל #' + _nextNum + ') — נתוני הריל הנוכחי יישמרו והמעקב יתחיל מחדש') + '">🔄 ריל חדש</button>';
+            }
           }
 
           // 🎵 TikTok button + manual URL paste chip (Lauren 2026-05-11)
@@ -3767,6 +3775,37 @@ End date: </div>
 
   document.addEventListener("click", (e) => {
     // Manual URL paste chip (🔗)
+    // 🔄 New Reel — switch to a fresh reel, preserving the current reel's collected data
+    const newReelBtn = e.target.closest(".reel-new-btn");
+    if (newReelBtn) {
+      e.stopPropagation();
+      const evKey = newReelBtn.dataset.evkey;
+      const note = MANUAL_TASKS[evKey] || {};
+      const histLen = Array.isArray(note.insta_reel_history) ? note.insta_reel_history.length : 0;
+      const v = prompt(
+        "🔄 הדבקי URL של הריל החדש (ריל #" + (histLen + 2) + ") לאירוע הזה:\n\n" +
+        "נתוני הריל הנוכחי יישמרו בארכיון, והמעקב (שיתופים/צפיות) יתחיל מחדש לריל החדש.\n\n" +
+        "דוגמה:\n  https://www.instagram.com/reel/DXxbbJhRHEE/",
+        ""
+      );
+      if (v === null) return;
+      const trimmed = (v || "").trim();
+      if (!trimmed) return;
+      if (!isValidInstaReelUrl(trimmed)) {
+        alert("⚠️ הקישור לא נראה כמו ריל אינסטגרם תקין.\nדוגמה תקינה:\n  https://www.instagram.com/reel/DXxbbJhRHEE/");
+        return;
+      }
+      const dup = instaReelUsedByOtherEvent(trimmed, evKey);
+      if (dup) { alert("⚠️ הריל הזה כבר משויך לאירוע אחר (" + dup + ")."); return; }
+      const switched = setInstaReelForEvent(evKey, trimmed, "manual-new-reel");
+      MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+      ManualTasksSync.save(MANUAL_TASKS);
+      renderSchedule();
+      alert(switched
+        ? "✓ עברת לריל החדש. נתוני הריל הקודם נשמרו — לחצי על 📸 Instagram כדי לראות אותם תחת \"רילים קודמים\"."
+        : "זה כבר הריל הנוכחי — לא בוצע שינוי.");
+      return;
+    }
     const chip = e.target.closest(".reel-link-paste-btn");
     if (chip) {
       e.stopPropagation();
