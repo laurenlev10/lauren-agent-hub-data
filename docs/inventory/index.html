@@ -1356,6 +1356,27 @@ async function bananaPutStock(pid, qty){
     return true;
   } catch(e){ console.error("bananaPutStock", e); toast("⚠️ שגיאת רשת מול OCTOPOS", "error"); return false; }
 }
+// Pull each banana product's CURRENT barcodes + stock straight from OCTOPOS (the source
+// of truth) so the card always matches reality — independent of the daily snapshot or the
+// overlay. Only ~6 products, so it's cheap. No-op (returns false) if no OCTOPOS token.
+async function bananaRefreshLive(){
+  var token = (localStorage.getItem("lauren_octopos_token") || "").trim();
+  if (!token) return false;
+  var prods = bananaProducts();
+  if (!prods.length) return false;
+  var changed = false;
+  await Promise.all(prods.map(function(p){
+    return fetch("https://themakeup.octoretail.com/api/v2/products/" + p.id, { headers: { "Authorization": token, "Accept": "application/json" } })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data){
+        if (!data) return;
+        if (data.additional_barcodes !== undefined) { p.additional_barcodes = data.additional_barcodes; changed = true; }
+        if (data.in_stock_qty !== undefined) { p.in_stock_qty = data.in_stock_qty; changed = true; }
+      })
+      .catch(function(){});
+  }));
+  return changed;
+}
 // ── Banana barcode overlay (GitHub-synced) ──────────────────────────────────
 // The dashboard renders a DAILY OCTOPOS snapshot (octopos_products.json). Barcodes
 // added via the scan card write LIVE to OCTOPOS immediately, but the snapshot only
@@ -9214,6 +9235,15 @@ async function init(){
     ]);
 
     try { applyBananaOverlay(); } catch(e){ console.warn("applyBananaOverlay failed:", e); }
+
+    // Always reconcile the banana card against LIVE OCTOPOS (source of truth) — the daily
+    // snapshot lags, so barcodes added since the last sync would otherwise look missing.
+    // Non-blocking: the page renders from the snapshot first, then re-renders when live lands.
+    try {
+      bananaRefreshLive().then(function(ch){
+        if (ch){ try { (typeof MODE !== "undefined" && MODE === "global") ? renderGlobalSuppliers() : renderSuppliersWithBindings(); } catch(_){} }
+      }).catch(function(){});
+    } catch(e){ console.warn("bananaRefreshLive kickoff failed:", e); }
 
     if (MODE === 'global'){
       $("#globalView").style.display = "";
