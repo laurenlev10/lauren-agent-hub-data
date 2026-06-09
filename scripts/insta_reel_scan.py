@@ -286,6 +286,41 @@ def main() -> int:
                 print(f"[scan] {evkey}: local hour {local_hour:02d} · pre_event slots done today {sorted(done_slots)}; nothing eligible.")
                 continue
 
+        # ── Slot 2 (New Reel) — independent second reel for this event, same scan cadence (Lauren 2026-06-09).
+        # Tracked separately into insta_reel_scans_2; powers the 🎬 New Reel button + its stats modal.
+        reel_url2 = (notes[evkey].get("insta_reel_url_2") or "").strip()
+        if reel_url2:
+            media_id2 = ""
+            try:
+                media_id2 = meta.find_media_id_by_permalink(reel_url2) or ""
+            except Exception as e:
+                print(f"[scan] {evkey}: slot2 media resolve failed: {e}")
+            if media_id2:
+                existing2 = notes[evkey].get("insta_reel_scans_2") or []
+                done2 = {s.get("event_local_hour") for s in existing2
+                         if s.get("scanned_at", "")[:10] == today_str and s.get("phase") == phase}
+                slots2 = [S for S in eligible_slots if S not in done2]
+                if slots2:
+                    try:
+                        insights2 = meta.fetch_media_insights(media_id2)
+                        for slot in slots2:
+                            existing2.append({
+                                "scanned_at": now_utc, "event_local_hour": slot,
+                                "actual_local_hour": local_hour, "phase": phase,
+                                "url_at_scan": reel_url2, "media_id": media_id2,
+                                "shares": insights2.get("shares"), "views": insights2.get("views"),
+                                "reach": insights2.get("reach"), "likes": insights2.get("likes"),
+                                "comments": insights2.get("comments"), "saved": insights2.get("saved"),
+                                "total_interactions": insights2.get("total_interactions"),
+                                "catchup": (local_hour != slot),
+                            })
+                        notes[evkey]["insta_reel_scans_2"] = existing2
+                        notes[evkey]["updated_at"] = now_utc
+                        any_change = True
+                        print(f"[scan] {evkey}: slot2 (New Reel) appended {len(slots2)} slot(s) -> shares={insights2.get('shares')}")
+                    except Exception as e:
+                        print(f"[scan] {evkey}: slot2 insights/append failed: {e}")
+
         reel_url, set_by, media_id = _resolve_reel(notes, evkey)
         if not reel_url or not media_id:
             print(f"[scan] {evkey}: no resolvable reel (url={reel_url!r}, media_id={media_id!r}); skip.")
