@@ -370,6 +370,8 @@
   .btn-insta-row{background:linear-gradient(135deg,#f58529 0%,#dd2a7b 50%,#8134af 100%)}
   .btn-insta-row.done{background:linear-gradient(180deg,#16a34a,#15803d) !important}
   .btn-insta-row .scan-count{background:rgba(255,255,255,.22);padding:1px 5px;border-radius:4px;font-size:10px;margin-left:3px}
+  /* keep each platform button glued to its 🔗 chip on the same line (Lauren 2026-06-09) */
+  .btn-chip-pair{display:inline-flex;align-items:center}
   .reel-link-btn{display:inline-flex;align-items:center;justify-content:center;margin-top:6px;margin-left:2px;padding:4px 7px;background:transparent;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:11px;color:#6b7280;transition:all .12s;vertical-align:middle}
   .reel-link-btn:hover{border-color:#dd2a7b;color:#dd2a7b;background:#fdf4ff}
   .reel-link-btn.set{border-color:#dd2a7b;color:#dd2a7b;background:#fdf4ff}
@@ -1919,7 +1921,7 @@ End date: </div>
           //   pre-event / past (once/day at 12:00 local or after the weekend) → >25h is stale
           const _staleLimit = isLive ? 120 : (25 * 60);
           const stale = (scanMins !== null && scanMins > _staleLimit);
-          const metaTxt = (scanMins === null) ? '📸 INSTA REEL' :
+          const metaTxt = (scanMins === null) ? '📸 Instagram' :
                           (scanMins < 1) ? '📸 INSTA REEL · just now' :
                           (scanMins < 60) ? `📸 INSTA REEL · ${scanMins}m ago` :
                           `📸 INSTA REEL · ${Math.round(scanMins/60)}h ago`;
@@ -2253,18 +2255,18 @@ End date: </div>
             const irBtnClass = (hasUrl && hasScans) ? "btn-agent-row btn-insta-row done" : "btn-agent-row btn-insta-row";
             const irLabel = hasUrl
               ? ('📸 INSTA REEL' + (hasScans ? ' <span class="scan-count">' + scans.length + '</span>' : ''))
-              : '📸 + INSTA REEL';
+              : '📸 Instagram';
             const irTitle = hasUrl
               ? ('Reel: ' + reelUrl + (hasScans ? ' · ' + scans.length + ' סריקות' : ' · אין עדיין סריקות'))
               : 'הדבקי URL של הריל הסגור הפינו';
-            rowBtn += '<button type="button" class="' + irBtnClass + ' insta-reel-btn" data-evkey="' + evKey + '" title="' + escapeHtml(irTitle) + '">' + irLabel + '</button>';
+            rowBtn += '<span class="btn-chip-pair"><button type="button" class="' + irBtnClass + ' insta-reel-btn" data-evkey="' + evKey + '" title="' + escapeHtml(irTitle) + '">' + irLabel + '</button>';
             // Always show the 🔗 manual paste chip — Lauren needs to be able to override anytime
             const reelVerified = hasUrl && isValidInstaReelUrl(reelUrl) && !instaReelUsedByOtherEvent(reelUrl, evKey);
             const chipCls = reelVerified ? "reel-link-btn verified" : (hasUrl ? "reel-link-btn set" : "reel-link-btn");
             const chipTitle = hasUrl
               ? ((reelVerified ? '✅ ריל מאומת (פורמט תקין + ייחודי לאירוע) — ' : 'הריל הנוכחי: ') + reelUrl + (setBy === 'auto' ? ' (אותר אוטומטית)' : ' (ידני)') + ' — לחיצה לעריכה')
               : 'הדבקי URL של הריל ידנית (אופציונלי — נסרק גם אוטומטית)';
-            rowBtn += '<button type="button" class="' + chipCls + ' reel-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(reelUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(chipTitle) + '">🔗</button>';
+            rowBtn += '<button type="button" class="' + chipCls + ' reel-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(reelUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(chipTitle) + '">🔗</button></span>';
           }
 
           // 🎵 TikTok button + manual URL paste chip (Lauren 2026-05-11)
@@ -2281,13 +2283,13 @@ End date: </div>
             const ttTitle = hasTT
               ? ('TikTok post: ' + ttUrl + ' — לחיצה לפתיחה')
               : 'אין עדיין URL לפוסט בטיקטוק. לחיצה תפתח את TikTok Studio להעלאת הסרטון. לחצי על 🔗 כדי להדביק URL.';
-            rowBtn += '<a class="' + ttBtnClass + '" href="' + ttHref + '" target="_blank" rel="noopener" title="' + escapeHtml(ttTitle) + '">' + ttLabel + '</a>';
+            rowBtn += '<span class="btn-chip-pair"><a class="' + ttBtnClass + '" href="' + ttHref + '" target="_blank" rel="noopener" title="' + escapeHtml(ttTitle) + '">' + ttLabel + '</a>';
             const ttVerified = hasTT && isValidTikTokUrl(ttUrl) && !urlUsedByOtherEvent(ttUrl, evKey, "tiktok_url");
             const ttChipCls = ttVerified ? "reel-link-btn verified" : (hasTT ? "reel-link-btn set" : "reel-link-btn");
             const ttChipTitle = hasTT
               ? ((ttVerified ? '✅ פוסט מאומת (פורמט תקין + ייחודי) — ' : 'הפוסט בטיקטוק: ') + ttUrl + ' — לחיצה לעריכה')
               : 'הדבקי URL של הפוסט בטיקטוק (לאחר העלאת הסרטון)';
-            rowBtn += '<button type="button" class="' + ttChipCls + ' tiktok-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(ttUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(ttChipTitle) + '">🔗</button>';
+            rowBtn += '<button type="button" class="' + ttChipCls + ' tiktok-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(ttUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(ttChipTitle) + '">🔗</button></span>';
           }
 
           // 📘 Facebook button + manual URL paste chip (Lauren 2026-05-11 — same pattern as TikTok)
@@ -2303,13 +2305,13 @@ End date: </div>
             const fbTitle = hasFB
               ? ('FB post: ' + fbUrl + ' — לחיצה לפתיחה')
               : 'אין עדיין URL לפוסט בפייסבוק. לחיצה תפתח את FB Reels composer. לחצי על 🔗 כדי להדביק URL.';
-            rowBtn += '<a class="' + fbBtnClass + '" href="' + fbHref + '" target="_blank" rel="noopener" title="' + escapeHtml(fbTitle) + '">' + fbLabel + '</a>';
+            rowBtn += '<span class="btn-chip-pair"><a class="' + fbBtnClass + '" href="' + fbHref + '" target="_blank" rel="noopener" title="' + escapeHtml(fbTitle) + '">' + fbLabel + '</a>';
             const fbVerified = hasFB && isValidFbReelUrl(fbUrl) && !urlUsedByOtherEvent(fbUrl, evKey, "fb_url");
             const fbChipCls = fbVerified ? "reel-link-btn verified" : (hasFB ? "reel-link-btn set" : "reel-link-btn");
             const fbChipTitle = hasFB
               ? ((fbVerified ? '✅ פוסט מאומת (פורמט תקין + ייחודי) — ' : 'הפוסט בפייסבוק: ') + fbUrl + ' — לחיצה לעריכה')
               : 'הדבקי URL של הפוסט בפייסבוק (לאחר העלאת ה-Reel)';
-            rowBtn += '<button type="button" class="' + fbChipCls + ' fb-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(fbUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(fbChipTitle) + '">🔗</button>';
+            rowBtn += '<button type="button" class="' + fbChipCls + ' fb-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(fbUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(fbChipTitle) + '">🔗</button></span>';
           }
 
           // 📲 SMS Campaigns
