@@ -183,6 +183,8 @@
   .pos-live-meta{position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:9.5px;color:#7c3aed;background:#fff;border:1px solid #c084fc;padding:1px 8px;border-radius:10px;font-weight:700;white-space:nowrap}
   .pos-live-meta.stale{color:#b45309;border-color:#fbbf24;background:#fffbeb}
   /* FB Event stats (Going/Interested) — refreshed every 6h by fb-event-stats.yml (Lauren 2026-05-23) */
+  .fb-stats-row,.eb-stats-row,.reel-shares-row,.pos-live-row{margin-left:auto;margin-right:auto}
+  .hall-photo-cell{text-align:center !important}
   .fb-stats-row{display:flex;align-items:stretch;gap:6px;margin-top:8px;padding:8px 6px;background:linear-gradient(180deg,#eff6ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:10px;box-shadow:0 1px 3px rgba(59,130,246,.15);position:relative;max-width:280px;box-sizing:border-box}
   .fb-stats-stat{flex:1;text-align:center;padding:1px 2px;border-right:1px solid rgba(59,130,246,.25);min-width:0}
   .fb-stats-stat:last-of-type{border-right:none}
@@ -490,7 +492,7 @@
   .manual-tasks .mt-timing{font-size:10px;color:#9ca3af;font-weight:600;margin-right:auto;background:#f1f5f9;padding:2px 7px;border-radius:6px}
   .manual-tasks label.done .mt-timing{background:rgba(22,163,74,.18);color:#166534}
   /* 📋 Per-event prep checklist (Lauren 2026-06-09) */
-  .prep-tasks{display:flex;flex-direction:column;gap:5px;margin-top:8px;width:100%;padding:12px 14px;background:linear-gradient(180deg,#fffbeb,#fef9c3);border:1px solid #fde68a;border-radius:12px;direction:rtl}
+  .prep-tasks{display:flex;flex-direction:column;gap:5px;margin-top:8px;width:100%;text-align:right;padding:12px 14px;background:linear-gradient(180deg,#fffbeb,#fef9c3);border:1px solid #fde68a;border-radius:12px;direction:rtl}
   .prep-tasks .pt-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
   .prep-tasks .pt-title{font-size:13px;font-weight:800;color:#92400e;letter-spacing:.2px}
   .prep-tasks .pt-progress{font-size:12px;font-weight:800;color:#15803d;background:#dcfce7;border:1px solid #86efac;border-radius:999px;padding:2px 10px}
@@ -537,12 +539,12 @@
   .pnl-block .pnl-cat .cat-dlt.warn{color:#B45309}
   .pnl-block .pnl-cat .cat-dlt.neutral{color:#9CA3AF}
 
-  .col-date{width:120px;font-weight:800;white-space:nowrap;font-size:17px;color:#0f172a;letter-spacing:.2px}
+  .col-date{width:135px;text-align:center;font-weight:800;white-space:nowrap;font-size:17px;color:#0f172a;letter-spacing:.2px}
   .col-city{width:140px;font-weight:800;font-size:17px;color:#0f172a;letter-spacing:.2px}
   .col-venue{height:100%}
   .venue-wrap{display:flex;flex-direction:column;height:100%;gap:6px}
   .venue-wrap > .prep-tasks{flex:1 1 auto;box-sizing:border-box;width:100%}
-  .col-status{width:110px;text-align:right}
+  .col-status{width:215px;text-align:left}  /* buttons moved to the LEFT, English, left-aligned (Lauren 2026-06-09) */
   .schedule-meta{font-size:13px;color:var(--muted);margin-bottom:12px;display:flex;gap:14px;flex-wrap:wrap}
   .schedule-meta span b{color:var(--text);font-weight:700}
   details.row-detail summary{cursor:pointer;list-style:none;color:var(--muted);font-size:12px}
@@ -1129,10 +1131,10 @@ End date: </div>
     <div style="overflow-x:auto">
       <table class="schedule-table" id="schedule-table">
         <thead><tr>
+          <th class="col-status">Status</th>
           <th class="col-date">Weekend</th>
           <th class="col-city">City, State</th>
-          <th class="col-venue">Venue / Address</th>
-          <th class="col-status">Status</th>
+          <th class="col-venue">Venue / Address &amp; Tasks</th>
         </tr></thead>
         <tbody id="schedule-tbody"></tbody>
       </table>
@@ -1878,7 +1880,7 @@ End date: </div>
         } else {
           hallPhotoHtml =
             '<div class="hall-photo-cell">' +
-              '<button type="button" class="hp-empty hp-upload-btn" data-evkey="' + evKeyHP + '" title="העלי תמונה של האולם — תישמר בענן ותהיה זמינה גם אחרי האירוע">📷 הוסף תמונה</button>' +
+              '<button type="button" class="hp-empty hp-upload-btn" data-evkey="' + evKeyHP + '" title="העלי תמונה של האולם — תישמר בענן ותהיה זמינה גם אחרי האירוע">📷 Add Photo</button>' +
             '</div>';
         }
       }
@@ -2566,9 +2568,9 @@ End date: </div>
             const lowK  = fmtK(fc.low);
             const highK = fmtK(fc.high);
             const confLabel = ({high:"גבוהה", medium:"בינונית", low:"נמוכה"})[fc.confidence] || fc.confidence;
-            rowBtn += '<a class="btn-forecast-row done" href="' + fc.href + '" target="_blank" rel="noopener" title="תחזית מכירות · ביטחון ' + confLabel + ' · נוצרה ' + (fc.generated_at || "").slice(0,10) + '">📈 תחזית: $' + lowK + '–$' + highK + 'K<span class="conf-dot ' + fc.confidence + '"></span></a>';
+            rowBtn += '<a class="btn-forecast-row done" href="' + fc.href + '" target="_blank" rel="noopener" title="תחזית מכירות · ביטחון ' + confLabel + ' · נוצרה ' + (fc.generated_at || "").slice(0,10) + '">📈 Forecast: $' + lowK + '–$' + highK + 'K<span class="conf-dot ' + fc.confidence + '"></span></a>';
           } else {
-            rowBtn += '<a class="btn-forecast-row" href="../forecast/?' + params + '&autorun=1" target="_blank" rel="noopener" title="Open חוזה עתידות (Event Forecast) pre-filled with this event">🔮 חוזה עתידות</a>';
+            rowBtn += '<a class="btn-forecast-row" href="../forecast/?' + params + '&autorun=1" target="_blank" rel="noopener" title="Open חוזה עתידות (Event Forecast) pre-filled with this event">🔮 Forecast</a>';
           }
 
           // 📦 Inventory Orders — flips when @inventory has recorded any supplier activity (added 2026-05-12)
@@ -2650,13 +2652,13 @@ End date: </div>
               const mrWho = mrLatest.manager_name || "";
               const mrWhen = (mrLatest.submitted_at || "").slice(0,10);
               const mrTip = "✓ דוח מנהלת מולא · " + mrWho + " · " + mrWhen + (mrList.length>1 ? " · " + mrList.length + " דוחות" : "") + " — לחצי לצפייה בדוח המלא";
-              rowBtn += '<a class="btn-agent-row btn-mreport-row done" href="../manager-report/#r=' + mrEnc(mrLatest) + '" target="_blank" rel="noopener" title="' + escapeHtml(mrTip) + '">📋 דוח מנהלת ✓</a>';
+              rowBtn += '<a class="btn-agent-row btn-mreport-row done" href="../manager-report/#r=' + mrEnc(mrLatest) + '" target="_blank" rel="noopener" title="' + escapeHtml(mrTip) + '">📋 Manager Report ✓</a>';
             } else if (typeof MANAGER_DRAFTS !== "undefined" && MANAGER_DRAFTS[evKey]) {
               const mrDraft = MANAGER_DRAFTS[evKey];
               const mrDTip = "📝 טיוטה בתהליך — " + (mrDraft.manager_name || "המנהלת") + " מילאה חלקית, טרם נשלח סופית. לחצי לפתיחת הטופס.";
-              rowBtn += '<a class="btn-agent-row btn-mreport-row draft" href="' + mrAbs + '" target="_blank" rel="noopener" title="' + escapeHtml(mrDTip) + '">📋 דוח מנהלת 📝</a>';
+              rowBtn += '<a class="btn-agent-row btn-mreport-row draft" href="' + mrAbs + '" target="_blank" rel="noopener" title="' + escapeHtml(mrDTip) + '">📋 Manager Report 📝</a>';
             } else {
-              rowBtn += '<a class="btn-agent-row btn-mreport-row" href="' + mrAbs + '" target="_blank" rel="noopener" title="טופס דוח מנהלת לאירוע (דומיין ציבורי — נפתח בלי התחברות). מלאי, תשלומים לצוות וקופה. המנהלת ממלאת בזמן האירוע ושולחת בוואטסאפ.">📋 דוח מנהלת</a>';
+              rowBtn += '<a class="btn-agent-row btn-mreport-row" href="' + mrAbs + '" target="_blank" rel="noopener" title="טופס דוח מנהלת לאירוע (דומיין ציבורי — נפתח בלי התחברות). מלאי, תשלומים לצוות וקופה. המנהלת ממלאת בזמן האירוע ושולחת בוואטסאפ.">📋 Manager Report</a>';
             }
             rowBtn += '<button type="button" class="mreport-copy-btn" data-mrurl="' + escapeHtml(mrAbs) + '" title="העתקת הלינק של טופס המנהלת — לשליחה למנהלת בוואטסאפ">🔗</button>';
           }
@@ -2668,9 +2670,9 @@ End date: </div>
           if (eff === "done") {
             const sm = (typeof SUMMARIES !== "undefined") ? SUMMARIES[evKey] : null;
             if (sm) {
-              rowBtn += '<a class="btn-agent-row btn-summary-row done" href="' + sm.href + '" target="_blank" rel="noopener" title="סיכום ותובנות · ' + fmtSigned(sm.profit) + ' (' + sm.profit_pct + '%) · ' + (sm.generated_at||"").slice(0,10) + '">📊 סיכום ותובנות</a>';
+              rowBtn += '<a class="btn-agent-row btn-summary-row done" href="' + sm.href + '" target="_blank" rel="noopener" title="סיכום ותובנות · ' + fmtSigned(sm.profit) + ' (' + sm.profit_pct + '%) · ' + (sm.generated_at||"").slice(0,10) + '">📊 Summary & Insights</a>';
             } else {
-              rowBtn += '<a class="btn-agent-row btn-summary-row needs-summary" href="../mbs/?' + params + '" target="_blank" rel="noopener" title="האירוע הסתיים — נדרש סיכום. לחיצה תפתח את MBS Event Summary עם פרטי האירוע מוכנים.">📊 לסיכום!</a>';
+              rowBtn += '<a class="btn-agent-row btn-summary-row needs-summary" href="../mbs/?' + params + '" target="_blank" rel="noopener" title="האירוע הסתיים — נדרש סיכום. לחיצה תפתח את MBS Event Summary עם פרטי האירוע מוכנים.">📊 Summarize!</a>';
             }
             rowBtn += '<a class="btn-agent-row" style="background:linear-gradient(180deg,#7c3aed,#5b21b6)" href="../pnl/?evkey=' + evKey + '" target="_blank" rel="noopener" title="P&L מפורט וניתן לעריכה — כל ההכנסות וההוצאות שורה-שורה, עם עריכה ידנית">📋 P&L</a>';
             // 💰 Income — merchant card-deposit reconciliation vs OCTOPOS card (Lauren 2026-06-08)
@@ -2736,10 +2738,10 @@ End date: </div>
         eff: eff,
         hasEvent: !!ev,
         html: '<tr class="' + cls + '" data-iso="' + iso + '" data-period="' + periodTag + '">' +
+               '<td class="col-status"><div class="status-badge-wrap">' + statusBadge + '</div>' + rowBtn + '</td>' +
                '<td class="col-date">' + dateCell + liveBadge + localTimeHtml + hallPhotoHtml + posLiveHtml + reelSharesHtml + fbStatsHtml + ebStatsHtml + '</td>' +
                '<td class="col-city">' + escapeHtml(cityCell) + tierBadge + '</td>' +
                '<td class="col-venue"><div class="venue-wrap">' + venueCell + prepHtml + '</div></td>' +
-               '<td class="col-status"><div>' + statusBadge + '</div>' + rowBtn + '</td>' +
              '</tr>' + manualHtml
       };
     });
@@ -3691,7 +3693,7 @@ End date: </div>
       if (origBtn) { origBtn.classList.add("uploading"); origBtn.textContent = "⟳ מעלה…"; }
       try {
         const meta = await HallPhotoSync.upload(evKey, f);
-        if (!meta) { if (origBtn) { origBtn.classList.remove("uploading"); origBtn.textContent = "📷 הוסף תמונה"; } return; }
+        if (!meta) { if (origBtn) { origBtn.classList.remove("uploading"); origBtn.textContent = "📷 Add Photo"; } return; }
         if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
         MANUAL_TASKS[evKey].hall_photo = meta;
         MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
@@ -3699,7 +3701,7 @@ End date: </div>
         renderSchedule();
       } catch(e) {
         alert("שגיאה: " + e.message);
-        if (origBtn) { origBtn.classList.remove("uploading"); origBtn.textContent = "📷 הוסף תמונה"; }
+        if (origBtn) { origBtn.classList.remove("uploading"); origBtn.textContent = "📷 Add Photo"; }
       }
     };
     inp.click();
