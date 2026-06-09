@@ -373,6 +373,9 @@
   .reel-link-btn{display:inline-flex;align-items:center;justify-content:center;margin-top:6px;margin-left:2px;padding:4px 7px;background:transparent;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:11px;color:#6b7280;transition:all .12s;vertical-align:middle}
   .reel-link-btn:hover{border-color:#dd2a7b;color:#dd2a7b;background:#fdf4ff}
   .reel-link-btn.set{border-color:#dd2a7b;color:#dd2a7b;background:#fdf4ff}
+  /* verified IG reel: valid format + unique to this event (Lauren 2026-06-09) → YELLOW */
+  .reel-link-btn.verified{border-color:#f59e0b;color:#92400e;background:#fef9c3;font-weight:700}
+  .reel-link-btn.verified:hover{border-color:#d97706;color:#92400e;background:#fef3c7}
   /* Reel insights modal */
   .reel-modal{position:fixed;inset:0;background:rgba(15,23,42,.85);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;animation:hpFadeIn .15s ease-out}
   .reel-modal-card{background:#fff;border-radius:14px;max-width:680px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4);direction:rtl}
@@ -1438,6 +1441,23 @@ End date: </div>
     return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
   }
   function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  // IG reel link validation (Lauren 2026-06-09) — the 🔗 chip turns YELLOW only when the
+  // pasted link is a valid Instagram reel/post URL AND not already assigned to another event.
+  function isValidInstaReelUrl(u){
+    if(!u) return false;
+    return /^https?:\/\/(www\.)?instagram\.com\/(reel|reels|p)\/[A-Za-z0-9_-]+\/?(\?.*)?$/i.test(String(u).trim());
+  }
+  function instaReelUsedByOtherEvent(u, evKey){
+    if(!u || typeof MANUAL_TASKS==="undefined") return false;
+    const norm = s => String(s||"").trim().replace(/\?.*$/,"").replace(/\/+$/,"").toLowerCase();
+    const target = norm(u);
+    for(const k in MANUAL_TASKS){
+      if(k===evKey) continue;
+      const other = MANUAL_TASKS[k] && MANUAL_TASKS[k].insta_reel_url;
+      if(other && norm(other)===target) return k;
+    }
+    return false;
+  }
 
   // US state → IANA timezone. Mirrors STATE_TZ in scripts/insta_reel_scan.py.
   // Convert ISO UTC timestamp → "YYYY-MM-DD HH:mm" formatted in America/Los_Angeles.
@@ -2223,9 +2243,10 @@ End date: </div>
               : 'הדבקי URL של הריל הסגור הפינו';
             rowBtn += '<button type="button" class="' + irBtnClass + ' insta-reel-btn" data-evkey="' + evKey + '" title="' + escapeHtml(irTitle) + '">' + irLabel + '</button>';
             // Always show the 🔗 manual paste chip — Lauren needs to be able to override anytime
-            const chipCls = hasUrl ? "reel-link-btn set" : "reel-link-btn";
+            const reelVerified = hasUrl && isValidInstaReelUrl(reelUrl) && !instaReelUsedByOtherEvent(reelUrl, evKey);
+            const chipCls = reelVerified ? "reel-link-btn verified" : (hasUrl ? "reel-link-btn set" : "reel-link-btn");
             const chipTitle = hasUrl
-              ? ('הריל הנוכחי: ' + reelUrl + (setBy === 'auto' ? ' (אותר אוטומטית)' : ' (ידני)') + ' — לחיצה לעריכה')
+              ? ((reelVerified ? '✅ ריל מאומת (פורמט תקין + ייחודי לאירוע) — ' : 'הריל הנוכחי: ') + reelUrl + (setBy === 'auto' ? ' (אותר אוטומטית)' : ' (ידני)') + ' — לחיצה לעריכה')
               : 'הדבקי URL של הריל ידנית (אופציונלי — נסרק גם אוטומטית)';
             rowBtn += '<button type="button" class="' + chipCls + ' reel-link-paste-btn" data-evkey="' + evKey + '" data-current="' + escapeHtml(reelUrl).replace(/"/g, "&quot;") + '" title="' + escapeHtml(chipTitle) + '">🔗</button>';
           }
@@ -3525,6 +3546,16 @@ End date: </div>
         delete MANUAL_TASKS[evKey].insta_reel_url_set_by;
         delete MANUAL_TASKS[evKey].insta_reel_url_set_at;
       } else {
+        // Validate: must be a real IG reel/post URL, and unique to this event (Lauren 2026-06-09)
+        if(!isValidInstaReelUrl(trimmed)){
+          alert("⚠️ הקישור לא נראה כמו ריל אינסטגרם תקין.\nדוגמה תקינה:\n  https://www.instagram.com/reel/DXxbbJhRHEE/");
+          return;
+        }
+        const dupKey = instaReelUsedByOtherEvent(trimmed, evKey);
+        if(dupKey){
+          alert("⚠️ הריל הזה כבר משויך לאירוע אחר (" + dupKey + ").\nכל אירוע צריך ריל ייחודי משלו.");
+          return;
+        }
         MANUAL_TASKS[evKey].insta_reel_url = trimmed;
         MANUAL_TASKS[evKey].insta_reel_url_set_by = "manual";
         MANUAL_TASKS[evKey].insta_reel_url_set_at = new Date().toISOString();
