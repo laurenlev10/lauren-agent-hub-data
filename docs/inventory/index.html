@@ -4665,7 +4665,10 @@ function trkLineText(num, supplierName, orderLabel){
   if (st) parts.push(st);
   if (t.location && t.status_type !== "D") parts.push(t.location);
   if (!t.delivered_at && t.est_delivery) parts.push("ETA " + t.est_delivery);
-  var who = supplierName ? supplierName + (orderLabel ? " (" + orderLabel + ")" : "") + " — " : "";
+  // Lauren 2026-06-10: team messages are ALWAYS fully English — translate the
+  // Hebrew order label (the popup UI keeps Hebrew; only the copied text changes).
+  var olEn = (orderLabel || "").replace("הזמנה #", "Order #");
+  var who = supplierName ? supplierName + (olEn ? " (" + olEn + ")" : "") + " — " : "";
   return "• " + who + trkCarrierLabel(trkDetectCarrier(num)) + " " + num +
     (parts.length ? " — " + parts.join(" · ") : " — no status yet") + "\n  " + trkUrl(num);
 }
