@@ -1,0 +1,101 @@
+name: pnl-fill-gaps
+
+# Lauren 2026-06-10: fill ONLY missing P&L expense lines from sources already in the
+# system (inventory invoices, manager reports, QB by class, marketing) — NEVER
+# overwrite an existing value. Manual dispatch only (no cron).
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Fill events from this start_date (YYYY-MM-DD)"
+        required: false
+        default: "2026-05-29"
+      evkey:
+        description: "Single evkey (optional — overrides since)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  fill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Fill missing P&L lines (never overwrite)
+        env:
+          QB_CLIENT_ID:     ${{ secrets.QB_CLIENT_ID }}
+          QB_CLIENT_SECRET: ${{ secrets.QB_CLIENT_SECRET }}
+          QB_REALM_ID:      ${{ secrets.QB_REALM_ID }}
+          QB_TOKEN_KEY:     ${{ secrets.QB_TOKEN_KEY }}
+          GH_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "${{ github.event.inputs.evkey }}" ]; then
+            python3 scripts/pnl_fill_gaps.py --evkey "${{ github.event.inputs.evkey }}"
+          else
+            python3 scripts/pnl_fill_gaps.py --since "${{ github.event.inputs.since || '2026-05-29' }}"
+          fi
+
+      - name: Commit + push if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/state/event_pnl/; then
+            git add docs/state/event_pnl/
+            git commit -m "pnl: fill-gaps — completed missing lines only (no overwrites)"
+            for attempt in 1 2 3; do
+              git pull --rebase origin main || true
+              if git push origin main; then echo "pushed (attempt $attempt)"; break; fi
+            done
+          else
+            echo "no changes"
+          fi
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "pnl-fill-gaps":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump pnl-fill-gaps lastRunAt"
+            for attempt in 1 2 3; do
+              git pull --rebase origin main || true
+              if git push origin main; then break; fi
+            done
+          fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
