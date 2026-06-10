@@ -50,8 +50,23 @@
   <div class="sub">מקור אמת יחיד: <code>docs/state/event_radius.json</code>. כל שינוי שנשמר כאן מתעדכן אוטומטית בכל הדשבורדים והסוכנים.</div>
 
   <div class="card">
-    <h2>מה זה Tier?</h2>
-    <div class="hint">כל אירוע מקבל דירוג 1–3 לפי גודל/פוטנציאל העיר. ה-Tier קובע: כמה עובדים באירוע, תקציב שיווק ל-4 שבועות (וההתפלגות בין Meta ל-TikTok), תקציב שכירות אולם ותקציב הזמנת סחורה. Tier 1 = האירועים הגדולים, Tier 3 = הקטנים.</div>
+    <h2>🧭 הלוגיקה — מה זה Tier ומה הוא עושה</h2>
+    <div class="hint" style="margin-bottom:12px">כל אירוע מקבל דירוג 1–3 לפי גודל ופוטנציאל העיר (נקבע בקובץ של לורן, פר-עיר). ה-Tier הוא "הכפתור הראשי" של האירוע — ערך אחד שקובע אוטומטית את כל המשאבים: כוח אדם, תקציב פרסום, אולם וסחורה.</div>
+    <div class="tiers" id="role-cards"></div>
+    <h2 style="margin-top:18px">⚙️ מה ה-Tier קובע — ומי משתמש בזה</h2>
+    <div style="overflow-x:auto"><table id="drives-table">
+      <thead><tr><th>תחום</th><th>Tier 1</th><th>Tier 2</th><th>Tier 3</th><th>איך זה עובד</th></tr></thead>
+      <tbody id="drives-body"></tbody>
+    </table></div>
+    <h2 style="margin-top:18px">🔀 איך ה-Tier זורם במערכת</h2>
+    <div class="flow">
+      1️⃣ <b>קביעה:</b> הקובץ של לורן (Radius.xlsx) קובע Tier + רדיוס לכל עיר → נשמר ב-<code>event_radius.json</code> (מקור האמת).<br>
+      2️⃣ <b>עריכה:</b> הדף הזה עורך את הערכים; "💾 שמור ועדכן הכל" כותב ל-GitHub.<br>
+      3️⃣ <b>פר-אירוע:</b> בלוח האירועים, תג ה-T בכל ריבוע לחיץ — אפשר לקבוע override לאירוע ספציפי (מסומן ✎). הכלל: <b>Tier בפועל = override של האירוע, ואם אין — ה-Tier של העיר</b>.<br>
+      4️⃣ <b>קמפיינים:</b> דף META CAMPAIGNS ממלא אוטומטית רדיוס + Tier + תקציב בפקודה ל-Cowork; הסוכן @metaads קובע את התקציב היומי בקמפיינים המשוכפלים לפי ה-Tier (apply_tier_budget).<br>
+      5️⃣ <b>TikTok:</b> קמפיין אחד לאירוע מקבל את <u>כל</u> תקציב הטיקטוק של ה-Tier (איחוד מ-2026-06-10).<br>
+      6️⃣ <b>צוות וסחורה:</b> מספר העובדים ותקציב ההזמנות משמשים לשיבוץ ולהזמנות לפני האירוע (+ כלל ה-15% מהאירוע הקודם).
+    </div>
   </div>
 
   <div class="card">
@@ -188,11 +203,49 @@
     return out;
   }
 
+  const ROLES = {
+    "1": {title:"🏆 אירוע דגל", desc:"הערים הגדולות והחזקות ביותר. מקסימום כוח אדם, תקציב הפרסום הגבוה ביותר והזמנת הסחורה הגדולה ביותר — המטרה: שיא מכירות."},
+    "2": {title:"💪 האמצע החזק", desc:"ערים בינוניות-גדולות עם פוטנציאל מוכח. איזון בין השקעה לתשואה — רוב אירועי הסבב נמצאים כאן."},
+    "3": {title:"🎯 קומפקטי וחסכוני", desc:"ערים קטנות יותר. צוות מצומצם והוצאות נמוכות כדי לשמור על רווחיות גם בקהל קטן."}
+  };
+  function renderLogic(){
+    const wrap = document.getElementById("role-cards");
+    wrap.innerHTML = "";
+    ["1","2","3"].forEach(t => {
+      const b = STATE.tier_budgets[t] || {};
+      const nCities = Object.values(STATE.cities).filter(c => c.tier === parseInt(t,10)).length;
+      const card = document.createElement("div");
+      card.className = "tier-card tier-" + t;
+      card.innerHTML = '<div class="tier-head"><span>Tier ' + t + ' — ' + ROLES[t].title + '</span><span>' + nCities + ' ערים</span></div>' +
+        '<div class="tier-body"><div class="hint" style="margin-bottom:8px">' + ROLES[t].desc + '</div>' +
+        '<div class="calc">👥 ' + (b.staff||"—") + ' עובדים · 💰 $' + (b.marketing_total_usd||0).toLocaleString() + ' שיווק<br>🏨 ' + (b.room_rent_range||"—") + ' אולם · 📦 ' + (b.inventory_budget_range||"—") + ' סחורה</div></div>';
+      wrap.appendChild(card);
+    });
+    const rows = [
+      {icon:"👥 עובדים באירוע", k:(b)=>b.staff, how:"כמה אנשי צוות משבצים לסוף-השבוע"},
+      {icon:"💰 תקציב שיווק (4 שבועות)", k:(b)=>"$"+(b.marketing_total_usd||0).toLocaleString(), how:"הסכום הכולל; מתחלק בין Meta ל-TikTok"},
+      {icon:"📘 Meta — לכל קמפיין/יום", k:(b)=>"$"+(b.meta_daily_per_campaign_usd||0), how:"3 קמפיינים (Reel EN + Traffic EN + Traffic ES) · ~28 ימים · הסוכן @metaads מגדיר את זה אוטומטית"},
+      {icon:"📘 Meta — סה״כ", k:(b)=>"$"+(b.meta_total_usd||0).toLocaleString(), how:""},
+      {icon:"🎵 TikTok — ליום", k:(b)=>"$"+(b.tiktok_daily_usd||0), how:"קמפיין אחד בלבד מקבל את כל התקציב · ~14 ימים"},
+      {icon:"🎵 TikTok — סה״כ", k:(b)=>"$"+(b.tiktok_total_usd||0).toLocaleString(), how:""},
+      {icon:"🏨 שכירות אולם", k:(b)=>b.room_rent_range||"—", how:"טווח למשא-ומתן מול המלון/המרכז"},
+      {icon:"📦 תקציב סחורה", k:(b)=>b.inventory_budget_range||"—", how:(STATE.tier_budgets._inventory_note||"")}
+    ];
+    const tb = document.getElementById("drives-body");
+    tb.innerHTML = "";
+    rows.forEach(r => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = '<td><b>' + r.icon + '</b></td>' +
+        ["1","2","3"].map(t => '<td style="direction:ltr;text-align:right">' + r.k(STATE.tier_budgets[t]||{}) + '</td>').join("") +
+        '<td class="hint">' + r.how + '</td>';
+      tb.appendChild(tr);
+    });
+  }
   async function load(){
     try {
       const r = await fetch("../state/event_radius.json?_=" + Date.now(), { cache: "no-store" });
       STATE = await r.json();
-      renderTiers(); renderCities();
+      renderLogic(); renderTiers(); renderCities();
     } catch(e){ toast("⚠ שגיאה בטעינת הנתונים: " + e.message); }
   }
 
@@ -247,6 +300,7 @@
         throw new Error("שמירה נכשלה (" + r.status + ")");
       }
       STATE = live;
+      renderLogic();
       toast("✓ נשמר ב-GitHub — כל הדשבורדים והסוכנים מעודכנים (התפשטות תוך ~דקה)", 5000);
       const sp = document.getElementById("save-state");
       sp.style.display = "inline-block"; sp.className = "pill pill-ok"; sp.textContent = "✓ " + new Date().toLocaleTimeString().slice(0,5);
