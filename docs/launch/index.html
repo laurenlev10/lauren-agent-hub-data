@@ -888,7 +888,9 @@ const EVENT_PREP_DEFAULTS = [
   { id:'supplier-pay',    label:'תשלום לספקים על חשבוניות פתוחות' },
   { id:'event-summary',   label:'סיכום האירוע שהיה (Recap)', agent:'mbs-event-summary' },
   { id:'sms-review',      label:'בדיקת טקסטים של Simple Texting לאירוע הבא', agent:'sms-campaigns' },
-  { id:'reel-campaign',   label:'עדכון ריל חדש ויצירת קמפיין חדש לריל בשבוע האחרון' }
+  { id:'reel-campaign',   label:'עדכון ריל חדש ויצירת קמפיין חדש לריל בשבוע האחרון' },
+  // {{EVENT_4W}} is a render-time token → replaced with the event ~4 weeks after this row's event (Lauren 2026-06-10)
+  { id:'campaigns-4w',    label:'בניית קמפיינים לאירוע "{{EVENT_4W}}"', agent:'meta-campaigns' }
 ];
 </script>
 
@@ -1645,6 +1647,40 @@ End date: </div>
       EVENT_TASK_DEFS = { tasks: getEventTaskDefs().map(function(t){ return Object.assign({}, t); }) };
     }
     return EVENT_TASK_DEFS;
+  }
+  // ── {{EVENT_4W}} dynamic token in prep-task labels (Lauren 2026-06-10) ──
+  // "בניית קמפיינים לאירוע X" — X is the SCHEDULE event whose weekend is ~4 weeks
+  // after the current (Next) event: closest start_date to ev.start_date+28d, within
+  // ±10 days, scanned across ALL years (handles the year boundary). Updates by itself
+  // every week as the Next event advances. Keep the token in the stored label so the
+  // task stays dynamic — don't bake a city name into event_task_defs.json.
+  function eventFourWeeksAfter(ev){
+    try{
+      if (!ev || !ev.start_date) return null;
+      var anchor = new Date(ev.start_date + "T00:00:00");
+      anchor.setDate(anchor.getDate() + 28);
+      var best = null, bestGap = Infinity;
+      Object.keys(SCHEDULE).forEach(function(y){
+        if (!Array.isArray(SCHEDULE[y])) return;
+        SCHEDULE[y].forEach(function(e){
+          if (!e || !e.start_date || !e.city) return;
+          var gap = Math.abs((new Date(e.start_date + "T00:00:00") - anchor) / 86400000);
+          if (gap <= 10 && gap < bestGap){ best = e; bestGap = gap; }
+        });
+      });
+      return best;
+    }catch(err){ return null; }
+  }
+  function resolvePrepLabel(label, ev){
+    if (!label || label.indexOf("{{EVENT_4W}}") === -1) return label;
+    var t = eventFourWeeksAfter(ev);
+    var name = "האירוע בעוד ~4 שבועות";
+    if (t){
+      var MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      var d = new Date(t.start_date + "T00:00:00");
+      name = t.city + ", " + (t.state || "") + " · " + MON[d.getMonth()] + " " + d.getDate();
+    }
+    return label.split("{{EVENT_4W}}").join(name);
   }
 
   // ── Reel switching with data preservation (Lauren 2026-06-09) ──
@@ -2722,7 +2758,7 @@ End date: </div>
           if (isDone) doneN++;
           return '<label class="pt-item' + (isDone ? ' done' : '') + '">' +
                    '<input type="checkbox" class="pt-cb" data-evkey="' + evKeyP + '" data-taskid="' + escapeHtml(t.id) + '" ' + (isDone ? 'checked' : '') + '>' +
-                   '<span class="pt-text">' + escapeHtml(t.label) + '</span>' +
+                   '<span class="pt-text">' + escapeHtml(resolvePrepLabel(t.label, ev)) + '</span>' +
                    '<span class="pt-actions">' +
                      '<button type="button" class="pt-icon pt-edit" data-taskid="' + escapeHtml(t.id) + '" title="ערכי משימה">✏️</button>' +
                      '<button type="button" class="pt-icon pt-del" data-taskid="' + escapeHtml(t.id) + '" title="מחקי משימה">🗑️</button>' +
