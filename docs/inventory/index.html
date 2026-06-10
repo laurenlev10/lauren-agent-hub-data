@@ -594,6 +594,7 @@
     <div style="margin:0 0 16px;display:flex;gap:10px;flex-wrap:wrap" id="orderControls">
       <button id="btnOrderWizard" class="btn-order-wizard">✨ צרי הזמנות לאירוע</button>
       <button id="btnRefreshOctopos" class="btn-refresh-octopos" title="הפעיל סנכרון מאוקטופוס עכשיו (לוקח כ-3 דקות)">🔄 רענני נתוני OCTOPOS עכשיו</button>
+      <button id="btnTrackingPopup" class="btn-refresh-octopos" style="background:linear-gradient(180deg,#0ea5e9,#0369a1);border-color:#0284c7" title="כל מספרי המעקב של ההזמנות במקום אחד — סטטוס חי, קישורים והעתקה לעדכון הצוות">📦 איפה החבילות?</button>
     </div>
 
     <div id="eventTotalBanner" style="margin:14px 0 18px;display:flex;flex-direction:column;gap:10px">
@@ -1850,12 +1851,15 @@ function renderSupplierCard(sup, s, idx){
         '</div>'+
       '</div>'+
       '<div class="row" style="margin-top:2px"><button type="button" onclick="refreshSupplierList(\''+sup.code+'\')" title="עדכן מיד את רשימת החשבוניות של הספק לפי הסכום שהזנת" style="background:#7c3aed;color:#fff;border:0;border-radius:7px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600">🔄 רענן רשימת חשבוניות</button></div>'+
+      // Lauren 2026-06-10 — supplier-level tracking is ALWAYS visible now (was gated
+      // behind delivery_mode==="shipped") + live status chip from tracking_status.json.
       '<div class="row">'+
-        '<div class="field" data-show-if-shipped style="'+(s.delivery_mode==="shipped"?"":"display:none")+'">'+
-          '<label>מספר מעקב</label>'+
-          '<input type="text" data-bind="tracking_number" value="'+escHtml(s.tracking_number||"")+'" placeholder="לדוגמה: 1Z999AA10123456784">'+
+        '<div class="field">'+
+          '<label>📦 מספר מעקב (Tracking)</label>'+
+          '<input type="text" data-bind="tracking_number" value="'+escHtml(s.tracking_number||"")+'" placeholder="לדוגמה: 1Z999AA10123456784" style="font-family:monospace">'+
+          (((s.tracking_number||"").trim()) ? '<div style="margin-top:5px">'+trkChipHtml((s.tracking_number||"").trim())+'</div>' : '')+
         '</div>'+
-        '<div class="field" data-show-if-shipped style="'+(s.delivery_mode==="shipped"?"":"display:none")+'">'+
+        '<div class="field">'+
           '<label>חברת שליחויות</label>'+
           '<select data-bind="tracking_carrier">'+
             '<option value="">—</option>'+
@@ -2230,12 +2234,30 @@ function renderLocalOrdersForSupplier(supplierCode){
         '<input type="number" min="0" step="0.01" class="ord-inv-input" data-ord-inv-index="' + oi + '" value="' + (_orderInvoiceTotal > 0 ? _orderInvoiceTotal : '') + '" placeholder="הקלידי סכום" title="הסכום האמיתי לפי החשבונית — זה מה שנכנס לרשימת החשבוניות (לא ההערכה)" style="width:120px;padding:6px 8px;border:1px solid #16a34a;border-radius:6px;text-align:center;font-weight:700;color:#15803d">' +
         '<span style="color:#475569;font-size:11px">↩ נכנס לרשימת החשבוניות · "הערכת עלות" למעלה היא רק אומדן</span>' +
       '</div>';
+    // Lauren 2026-06-10 — per-order shipment tracking numbers (📦). Paste one or
+    // several (comma / space separated); each renders as a chip with a live status
+    // from docs/state/tracking_status.json (tracking-check workflow) + a direct
+    // carrier link + copy. Saved on the order in inventory_orders.json.
+    var _ordTrkNums = Array.isArray(o.tracking_numbers) ? o.tracking_numbers : [];
+    var _trkSummaryBadge = '';
+    if (_ordTrkNums.length && !_isInactive){
+      var _si0 = trkStatusInfo(_ordTrkNums[0]);
+      _trkSummaryBadge = ' <span style="display:inline-block;background:' + _si0.bg + ';color:' + _si0.color + ';border:1px solid ' + _si0.color + '33;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:800;margin-right:6px">' + _si0.emoji + ' ' + _si0.label + '</span>';
+    }
+    var _trkEditBlock = _isInactive ? '' :
+      '<div style="margin-top:8px;padding:8px 10px;background:#eff6ff;border:1px dashed #93c5fd;border-radius:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<span style="color:#1e40af;font-weight:800;font-size:12px">📦 מספר מעקב (Tracking):</span>' +
+        '<input type="text" class="ord-trk-input" data-ord-trk-index="' + oi + '" placeholder="הדביקי מספר מעקב (UPS / FedEx / USPS)" title="אפשר להדביק כמה מספרים מופרדים בפסיק או רווח — כל מספר נשמר על ההזמנה ומקבל סטטוס חי" style="width:250px;padding:6px 8px;border:1px solid #3b82f6;border-radius:6px;font-weight:600;font-family:monospace">' +
+        _ordTrkNums.map(function(tn){ return trkChipHtml(tn, {removable:true, orderIndex: oi}); }).join('') +
+        (!_ordTrkNums.length ? '<span style="color:#475569;font-size:11px">↩ הסטטוס מתעדכן בכפתור "📦 איפה החבילות?" למעלה</span>' : '') +
+      '</div>';
     html += '<details' + ((oi === 0 && !_isInactive) ? ' open' : '') + ' style="' + _detStyle + '">' +
       '<summary style="cursor:pointer;font-weight:600;">' +
         '<span style="' + _titleStyle + '">💾 הזמנה #' + (oi+1) + ' · ' + (o.items || []).length + ' פריטים · ' +
         '<b>' + (o.total_qty || 0) + ' pcs</b> · <span style="color:#94a3b8;font-weight:500;font-size:11px">📊 הערכת עלות (אומדן): $' + Number(o.total_cost || 0).toFixed(2) + '</span></span>' +
         _cancelBadge +
         invoiceTotalHtml +
+        _trkSummaryBadge +
         ' <span style="color:var(--muted);font-size:11px;font-weight:400;margin-right:8px;">נשמר ' + when + '</span>' +
         (o.restored_from ? ' <span style="color:#92400e;font-size:11px;font-weight:400;">· משוחזרת מ-SMS</span>' : '') +
         (o.moved_from_label ? ' <span style="color:#6d28d9;font-size:11px;font-weight:400;">· הועברה מ-' + escHtml(o.moved_from_label) + '</span>' : '') +
@@ -2246,6 +2268,7 @@ function renderLocalOrdersForSupplier(supplierCode){
         '<tbody>' + rows + '</tbody>' +
       '</table>' +
       _invEditBlock +
+      _trkEditBlock +
     '</details>';
   });
   html += '</div>';
@@ -2361,6 +2384,54 @@ function bindCardEvents(card){
       scheduleSave();
       try { refreshSupplierList(code, {quiet:true}); } catch(_){}
       try { toast('✓ מספר החשבונית של ההזמנה נשמר', 'success'); } catch(_){}
+    });
+  });
+
+  // Lauren 2026-06-10 — per-order shipment tracking numbers (📦).
+  // NOTE: the render (renderLocalOrdersForSupplier) indexes orders filtered by
+  // supplier_code ONLY (cancelled included), so these handlers MUST use the same
+  // filter — unlike the invoice handlers above — or indexes skew when a cancelled
+  // order precedes an active one.
+  card.querySelectorAll('.ord-trk-input').forEach(function(el){
+    el.addEventListener('change', function(){
+      var oi = Number(el.dataset.ordTrkIndex);
+      var slc = STATE.events[CURRENT_EVKEY];
+      var ords = (slc.local_orders || []).filter(function(o){ return o.supplier_code === code; });
+      var ord = ords[oi];
+      if (!ord) return;
+      var toks = (el.value || '').split(/[\s,;]+/).map(function(t){ return t.trim(); }).filter(function(t){ return t.length >= 8; });
+      if (!toks.length) return;
+      if (!Array.isArray(ord.tracking_numbers)) ord.tracking_numbers = [];
+      var added = 0;
+      toks.forEach(function(t){ if (ord.tracking_numbers.indexOf(t) === -1){ ord.tracking_numbers.push(t); added++; } });
+      ord.last_edited_at = nowIso();
+      slc.updated_at = nowIso();
+      var expanded = card.classList.contains('expanded');
+      card.innerHTML = renderSupplierCard(sup, s, SUPPLIERS.indexOf(sup));
+      if (expanded){ card.classList.add('expanded'); s._expanded = true; }
+      bindCardEvents(card);
+      scheduleSave();
+      if (added) try { toast('✓ מספר המעקב נשמר — הסטטוס יתעדכן בכפתור 📦 איפה החבילות?', 'success'); } catch(_){}
+    });
+  });
+  card.querySelectorAll('.ord-trk-remove').forEach(function(el){
+    el.addEventListener('click', function(ev2){
+      ev2.preventDefault(); ev2.stopPropagation();
+      var oi = Number(el.dataset.ordTrkIndex);
+      var num = el.dataset.trkNum || '';
+      var slc = STATE.events[CURRENT_EVKEY];
+      var ords = (slc.local_orders || []).filter(function(o){ return o.supplier_code === code; });
+      var ord = ords[oi];
+      if (!ord || !Array.isArray(ord.tracking_numbers)) return;
+      ord.tracking_numbers = ord.tracking_numbers.filter(function(t){ return t !== num; });
+      ord.last_edited_at = nowIso();
+      slc.updated_at = nowIso();
+      var expanded = card.classList.contains('expanded');
+      card.innerHTML = renderSupplierCard(sup, s, SUPPLIERS.indexOf(sup));
+      if (expanded){ card.classList.add('expanded'); s._expanded = true; }
+      bindCardEvents(card);
+      scheduleSave();
+      try { toast('מספר המעקב הוסר', 'success'); } catch(_){}
     });
   });
 
@@ -4519,6 +4590,258 @@ async function manualRefreshOctopos(btn){
     btn.disabled = false; btn.textContent = '🔄 רענני נתוני OCTOPOS עכשיו';
   }
 }
+
+/* ---- 📦 Shipment tracking (Lauren 2026-06-10) ----
+   Tracking numbers live on orders (o.tracking_numbers[]) + suppliers
+   (s.tracking_number) in inventory_orders.json. Live statuses come from
+   docs/state/tracking_status.json, written by the tracking-check workflow
+   (UPS API; secrets UPS_CLIENT_ID/UPS_CLIENT_SECRET). The 📦 button opens a
+   popup with every shipment + status + copy-for-team; "בדקי עכשיו" dispatches
+   the workflow and polls for the refreshed file. */
+let TRACKING_STATUS = { _updated_at: null, ups_api: null, trackings: {} };
+const TRACKING_STATUS_URL = "../state/tracking_status.json";
+
+async function loadTrackingStatus(){
+  try {
+    var r = await fetch(TRACKING_STATUS_URL + "?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok) TRACKING_STATUS = await r.json();
+  } catch(e){ console.warn("loadTrackingStatus failed:", e); }
+}
+
+function trkDetectCarrier(num){
+  var n = (num || "").replace(/\s+/g, "").toUpperCase();
+  if (/^1Z[0-9A-Z]{16}$/.test(n)) return "ups";
+  if (/^9[2-5]\d{18,24}$/.test(n) || /^\d{20,22}$/.test(n)) return "usps";
+  if (/^\d{12}$/.test(n) || /^\d{15}$/.test(n)) return "fedex";
+  return "unknown";
+}
+function trkCarrierLabel(c){ return c === "ups" ? "UPS" : c === "usps" ? "USPS" : c === "fedex" ? "FedEx" : "📦"; }
+function trkUrl(num){
+  var c = trkDetectCarrier(num);
+  if (c === "ups") return "https://www.ups.com/track?loc=en_US&tracknum=" + encodeURIComponent(num);
+  if (c === "usps") return "https://tools.usps.com/go/TrackConfirmAction?tLabels=" + encodeURIComponent(num);
+  if (c === "fedex") return "https://www.fedex.com/fedextrack/?trknbr=" + encodeURIComponent(num);
+  return "https://www.google.com/search?q=" + encodeURIComponent(num + " tracking");
+}
+function trkStatusInfo(num){
+  var t = (TRACKING_STATUS && TRACKING_STATUS.trackings && TRACKING_STATUS.trackings[(num || "").trim()]) || null;
+  if (!t || (!t.status && !t.status_type && !t.error)){
+    return { known:false, emoji:"⏳", label:"אין עדיין סטטוס", color:"#64748b", bg:"#f1f5f9", detail:"", raw:t };
+  }
+  var map = { D:["✅","נמסר","#15803d","#dcfce7"], I:["🚚","בדרך","#1d4ed8","#dbeafe"], P:["📤","נאסף","#7c3aed","#ede9fe"], M:["🏷️","תווית נוצרה — טרם נאסף","#a16207","#fef9c3"], X:["⚠️","חריגה / עיכוב","#b91c1c","#fee2e2"], RS:["↩️","מוחזר לשולח","#b91c1c","#fee2e2"] };
+  var m = map[t.status_type] || (t.status ? ["📦", t.status, "#334155", "#e2e8f0"] : null);
+  if (!m){
+    var why = (t.error === "no_api_credentials" || (TRACKING_STATUS.ups_api && TRACKING_STATUS.ups_api !== "ok"))
+      ? "ממתין לחיבור UPS API" : (t.carrier && t.carrier !== "ups" ? "אין סטטוס חי ל-" + trkCarrierLabel(t.carrier) + " — פתחי בקישור" : "לא נמצא סטטוס");
+    return { known:false, emoji:"⏳", label:why, color:"#64748b", bg:"#f1f5f9", detail:"", raw:t };
+  }
+  var detail = [];
+  if (t.description && t.description !== t.status && t.description !== m[1]) detail.push(t.description);
+  if (t.location) detail.push(t.location);
+  if (t.delivered_at) detail.push("נמסר: " + t.delivered_at);
+  else if (t.est_delivery) detail.push("צפי הגעה: " + t.est_delivery);
+  else if (t.activity_at) detail.push(t.activity_at);
+  return { known:true, emoji:m[0], label:m[1], color:m[2], bg:m[3], detail:detail.join(" · "), raw:t };
+}
+function trkChipHtml(num, opts){
+  opts = opts || {};
+  var si = trkStatusInfo(num);
+  var c = trkDetectCarrier(num);
+  return '<span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;background:' + si.bg + ';border:1px solid ' + si.color + '44;border-radius:8px;padding:4px 8px;font-size:12px;max-width:100%">' +
+    '<b style="color:#0f172a">' + trkCarrierLabel(c) + '</b>' +
+    '<a href="' + trkUrl(num) + '" target="_blank" rel="noopener" style="font-family:monospace;font-weight:700;color:#1d4ed8;text-decoration:none;direction:ltr" title="פתחי את עמוד המעקב הרשמי">' + escHtml(num) + ' 🔗</a>' +
+    '<span style="color:' + si.color + ';font-weight:800">' + si.emoji + ' ' + si.label + '</span>' +
+    (si.detail ? '<span style="color:#475569">' + escHtml(si.detail) + '</span>' : '') +
+    '<button type="button" class="trk-copy" data-trk-num="' + escHtml(num) + '" title="העתיקי מספר + סטטוס + קישור" style="border:0;background:transparent;cursor:pointer;font-size:12px;padding:0 2px">📋</button>' +
+    (opts.removable ? '<button type="button" class="ord-trk-remove" data-trk-num="' + escHtml(num) + '" data-ord-trk-index="' + opts.orderIndex + '" title="הסירי את מספר המעקב מההזמנה" style="border:0;background:transparent;cursor:pointer;color:#b91c1c;font-weight:800;padding:0 2px">✕</button>' : '') +
+  '</span>';
+}
+function trkLineText(num, supplierName, orderLabel){
+  // English status line — Lauren forwards these to the (English-speaking) team.
+  var t = ((TRACKING_STATUS || {}).trackings || {})[(num || "").trim()] || {};
+  var parts = [];
+  var st = t.status || t.description || "";
+  if (t.status_type === "D") st = "DELIVERED ✅" + (t.delivered_at ? " " + t.delivered_at : "");
+  if (st) parts.push(st);
+  if (t.location && t.status_type !== "D") parts.push(t.location);
+  if (!t.delivered_at && t.est_delivery) parts.push("ETA " + t.est_delivery);
+  var who = supplierName ? supplierName + (orderLabel ? " (" + orderLabel + ")" : "") + " — " : "";
+  return "• " + who + trkCarrierLabel(trkDetectCarrier(num)) + " " + num +
+    (parts.length ? " — " + parts.join(" · ") : " — no status yet") + "\n  " + trkUrl(num);
+}
+function _trkSupName(code){
+  var s = ((typeof SUPPLIERS !== "undefined" && SUPPLIERS) || []).filter(function(x){ return x.code === code; })[0];
+  return s ? s.name : (code || "");
+}
+function collectAllTrackings(){
+  // Rows for the popup: current event first, then other recent/future events.
+  var rows = [], seen = {};
+  var evs = (typeof STATE !== "undefined" && STATE && STATE.events) || {};
+  var cur = (typeof CURRENT_EVKEY !== "undefined") ? CURRENT_EVKEY : null;
+  var cutoff = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  var keys = Object.keys(evs).filter(function(k){
+    var e = evs[k] || {}; var end = e.end_date || e.start_date || "";
+    return k === cur || !end || end >= cutoff;
+  });
+  keys.sort(function(a, b){
+    if (a === cur) return -1; if (b === cur) return 1;
+    return String((evs[a] || {}).start_date || "").localeCompare(String((evs[b] || {}).start_date || ""));
+  });
+  keys.forEach(function(evk){
+    var ev = evs[evk] || {};
+    var evLabel = (ev.city ? ev.city + (ev.state ? ", " + ev.state : "") : evk) + (ev.start_date ? " · " + ev.start_date : "");
+    var perSup = {};
+    (ev.local_orders || []).forEach(function(o){
+      var code = o.supplier_code || "";
+      perSup[code] = (perSup[code] || 0) + 1;
+      var n = perSup[code];
+      if (o.cancelled_at || o.moved_to) return;
+      (o.tracking_numbers || []).forEach(function(tn){
+        tn = (tn || "").trim();
+        if (!tn || seen[evk + "|" + tn]) return; seen[evk + "|" + tn] = 1;
+        rows.push({ num: tn, evkey: evk, evLabel: evLabel, supplier: _trkSupName(code), orderLabel: "הזמנה #" + n });
+      });
+    });
+    Object.keys(ev.suppliers || {}).forEach(function(code){
+      var tn = (((ev.suppliers || {})[code] || {}).tracking_number || "").trim();
+      if (!tn || seen[evk + "|" + tn]) return; seen[evk + "|" + tn] = 1;
+      rows.push({ num: tn, evkey: evk, evLabel: evLabel, supplier: _trkSupName(code), orderLabel: "" });
+    });
+  });
+  return rows;
+}
+function buildTrackingTeamText(){
+  var rows = collectAllTrackings();
+  if (!rows.length) return "";
+  var byEv = {};
+  rows.forEach(function(r){ (byEv[r.evLabel] = byEv[r.evLabel] || []).push(r); });
+  var out = [];
+  Object.keys(byEv).forEach(function(evLabel){
+    out.push("📦 Shipment updates · " + evLabel);
+    byEv[evLabel].forEach(function(r){ out.push(trkLineText(r.num, r.supplier, r.orderLabel)); });
+    out.push("");
+  });
+  return out.join("\n").trim();
+}
+function renderTrackingPopupList(){
+  var list = document.getElementById("trkList");
+  var meta = document.getElementById("trkMeta");
+  if (!list) return;
+  var rows = collectAllTrackings();
+  if (meta){
+    var when = TRACKING_STATUS._updated_at ? new Date(TRACKING_STATUS._updated_at).toLocaleString("he-IL", {month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"}) : "—";
+    var apiNote = (TRACKING_STATUS.ups_api && TRACKING_STATUS.ups_api !== "ok")
+      ? ' · <span style="color:#b45309;font-weight:700">⚠ UPS API עדיין לא מחובר — הסטטוסים יתחילו לעבוד אחרי הוספת המפתחות</span>' : "";
+    meta.innerHTML = rows.length + ' משלוחים · סטטוס עודכן לאחרונה: ' + when + apiNote;
+  }
+  if (!rows.length){
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:#64748b">אין עדיין מספרי מעקב. הדביקי מספר מעקב בחלון של ההזמנה (📦) אצל כל ספק.</div>';
+    return;
+  }
+  var byEv = {};
+  rows.forEach(function(r){ (byEv[r.evLabel] = byEv[r.evLabel] || []).push(r); });
+  var html = "";
+  Object.keys(byEv).forEach(function(evLabel){
+    html += '<div style="margin:10px 0 4px;font-weight:800;color:#0f172a;font-size:13px">🗓️ ' + escHtml(evLabel) + '</div>';
+    byEv[evLabel].forEach(function(r){
+      html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;background:#fff">' +
+        '<b style="min-width:110px;color:#334155">' + escHtml(r.supplier) + '</b>' +
+        (r.orderLabel ? '<span style="color:#64748b;font-size:11px">' + escHtml(r.orderLabel) + '</span>' : '') +
+        trkChipHtml(r.num) +
+      '</div>';
+    });
+  });
+  list.innerHTML = html;
+}
+function openTrackingPopup(){
+  var old = document.getElementById("trkPopup"); if (old) old.remove();
+  var modal = document.createElement("div");
+  modal.id = "trkPopup";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto";
+  modal.innerHTML =
+    '<div style="background:#f8fafc;border-radius:14px;max-width:860px;width:100%;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.3)" dir="rtl">' +
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">' +
+        '<h2 style="margin:0;font-size:18px">📦 מעקב משלוחים — כל ההזמנות</h2>' +
+        '<span style="flex:1"></span>' +
+        '<button type="button" id="trkCheckNow" style="background:linear-gradient(180deg,#0ea5e9,#0369a1);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:800;font-size:13px">🛰️ בדקי איפה החבילות עכשיו</button>' +
+        '<button type="button" id="trkCopyAll" style="background:#16a34a;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:800;font-size:13px" title="מעתיק את כל המשלוחים + סטטוסים כטקסט — להדבקה בהודעה לצוות">📋 העתק הכל לעדכון הצוות</button>' +
+        '<button type="button" data-action="close" style="background:#fff;border:1px solid #cbd5e1;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:15px">✕</button>' +
+      '</div>' +
+      '<div id="trkMeta" style="color:#64748b;font-size:12px;margin-bottom:10px"></div>' +
+      '<div id="trkList"></div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  renderTrackingPopupList();
+  modal.addEventListener("click", function(e){
+    if (e.target === modal || e.target.matches('[data-action="close"]')){ modal.remove(); return; }
+    if (e.target.matches('#trkCheckNow')){ checkTrackingNow(e.target); return; }
+    if (e.target.matches('#trkCopyAll')){
+      var txt = buildTrackingTeamText();
+      if (!txt){ toast('אין משלוחים להעתקה', 'error'); return; }
+      try { navigator.clipboard.writeText(txt).then(function(){ toast('📋 הועתק! אפשר להדביק ב-WhatsApp / SMS לצוות', 'success'); }); }
+      catch(err){ toast('ההעתקה נכשלה', 'error'); }
+      return;
+    }
+  });
+  // Quietly refresh statuses from the deployed file when the popup opens.
+  loadTrackingStatus().then(function(){ renderTrackingPopupList(); });
+}
+async function checkTrackingNow(btn){
+  let token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+  if (!token){
+    token = prompt('הדביקי GitHub PAT עם הרשאת workflow (יישמר ב-localStorage):');
+    if (!token) return;
+    localStorage.setItem("lauren_gh_token_v1", token.trim());
+  }
+  var prev = TRACKING_STATUS._updated_at;
+  var orig = btn.textContent;
+  btn.disabled = true; btn.textContent = "🛰️ בודק… (~דקה)";
+  try {
+    const r = await fetch("https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/actions/workflows/tracking-check.yml/dispatches", {
+      method: "POST",
+      headers: {"Authorization": "token " + token, "Accept": "application/vnd.github+json", "Content-Type": "application/json"},
+      body: JSON.stringify({ref: "main"})
+    });
+    if (r.status !== 204){
+      if (r.status === 401 || r.status === 403){ localStorage.removeItem("lauren_gh_token_v1"); toast('הטוקן לא תקף או חסר הרשאת workflow', 'error'); }
+      else toast('שגיאה ' + r.status, 'error');
+      btn.disabled = false; btn.textContent = orig; return;
+    }
+    toast('🛰️ הבדיקה רצה — הסטטוסים יתעדכנו כאן אוטומטית בעוד כדקה', 'success');
+    var tries = 0;
+    var iv = setInterval(async function(){
+      tries++;
+      await loadTrackingStatus();
+      if (TRACKING_STATUS._updated_at && TRACKING_STATUS._updated_at !== prev){
+        clearInterval(iv);
+        btn.disabled = false; btn.textContent = orig;
+        try { renderTrackingPopupList(); } catch(_){}
+        try { (typeof MODE !== "undefined" && MODE === "global") ? renderGlobalSuppliers() : renderSuppliersWithBindings(); } catch(_){}
+        toast('✅ סטטוסי המשלוחים עודכנו', 'success');
+      } else if (tries >= 24){
+        clearInterval(iv);
+        btn.disabled = false; btn.textContent = orig;
+        toast('הבדיקה עדיין רצה ברקע — סגרי ופתחי את הפופ-אפ שוב בעוד דקה', 'info');
+      }
+    }, 10000);
+  } catch(e){
+    toast('שגיאת רשת', 'error');
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+// Copy a single tracking line (chips live inside supplier cards AND the popup,
+// so this is delegated at the document level).
+document.addEventListener("click", function(e){
+  var tcb = e.target.closest('.trk-copy');
+  if (tcb){
+    e.preventDefault(); e.stopPropagation();
+    var n = tcb.dataset.trkNum || '';
+    var txt = trkLineText(n, '', '');
+    try { navigator.clipboard.writeText(txt).then(function(){ toast('📋 הועתק', 'success'); }); }
+    catch(err){ toast('ההעתקה נכשלה', 'error'); }
+  }
+  if (e.target.matches('#btnTrackingPopup')){ openTrackingPopup(); }
+});
 
 // Wire buttons
 document.addEventListener("click", function(e){
@@ -9231,7 +9554,8 @@ async function init(){
       loadInvoiceArchive().catch(function(e){ console.warn("loadInvoiceArchive rejected:", e); }),
       loadOrderRecs().catch(function(e){ console.warn("loadOrderRecs rejected:", e); }),
       loadAllEvents().catch(function(e){ console.warn("loadAllEvents rejected:", e); }),
-      loadBananaOverlay().catch(function(e){ console.warn("loadBananaOverlay rejected:", e); })
+      loadBananaOverlay().catch(function(e){ console.warn("loadBananaOverlay rejected:", e); }),
+      loadTrackingStatus().catch(function(e){ console.warn("loadTrackingStatus rejected:", e); })
     ]);
 
     try { applyBananaOverlay(); } catch(e){ console.warn("applyBananaOverlay failed:", e); }
