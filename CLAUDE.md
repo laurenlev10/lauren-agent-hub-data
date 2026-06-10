@@ -692,3 +692,15 @@ payload = {
 ```
 
 When Phase 2 ships, also save `_used_name_as_barcode: true` on the created product's product_rules entry so we know to remind Lauren during the next OCTOPOS sync that this product still needs a real barcode.
+
+---
+
+## 🛑 IRON RULE — browser GitHub-sync reads must be >1MB-safe (added 2026-06-10)
+
+GitHub's Contents API returns `content:""` (with `git_url`) for files **>1MB**. On 2026-06-08 `docs/state/inventory_orders.json` (1.9MB) hit this in the Order-Wizard save — the empty read became an empty write and wiped every event except the one being saved (commit `6779a0b5`; restored from `46cff6ca`).
+
+**The rule:** every read-before-PUT in any dashboard MUST go through `ghReadJsonSafe(tok, repoFile)` (lives in `docs/inventory/index.html` — copy it into other dashboards as needed): Contents GET for the sha → if `content` empty, fall back to the Blobs API (`git_url`, works to 100MB) → if still unreadable, **THROW** so the save aborts. A failed/empty read must NEVER become a default-empty write. All 7 write paths in the inventory dashboard route through it (commits `408ec3ad`, `3c0484ae`).
+
+## P&L pulls ALL sources live (added 2026-06-10)
+
+`docs/pnl/index.html` fetches in parallel on every open: `inventory_orders.json` (→`computeInvLive`, mirrors `pnl_inventory.py`), `manager_reports.json` (→`computeMgrLive`, mirrors `pnl_manager.py`), `pnl_qb_live.json` (QB class filings), and `event_analytics.json` from the events repo (marketing). Precedence per row: manual override ✏️ > live 🔴 > daily baked build. 📋 P&L + 💰 Income buttons render on ALL launch rows (future included). **If a rule changes in pnl_inventory.py / pnl_manager.py — mirror it in computeInvLive / computeMgrLive.**
