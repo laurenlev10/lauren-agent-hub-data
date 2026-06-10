@@ -966,6 +966,34 @@ function scheduleSave(){
   refreshSummary();
 }
 
+// 🛑 IRON RULE #18 addendum (2026-06-10) — the >1MB Contents-API trap.
+// GitHub's Contents API returns content:"" for files larger than 1MB. On 2026-06-08
+// inventory_orders.json crossed 1MB (1.9MB) and the wizard's "שמור הזמנה" save treated
+// the empty content as an empty file — wiping every event except the one being saved
+// (commit 6779a0b5). EVERY read-before-PUT of inventory_orders.json MUST go through
+// this helper: it falls back to the Blobs API (works up to 100MB) and THROWS when the
+// live file cannot be read+parsed — a failed read must never become an empty overwrite.
+async function fetchInvOrdersCloud(tok){
+  var _base = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/" + REPO_FILE;
+  var getR = await fetch(_base + "?ref=" + REPO_BRANCH + "&_=" + Date.now(), { cache: "no-store", headers: { Authorization: "token " + tok, Accept: "application/vnd.github+json" }});
+  if (getR.status === 404) return { sha: null, data: { _updated_at: null, events: {} } };
+  if (!getR.ok) throw new Error("read failed: HTTP " + getR.status);
+  var j = await getR.json();
+  var b64 = (j.content || "").replace(/\n/g, "");
+  if (!b64 && j.git_url){
+    // >1MB — Contents API omitted the content; read the blob directly instead.
+    var bR = await fetch(j.git_url + "?_=" + Date.now(), { cache: "no-store", headers: { Authorization: "token " + tok, Accept: "application/vnd.github+json" }});
+    if (!bR.ok) throw new Error("blob read failed: HTTP " + bR.status);
+    var bj = await bR.json();
+    b64 = (bj.content || "").replace(/\n/g, "");
+  }
+  if (!b64) throw new Error("empty content from GitHub API — refusing to overwrite the live file");
+  var data = JSON.parse(decodeURIComponent(escape(atob(b64))));
+  if (!data || typeof data !== "object") throw new Error("unparseable cloud state");
+  if (!data.events) data.events = {};
+  return { sha: j.sha, data: data };
+}
+
 async function pushToGitHub(){
   const tok = (localStorage.getItem(TOKEN_KEY)||"").trim();
   if (!tok) return;
@@ -980,19 +1008,11 @@ async function pushToGitHub(){
     // (SAVE_DIRTY set again), push once more rather than reporting a stale "saved".
     do {
       SAVE_DIRTY = false;
-      const getUrl = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/" + REPO_FILE + "?ref=" + REPO_BRANCH + "&_=" + Date.now();
-      let sha = null;
-      let cloud = { _updated_at: null, events: {} };
-      const getR = await fetch(getUrl, { cache: "no-store", headers: { Authorization: "token " + tok, Accept: "application/vnd.github+json" }});
-      if (getR.ok){
-        const j = await getR.json();
-        sha = j.sha;
-        try { cloud = JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,""))))); } catch(_){ cloud = { _updated_at: null, events: {} }; }
-      } else if (getR.status !== 404){
-        throw new Error("GET failed: " + getR.status);
-      }
-      if (!cloud || typeof cloud !== "object") cloud = { _updated_at: null, events: {} };
-      if (!cloud.events) cloud.events = {};
+      // IRON RULE #18 addendum — read via fetchInvOrdersCloud (>1MB-safe, throws on
+      // unreadable state instead of silently defaulting to empty).
+      const _cl = await fetchInvOrdersCloud(tok);
+      let sha = _cl.sha;
+      let cloud = _cl.data;
       const putUrl = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/" + REPO_FILE;
       // IRON RULE #18 — MERGE, never clobber: overlay this session's events onto the
       // live cloud copy so events not held in memory (e.g. past events) are preserved.
@@ -4390,8 +4410,11 @@ async function saveSupplierOrderLocal(s, btn){
     var ghToken = (localStorage.getItem('lauren_gh_token_v1') || '').trim();
     if (!ghToken) throw new Error('צריך GitHub token');
     var url = 'https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/inventory_orders.json';
-    var info = await fetch(url + '?ref=main&_=' + Date.now(), {cache:'no-store', headers:{Authorization:'token '+ghToken, Accept:'application/vnd.github+json'}}).then(r=>r.json());
-    var data = info.content ? JSON.parse(atob(info.content.replace(/\n/g,''))) : {events:{}};
+    // IRON RULE #18 addendum (2026-06-10): this exact line wiped the file on 2026-06-08
+    // when content came back empty (>1MB). Never default to {events:{}} — throw instead.
+    var _cl = await fetchInvOrdersCloud(ghToken);
+    var info = { sha: _cl.sha };
+    var data = _cl.data;
     data.events = data.events || {};
     data.events[evkey] = data.events[evkey] || {};
     data.events[evkey].local_orders = data.events[evkey].local_orders || [];
@@ -12946,8 +12969,10 @@ async function saveEditedSavedOrder(supplierCode, absoluteIdx, newItems){
   if (!ghToken) { toast('צריך GitHub token', 'error'); return false; }
   var url = 'https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/inventory_orders.json';
   try {
-    var info = await fetch(url + '?ref=main', { headers: {Authorization: 'token ' + ghToken, Accept: 'application/vnd.github+json'} }).then(function(r){return r.json();});
-    var data = info.content ? JSON.parse(atob(info.content.replace(/\n/g, ''))) : {events:{}};
+    // IRON RULE #18 addendum — >1MB-safe read; throws instead of defaulting to empty.
+    var _cl = await fetchInvOrdersCloud(ghToken);
+    var info = { sha: _cl.sha };
+    var data = _cl.data;
     if (!data.events[evkey]) data.events[evkey] = {};
     if (!Array.isArray(data.events[evkey].local_orders)) data.events[evkey].local_orders = [];
     // Apply same edit on the cloud copy
