@@ -27,6 +27,17 @@
   .qlink.shop{border-color:var(--green);background:#f0fdf4;}
   .qlink.cart{border-color:#f59e0b;background:#fffbeb;}
   .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin-bottom:18px;box-shadow:0 4px 18px rgba(0,0,0,.05);}
+  .tabbar{display:flex;gap:8px;margin:0 0 18px}
+  .tabbar button{flex:1;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:#fff;cursor:pointer;font-size:15px;font-weight:800;font-family:inherit;color:#475569}
+  .tabbar button.on{background:#16a34a;border-color:#16a34a;color:#fff}
+  .ev-table{width:100%;border-collapse:collapse;font-size:13px}
+  .ev-table th{padding:7px;color:#64748b;font-size:11px;border-bottom:2px solid var(--line);text-align:right}
+  .ev-table td{padding:7px;border-bottom:1px solid #f1f5f9}
+  .ev-table .num{text-align:left;font-weight:700}
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+  .stat{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+  .stat .k{font-size:11px;color:#64748b}.stat .v{font-size:18px;font-weight:800}
+  .bar{height:8px;background:#dcfce7;border-radius:5px;overflow:hidden}.bar i{display:block;height:100%;background:#16a34a}
   .card h2{margin:0 0 14px;font-size:16px;}
   .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
   @media(max-width:680px){.stat-row{grid-template-columns:repeat(2,1fr);}}
@@ -58,8 +69,24 @@
     <h1>🟢 MYSTERY BOX</h1>
     <a id="liveBtn" class="live-btn disabled" href="#" target="_blank" rel="noopener">דף המכירה החי →</a>
   </header>
-  <div class="sub">מוצר הדגל — BEST SELLER · המוצר היחיד שנמכר אונליין · מנוהל ע״י סוכן <b>@shopify</b></div>
+  <div class="sub">מוצר הדגל — BEST SELLER · נמכר אונליין (Shopify) ובאירועים · מנוהל ע״י סוכן <b>@shopify</b></div>
 
+  <!-- Lauren 2026-06-10: two tabs — online (Shopify) vs events (per-event units from event_pnl) -->
+  <div class="tabbar">
+    <button id="tabBtnOnline" class="on" onclick="showTab('online')">🛒 מכירות אונליין</button>
+    <button id="tabBtnEvents" onclick="showTab('events')">🎪 מכירות באירועים</button>
+  </div>
+
+  <div id="tab-events" style="display:none">
+    <div class="card">
+      <h2>🎪 קופסאות שנמכרו באירועים — 2026</h2>
+      <div id="evStats" class="stat-row" style="margin-bottom:14px"><div class="pending">טוען נתוני אירועים…</div></div>
+      <div id="evTable"></div>
+      <div style="font-size:11px;color:#64748b;margin-top:10px">מקור: אוקטופוס (units per event) דרך קבצי ה-P&L · עלות ליח׳ ניתנת לעריכה בדף ה-P&L של כל אירוע (ברירת מחדל $15)</div>
+    </div>
+  </div>
+
+  <div id="tab-online">
   <!-- קישורים מהירים -->
   <div class="card">
     <h2>🔗 קישורים מהירים</h2>
@@ -115,8 +142,65 @@
     <div class="queue" id="queueBody"></div>
   </div>
 
+  </div><!-- /tab-online -->
+
 </div>
 <div class="toast" id="toast"></div>
+
+<script>
+// ===== Tabs + events-tab data (Lauren 2026-06-10) =====
+function showTab(t){
+  document.getElementById("tab-online").style.display = (t==="online")?"":"none";
+  document.getElementById("tab-events").style.display = (t==="events")?"":"none";
+  document.getElementById("tabBtnOnline").className = (t==="online")?"on":"";
+  document.getElementById("tabBtnEvents").className = (t==="events")?"on":"";
+  if(t==="events" && !window.__evLoaded){ window.__evLoaded=true; loadEventBoxes(); }
+}
+async function loadEventBoxes(){
+  var stats=document.getElementById("evStats"), table=document.getElementById("evTable");
+  try{
+    var idx=await (await fetch("../state/events_index.json?_="+Date.now(),{cache:"no-store"})).json();
+    var today=new Date().toISOString().slice(0,10);
+    var past=(idx.events||[]).filter(function(e){return e.start_date>="2026-01-01" && e.end_date<today;})
+      .sort(function(a,b){return b.start_date.localeCompare(a.start_date);});
+    var rows=await Promise.all(past.map(async function(e){
+      try{
+        var d=await (await fetch("../state/event_pnl/"+e.evkey+".json?_="+Date.now(),{cache:"no-store"})).json();
+        var mb=((d.detail||{}).mystery_box)||{};
+        var amt=(((d.expenses||{}).mystery_box)||{}).amount;
+        return {city:e.city,state:e.state,date:e.start_date,
+                units:(typeof mb.units==="number"?mb.units:null),
+                cost:(typeof amt==="number"?amt:null),
+                revenue:(typeof mb.revenue==="number"?mb.revenue:null)};
+      }catch(_){return {city:e.city,state:e.state,date:e.start_date,units:null,cost:null,revenue:null};}
+    }));
+    var known=rows.filter(function(r){return r.units!==null;});
+    var tot=known.reduce(function(a,r){return a+r.units;},0);
+    var avg=known.length?tot/known.length:0;
+    var best=known.slice().sort(function(a,b){return b.units-a.units;})[0];
+    var totCost=known.reduce(function(a,r){return a+(r.cost||0);},0);
+    var totRev=known.reduce(function(a,r){return a+(r.revenue||0);},0);
+    stats.innerHTML=
+      '<div class="stat"><div class="k">סה״כ קופסאות</div><div class="v">'+tot.toLocaleString()+'</div></div>'+
+      '<div class="stat"><div class="k">ממוצע לאירוע</div><div class="v">'+avg.toFixed(1)+'</div></div>'+
+      '<div class="stat"><div class="k">אירוע שיא</div><div class="v">'+(best?best.units.toFixed(0):"—")+'</div><div style="font-size:11px;color:#64748b">'+(best?best.city:"")+'</div></div>'+
+      '<div class="stat"><div class="k">עלות כוללת</div><div class="v">$'+Math.round(totCost).toLocaleString()+'</div></div>'+
+      (totRev>0?'<div class="stat"><div class="k">הכנסה מהקופסאות</div><div class="v">$'+Math.round(totRev).toLocaleString()+'</div></div>':"");
+    var maxU=known.length?Math.max.apply(null,known.map(function(r){return r.units;})):1;
+    table.innerHTML='<table class="ev-table"><tr><th>אירוע</th><th>תאריך</th><th class="num">קופסאות</th><th></th><th class="num">עלות</th></tr>'+
+      rows.map(function(r){
+        var u=(r.units===null)?"—":r.units.toFixed(0);
+        var w=(r.units===null)?0:Math.round(100*r.units/maxU);
+        var diff=(r.units!==null&&avg>0)?(r.units>=avg?'<span style="color:#16a34a;font-size:11px"> ▲</span>':'<span style="color:#dc2626;font-size:11px"> ▼</span>'):"";
+        return '<tr><td>'+r.city+', '+r.state+'</td><td style="color:#64748b">'+r.date+'</td>'+
+               '<td class="num">'+u+diff+'</td>'+
+               '<td style="width:30%"><div class="bar"><i style="width:'+w+'%"></i></div></td>'+
+               '<td class="num">'+(r.cost===null?"—":"$"+Math.round(r.cost).toLocaleString())+'</td></tr>';
+      }).join("")+'</table>';
+  }catch(e){ stats.innerHTML='<div class="pending">שגיאה בטעינה: '+e.message+'</div>'; }
+}
+if(location.search.indexOf("tab=events")>-1){ showTab("events"); }
+</script>
 
 <script>
 (function(){
