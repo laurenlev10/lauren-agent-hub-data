@@ -74,7 +74,12 @@
       <div><label>סיום (א׳)</label><input id="f-end" type="date"></div>
       <div><label>רדיוס (מייל)</label><input id="f-radius" type="number" value="10" min="1" max="50"></div>
     </div>
-    <div class="hint">תאריך התחלת הקמפיינים יחושב אוטומטית: יום שישי 4 שבועות לפני תאריך ההתחלה. סיום: יום ראשון של האירוע ב-12:00 שעון מקומי.</div>
+    <div class="row">
+      <div><label>Tier (קובע תקציב)</label><select id="f-tier"><option value="">—</option><option value="1">Tier 1 — $8,000</option><option value="2">Tier 2 — $7,000</option><option value="3">Tier 3 — $6,000</option></select></div>
+      <div><label>תקציב לפי ה-Tier</label><div id="budget-hint" class="hint" style="margin:6px 0 0;font-weight:600">בחרי Tier כדי לראות תקציב</div></div>
+    </div>
+    <div class="hint" id="radius-hint" style="display:none;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;padding:8px 10px;border-radius:8px;font-weight:600"></div>
+    <div class="hint">תאריך התחלת הקמפיינים יחושב אוטומטית: יום שישי 4 שבועות לפני תאריך ההתחלה. סיום: יום ראשון של האירוע ב-12:00 שעון מקומי. הרדיוס וה-Tier מתמלאים אוטומטית לפי העיר (docs/state/event_radius.json).</div>
     <div style="margin-top:14px"><button class="btn" id="copy-btn">📋 העתיקי פקודה ל-Cowork</button></div>
     <div class="hint" id="preview" style="margin-top:10px;font-family:ui-monospace,Menlo,monospace;font-size:11px;direction:ltr;text-align:left;white-space:pre-wrap;background:#f3f4f6;padding:8px;border-radius:6px;max-height:120px;overflow:auto"></div>
   </div>
@@ -97,11 +102,15 @@
   </div>
 
   <div class="anti">
-    <strong>חוקי ברזל:</strong> תמיד Draft (לעולם לא Publish), אותם סרטונים כמו במקור, רק התאריכים/מיקום/רדיוס/XXXXX משתנים. שאר ההגדרות (Objective/Budget/Bidding/Audience demographics) נשמרות בדיוק כמו במקור. הקהל של ES נשאר ספרדית, של EN נשאר אנגלית.
+    <strong>חוקי ברזל:</strong> תמיד Draft (לעולם לא Publish), אותם סרטונים כמו במקור, רק התאריכים/מיקום/רדיוס/XXXXX משתנים. התקציב היומי נקבע לפי ה-Tier של האירוע (T1: $60/יום לקמפיין · T2: $55 · T3: $50 — סה&quot;כ Meta $5,280/$4,620/$3,960 ל-4 שבועות). שאר ההגדרות (Objective/Bidding/Audience demographics) נשמרות בדיוק כמו במקור. טיקטוק: קמפיין אחד לאירוע מקבל את כל תקציב הטיקטוק (T1: $2,720 · T2: $2,388 · T3: $2,040). הקהל של ES נשאר ספרדית, של EN נשאר אנגלית.
   </div>
 </div>
 
 <script id="dashboard-data">
+// Per-city radius + tier (source: Lauren's Radius.xlsx, 2026-06-10). Key = full-city slug (IRON RULE #17).
+// Synced copy lives at ../state/event_radius.json — keep both in step when Lauren updates radii.
+const CITY_RADIUS = {"glendale":{"city":"Glendale","state":"AZ","radius_miles":10,"note":"Try to get Scottsdale & Tempe · AVOID Goodyear","tier":2},"fresno":{"city":"Fresno","state":"CA","radius_miles":20,"note":"Make sure all city covered","tier":1},"el-cajon":{"city":"El Cajon","state":"CA","radius_miles":10,"note":"","tier":3},"emeryville":{"city":"Emeryville","state":"CA","radius_miles":7,"note":"AVOID Richmond","tier":3},"concord":{"city":"Concord","state":"CA","radius_miles":10,"note":"","tier":3},"burbank":{"city":"Burbank","state":"CA","radius_miles":10,"note":"","tier":3},"north-las-vegas":{"city":"North Las Vegas","state":"NV","radius_miles":15,"note":"Drag radius to downtown","tier":2},"amarillo":{"city":"Amarillo","state":"TX","radius_miles":15,"note":"Make sure all city covered","tier":3},"garland":{"city":"Garland","state":"TX","radius_miles":10,"note":"","tier":3},"fort-worth":{"city":"Fort Worth","state":"TX","radius_miles":10,"note":"","tier":3},"tulsa":{"city":"Tulsa","state":"OK","radius_miles":15,"note":"Make sure all city covered","tier":3},"hampton":{"city":"Hampton","state":"VA","radius_miles":15,"note":"Make sure all city covered","tier":2},"syracuse":{"city":"Syracuse","state":"NY","radius_miles":15,"note":"Make sure all city covered","tier":3},"reading":{"city":"Reading","state":"PA","radius_miles":15,"note":"Make sure all city covered","tier":3},"columbus":{"city":"Columbus","state":"OH","radius_miles":15,"note":"Make sure all city covered","tier":2},"louisville":{"city":"Louisville","state":"KY","radius_miles":15,"note":"Make sure all city covered","tier":3},"nashville":{"city":"Nashville","state":"TN","radius_miles":15,"note":"Drag to downtown","tier":2},"columbia":{"city":"Columbia","state":"MO","radius_miles":15,"note":"Drag to downtown","tier":3},"milwaukee":{"city":"Milwaukee","state":"WI","radius_miles":10,"note":"","tier":2},"roseville":{"city":"Roseville","state":"MN","radius_miles":10,"note":"","tier":2},"cleveland":{"city":"Cleveland","state":"OH","radius_miles":15,"note":"Make sure all city covered","tier":2},"omaha":{"city":"Omaha","state":"NE","radius_miles":20,"note":"Make sure all city covered","tier":2},"overland-park":{"city":"Overland Park","state":"KS","radius_miles":10,"note":"","tier":2},"wichita":{"city":"Wichita","state":"KS","radius_miles":15,"note":"Make sure all city covered","tier":2},"topeka":{"city":"Topeka","state":"KS","radius_miles":15,"note":"Make sure all city covered","tier":3},"fort-collins":{"city":"Fort Collins","state":"CO","radius_miles":15,"note":"Make sure all city covered","tier":3},"mesa":{"city":"Mesa","state":"AZ","radius_miles":10,"note":"Drag to Tempe / Chandler / Scottsdale · AVOID Gilbert","tier":2},"santa-maria":{"city":"Santa Maria","state":"CA","radius_miles":15,"note":"Make sure all city covered","tier":3},"modesto":{"city":"Modesto","state":"CA","radius_miles":15,"note":"Make sure all city covered","tier":2},"victorville":{"city":"Victorville","state":"CA","radius_miles":15,"note":"Make sure all city covered","tier":1},"richmond":{"city":"Richmond","state":"CA","radius_miles":10,"note":"","tier":3},"visalia":{"city":"Visalia","state":"CA","radius_miles":15,"note":"Make sure all city covered","tier":2},"riverside":{"city":"Riverside","state":"CA","radius_miles":10,"note":"","tier":3},"san-jose":{"city":"San Jose","state":"CA","radius_miles":15,"note":"Make sure all city covered","tier":2},"portland":{"city":"Portland","state":"OR","radius_miles":15,"note":"Make sure all city covered","tier":2},"boise":{"city":"Boise","state":"ID","radius_miles":15,"note":"Make sure all city covered","tier":3},"salt-lake-city":{"city":"Salt Lake City","state":"UT","radius_miles":10,"note":"North side of Salt Lake","tier":2},"bakersfield":{"city":"Bakersfield","state":"CA","radius_miles":15,"note":"Make sure all city covered","tier":1},"reno":{"city":"Reno","state":"NV","radius_miles":15,"note":"Make sure all city covered","tier":1},"santa-fe":{"city":"Santa Fe","state":"NM","radius_miles":15,"note":"Make sure all city covered","tier":3},"albuquerque":{"city":"Albuquerque","state":"NM","radius_miles":15,"note":"Make sure all city covered","tier":2},"south-denver":{"city":"South Denver","state":"CO","radius_miles":13,"note":"Avoid crossing downtown","tier":1},"westminster":{"city":"Westminster","state":"CO","radius_miles":13,"note":"North side of Denver","tier":2},"tucson":{"city":"Tucson","state":"AZ","radius_miles":15,"note":"Make sure all city covered","tier":1},"santa-ana":{"city":"Santa Ana","state":"CA","radius_miles":10,"note":"","tier":3},"anaheim":{"city":"Anaheim","state":"CA","radius_miles":10,"note":"לא הוגדר בקובץ הרדיוסים — ברירת מחדל 10","tier":3}};
+const TIER_BUDGETS = {"1":{"marketing_total_usd":8000,"meta_total_usd":5280,"meta_daily_usd":188,"meta_daily_per_campaign_usd":60,"tiktok_total_usd":2720,"tiktok_daily_usd":194,"staff":7},"2":{"marketing_total_usd":7000,"meta_total_usd":4620,"meta_daily_usd":165,"meta_daily_per_campaign_usd":55,"tiktok_total_usd":2388,"tiktok_daily_usd":170,"staff":6},"3":{"marketing_total_usd":6000,"meta_total_usd":3960,"meta_daily_usd":141,"meta_daily_per_campaign_usd":50,"tiktok_total_usd":2040,"tiktok_daily_usd":145,"staff":5}};
 const RECENT = [
   {
     "date": "2026-05-29",
@@ -174,6 +183,31 @@ const RECENT = [
   const setIf = (id, k) => { const v = get(k); if (v != null) document.getElementById(id).value = v; };
   setIf("f-start", "start_date"); setIf("f-end", "end_date");
   setIf("f-venue", "venue"); setIf("f-address", "address"); setIf("f-radius", "radius_miles");
+  setIf("f-tier", "tier");
+
+  // ── Per-city radius + tier auto-fill (Lauren 2026-06-10) ──
+  const slugify = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  function cityRec() { return CITY_RADIUS[slugify(document.getElementById("f-city").value)] || null; }
+  function applyCityDefaults(force) {
+    const rec = cityRec();
+    const rh = document.getElementById("radius-hint");
+    if (rec) {
+      if (force || !params.get("radius_miles")) document.getElementById("f-radius").value = rec.radius_miles;
+      if ((force || !params.get("tier")) && rec.tier) document.getElementById("f-tier").value = String(rec.tier);
+      rh.style.display = "block";
+      rh.textContent = "📡 " + rec.city + ", " + rec.state + " — רדיוס " + rec.radius_miles + " מייל" + (rec.note ? " · " + rec.note : "");
+    } else { rh.style.display = "none"; }
+    refreshBudgetHint();
+  }
+  function refreshBudgetHint() {
+    const t = document.getElementById("f-tier").value;
+    const b = TIER_BUDGETS[t];
+    document.getElementById("budget-hint").textContent = b
+      ? ("Meta: $" + b.meta_daily_per_campaign_usd + "/יום לקמפיין (סה\"כ $" + b.meta_total_usd.toLocaleString() + ") · TikTok (קמפיין אחד): $" + b.tiktok_daily_usd + "/יום (סה\"כ $" + b.tiktok_total_usd.toLocaleString() + ")")
+      : "בחרי Tier כדי לראות תקציב";
+  }
+  document.getElementById("f-city").addEventListener("input", () => applyCityDefaults(true));
+  document.getElementById("f-tier").addEventListener("input", () => { refreshBudgetHint(); refreshPreview(); });
 
   // Templates from localStorage
   const LSK = "lauren_metaads_templates_v1";
@@ -201,10 +235,23 @@ const RECENT = [
     const start = document.getElementById("f-start").value;
     const end = document.getElementById("f-end").value;
     const radius = document.getElementById("f-radius").value || "10";
-    return "Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\meta-campaigns\\SKILL.md` — orchestrator for @metaads.\n\nEvent inputs:\n- city: " + city + "\n- state: " + state + "\n- venue: " + venue + "\n- address: " + address + "\n- start_date: " + start + "\n- end_date: " + end + "\n- radius_miles: " + radius;
+    const rec = cityRec();
+    const tier = document.getElementById("f-tier").value;
+    const b = TIER_BUDGETS[tier];
+    let cmd = "Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\meta-campaigns\\SKILL.md` — orchestrator for @metaads.\n\nEvent inputs:\n- city: " + city + "\n- state: " + state + "\n- venue: " + venue + "\n- address: " + address + "\n- start_date: " + start + "\n- end_date: " + end + "\n- radius_miles: " + radius;
+    if (rec && rec.note) cmd += "\n- radius_note: " + rec.note;
+    if (tier) cmd += "\n- tier: " + tier;
+    if (b) {
+      cmd += "\n- meta_daily_budget_per_campaign_usd: " + b.meta_daily_per_campaign_usd
+          + "  (Meta total ~$" + b.meta_total_usd + " over 4 weeks — set this DAILY budget on EACH of the 3 campaigns)"
+          + "\n- tiktok_budget: ONE TikTok campaign per event gets the FULL TikTok budget — $"
+          + b.tiktok_daily_usd + "/day, total ~$" + b.tiktok_total_usd + " (consolidated per Lauren 2026-06-10; do not split across 2 campaigns)";
+    }
+    return cmd;
   }
   function refreshPreview() { document.getElementById("preview").textContent = buildCmd(); }
   ["f-city", "f-state", "f-venue", "f-address", "f-start", "f-end", "f-radius"].forEach(id => document.getElementById(id).addEventListener("input", refreshPreview));
+  applyCityDefaults(false);
   refreshPreview();
 
   // Copy
