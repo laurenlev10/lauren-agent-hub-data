@@ -973,10 +973,13 @@ function scheduleSave(){
 // (commit 6779a0b5). EVERY read-before-PUT of inventory_orders.json MUST go through
 // this helper: it falls back to the Blobs API (works up to 100MB) and THROWS when the
 // live file cannot be read+parsed — a failed read must never become an empty overwrite.
-async function fetchInvOrdersCloud(tok){
-  var _base = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/" + REPO_FILE;
+// Generic >1MB-safe read of any repo JSON before a PUT. Returns {sha, data};
+// data === null means the file doesn't exist yet (404). THROWS when the file exists
+// but can't be read+parsed — callers must abort their save, never write a default.
+async function ghReadJsonSafe(tok, repoFile){
+  var _base = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/" + repoFile;
   var getR = await fetch(_base + "?ref=" + REPO_BRANCH + "&_=" + Date.now(), { cache: "no-store", headers: { Authorization: "token " + tok, Accept: "application/vnd.github+json" }});
-  if (getR.status === 404) return { sha: null, data: { _updated_at: null, events: {} } };
+  if (getR.status === 404) return { sha: null, data: null };
   if (!getR.ok) throw new Error("read failed: HTTP " + getR.status);
   var j = await getR.json();
   var b64 = (j.content || "").replace(/\n/g, "");
@@ -987,11 +990,17 @@ async function fetchInvOrdersCloud(tok){
     var bj = await bR.json();
     b64 = (bj.content || "").replace(/\n/g, "");
   }
-  if (!b64) throw new Error("empty content from GitHub API — refusing to overwrite the live file");
+  if (!b64) throw new Error("empty content from GitHub API — refusing to treat as empty file");
   var data = JSON.parse(decodeURIComponent(escape(atob(b64))));
   if (!data || typeof data !== "object") throw new Error("unparseable cloud state");
-  if (!data.events) data.events = {};
   return { sha: j.sha, data: data };
+}
+
+async function fetchInvOrdersCloud(tok){
+  var r = await ghReadJsonSafe(tok, REPO_FILE);
+  if (r.data === null) return { sha: null, data: { _updated_at: null, events: {} } };
+  if (!r.data.events) r.data.events = {};
+  return r;
 }
 
 async function pushToGitHub(){
@@ -1237,9 +1246,10 @@ async function refreshSupplierList(code, opts){
   try{
     var file="docs/state/supplier_invoices.json";
     var base="https://api.github.com/repos/"+REPO_OWNER+"/"+REPO_NAME+"/contents/"+file;
-    var getR=await fetch(base+"?ref="+REPO_BRANCH+"&_="+Date.now(),{cache:"no-store",headers:{Authorization:"token "+tok,Accept:"application/vnd.github+json"}});
-    var sha=null,data={_updated_at:null,suppliers:{}};
-    if(getR.ok){ var j=await getR.json(); sha=j.sha; try{data=JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,"")))));}catch(_){} }
+    // IRON RULE #18 addendum (2026-06-10) — >1MB-safe read; throws instead of
+    // clobbering the whole AP list with an empty default.
+    var _r=await ghReadJsonSafe(tok,file);
+    var sha=_r.sha, data=_r.data||{_updated_at:null,suppliers:{}};
     if(!data.suppliers) data.suppliers={};
     Object.keys(data.suppliers).forEach(function(nm){ var r=data.suppliers[nm]; if(r&&r.invoices) r.invoices=r.invoices.filter(function(i){ return !(i.id===idPrefix || (typeof i.id==="string" && i.id.indexOf(idPrefix+"__ord")===0)); }); });
     if(invs.length){ if(!data.suppliers[canon]) data.suppliers[canon]={total:0,count:0,invoices:[]};
@@ -1456,9 +1466,9 @@ async function bananaFlushPersist(){
   if (!ghToken){ toast("⚠️ צריך GitHub token כדי לסנכרן את הברקודים לדשבורד", "error"); return; }
   var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + BANANA_OVERLAY_REPO_FILE;
   try {
-    var sha = null, content = { _updated_at: null, products: {} };
-    var getR = await fetch(url + "?ref=main&_=" + Date.now(), { cache:"no-store", headers:{ Authorization:"token "+ghToken, Accept:"application/vnd.github+json" } });
-    if (getR.ok){ var j = await getR.json(); sha = j.sha; try { content = JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,""))))); } catch(_){ content = { _updated_at:null, products:{} }; } }
+    // IRON RULE #18 addendum — >1MB-safe read; throws instead of defaulting to empty.
+    var _r = await ghReadJsonSafe(ghToken, BANANA_OVERLAY_REPO_FILE);
+    var sha = _r.sha, content = _r.data || { _updated_at: null, products: {} };
     content.products = content.products || {};
     var now = new Date().toISOString();
     for (var pid in dirty){ content.products[pid] = Object.assign({}, content.products[pid] || {}, dirty[pid], { set_at: now }); }
@@ -1797,6 +1807,13 @@ function renderSupplierCard(sup, s, idx){
             }
             if (_ordInvSum > 0) {
               pills += '<div class="status" style="background:#dcfce7;color:#14532d;border-color:#86efac;margin-top:4px;font-size:11px"><b>חשבונית הזמנות:</b> ' + fmtUsd(_ordInvSum) + '</div>';
+            }
+            // Lauren 2026-06-10 (Kara Omaha) — the SAME amount entered both as a standalone
+            // "invoice without order" AND on an order doubles the header total. Flag it loudly.
+            var _dupInv = false;
+            try { _dupInv = _supInv > 0 && (_rowOrders||[]).some(function(o){ return Math.abs(Number(o.invoice_total_usd||0) - _supInv) < 0.005; }); } catch(_){}
+            if (_dupInv) {
+              pills += '<div class="status" style="background:#fee2e2;color:#7f1d1d;border-color:#fca5a5;margin-top:4px;font-size:11px;max-width:340px;white-space:normal;text-align:right"><b>⚠ אותו סכום פעמיים</b> — גם ב"חשבונית ללא הזמנה" וגם על הזמנה. אם זו אותה חשבונית, אפסי את שדה "חשבונית ללא הזמנה" כדי שהסכום למעלה יהיה נכון</div>';
             }
             if (!_hasStandaloneInv && _ordInvSum <= 0 && _invoiceCompared && _rowInvoiceTotal > 0) {
               pills += '<div class="status" style="background:#dcfce7;color:#14532d;border-color:#86efac;margin-top:4px;font-size:11px"><b>חשבונית:</b> ' + fmtUsd(_rowInvoiceTotal) + '</div>';
@@ -5487,8 +5504,10 @@ async function persistOctoposOverride(productId, field, value){
   if (!ghToken) return false;
   var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/octopos_pending_edits.json";
   try {
-    var info = await fetch(url + "?ref=main", {headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json"}}).then(r=>r.json());
-    var content = info.content ? JSON.parse(atob(info.content.replace(/\n/g, ""))) : {overrides:{}};
+    // IRON RULE #18 addendum — >1MB-safe read; throws instead of defaulting to empty.
+    var _r = await ghReadJsonSafe(ghToken, "docs/state/octopos_pending_edits.json");
+    var info = { sha: _r.sha };
+    var content = _r.data || {overrides:{}};
     content.overrides = content.overrides || {};
     content.overrides[String(productId)] = Object.assign({}, content.overrides[String(productId)] || {}, {
       [field]: value,
@@ -6266,15 +6285,14 @@ async function _saveReceiveStateNow(commitMsg){
   }
   async function attempt(){
     var getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RECV_STATE_REPO_FILE + "?ref=main&_=" + Date.now();
+    // IRON RULE #18 addendum — >1MB-safe read; abort (not empty-default) on unreadable.
     var sha = null, cloud = {};
-    var getR = await fetch(getUrl, { cache: "no-store", headers: {"Authorization":"token "+token, "Accept":"application/vnd.github+json"}});
-    if (getR.status === 401) return { ok: false, status: 401 };
-    if (getR.ok){
-      var j = await getR.json();
-      sha = j.sha;
-      try { cloud = JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,""))))); } catch(_){ cloud = {}; }
-    } else if (getR.status !== 404){
-      return { ok: false, status: getR.status };
+    try {
+      var _r = await ghReadJsonSafe(token, RECV_STATE_REPO_FILE);
+      sha = _r.sha; cloud = _r.data || {};
+    } catch(e){
+      if (/HTTP 401/.test(e.message||"")) return { ok: false, status: 401 };
+      return { ok: false, status: (e.message||"read error") };
     }
     var merged = _mergeRecvForSave(cloud, RECV_STATE);
     var putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + RECV_STATE_REPO_FILE;
