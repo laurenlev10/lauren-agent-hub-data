@@ -84,6 +84,39 @@ def fill_event(evkey, evmeta, dry=False):
         except Exception as e:
             print(f"  WARN OCTOPOS revenue failed for {evkey}: {e}", file=sys.stderr)
 
+    # 0.5 Mystery Box — units sold from OCTOPOS (Lauren 2026-06-10 step 2). Fills the
+    #     UNITS (fact from POS) when absent; the existing expense amount is untouched.
+    #     The page recomputes total = units x editable unit-cost (default $15).
+    det = d.setdefault("detail", {})
+    mb = det.get("mystery_box") or {}
+    if end_date and end_date < today and not _num(mb.get("units")):
+        try:
+            import pnl_octopos
+            jwt2 = pnl_octopos.octopos_jwt()
+            sales2 = pnl_octopos.fetch_all_vendor_products(jwt2, evmeta.get("start_date"), end_date)
+            res = pnl_octopos.mystery_box_from(sales2)
+            units = float(res.get("units") or 0)
+            newmb = dict(mb)
+            newmb["units"] = units
+            if not newmb.get("name"):
+                newmb["name"] = res.get("name") or "Mystery Box"
+            if res.get("product_id") and not newmb.get("product_id"):
+                newmb["product_id"] = res["product_id"]
+            if res.get("revenue") is not None and newmb.get("revenue") is None:
+                newmb["revenue"] = res["revenue"]
+            if _num(mb.get("cost")) and units:
+                newmb["unit_cost_implied"] = round(float(mb["cost"]) / units, 2)
+            if not _num(newmb.get("unit_cost")):
+                newmb["unit_cost"] = 15.0
+            det["mystery_box"] = newmb
+            filled["mystery_box.units"] = units
+            if missing("mystery_box"):
+                fill("mystery_box", units * 15.0, "octopos (units x $15) (fill-gaps)", f"{units:.0f} units x $15")
+        except SystemExit as e:
+            print(f"  WARN OCTOPOS mystery-box skipped for {evkey}: {e}", file=sys.stderr)
+        except Exception as e:
+            print(f"  WARN OCTOPOS mystery-box failed for {evkey}: {e}", file=sys.stderr)
+
     # 1. Inventory / Shipping — only when real invoices exist (never fill 0 over pending)
     if missing("inventory") or missing("shipping"):
         inv = pnl_inventory.fetch_inventory_pnl(evkey, state_path=ROOT / "docs/state/inventory_orders.json")

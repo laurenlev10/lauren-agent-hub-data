@@ -179,6 +179,15 @@ function effExpenses(){
      out[k]={amount:INV_LIVE.inventory,source:"inventory_orders (live)",status:"ok"};
    }else if(k==="shipping"&&INV_LIVE&&INV_LIVE.n_invoiced>0){
      out[k]={amount:INV_LIVE.shipping,source:"inventory_orders (live)",status:"ok"};
+   }else if(k==="mystery_box"&&(function(){
+     const mb=(((PNL||{}).detail||{}).mystery_box)||{};
+     if(typeof mb.units!=="number")return false;
+     const hasC=("mystery_box_unit_cost" in ov)&&ov.mystery_box_unit_cost!=null&&ov.mystery_box_unit_cost!=="";
+     return hasC||base.amount==null;
+   })()){
+     const mb=(((PNL||{}).detail||{}).mystery_box)||{};
+     const uc=effMbUnitCost();
+     out[k]={amount:+(mb.units*uc).toFixed(2),source:"units x cost",status:"ok"};
    }else if(MGR_LIVE&&(k==="staff"||k==="meals"||k==="other")){
      out[k]={amount:MGR_LIVE[k],source:"manager_report (live)",status:"ok"};
    }else if(MKT_LIVE&&k==="marketing_meta"&&typeof MKT_LIVE.meta==="number"){
@@ -248,8 +257,13 @@ function render(){
 
  // mystery box
  const mb=d.mystery_box||{};
- h+="<div class='card'><h2>🎁 מיסטרי בוקס</h2><table><tr><th>מוצר</th><th>יח׳</th><th>עלות ליח׳</th><th>סה״כ</th></tr>"+
-    "<tr><td>"+esc(mb.name||"—")+"</td><td class='num'>"+(mb.units||0).toFixed(0)+"</td><td class='num'>"+money(mb.unit_cost||15)+"</td><td class='num'>"+money((PNL.expenses.mystery_box||{}).amount)+"</td></tr></table></div>";
+ const mbUC=effMbUnitCost();
+ const mbOvrSet=((((OVR||{}).events||{})[EVKEY])||{}).mystery_box_unit_cost!=null;
+ h+="<div class='card'><h2>🎁 מיסטרי בוקס</h2><table><tr><th>מוצר</th><th>יח׳ שנמכרו</th><th>עלות ליח׳</th><th>סה״כ</th></tr>"+
+    "<tr><td>"+esc(mb.name||"Mystery Box")+"</td><td class='num'>"+(typeof mb.units==="number"?mb.units.toFixed(0):"—")+"</td>"+
+    "<td class='num' id='amt-mystery_box_unit_cost'>"+money(mbUC)+(mbOvrSet?" <span class='manual'>✏️ ידני</span>":"")+"<span class='edit' onclick='startEditMb()'>✏️</span></td>"+
+    "<td class='num'>"+money(t.exp.mystery_box?t.exp.mystery_box.amount:null)+"</td></tr></table>"+
+    "<div style='font-size:11px;color:#64748b;margin-top:6px'>✏️ עריכת \"עלות ליח׳\" (ברירת מחדל $15) נשמרת לאירוע הזה ומחשבת מחדש סה״כ = יח׳ × עלות.</div></div>";
 
  // staff
  const st=(MGR_LIVE&&MGR_LIVE.staff_lines.length)?MGR_LIVE.staff_lines:(d.staff_lines||[]);
@@ -293,6 +307,23 @@ function render(){
  h+="<div class='foot'>מקורות: OCTOPOS · inventory_orders · דוח מנהלת · event_analytics (פרסום) · QuickBooks (נסיעות/מקום/ULINE/Lyft). עריכה ידנית נשמרת ב-GitHub.</div>";
  h+="<div class='tokrow'>אם עריכה לא נשמרת — צריך GitHub token. <a href='#' onclick='setTok();return false'>הגדרת token</a></div>";
  document.getElementById("app").innerHTML=h;
+}
+
+// Mystery Box editable unit-cost (Lauren 2026-06-10): default $15, per-event override
+// stored in pnl_overrides as "mystery_box_unit_cost". Total = units x effective cost.
+function effMbUnitCost(){
+ const ov=((OVR&&OVR.events||{})[EVKEY])||{};
+ if(ov.mystery_box_unit_cost!=null&&ov.mystery_box_unit_cost!=="")return Number(ov.mystery_box_unit_cost);
+ const mb=(((PNL||{}).detail||{}).mystery_box)||{};
+ return (typeof mb.unit_cost==="number"&&mb.unit_cost>0)?mb.unit_cost:15;
+}
+function startEditMb(){
+ const cell=document.getElementById("amt-mystery_box_unit_cost");if(!cell)return;
+ cell.innerHTML="<input class='amt' id='in-mystery_box_unit_cost' value='"+effMbUnitCost()+"' placeholder='עלות ליח׳'> "+
+   "<button class='sv' onclick='saveEdit(\"mystery_box_unit_cost\")'>שמור</button>"+
+   "<button class='cx' onclick='render()'>בטל</button>";
+ const i=document.getElementById("in-mystery_box_unit_cost");i.focus();
+ i.addEventListener("keydown",e=>{if(e.key==="Enter")saveEdit("mystery_box_unit_cost");if(e.key==="Escape")render();});
 }
 
 function startEdit(k){
