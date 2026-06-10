@@ -67,6 +67,11 @@ def main():
             continue
         if e.get("acked_at"):    # Lauren pre-acked in dashboard
             continue
+        # 2026-06-10 (Lauren's decision): invoice receives confirmed via the
+        # dashboard PREFLIGHT (source @inventory/receive) are intentional —
+        # don't alert on them. The watchdog guards NON-UI writers only.
+        if (e.get("source") or "").startswith("@inventory/receive"):
+            continue
         spikes_to_alert.append(e)
 
     if not spikes_to_alert:
