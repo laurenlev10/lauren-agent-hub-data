@@ -22,8 +22,11 @@ jobs:
           git add docs/state/qb_email_check_queue.json
           if ! git diff --cached --quiet; then
             git commit -m "qb-email-match: queue results [qb-applied]"
-            git pull --rebase origin main
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           fi
       - name: SMS Lauren on failure
         if: failure()

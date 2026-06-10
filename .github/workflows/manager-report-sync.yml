@@ -42,8 +42,11 @@ jobs:
           if ! git diff --quiet docs/state/event_pnl/ docs/state/inventory_orders.json; then
             git add docs/state/event_pnl/ docs/state/inventory_orders.json
             git commit -m "manager-report-sync: propagate final reports → P&L + next-event GARAGE notes"
-            git pull --rebase origin main
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           else
             echo "no changes — all final reports already propagated"
           fi
@@ -72,8 +75,11 @@ jobs:
           if ! git diff --quiet docs/scheduled-runs.json; then
             git add docs/scheduled-runs.json
             git commit -m "scheduled-runs: bump manager-report-sync lastRunAt"
-            git pull --rebase origin main
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           fi
 
       - name: SMS Lauren on failure

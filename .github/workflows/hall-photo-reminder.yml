@@ -136,8 +136,10 @@ jobs:
           if ! git diff --quiet docs/scheduled-runs.json; then
             git add docs/scheduled-runs.json
             git commit -m "scheduled-runs: bump hall-photo-reminder lastRunAt"
-            for i in 1 2 3 4 5; do
-              git pull --rebase origin main && git push origin main && break || { echo "push race, retry $i"; sleep 5; }
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
             done
           fi
 

@@ -35,8 +35,11 @@ jobs:
           if ! git diff --quiet docs/state/tracking_status.json; then
             git add docs/state/tracking_status.json
             git commit -m "tracking-check: refresh shipment statuses"
-            git pull --rebase origin main
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           else
             echo "no changes — statuses unchanged"
           fi
@@ -65,8 +68,11 @@ jobs:
           if ! git diff --quiet docs/scheduled-runs.json; then
             git add docs/scheduled-runs.json
             git commit -m "scheduled-runs: bump tracking-check lastRunAt"
-            git pull --rebase origin main
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           fi
 
       - name: SMS Lauren on failure

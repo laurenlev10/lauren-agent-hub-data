@@ -96,8 +96,11 @@ jobs:
           git add docs/meta/inbox-api-preview/ docs/meta/handled.json 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -m "@meta daily triage: $(date -u +%Y-%m-%dT%H:%MZ)"
-            git pull --rebase origin main || true
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
             echo "✓ pushed updates"
           else
             echo "no changes to commit"
@@ -128,8 +131,11 @@ jobs:
           if ! git diff --quiet docs/scheduled-runs.json; then
             git add docs/scheduled-runs.json
             git commit -m "scheduled-runs: bump meta-inbox-check lastRunAt"
-            git pull --rebase origin main || true
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           fi
 
       # IRON RULE (Lauren 2026-05-10): SMS Lauren if this workflow fails.

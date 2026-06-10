@@ -6,7 +6,6 @@ name: event-yield — Sunday 22:30 local stockout/overstock analyzer
 # writes per-product signal + multiplier into docs/state/slow_movers.json.
 
 on:
-  schedule:
     # 2026-06-08 — DISABLED (Lauren): @slow-movers pipeline never went live so this only
     # sent an empty weekly SMS. The useful 'אזל שישי/שבת' signal now lives in the
     # event-summary 'נגמרו לפני הזמן' tab. Kept as workflow_dispatch for the future.
@@ -40,8 +39,11 @@ jobs:
           if ! git diff --quiet docs/state/slow_movers.json; then
             git add docs/state/slow_movers.json
             git commit -m "@event-yield: per-product signal + multiplier after event"
-            git pull --rebase origin main
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           fi
 
       - name: Update scheduled-runs.json lastRunAt
@@ -67,8 +69,11 @@ jobs:
           if ! git diff --quiet docs/scheduled-runs.json; then
             git add docs/scheduled-runs.json
             git commit -m "scheduled-runs: bump event-yield lastRunAt"
-            git pull --rebase origin main
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           fi
 
       - name: SMS Lauren on failure

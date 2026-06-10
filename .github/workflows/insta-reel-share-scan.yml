@@ -64,8 +64,11 @@ jobs:
             git commit -m "insta-reel-scan: update share counts $(date -u +%Y-%m-%dT%H:%MZ)"
             # Pull-rebase before push — other workflows may have committed concurrently.
             # Without this the workflow fails (run #4 on 2026-05-11 was the first incident).
-            git pull --rebase origin main || true
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           else
             echo "No new scans this run."
           fi
@@ -97,8 +100,11 @@ jobs:
           if ! git diff --quiet docs/scheduled-runs.json; then
             git add docs/scheduled-runs.json
             git commit -m "scheduled-runs: bump insta-reel-share-scan lastRunAt"
-            git pull --rebase origin main || true
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           fi
 
       # IRON RULE (Lauren 2026-05-10): SMS Lauren if this workflow fails.

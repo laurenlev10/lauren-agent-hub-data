@@ -126,8 +126,11 @@ jobs:
           git add docs/state/event_analytics.json docs/state/event_timeseries.json 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git commit -m "stats: refresh event_analytics.json + event_timeseries.json"
-            git pull --rebase origin main || true
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           fi
 
       - name: Send insights digest SMS (9 AM/PM PT)
@@ -292,8 +295,11 @@ jobs:
           [ -f docs/state/event_timeseries.json ] && git add docs/state/event_timeseries.json || true
           if ! git diff --cached --quiet; then
             git commit -m "stats: refresh conversion_history.json + EVENT_ANALYTICS map"
-            git pull --rebase origin main || true
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           fi
 
       # IRON RULE (Lauren 2026-05-10): SMS Lauren if this workflow fails.

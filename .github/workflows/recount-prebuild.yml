@@ -41,8 +41,11 @@ jobs:
           if ! git diff --quiet docs/state/octopos_recount.json; then
             git add docs/state/octopos_recount.json
             git commit -m "@recount: pre-event worklist build (Thursday evening)"
-            git pull --rebase origin main
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           fi
 
       - name: Update scheduled-runs.json lastRunAt
@@ -69,8 +72,11 @@ jobs:
           if ! git diff --quiet docs/scheduled-runs.json; then
             git add docs/scheduled-runs.json
             git commit -m "scheduled-runs: bump recount-prebuild lastRunAt"
-            git pull --rebase origin main
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           fi
 
       - name: SMS Lauren on failure

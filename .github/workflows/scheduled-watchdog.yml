@@ -41,8 +41,11 @@ jobs:
           if ! git diff --quiet docs/state/watchdog_alerts.json 2>/dev/null; then
             git add docs/state/watchdog_alerts.json
             git commit -m "watchdog: update alert timestamps"
-            git pull --rebase origin main || true
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           fi
 
       # IRON RULE (Lauren 2026-05-10): SMS Lauren if THIS workflow fails.
