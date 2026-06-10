@@ -1,0 +1,96 @@
+name: mystery-box-eod-sms
+
+# Lauren 2026-06-10: Sunday 18:00 EVENT-LOCAL — SMS Lauren + Eli how many Mystery
+# Boxes sold during the event (Fri-Sun) and how many remain in stock (OCTOPOS live).
+# Cron covers all US timezones (DST + standard); the script gates on local hour == 18.
+
+on:
+  schedule:
+    - cron: '0 22,23 * * 0'   # Sun 18:00 ET/CT (DST) · ET (standard)
+    - cron: '0 0,1,2 * * 1'   # Sun 18:00 CT/MT/AZ/PT across DST/standard (UTC Monday)
+  workflow_dispatch:
+    inputs:
+      force_evkey:
+        description: "Force-send for this evkey (testing — bypasses the 18:00 gate + dedup)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Mystery Box end-of-event SMS
+        env:
+          OCTOPOS_EMAIL:       ${{ secrets.OCTOPOS_EMAIL }}
+          OCTOPOS_PASSWORD:    ${{ secrets.OCTOPOS_PASSWORD }}
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          ELI_PHONE:           ${{ secrets.ELI_PHONE }}
+          FORCE_EVKEY:         ${{ github.event.inputs.force_evkey }}
+        run: python3 scripts/mystery_box_eod_sms.py
+
+      - name: Commit + push if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/state/mystery_box_eod_sms.json; then
+            git add docs/state/mystery_box_eod_sms.json
+            git commit -m "mystery-box-eod-sms: mark sent"
+            for attempt in 1 2 3; do
+              git pull --rebase origin main || true
+              if git push origin main; then break; fi
+            done
+          else
+            echo "no changes"
+          fi
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "mystery-box-eod-sms":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          PY
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump mystery-box-eod-sms lastRunAt"
+            for attempt in 1 2 3; do
+              git pull --rebase origin main || true
+              if git push origin main; then break; fi
+            done
+          fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
