@@ -37,8 +37,11 @@ jobs:
           if ! git diff --quiet docs/state/fb_event_stats.json; then
             git add docs/state/fb_event_stats.json
             git commit -m "fb-event-stats: refresh Going/Interested counts ($(date -u +%H:%M))"
-            git pull --rebase origin main || true
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
             echo "✓ pushed updated fb_event_stats.json"
           else
             echo "no changes to fb_event_stats.json"
@@ -69,8 +72,11 @@ jobs:
           if ! git diff --quiet docs/scheduled-runs.json; then
             git add docs/scheduled-runs.json
             git commit -m "scheduled-runs: bump fb-event-stats lastRunAt"
-            git pull --rebase origin main || true
-            git push origin main
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
           fi
 
       # IRON RULE (Lauren 2026-05-10): SMS Lauren if this workflow fails.
