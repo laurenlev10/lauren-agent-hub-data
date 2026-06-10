@@ -4,12 +4,12 @@ name: tracking-check — daily 14:00 UTC (shipment status for supplier orders)
 # dashboard + "איפה החבילה עכשיו?" button). Reads every tracking number saved on
 # orders in docs/state/inventory_orders.json, queries the UPS Track API
 # (secrets UPS_CLIENT_ID / UPS_CLIENT_SECRET — fail-soft if missing), and
-# writes docs/state/tracking_status.json for the dashboard. The dashboard's
-# "📦 איפה החבילות?" popup dispatches this workflow on demand.
+# writes docs/state/tracking_status.json for the dashboard. Runs ONLY when
+# dispatched from the dashboard's "📦 איפה החבילות?" popup (no schedule).
 
+# Lauren 2026-06-10: manual ONLY — no cron. Most days there are no shipments in
+# transit, so the check runs solely from the dashboard's 📦 button (or Actions tab).
 on:
-  schedule:
-    - cron: "0 14 * * *"     # daily 14:00 UTC (07:00 PT)
   workflow_dispatch: {}
 
 permissions:
