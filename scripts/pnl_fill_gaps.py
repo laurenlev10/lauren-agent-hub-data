@@ -36,7 +36,16 @@ def _num(x):
     return isinstance(x, (int, float)) and not isinstance(x, bool)
 
 
-def fill_event(evkey, evmeta, dry=False):
+def _load_unit_cost_override(evkey):
+    try:
+        ovr = json.loads((ROOT / "docs/state/pnl_overrides.json").read_text(encoding="utf-8"))
+        v = ((ovr.get("events") or {}).get(evkey) or {}).get("mystery_box_unit_cost")
+        return float(v) if v is not None and v != "" else None
+    except Exception:
+        return None
+
+
+def fill_event(evkey, evmeta, dry=False, octopos_truth=False):
     p = ROOT / f"docs/state/event_pnl/{evkey}.json"
     if not p.exists():
         return None
@@ -61,7 +70,8 @@ def fill_event(evkey, evmeta, dry=False):
     end_date = evmeta.get("end_date") or ""
     rev = d.setdefault("revenue", {})
     REV_KEYS = ("net_sales", "gross_sales", "tax", "transactions", "avg_ticket")
-    if end_date and end_date < today and any(not _num(rev.get(k)) for k in REV_KEYS):
+    _rev_needs = any(not _num(rev.get(k)) for k in REV_KEYS) or (octopos_truth and rev.get("source") != "octopos")
+    if end_date and end_date < today and _rev_needs:
         try:
             import pnl_octopos
             jwt = pnl_octopos.octopos_jwt()
@@ -70,9 +80,15 @@ def fill_event(evkey, evmeta, dry=False):
                        "tax": tot.get("tax"), "transactions": tot.get("transactions"),
                        "avg_ticket": tot.get("avg_ticket")}
             for k, v in src_map.items():
-                if not _num(rev.get(k)) and _num(v):
+                cur = rev.get(k)
+                overwrite = octopos_truth and _num(v) and _num(cur) and abs(float(cur) - float(v)) > 0.01 and rev.get("source") != "octopos"
+                if (not _num(cur) or overwrite) and _num(v):
+                    if overwrite:
+                        rev.setdefault("_pre_octopos_backup", {})[k] = cur   # audit — old non-OCTOPOS value
                     rev[k] = round(float(v), 2) if k != "transactions" else int(v)
                     filled["revenue." + k] = rev[k]
+            if octopos_truth and any(k.startswith("revenue.") for k in filled):
+                rev["source"] = "octopos"
             if filled and any(k.startswith("revenue.") for k in filled):
                 rev.setdefault("source", "octopos")
                 rev["_fill_note"] = "הושלם מאוקטופוס · fill-gaps — ערכים קיימים לא שונו"
@@ -89,12 +105,20 @@ def fill_event(evkey, evmeta, dry=False):
     #     The page recomputes total = units x editable unit-cost (default $15).
     det = d.setdefault("detail", {})
     mb = det.get("mystery_box") or {}
-    if end_date and end_date < today and not _num(mb.get("units")):
+    _mb_exp = exp.get("mystery_box") or {}
+    _mb_manual = "manual override" in str(_mb_exp.get("source", ""))
+    _mb_recompute = (octopos_truth and not _mb_manual and _num(mb.get("units")))
+    if end_date and end_date < today and (not _num(mb.get("units")) or _mb_recompute):
         try:
             import pnl_octopos
-            jwt2 = pnl_octopos.octopos_jwt()
-            sales2 = pnl_octopos.fetch_all_vendor_products(jwt2, evmeta.get("start_date"), end_date)
-            res = pnl_octopos.mystery_box_from(sales2)
+            if _num(mb.get("units")) and _mb_recompute:
+                # units already from OCTOPOS (last fill) — just recompute the amount below
+                res = {"units": mb["units"], "name": mb.get("name"),
+                       "product_id": mb.get("product_id"), "revenue": mb.get("revenue")}
+            else:
+                jwt2 = pnl_octopos.octopos_jwt()
+                sales2 = pnl_octopos.fetch_all_vendor_products(jwt2, evmeta.get("start_date"), end_date)
+                res = pnl_octopos.mystery_box_from(sales2)
             units = float(res.get("units") or 0)
             newmb = dict(mb)
             newmb["units"] = units
@@ -108,10 +132,20 @@ def fill_event(evkey, evmeta, dry=False):
                 newmb["unit_cost_implied"] = round(float(mb["cost"]) / units, 2)
             if not _num(newmb.get("unit_cost")):
                 newmb["unit_cost"] = 15.0
+            uc = _load_unit_cost_override(evkey) or 15.0
+            newmb["unit_cost"] = uc
+            newmb["cost"] = round(units * uc, 2)
             det["mystery_box"] = newmb
             filled["mystery_box.units"] = units
+            _new_amt = round(units * uc, 2)
             if missing("mystery_box"):
-                fill("mystery_box", units * 15.0, "octopos (units x $15) (fill-gaps)", f"{units:.0f} units x $15")
+                fill("mystery_box", _new_amt, f"octopos (units x ${uc:g}) (fill-gaps)", f"{units:.0f} units x ${uc:g}")
+            elif octopos_truth and not _mb_manual and abs(float(_mb_exp.get("amount") or 0) - _new_amt) > 0.01:
+                old_amt = _mb_exp.get("amount")
+                exp["mystery_box"] = {"amount": _new_amt, "source": f"octopos (units x ${uc:g})",
+                                      "status": "ok",
+                                      "note": f"{units:.0f} units x ${uc:g} · OCTOPOS-truth 2026-06-10 (היה ${old_amt})"}
+                filled["mystery_box"] = _new_amt
         except SystemExit as e:
             print(f"  WARN OCTOPOS mystery-box skipped for {evkey}: {e}", file=sys.stderr)
         except Exception as e:
@@ -184,13 +218,15 @@ def main():
     ap.add_argument("--since", default="2026-05-29")
     ap.add_argument("--evkey")
     ap.add_argument("--dry", action="store_true")
+    ap.add_argument("--octopos-truth", action="store_true",
+                    help="OCTOPOS is authoritative: overwrite non-OCTOPOS revenue + mystery-box values (manual overrides preserved). Lauren 2026-06-10.")
     a = ap.parse_args()
     events = json.loads((ROOT / "docs/state/events_index.json").read_text(encoding="utf-8"))["events"]
     targets = [e for e in events if (a.evkey and e["evkey"] == a.evkey) or
                (not a.evkey and e.get("start_date", "") >= a.since)]
     total = 0
     for e in sorted(targets, key=lambda x: x["start_date"]):
-        r = fill_event(e["evkey"], e, dry=a.dry)
+        r = fill_event(e["evkey"], e, dry=a.dry, octopos_truth=a.octopos_truth)
         if r is None:
             continue
         if r:

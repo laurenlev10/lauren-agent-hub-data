@@ -15,6 +15,10 @@ on:
         description: "Single evkey (optional — overrides since)"
         required: false
         default: ""
+      octopos_truth:
+        description: "OCTOPOS authoritative — overwrite non-OCTOPOS revenue/mystery-box values (true/false)"
+        required: false
+        default: "false"
 
 permissions:
   contents: write
@@ -40,10 +44,12 @@ jobs:
           OCTOPOS_PASSWORD: ${{ secrets.OCTOPOS_PASSWORD }}
           GH_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
         run: |
+          FLAG=""
+          if [ "${{ github.event.inputs.octopos_truth }}" = "true" ]; then FLAG="--octopos-truth"; fi
           if [ -n "${{ github.event.inputs.evkey }}" ]; then
-            python3 scripts/pnl_fill_gaps.py --evkey "${{ github.event.inputs.evkey }}"
+            python3 scripts/pnl_fill_gaps.py --evkey "${{ github.event.inputs.evkey }}" $FLAG
           else
-            python3 scripts/pnl_fill_gaps.py --since "${{ github.event.inputs.since || '2026-05-29' }}"
+            python3 scripts/pnl_fill_gaps.py --since "${{ github.event.inputs.since || '2026-05-29' }}" $FLAG
           fi
 
       - name: Commit + push if changed
