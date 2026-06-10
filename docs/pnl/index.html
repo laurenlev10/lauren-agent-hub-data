@@ -192,15 +192,24 @@ function totals(){
 
 function render(){
  const t=totals();const r=PNL.revenue||{};const ev=PNL.event||{};const d=PNL.detail||{};
- const pos=(t.profit!=null&&t.profit>=0);const accent=pos?"#16a34a":"#dc2626";const rw=pos?"רווח":"הפסד";
+ // Lauren 2026-06-10: a future event with no sales yet is NOT a "loss" — show a neutral
+ // "waiting for sales" banner with expenses-accrued-so-far instead of a red הפסד.
+ const noSales=(t.net==null);
+ const pos=(t.profit!=null&&t.profit>=0);
+ const accent=noSales?"#475569":(pos?"#16a34a":"#dc2626");
+ const rw=noSales?"⏳ ממתין למכירות":(pos?"רווח":"הפסד");
  const prelim=t.pending.length>0;
- let kpis=[["מכירות נטו",money(r.net_sales)],["ברוטו",money(r.gross_sales)],[rw,money(t.profit)],
+ let kpis=[["מכירות נטו",noSales?"— בקרוב":money(r.net_sales)],["ברוטו",noSales?"— בקרוב":money(r.gross_sales)],[noSales?"הוצאות עד כה":rw,noSales?money(t.sum):money(t.profit)],
    ["מרווח",t.margin!=null?(t.margin*100).toFixed(1)+"%":"—"],["עסקאות",r.transactions||"—"],["ממוצע",money(r.avg_ticket)]];
  let h="";
  h+="<h1>סיכום אירוע — "+esc(ev.city||"")+", "+esc(ev.state||"")+"</h1>";
  h+="<div class='sub'>"+esc(ev.start_date||"")+" – "+esc(ev.end_date||"")+" · "+esc(ev.venue||"")+"</div>";
  h+="<div class='sub' style='font-size:12px'>🔄 שאיבה חיה בכל פתיחה: 📦 חשבוניות מלאי"+(INV_LIVE?" ✓":"")+" · 📋 דוח מנהלת"+(MGR_LIVE?" ✓":"")+" · 🧾 תיוקי הנה\"ח (QB)"+(LIVE.length?" ✓":"")+" · 📣 פרסום"+(MKT_LIVE?" ✓":"")+" — בנוסף לבנייה היומית (מכירות/QB היסטורי)</div>";
- h+="<div class='banner' style='background:"+accent+"'><div>"+rw+(prelim?" (ראשוני)":"")+"</div><div class='big'>"+money(t.profit)+(t.margin!=null?" · "+(t.margin*100).toFixed(1)+"%":"")+"</div></div>";
+ if(noSales){
+   h+="<div class='banner' style='background:"+accent+"'><div>⏳ ממתין למכירות — האירוע טרם התקיים</div><div class='big'>הוצאות שנצברו עד כה: "+money(t.sum)+"</div></div>";
+ }else{
+   h+="<div class='banner' style='background:"+accent+"'><div>"+rw+(prelim?" (ראשוני)":"")+"</div><div class='big'>"+money(t.profit)+(t.margin!=null?" · "+(t.margin*100).toFixed(1)+"%":"")+"</div></div>";
+ }
  if(prelim)h+="<div class='warn'>⏳ עדיין ממתין/חסר: "+esc(t.pending.join(", "))+" — הרווח <b>ראשוני</b>. אפשר להזין ידנית כל שורה למטה (✏️).</div>";
  (PNL.warnings||[]).forEach(function(w){h+="<div class='warn'>"+esc(w)+"</div>";});
  if(PNL.historical){h+="<div class='warn' style='background:#eef2ff;border-color:#c7d2fe'>📄 מקור: הגיליון הידני של 2026."+(typeof PNL.sheet_profit==="number"&&Math.abs((t.profit||0)-PNL.sheet_profit)>=5?(" הרווח הרשום בגיליון: "+money(PNL.sheet_profit)+"."):"")+" אפשר להשלים/לתקן כל שורה ידנית (✏️).</div>";}
@@ -263,7 +272,11 @@ function render(){
    }
  }
  h+="<tr class='subtot'><td>סך הוצאות</td><td class='num'>"+money(t.sum)+"</td></tr>";
- h+="<tr class='grand' style='color:"+accent+"'><td>"+rw+(prelim?" ראשוני":"")+"</td><td class='num'>"+money(t.profit)+"</td></tr>";
+ if(noSales){
+   h+="<tr class='grand' style='color:"+accent+"'><td>רווח — יחושב אחרי האירוע (הוצאות עד כה "+money(t.sum)+")</td><td class='num'>—</td></tr>";
+ }else{
+   h+="<tr class='grand' style='color:"+accent+"'><td>"+rw+(prelim?" ראשוני":"")+"</td><td class='num'>"+money(t.profit)+"</td></tr>";
+ }
  h+="</table>";
  const cc=PNL.cash_check;
  if(cc){const ok=Math.abs(cc.pct||0)<=0.02;h+="<div class='cash "+(ok?"good":"bad")+"'>הצלבת מזומן: מנהלת "+money(cc.manager_cash)+" מול OCTOPOS "+money(cc.octopos_cash)+" — פער "+money(cc.diff)+" ("+(cc.pct*100).toFixed(1)+"%)</div>";}
