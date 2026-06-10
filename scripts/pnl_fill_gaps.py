@@ -13,6 +13,8 @@ from the sources already in the system:
   staff, meals, other       <- manager_reports.json    (pnl_manager, FINAL reports only)
   marketing_meta/_tiktok    <- event_analytics.json    (pnl_build.fetch_marketing)
   travel, venue, uline,lyft <- QuickBooks by Class     (pnl_quickbooks, same window as build)
+  revenue (gross/tax/net/transactions/avg_ticket) <- OCTOPOS (pnl_octopos, ended events only;
+                                                     step 1 of Lauren's 2026-06-10 backfill)
 
 NEVER overwrites an existing numeric amount (including manual overrides — they're
 numeric). Never touches revenue. Recomputes total_known_expenses / profit_preliminary
@@ -52,6 +54,35 @@ def fill_event(evkey, evmeta, dry=False):
         exp[k] = {"amount": round(float(val), 2), "source": src,
                   "status": "ok", "note": (note + " · fill-gaps 2026-06-10 — ערכים קיימים לא שונו").strip(" ·")}
         filled[k] = round(float(val), 2)
+
+    # 0. Revenue — from OCTOPOS, ended events only. Fill ONLY null subfields; an existing
+    #    net_sales (e.g. sheet-derived) is never touched. (Lauren 2026-06-10 step 1.)
+    today = dt.date.today().isoformat()
+    end_date = evmeta.get("end_date") or ""
+    rev = d.setdefault("revenue", {})
+    REV_KEYS = ("net_sales", "gross_sales", "tax", "transactions", "avg_ticket")
+    if end_date and end_date < today and any(not _num(rev.get(k)) for k in REV_KEYS):
+        try:
+            import pnl_octopos
+            jwt = pnl_octopos.octopos_jwt()
+            tot = pnl_octopos.fetch_sales_totals(jwt, evmeta.get("start_date"), end_date)
+            src_map = {"net_sales": tot.get("net"), "gross_sales": tot.get("gross"),
+                       "tax": tot.get("tax"), "transactions": tot.get("transactions"),
+                       "avg_ticket": tot.get("avg_ticket")}
+            for k, v in src_map.items():
+                if not _num(rev.get(k)) and _num(v):
+                    rev[k] = round(float(v), 2) if k != "transactions" else int(v)
+                    filled["revenue." + k] = rev[k]
+            if filled and any(k.startswith("revenue.") for k in filled):
+                rev.setdefault("source", "octopos")
+                rev["_fill_note"] = "הושלם מאוקטופוס · fill-gaps — ערכים קיימים לא שונו"
+                det = d.setdefault("detail", {})
+                if not det.get("payment_breakdown") and tot.get("payment_breakdown"):
+                    det["payment_breakdown"] = tot["payment_breakdown"]
+        except SystemExit as e:
+            print(f"  WARN OCTOPOS revenue skipped for {evkey}: {e}", file=sys.stderr)
+        except Exception as e:
+            print(f"  WARN OCTOPOS revenue failed for {evkey}: {e}", file=sys.stderr)
 
     # 1. Inventory / Shipping — only when real invoices exist (never fill 0 over pending)
     if missing("inventory") or missing("shipping"):
