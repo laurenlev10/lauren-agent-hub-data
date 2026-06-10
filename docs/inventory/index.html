@@ -2154,6 +2154,7 @@ function renderInvoiceDetailsForSupplier(supplierCode){
         '<input type="text" data-bind="invoice_number" value="' + escHtml(supState.invoice_number || (pi.invoice_number || '')) + '" placeholder="לא חובה — ימולא ידנית" title="מספר החשבונית של הספק — ידני (או ימולא אוטומטית אם זוהה בקובץ)" style="width:140px;padding:6px 8px;border:1px solid #16a34a;border-radius:6px;font-weight:600;text-align:center">' +
         '<span style="color:#166534;font-weight:800;font-size:12px">🧾 סכום החשבונית בפועל ($):</span>' +
         '<input type="number" min="0" step="0.01" data-bind="invoice_total_usd" value="' + (Number(supState.invoice_total_usd||0) > 0 ? Number(supState.invoice_total_usd) : '') + '" placeholder="הקלידי סכום" title="הסכום האמיתי לפי החשבונית — נכנס לרשימת החשבוניות (במקום סכום השורות המחושב)" style="width:120px;padding:6px 8px;border:1px solid #16a34a;border-radius:6px;text-align:center;font-weight:700;color:#15803d">' +
+        '<button type="button" onclick="refreshSupplierList(\''+supplierCode+'\')" title="עדכון מיידי של רשימת החשבוניות בדף הספקים לפי הסכום שהזנת" style="background:#7c3aed;color:#fff;border:0;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;font-weight:700">🔄 עדכן ברשימה</button>' +
         '<span style="color:#475569;font-size:11px">↩ נכנס לרשימת החשבוניות' + (subtotal > 0 ? ' · סכום השורות המחושב: $' + subtotal.toFixed(2) : '') + '</span>' +
       '</div>' +
     '</details>' +
@@ -2232,6 +2233,7 @@ function renderLocalOrdersForSupplier(supplierCode){
         '<input type="text" class="ord-invno-input" data-ord-inv-index="' + oi + '" value="' + escHtml(o.invoice_number || (o._pending_invoice && o._pending_invoice.invoice_number) || '') + '" placeholder="לא חובה" title="מספר החשבונית של הספק להזמנה זו — נשמר על ההזמנה" style="width:130px;padding:6px 8px;border:1px solid #16a34a;border-radius:6px;font-weight:600;text-align:center">' +
         '<span style="color:#166534;font-weight:800;font-size:12px">🧾 סכום החשבונית בפועל ($):</span>' +
         '<input type="number" min="0" step="0.01" class="ord-inv-input" data-ord-inv-index="' + oi + '" value="' + (_orderInvoiceTotal > 0 ? _orderInvoiceTotal : '') + '" placeholder="הקלידי סכום" title="הסכום האמיתי לפי החשבונית — זה מה שנכנס לרשימת החשבוניות (לא ההערכה)" style="width:120px;padding:6px 8px;border:1px solid #16a34a;border-radius:6px;text-align:center;font-weight:700;color:#15803d">' +
+        '<button type="button" onclick="refreshSupplierList(\''+supplierCode+'\')" title="עדכון מיידי של רשימת החשבוניות בדף הספקים לפי הסכום שהזנת" style="background:#7c3aed;color:#fff;border:0;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;font-weight:700">🔄 עדכן ברשימה</button>' +
         '<span style="color:#475569;font-size:11px">↩ נכנס לרשימת החשבוניות · "הערכת עלות" למעלה היא רק אומדן</span>' +
       '</div>';
     // Lauren 2026-06-10 — per-order shipment tracking numbers (📦). Paste one or

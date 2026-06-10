@@ -5,10 +5,11 @@ name: supplier-invoices-rebuild
 # + event_pnl historical, and regroups by supplier. Any invoice she enters flows to the
 # /suppliers/ dashboard automatically on the next run.
 
+# Lauren 2026-06-10: NO scheduled runs — manual only ("אני לא רוצה ריצה יומית... אלא ידנית על ידי כפתור").
+# The live update path is the 🔄 button next to the invoice-amount field (+ the quiet auto-call
+# in refreshSupplierList) in docs/inventory/index.html, which writes supplier_invoices.json
+# directly via the Contents API. This workflow remains as a manual full-rebuild safety valve.
 on:
-  schedule:
-    - cron: '30 15 * * *'   # daily 08:30 PT
-    - cron: '0 2 * * 1'     # Mon 18:00–19:00 PT (post-event weekend)
   workflow_dispatch: {}
 
 permissions:
