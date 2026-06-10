@@ -47,7 +47,26 @@ const EXP_ORDER=[
  ["marketing_meta","שיווק — Meta"],["marketing_tiktok","שיווק — TikTok"],
  ["travel","נסיעות (QB)"],["venue","מקום (QB)"],
  ["uline","ULINE — ציוד לאירוע"],["lyft","Lyft — נסיעות צוות"]];
-let PNL=null, OVR=null, OVR_SHA=null, LIVE=[], INV_LIVE=null;
+let PNL=null, OVR=null, OVR_SHA=null, LIVE=[], INV_LIVE=null, MGR_LIVE=null, MKT_LIVE=null;
+
+// 🔴 LIVE manager-report overlay (Lauren 2026-06-10: "אם המנהלת ממלאת את הדוח — תכניס ל-P&L").
+// Mirrors scripts/pnl_manager.py: staff = Σ(total || base+bonus+extra); cash expenses split
+// meals/other by keyword (category field wins). Latest FINAL report only — drafts ignored.
+function computeMgrLive(rep){
+ const f=x=>{const n=Number(x||0);return isFinite(n)?n:0;};
+ const MEAL_KW=["meal","food","lunch","dinner","breakfast","coffee","starbucks","restaurant","pizza","snack","drink","water","catering","אוכל","ארוחה","קפה","מסעדה"];
+ const team=rep.team||[];
+ const staff_lines=team.filter(t=>t.name).map(t=>({name:t.name,amount:+((f(t.total)||f(t.base)+f(t.bonus)+f(t.extra))).toFixed(2)}));
+ const staff=+staff_lines.reduce((a,x)=>a+x.amount,0).toFixed(2);
+ let meals=0,other=0;const expense_lines=[];
+ (rep.expenses||[]).forEach(e=>{
+   const amt=f(e.amount);
+   const cat=String(e.category||(MEAL_KW.some(k=>String(e.desc||"").toLowerCase().includes(k))?"meals":"other")).toLowerCase();
+   if(cat==="meals")meals+=amt;else other+=amt;
+   expense_lines.push({desc:e.desc,amount:+amt.toFixed(2),category:cat});
+ });
+ return {staff,meals:+meals.toFixed(2),other:+other.toFixed(2),staff_lines,expense_lines,submitted_at:rep.submitted_at||"",manager:rep.manager_name||""};
+}
 
 // 🔴 LIVE inventory overlay (Lauren 2026-06-10) — replicates scripts/pnl_inventory.py:
 // supplier-level invoice OVERRIDES order-level (no double-count, Lauren 2026-06-04);
@@ -104,9 +123,36 @@ async function load(){
        .sort((a,b)=>(a.date||"").localeCompare(b.date||""));
    }
  }catch(e){}
+ // 🔴 Lauren 2026-06-10: the P&L pulls from ALL channels in PARALLEL, continuously —
+ // inventory invoices + manager report + QB class filings (pnl_qb_live, fetched above)
+ // + marketing — live on every page open, future and past events alike. The daily baked
+ // build remains the fallback for sales/QB-history; live sources win when present.
+ const [rInv,rMgr,rMkt]=await Promise.allSettled([
+   fetch("../state/inventory_orders.json?_="+Date.now(),{cache:"no-store"}),
+   fetch("../state/manager_reports.json?_="+Date.now(),{cache:"no-store"}),
+   fetch("https://events.themakeupblowout.com/state/event_analytics.json?_="+Date.now(),{cache:"no-store"})
+ ]);
  try{
-   const r4=await fetch("../state/inventory_orders.json?_="+Date.now(),{cache:"no-store"});
-   if(r4.ok){const ev=(((await r4.json()).events)||{})[EVKEY];if(ev)INV_LIVE=computeInvLive(ev);}
+   if(rInv.status==="fulfilled"&&rInv.value.ok){const ev=(((await rInv.value.json()).events)||{})[EVKEY];if(ev)INV_LIVE=computeInvLive(ev);}
+ }catch(e){}
+ try{
+   if(rMgr.status==="fulfilled"&&rMgr.value.ok){
+     const mj=await rMgr.value.json();
+     const finals=(((mj.reports)||{})[EVKEY]||[]).filter(r=>String(r.mode||"final").toLowerCase()!=="draft");
+     if(finals.length){finals.sort((a,b)=>(a.submitted_at||"").localeCompare(b.submitted_at||""));MGR_LIVE=computeMgrLive(finals[finals.length-1]);}
+   }
+ }catch(e){}
+ try{
+   if(rMkt.status==="fulfilled"&&rMkt.value.ok){
+     const aj=await rMkt.value.json();
+     const evm=PNL.event||{};
+     const slug=String(evm.city||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+String(evm.state||"").toLowerCase()+"-"+String(evm.start_date||"").slice(0,4);
+     const node=((aj.events)||{})[slug];
+     if(node){
+       const m=(node.meta||{}).spend, t=(node.tiktok||{}).spend;
+       MKT_LIVE={meta:(m!=null?+(+m).toFixed(2):null),tiktok:(t!=null?+(+t).toFixed(2):null)};
+     }
+   }
  }catch(e){}
  if(!OVR)OVR={_updated_at:null,events:{}};
  render();
@@ -124,6 +170,12 @@ function effExpenses(){
      out[k]={amount:INV_LIVE.inventory,source:"inventory_orders (live)",status:"ok"};
    }else if(k==="shipping"&&INV_LIVE&&INV_LIVE.n_invoiced>0){
      out[k]={amount:INV_LIVE.shipping,source:"inventory_orders (live)",status:"ok"};
+   }else if(MGR_LIVE&&(k==="staff"||k==="meals"||k==="other")){
+     out[k]={amount:MGR_LIVE[k],source:"manager_report (live)",status:"ok"};
+   }else if(MKT_LIVE&&k==="marketing_meta"&&typeof MKT_LIVE.meta==="number"){
+     out[k]={amount:MKT_LIVE.meta,source:"event_analytics (live)",status:"ok"};
+   }else if(MKT_LIVE&&k==="marketing_tiktok"&&typeof MKT_LIVE.tiktok==="number"){
+     out[k]={amount:MKT_LIVE.tiktok,source:"event_analytics (live)",status:"ok"};
    }else out[k]={amount:base.amount,source:base.source,status:base.status};
  }
  return out;
@@ -147,6 +199,7 @@ function render(){
  let h="";
  h+="<h1>סיכום אירוע — "+esc(ev.city||"")+", "+esc(ev.state||"")+"</h1>";
  h+="<div class='sub'>"+esc(ev.start_date||"")+" – "+esc(ev.end_date||"")+" · "+esc(ev.venue||"")+"</div>";
+ h+="<div class='sub' style='font-size:12px'>🔄 שאיבה חיה בכל פתיחה: 📦 חשבוניות מלאי"+(INV_LIVE?" ✓":"")+" · 📋 דוח מנהלת"+(MGR_LIVE?" ✓":"")+" · 🧾 תיוקי הנה\"ח (QB)"+(LIVE.length?" ✓":"")+" · 📣 פרסום"+(MKT_LIVE?" ✓":"")+" — בנוסף לבנייה היומית (מכירות/QB היסטורי)</div>";
  h+="<div class='banner' style='background:"+accent+"'><div>"+rw+(prelim?" (ראשוני)":"")+"</div><div class='big'>"+money(t.profit)+(t.margin!=null?" · "+(t.margin*100).toFixed(1)+"%":"")+"</div></div>";
  if(prelim)h+="<div class='warn'>⏳ עדיין ממתין/חסר: "+esc(t.pending.join(", "))+" — הרווח <b>ראשוני</b>. אפשר להזין ידנית כל שורה למטה (✏️).</div>";
  (PNL.warnings||[]).forEach(function(w){h+="<div class='warn'>"+esc(w)+"</div>";});
@@ -181,13 +234,14 @@ function render(){
     "<tr><td>"+esc(mb.name||"—")+"</td><td class='num'>"+(mb.units||0).toFixed(0)+"</td><td class='num'>"+money(mb.unit_cost||15)+"</td><td class='num'>"+money((PNL.expenses.mystery_box||{}).amount)+"</td></tr></table></div>";
 
  // staff
- const st=d.staff_lines||[];
- h+="<div class='card'><h2>👥 צוות</h2><table>"+(st.length?st.map(x=>"<tr><td>"+esc(x.name)+"</td><td class='num'>"+money(x.amount)+"</td></tr>").join(""):"<tr><td colspan=2>—</td></tr>")+"</table></div>";
+ const st=(MGR_LIVE&&MGR_LIVE.staff_lines.length)?MGR_LIVE.staff_lines:(d.staff_lines||[]);
+ const mgrLiveBadge=MGR_LIVE?" <span class='pend' style='background:#fee2e2;color:#b91c1c;border-color:#fca5a5;font-size:11px'>🔴 חי — מדוח המנהלת"+(MGR_LIVE.manager?" · "+esc(MGR_LIVE.manager):"")+"</span>":"";
+ h+="<div class='card'><h2>👥 צוות"+mgrLiveBadge+"</h2><table>"+(st.length?st.map(x=>"<tr><td>"+esc(x.name)+"</td><td class='num'>"+money(x.amount)+"</td></tr>").join(""):"<tr><td colspan=2>—</td></tr>")+"</table></div>";
 
  // meals/other
- const ml=d.manager_expense_lines||[];
+ const ml=(MGR_LIVE&&MGR_LIVE.expense_lines.length)?MGR_LIVE.expense_lines:(d.manager_expense_lines||[]);
  const meals=ml.filter(x=>x.category==="meals"),oth=ml.filter(x=>x.category!=="meals");
- h+="<div class='card'><h2>🍽️ אוכל</h2><table>"+(meals.length?meals.map(x=>"<tr><td>"+esc(x.desc)+"</td><td class='num'>"+money(x.amount)+"</td></tr>").join(""):"<tr><td colspan=2>—</td></tr>")+"</table>"+
+ h+="<div class='card'><h2>🍽️ אוכל"+(MGR_LIVE?mgrLiveBadge:"")+"</h2><table>"+(meals.length?meals.map(x=>"<tr><td>"+esc(x.desc)+"</td><td class='num'>"+money(x.amount)+"</td></tr>").join(""):"<tr><td colspan=2>—</td></tr>")+"</table>"+
     "<h2 style='margin-top:14px'>🧾 שונות</h2><table>"+(oth.length?oth.map(x=>"<tr><td>"+esc(x.desc)+"</td><td class='num'>"+money(x.amount)+"</td></tr>").join(""):"<tr><td colspan=2>—</td></tr>")+"</table></div>";
 
  // P&L summary — editable per line
@@ -196,7 +250,7 @@ function render(){
  for(const[k,lbl]of EXP_ORDER){
    const e=t.exp[k];let badge="";
    if(e.source==="manual override")badge="<span class='manual'>✏️ ידני</span>";
-   else if(e.source==="inventory_orders (live)")badge="<span class='pend' style='background:#fee2e2;color:#b91c1c;border-color:#fca5a5'>🔴 חי</span>";
+   else if(/\(live\)$/.test(e.source||""))badge="<span class='pend' style='background:#fee2e2;color:#b91c1c;border-color:#fca5a5'>🔴 חי</span>";
    else if(e.status!=="ok")badge="<span class='pend'>"+esc(e.status)+"</span>";
    h+="<tr data-k='"+k+"'><td>"+esc(lbl)+badge+"<span class='edit' onclick='startEdit(\""+k+"\")'>✏️</span></td>"+
       "<td class='num' id='amt-"+k+"'>"+money(e.amount)+"</td></tr>";
