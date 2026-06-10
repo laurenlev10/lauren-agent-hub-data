@@ -34,6 +34,7 @@ The OCTOPOS RECOUNT mutations happen via PUT /products/<id> with category_ids.
 Same auth pattern as octopos_sync.py + the manual fix scripts from earlier today.
 """
 import json, os, sys, urllib.request, urllib.error
+import time
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
@@ -44,18 +45,28 @@ TS_PATH = Path('docs/state/octopos_stock_timeseries.json')
 ARCH_PATH = Path('docs/state/invoice_archive.json')
 WSALES_PATH = Path('docs/state/weekend_sales.json')
 
-def http(method, path, token=None, body=None, timeout=20):
+def http(method, path, token=None, body=None, timeout=40):
+    # 2026-06-10: retry transient network timeouts (OCTOPOS was slow 6/9 → run failed
+    # + needless failure-SMS to Lauren). 3 attempts, backoff 5s/10s; HTTP errors are
+    # returned (not retried) — these are read-only report queries, safe to retry.
     h = {"Accept": "application/json", "User-Agent": "weekend-recap/1.0"}
     if token: h["Authorization"] = token
     data = json.dumps(body).encode() if body else None
     if body: h["Content-Type"] = "application/json"
-    req = urllib.request.Request(f"{BASE}{path}", data=data, headers=h, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.status, json.loads(r.read().decode())
-    except urllib.error.HTTPError as e:
-        try: return e.code, json.loads(e.read().decode())
-        except: return e.code, {}
+    last = None
+    for attempt in range(3):
+        req = urllib.request.Request(f"{BASE}{path}", data=data, headers=h, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.status, json.loads(r.read().decode())
+        except urllib.error.HTTPError as e:
+            try: return e.code, json.loads(e.read().decode())
+            except: return e.code, {}
+        except (TimeoutError, OSError, urllib.error.URLError) as e:
+            last = e
+            print(f"  http retry {attempt+1}/3 after {type(e).__name__}: {e}")
+            time.sleep(5 * (attempt + 1))
+    raise last
 
 def authenticate():
     email = os.environ.get("OCTOPOS_EMAIL")
