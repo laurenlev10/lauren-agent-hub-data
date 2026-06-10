@@ -1122,6 +1122,7 @@ End date: </div>
   <div class="card" id="schedule-card">
     <h2>
       <span><span id="schedule-year">2026</span> — All weekends</span>
+      <a href="../tier/" target="_blank" rel="noopener" style="font-size:12px;font-weight:700;color:#1e3a8a;text-decoration:none;border:1px solid #bfdbfe;background:#eff6ff;border-radius:8px;padding:3px 10px" title="תקציבים והגדרות לכל Tier — עריכה ועדכון כל המערכת">🎚️ Tier — תקציבים</a>
       <!-- schedule-stats removed 2026-05-03 PM (Lauren feedback: redundant — period-tabs already show "Past N · Future M") -->
     </h2>
 
@@ -1770,9 +1771,13 @@ End date: </div>
       }
       const dateCell = fmtRange(start, end);
       const cityCell = ev ? (ev.city + ", " + ev.state) : "—";
-      const tierBadge = (ev && ev.tier) ? ('<span class="badge badge-tier badge-tier-' + ev.tier + '">T' + ev.tier + '</span>') : '';
+      // Tier — effective = MANUAL_TASKS[evkey].tier_override ?? SCHEDULE tier. Click the badge to edit (Lauren 2026-06-10).
+      const _evKeyTier = ev ? ((ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + ev.start_date) : null;
+      const _tierNote = (_evKeyTier && typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[_evKeyTier] || {}) : {};
+      const _effTier = (_tierNote.tier_override != null && _tierNote.tier_override !== "") ? _tierNote.tier_override : (ev ? ev.tier : null);
+      const tierBadge = ev ? ('<span class="badge badge-tier badge-tier-' + (_effTier || "none") + '" data-tier-edit="' + _evKeyTier + '" data-tier-cur="' + (_effTier || "") + '" title="Tier' + (_tierNote.tier_override != null ? " (override ידני — שמור ב-notes.json)" : "") + ' · לחיצה לעריכה" style="cursor:pointer">T' + (_effTier || "?") + (_tierNote.tier_override != null ? "✎" : "") + '</span>') : '';
       // 📡 per-city ad radius (Lauren 2026-06-10) — visible on every event box; tooltip carries targeting note
-      const _crRec = (typeof CITY_RADIUS !== "undefined") ? CITY_RADIUS[(ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")] : null;
+      const _crRec = (ev && typeof CITY_RADIUS !== "undefined") ? CITY_RADIUS[(ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")] : null;
       const radiusBadge = _crRec ? ('<span class="badge badge-radius" title="' + escapeHtml(_crRec.note || "") + '">📡' + _crRec.r + 'mi</span>') : '';
       let venueCell = "—";
       if (ev){
@@ -2271,13 +2276,15 @@ End date: </div>
           // 2026-06-01: Lauren now shares the per-event SHARE (thank-you) page (all-platform share buttons),
           // NOT the raw IG reel. Pass …/events/<slug>/share.html as the reel_link param so the
           // campaigns dashboard auto-fills it. Falls back to "" (field blank) when no landing page yet.
+          const _noteTierP = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKey] || {}) : {};
+          const _effTierParams = (_noteTierP.tier_override != null && _noteTierP.tier_override !== "") ? _noteTierP.tier_override : ev.tier;
           const _lpForParams = ((typeof LANDING_PAGES !== "undefined") && LANDING_PAGES[evKey]) ? LANDING_PAGES[evKey] : null;
           const _reelLinkForParams = (_lpForParams && _lpForParams.url) ? (_lpForParams.url.replace(/\/+$/, "") + "/share.html") : "";
           const params = new URLSearchParams({
             city: ev.city + ", " + ev.state, year: (ev.start_date||"").slice(0,4),
             start_date: ev.start_date, end_date: ev.end_date,
             venue: ev.venue || "", address: ev.address || "",
-            tier: (ev.tier != null ? String(ev.tier) : ""),
+            tier: (_effTierParams != null ? String(_effTierParams) : ""),
             radius_miles: ((typeof CITY_RADIUS !== "undefined") && CITY_RADIUS[(ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")]) ? String(CITY_RADIUS[(ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")].r) : "",
             reel_link: _reelLinkForParams
           }).toString();
@@ -2318,7 +2325,7 @@ End date: </div>
               end_date:   ev.end_date || "",
               venue:      ev.venue || "",
               address:    ev.address || "",
-              tier:       (ev.tier != null ? String(ev.tier) : ""),
+              tier:       (_effTierParams != null ? String(_effTierParams) : ""),
               evkey:      evKey
             }).toString();
             rowBtn += '<a class="btn-agent-row btn-scout-row" href="../scout-brief/?' + scoutBriefParams + '" target="_blank" rel="noopener" title="Open Scout Brief — pre-filled with this event\'s city/address; copy the prompt to a Cowork NEW TASK">🔍 City Scout</a>';
@@ -4325,6 +4332,40 @@ End date: </div>
         renderSchedule();
       });
     });
+
+  // 🎚️ Tier edit — click the T badge on any event row (Lauren 2026-06-10).
+  // Saves tier_override into MANUAL_TASKS[evkey] (notes.json, race-safe ManualTasksSync writer).
+  document.addEventListener("click", function(e){
+    const el = e.target.closest("[data-tier-edit]");
+    if (!el) return;
+    const evKey = el.getAttribute("data-tier-edit");
+    if (!evKey || evKey === "null") return;
+    const cur = el.getAttribute("data-tier-cur") || "";
+    const v = prompt("Tier לאירוע הזה (1 / 2 / 3).\nריק = מחיקת ה-override וחזרה לערך מה-SCHEDULE/קובץ:", cur);
+    if (v == null) return;
+    const t = v.trim();
+    if (!MANUAL_TASKS[evKey]) MANUAL_TASKS[evKey] = {};
+    if (t === "") { delete MANUAL_TASKS[evKey].tier_override; }
+    else {
+      const n = parseInt(t, 10);
+      if (!(n >= 1 && n <= 3)) { alert("ערך לא תקין — 1, 2 או 3 בלבד"); return; }
+      MANUAL_TASKS[evKey].tier_override = n;
+    }
+    MANUAL_TASKS[evKey].updated_at = new Date().toISOString();
+    ManualTasksSync.save(MANUAL_TASKS);
+    renderSchedule();
+  });
+
+  // 🎚️ Live per-city radius from docs/state/event_radius.json — the tier dashboard (/tier/) writes
+  // that file; fetching it here means radius badge + metaads links update without redeploying this page.
+  fetch("../state/event_radius.json?_=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(j => {
+      if (!j || !j.cities) return;
+      Object.keys(j.cities).forEach(k => { CITY_RADIUS[k] = { r: j.cities[k].radius_miles, note: j.cities[k].note || "" }; });
+      renderSchedule();
+    })
+    .catch(() => { /* fail-silent — embedded fallback stays */ });
 
   // Load subscribe_target.json (which event is currently active on the public QR landing page) and re-render
   // so the 🔳 QR LP button flips green on the matching row. Updated weekly by update-subscribe-target.yml.

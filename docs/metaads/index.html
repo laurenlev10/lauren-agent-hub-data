@@ -57,7 +57,7 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="top"><a href="../">&larr; חזרה ל-Agent Hub</a></div>
+  <div class="top"><a href="../">&larr; חזרה ל-Agent Hub</a> · <a href="../tier/">🎚️ דף Tier — תקציבים</a></div>
   <h1>📘 META CAMPAIGNS</h1>
   <div class="sub">משכפל את 3 הקמפיינים שלך בדראפט (2 EN + 1 ES), מעדכן שם / תאריכים / מיקום / רדיוס / טקסט (XXXXX) — ומשאיר Draft. את מאשרת ידנית.</div>
 
@@ -253,6 +253,19 @@ const RECENT = [
   ["f-city", "f-state", "f-venue", "f-address", "f-start", "f-end", "f-radius"].forEach(id => document.getElementById(id).addEventListener("input", refreshPreview));
   applyCityDefaults(false);
   refreshPreview();
+
+  // 🎚️ Live data from docs/state/event_radius.json — the tier dashboard (/tier/) writes it,
+  // so radius/tier/budget changes propagate here without redeploying this page.
+  fetch("../state/event_radius.json?_=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(j => {
+      if (!j) return;
+      if (j.cities) Object.keys(j.cities).forEach(k => { CITY_RADIUS[k] = j.cities[k]; });
+      if (j.tier_budgets) Object.keys(j.tier_budgets).forEach(t => { TIER_BUDGETS[t] = j.tier_budgets[t]; });
+      applyCityDefaults(false);
+      refreshPreview();
+    })
+    .catch(() => { /* fail-silent — embedded fallback stays */ });
 
   // Copy
   const btn = document.getElementById("copy-btn");

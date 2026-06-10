@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🎚️ TIER — תקציבים והגדרות</title>
+<style>
+  :root{--bg:#f8fafc;--card:#fff;--border:#e2e8f0;--muted:#64748b;--ink:#0f172a;--t1:#1e3a8a;--t2:#3b82f6;--t3:#93c5fd;--ok:#059669}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,-apple-system,sans-serif;font-size:15px}
+  .wrap{max-width:1080px;margin:0 auto;padding:18px 14px 80px}
+  .top a{color:var(--muted);text-decoration:none;font-size:13px}
+  h1{font-size:26px;margin:8px 0 2px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  h2{font-size:17px;margin:0 0 12px}
+  .tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media(max-width:760px){.tiers{grid-template-columns:1fr}}
+  .tier-card{border:2px solid var(--border);border-radius:12px;overflow:hidden}
+  .tier-head{padding:10px 12px;color:#fff;font-weight:800;font-size:16px;display:flex;justify-content:space-between;align-items:center}
+  .tier-1 .tier-head{background:var(--t1)} .tier-2 .tier-head{background:var(--t2)} .tier-3 .tier-head{background:var(--t3);color:#1e3a8a}
+  .tier-body{padding:10px 12px}
+  .frow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed #eef2f7;font-size:13px}
+  .frow:last-child{border-bottom:none}
+  .frow label{color:var(--muted);flex:1}
+  .frow input{width:110px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:13px;text-align:center;direction:ltr}
+  .frow input.wide{width:140px}
+  .calc{background:#f1f5f9;border-radius:8px;padding:8px 10px;font-size:12px;color:#334155;margin-top:8px;line-height:1.7}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;background:linear-gradient(180deg,#059669,#047857);color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit}
+  .btn:disabled{opacity:.5;cursor:wait}
+  .btn-bar{position:sticky;bottom:0;background:linear-gradient(0deg,var(--bg) 70%,transparent);padding:14px 0 10px;text-align:center;z-index:5}
+  .hint{font-size:12px;color:var(--muted);line-height:1.7}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{font-size:11px;color:var(--muted);text-align:right;padding:6px;border-bottom:2px solid var(--border)}
+  td{padding:5px 6px;border-bottom:1px solid #f1f5f9}
+  td input,td select{padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit}
+  td input.r{width:54px;text-align:center;direction:ltr}
+  td input.note{width:100%;min-width:180px}
+  .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700}
+  .pill-ok{background:#d1fae5;color:#065f46}
+  .pill-err{background:#fee2e2;color:#991b1b}
+  #toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;display:none;z-index:99;max-width:90vw}
+  .flow{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#1e40af;line-height:1.8}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><a href="../">&larr; חזרה ל-Agent Hub</a> · <a href="../launch/">📋 דשבורד השקות</a> · <a href="../metaads/">📘 META CAMPAIGNS</a></div>
+  <h1>🎚️ TIER — תקציבים והגדרות לכל רמת אירוע</h1>
+  <div class="sub">מקור אמת יחיד: <code>docs/state/event_radius.json</code>. כל שינוי שנשמר כאן מתעדכן אוטומטית בכל הדשבורדים והסוכנים.</div>
+
+  <div class="card">
+    <h2>מה זה Tier?</h2>
+    <div class="hint">כל אירוע מקבל דירוג 1–3 לפי גודל/פוטנציאל העיר. ה-Tier קובע: כמה עובדים באירוע, תקציב שיווק ל-4 שבועות (וההתפלגות בין Meta ל-TikTok), תקציב שכירות אולם ותקציב הזמנת סחורה. Tier 1 = האירועים הגדולים, Tier 3 = הקטנים.</div>
+  </div>
+
+  <div class="card">
+    <h2>ערכי ה-Tier (ניתן לערוך)</h2>
+    <div class="tiers" id="tier-cards"></div>
+    <div class="calc" id="inv-note"></div>
+  </div>
+
+  <div class="card">
+    <h2>ערים — Tier · רדיוס · הערת טירגוט (ניתן לערוך)</h2>
+    <div class="hint" style="margin-bottom:8px">ה-Tier פר-עיר משמש כברירת מחדל בדף META CAMPAIGNS. שינוי Tier לאירוע ספציפי אפשר גם ישירות בריבוע האירוע בדשבורד ההשקות (לחיצה על תג ה-T).</div>
+    <div style="overflow-x:auto"><table id="city-table">
+      <thead><tr><th>עיר</th><th>ST</th><th>Tier</th><th>רדיוס (מייל)</th><th>הערת טירגוט</th></tr></thead>
+      <tbody id="city-body"></tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <h2>🔄 לאן השינויים מתפשטים?</h2>
+    <div class="flow">
+      לחיצה על "שמור ועדכן הכל" כותבת את <code>docs/state/event_radius.json</code> ל-GitHub. ממנו קוראים בזמן-אמת:<br>
+      📘 <b>דף META CAMPAIGNS</b> — מילוי אוטומטי של רדיוס/Tier/תקציב בפקודה · 📋 <b>דשבורד ההשקות</b> — תגי 📡 רדיוס בכל ריבוע אירוע · 🤖 <b>סוכן @metaads</b> — קורא את הקובץ בכל ריצה וקובע תקציב יומי לפי ה-Tier (api.apply_tier_budget) · 🎵 <b>TikTok</b> — קמפיין אחד לאירוע מקבל את כל תקציב הטיקטוק.<br>
+      אין צורך בשום עדכון נוסף — הכל נמשך מהקובץ הזה.
+    </div>
+  </div>
+
+  <div class="btn-bar"><button class="btn" id="save-btn">💾 שמור ועדכן הכל (GitHub)</button> <span id="save-state" class="pill" style="display:none"></span></div>
+</div>
+<div id="toast"></div>
+
+<script>
+(function(){
+  const OWNER="laurenlev10", REPO="lauren-agent-hub-data", PATH="docs/state/event_radius.json", BRANCH="main";
+  const API_URL = "https://api.github.com/repos/"+OWNER+"/"+REPO+"/contents/"+PATH+"?ref="+BRANCH;
+  const TOKEN_KEY = "lauren_gh_token_v1";
+  let STATE = null;
+
+  const FIELDS = [
+    {k:"staff",            label:"👥 עובדים באירוע",            type:"int"},
+    {k:"marketing_total_usd", label:"💰 תקציב שיווק כולל (4 שבועות)", type:"int", pre:"$"},
+    {k:"meta_total_usd",   label:"📘 Meta — סה״כ",          type:"int", pre:"$"},
+    {k:"meta_daily_usd",   label:"📘 Meta — ליום (3 קמפיינים)",  type:"int", pre:"$"},
+    {k:"meta_daily_per_campaign_usd", label:"📘 Meta — ליום לקמפיין", type:"int", pre:"$"},
+    {k:"tiktok_total_usd", label:"🎵 TikTok — סה״כ (קמפיין אחד)", type:"int", pre:"$"},
+    {k:"tiktok_daily_usd", label:"🎵 TikTok — ליום",             type:"int", pre:"$"},
+    {k:"room_rent_range",  label:"🏨 שכירות אולם",               type:"text"},
+    {k:"inventory_budget_range", label:"📦 תקציב סחורה",         type:"text"}
+  ];
+
+  function toast(msg, ms){
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.style.display = "block";
+    clearTimeout(t._h); t._h = setTimeout(() => { t.style.display = "none"; }, ms || 3500);
+  }
+  function getToken(){ try { return localStorage.getItem(TOKEN_KEY) || ""; } catch(e){ return ""; } }
+  function askToken(){
+    const v = prompt("🔑 הדבקי את ה-GitHub PAT (נמצא ב-Claude\\.claude\\secrets\\github_pat.txt). נשמר רק בדפדפן הזה.", getToken());
+    if (v != null) try { localStorage.setItem(TOKEN_KEY, v.trim()); } catch(e){}
+    return getToken();
+  }
+
+  function renderTiers(){
+    const wrap = document.getElementById("tier-cards");
+    wrap.innerHTML = "";
+    ["1","2","3"].forEach(t => {
+      const b = STATE.tier_budgets[t] || {};
+      let rows = "";
+      FIELDS.forEach(f => {
+        const v = (b[f.k] != null) ? b[f.k] : "";
+        rows += '<div class="frow"><label>' + f.label + '</label><input data-tier="' + t + '" data-k="' + f.k + '" class="' + (f.type === "text" ? "wide" : "") + '" value="' + String(v).replace(/"/g, "&quot;") + '"></div>';
+      });
+      const card = document.createElement("div");
+      card.className = "tier-card tier-" + t;
+      card.innerHTML = '<div class="tier-head"><span>Tier ' + t + '</span><span id="th-' + t + '"></span></div><div class="tier-body">' + rows + '<div class="calc" id="calc-' + t + '"></div></div>';
+      wrap.appendChild(card);
+    });
+    document.getElementById("inv-note").textContent = "📦 " + (STATE.tier_budgets._inventory_note || "");
+    refreshCalcs();
+    wrap.querySelectorAll("input").forEach(inp => inp.addEventListener("input", refreshCalcs));
+  }
+
+  function readTierInputs(){
+    const out = JSON.parse(JSON.stringify(STATE.tier_budgets));
+    document.querySelectorAll('#tier-cards input').forEach(inp => {
+      const t = inp.dataset.tier, k = inp.dataset.k;
+      const f = FIELDS.find(x => x.k === k);
+      let v = inp.value.trim();
+      if (f.type === "int") { v = parseInt(String(v).replace(/[^0-9.-]/g, ""), 10); if (isNaN(v)) v = 0; }
+      out[t][k] = v;
+    });
+    return out;
+  }
+
+  function refreshCalcs(){
+    const tb = readTierInputs();
+    ["1","2","3"].forEach(t => {
+      const b = tb[t];
+      const sum = (b.meta_total_usd || 0) + (b.tiktok_total_usd || 0);
+      const head = document.getElementById("th-" + t);
+      head.textContent = "$" + (b.marketing_total_usd || 0).toLocaleString();
+      const ok = Math.abs(sum - (b.marketing_total_usd || 0)) <= 20;
+      document.getElementById("calc-" + t).innerHTML =
+        "Meta $" + (b.meta_total_usd||0).toLocaleString() + " + TikTok $" + (b.tiktok_total_usd||0).toLocaleString() +
+        " = $" + sum.toLocaleString() + (ok ? " ✓" : " ⚠ לא תואם לתקציב הכולל") +
+        "<br>Meta ‎$" + (b.meta_daily_per_campaign_usd||0) + '/יום × 3 קמפיינים · TikTok ‎$' + (b.tiktok_daily_usd||0) + "/יום לקמפיין היחיד";
+    });
+  }
+
+  function renderCities(){
+    const tbody = document.getElementById("city-body");
+    tbody.innerHTML = "";
+    const keys = Object.keys(STATE.cities).sort((a,b) => STATE.cities[a].city.localeCompare(STATE.cities[b].city));
+    keys.forEach(k => {
+      const c = STATE.cities[k];
+      const tr = document.createElement("tr");
+      tr.innerHTML = '<td><b>' + c.city + '</b></td><td>' + c.state + '</td>' +
+        '<td><select data-ck="' + k + '" data-f="tier"><option value="">—</option>' +
+          [1,2,3].map(n => '<option value="' + n + '"' + (c.tier === n ? ' selected' : '') + '>' + n + '</option>').join("") + '</select></td>' +
+        '<td><input class="r" data-ck="' + k + '" data-f="radius_miles" value="' + (c.radius_miles != null ? c.radius_miles : "") + '"></td>' +
+        '<td><input class="note" data-ck="' + k + '" data-f="note" value="' + String(c.note || "").replace(/"/g, "&quot;") + '"></td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  function readCityInputs(){
+    const out = JSON.parse(JSON.stringify(STATE.cities));
+    document.querySelectorAll('#city-body [data-ck]').forEach(el => {
+      const k = el.dataset.ck, f = el.dataset.f;
+      let v = el.value;
+      if (f === "tier") v = v ? parseInt(v, 10) : null;
+      if (f === "radius_miles") { v = parseInt(String(v).replace(/[^0-9]/g, ""), 10); if (isNaN(v)) v = STATE.default_radius_miles || 10; }
+      out[k][f] = v;
+    });
+    return out;
+  }
+
+  async function load(){
+    try {
+      const r = await fetch("../state/event_radius.json?_=" + Date.now(), { cache: "no-store" });
+      STATE = await r.json();
+      renderTiers(); renderCities();
+    } catch(e){ toast("⚠ שגיאה בטעינת הנתונים: " + e.message); }
+  }
+
+  // Save: read-merge-write per IRON RULE #18 — fetch the LIVE file (sha + content),
+  // overlay ONLY tier_budgets + per-city tier/radius/note, never clobber unknown keys.
+  async function save(){
+    let tok = getToken();
+    if (!tok) tok = askToken();
+    if (!tok) { toast("🔑 צריך טוקן כדי לשמור"); return; }
+    const btn = document.getElementById("save-btn");
+    btn.disabled = true;
+    try {
+      const meta = await fetch(API_URL + "&_=" + Date.now(), { headers: { Authorization: "Bearer " + tok, Accept: "application/vnd.github+json" }, cache: "no-store" });
+      if (!meta.ok) throw new Error("קריאת הקובץ נכשלה (" + meta.status + ")");
+      const j = await meta.json();
+      let live;
+      if (j.content) {
+        live = JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g, "")))));
+      } else if (j.git_url) {
+        const bl = await fetch(j.git_url, { headers: { Authorization: "Bearer " + tok } });
+        const bj = await bl.json();
+        if (!bj.content) throw new Error("empty read — aborting (IRON RULE #18)");
+        live = JSON.parse(decodeURIComponent(escape(atob(bj.content.replace(/\n/g, "")))));
+      } else { throw new Error("empty read — aborting (IRON RULE #18)"); }
+
+      const newTB = readTierInputs();
+      const newCities = readCityInputs();
+      live.tier_budgets = live.tier_budgets || {};
+      Object.keys(newTB).forEach(t => {
+        if (t.startsWith("_")) { live.tier_budgets[t] = newTB[t]; return; }
+        live.tier_budgets[t] = Object.assign({}, live.tier_budgets[t] || {}, newTB[t]);
+      });
+      live.cities = live.cities || {};
+      Object.keys(newCities).forEach(k => {
+        live.cities[k] = Object.assign({}, live.cities[k] || {}, {
+          city: newCities[k].city, state: newCities[k].state,
+          tier: newCities[k].tier, radius_miles: newCities[k].radius_miles, note: newCities[k].note
+        });
+      });
+      live._updated_at = new Date().toISOString();
+      live._updated_by = "tier-dashboard (browser)";
+
+      const body = {
+        message: "tier dashboard: tier_budgets / city radius update " + new Date().toISOString().slice(0,16).replace("T"," "),
+        content: btoa(unescape(encodeURIComponent(JSON.stringify(live, null, 2)))),
+        branch: BRANCH, sha: j.sha
+      };
+      const putUrl = "https://api.github.com/repos/" + OWNER + "/" + REPO + "/contents/" + PATH;
+      const r = await fetch(putUrl, { method: "PUT", headers: { Authorization: "Bearer " + tok, Accept: "application/vnd.github+json", "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) {
+        if (r.status === 401 || r.status === 403) { askToken(); throw new Error("טוקן לא תקין — הדביקי שוב ונסי שוב"); }
+        throw new Error("שמירה נכשלה (" + r.status + ")");
+      }
+      STATE = live;
+      toast("✓ נשמר ב-GitHub — כל הדשבורדים והסוכנים מעודכנים (התפשטות תוך ~דקה)", 5000);
+      const sp = document.getElementById("save-state");
+      sp.style.display = "inline-block"; sp.className = "pill pill-ok"; sp.textContent = "✓ " + new Date().toLocaleTimeString().slice(0,5);
+    } catch(e){
+      toast("⚠ " + e.message, 6000);
+      const sp = document.getElementById("save-state");
+      sp.style.display = "inline-block"; sp.className = "pill pill-err"; sp.textContent = "⚠ שגיאה";
+    } finally { btn.disabled = false; }
+  }
+
+  document.getElementById("save-btn").addEventListener("click", save);
+  load();
+})();
+</script>
+</body>
+</html>
