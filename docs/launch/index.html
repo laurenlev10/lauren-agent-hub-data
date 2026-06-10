@@ -2674,8 +2674,13 @@ End date: </div>
             } else {
               rowBtn += '<a class="btn-agent-row btn-summary-row needs-summary" href="../mbs/?' + params + '" target="_blank" rel="noopener" title="האירוע הסתיים — נדרש סיכום. לחיצה תפתח את MBS Event Summary עם פרטי האירוע מוכנים.">📊 Summarize!</a>';
             }
-            rowBtn += '<a class="btn-agent-row" style="background:linear-gradient(180deg,#7c3aed,#5b21b6)" href="../pnl/?evkey=' + evKey + '" target="_blank" rel="noopener" title="P&L מפורט וניתן לעריכה — כל ההכנסות וההוצאות שורה-שורה, עם עריכה ידנית">📋 P&L</a>';
-            // 💰 Income — merchant card-deposit reconciliation vs OCTOPOS card (Lauren 2026-06-08)
+          }
+          // Lauren 2026-06-10 — 📋 P&L + 💰 Income render on ALL events (future included):
+          // expenses accrue before the event (inventory invoices, deposits), and every invoice
+          // entered in the inventory dashboard must be reachable from the event row immediately.
+          rowBtn += '<a class="btn-agent-row" style="background:linear-gradient(180deg,#7c3aed,#5b21b6)" href="../pnl/?evkey=' + evKey + '" target="_blank" rel="noopener" title="P&L מפורט וניתן לעריכה — כל ההכנסות וההוצאות שורה-שורה, עם עריכה ידנית. הוצאות מלאי מתעדכנות חי מהחשבוניות">📋 P&L</a>';
+          // 💰 Income — merchant card-deposit reconciliation vs OCTOPOS card (Lauren 2026-06-08)
+          {
             const incR = (typeof INCOME_RECON !== "undefined") ? INCOME_RECON[evKey] : null;
             if (incR) {
               rowBtn += '<a class="btn-agent-row btn-income-row done" href="../income/?evkey=' + evKey + '" target="_blank" rel="noopener" title="הופקד נטו (שלנו) ' + incR.net + ' · כרטיס ברוטו ' + incR.gross + ' · תוספת סליקה (שילם הלקוח) ' + incR.fee + ' · ' + (incR.deposits_count||0) + ' הפקדות">💰 Income ✓</a>';

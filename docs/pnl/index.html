@@ -47,7 +47,39 @@ const EXP_ORDER=[
  ["marketing_meta","שיווק — Meta"],["marketing_tiktok","שיווק — TikTok"],
  ["travel","נסיעות (QB)"],["venue","מקום (QB)"],
  ["uline","ULINE — ציוד לאירוע"],["lyft","Lyft — נסיעות צוות"]];
-let PNL=null, OVR=null, OVR_SHA=null, LIVE=[];
+let PNL=null, OVR=null, OVR_SHA=null, LIVE=[], INV_LIVE=null;
+
+// 🔴 LIVE inventory overlay (Lauren 2026-06-10) — replicates scripts/pnl_inventory.py:
+// supplier-level invoice OVERRIDES order-level (no double-count, Lauren 2026-06-04);
+// anomaly guard: supplier invoice >3× its order estimate AND >$1000 → excluded;
+// Inventory = Σinvoiced − Σshipping; Shipping separate. So every invoice entered in
+// the inventory dashboard reaches this P&L the moment the page loads.
+function computeInvLive(ev){
+ const f=x=>{const n=Number(x||0);return isFinite(n)?n:0;};
+ const sups=ev.suppliers||{};
+ const orders=(ev.local_orders||[]).filter(o=>!o.cancelled_at&&!o.moved_to);
+ const byCode={};
+ orders.forEach(o=>{(byCode[o.supplier_code]=byCode[o.supplier_code]||[]).push(o);});
+ const codes=new Set(Object.keys(sups).concat(Object.keys(byCode)));
+ let inv=0,ship=0;const lines=[];
+ codes.forEach(code=>{
+   const s=(sups[code]&&typeof sups[code]==="object")?sups[code]:{};
+   const ords=byCode[code]||[];
+   const est=ords.reduce((a,o)=>a+f(o.total_cost),0);
+   let supInv=f(s.invoice_total_usd),supShip=f(s.shipping_cost_usd);
+   const ordInv=ords.reduce((a,o)=>a+f(o.invoice_total_usd),0);
+   const ordShip=ords.reduce((a,o)=>a+f(o.shipping_cost_usd),0);
+   let anom=false;
+   if(supInv>0&&est>0&&supInv>3*est&&supInv>1000){anom=true;supInv=0;supShip=0;}
+   const total=supInv>0?supInv:ordInv, sh=supInv>0?supShip:ordShip;
+   const name=(s.name||(ords[0]&&ords[0].supplier_name)||code);
+   lines.push({supplier:name,invoiced:+total.toFixed(2),shipping:+sh.toFixed(2),estimate:+est.toFixed(2),status:anom?"anomaly-excluded":(total>0?"invoiced":"no-invoice")});
+   if(total>0&&!anom){inv+=total;ship+=sh;}
+ });
+ lines.sort((a,b)=>(b.invoiced-a.invoiced)||(b.estimate-a.estimate));
+ return {inventory:+(inv-ship).toFixed(2),shipping:+ship.toFixed(2),lines,
+         n_invoiced:lines.filter(x=>x.status==="invoiced").length};
+}
 
 function money(v){return (typeof v==="number")?("$"+v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})):"— ממתין";}
 function esc(s){const d=document.createElement("div");d.textContent=(s==null?"":s);return d.innerHTML;}
@@ -72,6 +104,10 @@ async function load(){
        .sort((a,b)=>(a.date||"").localeCompare(b.date||""));
    }
  }catch(e){}
+ try{
+   const r4=await fetch("../state/inventory_orders.json?_="+Date.now(),{cache:"no-store"});
+   if(r4.ok){const ev=(((await r4.json()).events)||{})[EVKEY];if(ev)INV_LIVE=computeInvLive(ev);}
+ }catch(e){}
  if(!OVR)OVR={_updated_at:null,events:{}};
  render();
 }
@@ -84,6 +120,10 @@ function effExpenses(){
    const base=(PNL.expenses||{})[k]||{amount:null,status:"pending",source:""};
    if(k in ov && ov[k]!=null && ov[k]!==""){
      out[k]={amount:Number(ov[k]),source:"manual override",status:"ok"};
+   }else if(k==="inventory"&&INV_LIVE&&INV_LIVE.n_invoiced>0){
+     out[k]={amount:INV_LIVE.inventory,source:"inventory_orders (live)",status:"ok"};
+   }else if(k==="shipping"&&INV_LIVE&&INV_LIVE.n_invoiced>0){
+     out[k]={amount:INV_LIVE.shipping,source:"inventory_orders (live)",status:"ok"};
    }else out[k]={amount:base.amount,source:base.source,status:base.status};
  }
  return out;
@@ -130,8 +170,9 @@ function render(){
    tp.map((p,i)=>"<tr><td>"+(i+1)+"</td><td>"+esc(p.name)+"</td><td>"+esc(p.vendor)+"</td><td class='num'>"+(p.units_sold||0).toFixed(0)+"</td><td class='num'>"+money(p.revenue)+"</td></tr>").join("")+"</table></div>";}
 
  // inventory by supplier
- const inv=d.inventory_lines||[];
- h+="<div class='card'><h2>📦 מלאי לפי ספק</h2><table><tr><th>ספק</th><th>חשבונית</th><th>משלוח</th><th>סטטוס</th></tr>"+
+ const inv=(INV_LIVE&&INV_LIVE.lines&&INV_LIVE.lines.length)?INV_LIVE.lines:(d.inventory_lines||[]);
+ const invLiveBadge=(INV_LIVE&&INV_LIVE.lines&&INV_LIVE.lines.length)?" <span class='pend' style='background:#fee2e2;color:#b91c1c;border-color:#fca5a5;font-size:11px'>🔴 חי — מתעדכן מיידית מחשבוניות המלאי</span>":"";
+ h+="<div class='card'><h2>📦 מלאי לפי ספק"+invLiveBadge+"</h2><table><tr><th>ספק</th><th>חשבונית</th><th>משלוח</th><th>סטטוס</th></tr>"+
    (inv.length?inv.map(x=>"<tr><td>"+esc(x.supplier)+"</td><td class='num'>"+money(x.invoiced)+"</td><td class='num'>"+money(x.shipping)+"</td><td>"+(x.status==="anomaly-excluded"?"⚠ הוחרג":(x.status==="invoiced"?"✓":"—"))+"</td></tr>").join(""):"<tr><td colspan=4>אין נתוני חשבוניות</td></tr>")+"</table></div>";
 
  // mystery box
@@ -155,6 +196,7 @@ function render(){
  for(const[k,lbl]of EXP_ORDER){
    const e=t.exp[k];let badge="";
    if(e.source==="manual override")badge="<span class='manual'>✏️ ידני</span>";
+   else if(e.source==="inventory_orders (live)")badge="<span class='pend' style='background:#fee2e2;color:#b91c1c;border-color:#fca5a5'>🔴 חי</span>";
    else if(e.status!=="ok")badge="<span class='pend'>"+esc(e.status)+"</span>";
    h+="<tr data-k='"+k+"'><td>"+esc(lbl)+badge+"<span class='edit' onclick='startEdit(\""+k+"\")'>✏️</span></td>"+
       "<td class='num' id='amt-"+k+"'>"+money(e.amount)+"</td></tr>";
