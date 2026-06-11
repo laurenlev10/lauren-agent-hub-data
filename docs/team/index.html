@@ -223,6 +223,7 @@ function renderGrid(){
       '<div><div class="mname">'+esc(m.name)+'</div><div class="mfull">'+esc(m.full_name||"")+(ag!=null?(' · גיל '+ag):'')+'</div></div></div>'+
       '<div class="mrow"><span>🎂 תאריך לידה</span><b>'+fmtDate(m.birthday)+'</b></div>'+
       '<div class="mrow"><span>💵 שכר בסיס</span><b>'+(m.base_salary!=null&&m.base_salary!==""?fmtMoney(m.base_salary):"—")+'</b></div>'+
+      '<div class="mrow"><span>🏠 מגורים</span><b>'+(m.residence?esc(m.residence):"—")+'</b></div>'+
       '<div class="mrow"><span>🎪 אירועים ב-2026</span><b>'+t.pastCount+'</b></div>'+
       '<div class="mrow"><span>💵 סה״כ שכר 2026</span><b>'+fmtMoney(t.total||null)+(t.paidEvents<t.pastCount?' <span class="src">('+t.paidEvents+'/'+t.pastCount+' אירועים)</span>':'')+'</b></div>'+
       '<div class="mrow"><span>📅 שיבוצים קרובים</span><b>'+t.futureCount+'</b></div>'+
@@ -259,7 +260,7 @@ function openDetail(slug){
     '<div class="detail-head">'+
       '<div class="avatar" style="background:'+avColor(slug)+';width:64px;height:64px;font-size:25px">'+esc(m.name.slice(0,2))+'</div>'+
       '<div style="flex:1;min-width:200px"><div style="font-size:21px;font-weight:900">'+esc(m.full_name||m.name)+'</div>'+
-      '<div style="font-size:13px;color:#6b7280">🎂 '+fmtDate(m.birthday)+(ag!=null?' (גיל '+ag+')':'')+(m.phone?' · 📞 '+esc(m.phone):'')+(m.base_salary!=null&&m.base_salary!==""?' · 💵 שכר בסיס '+fmtMoney(m.base_salary):'')+'</div>'+
+      '<div style="font-size:13px;color:#6b7280">🎂 '+fmtDate(m.birthday)+(ag!=null?' (גיל '+ag+')':'')+(m.phone?' · 📞 '+esc(m.phone):'')+(m.residence?' · 🏠 '+esc(m.residence):'')+(m.base_salary!=null&&m.base_salary!==""?' · 💵 שכר בסיס '+fmtMoney(m.base_salary):'')+'</div>'+
       (m.notes?'<div style="font-size:13px;margin-top:5px;color:#374151">📝 '+esc(m.notes)+'</div>':'')+
       '</div>'+
       '<button class="btn cancel" onclick="editMember(\''+slug+'\')">✏️ עריכת פרטים</button>'+
@@ -444,6 +445,7 @@ function editMember(slug){
     '<label>שם מלא</label><input id="f-full" value="'+esc(m.full_name||"")+'">'+
     '<label>תאריך לידה</label><input id="f-bday" type="date" value="'+esc(m.birthday||"")+'">'+
     '<label>טלפון</label><input id="f-phone" value="'+esc(m.phone||"")+'">'+
+    '<label>🏠 מקום מגורים (עיר, מדינה)</label><input id="f-res" placeholder="e.g. Los Angeles, CA" value="'+esc(m.residence||"")+'">'+
     '<label>💵 שכר בסיס לאירוע ($)</label><input id="f-base" type="number" min="0" step="50" value="'+(m.base_salary!=null?m.base_salary:"")+'">'+
     '<label style="display:flex;align-items:center;gap:7px;margin-top:12px"><input id="f-mgr" type="checkbox" style="width:auto"'+(m.role==="manager"?" checked":"")+'> 👑 מנהל/ת (מוצג בכחול בשיבוץ)</label>'+
     '<label>הערות / רקע</label><textarea id="f-notes" rows="3">'+esc(m.notes||"")+'</textarea>'+
@@ -458,6 +460,7 @@ function saveMember(slug){
   m.full_name=document.getElementById("f-full").value.trim();
   m.birthday=document.getElementById("f-bday").value.trim();
   m.phone=document.getElementById("f-phone").value.trim();
+  m.residence=document.getElementById("f-res").value.trim();
   var bs=document.getElementById("f-base").value.trim();
   m.base_salary=(bs===""?null:parseFloat(bs));
   if(document.getElementById("f-mgr").checked) m.role="manager"; else delete m.role;
