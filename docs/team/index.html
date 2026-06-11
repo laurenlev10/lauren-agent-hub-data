@@ -27,7 +27,12 @@
   .mfull{font-size:12px;color:var(--muted)}
   .mrow{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;border-top:1px dashed #eef0f4}
   .mrow b{font-weight:800}
-  .bday-soon{position:absolute;top:10px;left:12px;font-size:18px}
+  .corner-tl{position:absolute;top:10px;left:12px;display:flex;gap:6px;align-items:center}
+  .bday-soon{font-size:18px}
+  .act-pill{border:0;cursor:pointer;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:900}
+  .act-pill.on{background:#dcfce7;color:#166534}
+  .act-pill.off{background:#e5e7eb;color:#6b7280}
+  .mcard.inactive{opacity:.55;filter:grayscale(.4)}
   .pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:800}
   .pill.green{background:#dcfce7;color:#166534}
   .pill.orange{background:#ffedd5;color:#9a3412}
@@ -197,12 +202,20 @@ function showTab(which){
 function renderGrid(){
   var g=document.getElementById("member-grid");
   if(!ROSTER){ g.textContent="טוען…"; return; }
-  var slugs=Object.keys(ROSTER.members).filter(function(s){ return ROSTER.members[s].active!==false; });
-  slugs.sort(function(a,b){ return memberTotals(b).total - memberTotals(a).total; });
+  var slugs=Object.keys(ROSTER.members);
+  slugs.sort(function(a,b){
+    var ia=(ROSTER.members[a].active===false)?1:0, ib=(ROSTER.members[b].active===false)?1:0;
+    if(ia!==ib) return ia-ib;                       // active first, inactive at the end
+    return memberTotals(b).total - memberTotals(a).total;
+  });
   g.innerHTML = slugs.map(function(s){
     var m=ROSTER.members[s], t=memberTotals(s), ag=age(m.birthday);
-    return '<div class="mcard" onclick="openDetail(\''+s+'\')">'+
-      (bdaySoon(m.birthday)?'<span class="bday-soon" title="יומולדת קרוב!">🎂</span>':'')+
+    var inactive=(m.active===false);
+    return '<div class="mcard'+(inactive?' inactive':'')+'" onclick="openDetail(\''+s+'\')">'+
+      '<span class="corner-tl">'+
+        '<button class="act-pill '+(inactive?'off':'on')+'" title="לחיצה: החלפת סטטוס פעיל/לא פעיל" onclick="toggleActive(event,\''+s+'\')">'+(inactive?'לא פעיל':'פעיל ✓')+'</button>'+
+        (bdaySoon(m.birthday)?'<span class="bday-soon" title="יומולדת קרוב!">🎂</span>':'')+
+      '</span>'+
       '<div class="mtop"><div class="avatar" style="background:'+avColor(s)+'">'+esc(m.name.slice(0,2))+'</div>'+
       '<div><div class="mname">'+esc(m.name)+'</div><div class="mfull">'+esc(m.full_name||"")+(ag!=null?(' · גיל '+ag):'')+'</div></div></div>'+
       '<div class="mrow"><span>🎂 תאריך לידה</span><b>'+fmtDate(m.birthday)+'</b></div>'+
@@ -246,6 +259,7 @@ function openDetail(slug){
       (m.notes?'<div style="font-size:13px;margin-top:5px;color:#374151">📝 '+esc(m.notes)+'</div>':'')+
       '</div>'+
       '<button class="btn cancel" onclick="editMember(\''+slug+'\')">✏️ עריכת פרטים</button>'+
+      '<button class="act-pill '+(m.active===false?'off':'on')+'" style="font-size:13px;padding:8px 14px" onclick="toggleActive(event,\''+slug+'\')">'+(m.active===false?'לא פעיל — לחצי להפעלה':'פעיל ✓')+'</button>'+
     '</div>'+
     '<div class="stats-row">'+
       '<div class="stat"><div class="v">'+fmtMoney(t.total||null)+'</div><div class="l">סה״כ שכר 2026</div></div>'+
@@ -408,6 +422,14 @@ function editEarn(ev, slug){
   markDirty("manual_earnings", ev);
   saveRoster("team: manual earning "+slug+" @ "+ev).then(function(ok){ if(ok) toast("✓ נשמר"); });
   openDetail(slug);
+}
+function toggleActive(ev, slug){
+  if(ev) ev.stopPropagation();
+  var m=ROSTER.members[slug]; if(!m) return;
+  m.active = (m.active===false);   // flip: inactive→true, active→false
+  markDirty("members", slug);
+  saveRoster("team: "+slug+" active="+m.active).then(function(ok){ if(ok) toast(m.active?"✓ "+m.name+" סומן/ה כפעיל/ה":"✓ "+m.name+" סומן/ה כלא פעיל/ה"); });
+  if (document.getElementById("view-detail").style.display!=="none") openDetail(slug); else renderGrid();
 }
 function editMember(slug){
   var m=ROSTER.members[slug];
