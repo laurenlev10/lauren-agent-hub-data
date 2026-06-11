@@ -67,6 +67,7 @@
   .load-strip .it{background:#f3f4f6;border-radius:999px;padding:3px 11px;font-weight:700}
   .load-strip .it b{color:var(--purple)}
   .chip.avail{background:#dbeafe;color:#1e40af;border-color:#bfdbfe}
+  .chip.manager{background:#dbeafe;color:#1e40af;border-color:#93c5fd;font-weight:900}
   .schedhead{display:flex;gap:14px;padding:4px 16px;font-size:11.5px;color:#9ca3af;font-weight:800}
   .col-avail{flex-basis:235px;flex-shrink:0;min-width:170px}
   .col-notes{flex-basis:215px;flex-shrink:0;min-width:150px;font-size:12.5px;color:#374151}
@@ -301,8 +302,10 @@ function renderSched(highlightEv){
   var rows = evs.map(function(ev){
     var a=ROSTER.assignments[ev];
     var chips=(a.team||[]).map(function(e){
-      var nm=(ROSTER.members[e.m]||{}).name||e.m;
-      return '<span class="chip '+(e.status==="standby"?"standby":"planned")+'" title="לחיצה: החלפת סטטוס מתוכנן/סטנד ביי">'+
+      var mm=ROSTER.members[e.m]||{};
+      var nm=mm.name||e.m;
+      var cls=(e.status==="standby")?"standby":((mm.role==="manager")?"manager":"planned");
+      return '<span class="chip '+cls+'" title="'+(mm.role==="manager"?"מנהל/ת · ":"")+'לחיצה: החלפת סטטוס מתוכנן/סטנד ביי">'+
         '<span onclick="toggleStatus(\''+ev+'\',\''+e.m+'\')">'+esc(nm)+(e.status==="standby"?" (SB)":"")+'</span>'+availMark(ev,e.m)+
         '<span class="x" title="הסרה מהאירוע" onclick="removeFromEvent(\''+ev+'\',\''+e.m+'\')">×</span></span>';
     }).join("");
@@ -342,7 +345,7 @@ function renderSched(highlightEv){
   }).join("");
   v.innerHTML =
     '<div class="load-strip"><b style="margin-inline-end:6px">עומס שיבוצים קרובים:</b>'+loadHtml+'</div>'+
-    '<div class="note" style="margin-bottom:10px">🟢 מתוכנן ומאושר · 🟠 סטנד ביי · 🔵 זמין/ה ולא משובץ/ת (לחיצה משבצת) — לחיצה על שם משובץ מחליפה סטטוס, × מסיר, והכל נשמר אוטומטית ל-GitHub. 📨 = מתוך טופס הזמינות.</div>'+
+    '<div class="note" style="margin-bottom:10px">🟢 מתוכנן ומאושר · 🔵 מנהל/ת · 🟠 סטנד ביי · ✋ זמין/ה ולא משובץ/ת (לחיצה משבצת) — לחיצה על שם משובץ מחליפה סטטוס, × מסיר, והכל נשמר אוטומטית ל-GitHub. 📨 = מתוך טופס הזמינות.</div>'+
     '<div class="schedhead"><span style="flex-basis:96px;flex-shrink:0">תאריך</span><span style="flex-basis:150px;flex-shrink:0">אירוע</span><span style="flex:1">משובצים</span><span class="col-avail">✋ זמינים ולא משובצים</span><span class="col-notes">📝 הערות</span></div>'+
     rows;
   if (highlightEv){ var el=document.getElementById("evrow-"+highlightEv); if(el) el.scrollIntoView({behavior:"smooth", block:"center"}); }
@@ -442,6 +445,7 @@ function editMember(slug){
     '<label>תאריך לידה</label><input id="f-bday" type="date" value="'+esc(m.birthday||"")+'">'+
     '<label>טלפון</label><input id="f-phone" value="'+esc(m.phone||"")+'">'+
     '<label>💵 שכר בסיס לאירוע ($)</label><input id="f-base" type="number" min="0" step="50" value="'+(m.base_salary!=null?m.base_salary:"")+'">'+
+    '<label style="display:flex;align-items:center;gap:7px;margin-top:12px"><input id="f-mgr" type="checkbox" style="width:auto"'+(m.role==="manager"?" checked":"")+'> 👑 מנהל/ת (מוצג בכחול בשיבוץ)</label>'+
     '<label>הערות / רקע</label><textarea id="f-notes" rows="3">'+esc(m.notes||"")+'</textarea>'+
     '<div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">'+
     '<button class="btn cancel" onclick="closeModal()">ביטול</button>'+
@@ -456,6 +460,7 @@ function saveMember(slug){
   m.phone=document.getElementById("f-phone").value.trim();
   var bs=document.getElementById("f-base").value.trim();
   m.base_salary=(bs===""?null:parseFloat(bs));
+  if(document.getElementById("f-mgr").checked) m.role="manager"; else delete m.role;
   m.notes=document.getElementById("f-notes").value.trim();
   markDirty("members", slug);
   closeModal();
