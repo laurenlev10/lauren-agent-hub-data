@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>👥 דשבורד צוות — The Makeup Blowout</title>
+<style>
+  :root{ --pink:#ec4899; --purple:#7c3aed; --ink:#1f2937; --muted:#6b7280; --bg:#f6f7fb; --card:#ffffff; --ok:#16a34a; --warn:#d97706; --bad:#dc2626; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Arial,"Heebo",sans-serif}
+  a{color:inherit}
+  .hdr{background:linear-gradient(135deg,#ec4899 0%,#7c3aed 100%);color:#fff;padding:18px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .hdr h1{margin:0;font-size:22px;font-weight:900}
+  .hdr .sub{font-size:13px;opacity:.92}
+  .hdr .spacer{flex:1}
+  .hdr a.back{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:#fff;text-decoration:none;border-radius:10px;padding:7px 12px;font-size:13px;font-weight:700}
+  .tabs{display:flex;gap:8px;padding:14px 22px 0;flex-wrap:wrap}
+  .tab{border:0;background:#e5e7eb;color:#374151;font-weight:800;font-size:15px;padding:10px 18px;border-radius:12px 12px 0 0;cursor:pointer}
+  .tab.on{background:#fff;color:var(--purple);box-shadow:0 -2px 8px rgba(0,0,0,.06)}
+  .wrap{padding:18px 22px;max-width:1280px;margin:0 auto}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+  .mcard{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 1px 6px rgba(0,0,0,.07);cursor:pointer;position:relative;transition:transform .08s}
+  .mcard:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.12)}
+  .avatar{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:20px;flex-shrink:0}
+  .mtop{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+  .mname{font-size:18px;font-weight:900}
+  .mfull{font-size:12px;color:var(--muted)}
+  .mrow{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;border-top:1px dashed #eef0f4}
+  .mrow b{font-weight:800}
+  .bday-soon{position:absolute;top:10px;left:12px;font-size:18px}
+  .pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:800}
+  .pill.green{background:#dcfce7;color:#166534}
+  .pill.orange{background:#ffedd5;color:#9a3412}
+  .pill.gray{background:#f3f4f6;color:#6b7280}
+  .pill.blue{background:#dbeafe;color:#1e40af}
+  .section-title{font-size:16px;font-weight:900;margin:22px 0 10px}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.07)}
+  th{background:#f9fafb;text-align:right;font-size:12.5px;color:#6b7280;padding:9px 12px;border-bottom:1px solid #eef0f4}
+  td{padding:9px 12px;border-bottom:1px solid #f3f4f6;font-size:13.5px;vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  .amt{font-weight:900;white-space:nowrap}
+  .src{font-size:10.5px;color:#9ca3af;margin-inline-start:5px}
+  .editbtn{border:0;background:transparent;cursor:pointer;font-size:13px;opacity:.55}
+  .editbtn:hover{opacity:1}
+  .detail-head{display:flex;align-items:center;gap:16px;background:#fff;border-radius:16px;padding:18px;box-shadow:0 1px 6px rgba(0,0,0,.07);flex-wrap:wrap}
+  .stat{background:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 1px 6px rgba(0,0,0,.07);text-align:center;min-width:120px}
+  .stat .v{font-size:21px;font-weight:900;color:var(--purple)}
+  .stat .l{font-size:12px;color:var(--muted)}
+  .stats-row{display:flex;gap:12px;margin:14px 0;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 11px;font-size:13px;font-weight:800;cursor:pointer;border:1.5px solid transparent;user-select:none}
+  .chip.planned{background:#dcfce7;color:#166534;border-color:#bbf7d0}
+  .chip.standby{background:#ffedd5;color:#9a3412;border-color:#fed7aa}
+  .chip .x{opacity:.45;font-weight:900;cursor:pointer;padding:0 2px}
+  .chip .x:hover{opacity:1;color:var(--bad)}
+  .evrow{background:#fff;border-radius:14px;padding:13px 16px;box-shadow:0 1px 6px rgba(0,0,0,.07);margin-bottom:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .evrow.hl{outline:3px solid var(--pink)}
+  .evdate{font-weight:900;font-size:13.5px;min-width:96px;color:var(--purple)}
+  .evcity{font-weight:900;font-size:15px;min-width:150px}
+  .evchips{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+  .addsel{border:1px solid #e5e7eb;border-radius:9px;padding:4px 8px;font-size:12.5px;background:#fafafa}
+  .load-strip{display:flex;gap:7px;flex-wrap:wrap;background:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 1px 6px rgba(0,0,0,.07);margin-bottom:14px;font-size:12.5px}
+  .load-strip .it{background:#f3f4f6;border-radius:999px;padding:3px 11px;font-weight:700}
+  .load-strip .it b{color:var(--purple)}
+  .toast{position:fixed;bottom:18px;right:18px;background:#111827;color:#fff;border-radius:12px;padding:11px 17px;font-size:14px;font-weight:700;z-index:99;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none}
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:none;align-items:center;justify-content:center;padding:16px}
+  .modal{background:#fff;border-radius:18px;padding:22px;max-width:430px;width:100%;max-height:90vh;overflow:auto}
+  .modal h3{margin:0 0 14px}
+  .modal label{display:block;font-size:12.5px;font-weight:800;color:#6b7280;margin:10px 0 4px}
+  .modal input,.modal textarea{width:100%;border:1px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:14px;font-family:inherit}
+  .btn{border:0;border-radius:11px;padding:9px 18px;font-size:14px;font-weight:900;cursor:pointer}
+  .btn.save{background:var(--purple);color:#fff}
+  .btn.cancel{background:#f3f4f6;color:#374151}
+  .note{font-size:12px;color:#9ca3af;margin-top:6px}
+  .backlink{cursor:pointer;font-size:13.5px;font-weight:800;color:var(--purple);background:none;border:0;padding:0;margin-bottom:12px;display:inline-block}
+  @media (max-width:640px){ .wrap{padding:12px} .evcity,.evdate{min-width:0} }
+</style>
+</head>
+<body>
+<div class="hdr">
+  <h1>👥 דשבורד צוות</h1>
+  <div class="sub">שכר לפי אירוע · שיבוץ אירועים עתידיים · נתונים מתחילת 2026</div>
+  <div class="spacer"></div>
+  <a class="back" href="../launch/">🎪 לוח האירועים</a>
+  <a class="back" href="../">🏠 דשבורד ראשי</a>
+</div>
+
+<div class="tabs">
+  <button class="tab on" id="tab-team" onclick="showTab('team')">👥 הצוות</button>
+  <button class="tab" id="tab-sched" onclick="showTab('sched')">📅 שיבוץ אירועים עתידיים</button>
+  <button class="tab" id="tab-avail" onclick="showTab('avail')">📨 זמינות עובדים</button>
+</div>
+
+<div class="wrap">
+  <div id="view-team"><div class="grid" id="member-grid">טוען…</div></div>
+  <div id="view-detail" style="display:none"></div>
+  <div id="view-sched" style="display:none"></div>
+  <div id="view-avail" style="display:none"></div>
+</div>
+
+<div class="modal-bg" id="modal-bg"><div class="modal" id="modal-box"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   Team dashboard — data: docs/state/team_roster.json (Lauren-editable
+   via this page, GitHub Contents API per IRON RULE #7, read-merge per
+   IRON RULE #18). Earnings resolution per (event, member):
+     1) roster.manual_earnings[ev][slug]   — Lauren manual (highest)
+     2) manager_reports.json latest final  — runtime overlay
+     3) roster.earnings[ev][slug]          — baked from event_pnl staff_lines
+   ============================================================ */
+var ROSTER = null;
+var MR_EARN = {};            // evkey -> slug -> total (from manager_reports.json)
+var AVAIL = {};              // evkey -> slug -> {ans:"yes"|"no", at} (latest per member+event)
+var AVAIL_SUBS = [];         // raw submissions, newest first
+var DIRTY = [];              // [section, key] pairs pending merge-write
+var TODAY = new Date().toISOString().slice(0,10);
+var ROSTER_REPO_FILE = "docs/state/team_roster.json";
+var ALIAS = {"goni":"goni","daniel":"daniel","danielle":"daniel","maiken":"maiken","brit":"brit","razi":"razi",
+  "shai":"shai","eva":"evelin","evelin":"evelin","dor":"dor","cecilie":"cecilie","cecille":"cecilie",
+  "bryson":"bryson","hila":"hila","hilla":"hila","roey":"roey","roy":"roey",
+  "anna":"anna","ron":"ron","mor":"mor","lina":"lina","shira":"shira"};
+var AV_COLORS = ["#ec4899","#7c3aed","#0ea5e9","#f59e0b","#10b981","#ef4444","#6366f1","#14b8a6","#d946ef","#f97316"];
+
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function toast(msg, bad){ var t=document.getElementById("toast"); t.textContent=msg; t.style.background = bad?"#b91c1c":"#111827"; t.style.display="block"; clearTimeout(t._h); t._h=setTimeout(function(){t.style.display="none";},3200); }
+function fmtMoney(v){ return v==null?"—":("$"+Math.round(v).toLocaleString()); }
+function fmtDate(iso){ if(!iso) return "—"; var p=iso.split("-"); return p[2]+"/"+p[1]+"/"+p[0]; }
+function avColor(slug){ var h=0; for(var i=0;i<slug.length;i++) h=(h*31+slug.charCodeAt(i))>>>0; return AV_COLORS[h%AV_COLORS.length]; }
+function age(bday){ if(!bday) return null; var b=new Date(bday), n=new Date(); var a=n.getFullYear()-b.getFullYear(); var m=n.getMonth()-b.getMonth(); if(m<0||(m===0&&n.getDate()<b.getDate())) a--; return a; }
+function bdaySoon(bday){ if(!bday) return false; var n=new Date(); var b=new Date(bday); b.setFullYear(n.getFullYear()); var diff=(b-n)/864e5; if(diff<-330){ b.setFullYear(n.getFullYear()+1); diff=(b-n)/864e5; } return diff>=-1 && diff<=30; }
+
+/* ---------- earnings resolution ---------- */
+function resolveEarn(evkey, slug){
+  var man = ROSTER.manual_earnings && ROSTER.manual_earnings[evkey] && ROSTER.manual_earnings[evkey][slug];
+  if (man && man.total != null) return {total:man.total, src:"manual", label:"ידני"};
+  if (MR_EARN[evkey] && MR_EARN[evkey][slug] != null) return {total:MR_EARN[evkey][slug], src:"report", label:"דוח מנהלת"};
+  var bk = ROSTER.earnings && ROSTER.earnings[evkey] && ROSTER.earnings[evkey][slug];
+  if (bk && bk.total != null) return {total:bk.total, src:"pnl", label:"P&L"};
+  return null;
+}
+function memberEvents(slug){
+  var past=[], future=[], seen={};
+  var keys = Object.keys(ROSTER.assignments||{});
+  keys.forEach(function(ev){
+    var a=ROSTER.assignments[ev];
+    var ent=(a.team||[]).filter(function(e){return e.m===slug;})[0];
+    if(!ent) return;
+    seen[ev]=1;
+    if (a.end_date < TODAY) past.push({ev:ev,a:a,status:ent.status});
+    else future.push({ev:ev,a:a,status:ent.status});
+  });
+  // events where member has earnings but isn't on the xlsx roster
+  var extra = {};
+  [ROSTER.earnings||{}, ROSTER.manual_earnings||{}].forEach(function(src){
+    Object.keys(src).forEach(function(ev){ if(src[ev][slug]!=null && !seen[ev]) extra[ev]=1; });
+  });
+  Object.keys(MR_EARN).forEach(function(ev){ if(MR_EARN[ev][slug]!=null && !seen[ev]) extra[ev]=1; });
+  Object.keys(extra).forEach(function(ev){
+    var a=ROSTER.assignments[ev] || {city:ev, state:"", start_date:ev.slice(-10), end_date:ev.slice(-10)};
+    if((a.end_date||"") < TODAY) past.push({ev:ev,a:a,status:"worked",offRoster:true});
+  });
+  past.sort(function(x,y){ return x.a.start_date<y.a.start_date?1:-1; });
+  future.sort(function(x,y){ return x.a.start_date>y.a.start_date?1:-1; });
+  return {past:past, future:future};
+}
+function memberTotals(slug){
+  var me=memberEvents(slug), tot=0, n=0;
+  me.past.forEach(function(p){ var e=resolveEarn(p.ev, slug); if(e){ tot+=e.total; n++; } });
+  return {total:tot, paidEvents:n, pastCount:me.past.length, futureCount:me.future.length};
+}
+
+/* ---------- views ---------- */
+function showTab(which){
+  ["team","sched","avail"].forEach(function(t){
+    document.getElementById("tab-"+t).classList.toggle("on", which===t);
+    document.getElementById("view-"+t).style.display = which===t?"":"none";
+  });
+  document.getElementById("view-detail").style.display = "none";
+  if (which==="sched") renderSched();
+  if (which==="team") renderGrid();
+  if (which==="avail") renderAvail();
+}
+function renderGrid(){
+  var g=document.getElementById("member-grid");
+  if(!ROSTER){ g.textContent="טוען…"; return; }
+  var slugs=Object.keys(ROSTER.members).filter(function(s){ return ROSTER.members[s].active!==false; });
+  slugs.sort(function(a,b){ return memberTotals(b).total - memberTotals(a).total; });
+  g.innerHTML = slugs.map(function(s){
+    var m=ROSTER.members[s], t=memberTotals(s), ag=age(m.birthday);
+    return '<div class="mcard" onclick="openDetail(\''+s+'\')">'+
+      (bdaySoon(m.birthday)?'<span class="bday-soon" title="יומולדת קרוב!">🎂</span>':'')+
+      '<div class="mtop"><div class="avatar" style="background:'+avColor(s)+'">'+esc(m.name.slice(0,2))+'</div>'+
+      '<div><div class="mname">'+esc(m.name)+'</div><div class="mfull">'+esc(m.full_name||"")+(ag!=null?(' · גיל '+ag):'')+'</div></div></div>'+
+      '<div class="mrow"><span>🎂 תאריך לידה</span><b>'+fmtDate(m.birthday)+'</b></div>'+
+      '<div class="mrow"><span>🎪 אירועים ב-2026</span><b>'+t.pastCount+'</b></div>'+
+      '<div class="mrow"><span>💵 סה״כ שכר 2026</span><b>'+fmtMoney(t.total||null)+(t.paidEvents<t.pastCount?' <span class="src">('+t.paidEvents+'/'+t.pastCount+' אירועים)</span>':'')+'</b></div>'+
+      '<div class="mrow"><span>📅 שיבוצים קרובים</span><b>'+t.futureCount+'</b></div>'+
+    '</div>';
+  }).join("");
+}
+function openDetail(slug){
+  var m=ROSTER.members[slug]; if(!m) return;
+  var me=memberEvents(slug), t=memberTotals(slug), ag=age(m.birthday);
+  var v=document.getElementById("view-detail");
+  document.getElementById("view-team").style.display="none";
+  document.getElementById("view-sched").style.display="none";
+  v.style.display="";
+  var pastRows = me.past.map(function(p){
+    var e=resolveEarn(p.ev, slug);
+    var amtHtml = e ? '<span class="amt">'+fmtMoney(e.total)+'</span><span class="src">'+e.label+'</span>'
+                    : '<span style="color:#9ca3af">— אין נתון —</span>';
+    return '<tr><td>'+fmtDate(p.a.start_date)+'</td><td><b>'+esc(p.a.city)+'</b> '+esc(p.a.state||"")+(p.offRoster?' <span class="pill blue">לא ברשימת השיבוץ</span>':'')+'</td>'+
+      '<td>'+amtHtml+' <button class="editbtn" title="עריכה ידנית" onclick="editEarn(\''+p.ev+'\',\''+slug+'\')">✏️</button></td></tr>';
+  }).join("") || '<tr><td colspan="3" style="color:#9ca3af">אין אירועים</td></tr>';
+  var futRows = me.future.map(function(f){
+    var pill = f.status==="standby" ? '<span class="pill orange">סטנד ביי</span>' : '<span class="pill green">מתוכנן ומאושר</span>';
+    return '<tr><td>'+fmtDate(f.a.start_date)+'</td><td><b>'+esc(f.a.city)+'</b> '+esc(f.a.state||"")+'</td>'+
+      '<td>'+pill+' <button class="editbtn" title="החלף סטטוס" onclick="toggleStatus(\''+f.ev+'\',\''+slug+'\')">🔁</button></td></tr>';
+  }).join("") || '<tr><td colspan="3" style="color:#9ca3af">אין שיבוצים עתידיים</td></tr>';
+  v.innerHTML =
+    '<button class="backlink" onclick="showTab(\'team\')">→ חזרה לכל הצוות</button>'+
+    '<div class="detail-head">'+
+      '<div class="avatar" style="background:'+avColor(slug)+';width:64px;height:64px;font-size:25px">'+esc(m.name.slice(0,2))+'</div>'+
+      '<div style="flex:1;min-width:200px"><div style="font-size:21px;font-weight:900">'+esc(m.full_name||m.name)+'</div>'+
+      '<div style="font-size:13px;color:#6b7280">🎂 '+fmtDate(m.birthday)+(ag!=null?' (גיל '+ag+')':'')+(m.phone?' · 📞 '+esc(m.phone):'')+'</div>'+
+      (m.notes?'<div style="font-size:13px;margin-top:5px;color:#374151">📝 '+esc(m.notes)+'</div>':'')+
+      '</div>'+
+      '<button class="btn cancel" onclick="editMember(\''+slug+'\')">✏️ עריכת פרטים</button>'+
+    '</div>'+
+    '<div class="stats-row">'+
+      '<div class="stat"><div class="v">'+fmtMoney(t.total||null)+'</div><div class="l">סה״כ שכר 2026</div></div>'+
+      '<div class="stat"><div class="v">'+t.pastCount+'</div><div class="l">אירועים שעבד/ה</div></div>'+
+      '<div class="stat"><div class="v">'+(t.paidEvents?fmtMoney(t.total/t.paidEvents):"—")+'</div><div class="l">ממוצע לאירוע</div></div>'+
+      '<div class="stat"><div class="v">'+t.futureCount+'</div><div class="l">שיבוצים קרובים</div></div>'+
+    '</div>'+
+    '<div class="section-title">🎪 אירועי עבר + שכר</div>'+
+    '<table><tr><th>תאריך</th><th>אירוע</th><th>שכר</th></tr>'+pastRows+'</table>'+
+    '<div class="section-title">📅 שיבוצים עתידיים</div>'+
+    '<table><tr><th>תאריך</th><th>אירוע</th><th>סטטוס</th></tr>'+futRows+'</table>';
+  v.dataset.slug = slug;
+  window.scrollTo(0,0);
+}
+
+/* ---------- scheduling tab ---------- */
+function availFreeLine(ev, inEv){
+  var av=AVAIL[ev]||{};
+  var free=Object.keys(av).filter(function(s){ return av[s].ans==="yes" && !inEv[s]; })
+    .map(function(s){ return esc((ROSTER.members[s]||{}).name||s); });
+  if(!free.length) return "";
+  return '<div style="flex-basis:100%;font-size:12.5px;color:#166534;margin-top:4px">✋ זמינים ועדיין לא שובצו: <b>'+free.join(", ")+'</b></div>';
+}
+function renderSched(highlightEv){
+  var v=document.getElementById("view-sched");
+  var evs=Object.keys(ROSTER.assignments).filter(function(ev){ return ROSTER.assignments[ev].end_date >= TODAY; });
+  evs.sort(function(a,b){ return ROSTER.assignments[a].start_date < ROSTER.assignments[b].start_date ? -1 : 1; });
+  // workload strip
+  var load={};
+  evs.forEach(function(ev){ (ROSTER.assignments[ev].team||[]).forEach(function(e){ load[e.m]=(load[e.m]||0)+1; }); });
+  var loadHtml = Object.keys(load).sort(function(a,b){return load[b]-load[a];}).map(function(s){
+    return '<span class="it">'+esc((ROSTER.members[s]||{}).name||s)+' <b>'+load[s]+'</b></span>';
+  }).join("");
+  var rows = evs.map(function(ev){
+    var a=ROSTER.assignments[ev];
+    var chips=(a.team||[]).map(function(e){
+      var nm=(ROSTER.members[e.m]||{}).name||e.m;
+      return '<span class="chip '+(e.status==="standby"?"standby":"planned")+'" title="לחיצה: החלפת סטטוס מתוכנן/סטנד ביי">'+
+        '<span onclick="toggleStatus(\''+ev+'\',\''+e.m+'\')">'+esc(nm)+(e.status==="standby"?" (SB)":"")+'</span>'+availMark(ev,e.m)+
+        '<span class="x" title="הסרה מהאירוע" onclick="removeFromEvent(\''+ev+'\',\''+e.m+'\')">×</span></span>';
+    }).join("");
+    var inEv={}; (a.team||[]).forEach(function(e){inEv[e.m]=1;});
+    var opts=Object.keys(ROSTER.members).filter(function(s){return !inEv[s] && ROSTER.members[s].active!==false;})
+      .map(function(s){return '<option value="'+s+'">'+esc(ROSTER.members[s].name)+'</option>';}).join("");
+    return '<div class="evrow'+(ev===highlightEv?' hl':'')+'" id="evrow-'+ev+'">'+
+      '<div class="evdate">'+fmtDate(a.start_date)+'<br><span style="color:#9ca3af;font-weight:600;font-size:11px">עד '+fmtDate(a.end_date)+'</span></div>'+
+      '<div class="evcity">'+esc(a.city)+', '+esc(a.state||"")+'</div>'+
+      '<div class="evchips">'+(chips||'<span style="color:#9ca3af;font-size:13px">— אין שיבוץ —</span>')+'</div>'+
+      '<div><select class="addsel" id="add-'+ev+'"><option value="">+ הוסף עובד…</option>'+opts+'</select> '+
+      '<button class="editbtn" style="opacity:.8" title="הוסף" onclick="addToEvent(\''+ev+'\')">➕</button></div>'+
+      availFreeLine(ev, inEv)+
+    '</div>';
+  }).join("");
+  v.innerHTML =
+    '<div class="load-strip"><b style="margin-inline-end:6px">עומס שיבוצים קרובים:</b>'+loadHtml+'</div>'+
+    '<div class="note" style="margin-bottom:12px">🟢 מתוכנן ומאושר · 🟠 סטנד ביי — לחיצה על שם מחליפה סטטוס, × מסיר, והכל נשמר אוטומטית ל-GitHub.</div>'+
+    rows;
+  if (highlightEv){ var el=document.getElementById("evrow-"+highlightEv); if(el) el.scrollIntoView({behavior:"smooth", block:"center"}); }
+}
+
+/* ---------- edits ---------- */
+function toggleStatus(ev, slug){
+  var a=ROSTER.assignments[ev]; if(!a) return;
+  (a.team||[]).forEach(function(e){ if(e.m===slug) e.status = (e.status==="standby"?"planned":"standby"); });
+  markDirty("assignments", ev);
+  saveRoster("team: status toggle "+slug+" @ "+ev).then(function(ok){ if(ok) toast("✓ סטטוס עודכן ונשמר"); });
+  refreshCurrent(ev);
+}
+function removeFromEvent(ev, slug){
+  var a=ROSTER.assignments[ev]; if(!a) return;
+  var nm=(ROSTER.members[slug]||{}).name||slug;
+  if(!confirm("להסיר את "+nm+" מהאירוע "+a.city+"?")) return;
+  a.team=(a.team||[]).filter(function(e){return e.m!==slug;});
+  markDirty("assignments", ev);
+  saveRoster("team: remove "+slug+" @ "+ev).then(function(ok){ if(ok) toast("✓ הוסר ונשמר"); });
+  refreshCurrent(ev);
+}
+function addToEvent(ev){
+  var sel=document.getElementById("add-"+ev); if(!sel||!sel.value) return;
+  var a=ROSTER.assignments[ev];
+  a.team=a.team||[]; a.team.push({m:sel.value,status:"planned"});
+  markDirty("assignments", ev);
+  saveRoster("team: add "+sel.value+" @ "+ev).then(function(ok){ if(ok) toast("✓ נוסף ונשמר"); });
+  refreshCurrent(ev);
+}
+function refreshCurrent(ev){
+  if (document.getElementById("view-sched").style.display!=="none") renderSched(ev);
+  else if (document.getElementById("view-detail").style.display!=="none") openDetail(document.getElementById("view-detail").dataset.slug);
+}
+function editEarn(ev, slug){
+  var cur=resolveEarn(ev,slug);
+  var val=prompt("שכר עבור "+((ROSTER.members[slug]||{}).name||slug)+" באירוע "+((ROSTER.assignments[ev]||{}).city||ev)+" (ריק = מחיקת ערך ידני):", cur?cur.total:"");
+  if(val===null) return;
+  ROSTER.manual_earnings = ROSTER.manual_earnings||{};
+  if(val.trim()===""){
+    if(ROSTER.manual_earnings[ev]) delete ROSTER.manual_earnings[ev][slug];
+  } else {
+    var n=parseFloat(val.replace(/[^0-9.\-]/g,""));
+    if(isNaN(n)){ toast("ערך לא תקין", true); return; }
+    ROSTER.manual_earnings[ev]=ROSTER.manual_earnings[ev]||{};
+    ROSTER.manual_earnings[ev][slug]={total:n, set_at:new Date().toISOString()};
+  }
+  markDirty("manual_earnings", ev);
+  saveRoster("team: manual earning "+slug+" @ "+ev).then(function(ok){ if(ok) toast("✓ נשמר"); });
+  openDetail(slug);
+}
+function editMember(slug){
+  var m=ROSTER.members[slug];
+  var bg=document.getElementById("modal-bg"), box=document.getElementById("modal-box");
+  box.innerHTML='<h3>✏️ '+esc(m.name)+'</h3>'+
+    '<label>שם מלא</label><input id="f-full" value="'+esc(m.full_name||"")+'">'+
+    '<label>תאריך לידה</label><input id="f-bday" type="date" value="'+esc(m.birthday||"")+'">'+
+    '<label>טלפון</label><input id="f-phone" value="'+esc(m.phone||"")+'">'+
+    '<label>הערות / רקע</label><textarea id="f-notes" rows="3">'+esc(m.notes||"")+'</textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">'+
+    '<button class="btn cancel" onclick="closeModal()">ביטול</button>'+
+    '<button class="btn save" onclick="saveMember(\''+slug+'\')">💾 שמירה</button></div>';
+  bg.style.display="flex";
+}
+function closeModal(){ document.getElementById("modal-bg").style.display="none"; }
+function saveMember(slug){
+  var m=ROSTER.members[slug];
+  m.full_name=document.getElementById("f-full").value.trim();
+  m.birthday=document.getElementById("f-bday").value.trim();
+  m.phone=document.getElementById("f-phone").value.trim();
+  m.notes=document.getElementById("f-notes").value.trim();
+  markDirty("members", slug);
+  closeModal();
+  saveRoster("team: member details "+slug).then(function(ok){ if(ok) toast("✓ פרטים נשמרו"); });
+  openDetail(slug);
+}
+
+/* ---------- GitHub sync (IRON RULE #7 + #18: read-merge-write, blobs fallback, fail loud) ---------- */
+function markDirty(section, key){ DIRTY.push([section,key]); }
+async function ghReadRosterSafe(token){
+  var url="https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/"+ROSTER_REPO_FILE+"?ref=main&_="+Date.now();
+  var r=await fetch(url,{headers:{"Authorization":"token "+token,"Accept":"application/vnd.github+json"},cache:"no-store"});
+  if(!r.ok) throw new Error("contents GET "+r.status);
+  var j=await r.json();
+  var content=j.content||"";
+  if(!content && j.git_url){
+    var rb=await fetch(j.git_url+"?_="+Date.now(),{headers:{"Authorization":"token "+token,"Accept":"application/vnd.github+json"},cache:"no-store"});
+    if(!rb.ok) throw new Error("blobs GET "+rb.status);
+    var jb=await rb.json(); content=jb.content||"";
+  }
+  if(!content) throw new Error("empty content — aborting save (IRON RULE #18)");
+  var txt=decodeURIComponent(escape(atob(content.replace(/\n/g,""))));
+  return {sha:j.sha, data:JSON.parse(txt)};
+}
+async function saveRoster(msg){
+  var token=(localStorage.getItem("lauren_gh_token_v1")||"").trim();
+  if(!token){ token=prompt("צריך GitHub token כדי לשמור (נשמר רק במכשיר הזה):")||""; token=token.trim(); if(!token){ toast("⚠️ אין token — לא נשמר", true); return false; } localStorage.setItem("lauren_gh_token_v1", token); }
+  try{
+    var cloud=await ghReadRosterSafe(token);
+    var merged=cloud.data;
+    merged.members=merged.members||{}; merged.assignments=merged.assignments||{}; merged.manual_earnings=merged.manual_earnings||{};
+    DIRTY.forEach(function(d){
+      var sec=d[0], key=d[1];
+      if(sec==="members") merged.members[key]=ROSTER.members[key];
+      if(sec==="assignments") merged.assignments[key]=ROSTER.assignments[key];
+      if(sec==="manual_earnings"){
+        if(ROSTER.manual_earnings && ROSTER.manual_earnings[key] && Object.keys(ROSTER.manual_earnings[key]).length) merged.manual_earnings[key]=ROSTER.manual_earnings[key];
+        else delete merged.manual_earnings[key];
+      }
+    });
+    merged._updated_at=new Date().toISOString();
+    var body={message:msg, branch:"main", sha:cloud.sha,
+      content:btoa(unescape(encodeURIComponent(JSON.stringify(merged,null,1))))};
+    var r=await fetch("https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/"+ROSTER_REPO_FILE,
+      {method:"PUT",headers:{"Authorization":"token "+token,"Accept":"application/vnd.github+json","Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!r.ok) throw new Error("PUT "+r.status);
+    ROSTER=merged; DIRTY=[];
+    return true;
+  }catch(e){
+    console.error("saveRoster failed:", e);
+    toast("⚠️ שמירה נכשלה: "+e.message, true);
+    return false;
+  }
+}
+
+/* ---------- availability (docs/team/availability.html submissions) ---------- */
+async function loadAvailability(){
+  var subs=[];
+  try{
+    var r=await fetch("../state/team_availability.json?_="+Date.now(),{cache:"no-store"});
+    if(r.ok){ var j=await r.json(); subs=subs.concat(j.submissions||[]); }
+  }catch(e){}
+  try{
+    // interim path — old worker appends availability under reports["team-availability"]
+    var r2=await fetch("../state/manager_reports.json?_="+Date.now(),{cache:"no-store"});
+    if(r2.ok){ var m=await r2.json(); subs=subs.concat(((m.reports||{})["team-availability"])||[]); }
+  }catch(e){}
+  subs=subs.filter(function(s){ return s && s.kind==="team_availability"; });
+  subs.sort(function(a,b){ return (a.submitted_at||"")<(b.submitted_at||"")?1:-1; });
+  AVAIL_SUBS=subs;
+  AVAIL={};
+  // oldest→newest so newest wins
+  subs.slice().reverse().forEach(function(s){
+    var slug=s.member_slug||"";
+    if(!slug) return;
+    Object.keys(s.events||{}).forEach(function(ev){
+      AVAIL[ev]=AVAIL[ev]||{};
+      AVAIL[ev][slug]={ans:s.events[ev], at:s.submitted_at};
+    });
+  });
+}
+function availMark(ev, slug){
+  var a=AVAIL[ev]&&AVAIL[ev][slug];
+  if(!a) return "";
+  return a.ans==="yes" ? ' <span title="ענה/תה: זמין/ה">👍</span>' : ' <span title="ענה/תה: לא זמין/ה">⛔</span>';
+}
+function renderAvail(){
+  var v=document.getElementById("view-avail");
+  var formUrl=location.origin+location.pathname.replace(/index\.html$/,"").replace(/\/$/,"")+"/availability.html";
+  var latest={};
+  AVAIL_SUBS.forEach(function(s){ var k=s.member_slug||s.name; if(!latest[k]) latest[k]=s; });
+  var rows=Object.keys(latest).map(function(k){
+    var s=latest[k];
+    var yes=[], no=[];
+    Object.keys(s.events||{}).forEach(function(ev){
+      var a=ROSTER.assignments[ev]||{};
+      var lbl=(a.city||ev)+(a.state?(", "+a.state):"");
+      (s.events[ev]==="yes"?yes:no).push(lbl);
+    });
+    return '<tr><td><b>'+esc(s.name||k)+'</b>'+(s.phone?'<div class="src">📞 '+esc(s.phone)+'</div>':'')+'</td>'+
+      '<td>'+fmtDate((s.submitted_at||"").slice(0,10))+'</td>'+
+      '<td style="color:#166534">'+esc(yes.join(" · ")||"—")+'</td>'+
+      '<td style="color:#991b1b">'+esc(no.join(" · ")||"—")+'</td>'+
+      '<td>'+esc(s.notes||"")+'</td></tr>';
+  }).join("") || '<tr><td colspan="5" style="color:#9ca3af">עדיין אין טפסים — שלחי לעובדים את הקישור למעלה 👆</td></tr>';
+  v.innerHTML =
+    '<div class="evrow" style="justify-content:space-between">'+
+      '<div><b>📨 טופס זמינות לעובדים</b><div class="note">שלחי לעובדים את הקישור — הם מסמנים באילו אירועים הם זמינים, והתשובות מגיעות לכאן ולטאב השיבוץ אוטומטית.</div></div>'+
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+        '<a class="btn cancel" style="text-decoration:none" href="availability.html" target="_blank">👀 פתיחת הטופס</a>'+
+        '<button class="btn save" onclick="navigator.clipboard.writeText(\''+formUrl+'\').then(function(){toast(&quot;✓ הקישור הועתק&quot;);})">📋 העתקת קישור לשליחה</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="section-title">תשובות אחרונות (אחת לכל עובד/ת)</div>'+
+    '<table><tr><th>עובד/ת</th><th>נשלח</th><th>✅ זמין/ה</th><th>❌ לא זמין/ה</th><th>הערות</th></tr>'+rows+'</table>';
+}
+
+/* ---------- init ---------- */
+async function init(){
+  try{
+    var r=await fetch("../state/team_roster.json?_="+Date.now(),{cache:"no-store"});
+    ROSTER=await r.json();
+  }catch(e){ document.getElementById("member-grid").textContent="⚠️ טעינת הנתונים נכשלה"; return; }
+  try{
+    var r2=await fetch("../state/manager_reports.json?_="+Date.now(),{cache:"no-store"});
+    if(r2.ok){
+      var mr=await r2.json();
+      Object.keys(mr.reports||{}).forEach(function(ev){
+        var arr=mr.reports[ev]||[]; if(!arr.length) return;
+        var rep=arr[arr.length-1];
+        (rep.team||[]).forEach(function(t){
+          var slug=ALIAS[(t.name||"").trim().toLowerCase()];
+          if(!slug) return;
+          MR_EARN[ev]=MR_EARN[ev]||{};
+          MR_EARN[ev][slug]=(MR_EARN[ev][slug]||0)+(t.total||0);
+        });
+      });
+    }
+  }catch(e){ console.warn("manager_reports load failed:", e); }
+  await loadAvailability();
+  var qp=new URLSearchParams(location.search);
+  if(qp.get("member") && ROSTER.members[qp.get("member")]){ renderGrid(); openDetail(qp.get("member")); }
+  else if(qp.get("ev")){ showTab("sched"); renderSched(qp.get("ev")); }
+  else renderGrid();
+}
+init();
+</script>
+</body>
+</html>

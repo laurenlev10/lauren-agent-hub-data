@@ -31,6 +31,25 @@ export default {
     try { report = await request.json(); }
     catch (e) { return reply({ error: "bad json" }, 400, cors); }
 
+    // --- Team availability form (docs/team/availability.html) ---------------
+    // Routed by kind, saved to its own state file so manager_reports stays clean.
+    if (report.kind === "team_availability") {
+      const AVAIL = "docs/state/team_availability.json";
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const cur = await ghGet(TOKEN, AVAIL);
+        const data = cur.json || { _updated_at: null, submissions: [] };
+        if (!Array.isArray(data.submissions)) data.submissions = [];
+        delete report.photos;
+        data.submissions.push(report);
+        data._updated_at = new Date().toISOString();
+        const res = await ghPutJson(TOKEN, AVAIL, data, cur.sha,
+          `team-availability: ${report.name || report.member_slug || "?"}`);
+        if (res === true) return reply({ ok: true, kind: "team_availability" }, 200, cors);
+        if (res !== 409)  return reply({ error: "github write failed " + res }, 502, cors);
+      }
+      return reply({ error: "conflict retries exhausted" }, 502, cors);
+    }
+
     const rawKey = report.evkey || "unknown";
     const safeKey = String(rawKey).replace(/[^a-z0-9\-]/gi, "-").toLowerCase();
     const ts = new Date().toISOString().replace(/[:.]/g, "-");

@@ -1845,7 +1845,7 @@ End date: </div>
         const staffDef = uploadedStaff[evKeyForStats] || ((typeof STAFF_DEFAULTS !== "undefined") ? (STAFF_DEFAULTS[evKeyForStats] || {}) : {});
         const noteRow = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKeyForStats] || {}) : {};
         const teamVal = (noteRow.team_override != null ? noteRow.team_override : (staffDef.team || ""));
-        if (teamVal || staffDef.team) {
+        if (true) { // always render — the Team row hosts the 👥 team-dashboard button (Lauren 2026-06-10)
           const isOverride = (noteRow.team_override != null);
           const txt = teamVal ? escapeHtml(teamVal) : '<span style="color:#9ca3af;font-style:italic">— click ✏️ to add —</span>';
           statsLine += '<div class="staff-block">' +
@@ -1853,6 +1853,7 @@ End date: </div>
                            '👥 <b>Team:</b> ' +
                            '<span class="staff-val' + (isOverride ? " override" : "") + '" data-evkey="' + evKeyForStats + '" data-field="team">' + txt + '</span> ' +
                            '<button class="staff-edit-btn" data-evkey="' + evKeyForStats + '" data-field="team" data-current="' + escapeHtml(teamVal).replace(/"/g, "&quot;") + '" title="Edit (saved live to GitHub)">✏️</button>' +
+                           '<a class="staff-edit-btn" style="text-decoration:none" href="../team/?ev=' + evKeyForStats + '" target="_blank" title="👥 דשבורד צוות — שכר, שיבוץ וזמינות">👥</a>' +
                          '</div>' +
                        '</div>';
         }
