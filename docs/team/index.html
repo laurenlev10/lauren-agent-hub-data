@@ -61,6 +61,13 @@
   .load-strip{display:flex;gap:7px;flex-wrap:wrap;background:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 1px 6px rgba(0,0,0,.07);margin-bottom:14px;font-size:12.5px}
   .load-strip .it{background:#f3f4f6;border-radius:999px;padding:3px 11px;font-weight:700}
   .load-strip .it b{color:var(--purple)}
+  .chip.avail{background:#dbeafe;color:#1e40af;border-color:#bfdbfe}
+  .schedhead{display:flex;gap:14px;padding:4px 16px;font-size:11.5px;color:#9ca3af;font-weight:800}
+  .col-avail{flex-basis:235px;flex-shrink:0;min-width:170px}
+  .col-notes{flex-basis:215px;flex-shrink:0;min-width:150px;font-size:12.5px;color:#374151}
+  .col-notes .ntxt{white-space:pre-wrap}
+  .col-notes .nempty{color:#c4c8cf;font-style:italic}
+  @media (max-width:900px){ .col-avail,.col-notes{flex-basis:100%} }
   .toast{position:fixed;bottom:18px;right:18px;background:#111827;color:#fff;border-radius:12px;padding:11px 17px;font-size:14px;font-weight:700;z-index:99;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none}
   .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:none;align-items:center;justify-content:center;padding:16px}
   .modal{background:#fff;border-radius:18px;padding:22px;max-width:430px;width:100%;max-height:90vh;overflow:auto}
@@ -257,18 +264,18 @@ function openDetail(slug){
 }
 
 /* ---------- scheduling tab ---------- */
-function availFreeLine(ev, inEv){
-  var av=AVAIL[ev]||{};
-  var free=Object.keys(av).filter(function(s){ return av[s].ans==="yes" && !inEv[s]; })
-    .map(function(s){ return esc((ROSTER.members[s]||{}).name||s); });
-  if(!free.length) return "";
-  return '<div style="flex-basis:100%;font-size:12.5px;color:#166534;margin-top:4px">✋ זמינים ועדיין לא שובצו: <b>'+free.join(", ")+'</b></div>';
+function availList(ev, inEv){
+  // available-but-not-assigned = form answers (yes) + Lauren manual marks
+  var av=AVAIL[ev]||{}, man=(ROSTER.manual_availability||{})[ev]||{};
+  var out={};
+  Object.keys(av).forEach(function(s){ if(av[s].ans==="yes" && !inEv[s]) out[s]="form"; });
+  Object.keys(man).forEach(function(s){ if(man[s] && !inEv[s]) out[s]=out[s]||"manual"; });
+  return out;
 }
 function renderSched(highlightEv){
   var v=document.getElementById("view-sched");
   var evs=Object.keys(ROSTER.assignments).filter(function(ev){ return ROSTER.assignments[ev].end_date >= TODAY; });
   evs.sort(function(a,b){ return ROSTER.assignments[a].start_date < ROSTER.assignments[b].start_date ? -1 : 1; });
-  // workload strip
   var load={};
   evs.forEach(function(ev){ (ROSTER.assignments[ev].team||[]).forEach(function(e){ load[e.m]=(load[e.m]||0)+1; }); });
   var loadHtml = Object.keys(load).sort(function(a,b){return load[b]-load[a];}).map(function(s){
@@ -285,18 +292,41 @@ function renderSched(highlightEv){
     var inEv={}; (a.team||[]).forEach(function(e){inEv[e.m]=1;});
     var opts=Object.keys(ROSTER.members).filter(function(s){return !inEv[s] && ROSTER.members[s].active!==false;})
       .map(function(s){return '<option value="'+s+'">'+esc(ROSTER.members[s].name)+'</option>';}).join("");
+    // --- column: available but not assigned ---
+    var avs=availList(ev, inEv);
+    var avChips=Object.keys(avs).map(function(s){
+      var nm=(ROSTER.members[s]||{}).name||s;
+      return '<span class="chip avail" title="'+(avs[s]==="form"?"סימן/ה זמינות בטופס":"סומן ידנית")+' — לחיצה משבצת לאירוע">'+
+        '<span onclick="assignFromAvail(\''+ev+'\',\''+s+'\')">'+esc(nm)+(avs[s]==="form"?" 📨":"")+'</span>'+
+        (avs[s]==="manual"?'<span class="x" title="ביטול סימון זמינות" onclick="unmarkAvailable(\''+ev+'\',\''+s+'\')">×</span>':'')+
+        '</span>';
+    }).join("");
+    var avOpts=Object.keys(ROSTER.members).filter(function(s){return !inEv[s] && !avs[s] && ROSTER.members[s].active!==false;})
+      .map(function(s){return '<option value="'+s+'">'+esc(ROSTER.members[s].name)+'</option>';}).join("");
+    var availCol='<div class="col-avail">'+
+      '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+(avChips||'<span style="color:#c4c8cf;font-size:12px">—</span>')+'</div>'+
+      '<div style="margin-top:5px"><select class="addsel" id="avadd-'+ev+'" style="max-width:120px"><option value="">+ סמן זמין/ה…</option>'+avOpts+'</select> '+
+      '<button class="editbtn" style="opacity:.8" title="סמן כזמין/ה" onclick="markAvailable(\''+ev+'\')">✋</button></div>'+
+    '</div>';
+    // --- column: free-text note ---
+    var noteCol='<div class="col-notes">'+
+      (a.note?'<span class="ntxt">📝 '+esc(a.note)+'</span>':'<span class="nempty">— אין הערות —</span>')+
+      ' <button class="editbtn" title="עריכת הערה" onclick="editNote(\''+ev+'\')">✏️</button>'+
+    '</div>';
     return '<div class="evrow'+(ev===highlightEv?' hl':'')+'" id="evrow-'+ev+'">'+
       '<div class="evdate">'+fmtDate(a.start_date)+'<br><span style="color:#9ca3af;font-weight:600;font-size:11px">עד '+fmtDate(a.end_date)+'</span></div>'+
       '<div class="evcity">'+esc(a.city)+', '+esc(a.state||"")+'</div>'+
-      '<div class="evchips">'+(chips||'<span style="color:#9ca3af;font-size:13px">— אין שיבוץ —</span>')+'</div>'+
-      '<div><select class="addsel" id="add-'+ev+'"><option value="">+ הוסף עובד…</option>'+opts+'</select> '+
-      '<button class="editbtn" style="opacity:.8" title="הוסף" onclick="addToEvent(\''+ev+'\')">➕</button></div>'+
-      availFreeLine(ev, inEv)+
+      '<div class="evchips">'+(chips||'<span style="color:#9ca3af;font-size:13px">— אין שיבוץ —</span>')+
+      '<span><select class="addsel" id="add-'+ev+'" style="max-width:120px"><option value="">+ הוסף עובד…</option>'+opts+'</select> '+
+      '<button class="editbtn" style="opacity:.8" title="הוסף" onclick="addToEvent(\''+ev+'\')">➕</button></span></div>'+
+      availCol+
+      noteCol+
     '</div>';
   }).join("");
   v.innerHTML =
     '<div class="load-strip"><b style="margin-inline-end:6px">עומס שיבוצים קרובים:</b>'+loadHtml+'</div>'+
-    '<div class="note" style="margin-bottom:12px">🟢 מתוכנן ומאושר · 🟠 סטנד ביי — לחיצה על שם מחליפה סטטוס, × מסיר, והכל נשמר אוטומטית ל-GitHub.</div>'+
+    '<div class="note" style="margin-bottom:10px">🟢 מתוכנן ומאושר · 🟠 סטנד ביי · 🔵 זמין/ה ולא משובץ/ת (לחיצה משבצת) — לחיצה על שם משובץ מחליפה סטטוס, × מסיר, והכל נשמר אוטומטית ל-GitHub. 📨 = מתוך טופס הזמינות.</div>'+
+    '<div class="schedhead"><span style="flex-basis:96px;flex-shrink:0">תאריך</span><span style="flex-basis:150px;flex-shrink:0">אירוע</span><span style="flex:1">משובצים</span><span class="col-avail">✋ זמינים ולא משובצים</span><span class="col-notes">📝 הערות</span></div>'+
     rows;
   if (highlightEv){ var el=document.getElementById("evrow-"+highlightEv); if(el) el.scrollIntoView({behavior:"smooth", block:"center"}); }
 }
@@ -324,6 +354,38 @@ function addToEvent(ev){
   a.team=a.team||[]; a.team.push({m:sel.value,status:"planned"});
   markDirty("assignments", ev);
   saveRoster("team: add "+sel.value+" @ "+ev).then(function(ok){ if(ok) toast("✓ נוסף ונשמר"); });
+  refreshCurrent(ev);
+}
+function assignFromAvail(ev, slug){
+  var a=ROSTER.assignments[ev]; if(!a) return;
+  a.team=a.team||[]; a.team.push({m:slug,status:"planned"});
+  markDirty("assignments", ev);
+  saveRoster("team: assign-from-avail "+slug+" @ "+ev).then(function(ok){ if(ok) toast("✓ שובץ/ה ונשמר"); });
+  refreshCurrent(ev);
+}
+function markAvailable(ev){
+  var sel=document.getElementById("avadd-"+ev); if(!sel||!sel.value) return;
+  ROSTER.manual_availability=ROSTER.manual_availability||{};
+  ROSTER.manual_availability[ev]=ROSTER.manual_availability[ev]||{};
+  ROSTER.manual_availability[ev][sel.value]=true;
+  markDirty("manual_availability", ev);
+  saveRoster("team: mark available "+sel.value+" @ "+ev).then(function(ok){ if(ok) toast("✓ סומן/ה כזמין/ה"); });
+  refreshCurrent(ev);
+}
+function unmarkAvailable(ev, slug){
+  var man=(ROSTER.manual_availability||{})[ev]; if(man) delete man[slug];
+  markDirty("manual_availability", ev);
+  saveRoster("team: unmark available "+slug+" @ "+ev).then(function(ok){ if(ok) toast("✓ בוטל"); });
+  refreshCurrent(ev);
+}
+function editNote(ev){
+  var a=ROSTER.assignments[ev]; if(!a) return;
+  var val=prompt("הערה לאירוע "+a.city+" (טקסט חופשי, ריק = מחיקה):", a.note||"");
+  if(val===null) return;
+  a.note=val.trim();
+  if(!a.note) delete a.note;
+  markDirty("assignments", ev);
+  saveRoster("team: note @ "+ev).then(function(ok){ if(ok) toast("✓ הערה נשמרה"); });
   refreshCurrent(ev);
 }
 function refreshCurrent(ev){
@@ -396,11 +458,15 @@ async function saveRoster(msg){
   try{
     var cloud=await ghReadRosterSafe(token);
     var merged=cloud.data;
-    merged.members=merged.members||{}; merged.assignments=merged.assignments||{}; merged.manual_earnings=merged.manual_earnings||{};
+    merged.members=merged.members||{}; merged.assignments=merged.assignments||{}; merged.manual_earnings=merged.manual_earnings||{}; merged.manual_availability=merged.manual_availability||{};
     DIRTY.forEach(function(d){
       var sec=d[0], key=d[1];
       if(sec==="members") merged.members[key]=ROSTER.members[key];
       if(sec==="assignments") merged.assignments[key]=ROSTER.assignments[key];
+      if(sec==="manual_availability"){
+        if(ROSTER.manual_availability && ROSTER.manual_availability[key] && Object.keys(ROSTER.manual_availability[key]).length) merged.manual_availability[key]=ROSTER.manual_availability[key];
+        else delete merged.manual_availability[key];
+      }
       if(sec==="manual_earnings"){
         if(ROSTER.manual_earnings && ROSTER.manual_earnings[key] && Object.keys(ROSTER.manual_earnings[key]).length) merged.manual_earnings[key]=ROSTER.manual_earnings[key];
         else delete merged.manual_earnings[key];
