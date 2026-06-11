@@ -862,6 +862,10 @@ let FB_EVENT_STATS = null;  // populated from docs/state/fb_event_stats.json on 
 // Read by the 🔳 QR LP button on each row: green if SUBSCRIBE_TARGET.event_key === evKey (i.e. the QR landing page is currently pointing here), black otherwise.
 // Populated by an async fetch in the init block at the bottom of this script. Lauren 2026-05-20.
 let SUBSCRIBE_TARGET = null;
+// 👥 Live team assignments from docs/state/team_roster.json — the team dashboard (/team/) writes that
+// file; when an assignment exists for a row's evKey it is the AUTHORITATIVE team display (Lauren 2026-06-10:
+// "אם אני משנה בדשבורד את ההרכב של הצוות אז שזה יופיע פה גם בהתאם").
+let TEAM_ROSTER = null;
 // 🏛 Venue closing-status (Lauren 2026-06-08) — docs/state/venue_payments.json; colors the Venue button
 let VENUE_PAY = null;
 
@@ -1844,15 +1848,24 @@ End date: </div>
         const uploadedStaff = (typeof loadUploaded === "function" ? (loadUploaded() || {})._staff_defaults : null) || {};
         const staffDef = uploadedStaff[evKeyForStats] || ((typeof STAFF_DEFAULTS !== "undefined") ? (STAFF_DEFAULTS[evKeyForStats] || {}) : {});
         const noteRow = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKeyForStats] || {}) : {};
-        const teamVal = (noteRow.team_override != null ? noteRow.team_override : (staffDef.team || ""));
+        // Roster (the /team/ dashboard) is authoritative when it has this event; otherwise override → xlsx.
+        let rosterTeamTxt = null;
+        const rosterAsg = (TEAM_ROSTER && TEAM_ROSTER.assignments) ? TEAM_ROSTER.assignments[evKeyForStats] : null;
+        if (rosterAsg && Array.isArray(rosterAsg.team) && rosterAsg.team.length) {
+          rosterTeamTxt = rosterAsg.team.map(e => {
+            const mm = (TEAM_ROSTER.members || {})[e.m] || {};
+            return (mm.name || e.m) + (e.status === "standby" ? " (SB)" : "");
+          }).join(" ");
+        }
+        const teamVal = (rosterTeamTxt != null ? rosterTeamTxt : (noteRow.team_override != null ? noteRow.team_override : (staffDef.team || "")));
         if (true) { // always render — the Team row hosts the 👥 team-dashboard button (Lauren 2026-06-10)
-          const isOverride = (noteRow.team_override != null);
-          const txt = teamVal ? escapeHtml(teamVal) : '<span style="color:#9ca3af;font-style:italic">— click ✏️ to add —</span>';
+          const isOverride = (rosterTeamTxt == null && noteRow.team_override != null);
+          const txt = teamVal ? (rosterTeamTxt != null ? '<span title="מסונכרן חי מדשבורד הצוות (/team/)">' + escapeHtml(teamVal) + '</span>' : escapeHtml(teamVal)) : '<span style="color:#9ca3af;font-style:italic">— click ✏️ to add —</span>';
           statsLine += '<div class="staff-block">' +
                          '<div class="staff-line">' +
                            '👥 <b>Team:</b> ' +
                            '<span class="staff-val' + (isOverride ? " override" : "") + '" data-evkey="' + evKeyForStats + '" data-field="team">' + txt + '</span> ' +
-                           '<button class="staff-edit-btn" data-evkey="' + evKeyForStats + '" data-field="team" data-current="' + escapeHtml(teamVal).replace(/"/g, "&quot;") + '" title="Edit (saved live to GitHub)">✏️</button>' +
+                           (rosterTeamTxt == null ? '<button class="staff-edit-btn" data-evkey="' + evKeyForStats + '" data-field="team" data-current="' + escapeHtml(teamVal).replace(/"/g, "&quot;") + '" title="Edit (saved live to GitHub)">✏️</button>' : '') +
                            '<a class="staff-edit-btn" style="text-decoration:none" href="../team/?ev=' + evKeyForStats + '" target="_blank" title="👥 דשבורד צוות — שכר, שיבוץ וזמינות">👥</a>' +
                          '</div>' +
                        '</div>';
@@ -4383,6 +4396,12 @@ End date: </div>
       renderSchedule();
     })
     .catch(() => { /* fail-silent — embedded fallback stays */ });
+
+  // 👥 Live team roster (assignments per evkey) — /team/ saves flow straight into the Team field here.
+  fetch("../state/team_roster.json?_=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(j => { if (j && j.assignments) { TEAM_ROSTER = j; renderSchedule(); } })
+    .catch(() => { /* fail-silent — xlsx/override fallback stays */ });
 
   // Load subscribe_target.json (which event is currently active on the public QR landing page) and re-render
   // so the 🔳 QR LP button flips green on the matching row. Updated weekly by update-subscribe-target.yml.
