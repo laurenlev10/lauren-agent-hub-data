@@ -520,7 +520,7 @@ function availMark(ev, slug){
 }
 function renderAvail(){
   var v=document.getElementById("view-avail");
-  var formUrl=location.origin+location.pathname.replace(/index\.html$/,"").replace(/\/$/,"")+"/availability.html";
+  var formUrl="https://events.themakeupblowout.com/team-availability/"; // public — no Cloudflare Access, safe to send to workers
   var latest={};
   AVAIL_SUBS.forEach(function(s){ var k=s.member_slug||s.name; if(!latest[k]) latest[k]=s; });
   var rows=Object.keys(latest).map(function(k){
@@ -539,9 +539,9 @@ function renderAvail(){
   }).join("") || '<tr><td colspan="5" style="color:#9ca3af">עדיין אין טפסים — שלחי לעובדים את הקישור למעלה 👆</td></tr>';
   v.innerHTML =
     '<div class="evrow" style="justify-content:space-between">'+
-      '<div><b>📨 טופס זמינות לעובדים</b><div class="note">שלחי לעובדים את הקישור — הם מסמנים באילו אירועים הם זמינים, והתשובות מגיעות לכאן ולטאב השיבוץ אוטומטית.</div></div>'+
+      '<div><b>📨 טופס זמינות לעובדים</b><div class="note">שלחי לעובדים את הקישור הציבורי (פתוח לכולם, בלי התחברות) — הם מסמנים באילו אירועים הם זמינים, והתשובות מגיעות לכאן ולטאב השיבוץ אוטומטית.</div></div>'+
       '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
-        '<a class="btn cancel" style="text-decoration:none" href="availability.html" target="_blank">👀 פתיחת הטופס</a>'+
+        '<a class="btn cancel" style="text-decoration:none" href="https://events.themakeupblowout.com/team-availability/" target="_blank">👀 פתיחת הטופס</a>'+
         '<button class="btn save" onclick="navigator.clipboard.writeText(\''+formUrl+'\').then(function(){toast(&quot;✓ הקישור הועתק&quot;);})">📋 העתקת קישור לשליחה</button>'+
       '</div>'+
     '</div>'+
