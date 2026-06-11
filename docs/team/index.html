@@ -166,9 +166,14 @@ function memberEvents(slug){
   return {past:past, future:future};
 }
 function memberTotals(slug){
-  var me=memberEvents(slug), tot=0, n=0;
-  me.past.forEach(function(p){ var e=resolveEarn(p.ev, slug); if(e){ tot+=e.total; n++; } });
-  return {total:tot, paidEvents:n, pastCount:me.past.length, futureCount:me.future.length};
+  var me=memberEvents(slug), tot=0, n=0, c26=0, c25=0;
+  me.past.forEach(function(p){
+    var y=(p.a.start_date||"").slice(0,4);
+    if(y==="2025"){ c25++; return; }            // 2025 = history only, not in the money totals
+    c26++;
+    var e=resolveEarn(p.ev, slug); if(e){ tot+=e.total; n++; }
+  });
+  return {total:tot, paidEvents:n, pastCount:c26, count2025:c25, futureCount:me.future.length};
 }
 
 /* ---------- views ---------- */
@@ -197,6 +202,7 @@ function renderGrid(){
       '<div class="mrow"><span>🎪 אירועים ב-2026</span><b>'+t.pastCount+'</b></div>'+
       '<div class="mrow"><span>💵 סה״כ שכר 2026</span><b>'+fmtMoney(t.total||null)+(t.paidEvents<t.pastCount?' <span class="src">('+t.paidEvents+'/'+t.pastCount+' אירועים)</span>':'')+'</b></div>'+
       '<div class="mrow"><span>📅 שיבוצים קרובים</span><b>'+t.futureCount+'</b></div>'+
+      (t.count2025?'<div class="mrow"><span>🗓️ אירועים ב-2025</span><b>'+t.count2025+'</b></div>':'')+
     '</div>';
   }).join("");
 }
@@ -207,13 +213,18 @@ function openDetail(slug){
   document.getElementById("view-team").style.display="none";
   document.getElementById("view-sched").style.display="none";
   v.style.display="";
-  var pastRows = me.past.map(function(p){
+  var past26=me.past.filter(function(p){return (p.a.start_date||"").slice(0,4)!=="2025";});
+  var past25=me.past.filter(function(p){return (p.a.start_date||"").slice(0,4)==="2025";});
+  var pastRows = past26.map(function(p){
     var e=resolveEarn(p.ev, slug);
     var amtHtml = e ? '<span class="amt">'+fmtMoney(e.total)+'</span><span class="src">'+e.label+'</span>'
                     : '<span style="color:#9ca3af">— אין נתון —</span>';
     return '<tr><td>'+fmtDate(p.a.start_date)+'</td><td><b>'+esc(p.a.city)+'</b> '+esc(p.a.state||"")+(p.offRoster?' <span class="pill blue">לא ברשימת השיבוץ</span>':'')+'</td>'+
       '<td>'+amtHtml+' <button class="editbtn" title="עריכה ידנית" onclick="editEarn(\''+p.ev+'\',\''+slug+'\')">✏️</button></td></tr>';
   }).join("") || '<tr><td colspan="3" style="color:#9ca3af">אין אירועים</td></tr>';
+  var rows25 = past25.map(function(p){
+    return '<tr><td>'+fmtDate(p.a.start_date)+'</td><td><b>'+esc(p.a.city)+'</b> '+esc(p.a.state||"")+'</td></tr>';
+  }).join("");
   var futRows = me.future.map(function(f){
     var pill = f.status==="standby" ? '<span class="pill orange">סטנד ביי</span>' : '<span class="pill green">מתוכנן ומאושר</span>';
     return '<tr><td>'+fmtDate(f.a.start_date)+'</td><td><b>'+esc(f.a.city)+'</b> '+esc(f.a.state||"")+'</td>'+
@@ -231,12 +242,14 @@ function openDetail(slug){
     '</div>'+
     '<div class="stats-row">'+
       '<div class="stat"><div class="v">'+fmtMoney(t.total||null)+'</div><div class="l">סה״כ שכר 2026</div></div>'+
-      '<div class="stat"><div class="v">'+t.pastCount+'</div><div class="l">אירועים שעבד/ה</div></div>'+
+      '<div class="stat"><div class="v">'+t.pastCount+'</div><div class="l">אירועים ב-2026</div></div>'+
       '<div class="stat"><div class="v">'+(t.paidEvents?fmtMoney(t.total/t.paidEvents):"—")+'</div><div class="l">ממוצע לאירוע</div></div>'+
       '<div class="stat"><div class="v">'+t.futureCount+'</div><div class="l">שיבוצים קרובים</div></div>'+
     '</div>'+
-    '<div class="section-title">🎪 אירועי עבר + שכר</div>'+
+    '<div class="section-title">🎪 אירועי 2026 + שכר</div>'+
     '<table><tr><th>תאריך</th><th>אירוע</th><th>שכר</th></tr>'+pastRows+'</table>'+
+    (rows25?('<div class="section-title">🗓️ אירועי 2025 ('+past25.length+')</div>'+
+    '<table><tr><th>תאריך</th><th>אירוע</th></tr>'+rows25+'</table>'):'')+
     '<div class="section-title">📅 שיבוצים עתידיים</div>'+
     '<table><tr><th>תאריך</th><th>אירוע</th><th>סטטוס</th></tr>'+futRows+'</table>';
   v.dataset.slug = slug;
