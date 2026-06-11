@@ -87,7 +87,7 @@ def main():
             continue
         evkey = _slug(ev.get("city", "?"), ev["start_date"])
         note = notes.get(evkey, {})
-        if not note.get("insta_reel_url"):
+        if not (note.get("insta_reel_url") or note.get("insta_reel_url_2")):
             continue
         upcoming.append((ev, evkey, note))
     upcoming.sort(key=lambda x: x[0]["start_date"])
@@ -104,72 +104,78 @@ def main():
     any_change = False
 
     for ev, evkey, note in upcoming:
-        reel_url = note["insta_reel_url"]
-        sc = _shortcode_from_url(reel_url)
-        media_id = sc2id.get(sc)
-        if not media_id:
-            print(f"[digest] {evkey}: shortcode {sc} not in recent media; skip")
-            continue
-        try:
-            ins = meta.fetch_media_insights(media_id)
-        except Exception as e:
-            print(f"[digest] {evkey}: insights fetch failed: {e}")
-            continue
+        for _sfx in ("", "_2"):
+            # 2026-06-10 — scan BOTH reel slots: slot "" = Reel 1, slot "_2" = New Reel
+            # (the reel running in the Meta campaigns for the final week + the SHARE page).
+            reel_url = (note.get("insta_reel_url" + _sfx) or "").strip()
+            if not reel_url:
+                continue
+            sc = _shortcode_from_url(reel_url)
+            media_id = sc2id.get(sc)
+            if not media_id:
+                print(f"[digest] {evkey}: shortcode {sc} not in recent media; skip")
+                continue
+            try:
+                ins = meta.fetch_media_insights(media_id)
+            except Exception as e:
+                print(f"[digest] {evkey}: insights fetch failed: {e}")
+                continue
 
-        shares = ins.get("shares")
-        # Find most recent prior scan with a non-null shares value
-        prev_shares = None
-        existing = note.get("insta_reel_scans") or []
-        # Idempotency — if a digest scan was already appended today, skip this event.
-        # Defensive: protects against double-runs (manual dispatch + retry, cron + manual).
-        if any(
-            (s.get("scanned_at", "")[:10] == today_str)
-            and s.get("source") == "daily_reel_shares_digest"
-            for s in existing
-        ):
-            print(f"[digest] {evkey}: digest already appended today; skip append (still reading shares for SMS)")
-            already_appended_today = True
-        else:
-            already_appended_today = False
-        for s in reversed(existing):
-            if s.get("scanned_at", "")[:10] < today_str and s.get("shares") is not None:
-                prev_shares = s.get("shares")
-                break
+            shares = ins.get("shares")
+            # Find most recent prior scan with a non-null shares value
+            prev_shares = None
+            existing = note.get("insta_reel_scans" + _sfx) or []
+            # Idempotency — if a digest scan was already appended today, skip this event.
+            # Defensive: protects against double-runs (manual dispatch + retry, cron + manual).
+            if any(
+                (s.get("scanned_at", "")[:10] == today_str)
+                and s.get("source") == "daily_reel_shares_digest"
+                for s in existing
+            ):
+                print(f"[digest] {evkey}: digest already appended today; skip append (still reading shares for SMS)")
+                already_appended_today = True
+            else:
+                already_appended_today = False
+            for s in reversed(existing):
+                if s.get("scanned_at", "")[:10] < today_str and s.get("shares") is not None:
+                    prev_shares = s.get("shares")
+                    break
 
-        delta = (shares - prev_shares) if (shares is not None and prev_shares is not None) else None
-        ds = _delta_str(shares, prev_shares)
-        city = ev.get("city", "?")
-        date_short = _fmt_he_date(ev["start_date"])
-        lines.append(f"{city} ({date_short}) · {shares if shares is not None else '—'}{ds}")
-        if shares is not None:
-            total += shares
-        if delta is not None:
-            total_delta += delta
-            have_any_delta = True
+            delta = (shares - prev_shares) if (shares is not None and prev_shares is not None) else None
+            ds = _delta_str(shares, prev_shares)
+            city = ev.get("city", "?")
+            date_short = _fmt_he_date(ev["start_date"])
+            _slot_lbl = " · ריל חדש" if _sfx else ""
+            lines.append(f"{city} ({date_short}){_slot_lbl} · {shares if shares is not None else '—'}{ds}")
+            if shares is not None:
+                total += shares
+            if delta is not None:
+                total_delta += delta
+                have_any_delta = True
 
-        # Append digest scan record (phase='digest_daily')
-        scan_rec = {
-            "scanned_at": now_utc,
-            "event_local_hour": None,
-            "actual_local_hour": None,
-            "phase": "digest_daily",
-            "source": "daily_reel_shares_digest",
-            "url_at_scan": reel_url,
-            "media_id": media_id,
-            "shares": ins.get("shares"),
-            "views": ins.get("views"),
-            "reach": ins.get("reach"),
-            "likes": ins.get("likes"),
-            "comments": ins.get("comments"),
-            "saved": ins.get("saved"),
-            "catchup": False,
-        }
-        if not already_appended_today:
-            existing.append(scan_rec)
-            notes.setdefault(evkey, {})
-            notes[evkey]["insta_reel_scans"] = existing
-            notes[evkey]["updated_at"] = now_utc
-            any_change = True
+            # Append digest scan record (phase='digest_daily')
+            scan_rec = {
+                "scanned_at": now_utc,
+                "event_local_hour": None,
+                "actual_local_hour": None,
+                "phase": "digest_daily",
+                "source": "daily_reel_shares_digest",
+                "url_at_scan": reel_url,
+                "media_id": media_id,
+                "shares": ins.get("shares"),
+                "views": ins.get("views"),
+                "reach": ins.get("reach"),
+                "likes": ins.get("likes"),
+                "comments": ins.get("comments"),
+                "saved": ins.get("saved"),
+                "catchup": False,
+            }
+            if not already_appended_today:
+                existing.append(scan_rec)
+                notes.setdefault(evkey, {})
+                notes[evkey]["insta_reel_scans" + _sfx] = existing
+                notes[evkey]["updated_at"] = now_utc
+                any_change = True
 
     if not lines:
         print("[digest] no events had usable data; no SMS.")

@@ -2036,7 +2036,12 @@ End date: </div>
       if (ev) {
         const evKeyRS = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.start_date;
         const noteRS = (typeof MANUAL_TASKS !== "undefined") ? (MANUAL_TASKS[evKeyRS] || {}) : {};
-        const scans = Array.isArray(noteRS.insta_reel_scans) ? noteRS.insta_reel_scans : [];
+        // Lauren 2026-06-10: the pill must show the LATEST reel added — when a New Reel
+        // (slot 2, insta_reel_url_2) is set, it is the reel running in the Meta campaigns
+        // for the final week + on the SHARE page, so its scans take over the pill.
+        const _scans2RS = Array.isArray(noteRS.insta_reel_scans_2) ? noteRS.insta_reel_scans_2 : [];
+        const _useSlot2RS = !!((noteRS.insta_reel_url_2 || "").trim() && _scans2RS.length);
+        const scans = _useSlot2RS ? _scans2RS : (Array.isArray(noteRS.insta_reel_scans) ? noteRS.insta_reel_scans : []);
         if (scans.length >= 1) {
           const latest = scans[scans.length - 1];
           const prior = (scans.length >= 2) ? scans[scans.length - 2] : null;
@@ -2082,12 +2087,13 @@ End date: </div>
           //   pre-event / past (once/day at 12:00 local or after the weekend) → >25h is stale
           const _staleLimit = isLive ? 120 : (25 * 60);
           const stale = (scanMins !== null && scanMins > _staleLimit);
+          const _irLblRS = _useSlot2RS ? '📸 NEW REEL' : '📸 INSTA REEL';
           const metaTxt = (scanMins === null) ? '📸 Instagram' :
-                          (scanMins < 1) ? '📸 INSTA REEL · just now' :
-                          (scanMins < 60) ? `📸 INSTA REEL · ${scanMins}m ago` :
-                          `📸 INSTA REEL · ${Math.round(scanMins/60)}h ago`;
+                          (scanMins < 1) ? (_irLblRS + ' · just now') :
+                          (scanMins < 60) ? `${_irLblRS} · ${scanMins}m ago` :
+                          `${_irLblRS} · ${Math.round(scanMins/60)}h ago`;
           const deltaClass = (delta === null) ? '' : (delta > 0 ? ' delta-pos' : (delta === 0 ? ' delta-zero' : ''));
-          const reelLink = latest.url_at_scan || noteRS.insta_reel_url || '';
+          const reelLink = latest.url_at_scan || (_useSlot2RS ? noteRS.insta_reel_url_2 : noteRS.insta_reel_url) || '';
           const metaContent = reelLink
             ? '<a href="' + escapeHtml(reelLink) + '" target="_blank" rel="noopener" title="Open the Reel on Instagram">' + escapeHtml(metaTxt) + '</a>'
             : escapeHtml(metaTxt);

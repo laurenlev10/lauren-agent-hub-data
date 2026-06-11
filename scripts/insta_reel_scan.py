@@ -139,27 +139,36 @@ def _event_local_now(state: str):
     return _dt.datetime.now(ZoneInfo(tz))
 
 
-def _resolve_reel(notes: dict, evkey: str) -> tuple[str, str, str]:
+def _resolve_reel(notes: dict, evkey: str, city: str = "") -> tuple[str, str, str]:
     """
     Returns (reel_url, set_by, media_id_or_empty).
-    Priority:
-      1. Manual override stored in notes[evkey].insta_reel_url (set_by="manual")
-      2. Auto: most recent Reel from the IG business account (set_by="auto")
+    Priority (2026-06-10 fix — the Overland Park "World Cup reel" incident):
+      1. ANY existing URL in notes[evkey].insta_reel_url — manual OR auto.
+         Once a reel is associated with an event it is NEVER silently replaced;
+         on 2026-06-09 the old behavior re-ran auto-detect over an auto-set slot
+         and swapped in an unrelated account-wide reel, zeroing the pill stats.
+      2. Auto-detect (most recent/pinned reel) ONLY when the slot is empty,
+         and ONLY if the reel caption mentions the event city — otherwise skip
+         (scanning an unrelated reel is worse than no scan; Lauren pastes manually).
     """
     note = notes.get(evkey) or {}
-    manual_url = (note.get("insta_reel_url") or "").strip()
+    cur_url = (note.get("insta_reel_url") or "").strip()
     set_by = note.get("insta_reel_url_set_by") or ""
 
-    if manual_url and set_by == "manual":
-        media_id = meta.find_media_id_by_permalink(manual_url) or ""
-        return manual_url, "manual", media_id
+    if cur_url:
+        media_id = meta.find_media_id_by_permalink(cur_url) or ""
+        return cur_url, (set_by or "manual"), media_id
 
     pinned = meta.find_pinned_or_latest_reel()
     if pinned:
+        cap = (pinned.get("caption") or "").lower()
+        if city and city.strip().lower() not in cap:
+            print(f"[scan] {evkey}: auto-detect candidate {pinned.get('permalink','')} does not mention "
+                  f"city {city!r} in its caption; refusing to auto-assign. Paste the reel via the 🔗 chip.")
+            return "", "", ""
         return pinned.get("permalink", ""), "auto", pinned.get("id", "")
 
-    # Last resort: keep whatever is there even if origin unknown
-    return manual_url, set_by or "manual", ""
+    return "", "", ""
 
 
 def main() -> int:
@@ -321,7 +330,7 @@ def main() -> int:
                     except Exception as e:
                         print(f"[scan] {evkey}: slot2 insights/append failed: {e}")
 
-        reel_url, set_by, media_id = _resolve_reel(notes, evkey)
+        reel_url, set_by, media_id = _resolve_reel(notes, evkey, city)
         if not reel_url or not media_id:
             print(f"[scan] {evkey}: no resolvable reel (url={reel_url!r}, media_id={media_id!r}); skip.")
             continue
