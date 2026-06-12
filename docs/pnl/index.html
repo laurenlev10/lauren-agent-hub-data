@@ -279,20 +279,45 @@ function render(){
  // P&L summary — editable per line
  h+="<div class='card pl'><h2>📊 רווח והפסד — לחצי ✏️ לעריכה ידנית</h2><table>";
  h+="<tr><td>מכירות נטו (הכנסה)</td><td class='num'>"+money(r.net_sales)+"</td></tr>";
+ // 🧾 Lauren 2026-06-11: distribute bookkeeper (QB) filings UNDER their matching category
+ // instead of one lump ("איפה שכתוב אוכל לשים מתחת את ההוצאות שהן אוכל מהנה\"ח").
+ // Mapping mirrors scripts/pnl_quickbooks.py::_classify; Uber Eats → אוכל (food delivery,
+ // not rideshare) and gas/fuel/auto/tire → נסיעות per the touring road-trip model.
+ function liveCat(e){
+   const a=String(e.account||"").toLowerCase();
+   const hay=(a+" "+String(e.desc||"")).toLowerCase();
+   if(/uber\s*eats/.test(hay)) return "meals";
+   if(hay.includes("uline")) return "uline";
+   if(hay.includes("lyft")||/\buber\b/.test(hay)) return "lyft";
+   if(/airfare|flight|airline/.test(a)) return "travel";
+   if(/accommodation|hotel|lodging|hotels\.com/.test(hay)) return "travel";
+   if(/transportation|car ?rental|rental ?car|travel/.test(a)) return "travel";
+   if(/venue|rent/.test(a)) return "venue";
+   if(/meal|food|restaurant|coffee|starbucks|caf|bagel|einstein|chipotle|pizza|grill|diner|deli|grocer|baker|robin|snack|dinner|lunch|breakfast/.test(hay)) return "meals";
+   if(/gas|fuel|automobile|maverik|flying ?j|fuel ?stop|casey|love'?s|truck ?stop|chevron|shell|exxon|conoco|tire/.test(hay)) return "travel";
+   return "other";
+ }
+ const liveByCat={};
+ for(const _e of LIVE){const _k=liveCat(_e);(liveByCat[_k]=liveByCat[_k]||[]).push(_e);}
+ const liveRow=(e)=>"<tr style='font-size:12px;color:#475569'><td style='padding-right:24px'>🧾 "+esc((e.date||"").slice(5).replace("-","/"))+" · "+esc(e.desc||"")+" <span class='pend' style='background:#dcfce7;color:#166534;border-color:#86efac'>🆕 הנה\"ח"+(e.status==="staged"?" · ממתין":"")+"</span></td><td class='num'>"+money(e.amount)+"</td></tr>";
  for(const[k,lbl]of EXP_ORDER){
    const e=t.exp[k];let badge="";
    if(e.source==="manual override")badge="<span class='manual'>✏️ ידני</span>";
    else if(/\(live\)$/.test(e.source||""))badge="<span class='pend' style='background:#fee2e2;color:#b91c1c;border-color:#fca5a5'>🔴 חי</span>";
    else if(e.status!=="ok")badge="<span class='pend'>"+esc(e.status)+"</span>";
-   h+="<tr data-k='"+k+"'><td>"+esc(lbl)+badge+"<span class='edit' onclick='startEdit(\""+k+"\")'>✏️</span></td>"+
+   const lc=liveByCat[k]||[];
+   const lcSum=lc.reduce((a,x)=>a+(x.amount||0),0);
+   const newBadge=lc.length?" <span class='pend' style='background:#dcfce7;color:#166534;border-color:#86efac'>🧾 +"+money(lcSum)+" הנה\"ח</span>":"";
+   h+="<tr data-k='"+k+"'><td>"+esc(lbl)+badge+newBadge+"<span class='edit' onclick='startEdit(\""+k+"\")'>✏️</span></td>"+
       "<td class='num' id='amt-"+k+"'>"+money(e.amount)+"</td></tr>";
+   for(const le of lc) h+=liveRow(le);
  }
- if(LIVE.length){
-   const lsum=LIVE.reduce((a,x)=>a+(x.amount||0),0);
-   h+="<tr><td>🧾 תיוקים חדשים מהנהלת חשבונות <span class='pend'>"+LIVE.length+" הוצאות</span></td><td class='num'>"+money(lsum)+"</td></tr>";
-   for(const e of LIVE){
-     h+="<tr style='font-size:12px;color:#64748b'><td style='padding-right:24px'>"+esc((e.date||"").slice(5).replace("-","/"))+" · "+esc(e.desc||"")+(e.status==="staged"?" <span class='pend'>ממתין לדחיפה</span>":"")+"</td><td class='num'>"+money(e.amount)+"</td></tr>";
-   }
+ const _known=new Set(EXP_ORDER.map(x=>x[0]));
+ const _leftover=LIVE.filter(e=>!_known.has(liveCat(e)));
+ if(_leftover.length){
+   const _ls=_leftover.reduce((a,x)=>a+(x.amount||0),0);
+   h+="<tr><td>🧾 תיוקים נוספים מהנה\"ח <span class='pend'>"+_leftover.length+"</span></td><td class='num'>"+money(_ls)+"</td></tr>";
+   for(const le of _leftover) h+=liveRow(le);
  }
  h+="<tr class='subtot'><td>סך הוצאות</td><td class='num'>"+money(t.sum)+"</td></tr>";
  if(noSales){
