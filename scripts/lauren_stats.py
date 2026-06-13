@@ -890,6 +890,117 @@ def aggregate_for_events(slugs: list, start_date: str = None, end_date: str = No
     return out
 
 
+def _cum_at(pre, n):
+    """Sum Meta metrics over days with days-to-event >= n (campaign start through T-n)."""
+    cs = cl = cv = cc = ci = 0.0
+    for dte, r in pre:
+        if dte >= n:
+            cs += float(r.get("spend") or 0)
+            cl += float(r.get("leads") or 0)
+            cv += float(r.get("lpv") or 0)
+            cc += float(r.get("clicks") or 0)
+            ci += float(r.get("impressions") or 0)
+    return {
+        "cum_spend": round(cs, 2), "cum_leads": cl, "cum_lpv": cv,
+        "cum_clicks": cc, "cum_impressions": ci,
+        "cum_cpl": round(cs / cv, 3) if cv else 0,
+        "cum_cost_per_lead": round(cs / cl, 3) if cl else 0,
+        "cum_ctr": round(cc / ci * 100, 2) if ci else 0,
+    }
+
+
+def compute_time_aligned_averages(base, slug_to_start, min_spend=100.0):
+    """T-Nd time-aligned cohort averages (2026-06-13, special task stats-tnd-benchmark-ready).
+
+    Aligns each event's Meta daily_timeseries by days-to-event (event_date - day),
+    accumulates spend/lpv/leads/clicks/impressions from campaign start up to each
+    T-N milestone, and averages across events that REACHED that milestone. Lets a
+    running event be benchmarked against where past events stood at the SAME stage,
+    instead of against their full-run totals (the old flat _averages bias).
+    """
+    MILESTONES = [28, 21, 14, 10, 7, 5, 4, 3, 2, 1, 0]
+    today = _dt.date.today()
+    bucket = {n: {"cpl": [], "cost_per_lead": [], "spend": [], "leads": [], "lpv": [], "ctr": []} for n in MILESTONES}
+    contributing = set()
+    for slug, ev in base.get("events", {}).items():
+        sd = slug_to_start.get(slug)
+        if not sd:
+            continue
+        try:
+            start = _dt.date.fromisoformat(sd)
+        except Exception:
+            continue
+        rows = ((ev.get("meta") or {}).get("daily_timeseries") or [])
+        pre = []
+        for r in rows:
+            try:
+                d = _dt.date.fromisoformat(r.get("date"))
+            except Exception:
+                continue
+            dte = (start - d).days
+            if dte >= 0:
+                pre.append((dte, r))
+        if not pre:
+            continue
+        total_spend = sum(float(r.get("spend") or 0) for _, r in pre)
+        if total_spend < min_spend:
+            continue
+        dtes = [d for d, _ in pre]
+        dte_max = max(dtes)
+        dte_min = min(dtes)
+        ev["meta"]["tnd_now"] = {
+            "days_to_event": (start - today).days,
+            "data_through_dte": dte_min,
+            **_cum_at(pre, dte_min),
+        }
+        contributed = False
+        for n in MILESTONES:
+            if dte_max >= n >= dte_min:
+                c = _cum_at(pre, n)
+                if c["cum_lpv"]:
+                    bucket[n]["cpl"].append(c["cum_spend"] / c["cum_lpv"])
+                if c["cum_leads"]:
+                    bucket[n]["cost_per_lead"].append(c["cum_spend"] / c["cum_leads"])
+                bucket[n]["spend"].append(c["cum_spend"])
+                bucket[n]["leads"].append(c["cum_leads"])
+                bucket[n]["lpv"].append(c["cum_lpv"])
+                if c["cum_impressions"]:
+                    bucket[n]["ctr"].append(c["cum_clicks"] / c["cum_impressions"] * 100)
+                contributed = True
+        if contributed:
+            contributing.add(slug)
+
+    def _avg(xs):
+        return round(sum(xs) / len(xs), 3) if xs else 0
+    by_ms = {}
+    for n in MILESTONES:
+        b = bucket[n]
+        cnt = len(b["spend"])
+        if not cnt:
+            continue
+        by_ms[str(n)] = {
+            "n_events": cnt,
+            "cum_cpl": _avg(b["cpl"]),
+            "cum_cost_per_lead": _avg(b["cost_per_lead"]),
+            "cum_spend": round(sum(b["spend"]) / cnt, 2),
+            "cum_leads": round(sum(b["leads"]) / cnt, 1),
+            "cum_lpv": round(sum(b["lpv"]) / cnt, 1),
+            "ctr": _avg(b["ctr"]),
+        }
+    if by_ms:
+        base.setdefault("_averages", {})
+        base["_averages"]["time_aligned"] = {
+            "milestones": MILESTONES,
+            "by_milestone": by_ms,
+            "method": ("cumulative Meta spend/lpv/leads/clicks from campaign start up to "
+                       "T-N days before event_date, averaged across events with >= $%d spend "
+                       "that reached T-N" % int(min_spend)),
+            "event_count": len(contributing),
+            "generated_at": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+    return base
+
+
 def detect_anomalies(event_data: dict, baselines: dict) -> list:
     """Compare event_data to rolling baselines, return list of anomalies."""
     out = []
@@ -1250,6 +1361,13 @@ def aggregate_with_funnel(slugs: list, events: list, setups: dict,
         ev_out["rates"] = funnel_data["rates"]
         if funnel_data["forecast"]:
             ev_out["forecast"] = funnel_data["forecast"]
+
+    # 2026-06-13 - T-Nd time-aligned cohort averages (special task stats-tnd-benchmark-ready).
+    slug_to_start = {sl: (e.get("start_date") or "") for sl, e in ev_by_slug.items()}
+    try:
+        compute_time_aligned_averages(base, slug_to_start)
+    except Exception as _e:
+        print(f"  time-aligned averages failed (non-fatal): {_e}")
 
     return base
 
