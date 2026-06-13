@@ -97,7 +97,6 @@
   .tile-team      { background: linear-gradient(135deg, #ec4899 0%, #7c3aed 100%); }
   .tile-trading   { background: linear-gradient(135deg, #1a6ed4 0%, #1254b0 50%, #0c3d80 100%); }
   .tile-automated { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%); }
-  .tile-weekly    { background: linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #0f766e 100%); }
   .tile-special   { background: linear-gradient(135deg, #a855f7 0%, #9333ea 50%, #7e22ce 100%); }
   .tile-library   { background: linear-gradient(135deg, #475569 0%, #334155 50%, #1e293b 100%); }
   .tile-shopify   { background: linear-gradient(135deg, #95BF47 0%, #5E8E3E 50%, #3f6e2a 100%); }
@@ -203,15 +202,6 @@
       <span class="corner-emoji">🤖</span>
     </a>
 
-    <a class="tile tile-weekly" href="weekly/">
-      <span class="pill">Weekly</span>
-      <div class="title">📋 משימות שבועיות</div>
-      <div class="tag">צ׳ק־ליסט שמתאפס בכל יום ראשון בבוקר. אפשר להוסיף, לערוך ולמחוק משימות משלך.</div>
-      <div class="status" id="status-weekly">טוען...</div>
-      <span class="cta">פתחי את המשימות השבועיות →</span>
-      <span class="corner-emoji">📋</span>
-    </a>
-
     <a class="tile tile-special" href="special/">
       <span class="pill">Special</span>
       <div class="title">⭐ משימות מיוחדות</div>
@@ -264,22 +254,6 @@
       document.getElementById("status-automated").innerHTML = `<b>${on}</b> פעילות${lateBadge}${offBadge}`;
     })
     .catch(() => { document.getElementById("status-automated").innerHTML = `0 פעילות`; });
-
-  fetch("state/weekly_tasks.json" + bust, { cache: "no-store" })
-    .then(r => r.ok ? r.json() : Promise.reject())
-    .then(data => {
-      function mostRecentSundayISO(d) {
-        const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-        x.setDate(x.getDate() - x.getDay());
-        return x.getFullYear() + "-" + String(x.getMonth()+1).padStart(2,'0') + "-" + String(x.getDate()).padStart(2,'0');
-      }
-      const week = mostRecentSundayISO(new Date());
-      const allTasks = (data.tasks || []).concat(data.custom || []);
-      const total = allTasks.length;
-      const done = (data.week === week) ? Object.keys(data.done || {}).length : 0;
-      document.getElementById("status-weekly").innerHTML = `הושלמו <b>${done} / ${total}</b> השבוע`;
-    })
-    .catch(() => { document.getElementById("status-weekly").innerHTML = "טעינה נכשלה"; });
 
   fetch("state/special_tasks.json" + bust, { cache: "no-store" })
     .then(r => r.ok ? r.json() : Promise.reject())
