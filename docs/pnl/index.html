@@ -275,7 +275,7 @@ function render(){
    const BK={inventory:"\u05de\u05dc\u05d0\u05d9 (COGS)",venue:"\u05d0\u05d5\u05dc\u05dd",travel:"\u05e0\u05e1\u05d9\u05e2\u05d5\u05ea",meals:"\u05d0\u05d5\u05db\u05dc",lyft:"Lyft/\u05d4\u05e1\u05e2\u05d5\u05ea",marketing_meta:"\u05e4\u05e8\u05e1\u05d5\u05dd Meta",marketing_tiktok:"\u05e4\u05e8\u05e1\u05d5\u05dd TikTok",staff:"\u05e6\u05d5\u05d5\u05ea",mystery_box:"\u05de\u05d9\u05e1\u05d8\u05e8\u05d9 \u05d1\u05d5\u05e7\u05e1",shipping:"\u05de\u05e9\u05dc\u05d5\u05d7",other:"\u05d0\u05d7\u05e8"};
    const cb=c=>{c=(c||"").toLowerCase();if(c.includes("transportation"))return "lyft";if(/travel|airfare|accommodation|rental|hotel/.test(c))return "travel";if(c.includes("meal"))return "meals";if(/merchandise|cost of goods|cogs/.test(c))return "inventory";if(c.includes("venue")||c.includes("rent"))return "venue";if(c.includes("tiktok"))return "marketing_tiktok";if(/advertis|marketing|meta/.test(c))return "marketing_meta";return "other";};
    const items=[];
-   ((PNL.qb_tagged||{}).detail||[]).forEach(x=>items.push({b:x.bucket||cb(x.category),lbl:(x.desc||x.category||"").trim()||(x.category||"\u2014"),amt:Math.abs(x.amount||0),sic:"\uD83C\uDFE6",src:"\u05d1\u05e0\u05e7",date:(x.date||"").slice(5)}));
+   ((PNL.qb_tagged||{}).detail||[]).forEach(x=>items.push({b:x.bucket||cb(x.category),lbl:(x.desc||x.category||"").trim()||(x.category||"\u2014"),amt:Math.abs(x.amount||0),sic:"\uD83C\uDFE6",src:"\u05d1\u05e0\u05e7",date:(x.date||"").slice(5),id:x.id}));
    st.forEach(x=>items.push({b:"staff",lbl:x.name,amt:Math.abs(x.amount||0),sic:"\uD83D\uDC65",src:mgrSrc}));
    ml.forEach(x=>items.push({b:x.category==="meals"?"meals":"other",lbl:x.desc,amt:Math.abs(x.amount||0),sic:"\uD83D\uDC64",src:mgrSrc}));
    if(!items.length)return;
@@ -284,7 +284,7 @@ function render(){
    let hh="<div class='card'><h2>\uD83D\uDCCB \u05d4\u05d5\u05e6\u05d0\u05d5\u05ea \u05de\u05e4\u05d5\u05e8\u05d8\u05d5\u05ea \u05dc\u05e4\u05d9 \u05e7\u05d8\u05d2\u05d5\u05e8\u05d9\u05d4</h2>";
    order.filter(b=>groups[b]).forEach(b=>{const its=groups[b].sort((a,c)=>c.amt-a.amt);const tot=its.reduce((s2,x)=>s2+x.amt,0);
      hh+="<div style='margin-top:12px'><div style='display:flex;justify-content:space-between;font-weight:bold;background:#eef2f7;padding:7px 11px;border-radius:7px'><span>"+esc(BK[b]||b)+"</span><span class='num'>"+money(tot)+"</span></div><table>";
-     its.forEach(x=>{hh+="<tr><td>"+(x.date?"<span style='color:#9ca3af;font-size:11px'>"+esc(x.date)+"</span> ":"")+esc(x.lbl||"\u2014")+" <span class='badge' style='background:#f1f5f9;color:#475569;font-size:10px'>"+x.sic+" "+esc(x.src)+"</span></td><td class='num'>"+money(x.amt)+"</td></tr>";});
+     its.forEach(x=>{hh+="<tr><td>"+(x.date?"<span style='color:#9ca3af;font-size:11px'>"+esc(x.date)+"</span> ":"")+esc(x.lbl||"\u2014")+" "+(x.id?"<a href='https://bookkeeping.themakeupblowout.com/?txn="+x.id+"' target='_blank' class='badge' style='background:#e0f2fe;color:#0369a1;font-size:10px;text-decoration:none'>"+x.sic+" "+esc(x.src)+" 🔗</a>":"<span class='badge' style='background:#f1f5f9;color:#475569;font-size:10px'>"+x.sic+" "+esc(x.src)+"</span>")+"</td><td class='num'>"+money(x.amt)+"</td></tr>";});
      hh+="</table></div>";});
    hh+="<div class='foot'>\u05db\u05dc \u05d4\u05d5\u05e6\u05d0\u05d4 \u05d1\u05de\u05e7\u05d5\u05dd \u05d0\u05d7\u05d3, \u05de\u05ea\u05d5\u05d9\u05d2\u05ea \u05d1\u05de\u05e7\u05d5\u05e8: \uD83C\uDFE6 \u05d1\u05e0\u05e7 \u00b7 \uD83D\uDC64\uD83D\uDC65 \u05d3\u05d5\u05d7 \u05de\u05e0\u05d4\u05dc\u05ea.</div></div>";
    h+=hh;
