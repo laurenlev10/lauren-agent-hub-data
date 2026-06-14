@@ -244,6 +244,19 @@ function render(){
  if(Object.keys(pay).length){h+="<h2 style='margin-top:14px'>פירוט תשלומים</h2><table>"+Object.entries(pay).map(([k,v])=>"<tr><td>"+esc(k)+"</td><td class='num'>"+money(v)+"</td></tr>").join("")+"</table>";}
  h+="</div>";
 
+ // QB tagged actuals (bank-grounded, from Transactions-by-tag) — added 2026-06-13
+ const qt=PNL.qb_tagged;
+ if(qt){
+   const bl=qt.expenses_by_bucket||{};
+   const BL=[["inventory","מלאי (COGS)"],["venue","אולם"],["travel","נסיעות"],["meals","אוכל"],["lyft","Lyft/הסעות"],["marketing_meta","פרסום Meta"],["marketing_tiktok","פרסום TikTok"],["other","אחר"]];
+   h+="<div class='card' style='border:2px solid #16a34a'><h2>🏷️ הוצאות מתויגות מהבנק — "+esc(qt.tag||"")+"</h2>";
+   h+="<table><tr><th>קטגוריה</th><th>סכום</th></tr>";
+   BL.forEach(function(b){ if(bl[b[0]]) h+="<tr><td>"+esc(b[1])+"</td><td class='num'>"+money(bl[b[0]])+"</td></tr>"; });
+   h+="<tr class='subtot'><td>סך הוצאות מתויגות</td><td class='num'>"+money(qt.total_expenses)+"</td></tr>";
+   if(qt.tagged_deposits)h+="<tr><td>הפקדות מתויגות (מכירות)</td><td class='num'>"+money(qt.tagged_deposits)+"</td></tr>";
+   h+="</table><div class='foot'>מקור: QuickBooks Transactions-by-tag (אמת מהבנק) · "+(qt.expense_count||0)+" הוצאות · "+(qt.d1_class_stamped||0)+" שויכו בספרים</div></div>";
+ }
+
  // top products
  const tp=PNL.top_products||[];
  if(tp.length){h+="<div class='card'><h2>🏆 מוצרים מובילים</h2><table><tr><th>#</th><th>מוצר</th><th>ספק</th><th>יח׳</th><th>הכנסה</th></tr>"+
