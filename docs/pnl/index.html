@@ -244,17 +244,7 @@ function render(){
  if(Object.keys(pay).length){h+="<h2 style='margin-top:14px'>פירוט תשלומים</h2><table>"+Object.entries(pay).map(([k,v])=>"<tr><td>"+esc(k)+"</td><td class='num'>"+money(v)+"</td></tr>").join("")+"</table>";}
  h+="</div>";
 
- // QB tagged actuals (bank-grounded, from Transactions-by-tag) — added 2026-06-13
- const qt=PNL.qb_tagged;
- if(qt){
-   const bl=qt.expenses_by_bucket||{};
-   const BL=[["inventory","מלאי (COGS)"],["venue","אולם"],["travel","נסיעות"],["meals","אוכל"],["lyft","Lyft/הסעות"],["marketing_meta","פרסום Meta"],["marketing_tiktok","פרסום TikTok"],["other","אחר"]];
-   h+="<div class='card' style='border:2px solid #16a34a'><h2>🏷️ הוצאות מתויגות מהבנק — "+esc(qt.tag||"")+"</h2>";
-   h+="<table><tr><th>קטגוריה</th><th>סכום</th></tr>";
-   BL.forEach(function(b){ if(bl[b[0]]) h+="<tr><td>"+esc(b[1])+"</td><td class='num'>"+money(bl[b[0]])+"</td></tr>"; });
-   h+="<tr class='subtot'><td>סך הוצאות מתויגות</td><td class='num'>"+money(qt.total_expenses)+"</td></tr>";
-   if(qt.tagged_deposits)h+="<tr><td>הפקדות מתויגות (מכירות)</td><td class='num'>"+money(qt.tagged_deposits)+"</td></tr>";
-   h+="</table><div class='foot'>מקור: QuickBooks Transactions-by-tag (אמת מהבנק) · "+(qt.expense_count||0)+" הוצאות · "+(qt.d1_class_stamped||0)+" שויכו בספרים</div></div>";
+ // (qb_tagged card merged into the unified itemized section below)
  }
 
  // top products
@@ -278,16 +268,28 @@ function render(){
     "<td class='num'>"+money(t.exp.mystery_box?t.exp.mystery_box.amount:null)+"</td></tr></table>"+
     "<div style='font-size:11px;color:#64748b;margin-top:6px'>✏️ עריכת \"עלות ליח׳\" (ברירת מחדל $15) נשמרת לאירוע הזה ומחשבת מחדש סה״כ = יח׳ × עלות.</div></div>";
 
- // staff
+ // ===== Unified expenses by category (itemized + source badges) =====
  const st=(MGR_LIVE&&MGR_LIVE.staff_lines.length)?MGR_LIVE.staff_lines:(d.staff_lines||[]);
- const mgrLiveBadge=MGR_LIVE?" <span class='pend' style='background:#fee2e2;color:#b91c1c;border-color:#fca5a5;font-size:11px'>🔴 חי — מדוח המנהלת"+(MGR_LIVE.manager?" · "+esc(MGR_LIVE.manager):"")+"</span>":"";
- h+="<div class='card'><h2>👥 צוות"+mgrLiveBadge+"</h2><table>"+(st.length?st.map(x=>"<tr><td>"+esc(x.name)+"</td><td class='num'>"+money(x.amount)+"</td></tr>").join(""):"<tr><td colspan=2>—</td></tr>")+"</table></div>";
-
- // meals/other
  const ml=(MGR_LIVE&&MGR_LIVE.expense_lines.length)?MGR_LIVE.expense_lines:(d.manager_expense_lines||[]);
- const meals=ml.filter(x=>x.category==="meals"),oth=ml.filter(x=>x.category!=="meals");
- h+="<div class='card'><h2>🍽️ אוכל"+(MGR_LIVE?mgrLiveBadge:"")+"</h2><table>"+(meals.length?meals.map(x=>"<tr><td>"+esc(x.desc)+"</td><td class='num'>"+money(x.amount)+"</td></tr>").join(""):"<tr><td colspan=2>—</td></tr>")+"</table>"+
-    "<h2 style='margin-top:14px'>🧾 שונות</h2><table>"+(oth.length?oth.map(x=>"<tr><td>"+esc(x.desc)+"</td><td class='num'>"+money(x.amount)+"</td></tr>").join(""):"<tr><td colspan=2>—</td></tr>")+"</table></div>";
+ const mgrSrc="\u05d3\u05d5\u05d7 \u05de\u05e0\u05d4\u05dc\u05ea"+(MGR_LIVE&&MGR_LIVE.manager?" ("+MGR_LIVE.manager+")":"");
+ (function(){
+   const BK={inventory:"\u05de\u05dc\u05d0\u05d9 (COGS)",venue:"\u05d0\u05d5\u05dc\u05dd",travel:"\u05e0\u05e1\u05d9\u05e2\u05d5\u05ea",meals:"\u05d0\u05d5\u05db\u05dc",lyft:"Lyft/\u05d4\u05e1\u05e2\u05d5\u05ea",marketing_meta:"\u05e4\u05e8\u05e1\u05d5\u05dd Meta",marketing_tiktok:"\u05e4\u05e8\u05e1\u05d5\u05dd TikTok",staff:"\u05e6\u05d5\u05d5\u05ea",mystery_box:"\u05de\u05d9\u05e1\u05d8\u05e8\u05d9 \u05d1\u05d5\u05e7\u05e1",shipping:"\u05de\u05e9\u05dc\u05d5\u05d7",other:"\u05d0\u05d7\u05e8"};
+   const cb=c=>{c=(c||"").toLowerCase();if(c.includes("transportation"))return "lyft";if(/travel|airfare|accommodation|rental|hotel/.test(c))return "travel";if(c.includes("meal"))return "meals";if(/merchandise|cost of goods|cogs/.test(c))return "inventory";if(c.includes("venue")||c.includes("rent"))return "venue";if(c.includes("tiktok"))return "marketing_tiktok";if(/advertis|marketing|meta/.test(c))return "marketing_meta";return "other";};
+   const items=[];
+   ((PNL.qb_tagged||{}).detail||[]).forEach(x=>items.push({b:x.bucket||cb(x.category),lbl:(x.desc||x.category||"").trim()||(x.category||"\u2014"),amt:Math.abs(x.amount||0),sic:"\uD83C\uDFE6",src:"\u05d1\u05e0\u05e7",date:(x.date||"").slice(5)}));
+   st.forEach(x=>items.push({b:"staff",lbl:x.name,amt:Math.abs(x.amount||0),sic:"\uD83D\uDC65",src:mgrSrc}));
+   ml.forEach(x=>items.push({b:x.category==="meals"?"meals":"other",lbl:x.desc,amt:Math.abs(x.amount||0),sic:"\uD83D\uDC64",src:mgrSrc}));
+   if(!items.length)return;
+   const groups={};items.forEach(it=>{(groups[it.b]=groups[it.b]||[]).push(it);});
+   const order=["inventory","venue","travel","meals","lyft","staff","marketing_meta","marketing_tiktok","shipping","mystery_box","other"];
+   let hh="<div class='card'><h2>\uD83D\uDCCB \u05d4\u05d5\u05e6\u05d0\u05d5\u05ea \u05de\u05e4\u05d5\u05e8\u05d8\u05d5\u05ea \u05dc\u05e4\u05d9 \u05e7\u05d8\u05d2\u05d5\u05e8\u05d9\u05d4</h2>";
+   order.filter(b=>groups[b]).forEach(b=>{const its=groups[b].sort((a,c)=>c.amt-a.amt);const tot=its.reduce((s2,x)=>s2+x.amt,0);
+     hh+="<div style='margin-top:12px'><div style='display:flex;justify-content:space-between;font-weight:bold;background:#eef2f7;padding:7px 11px;border-radius:7px'><span>"+esc(BK[b]||b)+"</span><span class='num'>"+money(tot)+"</span></div><table>";
+     its.forEach(x=>{hh+="<tr><td>"+(x.date?"<span style='color:#9ca3af;font-size:11px'>"+esc(x.date)+"</span> ":"")+esc(x.lbl||"\u2014")+" <span class='badge' style='background:#f1f5f9;color:#475569;font-size:10px'>"+x.sic+" "+esc(x.src)+"</span></td><td class='num'>"+money(x.amt)+"</td></tr>";});
+     hh+="</table></div>";});
+   hh+="<div class='foot'>\u05db\u05dc \u05d4\u05d5\u05e6\u05d0\u05d4 \u05d1\u05de\u05e7\u05d5\u05dd \u05d0\u05d7\u05d3, \u05de\u05ea\u05d5\u05d9\u05d2\u05ea \u05d1\u05de\u05e7\u05d5\u05e8: \uD83C\uDFE6 \u05d1\u05e0\u05e7 \u00b7 \uD83D\uDC64\uD83D\uDC65 \u05d3\u05d5\u05d7 \u05de\u05e0\u05d4\u05dc\u05ea.</div></div>";
+   h+=hh;
+ })();
 
  // P&L summary — editable per line
  h+="<div class='card pl'><h2>📊 רווח והפסד — לחצי ✏️ לעריכה ידנית</h2><table>";
