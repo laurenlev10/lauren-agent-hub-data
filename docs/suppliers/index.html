@@ -69,6 +69,11 @@ function supInvoices(name){
  return auto.concat(man).filter(i=>!isDeleted(i.id)).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
 }
 function isPaid(id){const r=rec(id);if(r&&typeof r.paid==='boolean')return r.paid;return !!(BANK.matched&&BANK.matched[id]);}
+function reconBadge(r,bk){const mp=(r&&typeof r.paid==='boolean')?r.paid:null;
+  if(mp===true&&bk)return "<br><span class='tag' style='background:#dcfce7;color:#166534' title='סומן ידנית + אומת בבנק'>✅ מאושר</span>";
+  if(mp===true&&!bk)return "<br><span class='tag' style='background:#fef9c3;color:#854d0e' title='סומן ידנית — עדיין לא נמצא תשלום תואם בבנק'>✋ ידני</span>";
+  if(mp!==true&&bk)return "<br><span class='tag' style='background:#dbeafe;color:#1e40af' title='הבנק מראה תשלום — סמני ידנית לאישור'>🏦 לא סומן</span>";
+  return "";}
 function isDeleted(id){return !!rec(id).deleted;}
 
 function renderList(){
@@ -121,7 +126,7 @@ function openSup(name){
      "<td>"+(iv.manual?"<span class='tag'>ידני</span><input style='width:130px' id='me-"+iv.id+"' value='"+esc(iv.event||"")+"' onchange=\"editMan('"+iv.id+"')\">":esc(iv.event||"—"))+"</td>"+
      "<td class='num'>"+(iv.manual?"<input style='width:90px' id='ma-"+iv.id+"' value='"+esc(iv.amount||"")+"' onchange=\"editMan('"+iv.id+"')\">":"<input style='width:95px' id='amt-"+iv.id+"' value='"+effAmt(iv)+"' onchange=\"saveAmount('"+iv.id+"',"+(+iv.amount||0)+")\">"+(rec(iv.id).amount_override!=null?" <span class='tag'>✏️ תוקן</span>":"")+(iv.shipping?" <span style='color:#999;font-size:11px'>(+"+money(iv.shipping)+")</span>":""))+"</td>"+
      "<td><input class='invno' id='no-"+iv.id+"' value='"+esc(r.invoice_number||iv.invoice_number||"")+"' placeholder='מס׳' onchange=\"save('"+iv.id+"')\"></td>"+
-     "<td style='text-align:center'><input type='checkbox' class='paidbox' id='pd-"+iv.id+"' "+(paidChk?"checked":"")+" onchange=\"save('"+iv.id+"')\">"+(bk?"<br><a href='https://bookkeeping.themakeupblowout.com/?txn="+bk.bank_txn_id+"' target='_blank' class='tag' style='background:#dbeafe;color:#1e40af;text-decoration:none' title='שולם מהבנק'>🏦 "+money(bk.bank_amount)+"</a>":"")+"</td>"+
+     "<td style='text-align:center'><input type='checkbox' class='paidbox' id='pd-"+iv.id+"' "+(paidChk?"checked":"")+" onchange=\"save('"+iv.id+"')\">"+(bk?"<br><a href='https://bookkeeping.themakeupblowout.com/?txn="+bk.bank_txn_id+"' target='_blank' class='tag' style='background:#dbeafe;color:#1e40af;text-decoration:none' title='שולם מהבנק'>🏦 "+money(bk.bank_amount)+"</a>":"")+(reconBadge(r,bk))+"</td>"+
      "<td><input class='pdate' type='date' id='dt-"+iv.id+"' value='"+esc(pdv)+"' onchange=\"save('"+iv.id+"')\"></td>"+
      "<td><select id='pm-"+iv.id+"' onchange=\"save('"+iv.id+"')\"><option value=''>—</option>"+opts+"</select></td>"+
      "<td><button class='del' onclick=\"delInv('"+iv.id+"',"+(iv.manual?"true":"false")+")\">מחק</button></td></tr>";
