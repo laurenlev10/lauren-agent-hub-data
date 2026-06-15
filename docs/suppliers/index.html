@@ -38,7 +38,7 @@ const REPO="laurenlev10/lauren-agent-hub-data";
 const PAY_FILE="docs/state/supplier_payments.json";
 const MAN_FILE="docs/state/supplier_manual_invoices.json";
 const METHODS=["Zelle","Check","Credit Card","Cash"];
-let INV=null, PAY=null, MAN=null, VIEW=null;
+let INV=null, PAY=null, MAN=null, VIEW=null, BANK=null;
 
 function money(v){return "$"+(Number(v)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});}
 function esc(s){const d=document.createElement("div");d.textContent=(s==null?"":s);return d.innerHTML;}
@@ -54,6 +54,8 @@ async function load(){
  try{const r=await fetch("../state/supplier_manual_invoices.json?_="+Date.now(),{cache:"no-store"});if(r.ok)MAN=await r.json();}catch(e){}
  if(!PAY)PAY={_updated_at:null,invoices:{}}; if(!PAY.invoices)PAY.invoices={};
  if(!MAN)MAN={_updated_at:null,invoices:[]}; if(!MAN.invoices)MAN.invoices=[];
+ try{const r=await fetch("../state/supplier_bank_payments.json?_="+Date.now(),{cache:"no-store"});if(r.ok)BANK=await r.json();}catch(e){}
+ if(!BANK)BANK={matched:{},supplier_totals:{}}; if(!BANK.matched)BANK.matched={};
  renderList();
 }
 function supNames(){
@@ -66,7 +68,7 @@ function supInvoices(name){
  const man=MAN.invoices.filter(i=>i.supplier===name).map(x=>({...x,manual:true}));
  return auto.concat(man).filter(i=>!isDeleted(i.id)).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
 }
-function isPaid(id){return !!rec(id).paid;}
+function isPaid(id){const r=rec(id);if(r&&typeof r.paid==='boolean')return r.paid;return !!(BANK.matched&&BANK.matched[id]);}
 function isDeleted(id){return !!rec(id).deleted;}
 
 function renderList(){
@@ -89,8 +91,10 @@ function renderList(){
   "<div class='sc out'><div class='v'>"+money(allTotal-allPaid)+"</div><div class='l'>נותר לתשלום</div></div></div>";
  h+="<table><tr><th>ספק</th><th>חשבוניות</th><th>סה״כ</th><th>שולם</th><th>נותר</th><th>סטטוס</th></tr>";
  rows.forEach(r=>{const pct=r.tot?Math.round(r.pd/r.tot*100):0;
+   const bf=((BANK.supplier_totals||{})[r.name]||{}).bank_found||0;
+   const bankFlag=(r.tot>0&&bf<r.tot*0.3)?" <span class='tag' style='background:#fee2e2;color:#b91c1c' title='לא נמצא תשלום תואם בבנק'>⚠ לא בבנק</span>":(bf>0?" <span class='tag' style='background:#dbeafe;color:#1e40af' title='נמצא בבנק'>🏦 "+money(bf)+"</span>":"");
    h+="<tr class='sup' onclick=\"openSup('"+esc(r.name).replace(/'/g,"\\'")+"')\">"+
-   "<td><b>"+esc(r.name)+"</b></td><td>"+r.n+"</td><td class='num'>"+money(r.tot)+"</td><td class='num'>"+money(r.pd)+"</td>"+
+   "<td><b>"+esc(r.name)+"</b>"+bankFlag+"</td><td>"+r.n+"</td><td class='num'>"+money(r.tot)+"</td><td class='num'>"+money(r.pd)+"</td>"+
    "<td class='num' style='color:"+(r.out>0?'#dc2626':'#16a34a')+"'>"+money(r.out)+"</td>"+
    "<td style='min-width:90px'><span class='pill "+(r.out<=0?'ok':'no')+"'>"+(r.out<=0?'שולם':pct+'%')+"</span><div class='bar'><div style='width:"+pct+"%'></div></div></td></tr>";
  });
@@ -107,14 +111,18 @@ function openSup(name){
  h+="<table><tr><th>תאריך</th><th>אירוע</th><th>סכום</th><th>מס׳ חשבונית</th><th>שולם?</th><th>תאריך תשלום</th><th>אופן תשלום</th><th></th></tr>";
  invs.forEach(iv=>{
    const r=rec(iv.id);
-   const opts=METHODS.map(m=>"<option "+(r.payment_method===m?"selected":"")+">"+m+"</option>").join("");
+   const bk=(BANK.matched||{})[iv.id]||null;
+   const paidChk=(typeof r.paid==='boolean')?r.paid:!!bk;
+   const pdv=r.paid_date||(bk&&bk.paid_date)||"";
+   const pmv=r.payment_method||(bk&&bk.payment_method)||"";
+   const opts=METHODS.map(m=>"<option "+(pmv===m?"selected":"")+">"+m+"</option>").join("")+(["Card","ACH","Bank"].includes(pmv)?"<option selected>"+pmv+"</option>":"");
    h+="<tr class='"+(iv.manual?"man":"")+"'>"+
      "<td>"+(iv.manual?"<input type='date' style='width:135px' id='md-"+iv.id+"' value='"+esc(iv.date||"")+"' onchange=\"editMan('"+iv.id+"')\">":esc(iv.date||"—"))+"</td>"+
      "<td>"+(iv.manual?"<span class='tag'>ידני</span><input style='width:130px' id='me-"+iv.id+"' value='"+esc(iv.event||"")+"' onchange=\"editMan('"+iv.id+"')\">":esc(iv.event||"—"))+"</td>"+
      "<td class='num'>"+(iv.manual?"<input style='width:90px' id='ma-"+iv.id+"' value='"+esc(iv.amount||"")+"' onchange=\"editMan('"+iv.id+"')\">":"<input style='width:95px' id='amt-"+iv.id+"' value='"+effAmt(iv)+"' onchange=\"saveAmount('"+iv.id+"',"+(+iv.amount||0)+")\">"+(rec(iv.id).amount_override!=null?" <span class='tag'>✏️ תוקן</span>":"")+(iv.shipping?" <span style='color:#999;font-size:11px'>(+"+money(iv.shipping)+")</span>":""))+"</td>"+
      "<td><input class='invno' id='no-"+iv.id+"' value='"+esc(r.invoice_number||iv.invoice_number||"")+"' placeholder='מס׳' onchange=\"save('"+iv.id+"')\"></td>"+
-     "<td style='text-align:center'><input type='checkbox' class='paidbox' id='pd-"+iv.id+"' "+(r.paid?"checked":"")+" onchange=\"save('"+iv.id+"')\"></td>"+
-     "<td><input class='pdate' type='date' id='dt-"+iv.id+"' value='"+esc(r.paid_date||"")+"' onchange=\"save('"+iv.id+"')\"></td>"+
+     "<td style='text-align:center'><input type='checkbox' class='paidbox' id='pd-"+iv.id+"' "+(paidChk?"checked":"")+" onchange=\"save('"+iv.id+"')\">"+(bk?"<br><a href='https://bookkeeping.themakeupblowout.com/?txn="+bk.bank_txn_id+"' target='_blank' class='tag' style='background:#dbeafe;color:#1e40af;text-decoration:none' title='שולם מהבנק'>🏦 "+money(bk.bank_amount)+"</a>":"")+"</td>"+
+     "<td><input class='pdate' type='date' id='dt-"+iv.id+"' value='"+esc(pdv)+"' onchange=\"save('"+iv.id+"')\"></td>"+
      "<td><select id='pm-"+iv.id+"' onchange=\"save('"+iv.id+"')\"><option value=''>—</option>"+opts+"</select></td>"+
      "<td><button class='del' onclick=\"delInv('"+iv.id+"',"+(iv.manual?"true":"false")+")\">מחק</button></td></tr>";
  });
