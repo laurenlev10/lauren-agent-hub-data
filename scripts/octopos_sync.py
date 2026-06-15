@@ -49,6 +49,7 @@ MAPPING = {
     "romantic-beauty":  [16],
     "beauty-creations": [4],
     "banana-brands":    [25],     # OCTOPOS: "Banana Brands" — temporary weekly products, intake by barcode scan (Lauren 2026-06-02). No POs/invoices; multi-barcode per price-point product.
+    "orogold":          [26],     # OCTOPOS: "OROGOLD" (Lauren 2026-06-15). One supplier; invoices come under 3 brand names — Vivo Per Lei (VPL), Beauty Frizz (BF), HerStyler (HS). Mixed case sizes.
 }
 # Inverse: vendor_id → supplier_code (multi-vendor → first-match wins, but each vid is unique across the table)
 VENDOR_TO_CODE = {vid: code for code, vids in MAPPING.items() for vid in vids}
