@@ -3616,7 +3616,8 @@
     "prolux": 12,
     "she-makeup": 12,
     "amuse-cosmetics": 12,
-    "bb-and-w": 24
+    "bb-and-w": 24,
+    "orogold": 20
   },
   "supplier_ignore_patterns": {
     "she-makeup": [
@@ -3697,6 +3698,41 @@
       "default_pack_size": 1,
       "notes": "ROMANTIC BEAUTY / COSMAC INC. — KEY QUIRK: product name is on the NEXT line, NOT on the qty/SKU/price/total line. Example row: '288 OZE-2414  1.80  518.40' followed by next line '    Stamp n Wing'd Eyeliner Stamp Duo (24pc x 12packs)'. Parser look-ahead handles this (commit 2026-05-27 PM #6). Invoice shows TOTAL DUE as the grand total (= subtotal + shipping). Qty column is already in pieces (288 = 24pc × 12packs explicitly noted in name). NO DZ/CASE/etc. multiplier needed.",
       "last_observed": "2026-05-25"
+    },
+    "orogold": {
+      "unit_of_measure": "PCS",
+      "price_basis": "per_unit",
+      "faux_bold": false,
+      "sku_brand_prefixes": [
+        "VPL",
+        "BF",
+        "HS"
+      ],
+      "mixed_pack_size": true,
+      "default_pack_size": 20,
+      "octopos_vendor_id": 26,
+      "brand_names": [
+        "Vivo Per Lei",
+        "Exclusive Label Inc : Beauty Frizz",
+        "HerStyler"
+      ],
+      "per_product_pack_size": {
+        "682698574256": 12,
+        "682698574140": 10,
+        "858177006383": 20,
+        "858197006875": 12,
+        "682698588673": 24,
+        "682698590799": 24,
+        "682698583371": 20,
+        "682698584439": 20,
+        "682698584453": 20,
+        "682698584446": 20,
+        "682698578032": 40,
+        "682698578025": 40,
+        "682698594575": 10
+      },
+      "notes": "OROGOLD = one supplier, OCTOPOS vendor 26. Invoices arrive under 3 different brand headers (Vivo Per Lei / Exclusive Label Inc : Beauty Frizz / HerStyler) but are all ONE supplier. SKU = brand-prefix + last 4 of barcode (VPL-/BF-/HS-). Sales Order layout: columns QTY(=#cases) | Units('Case Of N') | Item | Description | UPC# | Rate Per Unit | Rate Per Case | Amount; Amount = QTY x Rate Per Case; total pieces = QTY x N. UPC column can be BLANK or shifted (e.g. Bee Kissed 682698590799 came in blank) — match line by Amount, and pull the barcode from the Description/item list. Mixed case sizes (10/12/20/24/40) — see per_product_pack_size. First order ingested 2026-06-15 (SO #343048/343053/343054, 13 products, vendor 26 created).",
+      "last_observed": "2026-06-15"
     }
   }
 }
