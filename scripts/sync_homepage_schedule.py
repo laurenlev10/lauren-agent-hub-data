@@ -38,6 +38,32 @@ MONTHS = ["January","February","March","April","May","June","July","August",
 # only on Lauren's explicit say-so. See memory.md 2026-06-01 (#3).
 MAX_HOMEPAGE_YEAR = 2026
 
+# US state -> IANA timezone (mirrors STATE_TZ in scripts/insta_reel_scan.py).
+STATE_TZ = {
+    "AL":"America/Chicago","AK":"America/Anchorage","AZ":"America/Phoenix","AR":"America/Chicago",
+    "CA":"America/Los_Angeles","CO":"America/Denver","CT":"America/New_York","DE":"America/New_York",
+    "FL":"America/New_York","GA":"America/New_York","HI":"Pacific/Honolulu","ID":"America/Boise",
+    "IL":"America/Chicago","IN":"America/Indiana/Indianapolis","IA":"America/Chicago","KS":"America/Chicago",
+    "KY":"America/New_York","LA":"America/Chicago","ME":"America/New_York","MD":"America/New_York",
+    "MA":"America/New_York","MI":"America/Detroit","MN":"America/Chicago","MS":"America/Chicago",
+    "MO":"America/Chicago","MT":"America/Denver","NE":"America/Chicago","NV":"America/Los_Angeles",
+    "NH":"America/New_York","NJ":"America/New_York","NM":"America/Denver","NY":"America/New_York",
+    "NC":"America/New_York","ND":"America/Chicago","OH":"America/New_York","OK":"America/Chicago",
+    "OR":"America/Los_Angeles","PA":"America/New_York","RI":"America/New_York","SC":"America/New_York",
+    "SD":"America/Chicago","TN":"America/Chicago","TX":"America/Chicago","UT":"America/Denver",
+    "VT":"America/New_York","VA":"America/New_York","WA":"America/Los_Angeles","WV":"America/New_York",
+    "WI":"America/Chicago","WY":"America/Denver","DC":"America/New_York",
+}
+ROLLOVER_HOUR = 19  # roll to the next event 1h after the Sunday 18:00 close (Lauren 2026-06-15)
+
+def _still_upcoming(e, now_utc):
+    """Keep an event until 19:00 (event-local) on its end_date - i.e. 1h after its Sunday close."""
+    ed = datetime.date.fromisoformat(e["end_date"])
+    tz = ZoneInfo(STATE_TZ.get((e.get("state") or "").upper(), "America/Los_Angeles"))
+    cutoff = datetime.datetime.combine(ed, datetime.time(ROLLOVER_HOUR, 0), tzinfo=tz)
+    return now_utc.astimezone(tz) < cutoff
+
+
 def slugify(c): return re.sub(r"[^a-z0-9]+", "-", (c or "").lower()).strip("-")
 
 def load_schedule():
@@ -88,14 +114,14 @@ def build_rows(pat):
     forms = load_form_ids()
     overrides = load_button_urls()
     land  = landing_slugs(pat)
-    today = datetime.datetime.now(ZoneInfo("America/Los_Angeles")).date()
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
     evs = []
     for yr, lst in sched.items():
         if not isinstance(lst, list):
             continue
         for e in lst:
             if isinstance(e, dict) and e.get("status") == "confirmed" \
-               and datetime.date.fromisoformat(e["end_date"]) >= today \
+               and _still_upcoming(e, now_utc) \
                and datetime.date.fromisoformat(e["end_date"]).year <= MAX_HOMEPAGE_YEAR:
                 evs.append(e)
     evs.sort(key=lambda x: x["start_date"])

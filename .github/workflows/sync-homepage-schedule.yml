@@ -1,6 +1,7 @@
 name: sync-homepage-schedule
 
-# Monday 09:00 PT — keep the main site (themakeupblowout.com) tour schedule current.
+# Sunday 19:00 EVENT-LOCAL — 1h after the event's Sunday 18:00 close (was Monday 09:00 PT; Lauren 2026-06-15).
+# Keeps the main site (themakeupblowout.com) tour schedule current.
 # Reads the master SCHEDULE map (docs/launch/index.html), keeps confirmed events with
 # end_date >= today (PT), and rewrites src/lib/schedule-data.ts in beauty-bash-usa.
 # Pushing there makes Lovable auto-publish the updated homepage. Successor to the old
@@ -8,7 +9,13 @@ name: sync-homepage-schedule
 
 on:
   schedule:
-    - cron: '0 16 * * 1'   # 16:00 UTC Mon = 09:00 PT (PDT) / 08:00 PT (PST) — same convention as weekly-event-check
+    # Cron covers all US event timezones (DST+standard); sync_homepage_schedule.py gates
+    # per-event via STATE_TZ, so the homepage rolls to the next event at 19:00 event-local.
+    - cron: '0 23 * * 0'   # Sun 19:00 EDT
+    - cron: '0 0  * * 1'   # Sun 19:00 CDT / EST
+    - cron: '0 1  * * 1'   # Sun 19:00 MDT / CST
+    - cron: '0 2  * * 1'   # Sun 19:00 PDT / MST(AZ)
+    - cron: '0 3  * * 1'   # Sun 19:00 PST (winter)
   workflow_dispatch: {}
 
 permissions:

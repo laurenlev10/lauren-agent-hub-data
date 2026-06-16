@@ -15,6 +15,7 @@ publish a thin pointer to "the relevant one right now".
 
 import datetime, json, re, sys
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 ROOT = Path(".")
 LAUNCH    = ROOT / "docs/launch/index.html"
@@ -35,6 +36,57 @@ def slug_of(s: str) -> str:
 def parse_map(html: str, name: str) -> dict:
     m = re.search(rf"const {name} = (\{{[^;]+\}});", html, re.S)
     return json.loads(m.group(1)) if m else {}
+
+
+# US state -> IANA timezone (mirrors STATE_TZ in scripts/insta_reel_scan.py).
+STATE_TZ = {
+    "AL":"America/Chicago","AK":"America/Anchorage","AZ":"America/Phoenix","AR":"America/Chicago",
+    "CA":"America/Los_Angeles","CO":"America/Denver","CT":"America/New_York","DE":"America/New_York",
+    "FL":"America/New_York","GA":"America/New_York","HI":"Pacific/Honolulu","ID":"America/Boise",
+    "IL":"America/Chicago","IN":"America/Indiana/Indianapolis","IA":"America/Chicago","KS":"America/Chicago",
+    "KY":"America/New_York","LA":"America/Chicago","ME":"America/New_York","MD":"America/New_York",
+    "MA":"America/New_York","MI":"America/Detroit","MN":"America/Chicago","MS":"America/Chicago",
+    "MO":"America/Chicago","MT":"America/Denver","NE":"America/Chicago","NV":"America/Los_Angeles",
+    "NH":"America/New_York","NJ":"America/New_York","NM":"America/Denver","NY":"America/New_York",
+    "NC":"America/New_York","ND":"America/Chicago","OH":"America/New_York","OK":"America/Chicago",
+    "OR":"America/Los_Angeles","PA":"America/New_York","RI":"America/New_York","SC":"America/New_York",
+    "SD":"America/Chicago","TN":"America/Chicago","TX":"America/Chicago","UT":"America/Denver",
+    "VT":"America/New_York","VA":"America/New_York","WA":"America/Los_Angeles","WV":"America/New_York",
+    "WI":"America/Chicago","WY":"America/Denver","DC":"America/New_York",
+}
+ROLLOVER_HOUR = 19  # roll to the next event 1h after the Sunday 18:00 close (Lauren 2026-06-15)
+
+
+def _event_status(ev, now_utc):
+    """'live' | 'upcoming' | 'past' using the event's LOCAL timezone.
+    live = within [start 00:00, end_date 19:00] local (19:00 = 1h after the Sunday close)."""
+    tz = ZoneInfo(STATE_TZ.get((ev.get("state") or "").upper(), "America/Los_Angeles"))
+    loc = now_utc.astimezone(tz)
+    sd = datetime.date.fromisoformat(ev["start_date"])
+    ed = datetime.date.fromisoformat(ev.get("end_date") or ev.get("_ed") or ev["start_date"])
+    start  = datetime.datetime.combine(sd, datetime.time(0, 0), tzinfo=tz)
+    cutoff = datetime.datetime.combine(ed, datetime.time(ROLLOVER_HOUR, 0), tzinfo=tz)
+    if loc >= cutoff:
+        return "past"
+    if loc >= start:
+        return "live"
+    return "upcoming"
+
+
+def _write_if_changed(path, new_obj):
+    """Write only if meaningful content changed (ignoring _updated_at). Returns True if written.
+    Prevents the multi-zone Sunday-19:00 crons from committing/SMSing on no-op fires."""
+    try:
+        old = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        old = None
+    def _strip(o):
+        return {k: v for k, v in o.items() if k != "_updated_at"} if isinstance(o, dict) else o
+    if isinstance(old, dict) and _strip(old) == _strip(new_obj):
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(new_obj, indent=2, ensure_ascii=False))
+    return True
 
 
 def today_pt() -> datetime.date:
@@ -60,7 +112,7 @@ def main() -> int:
     form_ids_root = json.loads(FORM_IDS.read_text(encoding="utf-8")) if FORM_IDS.exists() else {}
     form_ids  = form_ids_root.get("events", {}) if isinstance(form_ids_root, dict) else {}
 
-    today = today_pt()
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
 
     # Flatten events from year-keyed lists (skip _baked_at and other meta keys)
     all_events = []
@@ -73,21 +125,22 @@ def main() -> int:
                 continue
             all_events.append({**ev, "_ed": ev.get("end_date") or sd})
 
-    # Pick: prefer "today is between start_date and end_date" (event is LIVE),
-    # otherwise the earliest event whose start_date is >= today.
+    # Pick using each event's LOCAL timezone: an event stays "live" until 19:00 on its
+    # end_date (1h after the Sunday 18:00 close - Lauren 2026-06-15), then we roll to the
+    # next upcoming event. This is what rotates the QR door page 1h after the event ends.
     def parse(s): return datetime.date.fromisoformat(s)
     current = None
     upcoming = []
     for ev in all_events:
         try:
-            sd, ed = parse(ev["start_date"]), parse(ev["_ed"])
+            parse(ev["start_date"]); parse(ev["_ed"])
         except Exception:
             continue
-        if sd <= today <= ed:
+        status = _event_status(ev, now_utc)
+        if status == "live" and current is None:
             current = ev
-            break
-        if sd >= today:
-            upcoming.append((sd, ev))
+        elif status == "upcoming":
+            upcoming.append((parse(ev["start_date"]), ev))
     upcoming.sort(key=lambda x: x[0])
 
     picked = current or (upcoming[0][1] if upcoming else None)
@@ -171,15 +224,17 @@ def main() -> int:
         "_updated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "events": upcoming_list,
     }
-    UPCOMING.parent.mkdir(parents=True, exist_ok=True)
-    UPCOMING.write_text(json.dumps(upcoming_doc, indent=2, ensure_ascii=False))
-    print(f"wrote {UPCOMING}: {len(upcoming_list)} upcoming events")
+    if _write_if_changed(UPCOMING, upcoming_doc):
+        print(f"wrote {UPCOMING}: {len(upcoming_list)} upcoming events")
+    else:
+        print(f"{UPCOMING} unchanged - skip")
 
-    TARGET.parent.mkdir(parents=True, exist_ok=True)
-    TARGET.write_text(json.dumps(target, indent=2, ensure_ascii=False))
-    n = TARGET.stat().st_size
-    print(f"wrote {TARGET} ({n}B): event_key={target['event_key']} "
-          f"is_live={target['is_live']} form_id={target['form_id']}")
+    if _write_if_changed(TARGET, target):
+        n = TARGET.stat().st_size
+        print(f"wrote {TARGET} ({n}B): event_key={target['event_key']} "
+              f"is_live={target['is_live']} form_id={target['form_id']}")
+    else:
+        print(f"{TARGET} unchanged - skip (event_key={target['event_key']})")
 
     # Self-healing: sync LANDING_PAGES with reality (catches cases where @landing
     # built a per-event page but forgot to upsert the dashboard map — STEP 6 in SKILL).
