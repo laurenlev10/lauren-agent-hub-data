@@ -1851,6 +1851,14 @@ function renderSupplierCard(sup, s, idx){
       ((_hasOrderOrInvoice)
         ? '<button type="button" class="btn-standalone-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="\u05D4\u05D5\u05E1\u05D9\u05E4\u05D9 \u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA \u05D9\u05E9\u05D9\u05E8\u05D5\u05EA \u05D1\u05DC\u05D9 \u05DC\u05D9\u05E6\u05D5\u05E8 \u05D4\u05D6\u05DE\u05E0\u05D4 \u2014 \u05EA\u05E2\u05DC\u05D9 \u05D0\u05EA \u05D4\u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA \u05D5\u05D4\u05DE\u05DC\u05D0\u05D9 \u05D9\u05EA\u05E2\u05D3\u05DB\u05DF \u05D1\u05D0\u05D5\u05E7\u05D8\u05D5\u05E4\u05D5\u05E1 \u05DC\u05E4\u05D9 \u05D4\u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;box-shadow:0 1px 3px rgba(217,119,6,.3);white-space:nowrap">\uD83E\uDDFE \u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA \u05DC\u05DC\u05D0 \u05D4\u05D6\u05DE\u05E0\u05D4</button>'
         : '')+
+      // Lauren 2026-06-16: '📥 קבל הזמנה כמו שהיא' — push the SAVED ORDER quantities
+      // straight to OCTOPOS (ADD to live stock) with NO invoice upload / comparison.
+      // Reuses the proven confirmInvoiceCompared() pipeline (live-stock fetch + spike
+      // PREFLIGHT + audit log) by synthesizing the line-set from local_orders. Shown on
+      // every supplier that has a saved order and hasn't been received yet.
+      ((_hasLocalOrder && !_invoiceCompared)
+        ? '<button type="button" class="btn-receive-asis" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="עדכון מלאי באוקטופוס לפי הכמויות בהזמנה — בלי להעלות חשבונית. תופיע השוואה לאישור לפני שמשהו מתעדכן." style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#0ea5e9,#0369a1);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;box-shadow:0 1px 3px rgba(3,105,161,.3);white-space:nowrap">📥 קבל הזמנה כמו שהיא</button>'
+        : '')+
       // Lauren 2026-05-26 PM: '+ הזמנה נוספת' — only when there's already a saved order
       // (or a confirmed/uploaded invoice). Opens the wizard in "additional order" mode
       // where the suggested qtys subtract what's already on prior orders for this event.
@@ -9732,6 +9740,87 @@ function maybeShowAutoSyncCountdown(){
 // the user can see progress/logs, restores the pending invoice via the modal's
 // own logic, then programmatically calls confirmInvoiceCompared() which handles
 // product creation + stock updates + the per-product confirmation dialog.
+// Lauren 2026-06-16 — RECEIVE ORDER AS-IS.
+// Pushes the SAVED ORDER quantities for a supplier directly to OCTOPOS (ADD to live
+// stock) without uploading or comparing an invoice. It synthesizes the same line-set
+// shape the invoice-compare flow produces (CMP_CTX._lastRows with _row_exp.product_id),
+// then hands off to confirmInvoiceCompared() so it reuses the proven, audited pipeline:
+//   • live in_stock_qty fetch right before each PUT (handles negatives / event sales)
+//   • the spike-detection PREFLIGHT modal (nothing is pushed until Lauren confirms)
+//   • octopos_stock_audit.json logging + resume-after-partial-failure protection
+//   • stamps invoice_compared_at so the card flips to '✓ קבלת סחורה עודכנה'
+// qty is taken from the order in PIECES and added as-is (NO pack-multiply — _renderedQty
+// is consumed verbatim by confirmInvoiceCompared, per the 2026-05-27 PM #2 fix).
+async function receiveOrderAsIsForSupplier(supplierCode, supplierName){
+  if (typeof CURRENT_EVKEY === "undefined" || !CURRENT_EVKEY){ toast("אין אירוע פעיל", "error"); return; }
+  var slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || {};
+  var orders = (slice.local_orders || []).filter(function(o){ return o.supplier_code === supplierCode && !o.cancelled_at && !o.moved_to; });
+  if (!orders.length){ toast("אין הזמנה שמורה ל-" + (supplierName || supplierCode), "error"); return; }
+
+  // Aggregate ordered qty per OCTOPOS product_id (pieces). Items with no product_id
+  // can't be matched to an OCTOPOS product without a SKU/name pass, so we skip + warn
+  // (the invoice flow would try to CREATE them; here we keep it strictly "update qty").
+  var agg = {}, skippedNoPid = [];
+  orders.forEach(function(o){
+    (o.items || []).forEach(function(it){
+      var q = Number(it.quantity || 0);
+      if (q <= 0) return;
+      var pid = it.product_id;
+      if (!pid){ skippedNoPid.push(it.product_name || it.product_sku || "(ללא שם)"); return; }
+      var k = String(pid);
+      if (!agg[k]) agg[k] = { product_id: pid, name: it.product_name || "", sku: it.product_sku || "", qty: 0, cost_unit: Number(it.cost_unit || 0) };
+      agg[k].qty += q;
+      if (!agg[k].cost_unit && it.cost_unit) agg[k].cost_unit = Number(it.cost_unit || 0);
+    });
+  });
+  var rows = Object.keys(agg).map(function(k){ return agg[k]; }).filter(function(r){ return r.qty > 0; });
+  if (!rows.length){ toast("אין פריטים עם מזהה מוצר לעדכון", "error"); return; }
+
+  // Synthesize the rendered-row set confirmInvoiceCompared() consumes. Each row maps to
+  // one 'extra' invoice line whose _row_exp.product_id (PASS -1) resolves the OCTOPOS
+  // product directly, and whose _renderedQty (= ordered pieces) becomes the +stock delta.
+  var lastRows = rows.map(function(r){
+    return {
+      inv: { sku: r.sku, name: r.name, qty: r.qty, price: r.cost_unit },
+      invQ: r.qty,
+      packCmp: 1,
+      exp: { product_id: r.product_id, sku: r.sku, name: r.name, cost_unit: r.cost_unit },
+      status: 'extra'
+    };
+  });
+  CMP_CTX = {
+    supplier_code: supplierCode,
+    supplier_name: supplierName,
+    expected: [],
+    invoice_lines: lastRows.map(function(x){ return x.inv; }),
+    line_edits: {},
+    order_index: null,
+    standalone: true,
+    _lastRows: lastRows,
+    _receive_as_is: true
+  };
+
+  // Make the compare modal visible so the progress log + green success banner show. The
+  // detailed before/after PREFLIGHT is a separate overlay confirmInvoiceCompared() pops.
+  try {
+    var t = document.getElementById('cmpTitle'); if (t) t.textContent = '📥 קבלת הזמנה כמו שהיא — ' + (supplierName || supplierCode);
+    var sub = document.getElementById('cmpSub'); if (sub) sub.textContent = 'עדכון מלאי באוקטופוס לפי הכמויות בהזמנה, בלי השוואת חשבונית. בדקי את הסיכום ואשרי.';
+    var exp = document.getElementById('cmpExpectedBlock'); if (exp) exp.innerHTML = '';
+    var drop = document.getElementById('cmpDrop'); if (drop) drop.style.display = 'none';
+    var ccb = document.getElementById('cmpConfirmBlock'); if (ccb) ccb.style.display = 'none';
+    var res = document.getElementById('cmpResult');
+    if (res){
+      var totalUnits = rows.reduce(function(a, r){ return a + r.qty; }, 0);
+      res.innerHTML = '<div style="padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;color:#1e3a8a;font-size:13px">📦 ' + rows.length + ' מוצרים · סה"כ +' + totalUnits + ' יחידות ייקלטו לאוקטופוס לפי ההזמנה.' + (skippedNoPid.length ? '<br>⚠ ' + skippedNoPid.length + ' פריטים ללא מזהה מוצר ידולגו: ' + escHtml(skippedNoPid.slice(0, 5).join(', ')) + (skippedNoPid.length > 5 ? '…' : '') : '') + '</div>';
+    }
+    var bg = document.getElementById('cmpModalBg'); if (bg) bg.style.display = 'flex';
+  } catch(_){}
+
+  // Hand off to the proven preflight + OCTOPOS PUT pipeline.
+  try { confirmInvoiceCompared(); }
+  catch(e){ console.error(e); toast('שגיאה: ' + e.message, 'error'); }
+}
+
 async function triggerOctoposPushForSupplier(supplierCode, supplierName){
   // Lauren 2026-05-27 PM #5 — REMOVED auto-confirm.
   // Original behavior: open modal → wait 350ms → auto-fire confirmInvoiceCompared
@@ -10366,6 +10455,13 @@ document.addEventListener("click", function(e){
   if (btnPush){
     e.preventDefault(); e.stopPropagation();
     triggerOctoposPushForSupplier(btnPush.dataset.supplierCode, btnPush.dataset.supplierName);
+    return;
+  }
+  // Lauren 2026-06-16 — 📥 קבל הזמנה כמו שהיא: push saved-order qtys to OCTOPOS, no invoice.
+  var btnRecvAsis = e.target.closest('.btn-receive-asis');
+  if (btnRecvAsis){
+    e.preventDefault(); e.stopPropagation();
+    receiveOrderAsIsForSupplier(btnRecvAsis.dataset.supplierCode, btnRecvAsis.dataset.supplierName);
     return;
   }
   if (e.target.id === 'cmpClose' || e.target.id === 'cmpModalBg'){
