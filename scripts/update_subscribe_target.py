@@ -229,7 +229,8 @@ def main() -> int:
     else:
         print(f"{UPCOMING} unchanged - skip")
 
-    if _write_if_changed(TARGET, target):
+    tg_changed = _write_if_changed(TARGET, target)
+    if tg_changed:
         n = TARGET.stat().st_size
         print(f"wrote {TARGET} ({n}B): event_key={target['event_key']} "
               f"is_live={target['is_live']} form_id={target['form_id']}")
@@ -240,6 +241,20 @@ def main() -> int:
     # built a per-event page but forgot to upsert the dashboard map — STEP 6 in SKILL).
     print("--- syncing LANDING_PAGES with live events repo ---")
     sync_landing_pages_map()
+
+    try:
+        from run_summary import record
+        def _md(d):
+            try: return f"{int(d[5:7])}/{int(d[8:10])}"
+            except Exception: return d or ""
+        _bl = [f"דף ה-QR מצביע על: {target['city']}, {target.get('state','')} ({_md(target.get('start_date'))}–{_md(target.get('end_date'))})"]
+        if target.get("list_name"):
+            _bl.append(f"רשימת SMS: {target['list_name']}")
+        _bl.append("האירוע פעיל כעת" if target.get("is_live") else "ממתין לאירוע הקרוב")
+        _bl.append("התחלף לאירוע חדש בריצה זו" if tg_changed else "ללא שינוי מהריצה הקודמת")
+        record("update-subscribe-target", _bl, status="ok")
+    except Exception as e:
+        print(f"[summary] skipped: {e}")
 
     return 0
 

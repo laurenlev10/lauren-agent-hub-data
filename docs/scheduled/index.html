@@ -109,6 +109,19 @@
     background: rgba(255,255,255,0.13); border-radius: 10px; padding: 14px;
     text-align: center; font-size: 12px; opacity: 0.92; direction: rtl;
   }
+  /* expandable per-task detail (accordion) */
+  .tl-item { cursor: pointer; }
+  .tl-body .task-toggle { display:inline-block; font-size:11px; opacity:0.7; transition: transform .15s; margin-left:6px; }
+  .tl-item.open .task-toggle { transform: rotate(90deg); }
+  .tl-body .task-detail { display:none; margin-top:8px; padding:10px 12px; background: rgba(255,255,255,0.10); border-radius:8px; direction:rtl; text-align:right; }
+  .tl-item.open .task-detail { display:block; }
+  .task-detail-h { font-size:11px; font-weight:800; opacity:0.95; margin-bottom:6px; }
+  .task-bullets { margin:0; padding:0 18px 0 0; }
+  .task-bullets li { font-size:12px; line-height:1.6; opacity:0.96; }
+  .task-empty { font-size:11px; opacity:0.7; font-style:italic; }
+  .task-detail-meta { font-size:10.5px; opacity:0.82; margin-top:8px; direction:ltr; text-align:right; }
+  .task-links { margin-top:8px; display:flex; gap:14px; flex-wrap:wrap; }
+  .task-links .task-link { font-size:11px; font-weight:700; color:#a5d8ff; text-decoration:none; }
 </style>
 </head>
 <body>
@@ -131,6 +144,13 @@
 (function initSched() {
   const list = document.getElementById("sched-list");
   const TZ = "America/Los_Angeles";
+
+  // expandable arrow: click a card to toggle its detail panel (ignore real links inside)
+  list.addEventListener("click", function (e) {
+    if (e.target.closest("a")) return;
+    var item = e.target.closest(".tl-item");
+    if (item) item.classList.toggle("open");
+  });
 
   fetch("../scheduled-runs.json?_=" + Date.now())
     .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
@@ -216,24 +236,34 @@
     return { slots: u, cont: cont };
   }
 
+  function esc(x){ return String(x == null ? "" : x).replace(/[<>&"]/g, ""); }
+  function ptStamp(iso){ if(!iso) return "מעולם לא רץ"; var d=new Date(iso); if(isNaN(d)) return "—"; var p=fmtParts(d); var h=p.hour==='24'?'00':p.hour; return p.year+'-'+p.month+'-'+p.day+' '+h+':'+p.minute+' PT'; }
+  function actionsUrl(t){ var a=String(t.agent||""); return /^[a-z0-9_-]+$/.test(a) ? "https://github.com/laurenlev10/lauren-agent-hub-data/actions/workflows/"+a+".yml" : ""; }
+
   function makeCard(t, chipHtml, dim) {
     const s = statusFor(t);
-    const name = String(t.label || t.id || "").replace(/[<>&"]/g, "");
-    const freq = String(t.scheduleHuman || t.frequency || "").replace(/[<>&"]/g, "");
+    const name = esc(t.label || t.id);
+    const freq = esc(t.scheduleHuman || t.frequency);
     const href = String(t.dashboard || "").replace(/[<>"\\]/g, "");
-    const desc = String(t.desc || "").replace(/[<>&"]/g, "");
-    const el = document.createElement(href ? "a" : "div");
+    const desc = esc(t.desc);
+    const el = document.createElement("div");
     el.className = "tl-item" + (dim ? " dim" : "");
-    if (href) {
-      var abs = /^https?:\/\//.test(href);
-      el.href = abs ? href : ("../" + href);
-      if (abs) { el.target = "_blank"; el.rel = "noopener"; }
-      el.style.textDecoration = "none"; el.style.color = "inherit";
-    }
+
+    var bullets = Array.isArray(t.lastSummary) ? t.lastSummary : [];
+    var bulletsHtml = bullets.length
+      ? '<ul class="task-bullets">' + bullets.map(function(b){ return '<li>' + esc(b) + '</li>'; }).join('') + '</ul>'
+      : '<div class="task-empty">— טרם תועד סיכום ריצה. יופיע אחרי הריצה הבאה.</div>';
+
+    var links = '';
+    if (href) { var abs=/^https?:\/\//.test(href); links += '<a class="task-link" href="' + (abs?href:('../'+href)) + '"' + (abs?' target="_blank" rel="noopener"':'') + '>פתח דף לבדיקה ↗</a>'; }
+    var au = actionsUrl(t);
+    if (au) { links += '<a class="task-link" href="' + au + '" target="_blank" rel="noopener">צפה בלוג ההרצות ↗</a>'; }
+
     el.innerHTML =
       '<div class="tl-time">' + chipHtml + '</div>' +
       '<div class="tl-body">' +
         '<div class="task-row">' +
+          '<span class="task-toggle" aria-hidden="true">▸</span>' +
           '<div class="task-name">' + name + '</div>' +
           '<span class="task-status ' + s.cls + '">' + s.txt + '</span>' +
         '</div>' +
@@ -241,6 +271,12 @@
         '<div class="task-meta">' +
           '<span class="freq">' + freq + '</span>' +
           '<span class="task-last">last: ' + timeAgo(t.lastRunAt) + '</span>' +
+        '</div>' +
+        '<div class="task-detail">' +
+          '<div class="task-detail-h">📋 מה הריצה האחרונה עשתה</div>' +
+          bulletsHtml +
+          '<div class="task-detail-meta">🕒 רצה: ' + ptStamp(t.lastRunAt) + ' · סטטוס: ' + s.txt + '</div>' +
+          (links ? '<div class="task-links">' + links + '</div>' : '') +
         '</div>' +
       '</div>';
     return el;

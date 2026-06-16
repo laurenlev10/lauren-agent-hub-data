@@ -141,7 +141,7 @@ def build_rows(pat):
         if landing: parts.append(f'landingUrl: "{landing}"')
         if signup:  parts.append(f'signupUrl: "{signup}"')
         rows.append("  { " + ", ".join(parts) + " },")
-    return rows
+    return rows, evs
 
 def rewrite(ts_text, rows):
     new_body = "\n".join(rows)
@@ -158,8 +158,22 @@ def _set_output(changed: bool):
 
 def main():
     pat = os.environ.get("GH_PAT", "").strip()
-    rows = build_rows(pat)
+    rows, evs = build_rows(pat)
     print(f"computed {len(rows)} confirmed upcoming events")
+
+    def _record(extra):
+        """Record a bullet summary for the /scheduled/ dashboard (never breaks the job)."""
+        try:
+            from run_summary import record
+            bl = [f"סונכרנו {len(rows)} אירועים מאושרים ללוח דף הבית"]
+            if evs:
+                e0 = evs[0]
+                bl.append(f"האירוע הקרוב: {e0['city']}, {e0['state']} · {fmt_dates(e0['start_date'], e0['end_date'])}")
+            if extra:
+                bl.append(extra)
+            record("sync-homepage-schedule", bl, status="ok")
+        except Exception as e:
+            print(f"[summary] skipped: {e}")
     if DRY_RUN or not pat:
         _set_output(False)
         print("DRY_RUN (or no GH_PAT) — not pushing. Preview:")
@@ -175,13 +189,16 @@ def main():
         f = repo / TARGET_FILE
         old = f.read_text(encoding="utf-8"); new = rewrite(old, rows)
         if new == old:
-            _set_output(False); print("no change — homepage schedule already current."); return 0
+            _set_output(False); print("no change — homepage schedule already current.")
+            _record("הלוח כבר מעודכן — אין שינוי בריצה זו")
+            return 0
         f.write_text(new, encoding="utf-8")
         subprocess.run(["git","-C",tmp,"add",TARGET_FILE], check=True)
         subprocess.run(["git","-C",tmp,"commit","-q","-m",
                         f"schedule: weekly sync — {len(rows)} events + per-event signup links [auto]"], check=True)
         subprocess.run(["git","-C",tmp,"push","-q","origin","HEAD:main"], check=True)
         _set_output(True); print(f"✓ pushed updated schedule ({len(rows)} events) -> Lovable will stage")
+        _record("נדחף עדכון ל-beauty-bash-usa — מתפרסם דרך Lovable")
     return 0
 
 if __name__ == "__main__":
