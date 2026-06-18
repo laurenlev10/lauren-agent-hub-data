@@ -1895,6 +1895,10 @@ function renderSupplierCard(sup, s, idx){
         '</div>'+
         ((s._pending_invoice && s._pending_invoice.invoice_lines && s._pending_invoice.invoice_lines.length) ? '' :
         '<div class="field">'+
+          '<label>🧾 מס\' חשבונית (ידני)</label>'+
+          '<input type="text" data-bind="invoice_number" value="'+escHtml(s.invoice_number||"")+'" placeholder="מס\' חשבונית" title="הזיני מספר חשבונית ידנית — בלי להעלות קובץ">'+
+        '</div>'+
+        '<div class="field">'+
           '<label>🧾 חשבונית ללא הזמנה — סכום ($)</label>'+
           '<input type="number" step="0.01" min="0" data-bind="invoice_total_usd" value="'+(s.invoice_total_usd||"")+'" placeholder="0.00" title="סכום חשבונית ללא הזמנה. אם העלית קובץ חשבונית — הסכום נערך בקטע פרטי חשבונית למטה.">'+
         '</div>')+
@@ -1903,7 +1907,12 @@ function renderSupplierCard(sup, s, idx){
           '<input type="number" step="0.01" min="0" data-bind="shipping_cost_usd" value="'+(s.shipping_cost_usd||"")+'" placeholder="0.00" title="מתעדכן אוטומטית כשבוחרים 💰 הוצאת משלוח בהשוואת חשבונית">'+
         '</div>'+
       '</div>'+
-      '<div class="row" style="margin-top:2px"><button type="button" onclick="refreshSupplierList(\''+sup.code+'\')" title="עדכן מיד את רשימת החשבוניות של הספק לפי הסכום שהזנת" style="background:#7c3aed;color:#fff;border:0;border-radius:7px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600">🔄 רענן רשימת חשבוניות</button></div>'+
+      '<div class="row" style="margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button type="button" onclick="refreshSupplierList(\''+sup.code+'\')" title="עדכן מיד את רשימת החשבוניות של הספק לפי הסכום שהזנת" style="background:#7c3aed;color:#fff;border:0;border-radius:7px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600">🔄 רענן רשימת חשבוניות</button>'+
+        // Lauren 2026-06-18: manual-invoice path — after typing מס' חשבונית + סכום, mark it handled without uploading a file.
+        (!_invoiceCompared ? (s.manually_updated_at
+            ? '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="סומן כעודכן ידנית. לחיצה להסרת הסימון" style="background:linear-gradient(180deg,#7c3aed,#5b21b6);color:#fff;border:none;border-radius:7px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:700">✓ עודכן ידנית · '+_fmtMMDDHHMM(s.manually_updated_at)+'</button>'
+            : '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="לחצי לאחר שהזנת מס\' חשבונית + סכום ועדכנת את המלאי ידנית באוקטופוס" style="background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;border-radius:7px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:700">✋ עודכן ידנית</button>') : '')+
+      '</div>'+
       // Lauren 2026-06-10 — supplier-level tracking is ALWAYS visible now (was gated
       // behind delivery_mode==="shipped") + live status chip from tracking_status.json.
       '<div class="row">'+
