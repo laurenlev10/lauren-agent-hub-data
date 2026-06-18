@@ -9598,6 +9598,43 @@ function renderGlobalSupplierBody(sup, v){
   return i1 === -1 ? '' : fullHtml.substring(i1 + '<div class="body">'.length);
 }
 
+// Lauren 2026-06-18: self-heal the supplier-level "חשבונית ללא הזמנה" double-count.
+// If a supplier has BOTH a supplier-level invoice AND a per-order invoice, the supplier-
+// level one is a leftover from the supplier-level compare flow (Lauren tracks the real
+// invoice on the order). Zero it so the header total + P&L aren't inflated. Scoped to the
+// ONE event being viewed so past-event records aren't touched. Idempotent: only fires when
+// both amounts are >0 (the genuine double-count case); a standalone invoice on a supplier
+// with no order invoice is left alone.
+function normalizeDoubleInvoices(evkey){
+  try {
+    var slc = STATE && STATE.events && STATE.events[evkey];
+    if (!slc || !slc.suppliers) return 0;
+    var los = (slc.local_orders || []);
+    var fixed = 0;
+    Object.keys(slc.suppliers).forEach(function(code){
+      var s = slc.suppliers[code];
+      if (!s) return;
+      if (Number(s.invoice_total_usd || 0) <= 0) return;
+      var ordInv = 0;
+      los.forEach(function(o){
+        if (o.supplier_code === code && !o.cancelled_at && !o.moved_to) ordInv += Number(o.invoice_total_usd || 0);
+      });
+      if (ordInv > 0){
+        s.invoice_total_usd = 0;
+        s.shipping_cost_usd = 0;
+        s.updated_at = nowIso();
+        fixed++;
+      }
+    });
+    if (fixed > 0){
+      slc.updated_at = nowIso();
+      try { scheduleSave(); } catch(_){}
+      try { toast('תיקנתי ' + fixed + ' כפילויות חשבונית — הסכום נלקח מההזמנה', 'success'); } catch(_){}
+    }
+    return fixed;
+  } catch(e){ console.warn('normalizeDoubleInvoices failed:', e); return 0; }
+}
+
 async function init(){
   // Hard safety: force-hide loadingView after 8s no matter what.
   // Better a broken page than an infinite spinner.
@@ -9665,6 +9702,7 @@ async function init(){
         address: URL_PARAMS.get("address") || ""
       };
       try { ensureSlice(CURRENT_EVKEY, CURRENT_EVENT); } catch(e){ console.error("ensureSlice failed:", e); }
+      try { normalizeDoubleInvoices(CURRENT_EVKEY); } catch(e){ console.warn("normalizeDoubleInvoices:", e); }
       const slice = (STATE && STATE.events && STATE.events[CURRENT_EVKEY]) || CURRENT_EVENT;
       CURRENT_EVENT = {
         city: slice.city || CURRENT_EVENT.city, state: slice.state || CURRENT_EVENT.state,
