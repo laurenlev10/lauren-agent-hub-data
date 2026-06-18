@@ -1789,6 +1789,9 @@ function renderSupplierCard(sup, s, idx){
               // warning pill so Lauren knows the invoice is pending sync (not silently lost).
               if (_invoiceCompared) {
                 lbl = '✅ חשבונית עודכנה במערכת' + (_invTs ? ' <span style="opacity:.75;font-weight:500;font-size:11px;margin-right:4px">· ' + _fmtMMDDHHMM(_invTs) + '</span>' : '');
+              } else if (s && s.manually_updated_at) {
+                // Lauren 2026-06-18 — marked '✋ עודכן ידנית' for a standalone invoice: no longer 'pending sync'
+                lbl = '✅ עודכן ידנית <span style="opacity:.75;font-weight:500;font-size:11px;margin-right:4px">· ' + _fmtMMDDHHMM(s.manually_updated_at) + '</span>';
               } else {
                 lbl = '📥 חשבונית הועלתה · <b style="color:#92400e">⚠ ממתינה לסנכרון</b>' + (_invTs ? ' <span style="opacity:.75;font-weight:500;font-size:11px;margin-right:4px">· ' + _fmtMMDDHHMM(_invTs) + '</span>' : '');
               }
@@ -1840,7 +1843,8 @@ function renderSupplierCard(sup, s, idx){
             : '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" style="font-size:11px;padding:5px 10px;white-space:nowrap">📋 השוואת חשבונית</button>'              + (_hasUploadedInvoice ? ' <button type="button" class="btn-octopos-push" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="קליטה ישירה לאוקטופוס — יוצר מוצרים חדשים ומעדכן מלאי לפי החשבונית הממתינה" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#ec4899,#be185d);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;box-shadow:0 1px 3px rgba(190,24,93,.3);white-space:nowrap">🚀 צור באוקטופוס</button>' : ''))
         : '')+
       // 'עודכן ידנית' button — for suppliers where Lauren updated stock directly in OCTOPOS without going through compare flow
-      ((_hasLocalOrder && !_invoiceCompared)
+      // Lauren 2026-06-18: also show for a standalone "חשבונית ללא הזמנה" (invoice uploaded with NO saved order — e.g. BB&W Wichita)
+      (((_hasLocalOrder || _hasUploadedInvoice) && !_invoiceCompared)
         ? (s.manually_updated_at
             ? '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="סימנת כעודכן ידנית. לחיצה כדי להסיר את הסימון" style="background:linear-gradient(180deg,#7c3aed,#5b21b6);font-size:11px;padding:5px 10px;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;white-space:nowrap">✓ עודכן ידנית · '+_fmtMMDDHHMM(s.manually_updated_at)+'</button>'
             : '<button type="button" class="btn-manual-updated" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="לחצי כדי לסמן שעדכנת את ההזמנה ידנית ב-OCTOPOS" style="background:#ede9fe;color:#5b21b6;font-size:11px;padding:5px 10px;border:1px solid #c4b5fd;border-radius:6px;cursor:pointer;font-weight:700;white-space:nowrap">✋ עודכן ידנית</button>')
