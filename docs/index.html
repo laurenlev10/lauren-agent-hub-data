@@ -46,18 +46,16 @@
     color: var(--muted); margin: 0 4px 10px; padding-right: 4px;
   }
   .tile-row {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+    display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; align-items: stretch;
   }
-  /* Row 3 has only the library — same tile width, centered */
-  .tile-row.row-agents { grid-template-columns: repeat(3, 1fr); }
-  .tile-row.row-agents > .tile { grid-column: 2 / 3; }
+  .tile-row > .tile { flex: 0 1 calc(33.333% - 12px); max-width: calc(33.333% - 12px); }
 
   @media (max-width: 900px) {
-    .tile-row, .tile-row.row-agents { grid-template-columns: repeat(2, 1fr); gap: 14px; }
-    .tile-row.row-agents > .tile { grid-column: span 1; }
+    .tile-row { gap: 14px; }
+    .tile-row > .tile { flex-basis: calc(50% - 7px); max-width: calc(50% - 7px); }
   }
   @media (max-width: 540px) {
-    .tile-row, .tile-row.row-agents { grid-template-columns: 1fr; }
+    .tile-row > .tile { flex-basis: 100%; max-width: 100%; }
   }
 
   .tile {
