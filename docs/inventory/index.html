@@ -12271,7 +12271,12 @@ function renderCompareDiff(){
     }
     var srcL = r.inv || r.exp || {};
     var rawName = srcL.name || '';
-    var name = _withBrand(_cleanInvoiceName(rawName));
+    // Lauren 2026-06-18: matched rows show the product name AS IN OCTOPOS / the saved
+    // order — not the garbled invoice-parsed text. rawName stays the invoice text so the
+    // display-min "(24pc x 12packs)" parse below still works. New/extra rows with no
+    // matched product keep the cleaned invoice name (it becomes the new product's name).
+    var _matchPid = (r.exp && r.exp.product_id) || r.product_id || null;
+    var name = octName(_matchPid) || (r.exp && r.exp.name) || _withBrand(_cleanInvoiceName(rawName));
     var sku  = srcL.sku || '';
     var qty  = r.inv ? r.invQ : (r.exp ? r.expQ : 0);
     var price = Number(srcL.price || srcL.cost_unit || 0);
@@ -12309,6 +12314,7 @@ function renderCompareDiff(){
     // Apply any previous edits
     var ov = CMP_CTX.line_edits[ri] || {};
     if (ov.name !== undefined) name = ov.name;
+    else if (ov.linked_product_id) { var _lkName = octName(ov.linked_product_id); if (_lkName) name = _lkName; }  // Lauren 2026-06-18: linked extra row → show linked OCTOPOS name
     if (ov.sku !== undefined) sku = ov.sku;
     if (ov.qty !== undefined) qty = ov.qty;
     if (ov.price !== undefined) price = ov.price;
