@@ -1275,6 +1275,19 @@ async function refreshSupplierList(code, opts){
   }catch(e){ toast("שגיאה: "+e.message,"error"); }
 }
 
+// Lauren 2026-06-18: coalesce the AUTOMATIC (field-change) supplier-list refreshes so a
+// burst of edits produces ONE commit to supplier_invoices.json instead of one-per-keystroke.
+// Cuts the commit flood that was tripping GitHub Pages' build limit. The explicit
+// "🔄 רענן רשימת חשבוניות" button still calls refreshSupplierList() directly (immediate).
+var _REFRESH_SUP_TIMERS = {};
+function refreshSupplierListDebounced(code, opts){
+  if (_REFRESH_SUP_TIMERS[code]) clearTimeout(_REFRESH_SUP_TIMERS[code]);
+  _REFRESH_SUP_TIMERS[code] = setTimeout(function(){
+    _REFRESH_SUP_TIMERS[code] = null;
+    try { refreshSupplierList(code, opts || {quiet:true}); } catch(_){}
+  }, 4000);
+}
+
 function renderSuppliers(){
   const slice = STATE.events[CURRENT_EVKEY];
   if (!slice) return;
@@ -2404,7 +2417,7 @@ function bindCardEvents(card){
       if (expanded){ card.classList.add("expanded"); s._expanded = true; }
       bindCardEvents(card);
       scheduleSave();
-      if (path === 'invoice_total_usd' || path === 'invoice_number') { try { refreshSupplierList(code, {quiet:true}); } catch(_){} }
+      if (path === 'invoice_total_usd' || path === 'invoice_number') { try { refreshSupplierListDebounced(code, {quiet:true}); } catch(_){} }
     });
   });
 
@@ -2438,7 +2451,7 @@ function bindCardEvents(card){
       if (expanded){ card.classList.add('expanded'); s._expanded = true; }
       bindCardEvents(card);
       scheduleSave();
-      try { refreshSupplierList(code, {quiet:true}); } catch(_){}
+      try { refreshSupplierListDebounced(code, {quiet:true}); } catch(_){}
       try { toast('✓ סכום החשבונית של ההזמנה עודכן ($' + (Math.round(v * 100) / 100).toFixed(2) + ')' + (_clearedSup > 0 ? ' · ניקיתי "חשבונית ללא הזמנה" של $' + _clearedSup.toFixed(2) + ' (כפילות)' : ''), 'success'); } catch(_){}
     });
   });
@@ -2457,7 +2470,7 @@ function bindCardEvents(card){
       ord.last_edited_at = nowIso();
       slc.updated_at = nowIso();
       scheduleSave();
-      try { refreshSupplierList(code, {quiet:true}); } catch(_){}
+      try { refreshSupplierListDebounced(code, {quiet:true}); } catch(_){}
       try { toast('✓ מספר החשבונית של ההזמנה נשמר', 'success'); } catch(_){}
     });
   });

@@ -47,14 +47,25 @@ function rec(id){return (PAY.invoices&&PAY.invoices[id])||{};}
 function effAmt(iv){if(iv.manual)return +iv.amount||0;const o=rec(iv.id).amount_override;return (typeof o==="number")?o:(+iv.amount||0);}
 function slug(s){return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");}
 
+// Lauren 2026-06-18: read state straight from GitHub's raw source — it reflects every
+// commit INSTANTLY, independent of GitHub Pages rebuilds (Pages can lag/fail when the
+// dashboard saves often). Fall back to the Pages copy only if raw is unreachable.
+const RAW_BASE="https://raw.githubusercontent.com/"+REPO+"/main/docs/state/";
+async function freshJson(file){
+ const bust="?_="+Date.now();
+ try{const r=await fetch(RAW_BASE+file+bust,{cache:"no-store"});if(r.ok)return await r.json();}catch(e){}
+ try{const r=await fetch("../state/"+file+bust,{cache:"no-store"});if(r.ok)return await r.json();}catch(e){}
+ return null;
+}
+
 async function load(){
- try{INV=await (await fetch("../state/supplier_invoices.json?_="+Date.now(),{cache:"no-store"})).json();}
- catch(e){document.getElementById("app").innerHTML="<h1>שגיאה בטעינה</h1>";return;}
- try{const r=await fetch("../state/supplier_payments.json?_="+Date.now(),{cache:"no-store"});if(r.ok)PAY=await r.json();}catch(e){}
- try{const r=await fetch("../state/supplier_manual_invoices.json?_="+Date.now(),{cache:"no-store"});if(r.ok)MAN=await r.json();}catch(e){}
+ INV=await freshJson("supplier_invoices.json");
+ if(!INV){document.getElementById("app").innerHTML="<h1>שגיאה בטעינה</h1>";return;}
+ PAY=await freshJson("supplier_payments.json");
+ MAN=await freshJson("supplier_manual_invoices.json");
  if(!PAY)PAY={_updated_at:null,invoices:{}}; if(!PAY.invoices)PAY.invoices={};
  if(!MAN)MAN={_updated_at:null,invoices:[]}; if(!MAN.invoices)MAN.invoices=[];
- try{const r=await fetch("../state/supplier_bank_payments.json?_="+Date.now(),{cache:"no-store"});if(r.ok)BANK=await r.json();}catch(e){}
+ BANK=await freshJson("supplier_bank_payments.json");
  if(!BANK)BANK={matched:{},supplier_totals:{}}; if(!BANK.matched)BANK.matched={};
  renderList();
 }
