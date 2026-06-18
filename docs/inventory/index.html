@@ -1767,7 +1767,7 @@ function renderSupplierCard(sup, s, idx){
       '<button type="button" class="btn-compare-invoice" data-supplier-code="'+sup.code+'" data-supplier-name="'+escHtml(sup.name)+'" title="להזמנות שבוצעו ידנית מחוץ למערכת — העלי את החשבונית והמערכת תעדכן את המלאי ישירות" style="font-size:11px;padding:5px 10px;background:linear-gradient(180deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-left:6px">📋 הוספת חשבונית</button>';
   }
   return ''+
-    '<div class="hdr' + ((_hasLocalOrder || _invoiceCompared) ? " has-local-order" : "") + '" data-toggle="1">'+
+    '<div class="hdr' + ((_hasLocalOrder || _invoiceCompared || (s && s.manually_updated_at)) ? " has-local-order" : "") + '" data-toggle="1">'+  /* Lauren 2026-06-18: green 'done' look also after '✋ עודכן ידנית' (manual invoice) */
       '<div class="num">'+(idx+1)+'.</div>'+
       '<div class="name">'+escHtml(sup.name)+' <span class="cat">· '+escHtml(sup.category)+'</span></div>'+
       // Status pill stack — green status + yellow estimate + green invoice (when set)
