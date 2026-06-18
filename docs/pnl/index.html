@@ -343,15 +343,28 @@ function render(){
  const cc=PNL.cash_check;
  if(cc){const ok=Math.abs(cc.pct||0)<=0.02;h+="<div class='cash "+(ok?"good":"bad")+"'>הצלבת מזומן: מנהלת "+money(cc.manager_cash)+" מול OCTOPOS "+money(cc.octopos_cash)+" — פער "+money(cc.diff)+" ("+(cc.pct*100).toFixed(1)+"%)</div>";}
  h+="</div>";
- (function(){const qt=PNL.qb_tagged;if(!qt||!qt.expenses_by_bucket)return;
-   const L={inventory:"מלאי (COGS)",venue:"אולם",travel:"נסיעות",meals:"אוכל",lyft:"Lyft/הסעות",marketing_meta:"פרסום Meta",marketing_tiktok:"פרסום TikTok",staff:"צוות",mystery_box:"מיסטרי בוקס",shipping:"משלוח",other:"שונות"};
-   const eb=qt.expenses_by_bucket;const ks=Object.keys(eb).filter(k=>Math.abs(eb[k])>0.005).sort((a,b)=>eb[b]-eb[a]);
+  (function(){const qt=PNL.qb_tagged;const det=(qt&&qt.detail)||[];if(!det.length)return;
+   function fb(c){c=(c||"").toLowerCase();
+     if(/airfare|flight|airline/.test(c))return "flights";
+     if(/accommodation|hotel|lodging/.test(c))return "hotels";
+     if(/rental ?car|car ?rental|\brental\b|transportation|\blyft\b|\buber\b|parking|toll|automobile|vehicle|gas ?& ?fuel|gasoline|\bfuel\b/.test(c))return "vehicle";
+     if(/merchandise|cost of goods|cogs|inventory/.test(c))return "inventory";
+     if(/venue|rent/.test(c))return "venue";
+     if(/meal|restaurant/.test(c))return "meals";
+     if(/subcontractor|staff|worker|labor|payroll/.test(c))return "staff";
+     if(/tiktok/.test(c))return "marketing_tiktok";
+     if(/advertis|marketing|meta|facebook/.test(c))return "marketing_meta";
+     return "other";}
+   const L={inventory:"מלאי (COGS)",venue:"אולם",flights:"✈️ טיסות",hotels:"🏨 מלונות",vehicle:"🚗 רכב / Lyft",meals:"אוכל",staff:"צוות",marketing_meta:"פרסום Meta",marketing_tiktok:"פרסום TikTok",other:"שונות"};
+   const order=["inventory","venue","flights","hotels","vehicle","meals","staff","marketing_meta","marketing_tiktok","other"];
+   const agg={};let tot=0;det.forEach(x=>{const k=fb(x.category);const v=-(x.amount||0);agg[k]=(agg[k]||0)+v;tot+=v;});
+   const ks=order.filter(k=>agg[k]&&Math.abs(agg[k])>0.005);
    if(!ks.length)return;
-   let hh="<div class='card' style='border:2px solid #0a7d2c'><h2 style='border-bottom-color:#0a7d2c'>\uD83D\uDCB0 \u05e1\u05d9\u05db\u05d5\u05dd \u05d4\u05d5\u05e6\u05d0\u05d5\u05ea \u05de\u05d4\u05d1\u05d5\u05e7\u05e7\u05d9\u05e4\u05d9\u05e0\u05d2 \u2014 \u05dc\u05e4\u05d9 \u05e7\u05d8\u05d2\u05d5\u05e8\u05d9\u05d4</h2><table>";
-   ks.forEach(k=>{hh+="<tr><td>"+esc(L[k]||k)+"</td><td class='num'>"+money(eb[k])+"</td></tr>";});
-   hh+="<tr class='subtot'><td>\u05e1\u05da \u05d4\u05d5\u05e6\u05d0\u05d5\u05ea \u05de\u05d4\u05d1\u05e0\u05e7 (\u05d1\u05d5\u05e7\u05e7\u05d9\u05e4\u05d9\u05e0\u05d2)</td><td class='num'>"+money(qt.total_expenses||0)+"</td></tr>";
-   if(qt.tagged_deposits)hh+="<tr><td style='color:#0a7d2c'>\u05d4\u05e4\u05e7\u05d3\u05d5\u05ea \u05de\u05ea\u05d5\u05d9\u05d2\u05d5\u05ea (\u05db\u05e8\u05d8\u05d9\u05e1/\u05de\u05d6\u05d5\u05de\u05df)</td><td class='num' style='color:#0a7d2c'>"+money(qt.tagged_deposits)+"</td></tr>";
-   hh+="</table><div class='foot'>\u05de\u05ea\u05e2\u05d3\u05db\u05df \u05d7\u05d9 \u05de\u05de\u05e2\u05e8\u05db\u05ea \u05d4\u05e0\u05d4\u05dc\u05ea \u05d4\u05d7\u05e9\u05d1\u05d5\u05e0\u05d5\u05ea (D1) \u2014 \u05db\u05dc \u05d4\u05d5\u05e6\u05d0\u05d4 \u05e9\u05e9\u05d5\u05d9\u05db\u05d4 \u05dc\u05d0\u05d9\u05e8\u05d5\u05e2 \u05d4\u05d6\u05d4, \u05de\u05e7\u05d5\u05d1\u05e6\u05ea \u05dc\u05e4\u05d9 \u05e7\u05d8\u05d2\u05d5\u05e8\u05d9\u05d4. \u05e2\u05d5\u05d3\u05db\u05df: "+esc((qt.generated_at||"").slice(0,10))+".</div></div>";
+   let hh="<div class='card' style='border:2px solid #0a7d2c'><h2 style='border-bottom-color:#0a7d2c'>💰 סיכום הוצאות מהבוקקיפינג — לפי קטגוריה</h2><table>";
+   ks.forEach(k=>{hh+="<tr><td>"+esc(L[k]||k)+"</td><td class='num'>"+money(agg[k])+"</td></tr>";});
+   hh+="<tr class='subtot'><td>סך הוצאות מהבנק (בוקקיפינג)</td><td class='num'>"+money(tot)+"</td></tr>";
+   if(qt.tagged_deposits)hh+="<tr><td style='color:#0a7d2c'>הפקדות מתויגות (כרטיס/מזומן)</td><td class='num' style='color:#0a7d2c'>"+money(qt.tagged_deposits)+"</td></tr>";
+   hh+="</table><div class='foot'>מתעדכן חי ממערכת הנהלת החשבונות (D1) — מקובץ לפי קטגוריה (טיסות / מלונות / רכב‑Lyft בנפרד). עודכן: "+esc((qt.generated_at||"").slice(0,10))+".</div></div>";
    h+=hh;
  })();
  h+="<div class='foot'>מקורות: OCTOPOS · inventory_orders · דוח מנהלת · event_analytics (פרסום) · QuickBooks (נסיעות/מקום/ULINE/Lyft). עריכה ידנית נשמרת ב-GitHub.</div>";
