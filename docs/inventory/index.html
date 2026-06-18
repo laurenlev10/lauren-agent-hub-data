@@ -2406,6 +2406,17 @@ function bindCardEvents(card){
       if (!ord) return;
       ord.invoice_total_usd = Math.round(v * 100) / 100;
       ord.last_edited_at = nowIso();
+      // Lauren 2026-06-18: the amount typed on the ORDER is the real invoice. A leftover
+      // supplier-level "חשבונית ללא הזמנה" (created by the supplier-level compare flow)
+      // would double-count in the header total AND in the P&L — so clear it. Reversible:
+      // re-enter it in the 🧾 "חשבונית ללא הזמנה" field for a genuinely order-less invoice.
+      var _clearedSup = 0;
+      if (ord.invoice_total_usd > 0 && Number(s.invoice_total_usd || 0) > 0){
+        _clearedSup = Number(s.invoice_total_usd || 0);
+        s.invoice_total_usd = 0;
+        s.shipping_cost_usd = 0;
+      }
+      s.updated_at = nowIso();
       slc.updated_at = nowIso();
       var expanded = card.classList.contains('expanded');
       card.innerHTML = renderSupplierCard(sup, s, SUPPLIERS.indexOf(sup));
@@ -2413,7 +2424,7 @@ function bindCardEvents(card){
       bindCardEvents(card);
       scheduleSave();
       try { refreshSupplierList(code, {quiet:true}); } catch(_){}
-      try { toast('✓ סכום החשבונית של ההזמנה עודכן ($' + (Math.round(v * 100) / 100).toFixed(2) + ')', 'success'); } catch(_){}
+      try { toast('✓ סכום החשבונית של ההזמנה עודכן ($' + (Math.round(v * 100) / 100).toFixed(2) + ')' + (_clearedSup > 0 ? ' · ניקיתי "חשבונית ללא הזמנה" של $' + _clearedSup.toFixed(2) + ' (כפילות)' : ''), 'success'); } catch(_){}
     });
   });
 
