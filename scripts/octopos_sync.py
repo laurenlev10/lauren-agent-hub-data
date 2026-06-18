@@ -48,6 +48,7 @@ MAPPING = {
     "kara-beauty":      [10],
     "romantic-beauty":  [16],
     "beauty-creations": [4],
+    "golden-touch":     [8],          # OCTOPOS: "Golden Touch" — Lauren 2026-06-18. Usually no order; invoice received + updated manually.
     "banana-brands":    [25],     # OCTOPOS: "Banana Brands" — temporary weekly products, intake by barcode scan (Lauren 2026-06-02). No POs/invoices; multi-barcode per price-point product.
     "orogold":          [26],     # OCTOPOS: "OROGOLD" (Lauren 2026-06-15). One supplier; invoices come under 3 brand names — Vivo Per Lei (VPL), Beauty Frizz (BF), HerStyler (HS). Mixed case sizes.
 }
