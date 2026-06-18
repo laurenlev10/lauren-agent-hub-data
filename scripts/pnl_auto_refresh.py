@@ -71,6 +71,11 @@ def main():
             elif ended and isinstance((pnl.get("revenue") or {}).get("net_sales"), (int, float))                     and str((pnl.get("revenue") or {}).get("status")) == "ok":
                 # first successful post-event capture — freeze from the next run onward
                 pnl["sales_captured_at"] = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+            # Lauren 2026-06-17: preserve the live qb_tagged block (bank/bookkeeping
+            # expenses incl. future-event hotel/venue deposits). The Worker writes it;
+            # without this, the daily refresh wipes it and future events lose it.
+            if old and old.get("qb_tagged"):
+                pnl["qb_tagged"] = old["qb_tagged"]
             old_p.write_text(json.dumps(pnl, indent=2, ensure_ascii=False), encoding="utf-8")
             prof = pnl.get("profit_preliminary")
             ptxt = f"${prof:,.0f}" if isinstance(prof, (int, float)) else "pending"
