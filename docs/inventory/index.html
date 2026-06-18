@@ -12254,7 +12254,24 @@ function renderCompareDiff(){
   var statusEmoji = { 'match': '✅', 'qty-diff': '⚠️', 'missing': '❌', 'extra': '➕' };
   // Style for editable cells
   var inpBase = 'width:100%;padding:4px 6px;font-size:12px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;font-family:inherit;';
-  rows.forEach(function(r, ri){
+  // Lauren 2026-06-18: render rows in the INVOICE (PDF) line order — top-to-bottom as on
+  // the paper invoice she's comparing against — NOT the saved-order/PO order. The
+  // underlying `rows` array is NOT reordered (its index is the stable `ri` key used by
+  // line_edits, data-ri and every index-based bit above/below). We render a sorted COPY
+  // and carry each row's ORIGINAL index as `ri`. Rows on the invoice (have r.inv) sort by
+  // their parsed-invoice position; 'missing' rows (not on the invoice) trail at the end.
+  rows.forEach(function(r, i){ r._ri = i; });
+  var _invPos = function(r){
+    if (r && r.inv){ var p = invoice.indexOf(r.inv); if (p !== -1) return p; }
+    return Number.MAX_SAFE_INTEGER;
+  };
+  var displayRows = rows.slice().sort(function(a, b){
+    var pa = _invPos(a), pb = _invPos(b);
+    if (pa !== pb) return pa - pb;
+    return a._ri - b._ri;
+  });
+  displayRows.forEach(function(r){
+    var ri = r._ri;
     // Allow Lauren to flip 'missing' rows into 'received' rows manually
     // (e.g., when a display ships multiple SKUs in one package and the
     //  invoice only lists the display SKU). Lauren 2026-05-18 PM late.
