@@ -118,1366 +118,331 @@
   <header>
     <a class="back" href="../launch/">← חזרה ל-Event Launch</a>
     <h1 id="page-title">🔢 רשימת ספירה <span class="pill new" id="event-pill" style="display:none;"></span></h1>
-    <div class="sub" id="page-sub">בונה רשימת מוצרים לספירה מחדש על בסיס מה שקרה בוויקנד האחרון</div>
+    <div class="sub" id="page-sub">שלוש רשימות לכל אירוע: לספירה · נספרו · תג אבל לא נספרו</div>
   </header>
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="recount" type="button">🔢 רשימת ספירה</button>
-    <button class="tab-btn" data-tab="slow" type="button">💤 מוצרים שלא זזים <span id="slow-count-badge" style="font-size:10px;color:var(--muted);"></span></button>
-    <button class="tab-btn" data-tab="profit" type="button">💰 רווחים <span id="profit-count-badge" style="font-size:10px;color:var(--muted);"></span></button>
+    <button class="tab-btn" data-tab="notsold" type="button">🚫 לא נמכרו באירוע <span id="notsold-badge" style="font-size:10px;color:var(--muted);"></span></button>
   </nav>
 
+  <!-- ───────────────── TAB 1 — the three lists ───────────────── -->
   <div class="tab-pane" id="tab-recount">
-  <div class="card" id="summary-card">
-    <h2>סיכום</h2>
-    <div id="summary-content">
-      <div class="empty-state">
-        <div class="big">⏳</div>
-        <p>טוען נתונים...</p>
+
+    <div class="card" id="summary-card">
+      <h2>סיכום</h2>
+      <div id="summary-content">
+        <div class="empty-state"><div class="big">⏳</div><p>טוען נתונים...</p></div>
       </div>
     </div>
-  </div>
 
-  <div class="card" id="list-card" style="display:none;">
-    <h2 style="display:flex; align-items:center; justify-content:space-between;">
-      <span>🔢 רשימת מוצרים לספירה</span>
-      <span style="display:flex; gap:8px;">
-        <button class="btn" id="btn-copy-sms" type="button" style="background:#FB6F92; color:white; border-color:#FB6F92;">📱 העתק להודעה למנהלת</button>
-        <button class="btn ghost" id="btn-copy-text" type="button">📋 העתק כטקסט</button>
-        <button class="btn ghost" id="btn-copy-csv" type="button">📋 העתק כ-CSV</button>
-        <button class="btn ghost" id="btn-print" type="button">🖨️ הדפס</button>
-      </span>
-    </h2>
-    <div class="filter-row" id="worklist-filters-row">
-      <label><input type="checkbox" id="f-neg" checked> 🔴 מינוס</label>
-      <label><input type="checkbox" id="f-stale" checked> 💤 לא זזו</label>
-      <label><input type="checkbox" id="f-preexisting" checked> 🔵 קיים מקודם</label>
-      <label><input type="checkbox" id="f-new_unverified" checked> 🆕 חדש שלא נספר</label>
-      <label><input type="checkbox" id="f-sat_unsold" checked> 💤 היה ולא נמכר</label>
+    <!-- LIST 1 — to count (RECOUNT tag) -->
+    <div class="card" id="list1-card" style="display:none;">
+      <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <span>1️⃣ רשימת ספירה — מוצרים עם תג <b>RECOUNT</b> <span class="pill new" id="list1-count"></span></span>
+        <span style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn" id="btn-sms-mgr" type="button" style="background:#FB6F92; border-color:#FB6F92;">📱 העתק להודעה למנהלת</button>
+          <button class="btn ghost" id="btn-csv1" type="button">📋 CSV</button>
+          <button class="btn ghost" id="btn-print" type="button">🖨️ הדפס</button>
+        </span>
+      </h2>
+      <p class="sub" style="margin:0 0 10px; color:var(--muted);">כל מי שמתויג RECOUNT באוקטופוס (לפני או במהלך האירוע). ✅ = כבר נספר באירוע.</p>
+      <div style="overflow-x:auto;">
+        <table id="list1-table">
+          <thead><tr><th>סטטוס</th><th>SKU</th><th>שם מוצר</th><th>ספק</th><th>מלאי</th></tr></thead>
+          <tbody id="list1-body"></tbody>
+        </table>
+      </div>
     </div>
-    <div style="overflow-x:auto; overflow-y:visible;">
-      <table id="worklist-table">
-        <thead>
-          <tr>
-            <th>SKU</th>
-            <th>שם מוצר</th>
-            <th>ספק</th>
-            <th>כמות נוכחית</th>
-            <th>מכירות בחלון</th>
-            <th>סיבה</th>
-            <th style="width:160px;text-align:center">פעולות</th>
-          </tr>
-        </thead>
-        <tbody id="worklist-body"></tbody>
-      </table>
+
+    <!-- LIST 2 — counted at the event -->
+    <div class="card" id="list2-card" style="display:none;">
+      <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <span>2️⃣ נספרו במהלך האירוע <span class="pill done" id="list2-count"></span></span>
+        <button class="btn ghost" id="btn-csv2" type="button">📋 CSV</button>
+      </h2>
+      <p class="sub" style="margin:0 0 10px; color:var(--muted);">כל מי שמופיע בדו"ח RECOUNT של אוקטופוס לחלון האירוע. 🏷️ = היה ברשימת הספירה · ➕ = נספר אך לא היה מתוכנן.</p>
+      <div id="list2-placeholder" class="empty-state" style="display:none;"><div class="big">⏳</div><p>הרשימה תתמלא במהלך/בסיום האירוע.</p></div>
+      <div style="overflow-x:auto;">
+        <table id="list2-table">
+          <thead><tr><th>מקור</th><th>SKU</th><th>שם מוצר</th><th>ספק</th><th>יתרה אחרי ספירה</th><th>נספר ב-</th></tr></thead>
+          <tbody id="list2-body"></tbody>
+        </table>
+      </div>
     </div>
-  </div>
 
-  <div class="card" id="run-card" style="display:none;">
-    <h2>הפעלת הסוכן</h2>
-    <p>הסוכן עדיין לא רץ עבור החלון הזה. הפעילי אותו דרך Cowork chat:</p>
-    <div class="cmd" id="run-cmd"></div>
-    <p style="margin-top:10px;"><button class="btn" id="btn-copy-cmd" type="button">📋 העתק פקודה</button></p>
-    <p class="sub" style="margin-top:14px;">לאחר הריצה הדף יתעדכן אוטומטית. החזרי לטעון את הדף או לחצי על הכפתור הירוק בשורת האירוע ב-Event Launch.</p>
-  </div>
+    <!-- LIST 3 — tagged but not counted -->
+    <div class="card" id="list3-card" style="display:none;">
+      <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <span>3️⃣ תג RECOUNT אבל לא נספרו <span class="pill" id="list3-count" style="background:#fef3c7;color:#854d0e;"></span></span>
+        <button class="btn ghost" id="btn-csv3" type="button">📋 CSV</button>
+      </h2>
+      <p class="sub" style="margin:0 0 10px; color:var(--muted);">מתויגים RECOUNT אך לא הופיעו בדו"ח הספירה — עדיין לא נספרו באירוע.</p>
+      <div id="list3-placeholder" class="empty-state" style="display:none;"><div class="big">⏳</div><p>הרשימה תתמלא בסיום האירוע.</p></div>
+      <div style="overflow-x:auto;">
+        <table id="list3-table">
+          <thead><tr><th>SKU</th><th>שם מוצר</th><th>ספק</th><th>מלאי</th></tr></thead>
+          <tbody id="list3-body"></tbody>
+        </table>
+      </div>
+    </div>
 
-  <div class="card">
-    <h2>מה הסוכן עושה</h2>
-    <ul style="margin:8px 20px 0 0; padding:0; line-height:1.8;">
-      <li>מסיר תג <b>RECOUNT</b> ממוצרים שנספרו פיזית בחלון הזה (לפי inventory adjustments).</li>
-      <li>מוסיף <b>RECOUNT</b> למוצרים במינוס (qty &lt; 0).</li>
-      <li>מוסיף <b>RECOUNT</b> למוצרים עם qty &gt; 0 שלא זזו בחלון <b>ולא נספרו</b> — כי הכמות עלולה להיות שגויה.</li>
-      <li>הרשימה למטה = כל מה שעדיין מתויג RECOUNT אחרי השינויים, בניכוי מה שנספר עכשיו.</li>
-    </ul>
-  </div>
-
-</div>
-
+    <div class="card" id="empty-card" style="display:none;">
+      <div class="empty-state">
+        <div class="big">📭</div>
+        <p><b>אין עדיין נתונים לאירוע הזה.</b></p>
+        <p>רשימה 1 (לספירה) מבוססת על תגיות RECOUNT באוקטופוס. רשימות 2 ו-3 ממולאות בסיום האירוע על ידי הסוכן <code>@recount</code>.</p>
+      </div>
+    </div>
 
   </div><!-- /tab-recount -->
 
-  <div class="tab-pane hidden" id="tab-slow">
+  <!-- ───────────────── TAB 2 — didn't sell at the event ───────────────── -->
+  <div class="tab-pane hidden" id="tab-notsold">
     <div class="card">
-      <h2>💤 מוצרים שלא זזים — סקירה שבועית</h2>
-      <p class="sub" id="slow-summary">טוען נתונים...</p>
-    </div>
-
-    <div class="card" id="slow-list-card" style="display:none;">
-      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:13px; line-height:1.6;">
-        💡 <b>2 עמודות סף + עדכון ידני אופציונלי:</b><br>
-        <b>סף OCTOPOS (שלך)</b> — מה שכתוב היום באוקטופוס. לעולם לא משתנה אוטומטית.<br>
-        <b>🎯 סף מומלץ (שלנו)</b> — המלצת המערכת לפי הממוצע השבועי. ה-Wizard של ההזמנות משתמש בה כברירת מחדל.<br>
-        <b>עדכון ידני ל-OCTOPOS:</b> רוצה לדחוף את ההמלצה (או מספר אחר שאת בוחרת) ל-OCTOPOS עצמו? הקלידי מספר בתיבה (ריק = השתמשי בהמלצה) ולחצי <code>עדכן THR</code>. רק לחיצה יזומה שלך משנה את OCTOPOS — לעולם לא אוטומטית.
-      </div>
-      <div class="filter-row" style="margin-bottom:12px;">
-        <label><input type="checkbox" id="sf-new" checked> 🆕 חדשים (<span id="cnt-new">0</span>)</label>
-        <label><input type="checkbox" id="sf-discontinuing" checked> 🪦 לסגירה (<span id="cnt-discontinuing">0</span>)</label>
-        <label><input type="checkbox" id="sf-slow" checked> 🐢 איטיים (<span id="cnt-slow">0</span>)</label>
-        <label><input type="checkbox" id="sf-watch"> 👀 לעקוב (<span id="cnt-watch">0</span>)</label>
-        <label><input type="checkbox" id="sf-healthy"> 💚 בריאים (<span id="cnt-healthy">0</span>)</label>
-        <select id="sf-supplier" class="decision-select"><option value="">כל הספקים</option></select>
-        <select id="sf-decision" class="decision-select">
-          <option value="">כל המוצרים</option>
-          <option value="undecided">בלי החלטה</option>
-          <option value="discontinue">סימנת לסגור</option>
-          <option value="keep">סימנת להמשיך</option>
-          <option value="promote">סימנת לקדם</option>
-        </select>
-      </div>
+      <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <span>🚫 לא נמכרו בכלל באירוע <span class="pill" id="notsold-count" style="background:#fee2e2;color:#991b1b;"></span></span>
+        <button class="btn ghost" id="btn-csv-ns" type="button">📋 CSV</button>
+      </h2>
+      <p class="sub" style="margin:0 0 10px; color:var(--muted);">כל המוצרים הפעילים שלא נמכרה מהם אף יחידה בחלון האירוע (שישי–ראשון).</p>
+      <div id="notsold-placeholder" class="empty-state" style="display:none;"><div class="big">⏳</div><p>הרשימה תתמלא בסיום האירוע.</p></div>
       <div style="overflow-x:auto;">
-        <table id="slow-table">
-          <thead>
-            <tr>
-              <th>SKU</th>
-              <th>שם</th>
-              <th>ספק</th>
-              <th>מלאי</th>
-              <th>ממ׳ 4 שבועות</th>
-              <th>ממ׳ מאז ומעולם</th>
-              <th>סופ"שים ללא זוז</th>
-              <th title="סיגנל מהאירוע האחרון — 🔴 נגמר שישי · 🟠 נגמר שבת · 🟡 יתרה קלה · ⚫ יתרה כבדה · 🟢 רגיל">🚨 סיגנל אחרון</th>
-              <th title="מכפיל הכמות באירוע הבא לפי סיגנל">×מכפיל</th>
-              <th title="הסף שאת הגדרת ב-OCTOPOS — קריאה בלבד, לעולם לא נדרסת ע&quot;י המערכת">סף OCTOPOS (שלך)</th>
-              <th title="ההמלצה של המערכת לפי הממוצע השבועי — ה-Wizard משתמש בזה כברירת מחדל">🎯 סף מומלץ (שלנו)</th>
-              <th>Band</th>
-              <th>ציון</th>
-              <th>שבועות</th>
-              <th>סיבות</th>
-              <th>החלטה</th>
-            </tr>
-          </thead>
-          <tbody id="slow-body"></tbody>
+        <table id="notsold-table">
+          <thead><tr><th>SKU</th><th>שם מוצר</th><th>ספק</th><th>מלאי</th></tr></thead>
+          <tbody id="notsold-body"></tbody>
         </table>
       </div>
     </div>
+  </div><!-- /tab-notsold -->
 
-    <div class="card" id="slow-empty-card" style="display:none;">
-      <div class="empty-state">
-        <div class="big">💤</div>
-        <p><b>הסוכן עוד לא רץ.</b></p>
-        <p>הריצה הראשונה תהיה ביום ראשון הבא בלילה (23:00 PT). בכל שבוע נצטבר עוד מידע ונוכל לזהות אילו מוצרים לא נמכרים מספיק.</p>
-        <p style="margin-top:14px; font-size:12px;">סוכן: <code>@slow-movers</code> · קובץ: <code>docs/state/slow_movers.json</code></p>
-      </div>
-    </div>
+</div>
 
-    <div class="card">
-      <h2>מה הסוכן הזה עושה</h2>
-      <ul style="margin:8px 20px 0 0; padding:0; line-height:1.8;">
-        <li>סורק את כל המוצרים הפעילים ב-OCTOPOS פעם בשבוע (יום ראשון בלילה).</li>
-        <li>נותן לכל מוצר ציון 0-100 לפי velocity (מהירות מכירה), stock health, וטרנד.</li>
-        <li>מסווג ל-4 רמות: 💚 healthy · 👀 watch · 🐢 slow · 🪦 discontinuing.</li>
-        <li>שומר היסטוריה של 26 שבועות לכל מוצר → אפשר לראות מגמה.</li>
-        <li>את מסמנת החלטה לכל מוצר (להמשיך / לסגור / לקדם) → @recount ו-@inventory-orders מתאימים את עצמם.</li>
-      </ul>
-    </div>
-  </div><!-- /tab-slow -->
-
-  <div class="tab-pane hidden" id="tab-profit">
-    <div class="card">
-      <h2>💰 ניטור רווחיות — סקירה דו-שבועית</h2>
-      <p class="sub" id="profit-summary">טוען נתונים...</p>
-    </div>
-
-    <div class="card" id="profit-list-card" style="display:none;">
-      <div class="filter-row" style="margin-bottom:12px;">
-        <label><input type="checkbox" id="pf-loss" checked> ⚫ הפסד (<span id="pcnt-loss">0</span>)</label>
-        <label><input type="checkbox" id="pf-critical" checked> 🔴 קריטי (<span id="pcnt-critical">0</span>)</label>
-        <label><input type="checkbox" id="pf-low" checked> 🟠 נמוך (<span id="pcnt-low">0</span>)</label>
-        <label><input type="checkbox" id="pf-ok"> 🟡 בסדר (<span id="pcnt-ok">0</span>)</label>
-        <label><input type="checkbox" id="pf-strong"> 🟢 חזק (<span id="pcnt-strong">0</span>)</label>
-        <label style="margin-right:14px;border-right:1px solid var(--line);padding-right:14px;"><input type="checkbox" id="pf-dismissed"> 👍 בסדר ידני (<span id="pcnt-dismissed">0</span>)</label>
-        <select id="pf-supplier" class="decision-select"><option value="">כל הספקים</option></select>
-      </div>
-      <div style="overflow-x:auto;">
-        <table id="profit-table">
-          <thead>
-            <tr>
-              <th>SKU</th>
-              <th>שם</th>
-              <th>ספק</th>
-              <th>עלות</th>
-              <th>מחיר נוכחי</th>
-              <th>×Markup</th>
-              <th>מרג'ין %</th>
-              <th>Band</th>
-              <th>🎯 מומלץ</th>
-              <th title="הכניסי מחיר חדש ולחצי \"עדכן\" כדי לדחוף לאוקטופוס. ההמלצה מופיעה כ-placeholder.">מחיר חדש + עדכן</th>
-              <th title="לחיצה על בסדר מסירה את המוצר מהרשימה ושומרת שאישרת את המחיר כפי שהוא">פעולות</th>
-            </tr>
-          </thead>
-          <tbody id="profit-body"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card" id="profit-empty-card" style="display:none;">
-      <div class="empty-state">
-        <div class="big">💰</div>
-        <p><b>הסוכן עוד לא רץ.</b></p>
-        <p>הריצה הראשונה תהיה ביום ראשון הבא בלילה (22:00 PT). הסוכן רץ דו-שבועית — לא צריך לבדוק כל יום.</p>
-        <p style="margin-top:14px; font-size:12px;">סוכן: <code>@profit-pulse</code> · קובץ: <code>docs/state/profit_pulse.json</code></p>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>מה הסוכן הזה עושה</h2>
-      <ul style="margin:8px 20px 0 0; padding:0; line-height:1.8;">
-        <li>סורק את כל המוצרים הפעילים ב-OCTOPOS דו-שבועית (יום ראשון 22:00 PT).</li>
-        <li>מחשב לכל מוצר: <b>markup = sale_price / unit_cost</b> ו-<b>מרג'ין % = (sale - cost) / sale</b>.</li>
-        <li>המטרה: ×3 מהעלות (markup ≥ 3.0 = מרג'ין ≥ 67%).</li>
-        <li>מוצרים מתחת ל-3× → מסומנים 🟠 או 🔴, עם הצעת מחיר חדש מעוגלת לרמה הסטנדרטית ($1/$2/$3/$5/$7/$10/$15/$20).</li>
-        <li><b>הסוכן לעולם לא משנה מחירים אוטומטית.</b> את מקבלת המלצה, ובוחרת אם להעלות. כדי לעדכן מחיר ב-OCTOPOS: הכניסי את המחיר החדש בעמודה "מחיר חדש + עדכן" ולחצי על הכפתור — המערכת תאשר ותעדכן את OCTOPOS תוך 1-2 שניות.</li>
-      </ul>
-    </div>
-  </div><!-- /tab-profit -->
-
-
-<div class="toast" id="toast">הועתק ל-clipboard ✓</div>
-<textarea class="copy-area" id="copy-buffer"></textarea>
-
+<div class="toast" id="toast"></div>
+<textarea class="copy-area" id="copy-area"></textarea>
 <script>
-(function() {
-  const params = new URLSearchParams(location.search);
-  const evkey = params.get("evkey") || "";
-  const city = params.get("city") || "";
-  const state = params.get("state") || "";
-  const start_date = params.get("start_date") || params.get("start") || "";
-  const end_date = params.get("end_date") || params.get("end") || "";
-  const venue = params.get("venue") || "";
+(function(){
+  "use strict";
+  var params = new URLSearchParams(location.search);
+  var evkey  = params.get("evkey") || "";
+  var city   = params.get("city") || "";
+  var state  = params.get("state") || "";
 
-  // Per-event mode vs global mode
-  const isPerEvent = evkey || (city && start_date);
+  function toast(msg){
+    var t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
+  function copyText(txt){
+    var ta = document.getElementById("copy-area");
+    ta.value = txt; ta.select();
+    try { document.execCommand("copy"); toast("✓ הועתק"); }
+    catch(e){ toast("⚠️ ההעתקה נכשלה"); }
+  }
+  function esc(s){ return (s == null ? "" : String(s)); }
+  function num(v){ return (v == null || v === "") ? "—" : v; }
 
-  // Update header
-  if (isPerEvent) {
-    const eventLabel = (city || evkey) + (state ? ", " + state : "") + (start_date ? " · " + start_date : "");
-    document.getElementById("event-pill").textContent = eventLabel;
-    document.getElementById("event-pill").style.display = "";
-    document.getElementById("page-sub").textContent = "חלון ספירה: " + (start_date || "?") + " → " + (end_date || "?");
+  // ── Tab switching ──
+  function showTab(name){
+    document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.toggle("active", b.dataset.tab === name); });
+    document.querySelectorAll(".tab-pane").forEach(function(p){ p.classList.toggle("hidden", p.id !== "tab-" + name); });
+    var u = new URLSearchParams(location.search); u.set("tab", name);
+    history.replaceState(null, "", location.pathname + "?" + u.toString());
+  }
+  document.querySelectorAll(".tab-btn").forEach(function(b){
+    b.addEventListener("click", function(){ showTab(b.dataset.tab); });
+  });
+
+  // ── CSV helper ──
+  function toCsv(rows, headers){
+    var out = [headers.join(",")];
+    rows.forEach(function(r){
+      out.push(r.map(function(c){
+        var s = (c == null ? "" : String(c));
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(","));
+    });
+    return out.join("\n");
   }
 
-  // Build the run command (used when no cached data)
-  const cmdParams = [];
-  if (evkey) cmdParams.push("event=" + evkey);
-  else if (start_date && end_date) cmdParams.push("start=" + start_date, "end=" + end_date);
-  const cmdSuffix = cmdParams.length ? " (חלון: " + cmdParams.join(", ") + ")" : "";
-  const runCmd = "Read this file and follow its instructions exactly: `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\octopos-recount\\SKILL.md` — it is the orchestrator for @recount. Run for" + cmdSuffix + ".";
-  document.getElementById("run-cmd").textContent = runCmd;
-
-  // Fetch state
-  fetch("../state/octopos_recount.json?_=" + Date.now(), { cache: "no-store" })
-    .then(r => r.ok ? r.json() : Promise.reject())
-    .then(data => render(data))
-    .catch(() => render(null));
-
-  function render(data) {
-    // In per-event mode, look for events[evkey]; in global mode, use top-level
-    let slice = null;
-    if (isPerEvent && data && data.events && evkey) {
-      slice = data.events[evkey];
-    } else if (!isPerEvent && data) {
-      // Global mode — use top-level stats
-      slice = {
-        worklist: data.worklist || [],
-        lauren_dismissed_pids: data.lauren_dismissed_pids || [],
-        stats: data.stats || {},
-        window: data.last_window || {},
-        generated_at: data._updated_at
-      };
-    }
-
-    if (!slice || (!slice.worklist && !slice.stats)) {
-      // No cached data — show "run the agent" prompt
-      document.getElementById("summary-content").innerHTML = '<div class="empty-state"><div class="big">⏳</div><p>הסוכן עוד לא רץ עבור החלון הזה.</p></div>';
-      document.getElementById("run-card").style.display = "";
-      return;
-    }
-
-    // Render summary stats
-    const s = slice.stats || {};
-    const win = slice.window || {};
-    const generated = slice.generated_at ? new Date(slice.generated_at).toLocaleString("he-IL", { weekday:"long", day:"numeric", month:"long", hour:"2-digit", minute:"2-digit" }) : "—";
-    document.getElementById("summary-content").innerHTML =
-      '<p><b>הרצה אחרונה:</b> ' + generated + '</p>' +
-      '<p class="sub">חלון: ' + (win.start || start_date || "—") + ' → ' + (win.end || end_date || "—") + '</p>' +
-      '<div class="grid3" style="margin-top:14px;">' +
-        '<div class="stat"><div class="num neg">' + (s.added_recount_negative ?? "—") + '</div><div class="lbl">🔴 מינוס</div></div>' +
-        '<div class="stat"><div class="num stale">' + (s.added_recount_stale ?? "—") + '</div><div class="lbl">💤 לא זזו</div></div>' +
-        '<div class="stat"><div class="num counted">' + (s.removed_recount_tag ?? "—") + '</div><div class="lbl">✅ הוסר תג (נספרו)</div></div>' +
-      '</div>' +
-      '<div class="stat" style="margin-top:12px;"><div class="num final">' + (s.final_worklist_size ?? (slice.worklist||[]).length) + '</div><div class="lbl">🔢 רשימת ספירה</div></div>';
-
-    // Render the worklist table
-    const worklist = slice.worklist || [];
-    if (worklist.length > 0) {
-      document.getElementById("list-card").style.display = "";
-      window._WORKLIST = worklist;
-      DISMISSED_PIDS = new Set((slice.lauren_dismissed_pids || []).map(Number));
-      renderTable();
-    }
-  }
-
-  // Lauren 2026-05-21 PM #6 — dismissed pids are stored per-event in the
-  // octopos_recount.json state file under events.<evkey>.lauren_dismissed_pids[].
-  // Browser owns this field; agent never writes it (per the cross-agent data-bus
-  // partition rules in CLAUDE.md).
-  var DISMISSED_PIDS = new Set();
-
-  function isDismissed(pid){ return DISMISSED_PIDS.has(Number(pid)); }
-
-  function reasonLabel(reason){
-    if (reason === "negative") return "🔴 מינוס";
-    if (reason === "stale") return "💤 לא זז";
-    if (reason === "sat_unsold") return "💤 היה ולא נמכר";
-    if (reason === "new_unverified") return "🆕 חדש שלא נספר";
-    if (reason === "moved_not_counted") return "💤 היה ולא נספר";
-    return "🔵 קיים מקודם";
-  }
-
-  function renderTable() {
-    const wl = window._WORKLIST || [];
-    const fNeg = document.getElementById("f-neg").checked;
-    const fStale = document.getElementById("f-stale").checked;
-    const fPre = document.getElementById("f-preexisting").checked;
-    const fNew = (document.getElementById("f-new_unverified") || {checked:true}).checked;
-    const fSat = (document.getElementById("f-sat_unsold") || {checked:true}).checked;
-    const tbody = document.getElementById("worklist-body");
-    tbody.innerHTML = "";
-    wl.filter(p => {
-      if (isDismissed(p.id)) return false;  // Lauren explicitly removed
-      if (p.reason === "negative") return fNeg;
-      if (p.reason === "stale" || p.reason === "moved_not_counted" || p.reason === "sat_unsold")
-        return p.reason === "sat_unsold" ? fSat : fStale;
-      if (p.reason === "new_unverified") return fNew;
-      return fPre;
-    }).forEach(p => {
-      const tr = document.createElement("tr");
-      const reasonCls = "reason-" + (p.reason || "preexisting");
-      tr.innerHTML =
-        '<td>' + escapeHtml(p.sku || "") + '</td>' +
-        '<td>' + escapeHtml(p.name || "") + '</td>' +
-        '<td>' + escapeHtml(p.supplier || "—") + '</td>' +
-        '<td class="qty-cell"><input type="number" class="inline-qty" data-pid="' + Number(p.id) + '" data-orig="' + Number(p.qty ?? 0) + '" value="' + Number(p.qty ?? 0) + '" step="1" style="width:70px;padding:4px 6px;text-align:center;font-weight:600;border:1px solid var(--line, #cbd5e1);border-radius:6px"></td>' +
-        '<td class="qty-cell">' + (p.sold_in_window ?? 0) + '</td>' +
-        '<td class="' + reasonCls + '">' + reasonLabel(p.reason) + '</td>' +
-        '<td style="text-align:center;white-space:nowrap">' +
-          '<button type="button" class="btn-dismiss" data-pid="' + Number(p.id) + '" title="הורד את המוצר הזה מהרשימה הנוכחית" style="padding:4px 8px;font-size:11px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;font-weight:600;margin-left:4px">❌ הורד</button>' +
-          '<button type="button" class="btn-slow" data-pid="' + Number(p.id) + '" title="הוסף תג SLOW במוצר באוקטופוס" style="padding:4px 8px;font-size:11px;background:#fef3c7;color:#78350F;border:1px solid #f59e0b;border-radius:6px;cursor:pointer;font-weight:600">🐢 SLOW</button>' +
-        '</td>';
-      tbody.appendChild(tr);
+  // ── Render a simple list into a tbody ──
+  function fillBody(bodyId, items, cols){
+    var tb = document.getElementById(bodyId);
+    tb.innerHTML = "";
+    items.forEach(function(it){
+      var tr = document.createElement("tr");
+      cols.forEach(function(c){
+        var td = document.createElement("td");
+        var v = c.get(it);
+        if (c.html) { td.innerHTML = v; } else { td.textContent = v; }
+        if (c.cls) td.className = c.cls;
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
     });
   }
 
-  document.getElementById("f-neg").addEventListener("change", renderTable);
-  document.getElementById("f-stale").addEventListener("change", renderTable);
-  document.getElementById("f-preexisting").addEventListener("change", renderTable);
-  if (document.getElementById("f-new_unverified"))
-    document.getElementById("f-new_unverified").addEventListener("change", renderTable);
-  if (document.getElementById("f-sat_unsold"))
-    document.getElementById("f-sat_unsold").addEventListener("change", renderTable);
+  function render(slice, liveTagged, snapAt){
+    var pillEl = document.getElementById("event-pill");
+    var label = (city || evkey) + (state ? ", " + state : "");
+    if (label.trim()){ pillEl.textContent = label; pillEl.style.display = "inline-block"; }
 
-  // Click handler for ❌ dismiss buttons
-  document.addEventListener("click", async function(e){
-    const btn = e.target.closest(".btn-dismiss");
-    if (!btn) return;
-    const pid = Number(btn.dataset.pid);
-    if (!pid) return;
-    btn.disabled = true;
-    btn.textContent = "⏳";
-    const ok = await dismissPid(pid);
-    if (ok) {
-      DISMISSED_PIDS.add(pid);
-      renderTable();
-    } else {
-      btn.disabled = false;
-      btn.textContent = "❌ הורד";
-    }
-  });
+    var L = slice && slice.lists ? slice.lists : null;
 
-  // Lauren 2026-05-21 PM #9 — 🐢 SLOW button: adds the Slow category (id=21)
-  // to the product in OCTOPOS. Uses the same v2 endpoint pattern as the
-  // recount-tag remover. Lauren's intent is to manually flag products as
-  // slow-movers from the recount worklist (the @slow-movers agent's Phase 1
-  // will respect this manual tag when scoring).
-  const SLOW_CATEGORY_ID = 21;  // created in OCTOPOS 2026-05-21 PM #9
-  document.addEventListener("click", async function(e){
-    const btn = e.target.closest(".btn-slow");
-    if (!btn) return;
-    const pid = Number(btn.dataset.pid);
-    if (!pid) return;
-    const octoToken = (localStorage.getItem("lauren_octopos_token") || "").trim();
-    if (!octoToken) {
-      const t = prompt("הדביקי טוקן OCTOPOS פעיל (יישמר ב-localStorage):");
-      if (!t) return;
-      localStorage.setItem("lauren_octopos_token", t.trim());
-    }
-    const token = (localStorage.getItem("lauren_octopos_token") || "").trim();
-    btn.disabled = true;
-    btn.textContent = "⏳";
-    try {
-      // Read current categories, then PUT with SLOW added
-      const getR = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
-        headers: {"Authorization": token, "Accept": "application/json"}
-      });
-      if (!getR.ok) throw new Error("GET HTTP " + getR.status);
-      const prod = await getR.json();
-      const currentIds = (prod.categories || []).map(c => c.id);
-      if (currentIds.indexOf(SLOW_CATEGORY_ID) !== -1) {
-        btn.textContent = "✓ כבר SLOW";
-        btn.style.background = "#dcfce7";
-        btn.style.color = "#166534";
-        btn.style.borderColor = "#86efac";
+    // Pre-event / not-yet-run: no frozen lists. Synthesize a payload so LIST 1
+    // (currently-tagged products) still shows; lists 2/3/didn't-sell stay empty
+    // and render their "will fill at event end" placeholders.
+    if (!L){
+      liveTagged = liveTagged || [];
+      L = {
+        phase: "pre_event",
+        window: { start: (slice && slice.window && slice.window.start) || "", end: (slice && slice.window && slice.window.end) || "" },
+        _generated_at: snapAt || null,
+        counts: { to_count: liveTagged.length, counted: 0, tagged_not_counted: 0, counted_extra: 0, didnt_sell: 0 },
+        to_count: liveTagged.map(function(it){ return { pid: it.pid, name: it.name, sku: it.sku, supplier: it.supplier, stock: it.stock, counted: false }; }),
+        counted: [], tagged_not_counted: [], didnt_sell: []
+      };
+      if (!liveTagged.length){
+        document.getElementById("summary-content").innerHTML =
+          '<div class="empty-state"><div class="big">📭</div><p>אין כרגע מוצרים מתויגים RECOUNT.</p></div>';
+        document.getElementById("notsold-placeholder").style.display = "block";
+        document.getElementById("list2-placeholder").style.display = "block";
+        document.getElementById("list3-placeholder").style.display = "block";
         return;
       }
-      const newIds = currentIds.concat([SLOW_CATEGORY_ID]);
-      const putR = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
-        method: "PUT",
-        headers: {"Authorization": token, "Content-Type": "application/json", "Accept": "application/json"},
-        body: JSON.stringify({category_ids: newIds})
-      });
-      if (!putR.ok) {
-        const errText = await putR.text();
-        throw new Error("PUT HTTP " + putR.status + " — " + errText.slice(0, 150));
-      }
-      btn.textContent = "✓ סומן SLOW";
-      btn.style.background = "#dcfce7";
-      btn.style.color = "#166534";
-      btn.style.borderColor = "#86efac";
-    } catch (err) {
-      alert("שגיאה בסימון SLOW: " + err.message);
-      btn.disabled = false;
-      btn.textContent = "🐢 SLOW";
     }
-  });
 
-  // Lauren 2026-05-21 PM #12 — inline qty editing.
-  // On change (blur or Enter), PUT /api/v2/products/{id} with new in_stock_qty.
-  // Skips if unchanged. Coloured feedback on the input.
-  async function commitQtyChange(input){
-    const pid = Number(input.dataset.pid);
-    const orig = Number(input.dataset.orig);
-    const next = Number(input.value);
-    if (!pid || !Number.isFinite(next) || next === orig) return;
-    let octoToken = (localStorage.getItem("lauren_octopos_token") || "").trim();
-    if (!octoToken) {
-      const t = prompt("לשינוי כמות צריך טוקן OCTOPOS פעיל (יישמר ב-localStorage):");
-      if (!t) { input.value = orig; return; }
-      localStorage.setItem("lauren_octopos_token", t.trim());
-      octoToken = t.trim();
-    }
-    input.disabled = true;
-    input.style.borderColor = "#f59e0b";
-    input.style.background = "#fef3c7";
-    try {
-      const r = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
-        method: "PUT",
-        headers: {"Authorization": octoToken, "Content-Type": "application/json", "Accept": "application/json"},
-        body: JSON.stringify({in_stock_qty: next})
-      });
-      if (!r.ok) {
-        const txt = await r.text();
-        throw new Error("HTTP " + r.status + " — " + txt.slice(0, 120));
-      }
-      input.dataset.orig = String(next);
-      input.style.borderColor = "#16a34a";
-      input.style.background = "#dcfce7";
-      // Fade back to neutral after a moment so multiple edits stay visible
-      setTimeout(() => {
-        input.style.borderColor = "var(--line, #cbd5e1)";
-        input.style.background = "";
-      }, 1800);
-    } catch (err) {
-      alert("עדכון כמות נכשל לפריט " + pid + ": " + err.message);
-      input.value = orig;
-      input.style.borderColor = "#dc2626";
-      input.style.background = "#fee2e2";
-      setTimeout(() => {
-        input.style.borderColor = "var(--line, #cbd5e1)";
-        input.style.background = "";
-      }, 2500);
-    } finally {
-      input.disabled = false;
-    }
-  }
+    var c = L.counts || {};
+    var phase = L.phase || "pre_event";
+    var win = L.window || {};
+    var phaseTxt = phase === "post_event" ? "✅ האירוע הסתיים" :
+                   phase === "live" ? "🔴 האירוע בעיצומו" : "⏳ לפני האירוע";
 
-  document.addEventListener("change", function(e){
-    if (e.target && e.target.classList && e.target.classList.contains("inline-qty")) {
-      commitQtyChange(e.target);
-    }
-  });
-  document.addEventListener("keydown", function(e){
-    if (e.key === "Enter" && e.target && e.target.classList && e.target.classList.contains("inline-qty")) {
-      e.preventDefault();
-      e.target.blur();  // triggers change handler
-    }
-  });
+    // Summary
+    document.getElementById("summary-content").innerHTML =
+      '<p class="sub" style="margin:0 0 12px;color:var(--muted);">' +
+        phaseTxt + ' · חלון: ' + esc(win.start) + ' → ' + esc(win.end) +
+        (L._generated_at ? ' · עודכן: ' + esc(L._generated_at).replace("T"," ").replace("Z"," UTC") : '') +
+      '</p>' +
+      '<div class="grid3">' +
+        '<div class="stat"><div class="num final">' + (c.to_count || 0) + '</div><div class="lbl">🔢 לספירה (תג RECOUNT)</div></div>' +
+        '<div class="stat"><div class="num counted">' + (c.counted || 0) + '</div><div class="lbl">✅ נספרו באירוע</div></div>' +
+        '<div class="stat"><div class="num stale">' + (c.tagged_not_counted || 0) + '</div><div class="lbl">⚠️ תג אבל לא נספרו</div></div>' +
+      '</div>';
 
-  // Lauren 2026-05-21 PM #11 — dismiss does TWO things:
-  //   1. writes pid to events.<evkey>.lauren_dismissed_pids[] via GitHub Contents API
-  //   2. removes the 'Recount' category (id=14) from the product in OCTOPOS
-  //      so it doesn't get re-flagged on next agent run
-  const RECOUNT_CATEGORY_ID = 14;  // verified id from /api/v2/categories
+    // LIST 1 — to count
+    var l1 = L.to_count || [];
+    document.getElementById("list1-card").style.display = l1.length ? "block" : "block";
+    document.getElementById("list1-count").textContent = l1.length;
+    fillBody("list1-body", l1, [
+      { get: function(it){ return it.counted ? "✅ נספר" : "⬜ לא נספר"; } },
+      { get: function(it){ return num(it.sku); } },
+      { get: function(it){ return esc(it.name); } },
+      { get: function(it){ return esc(it.supplier); } },
+      { get: function(it){ return num(it.stock); }, cls: "qty-cell" }
+    ]);
 
-  async function removeRecountTagFromOctopos(pid){
-    let octoToken = (localStorage.getItem("lauren_octopos_token") || "").trim();
-    if (!octoToken) {
-      const t = prompt("להסרת תג RECOUNT צריך טוקן OCTOPOS — הדביקי כאן (יישמר ב-localStorage):");
-      if (!t) return {skipped: true};
-      localStorage.setItem("lauren_octopos_token", t.trim());
-      octoToken = t.trim();
+    // LIST 2 — counted
+    var l2 = L.counted || [];
+    document.getElementById("list2-card").style.display = "block";
+    document.getElementById("list2-count").textContent = l2.length;
+    if (!l2.length && phase !== "post_event"){
+      document.getElementById("list2-placeholder").style.display = "block";
     }
-    try {
-      // Read current categories
-      const getR = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
-        headers: {"Authorization": octoToken, "Accept": "application/json"}
-      });
-      if (!getR.ok) return {ok: false, msg: "GET HTTP " + getR.status};
-      const prod = await getR.json();
-      const cats = prod.categories || [];
-      const hasRecount = cats.some(c => Number(c.id) === RECOUNT_CATEGORY_ID);
-      if (!hasRecount) return {ok: true, no_change: true};
-      const newCatIds = cats.filter(c => Number(c.id) !== RECOUNT_CATEGORY_ID).map(c => c.id);
-      const putR = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
-        method: "PUT",
-        headers: {"Authorization": octoToken, "Content-Type": "application/json", "Accept": "application/json"},
-        body: JSON.stringify({category_ids: newCatIds})
-      });
-      if (!putR.ok) {
-        const errText = await putR.text();
-        return {ok: false, msg: "PUT HTTP " + putR.status + " — " + errText.slice(0, 120)};
-      }
-      return {ok: true};
-    } catch (err) {
-      return {ok: false, msg: err.message};
-    }
-  }
+    fillBody("list2-body", l2, [
+      { get: function(it){ return it.was_tagged ? "🏷️ מתוכנן" : "➕ נוסף"; } },
+      { get: function(it){ return num(it.sku); } },
+      { get: function(it){ return esc(it.name); } },
+      { get: function(it){ return esc(it.supplier); } },
+      { get: function(it){ return num(it.balance); }, cls: "qty-cell" },
+      { get: function(it){ return esc(it.last_counted_at) || "—"; } }
+    ]);
 
-  // Write the dismissed-pid to the state file via GitHub Contents API,
-  // AND remove the RECOUNT tag in OCTOPOS.
-  async function dismissPid(pid){
-    const token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
-    if (!token) {
-      alert("חסר GitHub token — הוסיפי אחד דרך 🔑 בכל הדשבורדים השנייים, ולחצי שוב.");
-      return false;
+    // LIST 3 — tagged not counted
+    var l3 = L.tagged_not_counted || [];
+    document.getElementById("list3-card").style.display = "block";
+    document.getElementById("list3-count").textContent = l3.length;
+    if (!l3.length && phase !== "post_event"){
+      document.getElementById("list3-placeholder").style.display = "block";
     }
-    const evkey = (new URLSearchParams(location.search)).get("evkey") || "";
-    if (!evkey) {
-      alert("לא מצאתי evkey ב-URL — לא יכולה לשמור.");
-      return false;
-    }
-    // Step 1: remove the Recount tag from OCTOPOS first (so it's gone even if GitHub fails)
-    const octResult = await removeRecountTagFromOctopos(pid);
-    if (octResult.skipped) {
-      // User declined to provide OCTOPOS token — abort
-      return false;
-    }
-    // Step 2: write to lauren_dismissed_pids in GitHub state
-    const FILE = "docs/state/octopos_recount.json";
-    const REPO = "laurenlev10/lauren-agent-hub-data";
-    try {
-      const getR = await fetch("https://api.github.com/repos/" + REPO + "/contents/" + FILE + "?ref=main", {
-        headers: {"Authorization":"token " + token, "Accept":"application/vnd.github+json"}
-      });
-      if (!getR.ok) { alert("שגיאת GET: HTTP " + getR.status); return false; }
-      const meta = await getR.json();
-      const sha = meta.sha;
-      const decoded = JSON.parse(atob(meta.content.replace(/\n/g, "")));
-      decoded.events = decoded.events || {};
-      decoded.events[evkey] = decoded.events[evkey] || {};
-      const arr = decoded.events[evkey].lauren_dismissed_pids || [];
-      if (arr.indexOf(pid) === -1) arr.push(pid);
-      decoded.events[evkey].lauren_dismissed_pids = arr;
-      decoded.events[evkey].lauren_dismissed_at = new Date().toISOString();
-      decoded._updated_at = new Date().toISOString();
-      const newContent = btoa(unescape(encodeURIComponent(JSON.stringify(decoded, null, 2))));
-      const putR = await fetch("https://api.github.com/repos/" + REPO + "/contents/" + FILE, {
-        method:"PUT",
-        headers: {"Authorization":"token " + token, "Accept":"application/vnd.github+json", "Content-Type":"application/json"},
-        body: JSON.stringify({
-          message: "@recount: dismiss pid=" + pid + " from " + evkey + " + remove Recount tag (Lauren manual)",
-          content: newContent, sha: sha, branch: "main"
-        })
-      });
-      if (!putR.ok) {
-        const errBody = await putR.text();
-        alert("שגיאת PUT (GitHub): HTTP " + putR.status + " — " + errBody.slice(0, 200));
-        return false;
-      }
-      if (octResult.ok === false) {
-        // GitHub succeeded but OCTOPOS failed — still considered partial success
-        alert("נשמר ב-GitHub אבל הסרת תג ב-OCTOPOS נכשלה: " + (octResult.msg||"") + " — חשוב להסיר ידנית");
-      }
-      return true;
-    } catch (err) {
-      alert("שגיאה: " + err.message);
-      return false;
-    }
-  }
+    fillBody("list3-body", l3, [
+      { get: function(it){ return num(it.sku); } },
+      { get: function(it){ return esc(it.name); } },
+      { get: function(it){ return esc(it.supplier); } },
+      { get: function(it){ return num(it.stock); }, cls: "qty-cell" }
+    ]);
 
-  // Copy handlers
-  function getVisibleWorklist() {
-    const wl = window._WORKLIST || [];
-    const fNeg = document.getElementById("f-neg").checked;
-    const fStale = document.getElementById("f-stale").checked;
-    const fPre = document.getElementById("f-preexisting").checked;
-    return wl.filter(p => {
-      if (p.reason === "negative") return fNeg;
-      if (p.reason === "stale") return fStale;
-      return fPre;
+    // TAB 2 — didn't sell
+    var ns = L.didnt_sell || [];
+    document.getElementById("notsold-count").textContent = ns.length;
+    document.getElementById("notsold-badge").textContent = ns.length ? "(" + ns.length + ")" : "";
+    if (!ns.length && phase !== "post_event"){
+      document.getElementById("notsold-placeholder").style.display = "block";
+    }
+    fillBody("notsold-body", ns, [
+      { get: function(it){ return num(it.sku); } },
+      { get: function(it){ return esc(it.name); } },
+      { get: function(it){ return esc(it.supplier); } },
+      { get: function(it){ return num(it.stock); }, cls: "qty-cell" }
+    ]);
+
+    // ── Button handlers (bound now that data exists) ──
+    document.getElementById("btn-sms-mgr").addEventListener("click", function(){
+      var head = "RECOUNT list — " + (label || evkey) + "\n" + l1.length + " products tagged for recount:\n";
+      var body = l1.map(function(it){
+        return "• " + (it.name || ("#" + it.pid)) + (it.sku ? " (" + it.sku + ")" : "") +
+               " — stock " + (it.stock == null ? "?" : it.stock) + (it.counted ? " ✅ counted" : "");
+      }).join("\n");
+      copyText(head + body);
     });
-  }
-  function showToast(msg) {
-    const t = document.getElementById("toast");
-    t.textContent = msg;
-    t.classList.add("show");
-    setTimeout(() => t.classList.remove("show"), 2000);
-  }
-  function copyToClipboard(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => showToast("הועתק ל-clipboard ✓")).catch(fallback);
-    } else { fallback(); }
-    function fallback() {
-      const ta = document.getElementById("copy-buffer");
-      ta.value = text;
-      ta.select();
-      try { document.execCommand("copy"); showToast("הועתק ל-clipboard ✓"); }
-      catch(e) { showToast("העתקה נכשלה — סמני ידנית"); }
+    function csvBtn(id, rows, headers){
+      document.getElementById(id).addEventListener("click", function(){ copyText(toCsv(rows, headers)); });
     }
-  }
-  document.getElementById("btn-copy-text").addEventListener("click", () => {
-    const list = getVisibleWorklist();
-    const lines = list.map((p,i) => {
-      const reasonLabel = p.reason === "negative" ? "[מינוס]" : p.reason === "stale" ? "[לא זז]" : "[קיים מקודם]";
-      return (i+1) + ". " + (p.sku || "?") + " · " + (p.name || "") + " · " + (p.supplier || "") + " · qty: " + (p.qty ?? "?") + " " + reasonLabel;
-    });
-    const header = "רשימת ספירה — " + (city || "Global") + (start_date ? " · " + start_date : "") + " (" + list.length + " מוצרים)";
-    copyToClipboard(header + "\n\n" + lines.join("\n"));
-  });
-  document.getElementById("btn-copy-csv").addEventListener("click", () => {
-    const list = getVisibleWorklist();
-    const header = "SKU,Name,Supplier,Qty,Sold_In_Window,Reason";
-    const rows = list.map(p => [p.sku||"", p.name||"", p.supplier||"", p.qty??"", p.sold_in_window??0, p.reason||""].map(v => {
-      const s = String(v).replace(/"/g, '""');
-      return /[",\n]/.test(s) ? '"' + s + '"' : s;
-    }).join(","));
-    copyToClipboard(header + "\n" + rows.join("\n"));
-  });
-  document.getElementById("btn-copy-sms").addEventListener("click", () => {
-    // Lauren 2026-05-22 PM — SMS to the event-day manager. English-only body per
-    // Lauren's directive (the manager reads English). Footer instructs to mark 0
-    // if a product isn't in the room.
-    const list = getVisibleWorklist();
-    const header = "Hey! please see the RECOUNT list for this weekend:";
-    const separator = "------------";
-    const lines = list.map((p, i) => {
-      const sku = p.sku || "(no SKU)";
-      const name = p.name || "";
-      return (i + 1) + ". " + sku + " — " + name;
-    });
-    const footer = "If a product is not found in the room at all, please mark it as 0. Thank you! 🙏\nGood luck this weekend!";
-    const body = header + "\n" + separator + "\n" + lines.join("\n") + "\n" + separator + "\n" + footer;
-    copyToClipboard(body);
-  });
-  document.getElementById("btn-print").addEventListener("click", () => window.print());
-  document.getElementById("btn-copy-cmd").addEventListener("click", () => copyToClipboard(runCmd));
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    csvBtn("btn-csv1", l1.map(function(it){ return [it.sku, it.name, it.supplier, it.stock, it.counted ? "counted" : "not counted"]; }), ["SKU","Name","Supplier","Stock","Status"]);
+    csvBtn("btn-csv2", l2.map(function(it){ return [it.sku, it.name, it.supplier, it.balance, it.last_counted_at, it.was_tagged ? "planned" : "extra"]; }), ["SKU","Name","Supplier","Balance","CountedAt","Source"]);
+    csvBtn("btn-csv3", l3.map(function(it){ return [it.sku, it.name, it.supplier, it.stock]; }), ["SKU","Name","Supplier","Stock"]);
+    csvBtn("btn-csv-ns", ns.map(function(it){ return [it.sku, it.name, it.supplier, it.stock]; }), ["SKU","Name","Supplier","Stock"]);
+    document.getElementById("btn-print").addEventListener("click", function(){ window.print(); });
   }
 
-
-  // ── @slow-movers tab — added 2026-05-17 PM ────────────────────────────
-  var SLOW_STATE = null;
-
-  function showTab(name){
-    document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
-    document.querySelectorAll(".tab-pane").forEach(p => p.classList.toggle("hidden", p.id !== "tab-" + name));
-    try { history.replaceState(null, "", "?" + (function(){
-      var u = new URLSearchParams(location.search); u.set("tab", name); return u.toString();
-    })()); } catch(e){}
-  }
-  document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
-  if ((params.get("tab") || "recount") === "slow") showTab("slow");
-
-  function loadSlowMovers(){
-    fetch("../state/slow_movers.json?_=" + Date.now(), { cache: "no-store" })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(s => { SLOW_STATE = s; renderSlow(); })
-      .catch(() => { SLOW_STATE = {products:{}, weekly_runs:[]}; renderSlow(); });
-  }
-  loadSlowMovers();
-
-  function renderSlow(){
-    var s = SLOW_STATE || {};
-    var prods = Object.values(s.products || {});
-    // Update tab badge
-    var nFlagged = prods.filter(p => p.score_band === "slow" || p.score_band === "discontinuing").length;
-    document.getElementById("slow-count-badge").textContent = nFlagged ? "(" + nFlagged + ")" : "";
-
-    // Summary line
-    var lastRun = (s.weekly_runs || []).slice(-1)[0];
-    var sumEl = document.getElementById("slow-summary");
-    if (!lastRun || !prods.length) {
-      sumEl.textContent = "עוד אין נתונים. הסוכן ירוץ ביום ראשון הקרוב בלילה.";
-      document.getElementById("slow-empty-card").style.display = "";
-      document.getElementById("slow-list-card").style.display = "none";
-      return;
-    }
-    sumEl.innerHTML = "ריצה אחרונה: <b>" + lastRun.week + "</b> · " +
-      "🆕 " + (lastRun.n_new||0) + " · 💚 " + (lastRun.n_healthy||0) + " · 👀 " + (lastRun.n_watch||0) +
-      " · 🐢 " + (lastRun.n_slow||0) + " · 🪦 " + (lastRun.n_discontinuing||0);
-
-    document.getElementById("slow-empty-card").style.display = "none";
-    document.getElementById("slow-list-card").style.display = "";
-
-    // Counts
-    var byBand = {new:0, healthy:0, watch:0, slow:0, discontinuing:0};
-    prods.forEach(p => {
-      var b = (p.is_new || p.score_band === "new") ? "new" : p.score_band;
-      if (byBand[b] !== undefined) byBand[b]++;
-    });
-    document.getElementById("cnt-new").textContent = byBand.new;
-    document.getElementById("cnt-healthy").textContent = byBand.healthy;
-    document.getElementById("cnt-watch").textContent = byBand.watch;
-    document.getElementById("cnt-slow").textContent = byBand.slow;
-    document.getElementById("cnt-discontinuing").textContent = byBand.discontinuing;
-
-    // Supplier dropdown
-    var suppliers = Array.from(new Set(prods.map(p => p.supplier).filter(Boolean))).sort();
-    var sup = document.getElementById("sf-supplier");
-    if (sup.options.length <= 1) {
-      suppliers.forEach(name => {
-        var o = document.createElement("option"); o.value = name; o.textContent = name; sup.appendChild(o);
+  // ── Compute the LIVE "RECOUNT-tagged" set from the public daily snapshot.
+  // List 1 must show even BEFORE the event runs (Lauren spec). Tags are global in
+  // OCTOPOS, so the current tagged set IS "products to count" for any upcoming event.
+  function liveTaggedFromSnapshot(snap){
+    var out = [];
+    if (!snap || !snap.vendors) return out;
+    Object.keys(snap.vendors).forEach(function(code){
+      var vd = snap.vendors[code] || {};
+      var supplier = vd.display_name || vd.name || code;
+      (vd.products || []).forEach(function(p){
+        var cats = (p.categories || []).map(function(c){ return (c.name || "").trim().toLowerCase(); });
+        if (cats.indexOf("recount") === -1) return;
+        out.push({ pid: p.id, name: p.name || ("#" + p.id), sku: p.sku || "",
+                   supplier: supplier, stock: (p.in_stock_qty == null ? null : Number(p.in_stock_qty)) });
       });
-    }
-    renderSlowTable();
-  }
-
-  function renderSlowTable(){
-    var prods = Object.values((SLOW_STATE || {}).products || {});
-    var fN = document.getElementById("sf-new").checked;
-    var fH = document.getElementById("sf-healthy").checked;
-    var fW = document.getElementById("sf-watch").checked;
-    var fS = document.getElementById("sf-slow").checked;
-    var fD = document.getElementById("sf-discontinuing").checked;
-    var supplier = document.getElementById("sf-supplier").value;
-    var decision = document.getElementById("sf-decision").value;
-
-    var rows = prods.filter(p => {
-      var b = (p.is_new || p.score_band === "new") ? "new" : p.score_band;
-      if (b === "new" && !fN) return false;
-      if (b === "healthy" && !fH) return false;
-      if (b === "watch" && !fW) return false;
-      if (b === "slow" && !fS) return false;
-      if (b === "discontinuing" && !fD) return false;
-      if (supplier && p.supplier !== supplier) return false;
-      if (decision) {
-        if (decision === "undecided" && p.lauren_decision) return false;
-        if (decision !== "undecided" && p.lauren_decision !== decision) return false;
-      }
-      return true;
     });
+    out.sort(function(a,b){ return (a.pid||0) - (b.pid||0); });
+    return out;
+  }
 
-    var rank = {discontinuing:0, slow:1, watch:2, healthy:3, "new":4};
-    rows.sort((a,b) => (rank[a.score_band]||9) - (rank[b.score_band]||9) || (a.score||0) - (b.score||0));
-
-    var tbody = document.getElementById("slow-body");
-    tbody.innerHTML = "";
-    rows.forEach(p => {
-      var tr = document.createElement("tr");
-      var effectiveBand = (p.is_new || p.score_band === "new") ? "new" : p.score_band;
-      var bandLabel = ({new:"🆕 חדש", healthy:"💚 בריא", watch:"👀 לעקוב", slow:"🐢 איטי", discontinuing:"🪦 לסגירה"})[effectiveBand] || effectiveBand;
-      var reasons = (p.reason_codes || []).join(", ") || (effectiveBand === "new" ? "אוסף נתונים (פחות מ-4 שבועות)" : "—");
-      var dec = p.lauren_decision || "";
-      tr.innerHTML =
-        '<td>' + escapeHtml(p.sku || "") + '</td>' +
-        '<td>' + escapeHtml(p.name || "") + '</td>' +
-        '<td>' + escapeHtml(p.supplier || "—") + '</td>' +
-        '<td class="qty-cell">' + (p.history && p.history.length ? p.history[p.history.length-1].in_stock : "—") + '</td>' +
-        '<td class="qty-cell">' + (p.avg_sold_per_event_week_4w !== undefined ? p.avg_sold_per_event_week_4w.toFixed(1) : "—") + '</td>' +
-        '<td class="qty-cell">' + (p.avg_sold_per_event_week_alltime !== undefined ? p.avg_sold_per_event_week_alltime.toFixed(1) : "—") + '</td>' +
-        '<td class="qty-cell">' + renderWeeksDeadCell(p) + '</td>' +
-        '<td style="text-align:center">' + renderEventSignalCell(p) + '</td>' +
-        '<td class="qty-cell" style="font-weight:700">' + renderMultiplierCell(p) + '</td>' +
-        '<td class="qty-cell">' + (p.current_threshold ?? "—") + (p.lauren_threshold_locked ? ' <span title="נעול לעדכון אוטומטי">🔒</span>' : '') + '</td>' +
-        '<td class="qty-cell">' + renderSuggestedThresholdCell(p) + '</td>' +
-        '<td><span class="band-pill ' + effectiveBand + '">' + bandLabel + '</span></td>' +
-        '<td>' + (p.score ?? "—") + '<span class="score-bar"><span style="width:' + (p.score||0) + '%"></span></span></td>' +
-        '<td>' + (p.weeks_in_band ?? "—") + '</td>' +
-        '<td style="font-size:11px;">' + escapeHtml(reasons) + '</td>' +
-        '<td><select class="decision-select" data-pid="' + p.id + '" data-decision-for>' +
-          '<option value=""' + (dec === "" ? " selected" : "") + '>—</option>' +
-          '<option value="keep"' + (dec === "keep" ? " selected" : "") + '>להמשיך</option>' +
-          '<option value="discontinue"' + (dec === "discontinue" ? " selected" : "") + '>לסגור</option>' +
-          '<option value="promote"' + (dec === "promote" ? " selected" : "") + '>לקדם</option>' +
-        '</select></td>';
-      tbody.appendChild(tr);
+  // ── Load state ── (both files in parallel; snapshot is best-effort)
+  Promise.all([
+    fetch("../state/octopos_recount.json?_=" + Date.now(), { cache: "no-store" })
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(new Error("recount HTTP " + r.status)); }),
+    fetch("../state/octopos_products.json?_=" + Date.now(), { cache: "no-store" })
+      .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+  ]).then(function(res){
+      var data = res[0], snap = res[1];
+      var slice = (evkey && data && data.events) ? data.events[evkey] : null;
+      var liveTagged = liveTaggedFromSnapshot(snap);
+      render(slice, liveTagged, snap && snap._updated_at);
+      var initTab = params.get("tab");
+      if (initTab === "notsold") showTab("notsold");
+    })
+    .catch(function(err){
+      document.getElementById("summary-content").innerHTML =
+        '<div class="empty-state"><div class="big">⚠️</div><p>טעינת הנתונים נכשלה: ' + esc(err.message) + '</p></div>';
     });
-  }
-
-  document.getElementById("sf-new").addEventListener("change", renderSlowTable);
-  document.getElementById("sf-discontinuing").addEventListener("change", renderSlowTable);
-  document.getElementById("sf-slow").addEventListener("change", renderSlowTable);
-  document.getElementById("sf-watch").addEventListener("change", renderSlowTable);
-  document.getElementById("sf-healthy").addEventListener("change", renderSlowTable);
-  document.getElementById("sf-supplier").addEventListener("change", renderSlowTable);
-  document.getElementById("sf-decision").addEventListener("change", renderSlowTable);
-
-
-
-  function renderEventSignalCell(p){
-    var sig = p.last_event_signal;
-    if (!sig || sig === "no_history") return '<span style="color:var(--muted);font-size:11px">—</span>';
-    var map = {
-      "stockout_friday":   {emoji:"🔴", label:"נגמר שישי",  color:"#991b1b", bg:"#fee2e2"},
-      "stockout_saturday": {emoji:"🟠", label:"נגמר שבת",   color:"#9a3412", bg:"#fed7aa"},
-      "overstock_heavy":   {emoji:"⚫", label:"יתרה כבדה",   color:"#fff",    bg:"#1f2937"},
-      "overstock_light":   {emoji:"🟡", label:"יתרה קלה",    color:"#854d0e", bg:"#fef3c7"},
-      "normal":            {emoji:"🟢", label:"רגיל",         color:"#166534", bg:"#dcfce7"},
-      "low_base":          {emoji:"📊", label:"בסיס דק",     color:"#4b5563", bg:"#f3f4f6"},
-      "new_product":       {emoji:"🆕", label:"חדש",          color:"#1e40af", bg:"#dbeafe"},
-      "data_issue":        {emoji:"⚠️", label:"בעיית נתונים", color:"#991b1b", bg:"#fee2e2"}
-    };
-    var s = map[sig] || {emoji:"❓", label:sig, color:"#444", bg:"#f3f4f6"};
-    return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:'+s.bg+';color:'+s.color+'">'+s.emoji+' '+s.label+'</span>';
-  }
-
-  function renderMultiplierCell(p){
-    var m = p.suggested_qty_multiplier;
-    if (m === undefined || m === null || m === 1.0) return '<span style="color:var(--muted)">1.0×</span>';
-    var color = m > 1.0 ? "#16a34a" : "#dc2626";
-    return '<span style="color:'+color+'">' + m.toFixed(2) + '×</span>';
-  }
-
-  function renderWeeksDeadCell(p){
-    if (p.is_new || p.score_band === "new") return "—";
-    var n = p.event_weeks_without_movement;
-    if (n === undefined || n === null) return "—";
-    if (n === 0) return '<span style="color:#16a34a;font-weight:700;">' + n + '</span>';
-    if (n <= 2) return '<span style="color:#854d0e;font-weight:700;">' + n + '</span>';
-    if (n <= 5) return '<span style="color:#9a3412;font-weight:700;">' + n + '</span>';
-    return '<span style="color:#991b1b;font-weight:700;">' + n + ' 🔥</span>';
-  }
-
-  function renderSuggestedThresholdCell(p){
-    if (p.is_new || p.score_band === "new") {
-      return '<span style="color:#1e40af;font-size:11px;">🆕 חדש</span>';
-    }
-    if (p.event_weeks_seen !== undefined && p.event_weeks_seen < 4) {
-      return '<span style="color:var(--muted);font-size:11px;">אוסף נתונים…</span>';
-    }
-    var sugg = p.suggested_threshold;
-    var curr = p.current_threshold;
-    var placeholder = (sugg !== undefined && sugg !== null) ? sugg : (curr ?? "");
-    var dir = "";
-    if (sugg !== undefined && sugg !== null && curr !== undefined && curr !== null && sugg !== curr) {
-      var arrow = sugg > curr ? '↑' : '↓';
-      var color = sugg > curr ? '#16a34a' : '#dc2626';
-      dir = '<span style="color:' + color + ';font-size:11px;font-weight:700;">' + arrow + sugg + '</span> ';
-    } else if (sugg !== undefined && sugg !== null && (curr === undefined || curr === null || curr === 0)) {
-      dir = '<span style="color:#1e40af;font-size:11px;">' + sugg + ' (חסר ב-OCTOPOS)</span> ';
-    }
-    var appliedBadge = p._threshold_applied_at ? '<span style="color:#16a34a;font-size:10px;">✓ ' + p._threshold_applied_at.slice(0,10) + '</span>' : '';
-    return '<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">' +
-      dir +
-      '<input type="number" step="1" min="0" class="thresh-new-val" data-pid="' + p.id + '" placeholder="' + placeholder + '" value="" style="width:55px;padding:3px 5px;font-size:12px;border:1px solid var(--line);border-radius:6px;">' +
-      '<button class="btn-apply-thresh decision-select" data-pid="' + p.id + '" data-current-thr="' + (curr || 0) + '" data-suggested-thr="' + (sugg || 0) + '" style="background:#7c3aed;color:#fff;border:0;cursor:pointer;font-size:11px;padding:4px 8px;">עדכן THR</button>' +
-      appliedBadge +
-    '</div>';
-  }
-
-  // Manual THRESHOLD-apply handler — Lauren 2026-05-17 PM late: only on explicit click.
-  // 'תן לי אפשרות ללחוץ על כפתור עדכן THRESHOULD ... רק כלחיצה יזומה שלי'.
-  document.getElementById("slow-body").addEventListener("click", async function(e){
-    if (!e.target.matches(".btn-apply-thresh")) return;
-    var btn = e.target;
-    var pid = btn.dataset.pid;
-    var currentThr = parseFloat(btn.dataset.currentThr) || 0;
-    var suggestedThr = parseFloat(btn.dataset.suggestedThr) || 0;
-    var row = btn.closest("tr");
-    var inp = row.querySelector(".thresh-new-val");
-    var typed = inp.value.trim();
-    var newThr;
-    if (typed === "") {
-      newThr = suggestedThr;
-      if (!newThr) { showToast("⚠️ אין המלצה כרגע, הקלידי מספר"); return; }
-    } else {
-      newThr = parseFloat(typed);
-      if (isNaN(newThr) || newThr < 0) { showToast("⚠️ מספר לא חוקי"); return; }
-    }
-    var pname = (SLOW_STATE.products[pid] || {}).name || "מוצר";
-    if (Math.abs(newThr - currentThr) < 0.5) { showToast("⚠️ הסף זהה לנוכחי"); return; }
-    if (!confirm("לעדכן threshold של\n" + pname + "\nמ-" + currentThr + " ל-" + newThr + " ב-OCTOPOS?")) return;
-
-    var octToken = (localStorage.getItem("lauren_octopos_token") || "").trim();
-    if (!octToken) { showToast("⚠️ צריך OCTOPOS token — היכנסי לדשבורד המלאי תחילה"); return; }
-    btn.disabled = true;
-    btn.textContent = "...מעדכן";
-    try{
-      var r = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
-        method: "PUT",
-        headers: {"Authorization": octToken, "Content-Type":"application/json", "Accept":"application/json"},
-        body: JSON.stringify({"threshold_qty": newThr})
-      });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      showToast("✓ Threshold עודכן ב-OCTOPOS: " + newThr);
-      // Persist override so the inventory dashboard sees the new value before daily octopos_sync
-      try {
-        var ghT2 = (localStorage.getItem('lauren_gh_token_v1') || '').trim();
-        if (ghT2) {
-          var oeU = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/octopos_pending_edits.json";
-          fetch(oeU + "?ref=main", {headers:{Authorization:"token "+ghT2, Accept:"application/vnd.github+json"}})
-            .then(function(rr){return rr.json();}).then(function(info){
-              var co = info.content ? JSON.parse(atob(info.content.replace(/\n/g,""))) : {overrides:{}};
-              co.overrides = co.overrides || {};
-              co.overrides[String(pid)] = Object.assign({}, co.overrides[String(pid)] || {}, {threshold: newThr, edited_at: new Date().toISOString()});
-              co._updated_at = new Date().toISOString();
-              var nC = JSON.stringify(co, null, 2);
-              fetch(oeU, {method:"PUT",
-                headers:{Authorization:"token "+ghT2, Accept:"application/vnd.github+json", "Content-Type":"application/json"},
-                body: JSON.stringify({message:"octopos pending edit: pid="+pid+" threshold="+newThr,
-                  content: btoa(unescape(encodeURIComponent(nC))), branch:"main", sha: info.sha})});
-            });
-        }
-      } catch(_){}
-      var ghToken = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
-      if (ghToken && SLOW_STATE.products[pid]) {
-        var rec = SLOW_STATE.products[pid];
-        rec.current_threshold = newThr;
-        rec._threshold_applied_at = new Date().toISOString();
-        rec.threshold_history = (rec.threshold_history || []).concat([{
-          week: "manual-" + new Date().toISOString().slice(0,10),
-          from: currentThr, to: newThr,
-          reason: typed === "" ? "Lauren accepted suggested" : "Lauren typed custom value",
-          applied_by: "lauren-manual-via-dashboard",
-          applied_at: new Date().toISOString()
-        }]);
-        SLOW_STATE._updated_at = new Date().toISOString();
-        var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/slow_movers.json";
-        var info = await fetch(url + "?ref=main", {headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json"}}).then(r=>r.json());
-        var content = JSON.stringify(SLOW_STATE, null, 2);
-        await fetch(url, {method:"PUT",
-          headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json", "Content-Type":"application/json"},
-          body: JSON.stringify({message:"@slow-movers: lauren applied threshold["+pid+"] "+currentThr+"→"+newThr,
-                                content: btoa(unescape(encodeURIComponent(content))), branch:"main", sha: info.sha})});
-      }
-      btn.textContent = "✓ עודכן";
-      btn.style.background = "#86efac";
-      btn.style.color = "#14532d";
-      inp.value = "";
-    } catch(err){
-      showToast("⚠️ נכשל: " + err.message);
-      btn.disabled = false;
-      btn.textContent = "עדכן THR";
-    }
-  });
-
-  // Decision change handler — writes back to docs/state/slow_movers.json via GitHub Contents API.
-  // PAT pattern follows IRON RULE #7 (localStorage.lauren_gh_token_v1).
-  document.getElementById("slow-body").addEventListener("change", function(e){
-    if (!e.target.matches("[data-decision-for]")) return;
-    var pid = e.target.dataset.pid;
-    var value = e.target.value || null;
-    var token = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
-    if (!token) { showToast("⚠️ צריך GitHub token כדי לסנכרן"); return; }
-
-    if (!SLOW_STATE.products[pid]) return;
-    SLOW_STATE.products[pid].lauren_decision = value;
-    SLOW_STATE.products[pid].lauren_decided_at = new Date().toISOString();
-    SLOW_STATE._updated_at = new Date().toISOString();
-
-    var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/slow_movers.json";
-    fetch(url + "?ref=main", {headers:{Authorization:"token "+token, Accept:"application/vnd.github+json"}})
-      .then(r => r.json()).then(info => {
-        var sha = info.sha;
-        var content = JSON.stringify(SLOW_STATE, null, 2);
-        var body = {message: "@slow-movers: lauren_decision[" + pid + "]=" + (value||"null"), content: btoa(unescape(encodeURIComponent(content))), branch:"main", sha: sha};
-        return fetch(url, {method:"PUT", headers:{Authorization:"token "+token, Accept:"application/vnd.github+json", "Content-Type":"application/json"}, body: JSON.stringify(body)});
-      })
-      .then(r => { showToast(r.ok ? "✓ נשמר ב-GitHub" : "⚠️ שמירה נכשלה"); })
-      .catch(() => showToast("⚠️ שמירה נכשלה"));
-  });
-
-
-
-  // ── 💰 @profit-pulse tab — added 2026-05-17 PM ─────────────────────────
-  var PROFIT_STATE = null;
-
-  function loadProfitState(){
-    fetch("../state/profit_pulse.json?_=" + Date.now(), { cache: "no-store" })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(s => { PROFIT_STATE = s; renderProfit(); })
-      .catch(() => { PROFIT_STATE = {products:{}, biweekly_runs:[]}; renderProfit(); });
-  }
-  loadProfitState();
-  if ((params.get("tab") || "recount") === "profit") showTab("profit");
-
-  function renderProfit(){
-    var s = PROFIT_STATE || {};
-    var prods = Object.values(s.products || {});
-
-    var lastRun = (s.biweekly_runs || []).slice(-1)[0];
-    var sumEl = document.getElementById("profit-summary");
-    var nFlagged = prods.filter(p => p.profit_band === "low" || p.profit_band === "critical" || p.profit_band === "loss").length;
-    document.getElementById("profit-count-badge").textContent = nFlagged ? "(" + nFlagged + ")" : "";
-
-    if (!lastRun || !prods.length) {
-      sumEl.textContent = "עוד אין נתונים. הסוכן ירוץ ביום ראשון הקרוב (22:00 PT).";
-      document.getElementById("profit-empty-card").style.display = "";
-      document.getElementById("profit-list-card").style.display = "none";
-      return;
-    }
-
-    sumEl.innerHTML = "ריצה אחרונה: <b>" + lastRun.iso_biweek + "</b> · " +
-      "🟢 " + (lastRun.n_strong||0) + " · 🟡 " + (lastRun.n_ok||0) +
-      " · 🟠 " + (lastRun.n_low||0) + " · 🔴 " + (lastRun.n_critical||0) +
-      (lastRun.n_data_issue ? " · 🚨 " + lastRun.n_data_issue : "");
-
-    document.getElementById("profit-empty-card").style.display = "none";
-    document.getElementById("profit-list-card").style.display = "";
-
-    var byBand = {strong:0, ok:0, low:0, critical:0, loss:0};
-    var nDismissed = 0;
-    prods.forEach(p => {
-      if (p.lauren_decision === "keep_price") { nDismissed++; return; }
-      if (byBand[p.profit_band] !== undefined) byBand[p.profit_band]++;
-    });
-    document.getElementById("pcnt-strong").textContent = byBand.strong;
-    document.getElementById("pcnt-ok").textContent = byBand.ok;
-    document.getElementById("pcnt-low").textContent = byBand.low;
-    document.getElementById("pcnt-critical").textContent = byBand.critical;
-    document.getElementById("pcnt-loss").textContent = byBand.loss;
-    document.getElementById("pcnt-dismissed").textContent = nDismissed;
-
-    var suppliers = Array.from(new Set(prods.map(p => p.supplier).filter(Boolean))).sort();
-    var sup = document.getElementById("pf-supplier");
-    if (sup.options.length <= 1) {
-      suppliers.forEach(name => { var o = document.createElement("option"); o.value = name; o.textContent = name; sup.appendChild(o); });
-    }
-    renderProfitTable();
-  }
-
-  function renderProfitTable(){
-    var prods = Object.values((PROFIT_STATE || {}).products || {});
-    var fStrong = document.getElementById("pf-strong").checked;
-    var fOk = document.getElementById("pf-ok").checked;
-    var fLow = document.getElementById("pf-low").checked;
-    var fCrit = document.getElementById("pf-critical").checked;
-    var fLoss = document.getElementById("pf-loss").checked;
-    var fDismissed = document.getElementById("pf-dismissed").checked;
-    var supplier = document.getElementById("pf-supplier").value;
-
-    var rows = prods.filter(p => {
-      var dismissed = p.lauren_decision === "keep_price";
-      // pf-dismissed view: show ONLY dismissed rows; band filters ignored.
-      if (fDismissed) return dismissed && (!supplier || p.supplier === supplier);
-      // Default view: hide dismissed rows entirely.
-      if (dismissed) return false;
-      var b = p.profit_band;
-      if (b === "strong" && !fStrong) return false;
-      if (b === "ok" && !fOk) return false;
-      if (b === "low" && !fLow) return false;
-      if (b === "critical" && !fCrit) return false;
-      if (b === "loss" && !fLoss) return false;
-      if (supplier && p.supplier !== supplier) return false;
-      return true;
-    });
-
-    var rank = {loss:0, critical:1, low:2, ok:3, strong:4};
-    rows.sort((a,b) => (rank[a.profit_band]||9) - (rank[b.profit_band]||9) || (a.markup||0) - (b.markup||0));
-
-    var tbody = document.getElementById("profit-body");
-    tbody.innerHTML = "";
-    rows.forEach(p => {
-      var tr = document.createElement("tr");
-      var bandLabel = ({strong:"🟢 חזק", ok:"🟡 בסדר", low:"🟠 נמוך", critical:"🔴 קריטי", loss:"⚫ הפסד"})[p.profit_band] || p.profit_band;
-      var sugg = p.suggested_price;
-      var showSugg = (sugg && sugg !== p.sale_price) ? '<span class="suggested-price-cell">$' + sugg + '</span>' : '<span class="price-noop">—</span>';
-      var dec = p.lauren_decision || "";
-      tr.innerHTML =
-        '<td>' + escapeHtml(p.sku || "") + '</td>' +
-        '<td>' + escapeHtml(p.name || "") + '</td>' +
-        '<td>' + escapeHtml(p.supplier || "—") + '</td>' +
-        
-        '<td class="qty-cell" style="white-space:nowrap;">' +
-          '<input type="number" step="0.01" min="0" class="profit-new-cost" data-pid="' + p.id + '" data-current-cost="' + (p.unit_cost || 0) + '" placeholder="' + (p.unit_cost !== undefined ? p.unit_cost.toFixed(2) : "") + '" style="width:60px;padding:3px 5px;font-size:11px;border:1px solid var(--line);border-radius:4px;">' +
-          '<button class="btn-apply-cost" data-pid="' + p.id + '" title="עדכן עלות ב-OCTOPOS" style="background:#0ea5e9;color:#fff;border:0;cursor:pointer;font-size:10px;padding:3px 7px;border-radius:4px;margin-right:3px;">💾</button>' +
-        '</td>' +
-        '<td class="qty-cell">$' + (p.sale_price !== undefined ? p.sale_price.toFixed(2) : "—") + '</td>' +
-        '<td class="markup-cell">' + (p.markup !== undefined ? p.markup.toFixed(2) + "x" : "—") + '</td>' +
-        '<td class="qty-cell">' + (p.margin_pct !== undefined ? p.margin_pct.toFixed(0) + "%" : "—") + '</td>' +
-        '<td><span class="band-pill ' + p.profit_band + '">' + bandLabel + '</span></td>' +
-        '<td>' + showSugg + '</td>' +
-        '<td style="white-space:nowrap;">' +
-          '<input type="number" step="0.01" min="0" class="profit-new-price" data-pid="' + p.id + '" placeholder="' + (sugg || p.sale_price || "") + '" value="' + (p._lauren_new_price ?? "") + '" style="width:70px;padding:4px 6px;font-size:12px;border:1px solid var(--line);border-radius:6px;">' +
-          '<button class="btn-apply-price decision-select" data-pid="' + p.id + '" data-current-price="' + (p.sale_price || 0) + '" style="background:#16a34a;color:#fff;border:0;cursor:pointer;font-size:11px;padding:5px 10px;margin-right:4px;">✓ עדכן OCTOPOS</button>' +
-          (p._applied_at_octopos ? '<span style="color:#16a34a;font-size:11px;display:block;margin-top:3px;">✓ עודכן ' + p._applied_at_octopos.slice(0,10) + '</span>' : '') +
-        '</td>' +
-        '<td style="white-space:nowrap;">' +
-          (dec === "keep_price"
-            ? '<button class="btn-restore-row" data-pid="' + p.id + '" style="background:#fff;color:#475569;border:1px solid #cbd5e1;cursor:pointer;font-size:11px;padding:5px 10px;border-radius:6px;" title="להחזיר לרשימה הפעילה">↩ החזר</button>'
-            : '<button class="btn-dismiss-row" data-pid="' + p.id + '" style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;cursor:pointer;font-size:11px;padding:5px 10px;border-radius:6px;" title="המוצר בסדר כפי שהוא — הסר מהרשימה">👍 בסדר</button>'
-          ) +
-        '</td>';
-      tbody.appendChild(tr);
-    });
-  }
-
-  document.getElementById("pf-strong").addEventListener("change", renderProfitTable);
-  document.getElementById("pf-ok").addEventListener("change", renderProfitTable);
-  document.getElementById("pf-low").addEventListener("change", renderProfitTable);
-  document.getElementById("pf-critical").addEventListener("change", renderProfitTable);
-  document.getElementById("pf-loss").addEventListener("change", renderProfitTable);
-  document.getElementById("pf-dismissed").addEventListener("change", renderProfitTable);
-  document.getElementById("pf-supplier").addEventListener("change", renderProfitTable);
-
-  // Serialize concurrent saves — chain each one off the previous so rapid clicks don't race
-  // on the GitHub SHA. Each save in the queue does its own GET-SHA+PUT with the latest content.
-  var _ppSaveTail = Promise.resolve(true);
-  function queueSaveProfitStateToGitHub(commitMsg){
-    var next = _ppSaveTail
-      .catch(function(){ return true; })   // never let a prior failure block the next save
-      .then(function(){ return saveProfitStateToGitHub(commitMsg); });
-    _ppSaveTail = next.catch(function(){ return true; });
-    return next;
-  }
-
-  // Shared helper: save full PROFIT_STATE back to GitHub Contents API (IRON RULE #7).
-  // Returns true on success. On failure, logs full details to console + shows a specific toast.
-  // Handles SHA-conflict by retrying once with fresh SHA (race-safe within a single call).
-  // For concurrent clicks, call queueSaveProfitStateToGitHub() — that serializes saves end-to-end.
-  async function saveProfitStateToGitHub(commitMsg){
-    var ghToken = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
-    if (!ghToken) { showToast("⚠️ צריך GitHub token — היכנסי לדשבורד המלאי תחילה"); return false; }
-    PROFIT_STATE._updated_at = new Date().toISOString();
-    var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/profit_pulse.json";
-    var content;
-    try {
-      content = JSON.stringify(PROFIT_STATE, null, 2);
-    } catch(e) {
-      console.error("[profit-save] JSON.stringify failed:", e);
-      showToast("⚠️ JSON serialize failed: " + e.message);
-      return false;
-    }
-    // UTF-8-safe base64 — Hebrew product names survive
-    var b64;
-    try {
-      b64 = btoa(unescape(encodeURIComponent(content)));
-    } catch(e) {
-      console.error("[profit-save] btoa failed:", e);
-      showToast("⚠️ base64 encode failed: " + e.message);
-      return false;
-    }
-    for (var attempt = 1; attempt <= 2; attempt++) {
-      try {
-        // 1) GET current SHA (must be fresh — main may have advanced since page load)
-        var infoResp = await fetch(url + "?ref=main", {
-          headers: {Authorization: "token "+ghToken, Accept: "application/vnd.github+json"}
-        });
-        if (!infoResp.ok) {
-          var infoBody = await infoResp.text();
-          console.error("[profit-save] GET SHA failed", infoResp.status, infoBody);
-          if (infoResp.status === 401) { showToast("⚠️ GitHub token פג תוקף — צריך לחדש"); return false; }
-          if (infoResp.status === 403) { showToast("⚠️ GitHub rate limit / אין הרשאה"); return false; }
-          if (infoResp.status === 404) { showToast("⚠️ profit_pulse.json לא נמצא ב-repo"); return false; }
-          showToast("⚠️ GET SHA נכשל: HTTP " + infoResp.status);
-          return false;
-        }
-        var info = await infoResp.json();
-        if (!info || !info.sha) {
-          console.error("[profit-save] no sha in GET response", info);
-          showToast("⚠️ SHA חסר בתגובת GitHub");
-          return false;
-        }
-
-        // 2) PUT with current SHA
-        var putResp = await fetch(url, {
-          method: "PUT",
-          headers: {Authorization: "token "+ghToken, Accept: "application/vnd.github+json", "Content-Type": "application/json"},
-          body: JSON.stringify({message: commitMsg, content: b64, branch: "main", sha: info.sha})
-        });
-        if (putResp.ok) return true;
-
-        var putBody = await putResp.text();
-        console.error("[profit-save] PUT failed (attempt " + attempt + ")", putResp.status, putBody);
-
-        // 409/422 typically means SHA conflict — someone else pushed. Refetch SHA and retry once.
-        if ((putResp.status === 409 || putResp.status === 422) && attempt === 1) {
-          await new Promise(r => setTimeout(r, 800));   // tiny backoff
-          continue;
-        }
-        if (putResp.status === 401) { showToast("⚠️ GitHub token פג תוקף"); return false; }
-        if (putResp.status === 403) { showToast("⚠️ rate limit / אין הרשאה — נסי בעוד דקה"); return false; }
-        if (putResp.status === 413) { showToast("⚠️ קובץ גדול מדי ל-GitHub API (1MB max)"); return false; }
-        showToast("⚠️ PUT נכשל: HTTP " + putResp.status + (putBody ? " — " + putBody.slice(0,80) : ""));
-        return false;
-      } catch(e) {
-        console.error("[profit-save] network error attempt " + attempt, e);
-        if (attempt === 2) { showToast("⚠️ רשת: " + (e.message || "תקלת רשת")); return false; }
-        await new Promise(r => setTimeout(r, 800));
-      }
-    }
-    return false;
-  }
-
-  // 👍 בסדר — Lauren marks a row as "fine as-is", lauren_decision = keep_price.
-  document.getElementById("profit-body").addEventListener("click", async function(e){
-    if (!e.target.matches(".btn-dismiss-row")) return;
-    var btn = e.target;
-    var pid = btn.dataset.pid;
-    var rec = (PROFIT_STATE.products || {})[pid];
-    if (!rec) return;
-    btn.disabled = true; btn.textContent = "...שומר";
-    rec.lauren_decision = "keep_price";
-    rec.lauren_decided_at = new Date().toISOString();
-    rec.lauren_note = rec.lauren_note || "";
-    var ok = await queueSaveProfitStateToGitHub("@profit-pulse: lauren dismissed " + pid + " (keep_price)");
-    if (ok) { showToast("👍 הוסר מהרשימה"); renderProfit(); }
-    else    { showToast("⚠️ שמירה נכשלה — לא הוסר"); btn.disabled = false; btn.textContent = "👍 בסדר";
-              rec.lauren_decision = null; rec.lauren_decided_at = null; }
-  });
-
-  // ↩ החזר — undo a previous dismissal (clears keep_price).
-  document.getElementById("profit-body").addEventListener("click", async function(e){
-    if (!e.target.matches(".btn-restore-row")) return;
-    var btn = e.target;
-    var pid = btn.dataset.pid;
-    var rec = (PROFIT_STATE.products || {})[pid];
-    if (!rec) return;
-    btn.disabled = true; btn.textContent = "...משחזר";
-    var prevDec = rec.lauren_decision, prevAt = rec.lauren_decided_at;
-    rec.lauren_decision = null;
-    rec.lauren_decided_at = null;
-    var ok = await queueSaveProfitStateToGitHub("@profit-pulse: lauren restored " + pid);
-    if (ok) { showToast("↩ חזר לרשימה הפעילה"); renderProfit(); }
-    else    { showToast("⚠️ שמירה נכשלה"); btn.disabled = false; btn.textContent = "↩ החזר";
-              rec.lauren_decision = prevDec; rec.lauren_decided_at = prevAt; }
-  });
-
-  // 💾 עדכן עלות ב-OCTOPOS — Lauren fixes a wrong unit_cost. PUTs cost to /api/v2/products/{id},
-  // re-scores markup/band/suggested locally, audits to price_history with "by":"lauren-cost-fix".
-  document.getElementById("profit-body").addEventListener("click", async function(e){
-    if (!e.target.matches(".btn-apply-cost")) return;
-    var btn = e.target;
-    var pid = btn.dataset.pid;
-    var row = btn.closest("tr");
-    var inp = row.querySelector(".profit-new-cost");
-    var newCost = parseFloat(inp.value);
-    if (!newCost || newCost <= 0) { showToast("⚠️ הכניסי עלות חוקית"); return; }
-    var currentCost = parseFloat(inp.dataset.currentCost) || 0;
-    if (Math.abs(newCost - currentCost) < 0.001) { showToast("⚠️ העלות זהה לנוכחית"); return; }
-    var rec = (PROFIT_STATE.products || {})[pid];
-    if (!rec) return;
-    if (!confirm("לעדכן עלות של " + rec.name + " מ-$" + currentCost.toFixed(2) + " ל-$" + newCost.toFixed(2) + " ב-OCTOPOS?")) return;
-
-    var octToken = (localStorage.getItem("lauren_octopos_token") || "").trim();
-    if (!octToken) { showToast("⚠️ צריך OCTOPOS token — היכנסי לדשבורד המלאי תחילה"); return; }
-    btn.disabled = true; btn.textContent = "...";
-    try {
-      var r = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
-        method: "PUT",
-        headers: {"Authorization": octToken, "Content-Type":"application/json", "Accept":"application/json"},
-        body: JSON.stringify({"cost": newCost})
-      });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      showToast("✓ עלות עודכנה ב-OCTOPOS: $" + newCost.toFixed(2));
-
-      // Update record locally + re-score (mirror profit_pulse_run.py logic)
-      var sale = rec.sale_price || 0;
-      var markup = sale / newCost;
-      var marginPct = (sale - newCost) / sale * 100;
-      var marginUsd = sale - newCost;
-      var band = markup < 1.0 ? "loss" : markup < 1.5 ? "critical" : markup < 2.0 ? "low" : markup < 3.0 ? "ok" : "strong";
-      // Standard event tiers from scoring.md
-      var TIERS = [1,2,3,5,7,10,15,20,25,30,50];
-      var target = newCost * 3.0;
-      var suggested = TIERS.find(t => t >= target);
-      if (!suggested) suggested = Math.ceil(target / 10) * 10;
-
-      rec.price_history = (rec.price_history || []).concat([{
-        changed_at: new Date().toISOString(),
-        field: "cost",
-        from: currentCost, to: newCost,
-        by: "lauren-cost-fix-via-dashboard"
-      }]);
-      rec.unit_cost = newCost;
-      rec.markup = Math.round(markup * 100) / 100;
-      rec.margin_pct = Math.round(marginPct * 10) / 10;
-      rec.margin_usd = Math.round(marginUsd * 100) / 100;
-      rec.profit_band = band;
-      rec.suggested_price = suggested;
-      rec.suggested_price_reason = "target = $" + newCost.toFixed(2) + " × 3.0 = $" + (newCost*3).toFixed(2) + "; rounded up to standard tier";
-
-      var ok = await queueSaveProfitStateToGitHub("@profit-pulse: lauren fixed cost[" + pid + "] $" + currentCost + "→$" + newCost);
-      if (!ok) showToast("⚠️ עלות עודכנה ב-OCTOPOS אבל סנכרון GitHub נכשל");
-      renderProfit();
-    } catch(err) {
-      showToast("⚠️ נכשל: " + err.message);
-      btn.disabled = false; btn.textContent = "💾";
-    }
-  });
-
-  // Apply-price handler — Lauren's architecture: she types a new price, clicks "עדכן OCTOPOS",
-  // browser PUTs to /api/v2/products/{id} with her OCTOPOS token (stored in localStorage from earlier
-  // inventory dashboard login). NO auto-apply ever. Confirmation toast + audit to profit_pulse.json.
-  document.getElementById("profit-body").addEventListener("click", async function(e){
-    if (!e.target.matches(".btn-apply-price")) return;
-    var btn = e.target;
-    var pid = btn.dataset.pid;
-    var row = btn.closest("tr");
-    var inp = row.querySelector(".profit-new-price");
-    var newPrice = parseFloat(inp.value);
-    if (!newPrice || newPrice <= 0) { showToast("⚠️ הכניסי מחיר חוקי"); return; }
-    var currentPrice = parseFloat(btn.dataset.currentPrice) || 0;
-    if (Math.abs(newPrice - currentPrice) < 0.01) { showToast("⚠️ המחיר זהה לנוכחי"); return; }
-    if (!confirm("לעדכן " + (PROFIT_STATE.products[pid] || {}).name + " מ-$" + currentPrice.toFixed(2) + " ל-$" + newPrice.toFixed(2) + " ב-OCTOPOS?")) return;
-
-    var octToken = (localStorage.getItem("lauren_octopos_token") || "").trim();
-    if (!octToken) { showToast("⚠️ צריך OCTOPOS token — היכנסי לדשבורד המלאי תחילה"); return; }
-    btn.disabled = true;
-    btn.textContent = "...מעדכן";
-    try{
-      var r = await fetch("https://themakeup.octoretail.com/api/v2/products/" + pid, {
-        method: "PUT",
-        headers: {"Authorization": octToken, "Content-Type":"application/json", "Accept":"application/json"},
-        body: JSON.stringify({"sale_price": newPrice})
-      });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      showToast("✓ עודכן ב-OCTOPOS: $" + newPrice.toFixed(2));
-      // Audit to profit_pulse.json via GitHub Contents API
-      var ghToken = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
-      if (ghToken && PROFIT_STATE.products[pid]) {
-        var rec = PROFIT_STATE.products[pid];
-        rec.lauren_decision = "accept_raise";
-        rec.lauren_decided_at = new Date().toISOString();
-        rec._applied_at_octopos = new Date().toISOString();
-        rec.price_history = (rec.price_history || []).concat([{
-          changed_at: new Date().toISOString(),
-          from: currentPrice, to: newPrice,
-          by: "lauren-manual-via-dashboard"
-        }]);
-        rec.sale_price = newPrice;  // optimistic local update
-        PROFIT_STATE._updated_at = new Date().toISOString();
-        var url = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/docs/state/profit_pulse.json";
-        var info = await fetch(url + "?ref=main", {headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json"}}).then(r=>r.json());
-        var content = JSON.stringify(PROFIT_STATE, null, 2);
-        await fetch(url, {method:"PUT",
-          headers:{Authorization:"token "+ghToken, Accept:"application/vnd.github+json", "Content-Type":"application/json"},
-          body: JSON.stringify({message:"@profit-pulse: lauren applied price["+pid+"] $"+currentPrice+"→$"+newPrice,
-                                content: btoa(unescape(encodeURIComponent(content))), branch:"main", sha: info.sha})});
-      }
-      btn.textContent = "✓ עודכן";
-      btn.style.background = "#86efac";
-      btn.style.color = "#14532d";
-    } catch(err){
-      showToast("⚠️ נכשל: " + err.message);
-      btn.disabled = false;
-      btn.textContent = "✓ עדכן OCTOPOS";
-    }
-  });
-
 })();
 </script>
-
 </body>
 </html>

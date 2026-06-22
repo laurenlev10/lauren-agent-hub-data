@@ -87,18 +87,42 @@ def octopos_jwt():
 
 
 def parse_schedule_from_launch_html():
-    """Extract the SCHEDULE map from docs/launch/index.html. Returns list of event dicts."""
+    """Extract the SCHEDULE map from docs/launch/index.html. Returns a FLAT list
+    of event dicts across all years.
+
+    🛑 2026-06-22 fix — on 2026-04-28 (commit 4149bb3b "year tabs") the SCHEDULE
+    changed from a flat array `const SCHEDULE = [...]` to a year-keyed object
+    `const SCHEDULE = {"2026":[...],"2027":[...]}`. The old array-only regex
+    stopped matching → this returned [] → the Sunday weekend run found NO event
+    and silently skipped tag-removal for ~2 months. We now accept BOTH shapes and
+    flatten the object's year arrays. JSON has no ';', so the first `};`/`];`
+    after the literal is always the real terminator.
+    """
     html = (REPO_ROOT / "docs/launch/index.html").read_text(encoding="utf-8")
-    m = re.search(r"const SCHEDULE = (\[[\s\S]*?\]);\s*\n", html)
-    if not m:
+    # Try year-keyed object first, then legacy flat array.
+    raw = None
+    m = re.search(r"const SCHEDULE\s*=\s*(\{[\s\S]*?\});\s*\n", html)
+    if m:
+        raw = m.group(1)
+    else:
+        m = re.search(r"const SCHEDULE\s*=\s*(\[[\s\S]*?\]);\s*\n", html)
+        raw = m.group(1) if m else None
+    if not raw:
         return []
-    raw = m.group(1)
-    # The SCHEDULE in launch HTML is JSON-compatible (Lauren wrote it that way intentionally).
     try:
-        return json.loads(raw)
+        data = json.loads(raw)
     except json.JSONDecodeError:
-        # Fall back: relaxed parse (allow unquoted keys / trailing commas)
         return []
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        # year-keyed: {"2026":[...], "2027":[...]} → flatten every list value.
+        out = []
+        for v in data.values():
+            if isinstance(v, list):
+                out.extend(v)
+        return out
+    return []
 
 
 def find_event_for_today():
@@ -212,6 +236,27 @@ def sms_lauren(body):
 # ─── Main ───────────────────────────────────────────────────────────────────
 
 def main():
+    # 🛑 2026-06-22 — fail LOUD if the SCHEDULE parser returns nothing. The schedule
+    # ALWAYS has events; 0 events can only mean the parser broke (as it silently did
+    # from 2026-04-28 to 2026-06-22 when SCHEDULE became year-keyed). Don't let that
+    # rot in silence again. Dedupe to one SMS/day via a marker in the state file.
+    all_events = parse_schedule_from_launch_html()
+    if not all_events:
+        now_utc = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        today_pt = dt.datetime.now(dt.timezone.utc).astimezone(ZoneInfo("America/Los_Angeles")).date().isoformat()
+        print(f"[{now_utc}] 🛑 SCHEDULE parser returned 0 events — parser likely broken.")
+        try:
+            sp = REPO_ROOT / "docs/state/octopos_recount.json"
+            st = json.loads(sp.read_text(encoding="utf-8"))
+            if st.get("_parser_broken_alert_date") != today_pt:
+                sms_lauren("🛑 @recount: ה-parser של לוח האירועים לא מצא אף אירוע — כנראה נשבר. "
+                           "הסרת תגיות RECOUNT לא תרוץ עד שיתוקן.")
+                st["_parser_broken_alert_date"] = today_pt
+                sp.write_text(json.dumps(st, indent=2, ensure_ascii=False), encoding="utf-8")
+        except Exception as e:
+            print(f"  (parser-broken alert failed: {e})")
+        return 0
+
     match = find_event_for_today()
     if not match:
         now_utc = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -284,6 +329,17 @@ def main():
     state["_updated_at"] = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Wrote state slice for {evkey}")
+
+    # 🛑 2026-06-22 — build the THREE lists (to_count / counted / tagged_not_counted)
+    # + the per-event didn't-sell set, and freeze them into the slice so the dashboard
+    # has real data and the history survives later tag removal. Read-only on OCTOPOS.
+    try:
+        import recount_lists as RL
+        payload = RL.build_lists(start, end, jwt=jwt)
+        RL.write_into_state(evkey, payload)
+        print(f"Wrote lists slice for {evkey}: {payload['counts']}")
+    except Exception as e:
+        print(f"  (lists build failed — non-fatal: {e})")
 
     body = (
         f"✓ ספירת אירוע הושלמה — {city} ({len(counted_pids)} נספרו, {cleaned_count} תגיות הוסרו).\n"
