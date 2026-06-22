@@ -286,10 +286,14 @@ function route(){ if(VIEWMODE==='unmatched')return renderUnmatched(); if(VIEWMOD
 
 function invSupplierOf(invId){ for(const name in (INV.suppliers||{})){ if(((INV.suppliers[name].invoices)||[]).some(iv=>iv.id===invId))return name; } const m=(MAN.invoices||[]).find(i=>i.id===invId); return m?m.supplier:null; }
 function chargeById(bid){ return (BANK.bank_charges||[]).find(c=>String(c.id)===String(bid))||null; }
+function invObjOf(invId){ for(const name in (INV.suppliers||{})){ const iv=((INV.suppliers[name].invoices)||[]).find(x=>x.id===invId); if(iv)return iv; } return (MAN.invoices||[]).find(i=>i.id===invId)||null; }
 function suspiciousLinks(){ const out=[]; const matched=BANK.matched||{};
+  const usage={}; for(const iid in matched){ const b=String(matched[iid].bank_txn_id); usage[b]=(usage[b]||0)+1; }
   for(const invId in matched){ const m=matched[invId]; const c=chargeById(m.bank_txn_id); if(!c)continue;
     const invSup=invSupplierOf(invId); const cg=c.supplier_guess;
-    if(cg&&invSup&&cg!==invSup) out.push({invId,invSup,charge:c,m}); }
+    if(cg&&invSup&&cg!==invSup){ out.push({invId,invSup,charge:c,m,reason:'ספק שונה'}); continue; }
+    if(usage[String(m.bank_txn_id)]===1){ const iv=invObjOf(invId); if(iv){ const tot=(iv.amount||0)+(iv.shipping||0), base=(iv.amount||0);
+      if(Math.min(Math.abs(tot-m.bank_amount),Math.abs(base-m.bank_amount))>Math.max(15,tot*0.05)) out.push({invId,invSup,charge:c,m,reason:'סכום שונה'}); } } }
   return out;
 }
 function renderSuspicious(){
@@ -298,11 +302,12 @@ function renderSuspicious(){
  let h="<span class='back' onclick=\"setView('invoices')\">← חזרה</span>"+navBar();
  h+="<h1>⚠ קישורים חשודים</h1><div class='sub'>חיובים שהספק שלהם (לפי התיאור) שונה מספק החשבונית שאליה הם מקושרים. בדקי כל אחד — אם שגוי, נתקי.</div>";
  if(!list.length){h+="<div class='sub'>✅ אין קישורים חשודים.</div>";document.getElementById('app').innerHTML=h;return;}
- h+="<table><tr><th>חשבונית (ספק)</th><th>אירוע</th><th>סכום חשבונית</th><th>חיוב מקושר</th><th>נראה כמו</th><th></th></tr>";
+ h+="<table><tr><th>חשבונית (ספק)</th><th>אירוע</th><th>סכום חשבונית</th><th>חיוב מקושר</th><th>בעיה</th><th>נראה כמו</th><th></th></tr>";
  list.forEach(x=>{ const iv=(((INV.suppliers[x.invSup]||{}).invoices)||[]).find(i=>i.id===x.invId)||(MAN.invoices||[]).find(i=>i.id===x.invId)||{};
    h+="<tr style='background:#fff7ed'><td><b>"+esc(x.invSup)+"</b></td><td>"+esc(iv.event||'')+"</td><td class='num'>"+money(effAmt(Object.assign({manual:!!iv.supplier},iv)))+"</td>"+
    "<td style='font-size:12px'>"+esc(x.charge.date)+" "+money(x.charge.amount)+"<br>"+esc(x.charge.desc)+"</td>"+
-   "<td><span class='tag' style='background:#fee2e2;color:#b91c1c'>"+esc(x.charge.supplier_guess)+"</span></td>"+
+   "<td><span class='tag' style='background:#fde68a;color:#854d0e'>"+esc(x.reason||'')+"</span></td>"+
+   "<td>"+(x.charge.supplier_guess?"<span class='tag' style='background:#fee2e2;color:#b91c1c'>"+esc(x.charge.supplier_guess)+"</span>":"")+"</td>"+
    "<td><button class='del' onclick=\"rejectMatch('"+x.invId+"','"+x.charge.id+"')\">✗ נתק</button></td></tr>"; });
  h+="</table>";
  document.getElementById('app').innerHTML=h;
