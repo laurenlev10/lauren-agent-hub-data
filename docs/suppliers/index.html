@@ -38,12 +38,16 @@ const REPO="laurenlev10/lauren-agent-hub-data";
 const PAY_FILE="docs/state/supplier_payments.json";
 const MAN_FILE="docs/state/supplier_manual_invoices.json";
 const METHODS=["Zelle","Check","Credit Card","Cash"];
-let INV=null, PAY=null, MAN=null, VIEW=null, BANK=null;
+let INV=null, PAY=null, MAN=null, VIEW=null, BANK=null, LINKS=null, VIEWMODE='invoices';
+const LINK_FILE="docs/state/supplier_manual_links.json";
 
 function money(v){return "$"+(Number(v)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});}
 function esc(s){const d=document.createElement("div");d.textContent=(s==null?"":s);return d.innerHTML;}
 function toast(m){const t=document.getElementById("toast");t.textContent=m;t.className="show";setTimeout(()=>t.className="",2400);}
 function rec(id){return (PAY.invoices&&PAY.invoices[id])||{};}
+function bkFor(id){ if(BANK.matched&&BANK.matched[id])return BANK.matched[id]; const bid=LINKS&&LINKS.links&&LINKS.links[id]; if(bid){const c=(BANK.bank_charges||[]).find(x=>String(x.id)===String(bid)); if(c)return {paid:true,paid_date:c.date,payment_method:'',bank_txn_id:bid,bank_amount:c.amount,confidence:'manual'};} return null; }
+function matchedBankIds(){ const s=new Set(); Object.values(BANK.matched||{}).forEach(m=>s.add(String(m.bank_txn_id))); Object.values((LINKS&&LINKS.links)||{}).forEach(b=>s.add(String(b))); return s; }
+function unmatchedCharges(){ const mb=matchedBankIds(); const ig=new Set((LINKS.ignored||[]).map(String)); return (BANK.bank_charges||[]).filter(c=>!mb.has(String(c.id))&&!ig.has(String(c.id))); }
 function effAmt(iv){if(iv.manual)return +iv.amount||0;const o=rec(iv.id).amount_override;return (typeof o==="number")?o:(+iv.amount||0);}
 function slug(s){return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");}
 
@@ -66,8 +70,10 @@ async function load(){
  if(!PAY)PAY={_updated_at:null,invoices:{}}; if(!PAY.invoices)PAY.invoices={};
  if(!MAN)MAN={_updated_at:null,invoices:[]}; if(!MAN.invoices)MAN.invoices=[];
  BANK=await freshJson("supplier_bank_payments.json");
- if(!BANK)BANK={matched:{},supplier_totals:{}}; if(!BANK.matched)BANK.matched={};
- renderList();
+ if(!BANK)BANK={matched:{},supplier_totals:{}}; if(!BANK.matched)BANK.matched={}; if(!BANK.bank_charges)BANK.bank_charges=[];
+ LINKS=await freshJson("supplier_manual_links.json");
+ if(!LINKS)LINKS={links:{},rejected:[],ignored:[]}; LINKS.links=LINKS.links||{}; LINKS.rejected=LINKS.rejected||[]; LINKS.ignored=LINKS.ignored||[];
+ route();
 }
 function supNames(){
  const s=new Set(Object.keys(INV.suppliers||{}));
@@ -79,7 +85,7 @@ function supInvoices(name){
  const man=MAN.invoices.filter(i=>i.supplier===name).map(x=>({...x,manual:true}));
  return auto.concat(man).filter(i=>!isDeleted(i.id)).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
 }
-function isPaid(id){const r=rec(id);if(r&&typeof r.paid==='boolean')return r.paid;return !!(BANK.matched&&BANK.matched[id]);}
+function isPaid(id){const r=rec(id);if(r&&typeof r.paid==='boolean')return r.paid;return !!bkFor(id);}
 function reconBadge(r,bk){const mp=(r&&typeof r.paid==='boolean')?r.paid:null;
   if(mp===true&&bk)return "<br><span class='tag' style='background:#dcfce7;color:#166534' title='סומן ידנית + אומת בבנק'>✅ מאושר</span>";
   if(mp===true&&!bk)return "<br><span class='tag' style='background:#fef9c3;color:#854d0e' title='סומן ידנית — עדיין לא נמצא תשלום תואם בבנק'>✋ ידני</span>";
@@ -99,6 +105,7 @@ function renderList(){
    return {name,n:invs.length,tot,pd,out:tot-pd};
  }).sort((a,b)=>b.tot-a.tot);
  let h="<div style='display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap'><h1>📦 ספקים — מעקב חשבוניות ותשלומים</h1><a href='https://bookkeeping.themakeupblowout.com/' style='background:#0369a1;color:#fff;text-decoration:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;white-space:nowrap;margin-inline-end:6px'>📒 לבוקקיפינג</a><a href='https://dashboard.themakeupblowout.com/launch/' style='background:#7c3aed;color:#fff;text-decoration:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;white-space:nowrap'>🚀 לדשבורד האירועים</a></div><div class='sub'>כל החשבוניות מתחילת 2026 · לחצי על ספק לפירוט והוספה</div>";
+ h+=navBar();
  h+="<div class='sum'>"+
   "<div class='sc'><div class='v'>"+names.length+"</div><div class='l'>ספקים</div></div>"+
   "<div class='sc'><div class='v'>"+allCount+"</div><div class='l'>חשבוניות</div></div>"+
@@ -127,7 +134,7 @@ function openSup(name){
  h+="<table><tr><th>תאריך</th><th>אירוע</th><th>סכום</th><th>מס׳ חשבונית</th><th>שולם?</th><th>תאריך תשלום</th><th>אופן תשלום</th><th></th></tr>";
  invs.forEach(iv=>{
    const r=rec(iv.id);
-   const bk=(BANK.matched||{})[iv.id]||null;
+   const bk=bkFor(iv.id);
    const paidChk=(typeof r.paid==='boolean')?r.paid:!!bk;
    const pdv=r.paid_date||(bk&&bk.paid_date)||"";
    const pmv=r.payment_method||(bk&&bk.payment_method)||"";
@@ -137,7 +144,7 @@ function openSup(name){
      "<td>"+(iv.manual?"<span class='tag'>ידני</span><input style='width:130px' id='me-"+iv.id+"' value='"+esc(iv.event||"")+"' onchange=\"editMan('"+iv.id+"')\">":esc(iv.event||"—"))+"</td>"+
      "<td class='num'>"+(iv.manual?"<input style='width:90px' id='ma-"+iv.id+"' value='"+esc(iv.amount||"")+"' onchange=\"editMan('"+iv.id+"')\">":"<input style='width:95px' id='amt-"+iv.id+"' value='"+effAmt(iv)+"' onchange=\"saveAmount('"+iv.id+"',"+(+iv.amount||0)+")\">"+(rec(iv.id).amount_override!=null?" <span class='tag'>✏️ תוקן</span>":"")+(iv.shipping?" <span style='color:#999;font-size:11px'>(+"+money(iv.shipping)+")</span>":""))+"</td>"+
      "<td><input class='invno' id='no-"+iv.id+"' value='"+esc(r.invoice_number||iv.invoice_number||"")+"' placeholder='מס׳' onchange=\"save('"+iv.id+"')\"></td>"+
-     "<td style='text-align:center'><input type='checkbox' class='paidbox' id='pd-"+iv.id+"' "+(paidChk?"checked":"")+" onchange=\"save('"+iv.id+"')\">"+(bk?"<br><a href='https://bookkeeping.themakeupblowout.com/?txn="+bk.bank_txn_id+"' target='_blank' class='tag' style='background:#dbeafe;color:#1e40af;text-decoration:none' title='שולם מהבנק'>🏦 "+money(bk.bank_amount)+"</a>":"")+(reconBadge(r,bk))+"</td>"+
+     "<td style='text-align:center'><input type='checkbox' class='paidbox' id='pd-"+iv.id+"' "+(paidChk?"checked":"")+" onchange=\"save('"+iv.id+"')\">"+(bk?"<br><a href='https://bookkeeping.themakeupblowout.com/?txn="+bk.bank_txn_id+"' target='_blank' class='tag' style='background:#dbeafe;color:#1e40af;text-decoration:none' title='שולם מהבנק'>🏦 "+money(bk.bank_amount)+"</a>":"")+(reconBadge(r,bk))+(bk?"<br><button class='del' style='border-color:#fca5a5;color:#b91c1c;margin-top:3px' onclick=\"rejectMatch('"+iv.id+"','"+bk.bank_txn_id+"')\">\u2717 \u05dc\u05d0 \u05e0\u05db\u05d5\u05df</button>":"<br><button style='background:#0369a1;margin-top:3px;padding:3px 8px;font-size:12px' onclick=\"openLinkPicker('"+iv.id+"')\">\ud83d\udd17 \u05e7\u05e9\u05e8 \u05d7\u05d9\u05d5\u05d1</button>")+"</td>"+
      "<td><input class='pdate' type='date' id='dt-"+iv.id+"' value='"+esc(pdv)+"' onchange=\"save('"+iv.id+"')\"></td>"+
      "<td><select id='pm-"+iv.id+"' onchange=\"save('"+iv.id+"')\"><option value=''>—</option>"+opts+"</select></td>"+
      "<td><button class='del' onclick=\"delInv('"+iv.id+"',"+(iv.manual?"true":"false")+")\">מחק</button></td></tr>";
@@ -226,5 +233,125 @@ async function delInv(id,isMan){
  toast("✓ נמחק");openSup(VIEW);
 }
 function setTok(){const t=prompt("הדביקי GitHub token (Contents: write):");if(t){localStorage.setItem("lauren_gh_token_v1",t.trim());toast("נשמר במכשיר");}}
+
+function navBar(){
+ const un=unmatchedCharges().length; const dz=dupeManual().length;
+ const b=(m,lbl,extra)=>"<button onclick=\"setView('"+m+"')\" style=\"margin-inline-end:6px;background:"+(VIEWMODE===m?'#4c1d95':'#7c3aed')+";"+(extra||'')+"\">"+lbl+"</button>";
+ return "<div style='margin:10px 0'>"+b('invoices','📄 חשבוניות')+
+   b('unmatched','🏦 חיובי בנק ללא שיוך'+(un?' ('+un+')':''), un?'background:#0369a1':'')+
+   b('dupes','⚠ כפילויות'+(dz?' ('+dz+')':''), dz?'background:#b45309':'')+"</div>";
+}
+function setView(m){VIEWMODE=m;route();}
+function route(){ if(VIEWMODE==='unmatched')return renderUnmatched(); if(VIEWMODE==='dupes')return renderDupes(); VIEWMODE='invoices'; renderList(); }
+
+function dupeManual(){
+ const near=(a,b)=>Math.abs(a-b)<=Math.max(2,b*0.02);
+ const out=[];
+ (MAN.invoices||[]).forEach(m=>{
+   if(isDeleted(m.id))return;
+   const autos=(((INV.suppliers||{})[m.supplier]||{}).invoices||[]);
+   const hit=autos.find(a=>near((+m.amount||0),((a.amount||0)+(a.shipping||0))));
+   if(hit)out.push({man:m,auto:hit});
+ });
+ return out;
+}
+function renderDupes(){
+ VIEW=null;
+ const list=dupeManual();
+ let h="<span class='back' onclick=\"setView('invoices')\">← חזרה</span>"+navBar();
+ h+="<h1>⚠ חשבוניות ידניות שכפולות אוטומטיות</h1>";
+ if(!list.length){h+="<div class='sub'>✅ אין כפילויות.</div>";document.getElementById('app').innerHTML=h;return;}
+ h+="<div class='sub'>לכל שורה: החשבונית הידנית (זהה סכום) כבר קיימת אוטומטית. מומלץ למחוק את הידנית.</div>";
+ h+="<table><tr><th>ספק</th><th>סכום</th><th>ידני (תיאור)</th><th>אוטומטי (אירוע)</th><th></th></tr>";
+ list.forEach(d=>{ h+="<tr class='man'><td><b>"+esc(d.man.supplier)+"</b></td><td class='num'>"+money(d.man.amount)+"</td>"+
+   "<td><span class='tag'>ידני</span>"+esc(d.man.event||'—')+"</td><td>"+esc(d.auto.event||'—')+" <span style='color:#999;font-size:11px'>"+esc(d.auto.date||'')+"</span></td>"+
+   "<td><button class='del' onclick=\"delInv('"+d.man.id+"',true)\">מחק ידני</button></td></tr>"; });
+ h+="</table>";
+ document.getElementById('app').innerHTML=h;
+}
+
+function invName(id){ for(const sup in (INV.suppliers||{})){const iv=((INV.suppliers[sup].invoices)||[]).find(x=>x.id===id);if(iv)return sup+" · "+(iv.event||iv.date||'');} const m=(MAN.invoices||[]).find(x=>x.id===id); if(m)return m.supplier+" · "+(m.event||m.date||'')+" (ידני)"; return id; }
+function renderUnmatched(){
+ VIEW=null;
+ const list=unmatchedCharges().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+ let h="<span class='back' onclick=\"setView('invoices')\">← חזרה</span>"+navBar();
+ h+="<h1>🏦 חיובי בנק ללא חשבונית</h1>";
+ h+="<div class='sub'>חיובי Merchandise Purchase שלא שויכו לשום חשבונית. קשרי לחשבונית קיימת, צרי חשבונית, או התעלמי (לא-ספק כמו חנות).</div>";
+ if(!list.length){h+="<div class='sub'>✅ הכל משויך.</div>";document.getElementById('app').innerHTML=h;return;}
+ h+="<table><tr><th>תאריך</th><th>סכום</th><th>תיאור</th><th>ספק משוער</th><th>פעולות</th></tr>";
+ list.forEach(c=>{ const sg=c.supplier_guess?("<span class='tag'>"+esc(c.supplier_guess)+"</span>"):"<span style='color:#9ca3af'>—</span>";
+   h+="<tr><td>"+esc(c.date)+"</td><td class='num'>"+money(c.amount)+"</td><td style='font-size:12px;color:#555'>"+esc(c.desc)+"</td><td>"+sg+"</td>"+
+   "<td style='white-space:nowrap'><button style='background:#0369a1;padding:4px 8px;font-size:12px' onclick=\"pickInvoiceForCharge('"+c.id+"')\">🔗 קשר</button> "+
+   "<button style='background:#16a34a;padding:4px 8px;font-size:12px' onclick=\"createInvoiceFromCharge('"+c.id+"')\">➕ צור חשבונית</button> "+
+   "<button class='del' onclick=\"ignoreCharge('"+c.id+"')\">התעלם</button></td></tr>"; });
+ h+="</table>";
+ document.getElementById('app').innerHTML=h;
+}
+
+// ---- modal ----
+function modal(html){ let m=document.getElementById('mdl'); if(!m){m=document.createElement('div');m.id='mdl';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:99';document.body.appendChild(m);} m.innerHTML="<div style='background:#fff;border-radius:12px;padding:18px;max-width:620px;width:92%;max-height:80vh;overflow:auto'>"+html+"<div style='text-align:center;margin-top:10px'><button onclick=\"closeModal()\" style='background:#6b7280'>סגור</button></div></div>"; m.style.display='flex'; }
+function closeModal(){const m=document.getElementById('mdl');if(m)m.style.display='none';}
+
+function openLinkPicker(invId){ // from an invoice -> pick a bank charge
+ const sup=VIEW; const all=unmatchedCharges();
+ const pref=all.filter(c=>c.supplier_guess===sup), rest=all.filter(c=>c.supplier_guess!==sup);
+ const ordered=pref.concat(rest);
+ let h="<h3>🔗 בחרי חיוב מהבנק לקישור</h3><div class='sub'>"+esc(invName(invId))+"</div>";
+ if(!ordered.length)h+="<div class='sub'>אין חיובים ללא שיוך.</div>";
+ h+="<table>"+ordered.map(c=>"<tr><td>"+esc(c.date)+"</td><td class='num'>"+money(c.amount)+"</td><td style='font-size:12px'>"+esc(c.desc)+"</td><td>"+(c.supplier_guess?"<span class='tag'>"+esc(c.supplier_guess)+"</span>":"")+"</td><td><button onclick=\"linkInvoiceToCharge('"+invId+"','"+c.id+"')\">בחר</button></td></tr>").join('')+"</table>";
+ modal(h);
+}
+function pickInvoiceForCharge(bankId){ // from a bank charge -> pick an invoice (of guessed supplier)
+ const c=(BANK.bank_charges||[]).find(x=>String(x.id)===String(bankId)); if(!c)return;
+ const sup=c.supplier_guess;
+ let invs=[];
+ if(sup){ invs=supInvoices(sup).filter(iv=>!bkFor(iv.id)); }
+ let h="<h3>🔗 קשרי את החיוב לחשבונית</h3><div class='sub'>"+money(c.amount)+" · "+esc(c.date)+" · "+esc(c.desc)+"</div>";
+ if(!sup)h+="<div class='sub' style='color:#b45309'>לא זוהה ספק — עדיף 'צור חשבונית' או 'התעלם'.</div>";
+ else if(!invs.length)h+="<div class='sub'>אין חשבוניות לא-משויכות לספק "+esc(sup)+". צרי חשבונית חדשה.</div>";
+ h+="<table>"+invs.map(iv=>"<tr><td>"+esc(iv.date||'')+"</td><td class='num'>"+money(effAmt(iv))+"</td><td>"+(iv.manual?"<span class='tag'>ידני</span>":"")+esc(iv.event||'')+"</td><td><button onclick=\"linkInvoiceToCharge('"+iv.id+"','"+bankId+"')\">קשר</button></td></tr>").join('')+"</table>";
+ modal(h);
+}
+
+async function saveLinks(msg){
+ const m=await putFile(LINK_FILE,cur=>{cur=cur||{links:{},rejected:[],ignored:[]};cur.links=cur.links||{};cur.rejected=cur.rejected||[];cur.ignored=cur.ignored||[];
+   cur.links=Object.assign(cur.links,LINKS.links);
+   const rj=new Set([...(cur.rejected||[]),...(LINKS.rejected||[])]); cur.rejected=[...rj];
+   const ig=new Set([...(cur.ignored||[]),...(LINKS.ignored||[])]); cur.ignored=[...ig];
+   return cur;},msg);
+ if(m){LINKS=m;LINKS.links=LINKS.links||{};LINKS.rejected=LINKS.rejected||[];LINKS.ignored=LINKS.ignored||[];}
+ return m;
+}
+async function linkInvoiceToCharge(invId,bankId){
+ toast("מקשר…"); LINKS.links[invId]=bankId;
+ // clear any rejection of this pair
+ LINKS.rejected=(LINKS.rejected||[]).filter(x=>x!==(invId+"|"+bankId));
+ const m=await saveLinks("supplier-link: "+invId+" ↔ "+bankId);
+ if(m){toast("✓ קושר");closeModal();route();}
+}
+async function rejectMatch(invId,bankId){
+ if(!confirm("לבטל את השיוך בין החשבונית לחיוב?"))return;
+ toast("מבטל…");
+ if(LINKS.links && LINKS.links[invId]===bankId){ delete LINKS.links[invId]; }
+ else { LINKS.rejected=[...new Set([...(LINKS.rejected||[]),invId+"|"+bankId])]; if(BANK.matched)delete BANK.matched[invId]; }
+ const m=await saveLinks("supplier-unlink: "+invId+" ✗ "+bankId);
+ if(m){toast("✓ בוטל");route();}
+}
+async function ignoreCharge(bankId){
+ toast("מסתיר…"); LINKS.ignored=[...new Set([...(LINKS.ignored||[]),String(bankId)])];
+ const m=await saveLinks("supplier-ignore-charge: "+bankId);
+ if(m){toast("✓ הוסתר");route();}
+}
+async function createInvoiceFromCharge(bankId){
+ const c=(BANK.bank_charges||[]).find(x=>String(x.id)===String(bankId)); if(!c)return;
+ let sup=c.supplier_guess; if(!sup){ sup=prompt("שם הספק לחשבונית:"); if(!sup)return; }
+ toast("יוצר…");
+ const id="man-"+slug(sup)+"-"+Date.now();
+ const m=await putFile(MAN_FILE,cur=>{cur=cur||{invoices:[]};if(!cur.invoices)cur.invoices=[];cur.invoices.push({id,supplier:sup,date:c.date,event:"(מהבנק)",amount:c.amount});return cur;},"supplier-manual-invoice from charge: "+id);
+ if(!m)return; MAN=m;
+ LINKS.links[id]=bankId; await saveLinks("supplier-link new invoice "+id);
+ toast("✓ נוצרה וקושרה"); route();
+}
+
 load();
 </script></body></html>
