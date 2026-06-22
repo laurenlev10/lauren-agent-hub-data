@@ -32,6 +32,15 @@ button.del{background:#fff;color:#dc2626;border:1px solid #f3c0c0;padding:3px 8p
 #toast.show{opacity:1}
 .bar{height:7px;background:#eee;border-radius:6px;overflow:hidden;margin-top:5px}.bar>div{height:100%;background:#16a34a}
 .tokrow{font-size:12px;color:#888;text-align:center;margin-top:14px}
+
+tr.openrow{background:#fff7ed}
+tr.openrow td{border-bottom:1px solid #fde0c0;font-weight:600}
+tr.openrow .num{color:#c2410c}
+tr.openrow .pill.no{font-size:12px;padding:3px 11px}
+tr.donerow{color:#9aa6b2}
+tr.donerow .num{color:#475569;font-weight:600}
+tr.donerow input,tr.donerow select{color:#64748b;border-color:#e5e7eb}
+tr.donerow.man{background:#f8f7ff}
 </style></head><body><div class="wrap" id="app">טוען…</div><div id="toast"></div>
 <script>
 const REPO="laurenlev10/lauren-agent-hub-data";
@@ -39,6 +48,7 @@ const PAY_FILE="docs/state/supplier_payments.json";
 const MAN_FILE="docs/state/supplier_manual_invoices.json";
 const METHODS=["Zelle","Check","Credit Card","Cash"];
 let INV=null, PAY=null, MAN=null, VIEW=null, BANK=null, LINKS=null, VIEWMODE='invoices';
+let EXPANDED=new Set();
 const LINK_FILE="docs/state/supplier_manual_links.json";
 
 function money(v){return "$"+(Number(v)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -125,33 +135,62 @@ function renderList(){
  document.getElementById("app").innerHTML=h;
 }
 
+window.toggleRow=id=>{ if(EXPANDED.has(id))EXPANDED.delete(id); else EXPANDED.add(id); openSup(VIEW); };
+function compactRow(iv){
+ const r=rec(iv.id), bk=bkFor(iv.id);
+ const pm=(r.payment_method||(bk&&bk.payment_method)||""), pdv=(r.paid_date||(bk&&bk.paid_date)||"");
+ return "<tr class='"+(iv.manual?"man ":"")+"donerow' style='cursor:pointer' onclick=\"toggleRow('"+iv.id+"')\" title='לחצי לעריכה'>"+
+   "<td><span class='pill ok'>✓</span></td>"+
+   "<td>"+esc(iv.date||"—")+"</td>"+
+   "<td>"+(iv.manual?"<span class='tag'>ידני</span>":"")+esc(iv.event||"—")+"</td>"+
+   "<td class='num'>"+money(effAmt(iv))+"</td>"+
+   "<td style='font-size:12px;color:#94a3b8'>"+esc(r.invoice_number||iv.invoice_number||"")+"</td>"+
+   "<td style='text-align:center'>"+(bk?"<span class='tag' style='background:#dbeafe;color:#1e40af'>🏦 "+money(bk.bank_amount)+"</span>":"<span style='color:#16a34a;font-size:12px'>שולם</span>")+"</td>"+
+   "<td style='font-size:12px'>"+esc(pdv)+"</td>"+
+   "<td style='font-size:12px'>"+esc(pm)+"</td>"+
+   "<td style='color:#cbd5e1;text-align:center'>✏️</td></tr>";
+}
 function openSup(name){
  VIEW=name;
- const invs=supInvoices(name);
- const tot=invs.reduce((x,i)=>x+effAmt(i),0);
- let h="<span class='back' onclick='renderList()'>← חזרה לכל הספקים</span>";
- h+="<h1>"+esc(name)+"</h1><div class='sub'>"+invs.length+" חשבוניות · סה״כ "+money(tot)+"</div>";
- h+="<table><tr><th>תאריך</th><th>אירוע</th><th>סכום</th><th>מס׳ חשבונית</th><th>שולם?</th><th>תאריך תשלום</th><th>אופן תשלום</th><th></th></tr>";
- invs.forEach(iv=>{
-   const r=rec(iv.id);
-   const bk=bkFor(iv.id);
-   const paidChk=(typeof r.paid==='boolean')?r.paid:!!bk;
+ let invs=supInvoices(name);
+ const paidOf=iv=>isPaid(iv.id);
+ invs=invs.slice().sort((x,y)=>{const px=paidOf(x),py=paidOf(y); if(px!==py)return px?1:-1; return (y.date||"").localeCompare(x.date||"");});
+ const open=invs.filter(iv=>!paidOf(iv)), paid=invs.filter(paidOf);
+ const tot=invs.reduce((x,i)=>x+effAmt(i),0), openTot=open.reduce((x,i)=>x+effAmt(i),0);
+ let h="<span class='back' onclick='renderList()'>← חזרה לכל הספקים</span>"+navBar();
+ h+="<h1>"+esc(name)+"</h1>";
+ h+="<div class='sum'>"+
+   "<div class='sc out'><div class='v'>"+open.length+"</div><div class='l'>🔴 פתוחות</div></div>"+
+   "<div class='sc out'><div class='v'>"+money(openTot)+"</div><div class='l'>נותר לתשלום</div></div>"+
+   "<div class='sc paid'><div class='v'>"+paid.length+"</div><div class='l'>✓ שולמו</div></div>"+
+   "<div class='sc'><div class='v'>"+money(tot)+"</div><div class='l'>סה״כ</div></div></div>";
+ h+="<table><tr><th>סטטוס</th><th>תאריך</th><th>אירוע</th><th>סכום</th><th>מס׳ חשבונית</th><th>תשלום</th><th>תאריך תשלום</th><th>אופן</th><th></th></tr>";
+ const rowHtml=(iv)=>{
+   const r=rec(iv.id); const bk=bkFor(iv.id);
+   const paidChk=(typeof r.paid==='boolean')?r.paid:!!bk; const isOpen=!paidChk;
    const pdv=r.paid_date||(bk&&bk.paid_date)||"";
    const pmv=r.payment_method||(bk&&bk.payment_method)||"";
    const opts=METHODS.map(m=>"<option "+(pmv===m?"selected":"")+">"+m+"</option>").join("")+(["Card","ACH","Bank"].includes(pmv)?"<option selected>"+pmv+"</option>":"");
-   h+="<tr class='"+(iv.manual?"man":"")+"'>"+
-     "<td>"+(iv.manual?"<input type='date' style='width:135px' id='md-"+iv.id+"' value='"+esc(iv.date||"")+"' onchange=\"editMan('"+iv.id+"')\">":esc(iv.date||"—"))+"</td>"+
-     "<td>"+(iv.manual?"<span class='tag'>ידני</span><input style='width:130px' id='me-"+iv.id+"' value='"+esc(iv.event||"")+"' onchange=\"editMan('"+iv.id+"')\">":esc(iv.event||"—"))+"</td>"+
-     "<td class='num'>"+(iv.manual?"<input style='width:90px' id='ma-"+iv.id+"' value='"+esc(iv.amount||"")+"' onchange=\"editMan('"+iv.id+"')\">":"<input style='width:95px' id='amt-"+iv.id+"' value='"+effAmt(iv)+"' onchange=\"saveAmount('"+iv.id+"',"+(+iv.amount||0)+")\">"+(rec(iv.id).amount_override!=null?" <span class='tag'>✏️ תוקן</span>":"")+(iv.shipping?" <span style='color:#999;font-size:11px'>(+"+money(iv.shipping)+")</span>":""))+"</td>"+
+   const st=isOpen?"<span class='pill no'>🔴 פתוחה</span>":"<span class='pill ok'>✓ שולם</span>";
+   let pay="<input type='checkbox' class='paidbox' id='pd-"+iv.id+"' "+(paidChk?"checked":"")+" onchange=\"save('"+iv.id+"')\">";
+   if(isOpen){ pay+="<br><button style='background:#0369a1;margin-top:4px;padding:4px 9px;font-size:12px' onclick=\"openLinkPicker('"+iv.id+"')\">🔗 קשר חיוב</button>"; }
+   else { if(bk)pay+=" <a href='https://bookkeeping.themakeupblowout.com/?txn="+bk.bank_txn_id+"' target='_blank' class='tag' style='background:#dbeafe;color:#1e40af;text-decoration:none' title='שולם מהבנק'>🏦 "+money(bk.bank_amount)+"</a> <span onclick=\"rejectMatch('"+iv.id+"','"+bk.bank_txn_id+"')\" title='ביטול שיוך שגוי' style='cursor:pointer;color:#b91c1c;font-size:12px'>✗</span>"; pay+=reconBadge(r,bk); }
+   return "<tr class='"+(iv.manual?"man ":"")+(isOpen?"openrow":"donerow")+"'>"+
+     "<td>"+st+"</td>"+
+     "<td>"+(iv.manual?"<input type='date' style='width:128px' id='md-"+iv.id+"' value='"+esc(iv.date||"")+"' onchange=\"editMan('"+iv.id+"')\">":esc(iv.date||"—"))+"</td>"+
+     "<td>"+(iv.manual?"<span class='tag'>ידני</span><input style='width:118px' id='me-"+iv.id+"' value='"+esc(iv.event||"")+"' onchange=\"editMan('"+iv.id+"')\">":esc(iv.event||"—"))+"</td>"+
+     "<td class='num'>"+(iv.manual?"<input style='width:85px' id='ma-"+iv.id+"' value='"+esc(iv.amount||"")+"' onchange=\"editMan('"+iv.id+"')\">":"<input style='width:90px' id='amt-"+iv.id+"' value='"+effAmt(iv)+"' onchange=\"saveAmount('"+iv.id+"',"+(+iv.amount||0)+")\">"+(rec(iv.id).amount_override!=null?" <span class='tag'>✏️</span>":"")+(iv.shipping?" <span style='color:#999;font-size:11px'>(+"+money(iv.shipping)+")</span>":""))+"</td>"+
      "<td><input class='invno' id='no-"+iv.id+"' value='"+esc(r.invoice_number||iv.invoice_number||"")+"' placeholder='מס׳' onchange=\"save('"+iv.id+"')\"></td>"+
-     "<td style='text-align:center'><input type='checkbox' class='paidbox' id='pd-"+iv.id+"' "+(paidChk?"checked":"")+" onchange=\"save('"+iv.id+"')\">"+(bk?"<br><a href='https://bookkeeping.themakeupblowout.com/?txn="+bk.bank_txn_id+"' target='_blank' class='tag' style='background:#dbeafe;color:#1e40af;text-decoration:none' title='שולם מהבנק'>🏦 "+money(bk.bank_amount)+"</a>":"")+(reconBadge(r,bk))+(bk?"<br><button class='del' style='border-color:#fca5a5;color:#b91c1c;margin-top:3px' onclick=\"rejectMatch('"+iv.id+"','"+bk.bank_txn_id+"')\">\u2717 \u05dc\u05d0 \u05e0\u05db\u05d5\u05df</button>":"<br><button style='background:#0369a1;margin-top:3px;padding:3px 8px;font-size:12px' onclick=\"openLinkPicker('"+iv.id+"')\">\ud83d\udd17 \u05e7\u05e9\u05e8 \u05d7\u05d9\u05d5\u05d1</button>")+"</td>"+
+     "<td style='text-align:center'>"+pay+"</td>"+
      "<td><input class='pdate' type='date' id='dt-"+iv.id+"' value='"+esc(pdv)+"' onchange=\"save('"+iv.id+"')\"></td>"+
      "<td><select id='pm-"+iv.id+"' onchange=\"save('"+iv.id+"')\"><option value=''>—</option>"+opts+"</select></td>"+
      "<td><button class='del' onclick=\"delInv('"+iv.id+"',"+(iv.manual?"true":"false")+")\">מחק</button></td></tr>";
- });
- // add-invoice row
+ };
+ open.forEach(iv=>h+=rowHtml(iv));
+ if(paid.length)h+="<tr class='sep'><td colspan='9' style='background:#f1f5f9;color:#64748b;font-size:12px;font-weight:700;padding:6px 10px'>— שולמו ("+paid.length+") —</td></tr>";
+ paid.forEach(iv=>h+=(EXPANDED.has(iv.id)?rowHtml(iv):compactRow(iv)));
  const sn=esc(name).replace(/'/g,"\\'");
- h+="<tr class='addrow'><td><input type='date' id='add-date'></td>"+
+ h+="<tr class='addrow'><td>➕</td><td><input type='date' id='add-date'></td>"+
     "<td><input id='add-event' placeholder='אירוע / תיאור'></td>"+
     "<td><input id='add-amount' placeholder='סכום'></td>"+
     "<td colspan='3'><input id='add-invno' placeholder='מס׳ חשבונית (לא חובה)'></td>"+
