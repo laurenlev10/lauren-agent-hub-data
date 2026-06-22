@@ -245,12 +245,17 @@ function setView(m){VIEWMODE=m;route();}
 function route(){ if(VIEWMODE==='unmatched')return renderUnmatched(); if(VIEWMODE==='dupes')return renderDupes(); VIEWMODE='invoices'; renderList(); }
 
 function dupeManual(){
- const near=(a,b)=>Math.abs(a-b)<=Math.max(2,b*0.02);
+ // STRICT: same supplier + amount within $1/0.5% + dates within 12 days (avoids
+ // coincidental same-amount collisions across different events).
  const out=[];
  (MAN.invoices||[]).forEach(m=>{
    if(isDeleted(m.id))return;
    const autos=(((INV.suppliers||{})[m.supplier]||{}).invoices||[]);
-   const hit=autos.find(a=>near((+m.amount||0),((a.amount||0)+(a.shipping||0))));
+   const ma=+m.amount||0, md=m.date||'';
+   const hit=autos.find(a=>{const aa=(a.amount||0)+(a.shipping||0);
+     if(Math.abs(ma-aa)>Math.max(1,aa*0.005))return false;
+     const ad=a.date||''; if(!md||!ad)return false;
+     return Math.abs((new Date(md)-new Date(ad))/86400000)<=12;});
    if(hit)out.push({man:m,auto:hit});
  });
  return out;
