@@ -244,7 +244,7 @@
       <div id="notsold-placeholder" class="empty-state" style="display:none;"><div class="big">⏳</div><p>הרשימה תתמלא בסיום האירוע.</p></div>
       <div style="overflow-x:auto;">
         <table id="notsold-table">
-          <thead><tr><th style="width:34px;text-align:center">✓</th><th>SKU</th><th>שם מוצר</th><th>ספק</th><th>מלאי</th></tr></thead>
+          <thead><tr><th style="width:34px;text-align:center">✓</th><th>SKU</th><th>שם מוצר</th><th>ספק</th><th>מלאי</th><th>נספר באירוע?</th></tr></thead>
           <tbody id="notsold-body"></tbody>
         </table>
       </div>
@@ -411,7 +411,8 @@
       { get: function(it){ return num(it.sku); } },
       { get: function(it){ return esc(it.name); } },
       { get: function(it){ return esc(it.supplier); } },
-      { get: function(it){ return num(it.stock); }, cls: "qty-cell" }
+      { get: function(it){ return num(it.stock); }, cls: "qty-cell" },
+      { get: function(it){ return it.counted ? "✅ נספר" : "⬜ לא נספר"; } }
     ]);
 
     // Show each bulk bar that has rows
@@ -434,7 +435,7 @@
     csvBtn("btn-csv1", l1.map(function(it){ return [it.sku, it.name, it.supplier, it.stock, it.counted ? "counted" : "not counted"]; }), ["SKU","Name","Supplier","Stock","Status"]);
     csvBtn("btn-csv2", l2.map(function(it){ return [it.sku, it.name, it.supplier, it.balance, it.last_counted_at, it.was_tagged ? "planned" : "extra"]; }), ["SKU","Name","Supplier","Balance","CountedAt","Source"]);
     csvBtn("btn-csv3", l3.map(function(it){ return [it.sku, it.name, it.supplier, it.stock]; }), ["SKU","Name","Supplier","Stock"]);
-    csvBtn("btn-csv-ns", ns.map(function(it){ return [it.sku, it.name, it.supplier, it.stock]; }), ["SKU","Name","Supplier","Stock"]);
+    csvBtn("btn-csv-ns", ns.map(function(it){ return [it.sku, it.name, it.supplier, it.stock, it.counted ? "counted" : "not counted"]; }), ["SKU","Name","Supplier","Stock","CountedAtEvent"]);
     document.getElementById("btn-print").onclick = function(){ window.print(); };
   }
 

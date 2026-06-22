@@ -140,7 +140,7 @@ def build_lists(start, end, jwt=None, snapshot=None):
     to_count = [dict(entry(pid), counted=(pid in counted_set)) for pid in tagged_pids]
     counted = [dict(entry(pid, counted_meta.get(pid)), was_tagged=(pid in tagged_set)) for pid in counted_pids]
     tagged_not_counted = [entry(pid) for pid in tagged_not_counted_pids]
-    didnt_sell = [entry(pid) for pid in didnt_sell_pids]
+    didnt_sell = [dict(entry(pid), counted=(pid in counted_set)) for pid in didnt_sell_pids]
 
     today = dt.date.today()
     phase = "post_event" if today > dt.date.fromisoformat(end) else (
