@@ -114,10 +114,13 @@ def build_lists(start, end, jwt=None, snapshot=None):
     counted_set = set(counted_pids)
     tagged_not_counted_pids = sorted(tagged_set - counted_set)
 
-    # DIDN'T SELL — all ACTIVE products with zero units sold Fri->Sun
+    # DIDN'T SELL — ACTIVE products with stock > 0 and zero units sold Fri->Sun.
+    # Lauren 2026-06-22: drop stock==0 (nothing to sell anyway); keep only what
+    # "supposedly has stock but didn't move".
     sold_pids, _ = P.fetch_real_sales_pids(jwt, start, end)
-    active_pids = {pid for pid, m in by_pid.items() if m["active"]}
-    didnt_sell_pids = sorted(active_pids - set(sold_pids))
+    in_stock_active = {pid for pid, m in by_pid.items()
+                       if m["active"] and (m.get("stock") or 0) > 0}
+    didnt_sell_pids = sorted(in_stock_active - set(sold_pids))
 
     def entry(pid, extra=None):
         m = by_pid.get(pid, {})
