@@ -204,11 +204,19 @@
         <span>🚫 לא נמכרו בכלל באירוע <span class="pill" id="notsold-count" style="background:#fee2e2;color:#991b1b;"></span></span>
         <button class="btn ghost" id="btn-csv-ns" type="button">📋 CSV</button>
       </h2>
-      <p class="sub" style="margin:0 0 10px; color:var(--muted);">כל המוצרים הפעילים שלא נמכרה מהם אף יחידה בחלון האירוע (שישי–ראשון).</p>
+      <p class="sub" style="margin:0 0 10px; color:var(--muted);">כל המוצרים הפעילים (מלאי &gt; 0) שלא נמכרה מהם אף יחידה בחלון האירוע (שישי–ראשון). סמני מוצרים, בחרי תג ודחפי אותו לכולם באוקטופוס יחד.</p>
+      <div class="filter-row" id="bulk-tag-bar" style="display:none; gap:10px; align-items:center; background:#f9fafb; border:1px solid var(--line); border-radius:8px; padding:10px 12px;">
+        <label style="font-weight:700;color:var(--text);"><input type="checkbox" id="ns-select-all"> בחר הכל</label>
+        <span style="color:var(--muted);">|</span>
+        <span style="font-size:12px;color:var(--muted);">הוסף תג למסומנים:</span>
+        <select id="bulk-tag" class="decision-select" style="min-width:170px;"><option value="">בחרי תג…</option></select>
+        <button class="btn" id="btn-add-tag" type="button" style="background:#16a34a;border-color:#16a34a;">➕ הוסף תג ל-<span id="ns-sel-count">0</span> מסומנים</button>
+        <span id="bulk-progress" style="font-size:12px;color:var(--muted);"></span>
+      </div>
       <div id="notsold-placeholder" class="empty-state" style="display:none;"><div class="big">⏳</div><p>הרשימה תתמלא בסיום האירוע.</p></div>
       <div style="overflow-x:auto;">
         <table id="notsold-table">
-          <thead><tr><th>SKU</th><th>שם מוצר</th><th>ספק</th><th>מלאי</th></tr></thead>
+          <thead><tr><th style="width:34px;text-align:center">✓</th><th>SKU</th><th>שם מוצר</th><th>ספק</th><th>מלאי</th></tr></thead>
           <tbody id="notsold-body"></tbody>
         </table>
       </div>
@@ -226,6 +234,9 @@
   var evkey  = params.get("evkey") || "";
   var city   = params.get("city") || "";
   var state  = params.get("state") || "";
+  var CATEGORIES = [];           // [{id,name}] from the public snapshot — tag picker
+  var NS_ITEMS = [];             // current didn't-sell rows (for bulk tagging)
+  var OCT_BASE = "https://themakeup.octoretail.com";
 
   function toast(msg){
     var t = document.getElementById("toast");
@@ -371,19 +382,9 @@
       { get: function(it){ return num(it.stock); }, cls: "qty-cell" }
     ]);
 
-    // TAB 2 — didn't sell
+    // TAB 2 — didn't sell (with multi-select + bulk tag push)
     var ns = L.didnt_sell || [];
-    document.getElementById("notsold-count").textContent = ns.length;
-    document.getElementById("notsold-badge").textContent = ns.length ? "(" + ns.length + ")" : "";
-    if (!ns.length && phase !== "post_event"){
-      document.getElementById("notsold-placeholder").style.display = "block";
-    }
-    fillBody("notsold-body", ns, [
-      { get: function(it){ return num(it.sku); } },
-      { get: function(it){ return esc(it.name); } },
-      { get: function(it){ return esc(it.supplier); } },
-      { get: function(it){ return num(it.stock); }, cls: "qty-cell" }
-    ]);
+    renderNotSold(ns, phase);
 
     // ── Button handlers (bound now that data exists) ──
     document.getElementById("btn-sms-mgr").addEventListener("click", function(){
@@ -402,6 +403,122 @@
     csvBtn("btn-csv3", l3.map(function(it){ return [it.sku, it.name, it.supplier, it.stock]; }), ["SKU","Name","Supplier","Stock"]);
     csvBtn("btn-csv-ns", ns.map(function(it){ return [it.sku, it.name, it.supplier, it.stock]; }), ["SKU","Name","Supplier","Stock"]);
     document.getElementById("btn-print").addEventListener("click", function(){ window.print(); });
+  }
+
+  // ── Didn't-sell tab: render with checkboxes + bulk tag picker ──
+  function selectedNsPids(){
+    return Array.prototype.slice.call(document.querySelectorAll(".ns-check:checked"))
+      .map(function(cb){ return Number(cb.dataset.pid); });
+  }
+  function updateSelCount(){
+    var n = selectedNsPids().length;
+    var el = document.getElementById("ns-sel-count");
+    if (el) el.textContent = n;
+  }
+  function renderNotSold(ns, phase){
+    NS_ITEMS = ns || [];
+    document.getElementById("notsold-count").textContent = NS_ITEMS.length;
+    document.getElementById("notsold-badge").textContent = NS_ITEMS.length ? "(" + NS_ITEMS.length + ")" : "";
+    if (!NS_ITEMS.length && phase !== "post_event"){
+      document.getElementById("notsold-placeholder").style.display = "block";
+    }
+    // tag picker options (once)
+    var sel = document.getElementById("bulk-tag");
+    if (sel && sel.options.length <= 1){
+      CATEGORIES.slice().sort(function(a,b){ return (a.name||"").localeCompare(b.name||""); }).forEach(function(c){
+        var o = document.createElement("option");
+        o.value = c.id; o.textContent = c.name;
+        sel.appendChild(o);
+      });
+    }
+    var bar = document.getElementById("bulk-tag-bar");
+    if (bar) bar.style.display = NS_ITEMS.length ? "flex" : "none";
+
+    var tb = document.getElementById("notsold-body");
+    tb.innerHTML = "";
+    NS_ITEMS.forEach(function(it){
+      var tr = document.createElement("tr");
+      var tdC = document.createElement("td"); tdC.style.textAlign = "center";
+      var cb = document.createElement("input"); cb.type = "checkbox"; cb.className = "ns-check"; cb.dataset.pid = it.pid;
+      cb.addEventListener("change", updateSelCount);
+      tdC.appendChild(cb); tr.appendChild(tdC);
+      [num(it.sku), esc(it.name), esc(it.supplier), num(it.stock)].forEach(function(v, i){
+        var td = document.createElement("td"); td.textContent = v;
+        if (i === 3) td.className = "qty-cell";
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+
+    var all = document.getElementById("ns-select-all");
+    if (all){
+      all.checked = false;
+      all.onchange = function(){
+        document.querySelectorAll(".ns-check").forEach(function(cb){ cb.checked = all.checked; });
+        updateSelCount();
+      };
+    }
+    updateSelCount();
+
+    var btn = document.getElementById("btn-add-tag");
+    if (btn && !btn._wired){ btn._wired = true; btn.addEventListener("click", bulkAddTag); }
+  }
+
+  // ── OCTOPOS: add ONE tag (category) to many products, preserving existing tags ──
+  function octToken(){
+    var t = (localStorage.getItem("lauren_octopos_token") || "").trim();
+    if (!t){
+      t = prompt("הדביקי טוקן OCTOPOS פעיל (יישמר מקומית בדפדפן):");
+      if (!t) return null;
+      t = t.trim(); localStorage.setItem("lauren_octopos_token", t);
+    }
+    return t;
+  }
+  async function octAddTagToProduct(pid, tagId, token){
+    // GET current product → append tag id if missing → PUT category_ids.
+    var g = await fetch(OCT_BASE + "/api/v2/products/" + pid, { headers:{ "Authorization": token, "Accept":"application/json" } });
+    if (g.status === 401){ localStorage.removeItem("lauren_octopos_token"); throw new Error("token-expired"); }
+    if (!g.ok) return { ok:false, skipped:false };
+    var prod = await g.json();
+    var cats = (prod.categories || []).map(function(c){ return c.id; });
+    if (cats.indexOf(tagId) !== -1) return { ok:true, skipped:true };   // already tagged
+    cats.push(tagId);
+    var p = await fetch(OCT_BASE + "/api/v2/products/" + pid, {
+      method:"PUT",
+      headers:{ "Authorization": token, "Content-Type":"application/json", "Accept":"application/json" },
+      body: JSON.stringify({ category_ids: cats })
+    });
+    if (p.status === 401){ localStorage.removeItem("lauren_octopos_token"); throw new Error("token-expired"); }
+    return { ok: p.ok, skipped:false };
+  }
+  async function bulkAddTag(){
+    var sel = document.getElementById("bulk-tag");
+    var tagId = Number(sel.value);
+    var tagName = tagId ? sel.options[sel.selectedIndex].textContent : "";
+    if (!tagId){ toast("בחרי תג קודם"); return; }
+    var pids = selectedNsPids();
+    if (!pids.length){ toast("לא סומנו מוצרים"); return; }
+    if (!confirm('להוסיף את התג "' + tagName + '" ל-' + pids.length + ' מוצרים באוקטופוס?')) return;
+    var token = octToken();
+    if (!token){ toast("צריך טוקן OCTOPOS"); return; }
+
+    var btn = document.getElementById("btn-add-tag");
+    var prog = document.getElementById("bulk-progress");
+    btn.disabled = true;
+    var done = 0, ok = 0, skipped = 0, failed = 0;
+    for (var i = 0; i < pids.length; i++){
+      try{
+        var r = await octAddTagToProduct(pids[i], tagId, token);
+        if (r.skipped) skipped++; else if (r.ok) ok++; else failed++;
+      } catch(e){
+        if (e && e.message === "token-expired"){ toast("⚠️ הטוקן פג — הדביקי טוקן חדש ונסי שוב"); btn.disabled = false; return; }
+        failed++;
+      }
+      done++;
+      if (prog) prog.textContent = done + "/" + pids.length;
+    }
+    btn.disabled = false;
+    toast("✓ הוסף '" + tagName + "': " + ok + " עודכנו" + (skipped ? " · " + skipped + " כבר היו" : "") + (failed ? " · " + failed + " נכשלו" : ""));
   }
 
   // ── Compute the LIVE "RECOUNT-tagged" set from the public daily snapshot.
@@ -434,6 +551,7 @@
       var data = res[0], snap = res[1];
       var slice = (evkey && data && data.events) ? data.events[evkey] : null;
       var liveTagged = liveTaggedFromSnapshot(snap);
+      CATEGORIES = (snap && Array.isArray(snap.categories)) ? snap.categories.slice() : [];
       render(slice, liveTagged, snap && snap._updated_at);
       var initTab = params.get("tab");
       if (initTab === "notsold") showTab("notsold");
