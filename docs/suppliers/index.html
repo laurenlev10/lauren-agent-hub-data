@@ -345,15 +345,20 @@ function openLinkPicker(invId){ // from an invoice -> pick a bank charge
  h+="<table>"+ordered.map(c=>"<tr><td>"+esc(c.date)+"</td><td class='num'>"+money(c.amount)+"</td><td style='font-size:12px'>"+esc(c.desc)+"</td><td>"+(c.supplier_guess?"<span class='tag'>"+esc(c.supplier_guess)+"</span>":"")+"</td><td><button onclick=\"linkInvoiceToCharge('"+invId+"','"+c.id+"')\">בחר</button></td></tr>").join('')+"</table>";
  modal(h);
 }
-function pickInvoiceForCharge(bankId){ // from a bank charge -> pick an invoice (of guessed supplier)
+function allOpenInvoices(){ const out=[]; supNames().forEach(name=>{ supInvoices(name).forEach(iv=>{ if(!bkFor(iv.id)) out.push(Object.assign({_sup:name},iv)); }); }); return out; }
+function pickInvoiceForCharge(bankId){ // from a bank charge -> pick an invoice
  const c=(BANK.bank_charges||[]).find(x=>String(x.id)===String(bankId)); if(!c)return;
  const sup=c.supplier_guess;
- let invs=[];
- if(sup){ invs=supInvoices(sup).filter(iv=>!bkFor(iv.id)); }
+ let invs, scoped;
+ if(sup){ invs=supInvoices(sup).filter(iv=>!bkFor(iv.id)).map(iv=>Object.assign({_sup:sup},iv)); scoped=true; }
+ else { invs=allOpenInvoices(); scoped=false; }
+ // sort by closeness of amount to the charge
+ invs.sort((a,b)=>Math.abs(effAmt(a)-c.amount)-Math.abs(effAmt(b)-c.amount));
+ if(!scoped) invs=invs.slice(0,40);
  let h="<h3>🔗 קשרי את החיוב לחשבונית</h3><div class='sub'>"+money(c.amount)+" · "+esc(c.date)+" · "+esc(c.desc)+"</div>";
- if(!sup)h+="<div class='sub' style='color:#b45309'>לא זוהה ספק — עדיף 'צור חשבונית' או 'התעלם'.</div>";
- else if(!invs.length)h+="<div class='sub'>אין חשבוניות לא-משויכות לספק "+esc(sup)+". צרי חשבונית חדשה.</div>";
- h+="<table>"+invs.map(iv=>"<tr><td>"+esc(iv.date||'')+"</td><td class='num'>"+money(effAmt(iv))+"</td><td>"+(iv.manual?"<span class='tag'>ידני</span>":"")+esc(iv.event||'')+"</td><td><button onclick=\"linkInvoiceToCharge('"+iv.id+"','"+bankId+"')\">קשר</button></td></tr>").join('')+"</table>";
+ if(scoped) h+="<div class='sub'>ספק: "+esc(sup)+(invs.length?"":" — אין חשבוניות פתוחות, צרי חדשה")+"</div>";
+ else h+="<div class='sub' style='color:#b45309'>צ'ק בלי שם ספק — מוצגות כל החשבוניות הפתוחות, הקרובות בסכום למעלה. אם זה תשלום על חשבונית 2025 (לא במערכת) — לחצי 'התעלם'.</div>";
+ h+="<table><tr><th>קרבה</th><th>תאריך</th><th>סכום</th><th>ספק / אירוע</th><th></th></tr>"+invs.map(iv=>{const diff=Math.round((effAmt(iv)-c.amount)*100)/100;const close=Math.abs(diff)<=1?"🎯":(Math.abs(diff)<=Math.max(5,c.amount*0.03)?"≈":"");return "<tr><td>"+close+(diff?" <span style='font-size:11px;color:#94a3b8'>"+(diff>0?'+':'')+diff+"</span>":"")+"</td><td>"+esc(iv.date||'')+"</td><td class='num'>"+money(effAmt(iv))+"</td><td>"+(scoped?"":"<b>"+esc(iv._sup)+"</b> · ")+(iv.manual?"<span class='tag'>ידני</span>":"")+esc(iv.event||'')+"</td><td><button onclick=\"linkInvoiceToCharge('"+iv.id+"','"+bankId+"')\">קשר</button></td></tr>";}).join('')+"</table>";
  modal(h);
 }
 
