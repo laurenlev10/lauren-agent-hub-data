@@ -50,6 +50,7 @@ const METHODS=["Zelle","Check","Credit Card","Cash"];
 let INV=null, PAY=null, MAN=null, VIEW=null, BANK=null, LINKS=null, VIEWMODE='invoices';
 let EXPANDED=new Set();
 const LINK_FILE="docs/state/supplier_manual_links.json";
+const BANK_FILE="docs/state/supplier_bank_payments.json";
 
 function money(v){return "$"+(Number(v)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});}
 function esc(s){const d=document.createElement("div");d.textContent=(s==null?"":s);return d.innerHTML;}
@@ -394,7 +395,7 @@ function pickInvoiceForCharge(bankId){ // from a bank charge -> pick an invoice
 
 async function saveLinks(msg){
  const m=await putFile(LINK_FILE,cur=>{cur=cur||{links:{},rejected:[],ignored:[]};cur.links=cur.links||{};cur.rejected=cur.rejected||[];cur.ignored=cur.ignored||[];
-   cur.links=Object.assign(cur.links,LINKS.links);
+   cur.links=Object.assign({},LINKS.links); // replace (so manual unlinks persist)
    const rj=new Set([...(cur.rejected||[]),...(LINKS.rejected||[])]); cur.rejected=[...rj];
    const ig=new Set([...(cur.ignored||[]),...(LINKS.ignored||[])]); cur.ignored=[...ig];
    return cur;},msg);
@@ -413,10 +414,13 @@ async function linkInvoiceToCharge(invId,bankId){
 async function rejectMatch(invId,bankId){
  if(!confirm("לבטל את השיוך בין החשבונית לחיוב?"))return;
  toast("מבטל…");
- if(LINKS.links && LINKS.links[invId]===bankId){ delete LINKS.links[invId]; }
- else { LINKS.rejected=[...new Set([...(LINKS.rejected||[]),invId+"|"+bankId])]; if(BANK.matched)delete BANK.matched[invId]; }
- const m=await saveLinks("supplier-unlink: "+invId+" ✗ "+bankId);
- if(m){toast("✓ בוטל");route();}
+ if(LINKS.links && String(LINKS.links[invId])===String(bankId)){ delete LINKS.links[invId]; } // remove manual link
+ LINKS.rejected=[...new Set([...(LINKS.rejected||[]),invId+"|"+bankId])]; // suppress auto re-match
+ if(BANK.matched)delete BANK.matched[invId];
+ const ok=await saveLinks("supplier-unlink: "+invId+" ✗ "+bankId);
+ // also remove the match from the bank-payments file so it doesn't reappear before the next reconcile
+ await putFile(BANK_FILE,cur=>{ if(cur&&cur.matched){ delete cur.matched[invId]; } return cur; },"supplier-unlink (bank): "+invId);
+ if(ok){toast("✓ בוטל");route();}
 }
 async function ignoreCharge(bankId){
  toast("מסתיר…"); LINKS.ignored=[...new Set([...(LINKS.ignored||[]),String(bankId)])];
