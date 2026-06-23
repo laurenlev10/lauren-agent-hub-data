@@ -290,6 +290,7 @@ function invObjOf(invId){ for(const name in (INV.suppliers||{})){ const iv=((INV
 function suspiciousLinks(){ const out=[]; const matched=BANK.matched||{};
   const usage={}; for(const iid in matched){ const b=String(matched[iid].bank_txn_id); usage[b]=(usage[b]||0)+1; }
   for(const invId in matched){ const m=matched[invId]; const c=chargeById(m.bank_txn_id); if(!c)continue;
+    if(m.confidence==='manual')continue; // deliberate manual links are intentional, not suspicious
     const invSup=invSupplierOf(invId); const cg=c.supplier_guess;
     if(cg&&invSup&&cg!==invSup){ out.push({invId,invSup,charge:c,m,reason:'ספק שונה'}); continue; }
     if(usage[String(m.bank_txn_id)]===1){ const iv=invObjOf(invId); if(iv){ const tot=(iv.amount||0)+(iv.shipping||0), base=(iv.amount||0);
