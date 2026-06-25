@@ -345,6 +345,120 @@ def build_exit_row(fill, open_entry, autotrade):
         "tradovate_fill_time": fill_time,
     }
 
+def _entry_dup_in_journal(trades, fill_id, entry_dt, direction):
+    """True if the journal already represents this ENTRY — by tradovate_fill_id on
+    a non-exit row, OR a Pine-written LONG/SHORT/SWAP row of the same direction within
+    the match window (so we never double-log when Pine also wrote the entry)."""
+    for t in trades:
+        if fill_id is not None and t.get("tradovate_fill_id") == fill_id and t.get("action") != "exit":
+            return True
+    want = "LONG" if direction == "long" else "SHORT"
+    for t in trades:
+        tp = (t.get("type") or "").upper()
+        if tp not in ("LONG", "SHORT", "SWAP LONG", "SWAP SHORT"):
+            continue
+        tdir = "LONG" if "LONG" in tp else "SHORT"
+        if tdir != want:
+            continue
+        tdt = parse_dt(t.get("_received_at") or t.get("time"))
+        if tdt is None:
+            continue
+        if abs((tdt - entry_dt).total_seconds()) <= PINE_MATCH_WINDOW_SECONDS:
+            return True
+    return False
+
+def reconstruct_rows_from_fills(trades, fills, autotrade):
+    """Rebuild full round-trip ENTRY + EXIT journal rows directly from the Tradovate
+    fill stream — the server-side source of truth. Independent of whether Pine/Zapier
+    wrote anything. Returns ordered new rows that are NOT already in the journal
+    (deduped by tradovate_fill_id + Pine heuristics). Idempotent across reruns."""
+    ac = autotrade.get("active_contract") or {}
+    cid = ac.get("contract_id")
+    cname = ac.get("contract_name") or "MNQ"
+    tick = float(ac.get("tick_size") or 0.25)
+    tval = float(ac.get("tick_value_usd") or 0.50)
+
+    fs = []
+    for f in fills:
+        if cid and f.get("contractId") != cid:
+            continue
+        if f.get("price") is None:
+            continue
+        if parse_dt(f.get("timestamp") or f.get("fillTime")) is None:
+            continue
+        fs.append(f)
+    fs.sort(key=lambda f: parse_dt(f.get("timestamp") or f.get("fillTime")))
+
+    def entry_row(direction, fid, price, qty, ftime, swap):
+        dir_str = "LONG" if direction == "long" else "SHORT"
+        return {
+            "_received_at": ftime, "_written_at": datetime.now(timezone.utc).isoformat(),
+            "_source": "tradovate-reconciler", "ticker": cname,
+            "type": (("SWAP " if swap else "") + dir_str),
+            "action": "buy" if direction == "long" else "sell",
+            "side": "buy" if direction == "long" else "sell",
+            "quantity": qty, "price": price, "danger": 0,
+            "tradovate_fill_id": fid, "tradovate_fill_time": ftime, "tradovate_fill_price": price,
+        }
+
+    def exit_row(direction, entry_price, fid, price, qty, ftime):
+        raw = (price - entry_price) if direction == "long" else (entry_price - price)
+        ticks = int(round(raw / tick))
+        dollars = round(ticks * tval * qty, 2)
+        reason = "TP" if raw > 0 else "SL"
+        dir_str = "LONG" if direction == "long" else "SHORT"
+        return {
+            "_received_at": ftime, "_written_at": datetime.now(timezone.utc).isoformat(),
+            "_source": "tradovate-reconciler", "ticker": cname,
+            "type": f"EXIT {dir_str} {reason}", "action": "exit",
+            "side": "sell" if direction == "long" else "buy",
+            "quantity": qty, "price": price, "entry_price": entry_price,
+            "result_ticks": ticks, "result_dollars": dollars,
+            "tradovate_fill_id": fid, "tradovate_fill_time": ftime, "tradovate_fill_price": price,
+        }
+
+    net = 0
+    open_entry = None
+    new_rows = []
+    for f in fs:
+        fid = f.get("id")
+        act = f.get("action") or ""
+        qty = int(f.get("qty") or 1)
+        price = float(f.get("price"))
+        ftime = f.get("timestamp") or f.get("fillTime")
+        fdt = parse_dt(ftime)
+        s = 1 if act == "Buy" else -1
+        opposes = net != 0 and ((net > 0 and s < 0) or (net < 0 and s > 0))
+        if opposes:
+            close_qty = min(abs(net), qty)
+            if open_entry and not journal_has_matching_exit(trades, fid, ftime, act, price, tick):
+                er = exit_row(open_entry["direction"], open_entry["price"], fid, price, close_qty, ftime)
+                if abs(er["result_ticks"]) <= MAX_REASONABLE_TICKS:
+                    new_rows.append(er)
+            net += s * close_qty
+            if net == 0:
+                open_entry = None
+            rem = qty - close_qty
+            if rem > 0:  # flipped through zero -> SWAP open
+                direction = "long" if s > 0 else "short"
+                if not _entry_dup_in_journal(trades, fid, fdt, direction):
+                    new_rows.append(entry_row(direction, fid, price, rem, ftime, swap=True))
+                open_entry = {"direction": direction, "price": price}
+                net += s * rem
+        else:
+            if net == 0:  # open from flat
+                direction = "long" if s > 0 else "short"
+                if not _entry_dup_in_journal(trades, fid, fdt, direction):
+                    new_rows.append(entry_row(direction, fid, price, qty, ftime, swap=False))
+                open_entry = {"direction": direction, "price": price}
+                net += s
+            else:  # scale-in same direction -> weighted avg, no new row
+                if open_entry:
+                    tot = abs(net) + qty
+                    open_entry["price"] = (open_entry["price"] * abs(net) + price * qty) / tot
+                net += s
+    return new_rows
+
 # ============ MAIN ============
 def main():
     print(f"[reconciler] start at {datetime.now(timezone.utc).isoformat()}")
@@ -373,76 +487,42 @@ def main():
     contract_id = (autotrade.get("active_contract") or {}).get("contract_id")
     account_id = autotrade.get("account_id")
 
-    new_rows = []
+    # 3+4. Reconstruct full ENTRY + EXIT rows directly from the Tradovate fill stream.
+    # Server-side source of truth — works even when the Pine/Zapier journal-write
+    # step is broken or missing (the bot can trade without anything logging it).
+    new_rows = reconstruct_rows_from_fills(trades, sorted_fills, autotrade)
+    # Mark every in-window fill as seen (idempotency is ALSO guaranteed by the
+    # tradovate_fill_id dedup against the journal itself, so a lost state file self-heals).
     for f in sorted_fills:
-        fid = f.get("id")
-        if fid in seen_fill_ids:
-            continue
-        # Filter to the configured contract (Tradovate /fill/list returns accountId=None,
-        # so we can't filter by account here — contract filter is sufficient since each
-        # account trades distinct contract sets and Lauren has only one demo account)
-        if contract_id and f.get("contractId") != contract_id:
-            continue
-        fill_time = f.get("timestamp") or f.get("fillTime")
-        fdt = parse_dt(fill_time)
-        if fdt is None:
-            continue
-        fill_action = f.get("action") or ""
-        fill_price = f.get("price")
-        if fill_price is None:
-            continue
+        if f.get("id") is not None:
+            seen_fill_ids.add(f.get("id"))
 
-        # Find the open entry at the moment of this fill
-        open_entry = find_open_entry_at(trades, fdt)
-
-        # An EXIT fill is one where action is opposite to the open position
-        is_exit_fill = False
-        if open_entry:
-            if open_entry["direction"] == "long" and fill_action == "Sell":
-                is_exit_fill = True
-            elif open_entry["direction"] == "short" and fill_action == "Buy":
-                is_exit_fill = True
-        if not is_exit_fill:
-            seen_fill_ids.add(fid)
-            continue
-
-        # Check if journal already has a matching exit (Pine + reconciler dedup)
-        if journal_has_matching_exit(trades, fid, fill_time, fill_action, fill_price, 0.25):
-            seen_fill_ids.add(fid)
-            continue
-
-        # Build the candidate row
-        row = build_exit_row(f, open_entry, autotrade)
-        # Sanity check — refuse absurd P&L (= contract mismatch in open_entry walk)
-        if abs(int(row.get("result_ticks") or 0)) > MAX_REASONABLE_TICKS:
-            print(f"[reconciler] SKIP fill_id={fid} — absurd ticks={row['result_ticks']} (probable contract mismatch with journal entry @ {open_entry['price']})")
-            seen_fill_ids.add(fid)
-            continue
-        new_rows.append(row)
-        seen_fill_ids.add(fid)
-        print(f"[reconciler] NEW EXIT: fill_id={fid} {row['type']} @ {row['price']} → ticks={row['result_ticks']} ${row['result_dollars']}")
-
-    # 4. Write to journal if anything new
     if new_rows:
-        # Re-fetch journal to get latest sha (might've changed since we loaded)
+        # Re-fetch journal for the freshest sha + dedup
         journal_fresh, journal_sha_fresh = load_journal()
         trades_fresh = journal_fresh.get("trades", [])
-        # Re-dedup against freshest journal (extra safety)
-        existing_fill_ids = {t.get("tradovate_fill_id") for t in trades_fresh if t.get("tradovate_fill_id")}
-        rows_to_add = [r for r in new_rows if r.get("tradovate_fill_id") not in existing_fill_ids]
+        # A fill_id can back at most one ENTRY and one EXIT row (SWAP), so key on (fill_id, kind)
+        def _kind(r): return "exit" if r.get("action") == "exit" else "entry"
+        existing_keys = {(t.get("tradovate_fill_id"), "exit" if t.get("action") == "exit" else "entry")
+                         for t in trades_fresh if t.get("tradovate_fill_id")}
+        rows_to_add = [r for r in new_rows if (r.get("tradovate_fill_id"), _kind(r)) not in existing_keys]
         if rows_to_add:
             trades_fresh.extend(rows_to_add)
+            trades_fresh.sort(key=lambda t: parse_dt(t.get("_received_at") or t.get("time")) or datetime.min.replace(tzinfo=timezone.utc))
             journal_fresh["trades"] = trades_fresh
             journal_fresh["_updated_at"] = datetime.now(timezone.utc).isoformat()
             journal_fresh["_updated_by"] = "tradovate-fill-reconciler"
-            msg = f"reconciler: +{len(rows_to_add)} EXIT row(s) from Tradovate fills"
+            n_entry = sum(1 for r in rows_to_add if r.get("action") != "exit")
+            n_exit = sum(1 for r in rows_to_add if r.get("action") == "exit")
+            msg = f"reconciler: +{len(rows_to_add)} row(s) from Tradovate fills ({n_entry} entry / {n_exit} exit)"
             save_journal(journal_fresh, journal_sha_fresh, msg)
-            print(f"[reconciler] wrote {len(rows_to_add)} rows to journal")
-            # SMS Lauren one summary line per session if rows added
-            summary = " | ".join(f"{r['type']} ${r['result_dollars']:+.2f}" for r in rows_to_add[:3])
-            sms(f"📊 Reconciler אתר {len(rows_to_add)} EXIT שלא נתפסו ע\"י Pine — נוסף ליומן: {summary}")
+            print(f"[reconciler] wrote {len(rows_to_add)} rows to journal ({n_entry} entry / {n_exit} exit)")
+            summary = " | ".join((r["type"] + (f" ${r['result_dollars']:+.2f}" if r.get("action") == "exit" else "")) for r in rows_to_add[:4])
+            sms(f"\U0001F4CA Reconciler: \u05e0\u05d5\u05e1\u05e4\u05d5 {len(rows_to_add)} \u05e9\u05d5\u05e8\u05d5\u05ea \u05de-Tradovate \u05dc\u05d9\u05d5\u05de\u05df \u2014 {summary}")
         else:
-            print("[reconciler] all new rows were duplicates after fresh re-fetch, no write")
+            print("[reconciler] all reconstructed rows already in journal, no write")
+    else:
+        print("[reconciler] no new rows to reconstruct")
 
     # 5. Update state — keep seen_fill_ids bounded
     state["last_run_at"] = datetime.now(timezone.utc).isoformat()
