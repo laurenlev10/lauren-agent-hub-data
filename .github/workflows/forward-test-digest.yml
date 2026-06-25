@@ -1,0 +1,61 @@
+name: Forward-Test Digest (VWAP weekly)
+
+on:
+  schedule:
+    - cron: '0 16 * * 6'        # Saturday 16:00 UTC = 9 AM PDT (after the Mon-Fri trading week)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Send forward-test digest SMS
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+        run: python3 scripts/forward_test_digest.py
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PY'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          d = json.loads(p.read_text(encoding="utf-8"))
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in d.get("tasks", []):
+              if t.get("id") == "forward-test-digest":
+                  t["lastRunAt"] = now
+          d["_updated_at"] = now
+          p.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+          print("bumped forward-test-digest lastRunAt", now)
+          PY
+
+      - name: Commit scheduled-runs bump
+        run: |
+          git config user.name  "Lauren (via GitHub Actions)"
+          git config user.email "lauren@noreply.github.com"
+          git add docs/scheduled-runs.json
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "scheduled-runs: bump forward-test-digest lastRunAt"
+            git pull --rebase origin main || true
+            git push
+          fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
