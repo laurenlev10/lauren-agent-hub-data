@@ -170,6 +170,22 @@ table.simple td.muted { color:var(--txt4); }
 /* empty state */
 .empty-state { text-align:center; padding:40px 20px; color:var(--txt4); }
 .empty-state .ico { font-size:48px; opacity:.6; margin-bottom:8px; }
+
+/* === Simulations + report (added 2026-06-25) === */
+.sim-bar{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:10px 0 14px}
+.sim-bar label{font-size:13px;font-weight:700;color:#334155;display:flex;gap:6px;align-items:center}
+.sim-bar input,.sim-bar select{padding:7px 10px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;font-family:inherit;width:120px}
+#sec-sim h3{margin:22px 0 6px;font-size:16px;color:#0f172a}
+#report-head{display:none}
+#report-head h1{margin:0 0 4px;font-size:22px}
+#report-head .sub{color:#475569;font-size:13px}
+@media print{
+  .sim-bar,.strategy-strip,button,.ss-btn,.print-hide{display:none !important}
+  #report-head{display:block !important;margin-bottom:16px;border-bottom:2px solid #0f172a;padding-bottom:10px}
+  .section,.backtest-section,.cal-section,#sec-sim{break-inside:avoid;page-break-inside:avoid}
+  body{padding:6px}
+  a[href]:after{content:""}
+}
 </style>
 </head>
 <body>
@@ -192,13 +208,36 @@ table.simple td.muted { color:var(--txt4); }
 </div>
 
 <div id="status">⏳ טוען נתונים...</div>
+<div id="report-head"><h1>📑 דוח אסטרטגיה — VWAP 1.0</h1><div class="sub" id="report-head-sub"></div></div>
 
 <!-- Backtest Baseline section -->
 <div class="backtest-section" id="backtest-section" style="display:none;">
-  <h2>📊 Backtest Baseline <span class="desc">— נתונים מהטבלה של האינדיקטור Pine SMA60 1.3</span></h2>
+  <h2>📊 Backtest Baseline <span class="desc">— נתונים מהטבלה של האינדיקטור (VWAP 1.0)</span></h2>
   <div class="bt-note" id="bt-note">⏳ טוען...</div>
   <div class="bt-kpis" id="bt-kpis"></div>
   <div class="bt-chart"><canvas id="chart-backtest-equity"></canvas></div>
+</div>
+
+<!-- ===== Simulations + Full Report (added 2026-06-25) ===== -->
+<div class="section" id="sec-sim" style="display:none;">
+  <h2>🧪 סימולציות + דוח מלא <span class="desc">— על נתוני האינדיקטור</span></h2>
+  <div class="sim-bar">
+    <label>הון התחלתי $ <input type="number" id="sim-capital" value="5000" step="500"></label>
+    <label>חוזים <select id="sim-contracts"><option value="1">1</option><option value="2">2</option></select></label>
+    <button class="ss-btn primary" onclick="window.print()">🖨️ הפק דוח PDF</button>
+  </div>
+  <div class="bt-kpis" id="sim-kpis"></div>
+  <div class="chart-box" style="height:260px"><canvas id="chart-sim-equity"></canvas></div>
+  <div class="insight" id="sim-insight"></div>
+
+  <h3>🎯 סימולציית יעד יומי — לעצור או לקחת הכל?</h3>
+  <div class="sim-bar">
+    <label>יעד רווח יומי $ <input type="number" id="sim-target" value="0" step="50" placeholder="0=ללא"></label>
+    <label>עצירת הפסד יומי $ <input type="number" id="sim-stop" value="0" step="50" placeholder="0=ללא"></label>
+  </div>
+  <div class="insight" id="sim-daily-result"></div>
+  <table class="simple" id="sim-daily-table"></table>
+  <div class="insight" id="sim-daily-insight"></div>
 </div>
 
 <!-- Strategy start-date filter strip -->
@@ -611,6 +650,7 @@ function destroyChart(name) {
 function renderAll() {
   // Render the backtest baseline first — it's independent of live data
   renderBacktest();
+  try { renderSimReport(); } catch(e){ console.warn("renderSimReport", e); }
 
   // Render the Calendar early — it uses backtest + bypass-filter live, so it should
   // always render regardless of strategy_started_at filter killing the live count.
@@ -750,6 +790,55 @@ function renderBacktest() {
       scales: { y: { ticks: { callback: v => "$" + v } } }
     }
   });
+}
+
+let SIM_CHART=null;
+function _simBind(id,ev){var el=document.getElementById(id); if(el&&!el._simBound){el.addEventListener(ev,renderSimReport); el._simBound=true;}}
+function renderSimReport(){
+  if(!STATE.backtest||!Array.isArray(STATE.backtest.trades)||!STATE.backtest.trades.length) return;
+  var trades=STATE.backtest.trades.slice().sort(function(a,b){return new Date(a._received_at)-new Date(b._received_at);});
+  document.getElementById("sec-sim").style.display="block";
+  _simBind("sim-capital","input");_simBind("sim-contracts","change");_simBind("sim-target","input");_simBind("sim-stop","input");
+  var cap=parseFloat(document.getElementById("sim-capital").value)||5000;
+  var mult=parseInt(document.getElementById("sim-contracts").value)||1;
+  var bal=cap,peak=cap,mdd=0,mddPct=0,pts=[{x:trades[0]._received_at,y:cap}];
+  for(var i=0;i<trades.length;i++){bal+=trades[i].result_dollars*mult; if(bal>peak)peak=bal; var dd=peak-bal; if(dd>mdd)mdd=dd; var ddp=peak>0?(peak-bal)/peak*100:0; if(ddp>mddPct)mddPct=ddp; pts.push({x:trades[i]._received_at,y:bal});}
+  var net=bal-cap, ret=cap>0?net/cap*100:0;
+  function k(lbl,val,sub,cls){return '<div class="bt-kpi '+(cls||"")+'"><div class="lbl">'+lbl+'</div><div class="val">'+val+'</div><div class="sub">'+sub+'</div></div>';}
+  document.getElementById("sim-kpis").innerHTML=
+    k("הון התחלתי",fmtUSDplain(cap),mult+" חוזה","")+
+    k("יתרה סופית",fmtUSDplain(bal),"היום",bal>=cap?"green":"red")+
+    k("רווח/הפסד",fmtUSD(net),"מצטבר",net>=0?"green":"red")+
+    k("תשואה",ret.toFixed(1)+"%","על "+fmtUSDplain(cap),ret>=0?"green":"red")+
+    k("Max Drawdown","-"+fmtUSDplain(mdd),mddPct.toFixed(1)+"% מהשיא","red");
+  if(SIM_CHART)SIM_CHART.destroy();
+  SIM_CHART=new Chart(document.getElementById("chart-sim-equity"),{type:"line",
+    data:{labels:pts.map(function(p){return new Date(p.x).toLocaleDateString("he-IL",{month:"short",day:"numeric"});}),
+      datasets:[{label:"יתרת חשבון",data:pts.map(function(p){return p.y;}),borderColor:"#16a34a",backgroundColor:"rgba(22,163,74,.12)",borderWidth:2,fill:true,tension:.2,pointRadius:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return "$"+c.parsed.y.toFixed(0);}}}},scales:{y:{ticks:{callback:function(v){return "$"+v;}}}}}});
+  document.getElementById("sim-insight").innerHTML=
+    "💡 התחלת עם <b>"+fmtUSDplain(cap)+"</b> ב-"+mult+" חוזה/ים → היום <b>"+fmtUSDplain(bal)+"</b> (<b>"+(ret>=0?"+":"")+ret.toFixed(1)+"%</b>). הירידה הכי גדולה מהשיא בדרך: <b>-"+fmtUSDplain(mdd)+"</b> ("+mddPct.toFixed(1)+"%)."+(mult>1?" (הסכומים ב-"+mult+" חוזים.)":"");
+  var rh=document.getElementById("report-head-sub"); if(rh)rh.textContent="נוצר "+new Date().toLocaleString("he-IL")+" · "+trades.length+" עסקאות · נתוני אינדיקטור (לא ברוקר)";
+  renderDailySim(trades,mult);
+}
+function renderDailySim(trades,mult){
+  var days={};
+  for(var i=0;i<trades.length;i++){var d=(trades[i]._entry_time_la||"").split(" ")[0]; (days[d]=days[d]||[]).push(trades[i].result_dollars);}
+  var keys=Object.keys(days);
+  function sim(target,stop){var tot=0; for(var j=0;j<keys.length;j++){var c=0,arr=days[keys[j]]; for(var m=0;m<arr.length;m++){c+=arr[m]; if(target&&c>=target)break; if(stop&&c<=-stop)break;} tot+=c;} return tot;}
+  var baseline=sim(0,0);
+  var tIn=parseFloat(document.getElementById("sim-target").value)||0;
+  var sIn=parseFloat(document.getElementById("sim-stop").value)||0;
+  var chosen=sim(tIn,sIn), diff=chosen-baseline;
+  document.getElementById("sim-daily-result").innerHTML=
+    "עם יעד רווח <b>"+(tIn?("$"+tIn):"—")+"</b> ועצירת הפסד <b>"+(sIn?("$"+sIn):"—")+"</b>: <b>"+fmtUSDplain(chosen*mult)+"</b> לעומת לקחת הכל <b>"+fmtUSDplain(baseline*mult)+"</b> → <b style=\"color:"+(diff>=0?"#15803d":"#b91c1c")+"\">"+(diff>=0?"+":"")+fmtUSDplain(diff*mult)+"</b>";
+  var presets=[[0,0],[175,0],[350,0],[525,0],[0,150],[0,300],[0,600],[350,300],[700,600]];
+  var rows="<tr><th>יעד רווח יומי</th><th>עצירת הפסד יומי</th><th>תוצאה</th><th>מול לקיחת הכל</th></tr>";
+  for(var q=0;q<presets.length;q++){var T=presets[q][0],S=presets[q][1],v=sim(T,S),dd=v-baseline;
+    rows+="<tr><td>"+(T?("$"+T):"—")+"</td><td>"+(S?("$"+S):"—")+"</td><td>"+fmtUSDplain(v*mult)+"</td><td style=\"color:"+(dd>=0?"#15803d":"#b91c1c")+"\">"+(dd>=0?"+":"")+fmtUSDplain(dd*mult)+"</td></tr>";}
+  document.getElementById("sim-daily-table").innerHTML=rows;
+  document.getElementById("sim-daily-insight").innerHTML=
+    "💡 <b>המסקנה:</b> באסטרטגיה הזו <b>יעד רווח יומי פוגע</b> — הוא קוטע את הימים הגדולים שנושאים את כל הרווח (יעד +$175 ליום חותך מ-"+fmtUSDplain(baseline*mult)+" ל-"+fmtUSDplain(sim(175,0)*mult)+"). <b>עצירת הפסד</b> רחבה (~$600) משפרת בשוליים בלבד. השורה התחתונה: <b>עדיף לקחת את כל העסקאות</b> ולתת לימים המנצחים לרוץ. (ניתוח in-sample על העבר — לא הבטחה לעתיד.)";
 }
 
 function renderKPIs(closed) {
