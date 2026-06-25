@@ -238,6 +238,21 @@ table.simple td.muted { color:var(--txt4); }
   <div class="insight" id="sim-daily-result"></div>
   <table class="simple" id="sim-daily-table"></table>
   <div class="insight" id="sim-daily-insight"></div>
+
+  <h3>🔬 מסננים — "מה אם?"</h3>
+  <div class="sim-bar">
+    <label><input type="checkbox" id="wf-long" checked> LONG</label>
+    <label><input type="checkbox" id="wf-short" checked> SHORT</label>
+    <label>אל תסחר בשעות (LA): <input type="text" id="wf-exhours" value="" placeholder="לדוגמה 5,8" style="width:150px"></label>
+  </div>
+  <div class="sim-bar">
+    <button class="ss-btn" onclick="wfPreset('all')">הכל</button>
+    <button class="ss-btn" onclick="wfPreset('no58')">בלי 05/08</button>
+    <button class="ss-btn" onclick="wfPreset('short')">SHORT בלבד</button>
+    <button class="ss-btn" onclick="wfPreset('best')">שעות חזקות בלבד</button>
+  </div>
+  <div class="bt-kpis" id="wf-kpis"></div>
+  <div class="insight" id="wf-insight"></div>
 </div>
 
 <!-- Strategy start-date filter strip -->
@@ -793,6 +808,34 @@ function renderBacktest() {
 }
 
 let SIM_CHART=null;
+function wfHr(r){return parseInt((r._entry_time_la||"").split(" ")[1].slice(0,2));}
+function wfPreset(pp){
+  var L=document.getElementById("wf-long"),S=document.getElementById("wf-short"),H=document.getElementById("wf-exhours");
+  if(pp==="all"){L.checked=true;S.checked=true;H.value="";}
+  else if(pp==="no58"){L.checked=true;S.checked=true;H.value="5,8";}
+  else if(pp==="short"){L.checked=false;S.checked=true;H.value="";}
+  else if(pp==="best"){L.checked=true;S.checked=true;H.value="0,1,2,3,4,5,6,8,10,11,13,14,16,18,19,20,21,23";}
+  renderWhatIf();
+}
+function _wfStat(rs){var net=0,gp=0,gl=0,wn=0,eq=0,pk=0,mdd=0;for(var i=0;i<rs.length;i++){var x=rs[i].result_dollars;net+=x;if(x>0){gp+=x;wn++;}else gl+=Math.abs(x);eq+=x;if(eq>pk)pk=eq;if(pk-eq>mdd)mdd=pk-eq;}return {n:rs.length,net:net,pf:gl?gp/gl:99,wr:rs.length?wn/rs.length*100:0,mdd:mdd};}
+function renderWhatIf(){
+  if(!STATE.backtest||!STATE.backtest.trades) return;
+  var trades=STATE.backtest.trades;
+  var L=document.getElementById("wf-long").checked, S=document.getElementById("wf-short").checked;
+  var ex=(document.getElementById("wf-exhours").value||"").split(",").map(function(x){return parseInt(x.trim());}).filter(function(x){return !isNaN(x);});
+  var mult=parseInt(document.getElementById("sim-contracts").value)||1;
+  var rows=trades.filter(function(r){ if(r.direction==="long"&&!L)return false; if(r.direction==="short"&&!S)return false; if(ex.indexOf(wfHr(r))>=0)return false; return true; });
+  var s=_wfStat(rows), base=_wfStat(trades);
+  function k(lbl,val,sub,cls){return '<div class="bt-kpi '+(cls||"")+'"><div class="lbl">'+lbl+'</div><div class="val">'+val+'</div><div class="sub">'+sub+'</div></div>';}
+  document.getElementById("wf-kpis").innerHTML=
+    k("עסקאות",s.n,"מתוך "+base.n,"")+
+    k("Net",fmtUSD(s.net*mult),"בסינון",s.net>=0?"green":"red")+
+    k("Profit Factor",s.pf.toFixed(2),"בסיס "+base.pf.toFixed(2),s.pf>=base.pf?"green":"red")+
+    k("Win Rate",s.wr.toFixed(1)+"%","בסיס "+base.wr.toFixed(1)+"%",s.wr>=base.wr?"green":"")+
+    k("Max DD","-"+fmtUSDplain(s.mdd*mult),"בסיס -"+fmtUSDplain(base.mdd*mult),s.mdd<=base.mdd?"green":"red");
+  var dn=(s.net-base.net)*mult;
+  document.getElementById("wf-insight").innerHTML="💡 בסינון: Net "+fmtUSD(s.net*mult)+" ("+(dn>=0?"+":"")+fmtUSDplain(dn)+" מול לקיחת הכל), PF "+s.pf.toFixed(2)+", דראודאון -"+fmtUSDplain(s.mdd*mult)+"."+((s.pf>base.pf&&s.mdd<base.mdd)?" ✅ הסינון משפר גם רווחיות וגם סיכון.":"");
+}
 function _simBind(id,ev){var el=document.getElementById(id); if(el&&!el._simBound){el.addEventListener(ev,renderSimReport); el._simBound=true;}}
 function renderSimReport(){
   if(!STATE.backtest||!Array.isArray(STATE.backtest.trades)||!STATE.backtest.trades.length) return;
@@ -819,7 +862,9 @@ function renderSimReport(){
   document.getElementById("sim-insight").innerHTML=
     "💡 התחלת עם <b>"+fmtUSDplain(cap)+"</b> ב-"+mult+" חוזה/ים → היום <b>"+fmtUSDplain(bal)+"</b> (<b>"+(ret>=0?"+":"")+ret.toFixed(1)+"%</b>). הירידה הכי גדולה מהשיא בדרך: <b>-"+fmtUSDplain(mdd)+"</b> ("+mddPct.toFixed(1)+"%)."+(mult>1?" (הסכומים ב-"+mult+" חוזים.)":"");
   var rh=document.getElementById("report-head-sub"); if(rh)rh.textContent="נוצר "+new Date().toLocaleString("he-IL")+" · "+trades.length+" עסקאות · נתוני אינדיקטור (לא ברוקר)";
+  _simBind("wf-long","change");_simBind("wf-short","change");_simBind("wf-exhours","input");
   renderDailySim(trades,mult);
+  try{ renderWhatIf(); }catch(e){ console.warn("whatif",e); }
 }
 function renderDailySim(trades,mult){
   var days={};
