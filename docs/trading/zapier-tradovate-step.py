@@ -172,6 +172,56 @@ try:
 except Exception as e:
     return reject(base, "ERROR", "position_fetch_failed", error=str(e))
 
+# 🔼 SCALE IN — add a contract to the open position WITH its own bracket (TP/SL).
+# Pyramiding: not capped by max_qty. EXIT of this contract is handled server-side
+# by the OSO bracket below, so the indicator's "EXIT SCALE" alert is intentionally
+# a no-op (see below).
+if type_ == "SCALE IN":
+    if not cfg.get("enabled", False):
+        return reject(base, "SKIP", "bot_disabled_scalein")
+    add_action = "Buy" if (input_data.get("action", "").lower() == "buy") else "Sell"
+    add_qty = max(1, i2(input_data.get("quantity")) or 1)
+    px = f2(input_data.get("price"))
+    if px is None or px <= 0:
+        sms("🚨 SCALE IN ללא price")
+        return reject(base, "ERROR", "scalein_missing_price")
+    tickS = float(active.get("tick_size") or 0.25)
+    si_tp_ticks = i2(input_data.get("tp_ticks")) or 175
+    si_sl_ticks = i2(input_data.get("sl_ticks")) or 80
+    opp = "Sell" if add_action == "Buy" else "Buy"
+    if add_action == "Buy":
+        si_sl = px - si_sl_ticks * tickS
+        si_tp = px + si_tp_ticks * tickS
+    else:
+        si_sl = px + si_sl_ticks * tickS
+        si_tp = px - si_tp_ticks * tickS
+    si_sl = round(round(si_sl / tickS) * tickS, 4)
+    si_tp = round(round(si_tp / tickS) * tickS, 4)
+    oso_si = {
+        "accountSpec": TRADOVATE["name"], "accountId": account_id, "action": add_action,
+        "symbol": contract_name, "orderQty": add_qty, "orderType": "Market", "isAutomated": True,
+        "bracket1": {"action": opp, "orderType": "Stop",  "stopPrice": si_sl, "timeInForce": "GTC"},
+        "bracket2": {"action": opp, "orderType": "Limit", "price": si_tp,    "timeInForce": "GTC"},
+    }
+    try:
+        r = requests.post(TRADOVATE["url"] + "/order/placeOSO", headers=HEAD, json=oso_si, timeout=20)
+        dd = r.json(); oid = dd.get("orderId")
+        if not oid:
+            err = dd.get("failureText") or r.text[:200]
+            sms("🚨 SCALE IN נכשל: " + str(err))
+            return reject(base, "ERROR", "scalein_failed", error=err)
+    except Exception as e:
+        sms("🚨 SCALE IN exception: " + str(e))
+        return reject(base, "ERROR", "scalein_exception", error=str(e))
+    sms("🔼 SCALE IN " + add_action + " x" + str(add_qty) + " @market | TP " + str(si_tp) + " | SL " + str(si_sl))
+    return {**base, "status": "OK", "reason": "scale_in_placed", "order_id": oid,
+            "action": add_action, "qty": add_qty, "symbol": contract_name, "sl": si_sl, "tp": si_tp}
+
+# EXIT SCALE — the scale-in contract is closed by its OSO bracket on Tradovate.
+# No bot action needed (and we must NOT fall into the generic EXIT flatten logic).
+if type_.startswith("EXIT SCALE"):
+    return reject(base, "SKIP", "scale_exit_handled_by_bracket")
+
 u = type_
 if u in ("LONG", "SWAP LONG"):
     delta = max_qty - current_net
