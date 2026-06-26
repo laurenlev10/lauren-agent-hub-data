@@ -176,7 +176,7 @@ except Exception as e:
 # Pyramiding: not capped by max_qty. EXIT of this contract is handled server-side
 # by the OSO bracket below, so the indicator's "EXIT SCALE" alert is intentionally
 # a no-op (see below).
-if type_ == "SCALE IN":
+if type_ in ("MOMENTUM IN", "SCALE IN"):
     if not cfg.get("enabled", False):
         return reject(base, "SKIP", "bot_disabled_scalein")
     add_action = "Buy" if (input_data.get("action", "").lower() == "buy") else "Sell"
@@ -217,10 +217,10 @@ if type_ == "SCALE IN":
     return {**base, "status": "OK", "reason": "scale_in_placed", "order_id": oid,
             "action": add_action, "qty": add_qty, "symbol": contract_name, "sl": si_sl, "tp": si_tp}
 
-# EXIT SCALE — the scale-in contract is closed by its OSO bracket on Tradovate.
-# No bot action needed (and we must NOT fall into the generic EXIT flatten logic).
-if type_.startswith("EXIT SCALE"):
-    return reject(base, "SKIP", "scale_exit_handled_by_bracket")
+# EXIT MOMENTUM / EXIT SCALE — the momentum contract is closed by its OSO bracket on
+# Tradovate. No bot action needed (must NOT fall into the generic EXIT flatten logic).
+if type_.startswith("EXIT MOMENTUM") or type_.startswith("EXIT SCALE"):
+    return reject(base, "SKIP", "momentum_exit_handled_by_bracket")
 
 u = type_
 if u in ("LONG", "SWAP LONG"):
