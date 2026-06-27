@@ -186,6 +186,22 @@ table.simple td.muted { color:var(--txt4); }
   body{padding:6px}
   a[href]:after{content:""}
 }
+
+/* per-strategy selector + comparison */
+.strat-sel-section { background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; padding:12px 16px; margin-bottom:16px; box-shadow:var(--sh); }
+.strat-sel-bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.ss2-label { font-size:13px; font-weight:800; color:#334155; }
+.ss2-btns { display:flex; gap:7px; flex-wrap:wrap; }
+.ss2-btn { background:#f1f5f9; color:#475569; border:1.5px solid #cbd5e1; border-radius:8px; padding:7px 14px; font-family:var(--f); font-size:13px; font-weight:700; cursor:pointer; transition:all .12s; }
+.ss2-btn:hover { background:#e2e8f0; }
+.ss2-btn.active { background:#0f172a; color:#fff; border-color:#0f172a; }
+.strat-cmp { margin-top:12px; overflow-x:auto; }
+.cmp-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+.cmp-tbl th, .cmp-tbl td { padding:8px 12px; text-align:center; border-bottom:1px solid #eef2f7; }
+.cmp-tbl th { background:#f8fafc; color:#64748b; font-weight:700; font-size:12px; }
+.cmp-tbl td.cmp-name { text-align:right; font-weight:800; color:#0f172a; }
+.cmp-tbl td.pos { color:var(--grn); font-weight:800; }
+.cmp-tbl td.neg { color:var(--red); font-weight:800; }
 </style>
 </head>
 <body>
@@ -210,9 +226,23 @@ table.simple td.muted { color:var(--txt4); }
 <div id="status">⏳ טוען נתונים...</div>
 <div id="report-head"><h1>📑 דוח אסטרטגיה — VWAP 1.0</h1><div class="sub" id="report-head-sub"></div></div>
 
+<!-- Per-strategy selector + comparison -->
+<div class="strat-sel-section" id="strat-sel-section">
+  <div class="strat-sel-bar">
+    <span class="ss2-label">📑 אסטרטגיה:</span>
+    <div class="ss2-btns" id="ss2-btns">
+      <button class="ss2-btn active" data-strat="all"      onclick="selectStrategy('all')">הכל</button>
+      <button class="ss2-btn"        data-strat="base"     onclick="selectStrategy('base')">🟦 BASE</button>
+      <button class="ss2-btn"        data-strat="partial"  onclick="selectStrategy('partial')">✂️ PARTIAL</button>
+      <button class="ss2-btn"        data-strat="momentum" onclick="selectStrategy('momentum')">🚀 MOMENTUM</button>
+    </div>
+  </div>
+  <div class="strat-cmp" id="strat-cmp"></div>
+</div>
+
 <!-- Backtest Baseline section -->
 <div class="backtest-section" id="backtest-section" style="display:none;">
-  <h2>📊 Backtest Baseline <span class="desc">— נתונים מהטבלה של האינדיקטור (VWAP 1.0)</span></h2>
+  <h2>📊 Backtest Baseline <span class="desc">— נתונים מטבלאות האינדיקטור (VWAP 1.2)</span></h2>
   <div class="bt-note" id="bt-note">⏳ טוען...</div>
   <div class="bt-kpis" id="bt-kpis"></div>
   <div class="bt-chart"><canvas id="chart-backtest-equity"></canvas></div>
@@ -386,6 +416,9 @@ const BACKTEST_URL = "./backtest-data.json";
 const CONFIG_REPO_FILE = "docs/trading/autotrade_enabled.json";
 const AT_TOKEN_KEY = "lauren_gh_token_v1";  // per IRON RULE #7 — localStorage for secrets
 let STATE = { raw: null, trades: [], config: null, backtest: null };
+let SELECTED_STRATEGY = "all";
+let BT_ALL = null;
+let LIVE_ALL = [];
 let CALENDAR_STATE = { viewYear: null, viewMonth: null };  // 0-indexed month
 
 function fmtUSD(v) {
@@ -436,8 +469,9 @@ async function loadData() {
     const updatedAt = j._updated_at ? new Date(j._updated_at).toLocaleString("he-IL") : "—";
     document.getElementById("updated-at").textContent = "עודכן " + updatedAt;
 
-    renderStrategyStrip();
-    renderAll();
+    BT_ALL = STATE.backtest;
+    LIVE_ALL = STATE.trades;
+    applyStrategyFilter();
   } catch (e) {
     console.error(e);
     document.getElementById("status").textContent = "❌ שגיאת טעינה: " + e.message;
@@ -662,6 +696,42 @@ function destroyChart(name) {
   }
 }
 
+function strategyMatch(t){ return SELECTED_STRATEGY === "all" || (String(t.strategy||"").toLowerCase() === SELECTED_STRATEGY); }
+function selectStrategy(srt){
+  SELECTED_STRATEGY = srt;
+  document.querySelectorAll("#ss2-btns .ss2-btn").forEach(b => b.classList.toggle("active", b.dataset.strat === srt));
+  applyStrategyFilter();
+}
+function applyStrategyFilter(){
+  STATE.trades = (LIVE_ALL || []).filter(strategyMatch);
+  if (BT_ALL && Array.isArray(BT_ALL.trades)) {
+    STATE.backtest = Object.assign({}, BT_ALL, { trades: BT_ALL.trades.filter(strategyMatch) });
+  }
+  renderComparison();
+  renderStrategyStrip();
+  renderAll();
+}
+function _stratStats(trs){
+  let net=0,gp=0,gl=0,wn=0;
+  (trs||[]).forEach(t=>{ const x=+t.result_dollars||0; net+=x; if(x>0){gp+=x;wn++;} else if(x<0){gl+=Math.abs(x);} });
+  return { n:(trs||[]).length, net, pf: gl? gp/gl : (gp>0?Infinity:0), wr:(trs||[]).length? wn/(trs||[]).length*100 : 0 };
+}
+function renderComparison(){
+  const el = document.getElementById("strat-cmp"); if(!el) return;
+  const src = (BT_ALL && Array.isArray(BT_ALL.trades)) ? BT_ALL.trades : [];
+  const strats = [["base","🟦 BASE"],["partial","✂️ PARTIAL"],["momentum","🚀 MOMENTUM"]];
+  let any=false;
+  const rows = strats.map(([k,lbl])=>{
+    const st=_stratStats(src.filter(t=>String(t.strategy||"").toLowerCase()===k));
+    if(st.n) any=true;
+    const pf = st.pf===Infinity ? "∞" : st.pf.toFixed(2);
+    const netCls = st.net>=0 ? "pos":"neg";
+    return `<tr><td class="cmp-name">${lbl}</td><td>${st.n}</td><td class="${netCls}">${fmtUSD(st.net)}</td><td>${pf}</td><td>${st.wr.toFixed(1)}%</td></tr>`;
+  }).join("");
+  el.innerHTML = any
+    ? `<table class="cmp-tbl"><thead><tr><th>אסטרטגיה</th><th>עסקאות</th><th>נטו $</th><th>PF</th><th>אחוז הצלחה</th></tr></thead><tbody>${rows}</tbody></table>`
+    : `<div style="font-size:13px;color:#94a3b8;padding:6px 2px;">אין עדיין נתונים — העלי טבלאות אינדיקטור לכל אסטרטגיה.</div>`;
+}
 function renderAll() {
   // Render the backtest baseline first — it's independent of live data
   renderBacktest();
