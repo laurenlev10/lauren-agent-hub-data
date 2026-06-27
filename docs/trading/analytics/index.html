@@ -202,6 +202,7 @@ table.simple td.muted { color:var(--txt4); }
 .cmp-tbl td.cmp-name { text-align:right; font-weight:800; color:#0f172a; }
 .cmp-tbl td.pos { color:var(--grn); font-weight:800; }
 .cmp-tbl td.neg { color:var(--red); font-weight:800; }
+.cmp-insight { margin-top:10px; font-size:13px; color:#334155; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:9px 13px; line-height:1.6; }
 </style>
 </head>
 <body>
@@ -712,25 +713,35 @@ function applyStrategyFilter(){
   renderAll();
 }
 function _stratStats(trs){
-  let net=0,gp=0,gl=0,wn=0;
-  (trs||[]).forEach(t=>{ const x=+t.result_dollars||0; net+=x; if(x>0){gp+=x;wn++;} else if(x<0){gl+=Math.abs(x);} });
-  return { n:(trs||[]).length, net, pf: gl? gp/gl : (gp>0?Infinity:0), wr:(trs||[]).length? wn/(trs||[]).length*100 : 0 };
+  const arr=(trs||[]).slice().sort((a,b)=> new Date(a._received_at||a._entry_time_la||0) - new Date(b._received_at||b._entry_time_la||0));
+  let net=0,gp=0,gl=0,wn=0,eq=0,pk=0,mdd=0,worst=0,curL=0,maxL=0;
+  arr.forEach(t=>{ const x=+t.result_dollars||0; net+=x;
+    if(x>0){gp+=x;wn++;curL=0;} else if(x<0){gl+=Math.abs(x); if(x<worst)worst=x; curL++; if(curL>maxL)maxL=curL;}
+    eq+=x; if(eq>pk)pk=eq; if(pk-eq>mdd)mdd=pk-eq; });
+  return { n:arr.length, net, pf: gl? gp/gl : (gp>0?Infinity:0), wr:arr.length? wn/arr.length*100 : 0, mdd, worst, maxL };
 }
 function renderComparison(){
   const el = document.getElementById("strat-cmp"); if(!el) return;
   const src = (BT_ALL && Array.isArray(BT_ALL.trades)) ? BT_ALL.trades : [];
   const strats = [["base","🟦 BASE"],["partial","✂️ PARTIAL"],["momentum","🚀 MOMENTUM"]];
-  let any=false;
-  const rows = strats.map(([k,lbl])=>{
-    const st=_stratStats(src.filter(t=>String(t.strategy||"").toLowerCase()===k));
-    if(st.n) any=true;
+  const stats = strats.map(([k,lbl])=>({k,lbl,st:_stratStats(src.filter(t=>String(t.strategy||"").toLowerCase()===k))}));
+  const withData = stats.filter(o=>o.st.n>0);
+  if(!withData.length){ el.innerHTML = `<div style="font-size:13px;color:#94a3b8;padding:6px 2px;">אין עדיין נתונים — העלי טבלאות אינדיקטור לכל אסטרטגיה.</div>`; return; }
+  // safest = lowest max-drawdown; best worst-loss = smallest magnitude
+  const safeK = withData.slice().sort((a,b)=>a.st.mdd-b.st.mdd)[0].k;
+  const rows = stats.map(({k,lbl,st})=>{
+    if(!st.n) return `<tr style="opacity:.4"><td class="cmp-name">${lbl}</td><td colspan="7" style="text-align:center;font-size:12px;color:#94a3b8;">— אין נתונים —</td></tr>`;
     const pf = st.pf===Infinity ? "∞" : st.pf.toFixed(2);
-    const netCls = st.net>=0 ? "pos":"neg";
-    return `<tr><td class="cmp-name">${lbl}</td><td>${st.n}</td><td class="${netCls}">${fmtUSD(st.net)}</td><td>${pf}</td><td>${st.wr.toFixed(1)}%</td></tr>`;
+    const star = k===safeK ? ' <span title="הדראודאון הנמוך ביותר" style="color:#16a34a">🛡️</span>' : '';
+    return `<tr><td class="cmp-name">${lbl}${star}</td><td>${st.n}</td><td class="${st.net>=0?'pos':'neg'}">${fmtUSD(st.net)}</td><td>${pf}</td><td>${st.wr.toFixed(1)}%</td><td class="neg" style="font-weight:800">${fmtUSD(-st.mdd)}</td><td class="neg">${fmtUSD(st.worst)}</td><td>${st.maxL}</td></tr>`;
   }).join("");
-  el.innerHTML = any
-    ? `<table class="cmp-tbl"><thead><tr><th>אסטרטגיה</th><th>עסקאות</th><th>נטו $</th><th>PF</th><th>אחוז הצלחה</th></tr></thead><tbody>${rows}</tbody></table>`
-    : `<div style="font-size:13px;color:#94a3b8;padding:6px 2px;">אין עדיין נתונים — העלי טבלאות אינדיקטור לכל אסטרטגיה.</div>`;
+  let insight="";
+  if(withData.length>=2){
+    const byDD=withData.slice().sort((a,b)=>a.st.mdd-b.st.mdd);
+    const byPF=withData.slice().sort((a,b)=>b.st.pf-a.st.pf);
+    insight=`<div class="cmp-insight">🛡️ <b>הכי בטוחה</b> (דראודאון הנמוך ביותר): <b>${byDD[0].lbl}</b> — דראודאון מקס ${fmtUSD(-byDD[0].st.mdd)}, הפסד בודד גדול ${fmtUSD(byDD[0].st.worst)}. &nbsp;|&nbsp; 💪 <b>הרווחית ביותר</b> (PF): <b>${byPF[0].lbl}</b>.</div>`;
+  }
+  el.innerHTML = `<table class="cmp-tbl"><thead><tr><th>אסטרטגיה</th><th>עסקאות</th><th>נטו $</th><th>PF</th><th>אחוז הצלחה</th><th>📉 דראודאון מקס</th><th>💔 הפסד גדול</th><th>🔁 רצף הפסד</th></tr></thead><tbody>${rows}</tbody></table>${insight}`;
 }
 function renderAll() {
   // Render the backtest baseline first — it's independent of live data
