@@ -203,6 +203,17 @@ table.simple td.muted { color:var(--txt4); }
 .cmp-tbl td.pos { color:var(--grn); font-weight:800; }
 .cmp-tbl td.neg { color:var(--red); font-weight:800; }
 .cmp-insight { margin-top:10px; font-size:13px; color:#334155; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:9px 13px; line-height:1.6; }
+
+/* hourly + combined */
+.an-section { background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; padding:14px 16px; margin-bottom:16px; box-shadow:var(--sh); }
+.an-section h3 { margin:0 0 4px; font-size:15px; color:#0f172a; font-weight:800; }
+.an-section .sub { font-size:12px; color:#64748b; margin-bottom:10px; }
+.an-kpis { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.an-kpi { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:10px; padding:9px 14px; min-width:130px; }
+.an-kpi .l { font-size:11px; color:#64748b; font-weight:700; }
+.an-kpi .v { font-size:20px; font-weight:800; }
+.an-kpi .v.neg { color:var(--red); } .an-kpi .v.pos { color:var(--grn); }
+.an-note { font-size:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:8px 12px; margin-top:8px; line-height:1.55; }
 </style>
 </head>
 <body>
@@ -239,6 +250,22 @@ table.simple td.muted { color:var(--txt4); }
     </div>
   </div>
   <div class="strat-cmp" id="strat-cmp"></div>
+</div>
+
+<!-- Per-hour analysis (respects selector) -->
+<div class="an-section" id="hourly-section" style="display:none;">
+  <h3>🕐 ניתוח לפי שעה (LA) <span id="hourly-which" style="font-weight:600;color:#64748b;font-size:13px;"></span></h3>
+  <div class="sub">איזו שעה מרוויחה ואיזו מפסידה — לזיהוי שעות לחסום. בחרי אסטרטגיה בבורר למעלה כדי לנתח כל אחת.</div>
+  <div id="hourly-body"></div>
+  <div class="an-note" id="hourly-note"></div>
+</div>
+
+<!-- Combined run (all 3 together) -->
+<div class="an-section" id="combined-section" style="display:none;">
+  <h3>🔗 הרצת שלוש האסטרטגיות יחד</h3>
+  <div class="sub">מה קורה כשמריצים BASE+PARTIAL+MOMENTUM ביחד — הדראודאון המשולב האמיתי (הן מתואמות, אז זה לא סכום פשוט).</div>
+  <div class="an-kpis" id="combined-kpis"></div>
+  <div class="an-note" id="combined-note"></div>
 </div>
 
 <!-- Backtest Baseline section -->
@@ -709,6 +736,8 @@ function applyStrategyFilter(){
     STATE.backtest = Object.assign({}, BT_ALL, { trades: BT_ALL.trades.filter(strategyMatch) });
   }
   renderComparison();
+  renderHourly();
+  renderCombined();
   renderStrategyStrip();
   renderAll();
 }
@@ -719,6 +748,47 @@ function _stratStats(trs){
     if(x>0){gp+=x;wn++;curL=0;} else if(x<0){gl+=Math.abs(x); if(x<worst)worst=x; curL++; if(curL>maxL)maxL=curL;}
     eq+=x; if(eq>pk)pk=eq; if(pk-eq>mdd)mdd=pk-eq; });
   return { n:arr.length, net, pf: gl? gp/gl : (gp>0?Infinity:0), wr:arr.length? wn/arr.length*100 : 0, mdd, worst, maxL };
+}
+function renderHourly(){
+  const sec=document.getElementById("hourly-section"); if(!sec) return;
+  const trs=(STATE.backtest&&Array.isArray(STATE.backtest.trades))?STATE.backtest.trades:[];
+  document.getElementById("hourly-which").textContent = SELECTED_STRATEGY==="all"?"(כל האסטרטגיות יחד)":("— "+SELECTED_STRATEGY.toUpperCase());
+  if(!trs.length){ sec.style.display="none"; return; }
+  sec.style.display="";
+  const H={}; for(let h=0;h<24;h++)H[h]={n:0,net:0,w:0,gp:0,gl:0};
+  trs.forEach(t=>{ const p=(t._entry_time_la||"").split(" "); if(p.length<2)return; const hh=parseInt(p[1].slice(0,2)); if(isNaN(hh))return;
+    const x=+t.result_dollars||0; const o=H[hh]; o.n++; o.net+=x; if(x>0){o.w++;o.gp+=x;} else if(x<0)o.gl+=Math.abs(x); });
+  let rows="",bad=[];
+  for(let h=0;h<24;h++){ const o=H[h]; if(!o.n)continue;
+    const pf=o.gl?(o.gp/o.gl).toFixed(2):(o.gp>0?"\u221e":"—"); const wr=Math.round(o.w/o.n*100);
+    if(o.net<0)bad.push(h);
+    rows+=`<tr><td>${String(h).padStart(2,"0")}:00</td><td>${o.n}</td><td class="${o.net>=0?"pos":"neg"}">${fmtUSD(o.net)}</td><td>${wr}%</td><td>${pf}</td><td>${o.net<0?"\ud83d\udd34":""}</td></tr>`;
+  }
+  document.getElementById("hourly-body").innerHTML=`<div class="strat-cmp"><table class="cmp-tbl"><thead><tr><th>שעה (LA)</th><th>עסקאות</th><th>נטו $</th><th>הצלחה</th><th>PF</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  document.getElementById("hourly-note").innerHTML = bad.length
+    ? `🔴 שעות מפסידות (נטו שלילי): <b>${bad.map(h=>String(h).padStart(2,"0")).join(", ")}</b> — שקלי לחסום אותן בפילטר השעות של האינדיקטור.`
+    : "אין שעה עם נטו שלילי בטווח הזה.";
+}
+function renderCombined(){
+  const sec=document.getElementById("combined-section"); if(!sec) return;
+  const all=(BT_ALL&&Array.isArray(BT_ALL.trades))?BT_ALL.trades.slice():[];
+  if(!all.length){ sec.style.display="none"; return; }
+  sec.style.display="";
+  all.sort((a,b)=>new Date(a._received_at||a._entry_time_la||0)-new Date(b._received_at||b._entry_time_la||0));
+  let eq=0,pk=0,mdd=0,net=0; const day={};
+  all.forEach(t=>{ const x=+t.result_dollars||0; net+=x; eq+=x; if(eq>pk)pk=eq; if(pk-eq>mdd)mdd=pk-eq;
+    const d=(t._entry_time_la||"").split(" ")[0]; day[d]=(day[d]||0)+x; });
+  const worstDay=Math.min(0,...Object.values(day));
+  const sum=(BT_ALL._strategy_summary)||{};
+  const biggestSingleDD=Math.max(...["base","partial","momentum"].map(k=>(sum[k]&&sum[k].max_drawdown)||0),0);
+  function kpi(l,v,cls){return `<div class="an-kpi"><div class="l">${l}</div><div class="v ${cls||""}">${v}</div></div>`;}
+  document.getElementById("combined-kpis").innerHTML =
+    kpi("נטו משולב",fmtUSD(net),net>=0?"pos":"neg")+
+    kpi("📉 דראודאון משולב",fmtUSD(-mdd),"neg")+
+    kpi("💔 היום הגרוע ביותר",fmtUSD(worstDay),"neg")+
+    kpi("עסקאות (3 יחד)",all.length,"");
+  document.getElementById("combined-note").innerHTML =
+    `הדראודאון המשולב (<b>${fmtUSD(-mdd)}</b>) גדול מהדראודאון של כל אסטרטגיה לבדה (הכי גדול: ${fmtUSD(-biggestSingleDD)}) — כי השלוש מתואמות וההפסדים מצטברים יחד. ביום הגרוע ביותר ירדת <b>${fmtUSD(worstDay)}</b> בשלושתן. שקלי סייז קטן יותר אם מריצה את כולן.`;
 }
 function renderComparison(){
   const el = document.getElementById("strat-cmp"); if(!el) return;
