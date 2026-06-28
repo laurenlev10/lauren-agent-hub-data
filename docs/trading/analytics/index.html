@@ -214,6 +214,12 @@ table.simple td.muted { color:var(--txt4); }
 .an-kpi .v { font-size:20px; font-weight:800; }
 .an-kpi .v.neg { color:var(--red); } .an-kpi .v.pos { color:var(--grn); }
 .an-note { font-size:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:8px 12px; margin-top:8px; line-height:1.55; }
+
+/* heatmap */
+.hm-tbl { width:100%; border-collapse:collapse; font-size:12px; text-align:center; }
+.hm-tbl th { background:#0f172a; color:#fff; font-weight:700; padding:7px 6px; font-size:12px; }
+.hm-tbl td { padding:6px 6px; border:1px solid #fff; font-weight:700; line-height:1.25; }
+.hm-tbl td.hm-hr { background:#f1f5f9; color:#334155; font-weight:800; }
 </style>
 </head>
 <body>
@@ -266,6 +272,13 @@ table.simple td.muted { color:var(--txt4); }
   <div class="sub">מה קורה כשמריצים BASE+PARTIAL+MOMENTUM ביחד — הדראודאון המשולב האמיתי (הן מתואמות, אז זה לא סכום פשוט).</div>
   <div class="an-kpis" id="combined-kpis"></div>
   <div class="an-note" id="combined-note"></div>
+</div>
+
+<!-- Hour x strategy heatmap -->
+<div class="an-section" id="heatmap-section" style="display:none;">
+  <h3>🌡️ מפת חום: שעה (LA) × אסטרטגיה</h3>
+  <div class="sub">נטו $ לכל שעה לכל אסטרטגיה. ירוק = רווחית, אדום = מפסידה, עוצמת הצבע = גודל. מבט אחד על מתי כל אחת חזקה.</div>
+  <div style="overflow-x:auto" id="heatmap-body"></div>
 </div>
 
 <!-- Backtest Baseline section -->
@@ -738,6 +751,7 @@ function applyStrategyFilter(){
   renderComparison();
   renderHourly();
   renderCombined();
+  renderHeatmap();
   renderStrategyStrip();
   renderAll();
 }
@@ -789,6 +803,25 @@ function renderCombined(){
     kpi("עסקאות (3 יחד)",all.length,"");
   document.getElementById("combined-note").innerHTML =
     `הדראודאון המשולב (<b>${fmtUSD(-mdd)}</b>) גדול מהדראודאון של כל אסטרטגיה לבדה (הכי גדול: ${fmtUSD(-biggestSingleDD)}) — כי השלוש מתואמות וההפסדים מצטברים יחד. ביום הגרוע ביותר ירדת <b>${fmtUSD(worstDay)}</b> בשלושתן. שקלי סייז קטן יותר אם מריצה את כולן.`;
+}
+function renderHeatmap(){
+  const sec=document.getElementById("heatmap-section"); if(!sec) return;
+  const all=(BT_ALL&&Array.isArray(BT_ALL.trades))?BT_ALL.trades:[];
+  if(!all.length){ sec.style.display="none"; return; }
+  sec.style.display="";
+  const strats=["base","partial","momentum"]; const cell={};
+  all.forEach(t=>{ const p=(t._entry_time_la||"").split(" "); if(p.length<2)return; const h=parseInt(p[1].slice(0,2)); if(isNaN(h))return;
+    cell[h]=cell[h]||{}; cell[h][t.strategy]=cell[h][t.strategy]||{n:0,net:0}; cell[h][t.strategy].n++; cell[h][t.strategy].net+=(+t.result_dollars||0); });
+  let mx=1; Object.values(cell).forEach(r=>strats.forEach(sx=>{ if(r[sx])mx=Math.max(mx,Math.abs(r[sx].net)); }));
+  function bg(net){ const a=Math.min(1,Math.abs(net)/mx*0.82+0.10); return net>=0?`rgba(22,163,74,${a.toFixed(2)})`:`rgba(220,38,38,${a.toFixed(2)})`; }
+  let rows="";
+  for(let h=0;h<24;h++){ if(!cell[h])continue;
+    const tds=strats.map(sx=>{ const o=cell[h][sx]; if(!o||!o.n) return '<td style="background:#f8fafc;color:#cbd5e1">—</td>';
+      const tc=(Math.abs(o.net)/mx>0.42)?"#fff":"#0f172a";
+      return `<td style="background:${bg(o.net)};color:${tc}"><b>${fmtUSD(o.net)}</b><br><span style="font-size:10px;opacity:.85">${o.n} עס'</span></td>`; }).join("");
+    rows+=`<tr><td class="hm-hr">${String(h).padStart(2,"0")}:00</td>${tds}</tr>`;
+  }
+  document.getElementById("heatmap-body").innerHTML=`<table class="hm-tbl"><thead><tr><th>שעה LA</th><th>🟦 BASE</th><th>✂️ PARTIAL</th><th>🚀 MOM</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 function renderComparison(){
   const el = document.getElementById("strat-cmp"); if(!el) return;
