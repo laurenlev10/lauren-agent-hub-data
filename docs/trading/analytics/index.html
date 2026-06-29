@@ -338,6 +338,16 @@ table.simple td.muted { color:var(--txt4); }
   </div>
 </div>
 
+<!-- Real broker account (broker-ledger.json) -->
+<div id="broker-panel" style="display:none; border:1.5px solid #38bdf8; border-radius:12px; padding:14px 16px; margin-bottom:14px; background:linear-gradient(135deg,#eff6ff,#e0f2fe); box-shadow:var(--sh);">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+    <span style="font-size:15px;font-weight:800;color:#075985;">🏦 החשבון האמיתי (Tradovate דמו)</span>
+    <span id="broker-updated" style="font-size:12px;color:#0369a1;"></span>
+    <span style="margin-inline-start:auto;font-size:11px;color:#64748b;">P&amp;L אמיתי מהברוקר · מתעדכן כל שעה · מאוחד (לא לפי אסטרטגיה)</span>
+  </div>
+  <div id="broker-stats" style="display:flex;gap:18px;flex-wrap:wrap;"></div>
+</div>
+
 <!-- KPI tiles row -->
 <div class="kpi-row" id="kpi-row" style="display:none;">
   <div class="kpi" id="kpi-trades">
@@ -454,6 +464,7 @@ table.simple td.muted { color:var(--txt4); }
 const DATA_URL = "../journal-data.json";
 const CONFIG_URL = "../autotrade_enabled.json";
 const BACKTEST_URL = "./backtest-data.json";
+const BROKER_URL = "./broker-ledger.json";
 const CONFIG_REPO_FILE = "docs/trading/autotrade_enabled.json";
 const AT_TOKEN_KEY = "lauren_gh_token_v1";  // per IRON RULE #7 — localStorage for secrets
 let STATE = { raw: null, trades: [], config: null, backtest: null };
@@ -485,10 +496,11 @@ async function loadData() {
   document.getElementById("status").className = "";
   try {
     // Fetch journal data, config, AND backtest data in parallel
-    const [dataR, configR, btR] = await Promise.all([
+    const [dataR, configR, btR, brokerR] = await Promise.all([
       fetch(DATA_URL + "?_=" + Date.now(), { cache: "no-store" }),
       fetch(CONFIG_URL + "?_=" + Date.now(), { cache: "no-store" }),
-      fetch(BACKTEST_URL + "?_=" + Date.now(), { cache: "no-store" })
+      fetch(BACKTEST_URL + "?_=" + Date.now(), { cache: "no-store" }),
+      fetch(BROKER_URL + "?_=" + Date.now(), { cache: "no-store" }).catch(()=>null)
     ]);
     if (!dataR.ok) throw new Error("data HTTP " + dataR.status);
     const j = await dataR.json();
@@ -506,6 +518,8 @@ async function loadData() {
     } else {
       STATE.backtest = null;
     }
+    try { STATE.broker = (brokerR && brokerR.ok) ? await brokerR.json() : null; } catch(e){ STATE.broker = null; }
+    try { renderBrokerLedger(); } catch(e){ console.warn("renderBrokerLedger", e); }
 
     const updatedAt = j._updated_at ? new Date(j._updated_at).toLocaleString("he-IL") : "—";
     document.getElementById("updated-at").textContent = "עודכן " + updatedAt;
@@ -518,6 +532,25 @@ async function loadData() {
     document.getElementById("status").textContent = "❌ שגיאת טעינה: " + e.message;
     document.getElementById("status").className = "err";
   }
+}
+
+function renderBrokerLedger(){
+  const el = document.getElementById("broker-panel");
+  if (!el) return;
+  const b = STATE.broker;
+  if (!b || !Array.isArray(b.trades) || !b.trades.length){ el.style.display="none"; return; }
+  el.style.display="block";
+  const s = b._summary || {};
+  const upd = b._updated_at ? new Date(b._updated_at).toLocaleString("he-IL") : "—";
+  document.getElementById("broker-updated").textContent = "עודכן " + upd;
+  const net = (s.net_dollars !== undefined) ? s.net_dollars : b.trades.reduce((a,t)=>a+(t.result_dollars||0),0);
+  const col = net>=0 ? "#16a34a" : "#dc2626";
+  const stat = (label,val,c)=>'<div style="min-width:92px;"><div style="font-size:11px;color:#64748b;font-weight:700;">'+label+'</div><div style="font-size:21px;font-weight:800;color:'+(c||"#0f172a")+';">'+val+'</div></div>';
+  document.getElementById("broker-stats").innerHTML =
+    stat("נטו $", (net>=0?"+":"")+"$"+net.toFixed(2), col) +
+    stat("עסקאות", (s.trades !== undefined ? s.trades : b.trades.length)) +
+    stat("אחוז הצלחה", (s.win_rate !== undefined ? s.win_rate : 0)+"%") +
+    stat("נטו טיקים", (s.net_ticks !== undefined ? s.net_ticks : "—"), col);
 }
 
 function renderStrategyStrip() {
