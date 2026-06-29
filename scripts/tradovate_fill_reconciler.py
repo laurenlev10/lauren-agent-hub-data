@@ -461,6 +461,11 @@ def reconstruct_rows_from_fills(trades, fills, autotrade):
 
 # ============ MAIN ============
 def main():
+    # 🛑 DISABLED 2026-06-29 — replaced by scripts/vwap_demo_reconciler.py which writes
+    # the SEPARATE docs/trading/broker-ledger.json. This old reconciler wrote UNTAGGED
+    # broker rows into journal-data.json and polluted the per-strategy journal. Hard no-op.
+    print("[reconciler] DISABLED — superseded by vwap_demo_reconciler.py. Exiting, no journal write.")
+    return
     print(f"[reconciler] start at {datetime.now(timezone.utc).isoformat()}")
 
     # 1. Auth + load state + journal + autotrade
