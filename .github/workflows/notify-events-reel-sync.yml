@@ -1,0 +1,42 @@
+name: Notify events repo on reel-link change
+
+# When Lauren pastes a reel link via the launch-dashboard chips
+# (🎬 New Reel / 🎵 TikTok / 📘 FB Reel), the browser commits docs/launch/notes.json.
+# This workflow fires a repository_dispatch to themakeupblowout-events, which
+# re-syncs the reel links into upcoming-events.json and rebuilds the SHARE /
+# landing / tiktok pages — so the share buttons update within ~1-2 minutes
+# instead of waiting for the daily cron. (IRON RULE #5: notes.json is the
+# source of truth for per-event reel links.)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/launch/notes.json'
+  workflow_dispatch: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire repository_dispatch to themakeupblowout-events
+        env:
+          EVENTS_DISPATCH_PAT: ${{ secrets.EVENTS_DISPATCH_PAT }}
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "Authorization: token ${EVENTS_DISPATCH_PAT}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/laurenlev10/themakeupblowout-events/dispatches \
+            -d '{"event_type":"reel-link-updated","client_payload":{"source":"notes.json"}}')
+          echo "dispatch HTTP: $code"
+          if [ "$code" != "204" ]; then echo "::error::dispatch failed ($code)"; exit 1; fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
