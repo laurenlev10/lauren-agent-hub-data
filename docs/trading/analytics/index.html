@@ -238,6 +238,7 @@ table.simple td.muted { color:var(--txt4); }
   <div class="refresh-pill">
     <span id="updated-at">⏳ טוען...</span>
     <button onclick="loadData()">🔄 רענן</button>
+    <button onclick="copyViewLink(this)" title="קישור ציבורי לקריאה בלבד — לשיתוף עם מי שמחוץ למערכת">🔗 העתק קישור לצפייה</button>
   </div>
 </div>
 
@@ -464,7 +465,13 @@ table.simple td.muted { color:var(--txt4); }
 const DATA_URL = "../journal-data.json";
 const CONFIG_URL = "../autotrade_enabled.json";
 const BACKTEST_URL = "./backtest-data.json";
-const BROKER_URL = "./broker-ledger.json";
+const BROKER_URL = "../broker-ledger.json";
+const VIEW_LINK = "https://vwap-view.laurenlev10.workers.dev/";
+function copyViewLink(btn){
+  navigator.clipboard.writeText(VIEW_LINK).then(function(){
+    var o=btn.textContent; btn.textContent="✓ הקישור הועתק"; setTimeout(function(){btn.textContent=o;},1800);
+  }).catch(function(){ window.prompt("העתיקי את הקישור לצפייה:", VIEW_LINK); });
+}
 const CONFIG_REPO_FILE = "docs/trading/autotrade_enabled.json";
 const AT_TOKEN_KEY = "lauren_gh_token_v1";  // per IRON RULE #7 — localStorage for secrets
 let STATE = { raw: null, trades: [], config: null, backtest: null };
