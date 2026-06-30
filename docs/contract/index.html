@@ -416,12 +416,50 @@ function vpEmailLog(rec){
     + '<div style="font-size:11px;color:#9ca3af;margin-top:4px">נמשך אוטומטית מהג׳ימייל של eli@ פעם ביום — או לחצי 📥 משוך מהמייל לעדכון מיידי</div>'
     + '</details>';
 }
+function vpEmailMark(evkey, kind, rec){
+  const es = rec.email_sent || {};
+  const s = es[kind];
+  if (s && s.at){
+    return `<button class="btn" data-vp="email_unmark" data-ev="${vpEsc(evkey)}" data-kind="${kind}" style="padding:3px 8px;font-size:10px;background:#d1fae5;border-color:#a7f3d0;color:#059669" title="נשלח ב-${vpEsc((s.at||'').slice(0,10))} · לחיצה לביטול הסימון">✓ נשלח ${vpEsc((s.at||'').slice(5,10))}</button>`;
+  }
+  return `<button class="btn" data-vp="email_mark" data-ev="${vpEsc(evkey)}" data-kind="${kind}" style="padding:3px 8px;font-size:10px;background:#f9fafb;border-color:#e5e7eb;color:#9ca3af" title="סמני שהמייל הזה נשלח">○ סמני כנשלח</button>`;
+}
 function vpQuickEmails(e, rec){
+  const wrap = (inner) => `<span style="display:inline-flex;gap:4px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;padding:2px 5px">${inner}</span>`;
   return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
     <span style="font-size:12px;font-weight:700;color:#374151">✉️ מיילים מוכנים:</span>
-    <button class="btn" data-vp="email_ship" data-ev="${vpEsc(e.evkey)}" style="padding:4px 11px;font-size:11px;background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8" title="פותח טיוטה ב-Gmail: לוודא שהאולם מקבל ומאחסן את המשלוחים + הפלטה">📦 קבלת משלוחים</button>
-    <button class="btn" data-vp="email_setup" data-ev="${vpEsc(e.evkey)}" style="padding:4px 11px;font-size:11px;background:#f0fdf4;border-color:#bbf7d0;color:#15803d" title="פותח טיוטה ב-Gmail: בדיקה לפני האירוע — שולחנות, עמדת מים, שעות, הקמה">🗓️ בדיקה לפני האירוע</button>
-    <button class="btn" data-vp="email_points" data-ev="${vpEsc(e.evkey)}" style="padding:4px 11px;font-size:11px;background:#fef3c7;border-color:#fde68a;color:#92400e" title="פותח טיוטה ב-Gmail: בקשת נקודות נאמנות עבור החדרים והאולם (Bonvoy / Hilton Honors / IHG)">🏅 קבלת נקודות</button>
+    ${wrap(`<button class="btn" data-vp="email_ship" data-ev="${vpEsc(e.evkey)}" style="padding:4px 11px;font-size:11px;background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8" title="פותח טיוטה ב-Gmail: לוודא שהאולם מקבל ומאחסן את המשלוחים + הפלטה">📦 קבלת משלוחים</button>` + vpEmailMark(e.evkey, "ship", rec))}
+    ${wrap(`<button class="btn" data-vp="email_setup" data-ev="${vpEsc(e.evkey)}" style="padding:4px 11px;font-size:11px;background:#f0fdf4;border-color:#bbf7d0;color:#15803d" title="פותח טיוטה ב-Gmail: בדיקה לפני האירוע — שולחנות, עמדת מים, שעות, הקמה">🗓️ בדיקה לפני האירוע</button>` + vpEmailMark(e.evkey, "setup", rec))}
+    ${wrap(`<button class="btn" data-vp="email_points" data-ev="${vpEsc(e.evkey)}" style="padding:4px 11px;font-size:11px;background:#fef3c7;border-color:#fde68a;color:#92400e" title="פותח טיוטה ב-Gmail: בקשת נקודות נאמנות עבור החדרים והאולם (Bonvoy / Hilton Honors / IHG)">🏅 קבלת נקודות</button>` + vpEmailMark(e.evkey, "points", rec))}
+  </div>`;
+}
+function vpPointsBlock(e, rec){
+  const pt = rec.points_tracking || {};
+  const steps = [
+    { id: "requested", label: "בקשה נשלחה" },
+    { id: "response",  label: "קיבלנו תשובה" },
+    { id: "received",  label: "קיבלנו נקודות" }
+  ];
+  const chips = steps.map(s => {
+    const st = pt[s.id], done = !!(st && st.done);
+    const css = done ? "background:#d1fae5;color:#059669;border:1px solid #a7f3d0" : "background:#fff;color:#9ca3af;border:1px solid #e5e7eb";
+    const dt = (done && st.at) ? (" · " + vpEsc((st.at || "").slice(5, 10))) : "";
+    return `<button data-vp="points_step" data-id="${s.id}" data-ev="${vpEsc(e.evkey)}" style="${css};border-radius:999px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit" title="לחיצה לסימון / ביטול">${done ? "✓" : "○"} ${s.label}${dt}</button>`;
+  }).join('<span style="color:#d1d5db">→</span>');
+  const req = !!(pt.requested && pt.requested.done), resp = !!(pt.response && pt.response.done), recv = !!(pt.received && pt.received.done);
+  let hint;
+  if (recv) hint = '<span style="color:#059669;font-weight:700">✓ הושלם</span>';
+  else if (resp) hint = '<span style="color:#b45309;font-weight:600">⏳ אושר — ממתינים לזיכוי הנקודות</span>';
+  else if (req) hint = '<span style="color:#b45309;font-weight:600">⏳ ממתינים לתשובת האולם</span>';
+  else hint = '<span style="color:#9ca3af">טרם נשלחה בקשת נקודות</span>';
+  const note = rec.points_note || "";
+  return `<div style="border:1px dashed #fcd34d;background:#fffbeb;border-radius:10px;padding:8px 11px;margin-bottom:10px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <b style="font-size:12px;color:#92400e">🏅 מעקב נקודות:</b>
+      ${chips}
+      ${hint}
+    </div>
+    <input type="text" data-vp="points_note" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(note)}" placeholder="הערה: מס׳ אישור / כמה נקודות / מתי לעקוב..." style="width:100%;box-sizing:border-box;margin-top:6px;font-size:11px;border:1px solid #fde68a;border-radius:5px;padding:3px 6px">
   </div>`;
 }
 function vpHistBlock(evkey, rec){
@@ -517,6 +555,7 @@ function vpRender(){
         ${factGrid}
         ${vpQuickEmails(e, rec)}
         ${vpEmailLog(rec)}
+        ${vpPointsBlock(e, rec)}
         ${unusualRead}
         ${vpSignedBlock(rec, e.evkey)}
         ${contractRead}
@@ -625,6 +664,7 @@ document.addEventListener("change", ev => {
   else if (kind === "dep_due") (rec.deposits[i] = rec.deposits[i] || {}).due = el.value;
   else if (kind === "dep_amount") (rec.deposits[i] = rec.deposits[i] || {}).amount = el.value === "" ? null : +el.value;
   else if (kind === "dep_paid") (rec.deposits[i] = rec.deposits[i] || {}).paid = el.checked;
+  else if (kind === "points_note") { rec.points_note = el.value; vpSave(evkey); }
 });
 document.addEventListener("click", async ev => {
   const el = ev.target.closest("[data-vp]");
@@ -679,6 +719,32 @@ document.addEventListener("click", async ev => {
     try { navigator.clipboard.writeText(tpl.subject + "\n\n" + tpl.body); } catch(e3){}
     const tt = document.getElementById("vp-saved");
     if (tt) { tt.textContent = tpl.to ? "✉️ נפתחה טיוטה ב-Gmail (גם הועתק ללוח)" : "✉️ נפתחה טיוטה — אין מייל לאיש קשר, מלאי ידנית"; tt.classList.add("show"); setTimeout(() => tt.classList.remove("show"), 4000); }
+  }
+  else if (kind === "email_mark" || kind === "email_unmark") {
+    const rec = vpRec(evkey);
+    const k = el.getAttribute("data-kind") || "";
+    if (!rec.email_sent) rec.email_sent = {};
+    if (kind === "email_mark") {
+      rec.email_sent[k] = { at: new Date().toISOString() };
+      if (k === "points") { if (!rec.points_tracking) rec.points_tracking = {}; if (!(rec.points_tracking.requested && rec.points_tracking.requested.done)) rec.points_tracking.requested = { done: true, at: new Date().toISOString() }; }
+    } else { delete rec.email_sent[k]; }
+    el.disabled = true;
+    const ok = await vpSave(evkey);
+    const t = document.getElementById("vp-saved");
+    if (t) { t.textContent = ok ? "✓ נשמר ב-GitHub" : "⚠ השמירה נכשלה"; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2500); }
+    if (ok) vpRender(); else el.disabled = false;
+  }
+  else if (kind === "points_step") {
+    const rec = vpRec(evkey);
+    const id = el.getAttribute("data-id");
+    if (!rec.points_tracking) rec.points_tracking = {};
+    const cur = rec.points_tracking[id];
+    rec.points_tracking[id] = (cur && cur.done) ? { done: false } : { done: true, at: new Date().toISOString() };
+    el.disabled = true;
+    const ok = await vpSave(evkey);
+    const t = document.getElementById("vp-saved");
+    if (t) { t.textContent = ok ? "✓ נשמר ב-GitHub" : "⚠ השמירה נכשלה"; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2500); }
+    if (ok) vpRender(); else el.disabled = false;
   }
   else if (kind === "sweep") {
     const rec = vpRec(evkey);
@@ -751,7 +817,7 @@ async function vpSave(evkey){
   const mine = { contract_total: rec.contract_total ?? null, deposits: rec.deposits, note: rec.note || "",
                  contract_checks: rec.contract_checks || {}, room_name: rec.room_name || "", room_sqft: rec.room_sqft || "",
                  contact: rec.contact || "", contact_name: rec.contact_name || "", contact_email: rec.contact_email || "",
-                 unusual: rec.unusual || "", check_notes: rec.check_notes || {}, milestones: rec.milestones || {}, team_notes: rec.team_notes || [], signed_contract: rec.signed_contract || null,
+                 unusual: rec.unusual || "", check_notes: rec.check_notes || {}, milestones: rec.milestones || {}, team_notes: rec.team_notes || [], signed_contract: rec.signed_contract || null, email_sent: rec.email_sent || {}, points_tracking: rec.points_tracking || {}, points_note: rec.points_note || "",
                  updated_at: new Date().toISOString() };
   try {
     const api = "https://api.github.com/repos/" + VP_REPO + "/contents/" + VP_FILE;
