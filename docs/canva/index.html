@@ -104,6 +104,7 @@
   .fp-btn { padding:8px 10px; border:2px solid var(--border); background:#fff; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600; text-align:center; }
   .fp-btn.active { border-color:var(--selected); background:#fffbeb; color:var(--accent-dark); }
   .fp-btn.has-override::after { content:"●"; color:var(--accent); margin-left:4px; font-size:10px; }
+  .fp-btn.field-hidden { text-decoration:line-through; opacity:.6; }
 
   .field-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:12px; }
   .field-row label { flex:0 0 62px; color:var(--muted); font-size:11px; font-weight:600; margin-bottom:0; text-transform:uppercase; letter-spacing:.3px; }
@@ -255,6 +256,18 @@ const DEFAULT_CALIBRATION = {
         <div class="ctrl-group">
           <h4>Editing</h4>
           <div class="field-picker" id="fieldPicker"></div>
+        </div>
+        <div class="ctrl-group">
+          <h4>Text content</h4>
+          <div class="field-row"><label>Text</label>
+            <input id="textOverride" type="text" placeholder="(default)" autocomplete="off">
+          </div>
+          <div class="calib-actions" style="margin-top:2px;">
+            <button class="btn btn-secondary" id="resetTextBtn">↺ Default text</button>
+            <button class="btn btn-secondary" id="hideLineBtn">🗑️ Delete this line</button>
+          </div>
+          <div class="hint" id="hiddenNote" style="display:none; color:#b45309; margin-top:6px;">This line is hidden — it won’t appear in the image.</div>
+          <div class="hint" style="margin-top:4px; font-size:10px;">Type to replace the text on the selected field (e.g. “Oct 30 - Nov 1” → “NOVEMBER”). Leave blank for the default. Saved per city.</div>
         </div>
         <div class="ctrl-group">
           <h4>Font</h4>
@@ -442,6 +455,18 @@ const DEFAULT_CALIBRATION = {
     renderStepper();
     renderFieldPicker();
   }
+  function clearFieldProp(key, prop) {
+    const c = currentCity();
+    if (overrides[c.key] && overrides[c.key][key]) {
+      delete overrides[c.key][key][prop];
+      if (Object.keys(overrides[c.key][key]).length === 0) delete overrides[c.key][key];
+      if (overrides[c.key] && Object.keys(overrides[c.key]).length === 0) delete overrides[c.key];
+      saveOverrides(selectedYear, overrides);
+      document.getElementById("saveInfo").textContent = "✓ saved " + new Date().toLocaleTimeString();
+      renderStepper();
+      renderFieldPicker();
+    }
+  }
 
   // ========== CONTROLS ==========
   const canvas = document.getElementById("canvas");
@@ -459,6 +484,10 @@ const DEFAULT_CALIBRATION = {
   const posX = document.getElementById("posX");
   const posY = document.getElementById("posY");
   const calibStatus = document.getElementById("calibStatus");
+  const textOverride = document.getElementById("textOverride");
+  const hideLineBtn = document.getElementById("hideLineBtn");
+  const resetTextBtn = document.getElementById("resetTextBtn");
+  const hiddenNote = document.getElementById("hiddenNote");
 
   const FIELD_LABELS = { city_text: "City", state_text: "State", month_text: "Month", daterange_text: "Dates" };
 
@@ -467,9 +496,10 @@ const DEFAULT_CALIBRATION = {
     const c = currentCity();
     Object.entries(FIELD_LABELS).forEach(([key, label]) => {
       const btn = document.createElement("button");
-      const hasOvr = overrides[c.key] && overrides[c.key][key];
-      btn.className = "fp-btn" + (key === selectedField ? " active" : "") + (hasOvr ? " has-override" : "");
-      btn.textContent = label;
+      const ovrObj = overrides[c.key] && overrides[c.key][key];
+      const isHidden = ovrObj && ovrObj.hidden;
+      btn.className = "fp-btn" + (key === selectedField ? " active" : "") + (ovrObj ? " has-override" : "") + (isHidden ? " field-hidden" : "");
+      btn.textContent = label + (isHidden ? " (deleted)" : "");
       btn.onclick = () => { selectedField = key; syncControls(); draw(); };
       fieldPicker.appendChild(btn);
     });
@@ -494,6 +524,21 @@ const DEFAULT_CALIBRATION = {
     fontSelect.value = f.font;
     const fc = FONT_CHOICES.find(x => x.value === f.font);
     fontWarn.style.display = (fc && fc.warn) ? "" : "none";
+    // text content + delete-line state
+    if (f.hidden) {
+      textOverride.value = ""; textOverride.disabled = true;
+      textOverride.placeholder = "(line deleted)";
+      hideLineBtn.textContent = "↩ Restore line";
+      resetTextBtn.style.display = "none";
+      hiddenNote.style.display = "";
+    } else {
+      textOverride.disabled = false;
+      textOverride.value = (typeof f.text_override === "string") ? f.text_override : "";
+      textOverride.placeholder = computedText(selectedField) || "(default)";
+      hideLineBtn.textContent = "🗑️ Delete this line";
+      resetTextBtn.style.display = (typeof f.text_override === "string" && f.text_override.length) ? "" : "none";
+      hiddenNote.style.display = "none";
+    }
     renderFieldPicker();
   }
 
@@ -506,6 +551,24 @@ const DEFAULT_CALIBRATION = {
     const fc = FONT_CHOICES.find(x => x.value === fontSelect.value);
     fontWarn.style.display = (fc && fc.warn) ? "" : "none";
     draw(); updatePreview();
+  };
+
+  // ---- text content + delete-line controls ----
+  textOverride.oninput = () => {
+    const v = textOverride.value;
+    if (v === "") clearFieldProp(selectedField, "text_override");
+    else setFieldProp(selectedField, "text_override", v);
+    draw(); updatePreview();
+  };
+  resetTextBtn.onclick = () => {
+    clearFieldProp(selectedField, "text_override");
+    syncControls(); draw(); updatePreview();
+  };
+  hideLineBtn.onclick = () => {
+    const f = getField(selectedField);
+    if (f.hidden) clearFieldProp(selectedField, "hidden");
+    else setFieldProp(selectedField, "hidden", true);
+    syncControls(); draw(); updatePreview();
   };
 
   // ---- X / Y inputs + nudge buttons + arrow keys ----
@@ -570,7 +633,7 @@ const DEFAULT_CALIBRATION = {
     return { css: fc.css, weight: fc.weight };
   }
 
-  function textFor(key) {
+  function computedText(key) {
     const c = currentCity();
     let text = "";
     if (key === "city_text") text = c.city || "Ontario";
@@ -585,7 +648,14 @@ const DEFAULT_CALIBRATION = {
         else text = `${ord(m[2])} - ${ord(m[3])}`;
       } else text = c.dates || "";
     }
+    return text;
+  }
+
+  function textFor(key) {
     const f = getField(key);
+    if (f.hidden) return "";                                                    // line deleted by user
+    if (typeof f.text_override === "string" && f.text_override.length) return f.text_override; // literal override
+    let text = computedText(key);
     if (f.case === "upper") text = text.toUpperCase();
     return text;
   }
@@ -604,7 +674,7 @@ const DEFAULT_CALIBRATION = {
       ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
       if (strokeW > 0) { ctx.lineWidth = strokeW * 2; ctx.strokeStyle = f.stroke_fill; ctx.strokeText(text, f.x*scale, f.y*scale); }
       ctx.fillStyle = f.color; ctx.fillText(text, f.x*scale, f.y*scale);
-      if (key === selectedField) {
+      if (key === selectedField && text !== "") {
         const m = ctx.measureText(text);
         const w = m.width + strokeW * 2;
         const h = fontSize * 1.2 + strokeW * 2;
@@ -742,6 +812,7 @@ const DEFAULT_CALIBRATION = {
     const payload = { defaults, overrides };
     cmd += "\nCalibration for " + selectedYear + " (apply before generating):\n";
     cmd += "```json\n" + JSON.stringify(payload, null, 2) + "\n```\n";
+    cmd += "\nText-field rules: in the calibration above, any field may carry `text_override` (render this EXACT literal text instead of the derived city/state/month/date value) and/or `hidden:true` (do NOT render that text field at all). Honor both, per city.\n";
     cmd += "\nSave each output as \"CITY ST YEAR.png\" in /mnt/Claude/event-images/<stamp>/.";
     return cmd;
   }
