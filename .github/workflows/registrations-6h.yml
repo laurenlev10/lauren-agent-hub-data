@@ -54,9 +54,72 @@ jobs:
           SETUPS    = get_map("SETUPS")
           EB_STATS  = get_map("EVENTBRITE_STATS")
           LIST_STATS_PREV = get_map("LIST_STATS")
+          SCHEDULE  = get_map("SCHEDULE")
 
           today    = datetime.date.today().isoformat()
           now_iso  = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+
+          # ─────────────────────────────────────────────
+          # 0. Auto-backfill SETUPS.smslist from SimpleTexting
+          #    (set 2026-06-30) — so a list Lauren creates MANUALLY in
+          #    SimpleTexting auto-greens the 📋 Create List button within 6h.
+          #    Match the per-event "City, ST YEAR" contact list by name.
+          # ─────────────────────────────────────────────
+          def _st_all_lists():
+              out=[]; page=0
+              while True:
+                  req=urllib.request.Request(
+                      f"https://app2.simpletexting.com/v2/api/contact-lists?size=200&page={page}",
+                      headers={"Authorization":f"Bearer {ST_TOKEN}","Accept":"application/json"})
+                  try:
+                      with urllib.request.urlopen(req,timeout=20) as r:
+                          d=json.load(r)
+                  except Exception as e:
+                      print(f"  ST list fetch err p{page}: {e}"); break
+                  c=d.get("content",[])
+                  if not c: break
+                  out.extend(c)
+                  if len(c)<200: break
+                  page+=1
+                  if page>6: break
+              return out
+
+          def _norm(x): return re.sub(r"[^a-z0-9]+"," ",(x or "").lower()).strip()
+
+          setups_touched=0
+          _need=[k for k,s in SETUPS.items() if not ((s or {}).get("smslist") or {}).get("list_id")]
+          if _need:
+              _meta={}
+              for _yr,_arr in (SCHEDULE or {}).items():
+                  if not isinstance(_arr,list): continue
+                  for _ev in _arr:
+                      _c=_ev.get("city",""); _sd=_ev.get("start_date","")
+                      if not _c or not _sd: continue
+                      _slug=re.sub(r"^-|-$","",re.sub(r"[^a-z0-9]+","-",_c.lower()))
+                      _meta[f"{_slug}-{_sd}"]={"city":_c,"state":_ev.get("state",""),"year":_sd[:4]}
+              _all=_st_all_lists()
+              for _key in _need:
+                  m=_meta.get(_key)
+                  if not m: continue
+                  _city=_norm(m["city"]); _st=(m["state"] or "").lower(); _yr=m["year"]
+                  _best=None
+                  for _lst in _all:
+                      _nm=_norm(_lst.get("name"))
+                      toks=_nm.split()
+                      if _yr not in toks: continue
+                      if _city not in _nm: continue
+                      _has_state=(_st in toks) if _st else True
+                      _rest=_nm.replace(_city,"")
+                      _other=re.search(r"\b[a-z]{2}\b",_rest)
+                      if _st and _other and not _has_state: continue
+                      _best=_lst
+                      if _has_state: break
+                  if _best and _best.get("listId"):
+                      SETUPS[_key]["smslist"]={"list_id":_best["listId"],
+                          "list_name":(_best.get("name") or "").strip(),
+                          "generated_at":now_iso,"source":"auto-backfill-st"}
+                      setups_touched+=1
+                      print(f"  + backfilled SETUPS.smslist {_key} -> {_best.get('name')} ({_best['listId']})")
 
           # ─────────────────────────────────────────────
           # 1. Eventbrite registrations
@@ -160,9 +223,12 @@ jobs:
           new_list_block = "const LIST_STATS = "       + json.dumps(new_list, ensure_ascii=False, separators=(",", ":")) + ";"
           html = re.sub(r'const EVENTBRITE_STATS = \{[^;]*\};', new_eb_block,   html, count=1, flags=re.S)
           html = re.sub(r'const LIST_STATS = \{[^;]*\};',       new_list_block, html, count=1, flags=re.S)
+          if setups_touched:
+              new_setups_block = "const SETUPS = " + json.dumps(SETUPS, ensure_ascii=False, separators=(",", ":")) + ";"
+              html = re.sub(r'const SETUPS = \{[^;]*\};', new_setups_block, html, count=1, flags=re.S)
           with open(fp, "w", encoding="utf-8") as f:
               f.write(html)
-          print(f"  refreshed: EVENTBRITE_STATS={eb_touched}, LIST_STATS={list_touched}")
+          print(f"  refreshed: EVENTBRITE_STATS={eb_touched}, LIST_STATS={list_touched}, SETUPS_backfilled={setups_touched}")
           PY
 
       - name: Commit + push if changed
