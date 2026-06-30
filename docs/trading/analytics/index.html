@@ -243,14 +243,15 @@ table.simple td.muted { color:var(--txt4); }
 </div>
 
 <div id="status">⏳ טוען נתונים...</div>
-<div id="report-head"><h1>📑 דוח אסטרטגיה — VWAP 1.0</h1><div class="sub" id="report-head-sub"></div></div>
+<div id="report-head"><h1>📑 דוח אסטרטגיה — VWAP 1.2</h1><div class="sub" id="report-head-sub"></div></div>
 
 <!-- Per-strategy selector + comparison -->
 <div class="strat-sel-section" id="strat-sel-section">
   <div class="strat-sel-bar">
     <span class="ss2-label">📑 אסטרטגיה:</span>
     <div class="ss2-btns" id="ss2-btns">
-      <button class="ss2-btn active" data-strat="all"      onclick="selectStrategy('all')">הכל</button>
+      <button class="ss2-btn active" data-strat="real"     onclick="selectStrategy('real')">🏦 חשבון אמיתי</button>
+      <button class="ss2-btn"        data-strat="all"      onclick="selectStrategy('all')">הכל (תיאוריה)</button>
       <button class="ss2-btn"        data-strat="base"     onclick="selectStrategy('base')">🟦 BASE</button>
       <button class="ss2-btn"        data-strat="partial"  onclick="selectStrategy('partial')">✂️ PARTIAL</button>
       <button class="ss2-btn"        data-strat="momentum" onclick="selectStrategy('momentum')">🚀 MOMENTUM</button>
@@ -475,7 +476,7 @@ function copyViewLink(btn){
 const CONFIG_REPO_FILE = "docs/trading/autotrade_enabled.json";
 const AT_TOKEN_KEY = "lauren_gh_token_v1";  // per IRON RULE #7 — localStorage for secrets
 let STATE = { raw: null, trades: [], config: null, backtest: null };
-let SELECTED_STRATEGY = "all";
+let SELECTED_STRATEGY = "real";
 let BT_ALL = null;
 let LIVE_ALL = [];
 let CALENDAR_STATE = { viewYear: null, viewMonth: null };  // 0-indexed month
@@ -651,7 +652,19 @@ async function clearStrategyDate() {
 }
 
 // =============== Compute closed trades (with explicit P&L) ===============
+function brokerToClosed(){
+  // REAL account (broker-ledger.json): already-paired round-trips with real P&L.
+  const b = STATE.broker;
+  if (!b || !Array.isArray(b.trades)) return [];
+  return b.trades.map(function(t){ return {
+    time: t.exit_iso || t.entry_iso, _entry_time_la: t.entry_la || "",
+    direction: t.direction || "", exit_type: t.result_type || (t.result_dollars>=0?"WIN":"LOSS"),
+    ticks: +t.result_ticks || 0, dollars: +t.result_dollars || 0,
+    entry_price: t.entry_price, exit_price: t.exit_price, qty: t.qty || 1, danger: 0
+  }; });
+}
 function computeClosedTrades() {
+  if (SELECTED_STRATEGY === "real") return brokerToClosed();   // main analytics = REAL account
   // From journal-data.json: EXIT rows have result_ticks + result_dollars + entry_price.
   // Also implicit SWAPs (LONG/SHORT entries with opposite-direction prior) — but the
   // journal renderer side computes those via enrichSwapPnL. We'll replicate that here
@@ -784,9 +797,10 @@ function selectStrategy(srt){
   applyStrategyFilter();
 }
 function applyStrategyFilter(){
-  STATE.trades = (LIVE_ALL || []).filter(strategyMatch);
+  var _real = SELECTED_STRATEGY === "real";
+  STATE.trades = _real ? [] : (LIVE_ALL || []).filter(strategyMatch);
   if (BT_ALL && Array.isArray(BT_ALL.trades)) {
-    STATE.backtest = Object.assign({}, BT_ALL, { trades: BT_ALL.trades.filter(strategyMatch) });
+    STATE.backtest = Object.assign({}, BT_ALL, { trades: _real ? BT_ALL.trades.slice() : BT_ALL.trades.filter(strategyMatch) });
   }
   renderComparison();
   renderHourly();
@@ -806,7 +820,7 @@ function _stratStats(trs){
 function renderHourly(){
   const sec=document.getElementById("hourly-section"); if(!sec) return;
   const trs=(STATE.backtest&&Array.isArray(STATE.backtest.trades))?STATE.backtest.trades:[];
-  document.getElementById("hourly-which").textContent = SELECTED_STRATEGY==="all"?"(כל האסטרטגיות יחד)":("— "+SELECTED_STRATEGY.toUpperCase());
+  document.getElementById("hourly-which").textContent = (SELECTED_STRATEGY==="all"||SELECTED_STRATEGY==="real")?"(בקטסט · כל האסטרטגיות)":("— "+SELECTED_STRATEGY.toUpperCase());
   if(!trs.length){ sec.style.display="none"; return; }
   sec.style.display="";
   const H={}; for(let h=0;h<24;h++)H[h]={n:0,net:0,w:0,gp:0,gl:0};
