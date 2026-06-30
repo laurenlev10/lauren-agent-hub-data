@@ -221,6 +221,24 @@ table.simple td.muted { color:var(--txt4); }
 .hm-tbl th { background:#0f172a; color:#fff; font-weight:700; padding:7px 6px; font-size:12px; }
 .hm-tbl td { padding:6px 6px; border:1px solid #fff; font-weight:700; line-height:1.25; }
 .hm-tbl td.hm-hr { background:#f1f5f9; color:#334155; font-weight:800; }
+
+.hp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin:10px 0 4px}
+.hp-chip{cursor:pointer;border:2px solid #cbd5e1;border-radius:11px;padding:8px 6px;text-align:center;font-family:inherit;transition:all .12s;line-height:1.25}
+.hp-chip:hover{transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,0,0,.08)}
+.hp-h{font-size:13px;font-weight:800;color:#0f172a}
+.hp-net{font-size:13px;font-weight:800}
+.hp-n{font-size:10px;color:#64748b}
+.hp-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.hp-act{cursor:pointer;border:1px solid #cbd5e1;background:#fff;border-radius:9px;padding:7px 12px;font-size:12.5px;font-weight:700;color:#334155;font-family:inherit}
+.hp-act:hover{background:#f1f5f9}
+.hp-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.hp-card{border:1px solid #e2e8f0;border-radius:12px;padding:11px 13px;background:#fcfdff}
+.hp-card.sel{border-color:#16a34a;background:rgba(22,163,74,0.05)}
+.hp-ct{font-size:13px;font-weight:800;margin-bottom:6px;color:#0f172a}
+.hp-cr{display:flex;justify-content:space-between;font-size:12.5px;padding:2px 0;color:#475569}
+.hp-cr b{color:#0f172a}
+.hp-verdict{margin-top:10px;font-size:13px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;color:#78350f}
+@media(max-width:560px){.hp-cards{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -282,6 +300,19 @@ table.simple td.muted { color:var(--txt4); }
   <div class="sub">איזו שעה מרוויחה ואיזו מפסידה — לזיהוי שעות לחסום. בחרי אסטרטגיה בבורר למעלה כדי לנתח כל אחת.</div>
   <div id="hourly-body"></div>
   <div class="an-note" id="hourly-note"></div>
+</div>
+
+<!-- 🕐 Interactive hour picker -->
+<div class="an-section" id="hourpicker-section" style="display:none;">
+  <h3>🕐 בורר שעות — בחרי אילו שעות להפעיל</h3>
+  <div class="sub">סמני / הורידי כל שעה — התוצאה למטה מתעדכנת מיד. ככה תחליטי אילו שעות כדאי להדליק בהן התראות. 🟢 פעילה כרגע · ⛔ חסומה כרגע · המספר = נטו $ של אותה שעה.</div>
+  <div id="hp-grid" class="hp-grid"></div>
+  <div class="hp-actions">
+    <button class="hp-act" onclick="hpPreset('default')">↩︎ אסטרטגיה נוכחית</button>
+    <button class="hp-act" onclick="hpPreset('all')">✓ כל השעות</button>
+    <button class="hp-act" onclick="hpPreset('profit')">💰 רק שעות רווחיות</button>
+  </div>
+  <div id="hp-summary"></div>
 </div>
 
 <!-- Combined run (all 3 together) -->
@@ -480,6 +511,10 @@ const CONFIG_REPO_FILE = "docs/trading/autotrade_enabled.json";
 const AT_TOKEN_KEY = "lauren_gh_token_v1";  // per IRON RULE #7 — localStorage for secrets
 let STATE = { raw: null, trades: [], config: null, backtest: null };
 let SELECTED_STRATEGY = "real";
+// 🕐 Hour picker — Lauren chooses which hours to enable; results recompute live.
+// Default-active = her current strategy hours (blocked = sleep 00-05 + filter 8,18,20).
+const HP_DEFAULT_BLOCKED = [0,1,2,3,4,5,8,18,20];
+let ACTIVE_HOURS = new Set(Array.from({length:24},(_,h)=>h).filter(h=>!HP_DEFAULT_BLOCKED.includes(h)));
 let BT_ALL = null;
 let LIVE_ALL = [];
 let CALENDAR_STATE = { viewYear: null, viewMonth: null };  // 0-indexed month
@@ -807,6 +842,7 @@ function applyStrategyFilter(){
   }
   renderComparison();
   renderHourly();
+  renderHourPicker();
   renderCombined();
   renderStrategyStrip();
   renderAll();
@@ -818,6 +854,74 @@ function _stratStats(trs){
     if(x>0){gp+=x;wn++;curL=0;} else if(x<0){gl+=Math.abs(x); if(x<worst)worst=x; curL++; if(curL>maxL)maxL=curL;}
     eq+=x; if(eq>pk)pk=eq; if(pk-eq>mdd)mdd=pk-eq; });
   return { n:arr.length, net, pf: gl? gp/gl : (gp>0?Infinity:0), wr:arr.length? wn/arr.length*100 : 0, mdd, worst, maxL };
+}
+function hpSourceTrades(){
+  var src=(BT_ALL&&Array.isArray(BT_ALL.trades))?BT_ALL.trades:[];
+  if(SELECTED_STRATEGY==="all"||SELECTED_STRATEGY==="real") return src;
+  return src.filter(function(t){return String(t.strategy||"").toLowerCase()===SELECTED_STRATEGY;});
+}
+function hpHourOf(t){ var p=(t._entry_time_la||"").split(" "); if(p.length<2)return null; var h=parseInt(p[1].slice(0,2),10); return isNaN(h)?null:h; }
+function hpStats(trs){
+  var net=0,gp=0,gl=0,wn=0,eq=0,pk=0,mdd=0;
+  trs.slice().sort(function(a,b){return new Date(a._received_at||a._entry_time_la||0)-new Date(b._received_at||b._entry_time_la||0);})
+     .forEach(function(t){var x=+t.result_dollars||0; net+=x; if(x>0){gp+=x;wn++;}else if(x<0){gl+=Math.abs(x);} eq+=x; if(eq>pk)pk=eq; if(pk-eq>mdd)mdd=pk-eq;});
+  return {n:trs.length,net:net,pf:gl?gp/gl:(gp>0?Infinity:0),wr:trs.length?wn/trs.length*100:0,mdd:mdd};
+}
+function toggleHour(h){ if(ACTIVE_HOURS.has(h))ACTIVE_HOURS.delete(h); else ACTIVE_HOURS.add(h); renderHourPicker(); }
+function hpPreset(kind){
+  if(kind==="all"){ ACTIVE_HOURS=new Set(Array.from({length:24},function(_,h){return h;})); }
+  else if(kind==="default"){ ACTIVE_HOURS=new Set(Array.from({length:24},function(_,h){return h;}).filter(function(h){return HP_DEFAULT_BLOCKED.indexOf(h)<0;})); }
+  else if(kind==="profit"){
+    var src=hpSourceTrades(), byH={}; src.forEach(function(t){var h=hpHourOf(t); if(h==null)return; byH[h]=(byH[h]||0)+(+t.result_dollars||0);});
+    ACTIVE_HOURS=new Set(Object.keys(byH).filter(function(h){return byH[h]>0;}).map(Number));
+  }
+  renderHourPicker();
+}
+function renderHourPicker(){
+  var sec=document.getElementById("hourpicker-section"); if(!sec) return;
+  var src=hpSourceTrades();
+  if(SELECTED_STRATEGY==="real" || !src.length){ sec.style.display="none"; return; }
+  sec.style.display="";
+  // per-hour net + count for source strategy
+  var byH={}; src.forEach(function(t){var h=hpHourOf(t); if(h==null)return; (byH[h]=byH[h]||{n:0,net:0}); byH[h].n++; byH[h].net+=(+t.result_dollars||0);});
+  var hrs=Object.keys(byH).map(Number).sort(function(a,b){return a-b;});
+  var mx=1; hrs.forEach(function(h){mx=Math.max(mx,Math.abs(byH[h].net));});
+  var chips=hrs.map(function(h){
+    var o=byH[h], on=ACTIVE_HOURS.has(h), pos=o.net>=0;
+    var col=pos?"#16a34a":"#dc2626";
+    var bgc=on?(pos?"rgba(22,163,74,0.13)":"rgba(220,38,38,0.13)"):"#f1f5f9";
+    var bord=on?col:"#cbd5e1";
+    var opa=on?"1":"0.55";
+    return '<button class="hp-chip" onclick="toggleHour('+h+')" style="border-color:'+bord+';background:'+bgc+';opacity:'+opa+'">'
+      +'<div class="hp-h">'+(on?"🟢":"⛔")+' '+String(h).padStart(2,"0")+':00</div>'
+      +'<div class="hp-net" style="color:'+col+'">'+fmtUSD(o.net)+'</div>'
+      +'<div class="hp-n">'+o.n+" עס'</div></button>";
+  }).join("");
+  document.getElementById("hp-grid").innerHTML=chips;
+  // summary: selected hours vs all hours
+  var sel=src.filter(function(t){var h=hpHourOf(t); return h!=null && ACTIVE_HOURS.has(h);});
+  var ss=hpStats(sel), as2=hpStats(src);
+  var blocked=hrs.filter(function(h){return !ACTIVE_HOURS.has(h);});
+  var savedNet=0; blocked.forEach(function(h){savedNet+=byH[h].net;});
+  function pf(v){return v===Infinity?"∞":v.toFixed(2);}
+  function card(title,st,cls){
+    return '<div class="hp-card '+(cls||"")+'"><div class="hp-ct">'+title+'</div>'
+      +'<div class="hp-cr"><span>נטו</span><b class="'+(st.net>=0?"pos":"neg")+'">'+fmtUSD(st.net)+'</b></div>'
+      +'<div class="hp-cr"><span>PF</span><b>'+pf(st.pf)+'</b></div>'
+      +'<div class="hp-cr"><span>הצלחה</span><b>'+st.wr.toFixed(1)+'%</b></div>'
+      +'<div class="hp-cr"><span>דראודאון</span><b class="neg">'+fmtUSD(-st.mdd)+'</b></div>'
+      +'<div class="hp-cr"><span>עסקאות</span><b>'+st.n+'</b></div></div>';
+  }
+  var verdict="";
+  if(blocked.length){
+    verdict='<div class="hp-verdict">בחסימת '+blocked.length+' שעות ('+blocked.map(function(h){return String(h).padStart(2,"0");}).join(", ")+') '
+      +(savedNet<0? 'את <b>חוסכת</b> '+fmtUSD(-savedNet)+' של הפסד מצטבר' : 'את <b>מוותרת</b> על '+fmtUSD(savedNet)+' רווח')
+      +' ו-PF '+(ss.pf>=as2.pf?'<b class="pos">עולה</b>':'<b class="neg">יורד</b>')+' מ-'+pf(as2.pf)+' ל-'+pf(ss.pf)+'.</div>';
+  } else {
+    verdict='<div class="hp-verdict">כל השעות פעילות — זו תמונת "כל-השעות" המלאה.</div>';
+  }
+  document.getElementById("hp-summary").innerHTML=
+    '<div class="hp-cards">'+card("🟢 השעות שבחרת",ss,"sel")+card("🔬 כל השעות (מחקר)",as2,"")+'</div>'+verdict;
 }
 function renderHourly(){
   const sec=document.getElementById("hourly-section"); if(!sec) return;
