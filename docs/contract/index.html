@@ -313,6 +313,23 @@ function vpNotesBlock(rec, evkey){
     </div>
   </div>`;
 }
+function vpDT(iso){ if(!iso||typeof iso!=="string") return ""; const d=new Date(iso); if(isNaN(d.getTime())) return iso; const p=n=>String(n).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes()); }
+function vpSignedBlock(rec, evkey){
+  const man=rec.milestones||{}, sig=rec.signals||{};
+  const ts=(typeof man.contract_signed==="string")?man.contract_signed:(typeof sig.contract_signed==="string"?sig.contract_signed:"");
+  const signed=!!man.contract_signed||!!sig.contract_signed;
+  const sc=rec.signed_contract||null;
+  const left = signed
+    ? `<span style="background:#d1fae5;color:#059669;border:1px solid #a7f3d0;border-radius:8px;padding:3px 10px;font-size:12px;font-weight:600">✓ חוזה נחתם${ts?` · <span dir="ltr">${vpEsc(vpDT(ts))}</span>`:""}</span> <button class="btn" data-vp="unsign" data-ev="${vpEsc(evkey)}" style="padding:2px 8px;font-size:11px;color:#9ca3af">בטלי</button>`
+    : `<button class="btn" data-vp="sign" data-ev="${vpEsc(evkey)}" style="padding:4px 12px;font-size:12px;background:#ecfdf5;border-color:#a7f3d0;color:#059669">✍️ סמני: חוזה נחתם</button>`;
+  const right = sc
+    ? `<a class="btn" href="signed/${vpEsc(evkey)}.${vpEsc(sc.ext||"pdf")}" target="_blank" style="padding:3px 10px;font-size:11px" title="פתיחת החוזה החתום">📄 ${vpEsc((sc.name||"חוזה חתום").slice(0,28))}</a> <button class="btn" data-vp="signed_file" data-ev="${vpEsc(evkey)}" style="padding:2px 8px;font-size:11px;color:#6b7280">החלפה</button>`
+    : `<button class="btn" data-vp="signed_file" data-ev="${vpEsc(evkey)}" style="padding:4px 12px;font-size:12px">⬆ העלי חוזה חתום (PDF)</button>`;
+  return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:7px 10px;margin-bottom:8px">
+    <span style="font-size:12px;font-weight:700">📝 חוזה חתום:</span> ${left} ${right}
+    <input type="file" accept="application/pdf,image/*" data-vp="signed_file_input" data-ev="${vpEsc(evkey)}" style="display:none">
+  </div>`;
+}
 function vpHistBlock(evkey, rec){
   const h = (VP_HISTORY[evkey] || []).slice().sort((a,b)=>(b.year||0)-(a.year||0));
   const note = rec.venue_history_note || "";
@@ -401,6 +418,7 @@ function vpRender(){
         ${vpRelBlock(rec)}
         ${factGrid}
         ${unusualRead}
+        ${vpSignedBlock(rec, e.evkey)}
         ${contractRead}
         ${vpNotesBlock(rec, e.evkey)}
         ${qbRead}
@@ -457,6 +475,7 @@ function vpRender(){
         <div style="display:flex;gap:6px;flex-wrap:wrap">${chkChips}</div>
         <div style="font-size:10px;color:var(--muted);margin-top:4px">לחיצה על נקודה: • לא נבדק ← ✓ מוסכם בחוזה ← ✗ חסר/בעייתי ← •.</div>
       </div>
+      ${vpSignedBlock(rec, e.evkey)}
       <label style="display:block;font-size:12px;margin:8px 0 2px">⚡ תנאי יוצא דופן:</label>
       <input type="text" data-vp="unusual" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(rec.unusual || "")}" placeholder="תנאי חריג בחוזה (אם יש)..." style="width:100%;font-size:12px;margin-bottom:6px">
       <table style="border-collapse:collapse;width:100%;font-size:12px">${depRows}</table>
@@ -482,6 +501,18 @@ document.addEventListener("change", ev => {
   const kind = el.getAttribute("data-vp"), evkey = el.getAttribute("data-ev"), i = +(el.getAttribute("data-i") || 0);
   if (!evkey) return;
   const rec = vpRec(evkey);
+  if (kind === "signed_file_input") {
+    const file = el.files && el.files[0]; if (!file) return;
+    if (file.size > 25 * 1024 * 1024) { alert("הקובץ גדול מדי (מקסימום 25MB)"); el.value = ""; return; }
+    const t = document.getElementById("vp-saved");
+    if (t) { t.textContent = "⏳ מעלה חוזה..."; t.classList.add("show"); }
+    vpUploadSigned(evkey, file).then(ok => {
+      if (t) { t.textContent = ok ? "✓ החוזה החתום הועלה" : "⚠ ההעלאה נכשלה"; setTimeout(() => t.classList.remove("show"), 3500); }
+      if (ok) vpRender();
+    });
+    el.value = "";
+    return;
+  }
   if (kind === "contract_total") rec.contract_total = el.value === "" ? null : +el.value;
   else if (kind === "note") rec.note = el.value;
   else if (kind === "contact") rec.contact = el.value;
@@ -503,7 +534,8 @@ document.addEventListener("click", async ev => {
     const rec = vpRec(evkey);
     if (!rec.milestones) rec.milestones = {};
     const id = el.getAttribute("data-id");
-    rec.milestones[id] = !rec.milestones[id];
+    if (id === "contract_signed") rec.milestones[id] = rec.milestones[id] ? false : new Date().toISOString();
+    else rec.milestones[id] = !rec.milestones[id];
     vpRender();
   }
   else if (kind === "check") {
@@ -569,6 +601,21 @@ document.addEventListener("click", async ev => {
     if (t) { t.textContent = ok ? "✓ נשמר ב-GitHub" : "⚠ השמירה נכשלה"; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 3000); }
     if (ok) { VP_EDIT.delete(evkey); vpRender(); }
   }
+  else if (kind === "sign") {
+    const rec = vpRec(evkey); if (!rec.milestones) rec.milestones = {};
+    rec.milestones.contract_signed = new Date().toISOString();
+    const ok = await vpSave(evkey); if (ok) vpRender();
+  }
+  else if (kind === "unsign") {
+    if (!confirm("לבטל את סימון 'חוזה נחתם'?")) return;
+    const rec = vpRec(evkey); if (!rec.milestones) rec.milestones = {};
+    rec.milestones.contract_signed = false;
+    const ok = await vpSave(evkey); if (ok) vpRender();
+  }
+  else if (kind === "signed_file") {
+    const inp = document.querySelector('input[data-vp="signed_file_input"][data-ev="' + evkey + '"]');
+    if (inp) inp.click();
+  }
   else if (kind === "edit") { VP_EDIT.add(evkey); vpRender(); }
   else if (kind === "edit_done") { VP_EDIT.delete(evkey); vpRender(); }
 });
@@ -580,7 +627,7 @@ async function vpSave(evkey){
   const mine = { contract_total: rec.contract_total ?? null, deposits: rec.deposits, note: rec.note || "",
                  contract_checks: rec.contract_checks || {}, room_name: rec.room_name || "", room_sqft: rec.room_sqft || "",
                  contact: rec.contact || "", contact_name: rec.contact_name || "", contact_email: rec.contact_email || "",
-                 unusual: rec.unusual || "", check_notes: rec.check_notes || {}, milestones: rec.milestones || {}, team_notes: rec.team_notes || [],
+                 unusual: rec.unusual || "", check_notes: rec.check_notes || {}, milestones: rec.milestones || {}, team_notes: rec.team_notes || [], signed_contract: rec.signed_contract || null,
                  updated_at: new Date().toISOString() };
   try {
     const api = "https://api.github.com/repos/" + VP_REPO + "/contents/" + VP_FILE;
@@ -597,6 +644,26 @@ async function vpSave(evkey){
     if (r.ok) { VP.events[evkey] = Object.assign({}, VP.events[evkey] || {}, mine); }
     return r.ok;
   } catch(e) { console.error("vpSave", e); return false; }
+}
+async function vpUploadSigned(evkey, file){
+  const token = vpToken();
+  if (!token) return false;
+  const ext = ((file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "")) || "pdf";
+  const path = "docs/contract/signed/" + evkey + "." + ext;
+  try {
+    const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(file); });
+    const api = "https://api.github.com/repos/" + VP_REPO + "/contents/" + path;
+    let sha = null;
+    const g = await fetch(api + "?ref=main&_=" + Date.now(), { headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json" }, cache: "no-store" });
+    if (g.ok) { try { sha = (await g.json()).sha; } catch(e){} }
+    const body = { message: "contract: signed file " + evkey, content: b64, branch: "main" };
+    if (sha) body.sha = sha;
+    const r = await fetch(api, { method: "PUT", headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json", "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!r.ok) return false;
+    const rec = vpRec(evkey);
+    rec.signed_contract = { path: path, name: file.name, ext: ext, size: file.size, uploaded_at: new Date().toISOString() };
+    return await vpSave(evkey);
+  } catch(e) { console.error("vpUploadSigned", e); return false; }
 }
 const vpShowAllBtn = document.getElementById("vp-showall");
 if (vpShowAllBtn) vpShowAllBtn.onclick = () => { VP_SHOW_ALL = !VP_SHOW_ALL; vpRender(); };
