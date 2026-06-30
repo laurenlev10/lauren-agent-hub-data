@@ -71,8 +71,8 @@
 
 <div class="wrap">
   <header>
-    <h1><span class="emoji">📋</span>Contract Review</h1>
-    <div class="subtitle">Hotel/venue contract checker — runs FIRST in the per-event prep flow</div>
+    <h1><span class="emoji">🏛</span>אולמות וחוזים</h1>
+    <div class="subtitle" dir="rtl">כל אירוע: פרטי האולם, מה נסגר בחוזה, וההיסטוריה והקשר מולם — במבט אחד</div>
     <div style="margin-top:8px"><a class="back" href="../">← Back to Agent Hub</a></div>
   </header>
 
@@ -87,125 +87,7 @@
     </div>
   </div>
 
-  <div class="tabs">
-    <button class="tab active" data-tab="clauses">📋 Clauses editor</button>
-    <button class="tab" data-tab="run">🚀 Run for a contract</button>
-    <button class="tab" data-tab="history">📊 Recent reviews</button>
-  </div>
-
-  <div class="tab-panel active" id="panel-clauses">
-    <div class="card">
-      <h2>Required clauses (auto-saves)</h2>
-      <p style="font-size:13px;color:var(--muted);margin:0 0 14px">These are the clauses the agent verifies in every contract. Edit, add, disable, or mark critical/non-critical. Edits save to your browser's localStorage automatically.</p>
-      <div id="clauses-list"></div>
-      <div class="toolbar">
-        <button class="btn" id="add-clause">+ Add new clause</button>
-        <button class="btn" id="reset-clauses">↺ Reset to defaults</button>
-        <button class="btn" id="export-clauses">⬇ Export (.json)</button>
-        <button class="btn" id="import-clauses-trigger">⬆ Import (.json)</button>
-        <input type="file" id="import-clauses-file" accept=".json" style="display:none">
-        <span class="saved-toast" id="clauses-saved">✓ Saved</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="tab-panel" id="panel-run">
-    <div class="card">
-      <h2>Generate review command</h2>
-      <p style="font-size:13px;color:var(--muted);margin:0 0 14px">Fill the event details, choose how to give the contract to the agent, and click "Generate". Paste the command in Cowork chat (and attach the PDF if you chose that mode).</p>
-      <div class="row">
-        <div><label>City (City, ST)</label><input type="text" id="ev-city" placeholder="Nashville, TN"></div>
-        <div><label>Year</label><input type="number" id="ev-year" min="2024" max="2030" value="2026"></div>
-      </div>
-      <label>Hotel / Venue</label>
-      <input type="text" id="ev-hotel" placeholder="Holiday Inn Nashville Airport by IHG">
-      <label>Event start date (Friday)</label>
-      <input type="date" id="ev-start">
-
-      <label style="margin-top:14px">How will you give the contract to the agent?</label>
-      <select id="ev-source-mode">
-        <option value="paste">📋 Paste contract text below</option>
-        <option value="pdf">⬆ Attach PDF in Cowork chat (after pasting command)</option>
-        <option value="email">📧 Agent will fetch from email (eli@makeupblowoutsalegroup.com)</option>
-      </select>
-      <div id="source-paste-block">
-        <label>Contract text (paste here)</label>
-        <textarea id="ev-contract" rows="8" placeholder="Paste the contract text here..."></textarea>
-      </div>
-      <div id="source-pdf-block" style="display:none;font-size:12px;color:var(--muted);background:#fef3c7;border:1px solid #facc15;border-radius:8px;padding:12px;margin-top:8px">
-        ⚠ When you press "Generate", the command will say "PDF attached." Paste the command into Cowork chat AND drag-drop the PDF into the same message — the agent will read both together.
-      </div>
-      <div id="source-email-block" style="display:none;font-size:12px;color:var(--muted);background:#e0f2fe;border:1px solid #0ea5e9;border-radius:8px;padding:12px;margin-top:8px">
-        📧 The agent will search Gmail for the most recent contract from this hotel/venue (search subject/body for the hotel name and "contract"/"agreement"). <b>Requires Gmail MCP connected to <code>eli@makeupblowoutsalegroup.com</code></b> — if it isn't, agent will respond with a blocker.
-      </div>
-
-      <div class="toolbar" style="margin-top:14px">
-        <button class="btn-primary btn" id="gen-cmd">📋 Generate & copy command</button>
-        <span class="saved-toast" id="cmd-copied">✓ Copied — paste in Cowork</span>
-      </div>
-      <div class="preview" id="preview">Fill the event details + pick a source mode to preview the command.</div>
-    </div>
-  </div>
-
-  <div class="tab-panel" id="panel-history">
-    <div class="card">
-      <h2>Recent reviews</h2>
-      <div id="history-list"><span style="color:var(--muted);font-style:italic">No reviews yet.</span></div>
-      <p class="footnote">History is stored in this file under <code>&lt;script id="reviews-data"&gt;</code> and updated by <code>@contract</code> on every run (cross-device, served from GitHub Pages). Click any row to expand the full per-clause report.</p>
-    </div>
-  </div>
-</div>
-
-<style>
-  .review-row{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fafbfc;cursor:pointer;transition:border-color .15s}
-  .review-row:hover{border-color:var(--accent)}
-  .review-row .top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-  .review-row .city{font-weight:700;font-size:14px}
-  .review-row .meta{font-size:12px;color:var(--muted)}
-  .review-row .verdict-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-weight:700;font-size:12px}
-  .review-row .verdict-badge.pass{background:var(--ok-bg);color:var(--ok)}
-  .review-row .verdict-badge.warn{background:var(--warn-bg);color:var(--warn)}
-  .review-row .verdict-badge.fail{background:var(--err-bg);color:var(--err)}
-  .review-row .counts{display:flex;gap:8px;font-size:11px;font-weight:600}
-  .review-row .counts span{padding:2px 7px;border-radius:6px;background:#fff;border:1px solid var(--border)}
-  .review-row .counts .c-pass{color:var(--ok)} .review-row .counts .c-warn{color:var(--warn)} .review-row .counts .c-fail{color:var(--err)}
-  .review-row .open-link{margin-top:8px;font-size:12px;color:var(--accent);text-decoration:none;display:inline-block}
-  .review-row .open-link:hover{text-decoration:underline}
-</style>
-
-<script id="reviews-data">
-// 🚨 Owned by @contract. Single source of truth for recent reviews.
-// Schema: { slug, city, hotel, start_date, reviewed_at (ISO), verdict ("✓"|"⚠"|"✗"),
-//           pass, concerning, missing, href (relative to /contract/) }
-// On every contract-review run, the agent upserts into this array (latest first),
-// keeps the most recent ~50 entries, and re-deploys.
-const RECENT_REVIEWS = [
-  {
-    "slug": "milwaukee-2026-05-15",
-    "city": "Milwaukee, WI",
-    "hotel": "Holiday Inn Milwaukee Riverfront",
-    "start_date": "2026-05-15",
-    "reviewed_at": "2026-05-11T16:00:00-07:00",
-    "verdict": "✗",
-    "pass": 1,
-    "concerning": 3,
-    "missing": 5,
-    "href": "events/milwaukee-2026-05-15/"
-  },
-  {
-    "slug": "columbia-2026-05-08",
-    "city": "Columbia, MO",
-    "hotel": "Courtyard by Marriott",
-    "start_date": "2026-05-08",
-    "reviewed_at": "2026-05-03T15:30:00-07:00",
-    "verdict": "✗",
-    "pass": 0,
-    "concerning": 2,
-    "missing": 7,
-    "href": "events/columbia-2026-05-08/"
-  }
-];
-</script>
+  
 
 <script>
 const KEY = "contract-review:clauses";
@@ -267,211 +149,6 @@ function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":
 
 let clauses = loadClauses();
 
-function renderClauses(){
-  const c = document.getElementById("clauses-list");
-  c.innerHTML = clauses.map((cl, i) => `
-    <div class="clause-card ${cl.enabled?'':'disabled'} ${cl.critical?'critical':''}">
-      <div class="clause-head">
-        <div class="title">${escapeHtml(cl.label)} <span class="badge ${cl.critical?'badge-critical':'badge-non'}">${cl.critical?'CRITICAL':'optional'}</span></div>
-        <div style="display:flex;gap:12px">
-          <label class="toggle"><input type="checkbox" ${cl.enabled?'checked':''} data-i="${i}" data-f="enabled"> Enabled</label>
-          <label class="toggle"><input type="checkbox" ${cl.critical?'checked':''} data-i="${i}" data-f="critical"> Critical</label>
-        </div>
-      </div>
-      <label>Label (display name)</label>
-      <input type="text" data-i="${i}" data-f="label" value="${escapeHtml(cl.label)}">
-      <label>What to check <span class="hint">(precise rule for the agent)</span></label>
-      <textarea rows="3" data-i="${i}" data-f="what_to_check">${escapeHtml(cl.what_to_check)}</textarea>
-      <div class="row">
-        <div><label>Search terms <span class="hint">(comma-separated)</span></label><input type="text" data-i="${i}" data-f="search_terms" value="${escapeHtml(cl.search_terms)}"></div>
-        <div><label>Clause id <span class="hint">(stable key)</span></label><input type="text" data-i="${i}" data-f="id" value="${escapeHtml(cl.id)}"></div>
-      </div>
-      <label>Suggested redline (when missing/wrong)</label>
-      <textarea rows="2" data-i="${i}" data-f="redline">${escapeHtml(cl.redline)}</textarea>
-      <button class="btn" data-delete="${i}" style="margin-top:8px;color:var(--err);border-color:var(--err)">🗑 Delete</button>
-    </div>`).join("");
-  c.querySelectorAll("[data-i]").forEach(el => {
-    el.addEventListener("input", () => {
-      const i = +el.dataset.i, f = el.dataset.f;
-      const v = el.type === "checkbox" ? el.checked : el.value;
-      clauses[i][f] = v; saveClauses(clauses); showToast("clauses-saved");
-      if (f === "critical" || f === "enabled" || f === "label") renderClauses();
-    });
-  });
-  c.querySelectorAll("[data-delete]").forEach(b => {
-    b.addEventListener("click", () => {
-      if (!confirm("Delete this clause?")) return;
-      clauses.splice(+b.dataset.delete, 1); saveClauses(clauses); renderClauses();
-    });
-  });
-}
-
-document.getElementById("add-clause").addEventListener("click", () => {
-  const id = "custom_" + Date.now().toString(36);
-  clauses.push({ id, label:"New clause", enabled:true, critical:false, what_to_check:"", search_terms:"", redline:"" });
-  saveClauses(clauses); renderClauses();
-});
-document.getElementById("reset-clauses").addEventListener("click", () => {
-  if (!confirm("Reset all clauses to defaults? Your edits will be lost.")) return;
-  clauses = structuredClone(DEFAULT_CLAUSES); saveClauses(clauses); renderClauses();
-});
-document.getElementById("export-clauses").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify(clauses, null, 2)], {type:"application/json"});
-  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = "contract-clauses-backup-" + new Date().toISOString().slice(0,10) + ".json";
-  document.body.appendChild(a); a.click(); a.remove();
-});
-document.getElementById("import-clauses-trigger").addEventListener("click", () => document.getElementById("import-clauses-file").click());
-document.getElementById("import-clauses-file").addEventListener("change", async (e) => {
-  const f = e.target.files[0]; if (!f) return;
-  try {
-    const j = JSON.parse(await f.text());
-    if (!Array.isArray(j)) { alert("Not a clauses backup."); return; }
-    if (!confirm("Replace current clauses with imported file (" + j.length + " clauses)?")) return;
-    clauses = j; saveClauses(clauses); renderClauses();
-  } catch(err){ alert("Import failed: " + err.message); }
-  e.target.value = "";
-});
-
-// Tab switching
-document.querySelectorAll(".tab").forEach(t => {
-  t.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach(x => x.classList.remove("active"));
-    t.classList.add("active");
-    document.getElementById("panel-" + t.dataset.tab).classList.add("active");
-  });
-});
-
-// Run-tab — generate command
-function buildCommand(){
-  const city = document.getElementById("ev-city").value.trim();
-  const year = document.getElementById("ev-year").value;
-  const hotel = document.getElementById("ev-hotel").value.trim();
-  const start = document.getElementById("ev-start").value;
-  const sourceMode = document.getElementById("ev-source-mode").value;
-  const contract = document.getElementById("ev-contract").value.trim();
-  const activeClauses = clauses.filter(c => c.enabled);
-  // Explicit Read directive so the receiving Cowork session can find the agent.
-  // Wrap path in triple-backtick fence to defeat Cowork's auto-linkifier (which
-  // otherwise turns ".md" filenames into broken markdown links).
-  let cmd = `Read the file at this path and follow its instructions exactly:\n\n` +
-            "```\n" +
-            `C:\\Users\\laure\\OneDrive\\מסמכים\\Claude\\Scheduled\\NEW\\contract-review\\SKILL.md\n` +
-            "```\n\n" +
-            `It is the orchestrator — it will tell you which other files to read in the same folder (clauses, review, comms, dashboard) and walk through every step.\n\nInputs for this run:\n\n`;
-  cmd += `City: ${city}\nHotel: ${hotel}\nYear: ${year}\nStart date: ${start}\n`;
-  cmd += `Source mode: ${sourceMode}\n\n`;
-  cmd += `Active clauses (${activeClauses.length}):\n`;
-  activeClauses.forEach((c, i) => {
-    cmd += `${i+1}. [${c.critical?"CRITICAL":"optional"}] ${c.label}\n`;
-    cmd += `   What to check: ${c.what_to_check.replace(/\n/g," ")}\n`;
-    cmd += `   Search terms: ${c.search_terms}\n`;
-    cmd += `   Redline if missing: ${c.redline.replace(/\n/g," ")}\n\n`;
-  });
-  cmd += `\nReport requirements (in addition to per-clause verdicts):\n`;
-  cmd += `1. Per-clause: ✓/❌/⚠ + verbatim quote + suggested redline if needed.\n`;
-  cmd += `2. סיכום קצר בנקודות (Hebrew) — סעיפים מיוחדים / יוצאי דופן שיש בחוזה (לא מהרשימה).\n`;
-  cmd += `3. הערות לאיש הקשר במלון — מה לזכור לבקש / לוודא בהתכתבות.\n\n`;
-  if (sourceMode === "paste"){
-    cmd += `--- CONTRACT TEXT BELOW ---\n${contract}`;
-  } else if (sourceMode === "pdf"){
-    cmd += `--- CONTRACT SOURCE ---\nPDF attached in this Cowork message. Read it via Read tool and run the review.`;
-  } else if (sourceMode === "email"){
-    cmd += `--- CONTRACT SOURCE ---\nFetch from Gmail (eli@makeupblowoutsalegroup.com).\nSearch threads for: "${hotel}" + ("contract" OR "agreement"). Take the most recent attachment.\nIf Gmail MCP is not connected to eli@ → return a blocker SMS asking Lauren to connect or paste/attach manually.`;
-  }
-  return cmd;
-}
-function rebuildPreview(){
-  document.getElementById("preview").textContent = buildCommand() || "Fill the event details to see the preview.";
-}
-["ev-city","ev-year","ev-hotel","ev-start","ev-contract","ev-source-mode"].forEach(id => {
-  const el = document.getElementById(id);
-  if (id === "ev-source-mode"){
-    el.addEventListener("change", () => {
-      const m = el.value;
-      document.getElementById("source-paste-block").style.display = m === "paste" ? "" : "none";
-      document.getElementById("source-pdf-block").style.display   = m === "pdf"   ? "" : "none";
-      document.getElementById("source-email-block").style.display = m === "email" ? "" : "none";
-      rebuildPreview();
-    });
-  }
-});
-["ev-city","ev-year","ev-hotel","ev-start","ev-contract"].forEach(id => {
-  document.getElementById(id).addEventListener("input", rebuildPreview);
-});
-document.getElementById("gen-cmd").addEventListener("click", async () => {
-  const cmd = buildCommand();
-  try {
-    await navigator.clipboard.writeText(cmd);
-    showToast("cmd-copied");
-  } catch(e){ alert("Copy failed.\n\n" + cmd); }
-});
-
-renderClauses();
-rebuildPreview();
-
-// Recent reviews (server-side, sourced from the reviews-data script tag)
-function fmtReviewedAt(iso){
-  try {
-    const d = new Date(iso);
-    const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const hh = String(d.getHours()).padStart(2,"0");
-    const mm = String(d.getMinutes()).padStart(2,"0");
-    return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} · ${hh}:${mm}`;
-  } catch(e){ return iso || "—"; }
-}
-function verdictClass(v){ return v === "✓" ? "pass" : v === "⚠" ? "warn" : "fail"; }
-function verdictLabel(v){ return v === "✓" ? "All present" : v === "⚠" ? "Some partial" : "Items not in document"; }
-
-function renderReviews(){
-  const host = document.getElementById("history-list");
-  if (!host) return;
-  const list = (typeof RECENT_REVIEWS !== "undefined" && Array.isArray(RECENT_REVIEWS)) ? RECENT_REVIEWS.slice() : [];
-  // Sort newest first
-  list.sort((a,b) => (b.reviewed_at || "").localeCompare(a.reviewed_at || ""));
-  if (!list.length){
-    host.innerHTML = `<span style="color:var(--muted);font-style:italic">No reviews yet. Run the agent for an event and it will appear here automatically after deploy.</span>`;
-    return;
-  }
-  host.innerHTML = list.map(r => {
-    const v = r.verdict || "—";
-    return `
-      <a class="review-row" href="${escapeHtml(r.href || '#')}" style="display:block;text-decoration:none;color:inherit">
-        <div class="top">
-          <div>
-            <div class="city">${escapeHtml(r.city || r.slug || '—')} ${r.hotel ? '· <span class="meta">' + escapeHtml(r.hotel) + '</span>' : ''}</div>
-            <div class="meta">Event ${escapeHtml(r.start_date || '—')} · Reviewed ${escapeHtml(fmtReviewedAt(r.reviewed_at))}</div>
-          </div>
-          <span class="verdict-badge ${verdictClass(v)}">${escapeHtml(v)} ${escapeHtml(verdictLabel(v))}</span>
-        </div>
-        <div class="counts" style="margin-top:8px">
-          <span class="c-pass">✓ ${r.pass ?? 0} pass</span>
-          <span class="c-warn">⚠ ${r.concerning ?? 0} concerning</span>
-          <span class="c-fail">❌ ${r.missing ?? 0} missing</span>
-        </div>
-        <span class="open-link">📋 Open full per-clause report →</span>
-      </a>`;
-  }).join("");
-}
-renderReviews();
-
-// Pre-fill from URL params (added 2026-05-03 for the per-row 📋 Contract button on launch_dashboard).
-// URL contract: ../contract/?city=Columbia,+MO&start_date=2026-05-08&end_date=2026-05-10&year=2026&venue=...&address=...
-(function prefillFromUrl(){
-  const p = new URLSearchParams(window.location.search);
-  if (!p.toString()) return;
-  const setIf = (id, key) => {
-    const v = p.get(key);
-    if (v && document.getElementById(id)) document.getElementById(id).value = v;
-  };
-  setIf("ev-city",  "city");
-  setIf("ev-year",  "year");
-  setIf("ev-start", "start_date");
-  setIf("ev-hotel", "venue");
-  rebuildPreview();
-})();
 </script>
 <script>
 // ───────────── 🏛 Venue payments & deposits (Lauren 2026-06-08) ─────────────
@@ -479,7 +156,10 @@ renderReviews();
 // contract_total/deposits/note. Save = read-merge-write per IRON RULE #18.
 const VP_REPO = "laurenlev10/lauren-agent-hub-data";
 const VP_FILE = "docs/state/venue_payments.json";
+// Prior-year events per city (from SimpleTexting "City ST YEAR" lists; copied from launch HISTORICAL_LISTS 2026-06-30). Keyed by current evkey.
+const VP_HISTORY = {"glendale-2026-01-09":[{"year":2022,"total":1061,"active":670}],"fresno-2026-01-16":[{"year":2023,"total":2676,"active":1685},{"year":2022,"total":1301,"active":773},{"year":2021,"total":1207,"active":645}],"el-cajon-2026-01-23":[{"year":2023,"total":2068,"active":1325}],"emeryville-2026-01-30":[{"year":2024,"total":1687,"active":1261}],"garland-2026-03-06":[{"year":2023,"total":1919,"active":1141}],"fort-worth-2026-03-13":[{"year":2023,"total":2260,"active":1280}],"tulsa-2026-03-20":[{"year":2021,"total":552,"active":320}],"milwaukee-2026-05-15":[{"year":2021,"total":485,"active":294}],"overland-park-2026-06-12":[{"year":2025,"total":1992,"active":1621}],"wichita-2026-06-19":[{"year":2025,"total":2172,"active":1778}],"mesa-2026-07-10":[{"year":2022,"total":806,"active":504},{"year":2021,"total":723,"active":411}],"modesto-2026-07-24":[{"year":2023,"total":1839,"active":1222}],"richmond-2026-08-07":[{"year":2023,"total":1315,"active":917}],"visalia-2026-08-14":[{"year":2025,"total":1564,"active":1304},{"year":2024,"total":1744,"active":1291},{"year":2023,"total":1293,"active":875}],"san-jose-2026-08-28":[{"year":2023,"total":1786,"active":1258}],"portland-2026-09-04":[{"year":2023,"total":2736,"active":1829},{"year":2022,"total":893,"active":491}],"boise-2026-09-11":[{"year":2022,"total":612,"active":395},{"year":2021,"total":936,"active":521}],"salt-lake-city-2026-09-25":[{"year":2025,"total":2119,"active":1735},{"year":2023,"total":1840,"active":1207},{"year":2022,"total":772,"active":458}],"bakersfield-2026-10-02":[{"year":2025,"total":2316,"active":1936}],"reno-2026-10-09":[{"year":2025,"total":2107,"active":1803},{"year":2023,"total":1856,"active":1237}],"santa-fe-2026-10-16":[{"year":2025,"total":1539,"active":1286}],"albuquerque-2026-10-23":[{"year":2025,"total":2584,"active":2218},{"year":2023,"total":1802,"active":1166}],"tucson-2026-11-20":[{"year":2025,"total":2957,"active":2540},{"year":2023,"total":2652,"active":1728},{"year":2022,"total":977,"active":587},{"year":2021,"total":982,"active":533}],"anaheim-2026-12-18":[{"year":2023,"total":2479,"active":1770}],"oxnard-ventura-2027-01-08":[{"year":2022,"total":674,"active":449}],"lancaster-2027-01-22":[{"year":2023,"total":2776,"active":1889},{"year":2022,"total":580,"active":386},{"year":2021,"total":1133,"active":653}],"sacramento-2027-02-05":[{"year":2025,"total":1979,"active":1654},{"year":2021,"total":679,"active":419}],"roseville-2027-02-12":[{"year":2024,"total":1233,"active":1013}],"ontario-2027-02-19":[{"year":2023,"total":2211,"active":1585}],"goodyear-2027-02-26":[{"year":2025,"total":1924,"active":1528},{"year":2023,"total":2171,"active":1380}],"las-cruces-2027-03-12":[{"year":2025,"total":1345,"active":1143}],"el-paso-2027-03-19":[{"year":2025,"total":2663,"active":2308},{"year":2023,"total":2645,"active":1745}],"austin-2027-03-26":[{"year":2025,"total":2185,"active":1815},{"year":2021,"total":552,"active":277}],"san-antonio-west-2027-04-02":[{"year":2025,"total":2212,"active":1907},{"year":2023,"total":3820,"active":2511},{"year":2020,"total":251,"active":119}],"houston-south-2027-05-07":[{"year":2025,"total":2219,"active":1893},{"year":2020,"total":106,"active":62}],"corpus-christi-2027-05-14":[{"year":2025,"total":2236,"active":1906},{"year":2021,"total":809,"active":441}],"san-antonio-live-oak-2027-05-21":[{"year":2025,"total":2212,"active":1907},{"year":2023,"total":3820,"active":2511},{"year":2020,"total":251,"active":119}],"dallas-2027-05-28":[{"year":2021,"total":810,"active":375}],"colorado-springs-2027-07-30":[{"year":2023,"total":1361,"active":920}],"denver-central-2027-08-06":[{"year":2021,"total":1161,"active":625}],"salt-lake-city-south-2027-08-13":[{"year":2025,"total":2119,"active":1735},{"year":2023,"total":1840,"active":1207},{"year":2022,"total":772,"active":458}],"gilbert-2027-08-27":[{"year":2025,"total":1642,"active":1363}],"henderson-2027-09-10":[{"year":2025,"total":2320,"active":1964},{"year":2023,"total":776,"active":497}],"stockton-2027-09-24":[{"year":2025,"total":1904,"active":1613},{"year":2022,"total":820,"active":479}],"union-city-2027-10-01":[{"year":2025,"total":1453,"active":1230},{"year":2024,"total":2159,"active":1623}],"tacoma-2027-10-15":[{"year":2025,"total":1831,"active":1557},{"year":2023,"total":1944,"active":1241}],"pasco-2027-10-22":[{"year":2025,"total":1919,"active":1650}],"spokane-2027-10-29":[{"year":2025,"total":1741,"active":1499},{"year":2023,"total":1924,"active":1200},{"year":2022,"total":810,"active":423}],"santa-rosa-2027-11-19":[{"year":2025,"total":1341,"active":1139}],"la-mirada-2027-12-17":[{"year":2025,"total":2032,"active":1745}]};
 let VP = { events: {} }, VP_EVS = [], VP_SHOW_ALL = false;
+let VP_EDIT = new Set();   // evkeys currently in edit mode (in-memory, per session)
 // Lauren 2026-06-08: via the per-event 📑 Contract button the URL carries ?city=..&start_date=..
 // → show ONLY that event's payments (evkey per IRON RULE #17: slugify(full city) + start_date)
 const VP_FOCUS = (() => {
@@ -590,6 +270,7 @@ function vpSweepCmd(evkey, rec, e){
 "   • relationship_points: [{date, who, text}] — כל נקודה חשובה שנאמרה/נכתבה בינינו לבין איש הקשר, קצר ובעברית, מהחדש לישן. who = \"אנחנו\" או \"האולם\".",
 "   • relationship_summary: פסקה–שתיים בעברית — תקציר מערכת היחסים והניהול מול האולם מהקשר הראשון ועד היום: מה סוכם, מה עדיין פתוח, מה הצעד הבא, ואיך הם כבני-שיח (מגיבים מהר/לאט, גמישים/נוקשים).",
 "   • relationship_synced_at = הזמן עכשיו (ISO).",
+"   • venue_history_note: אם מהמייל/החוזה עולה שכבר היה אירוע באותו אולם בעבר (שנה/איש קשר), כתוב שורה קצרה; אחרת השאר ריק.",
 "",
 "3. אל תיגע בשדות של לורן/אלי: team_notes, milestones, contract_checks, check_notes.",
 "4. git push per IRON RULE #1, ואז שלח לי סיכום קצר בעברית — מה התחדש מאז הריענון הקודם."
@@ -632,43 +313,100 @@ function vpNotesBlock(rec, evkey){
     </div>
   </div>`;
 }
+function vpHistBlock(evkey, rec){
+  const h = (VP_HISTORY[evkey] || []).slice().sort((a,b)=>(b.year||0)-(a.year||0));
+  const note = rec.venue_history_note || "";
+  if (!h.length && !note){
+    return `<div style="font-size:12px;color:#6b7280;margin-bottom:8px">🗓 <b style="color:#0369a1">אירוע ראשון בעיר הזו</b></div>`;
+  }
+  const chips = h.map(x=>`<span style="background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;border-radius:999px;padding:2px 9px;font-size:11px;margin:1px" title="${x.active!=null?vpEsc(x.active)+' מנויים פעילים':''}">${vpEsc(x.year)}${x.active!=null?' · '+vpEsc(x.active)+'👥':''}</span>`).join("");
+  return `<div style="font-size:12px;color:#374151;margin-bottom:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">🗓 <b>כבר היו אירועים בעיר:</b> ${chips}${note?`<span style="color:#6b7280">· ${vpEsc(note)}</span>`:""}</div>`;
+}
+function vpMsRow(ms, evkey, msAlert, clickable){
+  return `<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-bottom:8px">` + ms.map(m => {
+    const css = m.done ? "background:#d1fae5;color:#059669;border:1px solid #a7f3d0" : "background:#f3f4f6;color:#9ca3af;border:1px solid #e5e7eb";
+    const canClick = clickable && m.manual && !m.auto;
+    const tag = canClick ? "button" : "span";
+    const attrs = canClick ? `data-vp="milestone" data-id="${vpEsc(m.id)}" data-ev="${vpEsc(evkey)}"` : "";
+    const tip = m.done ? ((m.auto ? "זוהה אוטומטית" : "סומן ידנית") + (m.date ? " · " + m.date : "")) : (canClick ? "לחיצה לסימון ידני" : "מתמלא אוטומטית");
+    return `<${tag} ${attrs} style="${css};border-radius:8px;padding:3px 9px;font-size:11px;font-weight:600;${canClick ? "cursor:pointer;" : ""}font-family:inherit" title="${vpEsc(tip)}">${m.done ? "✓" : "○"} ${vpEsc(m.label)}</${tag}>`;
+  }).join(`<span style="color:#d1d5db">–</span>`) + " " + msAlert + `</div>`;
+}
 function vpRender(){
   const box = document.getElementById("vp-list");
   if (!box) return;
   const evs = vpRows();
   const h2 = document.querySelector("#vp-card h2");
   if (h2 && VP_FOCUS && !VP_SHOW_ALL && evs.length === 1) {
-    h2.firstChild.textContent = "🏛 תשלומי אולם — " + evs[0].class_name + " ";
+    h2.firstChild.textContent = "🏛 אולם וחוזה — " + evs[0].class_name + " ";
   } else if (h2) {
-    h2.firstChild.textContent = "🏛 תשלומי אולם ודיפוזיטים ";
+    h2.firstChild.textContent = "🏛 אולמות וחוזים ";
   }
   const sb = document.getElementById("vp-showall");
   if (sb) sb.textContent = VP_SHOW_ALL ? (VP_FOCUS ? "חזרה לאירוע הזה בלבד" : "הצג רק אירועים פעילים") : "הצג את כל האירועים";
   if (!evs.length) { box.innerHTML = "אין אירועים בטווח המעקב"; return; }
   box.innerHTML = evs.map(e => {
     const rec = VP.events[e.evkey] || {};
+    const editing = VP_EDIT.has(e.evkey);
     const deps = rec.deposits || [];
     const [stTxt, stCss] = vpStatus(rec);
     const total = rec.contract_total, paid = rec.qb_paid_total || 0;
     const balance = (total != null && total !== "") ? Math.max(0, total - paid) : null;
-    const qbLines = (rec.qb_lines || []).map(l =>
-      `<span style="display:inline-block;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;border-radius:6px;padding:1px 7px;margin:2px;font-size:11px" title="${vpEsc(l.account)}">${vpEsc((l.date || "").slice(5))} · ${vpFmt(l.amount)} · ${vpEsc((l.vendor || "").slice(0, 20))}</span>`).join("") || '<span style="font-size:11px;color:var(--muted)">עדיין אין תשלומים ב-QB עם ה-Class של האירוע</span>';
     const ms = vpMilestones(rec);
     const daysTo = vpDaysTo(e);
     const msMissing = ms.filter(m => !m.done && ["contract_signed", "deposit", "terms"].indexOf(m.id) !== -1);
     const msAlert = (daysTo >= -3 && daysTo <= 35 && msMissing.length)
       ? `<span style="background:#fee2e2;color:#b91c1c;border-radius:8px;padding:2px 9px;font-size:11px;font-weight:700">⚠ ${daysTo} ימים לאירוע — חסר: ${msMissing.map(m => m.label).join(" · ")}</span>` : "";
-    const msRow = `<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-bottom:8px">` + ms.map(m => {
-      const css = m.done ? "background:#d1fae5;color:#059669;border:1px solid #a7f3d0" : "background:#f3f4f6;color:#9ca3af;border:1px solid #e5e7eb";
-      const clickable = m.manual && !m.auto;
-      const tag = clickable ? "button" : "span";
-      const attrs = clickable ? `data-vp="milestone" data-id="${vpEsc(m.id)}" data-ev="${vpEsc(e.evkey)}"` : "";
-      const tip = m.done ? ((m.auto ? "זוהה אוטומטית" : "סומן ידנית") + (m.date ? " · " + m.date : "")) : (clickable ? "לחיצה לסימון ידני" : "מתמלא אוטומטית");
-      return `<${tag} ${attrs} style="${css};border-radius:8px;padding:3px 9px;font-size:11px;font-weight:600;${clickable ? "cursor:pointer;" : ""}font-family:inherit" title="${vpEsc(tip)}">${m.done ? "✓" : "○"} ${vpEsc(m.label)}</${tag}>`;
-    }).join(`<span style="color:#d1d5db">–</span>`) + " " + msAlert + `</div>`;
     const checks = rec.contract_checks || {};
     const items = vpChecklistItems();
     const chkDone = items.filter(it => checks[it.id] === 1).length, chkAll = items.length;
+    const elog = rec.email_log || [];
+    const last = elog[0] || null;
+    const lastDate = (last && last.date) ? last.date.slice(0, 10) : "—";
+    const qbLines = (rec.qb_lines || []).map(l =>
+      `<span style="display:inline-block;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;border-radius:6px;padding:1px 7px;margin:2px;font-size:11px" title="${vpEsc(l.account)}">${vpEsc((l.date || "").slice(5))} · ${vpFmt(l.amount)} · ${vpEsc((l.vendor || "").slice(0, 20))}</span>`).join("");
+    const headerRow = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        <div style="font-weight:700;font-size:15px;color:var(--text)">${vpEsc(e.class_name)} <span style="font-weight:400;font-size:12px;color:var(--muted)">· ${vpEsc(e.start_date)} · ${vpEsc(e.venue || rec.venue || "")}</span></div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="badge" style="${stCss}">${stTxt}</span>
+          <button class="btn" data-vp="sweep" data-ev="${vpEsc(e.evkey)}" style="padding:3px 9px;font-size:11px;background:#eef2ff;border-color:#c7d2fe;color:#3730a3" title="קלוד יקרא את כל ההתכתבות במייל של eli@ עם האולם וימלא הכל: איש קשר, סכומים, דיפוזיטים, נקודות, ותקציר היחסים">${rec.relationship_synced_at ? "🔄 רענן מהמייל" : "📥 משוך מהמייל"}</button>
+          <button class="btn" data-vp="${editing ? "edit_done" : "edit"}" data-ev="${vpEsc(e.evkey)}" style="padding:3px 9px;font-size:11px${editing ? ";background:#fef3c7;border-color:#fde68a;color:#92400e" : ""}">${editing ? "✓ סיום עריכה" : "✏️ עריכה"}</button>
+          <a class="btn" style="padding:3px 9px;font-size:11px" href="../pnl/?evkey=${encodeURIComponent(e.evkey)}" target="_blank">📊 P&amp;L</a></div>
+      </div>`;
+
+    if (!editing) {
+      const fact = (label, val) => `<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:7px 10px"><div style="font-size:11px;color:var(--muted)">${label}</div><div style="font-size:13px;color:var(--text);margin-top:1px">${val}</div></div>`;
+      const dash = '<span style="color:#9ca3af">—</span>';
+      const factGrid = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px;margin-bottom:10px">
+        ${fact("👤 איש קשר", (vpEsc(rec.contact_name || "") || dash) + (rec.contact_email ? ` <span dir="ltr" style="color:#6b7280;font-size:11px">${vpEsc(rec.contact_email)}</span>` : ""))}
+        ${fact("🕐 התכתבות אחרונה", `<span dir="ltr">${vpEsc(lastDate)}</span>${elog.length ? ` <span style="color:#6b7280;font-size:11px">(${elog.length})</span>` : ""}`)}
+        ${fact("🏠 חדר · גודל", (vpEsc(rec.room_name || "") || dash) + (rec.room_sqft ? ` · ${vpEsc(rec.room_sqft)} ft²` : ""))}
+        ${fact("💵 חוזה · שולם · יתרה", `${total != null && total !== "" ? vpFmt(total) : "—"} · <span style="color:#059669">${vpFmt(paid)}</span> · <b style="color:${balance > 0 ? "#b45309" : "#059669"}">${balance == null ? "—" : vpFmt(balance)}</b>`)}
+      </div>`;
+      const missingChips = items.filter(it => checks[it.id] === -1).map(it =>
+        `<span style="background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;border-radius:999px;padding:2px 9px;font-size:11px;margin:1px">⚠ חסר: ${vpEsc(it.label)}</span>`).join("");
+      const contractRead = `<div style="border-top:1px dashed var(--border);padding-top:8px;margin-bottom:8px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b style="font-size:13px">📋 מה נסגר בחוזה</b>
+          <span style="font-size:12px;color:${chkDone ? "#059669" : "#9ca3af"}">${chkDone ? ("✓ " + chkDone + " מתוך " + chkAll + " מאומתים") : "טרם נבדק חוזה"}</span>
+          <button class="btn" data-vp="edit" data-ev="${vpEsc(e.evkey)}" style="padding:2px 8px;font-size:11px;color:#6b7280">צ׳קליסט מלא ✏️</button>
+        </div>
+        ${missingChips ? `<div style="margin-top:6px">${missingChips}</div>` : ""}
+      </div>`;
+      const unusualRead = rec.unusual ? `<div style="font-size:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:8px;padding:5px 9px;margin-bottom:8px"><b>⚡ יוצא דופן:</b> ${vpEsc(rec.unusual)}</div>` : "";
+      const qbRead = qbLines ? `<div style="margin-top:6px">${qbLines}</div>` : "";
+      return `<div style="border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;background:#fafbfc">
+        ${headerRow}
+        ${vpMsRow(ms, e.evkey, msAlert, false)}
+        ${vpHistBlock(e.evkey, rec)}
+        ${vpRelBlock(rec)}
+        ${factGrid}
+        ${unusualRead}
+        ${contractRead}
+        ${vpNotesBlock(rec, e.evkey)}
+        ${qbRead}
+      </div>`;
+    }
+
     const chkChips = items.map(it => {
       const v = checks[it.id];
       const css = v === 1 ? "background:#d1fae5;color:#059669;border:1px solid #a7f3d0"
@@ -680,10 +418,6 @@ function vpRender(){
       const tip = (v === 1 ? "מוסכם" : v === -1 ? "חסר / בעייתי" : "טרם נבדק") + (evid ? " — " + evid : "");
       return `<button data-vp="check" data-id="${vpEsc(it.id)}" data-ev="${vpEsc(e.evkey)}" style="${css};border-radius:999px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit" title="${vpEsc(tip)}">${mark}${vpEsc(it.label)}${crit}${evid ? " 💬" : ""}</button>`;
     }).join("");
-    const elog = rec.email_log || [];
-    const last = elog[0] || null;
-    const emailLog = !elog.length ? ""
-      : `<div style="font-size:11px;color:var(--muted);margin-top:6px">📧 ${elog.length} התכתבויות · אחרונה: <span dir="ltr">${vpEsc((last.date || "").slice(0, 10))}</span> — ${vpEsc((last.subject || last.snippet || "").slice(0, 60))} <span style="color:#1d4ed8">· לתובנות: 🤖 בדוק עם קלוד</span></div>`;
     const depRows = deps.map((d, i) => {
       const pd = vpDepPaid(rec, d);
       const chip = pd === "qb" ? '<span style="font-size:10px;background:#d1fae5;color:#059669;border-radius:6px;padding:1px 6px">✓ זוהה ב-QB</span>' : "";
@@ -695,22 +429,17 @@ function vpRender(){
         <td><button class="btn" data-vp="dep_del" data-ev="${vpEsc(e.evkey)}" data-i="${i}" style="padding:3px 8px;font-size:11px">🗑</button></td>
       </tr>`;
     }).join("");
-    return `<div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;background:#fafbfc">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-        <div style="font-weight:700;font-size:14px;color:var(--text)">${vpEsc(e.class_name)} <span style="font-weight:400;font-size:12px;color:var(--muted)">· ${vpEsc(e.start_date)} · ${vpEsc(e.venue || rec.venue || "")}</span></div>
-        <div><span class="badge" style="${stCss}">${stTxt}</span>
-          <a class="btn" style="padding:3px 8px;font-size:11px;margin-right:6px" href="../pnl/?evkey=${encodeURIComponent(e.evkey)}" target="_blank">📊 P&amp;L</a></div>
-      </div>
-      ${msRow}
+    return `<div style="border:1px solid #fde68a;border-radius:12px;padding:14px;margin-bottom:12px;background:#fffdf7">
+      ${headerRow}
+      <div style="font-size:11px;color:#92400e;background:#fef3c7;border-radius:6px;padding:3px 8px;margin-bottom:8px;display:inline-block">✏️ מצב עריכה — אל תשכחי 💾 שמרי וסיום</div>
+      ${vpHistBlock(e.evkey, rec)}
+      ${vpRelBlock(rec)}
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 8px">
         <label style="display:inline-flex;align-items:center;gap:4px;margin:0;font-size:12px;font-weight:600">👤
           <input type="text" data-vp="contact_name" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(rec.contact_name || "")}" placeholder="שם איש הקשר" style="width:200px;font-size:12px;border:1px solid #fde68a;border-radius:5px;padding:3px 6px"></label>
         <label style="display:inline-flex;align-items:center;gap:4px;margin:0;font-size:12px;font-weight:600">📧
           <input type="text" dir="ltr" data-vp="contact_email" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(rec.contact_email || "")}" placeholder="email" style="width:220px;font-size:12px;border:1px solid #fde68a;border-radius:5px;padding:3px 6px"></label>
-        <span style="font-size:12px">🕐 התכתבות אחרונה: <b dir="ltr">${vpEsc(((rec.email_log || [])[0] || {}).date ? rec.email_log[0].date.slice(0, 10) : "—")}</b>${(rec.email_log || []).length ? " (" + rec.email_log.length + ")" : ""}</span>
       </div>
-      ${vpRelBlock(rec)}
-      ${rec.unusual ? `<div style="font-size:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:8px;padding:5px 9px;margin-bottom:8px"><b>⚡ יוצא דופן:</b> ${vpEsc(rec.unusual)}</div>` : ""}
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
         <label style="display:inline-flex;align-items:center;gap:6px;margin:0;font-size:12px">סה״כ חוזה:
           <input type="number" step="0.01" data-vp="contract_total" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(total ?? "")}" placeholder="$" style="width:110px"></label>
@@ -726,18 +455,18 @@ function vpRender(){
             <input type="text" data-vp="room_sqft" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(rec.room_sqft || "")}" placeholder="2500" style="width:70px;font-size:12px"></label>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">${chkChips}</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:4px">לחיצה על נקודה: • לא נבדק ← ✓ מוסכם בחוזה ← ✗ חסר/בעייתי ← •. אל תשכחי 💾 שמרי.</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">לחיצה על נקודה: • לא נבדק ← ✓ מוסכם בחוזה ← ✗ חסר/בעייתי ← •.</div>
       </div>
+      <label style="display:block;font-size:12px;margin:8px 0 2px">⚡ תנאי יוצא דופן:</label>
+      <input type="text" data-vp="unusual" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(rec.unusual || "")}" placeholder="תנאי חריג בחוזה (אם יש)..." style="width:100%;font-size:12px;margin-bottom:6px">
       <table style="border-collapse:collapse;width:100%;font-size:12px">${depRows}</table>
       <div style="margin:8px 0 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button class="btn" data-vp="dep_add" data-ev="${vpEsc(e.evkey)}" style="padding:4px 10px;font-size:11px">+ דיפוזיט</button>
         <input type="text" data-vp="note" data-ev="${vpEsc(e.evkey)}" value="${vpEsc(rec.note || "")}" placeholder="הערה (תנאי תשלום, מס׳ חוזה...)" style="flex:1;min-width:160px;font-size:12px">
-        <button class="btn btn-primary" data-vp="save" data-ev="${vpEsc(e.evkey)}" style="padding:4px 12px;font-size:11px">💾 שמרי</button>
+        <button class="btn btn-primary" data-vp="save" data-ev="${vpEsc(e.evkey)}" style="padding:4px 12px;font-size:11px">💾 שמרי וסיום</button>
         <button class="btn" data-vp="aicheck" data-ev="${vpEsc(e.evkey)}" style="padding:4px 12px;font-size:11px" title="מעתיק פקודה לקלוד — הוא יקרא את ההתכתבות והחוזה, יסיק לכל נקודה, ימלא ✓/✗ עם אסמכתאות">🤖 בדוק עם קלוד</button>
-        <button class="btn" data-vp="sweep" data-ev="${vpEsc(e.evkey)}" style="padding:4px 12px;font-size:11px;background:#eef2ff;border-color:#c7d2fe;color:#3730a3" title="מעתיק פקודה לקלוד — הוא יקרא את כל ההתכתבות במייל של eli@ עם האולם וימלא: איש קשר, סכומים, דיפוזיטים, נקודות, ותקציר מערכת היחסים">${rec.relationship_synced_at ? "🔄 רענן מהמייל" : "📥 משוך הכל מהמייל"}</button>
       </div>
-      <div style="margin-top:8px">${qbLines}</div>
-      ${emailLog}
+      <div style="margin-top:8px">${qbLines || '<span style="font-size:11px;color:var(--muted)">עדיין אין תשלומים ב-QB עם ה-Class של האירוע</span>'}</div>
       ${vpNotesBlock(rec, e.evkey)}
     </div>`;
   }).join("");
@@ -760,6 +489,7 @@ document.addEventListener("change", ev => {
   else if (kind === "contact_email") rec.contact_email = el.value;
   else if (kind === "room_name") rec.room_name = el.value;
   else if (kind === "room_sqft") rec.room_sqft = el.value;
+  else if (kind === "unusual") rec.unusual = el.value;
   else if (kind === "dep_label") (rec.deposits[i] = rec.deposits[i] || {}).label = el.value;
   else if (kind === "dep_due") (rec.deposits[i] = rec.deposits[i] || {}).due = el.value;
   else if (kind === "dep_amount") (rec.deposits[i] = rec.deposits[i] || {}).amount = el.value === "" ? null : +el.value;
@@ -834,11 +564,13 @@ document.addEventListener("click", async ev => {
   else if (kind === "save") {
     el.disabled = true; el.textContent = "⏳";
     const ok = await vpSave(evkey);
-    el.disabled = false; el.textContent = "💾 שמרי";
+    el.disabled = false; el.textContent = "💾 שמרי וסיום";
     const t = document.getElementById("vp-saved");
     if (t) { t.textContent = ok ? "✓ נשמר ב-GitHub" : "⚠ השמירה נכשלה"; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 3000); }
-    if (ok) vpRender();
+    if (ok) { VP_EDIT.delete(evkey); vpRender(); }
   }
+  else if (kind === "edit") { VP_EDIT.add(evkey); vpRender(); }
+  else if (kind === "edit_done") { VP_EDIT.delete(evkey); vpRender(); }
 });
 async function vpSave(evkey){
   const token = vpToken();
