@@ -250,6 +250,13 @@ const DEFAULT_CALIBRATION = {
           <div style="flex:1"></div>
           <span class="hint" id="saveInfo">—</span>
         </div>
+        <div class="calib-actions" id="folderBar" style="margin-top:6px; border-top:1px dashed var(--border); padding-top:10px;">
+          <button class="btn btn-primary" id="saveFolderBtn">📁 Save image to folder</button>
+          <button class="btn btn-secondary" id="saveAllFolderBtn">📁 Save ALL cities to folder</button>
+          <span class="hint" id="folderLabel" style="margin-left:2px;">No folder chosen yet</span>
+          <button class="btn btn-secondary" id="changeFolderBtn" style="padding:4px 10px;">Change folder…</button>
+        </div>
+        <div class="hint" id="folderHint" style="margin-top:4px; font-size:10px;">First time: pick your <code>event-images/…</code> folder once — it’s remembered after that. “Change folder…” switches to a different one.</div>
       </div>
 
       <div>
@@ -785,6 +792,108 @@ const DEFAULT_CALIBRATION = {
     }, "image/png");
   };
 
+  // ========== SAVE TO FOLDER (File System Access API) ==========
+  // Device-local only (a folder on this PC) — handle stored in IndexedDB, never GitHub-synced (IRON RULE #7).
+  const FS_SUPPORTED = ("showDirectoryPicker" in window);
+  let dirHandle = null;
+  const saveFolderBtn = document.getElementById("saveFolderBtn");
+  const saveAllFolderBtn = document.getElementById("saveAllFolderBtn");
+  const changeFolderBtn = document.getElementById("changeFolderBtn");
+  const folderLabel = document.getElementById("folderLabel");
+
+  function idbGet(key){ return new Promise(res=>{ try{ const o=indexedDB.open("canva_fs",1); o.onupgradeneeded=()=>{ try{o.result.createObjectStore("kv");}catch(e){} }; o.onsuccess=()=>{ try{ const tx=o.result.transaction("kv","readonly"); const rq=tx.objectStore("kv").get(key); rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>res(null);}catch(e){res(null);} }; o.onerror=()=>res(null);}catch(e){res(null);} }); }
+  function idbSet(key,val){ return new Promise(res=>{ try{ const o=indexedDB.open("canva_fs",1); o.onupgradeneeded=()=>{ try{o.result.createObjectStore("kv");}catch(e){} }; o.onsuccess=()=>{ try{ const tx=o.result.transaction("kv","readwrite"); tx.objectStore("kv").put(val,key); tx.oncomplete=()=>res(true); tx.onerror=()=>res(false);}catch(e){res(false);} }; o.onerror=()=>res(false);}catch(e){res(false);} }); }
+
+  function updateFolderLabel(){ if (folderLabel) folderLabel.textContent = dirHandle ? ("📂 Saving to: " + dirHandle.name) : "No folder chosen yet"; }
+  function saveInfoMsg(t){ const s=document.getElementById("saveInfo"); if(s) s.textContent=t; }
+
+  async function ensureDir(forcePick){
+    if (!FS_SUPPORTED) return null;
+    if (!forcePick && dirHandle){
+      try{
+        let perm = await dirHandle.queryPermission({mode:"readwrite"});
+        if (perm !== "granted") perm = await dirHandle.requestPermission({mode:"readwrite"});
+        if (perm === "granted") return dirHandle;
+      }catch(e){}
+    }
+    try{
+      const h = await window.showDirectoryPicker({ mode:"readwrite", id:"canvaEventImages", startIn: dirHandle || "documents" });
+      dirHandle = h; await idbSet("dirHandle", h); updateFolderLabel();
+      return h;
+    }catch(e){ return null; } // user cancelled the picker
+  }
+
+  function cityFileName(c){ return `${(c.city || "PREVIEW").toUpperCase()} ${(c.state || "XX").toUpperCase()} ${selectedYear}.png`; }
+
+  function fullResBlob(cityIdx){
+    return new Promise(resolve=>{
+      const old = stepIdx; stepIdx = cityIdx;
+      const full = document.createElement("canvas");
+      full.width = templateImg.width; full.height = templateImg.height;
+      const fctx = full.getContext("2d");
+      fctx.drawImage(templateImg, 0, 0);
+      Object.keys(FIELD_LABELS).forEach(key => {
+        const f = getField(key); const text = textFor(key);
+        if (!text) return; // hidden / deleted line
+        const fc = fontCssFor(f.font);
+        fctx.font = `${fc.weight} ${f.size}px ${fc.css}, sans-serif`;
+        fctx.textAlign = "center"; fctx.textBaseline = "middle"; fctx.lineJoin = "round";
+        if (f.stroke_width > 0) { fctx.lineWidth = f.stroke_width * 2; fctx.strokeStyle = f.stroke_fill; fctx.strokeText(text, f.x, f.y); }
+        fctx.fillStyle = f.color; fctx.fillText(text, f.x, f.y);
+      });
+      stepIdx = old; // restore (pixels already drawn synchronously)
+      full.toBlob(b => resolve(b), "image/png");
+    });
+  }
+
+  async function writeBlobToDir(dir, name, blob){
+    const fh = await dir.getFileHandle(name, { create:true });
+    const w = await fh.createWritable();
+    await w.write(blob); await w.close();
+  }
+
+  async function saveCurrentToFolder(){
+    if (!templateImg){ alert("Load a template first."); return; }
+    if (!FS_SUPPORTED){ document.getElementById("downloadTestBtn").click(); return; }
+    const dir = await ensureDir(false); if (!dir) return;
+    try{
+      const c = currentCity();
+      const name = cityFileName(c);
+      const blob = await fullResBlob(stepIdx);
+      await writeBlobToDir(dir, name, blob);
+      saveInfoMsg("✓ saved “" + name + "” to " + dir.name);
+    }catch(e){ alert("Save failed: " + (e && e.message ? e.message : e)); }
+  }
+
+  async function saveAllToFolder(){
+    if (!templateImg){ alert("Load a template first."); return; }
+    if (!cityList.length){ alert("No cities to save."); return; }
+    if (!FS_SUPPORTED){ alert("Saving to a folder needs Chrome or Edge. Use 💾 Download this preview instead."); return; }
+    const dir = await ensureDir(false); if (!dir) return;
+    try{
+      let n = 0;
+      for (let i = 0; i < cityList.length; i++){
+        const blob = await fullResBlob(i);
+        await writeBlobToDir(dir, cityFileName(cityList[i]), blob);
+        n++;
+      }
+      draw();
+      saveInfoMsg("✓ saved " + n + " image" + (n>1?"s":"") + " to " + dir.name);
+    }catch(e){ alert("Save failed: " + (e && e.message ? e.message : e)); }
+  }
+
+  function initFolderUI(){
+    if (!FS_SUPPORTED){
+      [saveFolderBtn, saveAllFolderBtn, changeFolderBtn].forEach(b => { if (b) b.style.display = "none"; });
+      if (folderLabel) folderLabel.textContent = "Folder-save needs Chrome or Edge — use 💾 Download this preview.";
+      return;
+    }
+    if (saveFolderBtn) saveFolderBtn.onclick = saveCurrentToFolder;
+    if (saveAllFolderBtn) saveAllFolderBtn.onclick = saveAllToFolder;
+    if (changeFolderBtn) changeFolderBtn.onclick = () => ensureDir(true);
+    idbGet("dirHandle").then(h => { if (h){ dirHandle = h; updateFolderLabel(); } });
+  }
+
   function updateCalibStatus() {
     if (templateImg) { calibStatus.textContent = "✓ template loaded"; calibStatus.className = "status-pill pill-ok"; }
     else { calibStatus.textContent = "load template"; calibStatus.className = "status-pill pill-def"; }
@@ -891,6 +1000,7 @@ const DEFAULT_CALIBRATION = {
   syncControls();
   updateCalibStatus();
   refreshCityList();
+  initFolderUI();
 
   // Pre-fill from URL params (added 2026-05-03 for the per-row 🎨 Images button on launch_dashboard).
   // URL contract: ../canva/?city=Columbia,+MO&start_date=2026-05-08&end_date=2026-05-10&year=2026
