@@ -345,12 +345,38 @@ function vpWeekday(ds){
   const d=new Date(ds+"T12:00:00"); if(isNaN(d.getTime())) return ds;
   return D[d.getDay()]+", "+M[d.getMonth()]+" "+d.getDate();
 }
+function vpDetectBrand(rec, e){
+  const s = ((rec.venue||(e&&e.venue)||"")+" "+(rec.room_name||"")+" "+(rec.contact_email||"")+" "+(rec.note||"")).toLowerCase();
+  if(/bonvoy|marriott|courtyard|residence inn|fairfield|springhill|renaissance|sheraton|westin|four points|delta hotels|ac hotel|aloft|moxy|gaylord|le meridien|autograph/.test(s)) return "bonvoy";
+  if(/ihg|holiday inn|crowne plaza|staybridge|candlewood|even hotel|avid|kimpton|intercontinental|hotel indigo|atwell/.test(s)) return "ihg";
+  if(/hilton|honors|doubletree|hampton|embassy|garden inn|homewood|home2|tapestry|tru by|waldorf|conrad|canopy|signia|motto|spark by/.test(s)) return "hilton";
+  return "";
+}
 function vpEmailTemplate(kind, e, rec){
   const first = ((rec.contact_name||"").trim().split(/[\s/]+/)[0]) || "there";
   const venue = e.venue || rec.venue || "our venue";
   const sd = e.start_date||"", ed = e.end_date||sd;
   const range = vpFmtRange(sd, ed);
   const to = rec.contact_email || rec.contact || "";
+  if (kind === "points"){
+    const brand = (rec._points_brand||"").toLowerCase();
+    const MM=["January","February","March","April","May","June","July","August","September","October","November","December"];
+    let my = "";
+    if (sd){ const dd=new Date(sd+"T12:00:00"); if(!isNaN(dd.getTime())) my = MM[dd.getMonth()]+" "+dd.getFullYear(); }
+    if (brand === "bonvoy"){
+      return { to,
+        subject: "Marriott Bonvoy \u2013 Request to Add "+(my?my+" ":"")+"Event Points",
+        body: "Hi "+first+",\n\nI hope you're doing well! I'm reaching out to request that our "+(my?my+" ":"")+"event at "+venue+" be added to my Marriott Bonvoy account.\n\nMarriott Bonvoy Account Details:\n- Name: Eli Frenkel\n- Bonvoy Account Number: 690589623\n\nCould you please apply the points for both the meeting space and guest room charges from our event?\n\nThank you so much!\n\nBest regards,\nEli Frenkel\nThe Makeup Blowout Sale Group Inc.\neli@makeupblowoutsalegroup.com" };
+    }
+    if (brand === "ihg"){
+      return { to,
+        subject: "IHG Meeting Rewards \u2013 Request to Add Event Points",
+        body: "Hi "+first+",\n\nI hope you're doing well! I'm reaching out to request that our "+(my?my+" ":"")+"event reservations at "+venue+" be added to my IHG Meeting Rewards account.\n\nAccount Details:\n- Name: Eli Frenkel\n- IHG Account Number: 256569231\n\nCould you please look up our event and apply the points for both the meeting space and room reservations?\n\nThank you so much for your help!\n\nBest regards,\nEli Frenkel\nThe Makeup Blowout Sale Group Inc.\neli@makeupblowoutsalegroup.com" };
+    }
+    return { to,
+      subject: "Hilton Honors Points \u2013 "+(my?my+" ":"")+"Stay",
+      body: "Hi "+first+",\n\nI hope you're doing well!\n\nI wanted to follow up on our event at "+venue+(my?(" in "+my):"")+". I forgot to provide my Hilton Honors number at the time and would like to request that the points be added to my account.\n\nHilton Honors Account Number: 1721346276\nName: Eli Frenkel\n\nCould you please assist with crediting the points for the meeting room and guest room charges from that stay?\n\nThank you again for the warm hospitality \u2013 we truly enjoyed working with you, and we look forward to returning!\n\nBest regards,\nEli Frenkel\nCEO \u2013 The Makeup Blowout Sale Group\n\ud83d\udcde 323-384-2662" };
+  }
   if (kind === "ship"){
     const delivery = sd ? vpWeekday(vpAddDays(sd, -1)) : "[delivery date]";
     return { to,
@@ -366,6 +392,7 @@ function vpQuickEmails(e, rec){
     <span style="font-size:12px;font-weight:700;color:#374151">✉️ מיילים מוכנים:</span>
     <button class="btn" data-vp="email_ship" data-ev="${vpEsc(e.evkey)}" style="padding:4px 11px;font-size:11px;background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8" title="פותח טיוטה ב-Gmail: לוודא שהאולם מקבל ומאחסן את המשלוחים + הפלטה">📦 קבלת משלוחים</button>
     <button class="btn" data-vp="email_setup" data-ev="${vpEsc(e.evkey)}" style="padding:4px 11px;font-size:11px;background:#f0fdf4;border-color:#bbf7d0;color:#15803d" title="פותח טיוטה ב-Gmail: בדיקה לפני האירוע — שולחנות, עמדת מים, שעות, הקמה">🗓️ בדיקה לפני האירוע</button>
+    <button class="btn" data-vp="email_points" data-ev="${vpEsc(e.evkey)}" style="padding:4px 11px;font-size:11px;background:#fef3c7;border-color:#fde68a;color:#92400e" title="פותח טיוטה ב-Gmail: בקשת נקודות נאמנות עבור החדרים והאולם (Bonvoy / Hilton Honors / IHG)">🏅 קבלת נקודות</button>
   </div>`;
 }
 function vpHistBlock(evkey, rec){
@@ -599,10 +626,21 @@ document.addEventListener("click", async ev => {
       el.textContent = "✓ הועתק — הדביקי בצ'אט"; setTimeout(() => { el.textContent = "🤖 בדוק עם קלוד"; }, 2500);
     });
   }
-  else if (kind === "email_ship" || kind === "email_setup") {
+  else if (kind === "email_ship" || kind === "email_setup" || kind === "email_points") {
     const rec2 = vpRec(evkey);
     const e2 = VP_EVS.find(x => x.evkey === evkey) || { evkey: evkey, class_name: rec2.class_name, venue: rec2.venue, start_date: "", end_date: "" };
-    const tpl = vpEmailTemplate(kind === "email_ship" ? "ship" : "setup", e2, rec2);
+    let tkind = "setup";
+    if (kind === "email_ship") tkind = "ship";
+    else if (kind === "email_points") {
+      tkind = "points";
+      const guess = vpDetectBrand(rec2, e2);
+      const def = guess === "bonvoy" ? "1" : guess === "ihg" ? "3" : "2";
+      const pick = prompt("איזו תוכנית נקודות?\n1 = Marriott Bonvoy\n2 = Hilton Honors\n3 = IHG (Holiday Inn / Crowne Plaza)", def);
+      if (pick === null) return;
+      const pk = (pick||"").trim();
+      rec2._points_brand = pk === "1" ? "bonvoy" : pk === "3" ? "ihg" : "hilton";
+    }
+    const tpl = vpEmailTemplate(tkind, e2, rec2);
     const url = "https://mail.google.com/mail/?view=cm&fs=1&tf=1"
       + (tpl.to ? ("&to=" + encodeURIComponent(tpl.to)) : "")
       + "&su=" + encodeURIComponent(tpl.subject)
