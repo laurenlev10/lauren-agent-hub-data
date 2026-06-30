@@ -330,6 +330,44 @@ function vpSignedBlock(rec, evkey){
     <input type="file" accept="application/pdf,image/*" data-vp="signed_file_input" data-ev="${vpEsc(evkey)}" style="display:none">
   </div>`;
 }
+function vpAddDays(ds, n){ const d=new Date(ds+"T12:00:00"); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function vpFmtRange(sd, ed){
+  if(!sd) return "";
+  const M=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const a=new Date(sd+"T12:00:00"), b=new Date((ed||sd)+"T12:00:00");
+  if(isNaN(a.getTime())) return "";
+  const sameM=a.getMonth()===b.getMonth();
+  return M[a.getMonth()]+" "+a.getDate()+"–"+(sameM?"":M[b.getMonth()]+" ")+b.getDate()+", "+b.getFullYear();
+}
+function vpWeekday(ds){
+  const D=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const M=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const d=new Date(ds+"T12:00:00"); if(isNaN(d.getTime())) return ds;
+  return D[d.getDay()]+", "+M[d.getMonth()]+" "+d.getDate();
+}
+function vpEmailTemplate(kind, e, rec){
+  const first = ((rec.contact_name||"").trim().split(/[\s/]+/)[0]) || "there";
+  const venue = e.venue || rec.venue || "our venue";
+  const sd = e.start_date||"", ed = e.end_date||sd;
+  const range = vpFmtRange(sd, ed);
+  const to = rec.contact_email || rec.contact || "";
+  if (kind === "ship"){
+    const delivery = sd ? vpWeekday(vpAddDays(sd, -1)) : "[delivery date]";
+    return { to,
+      subject: "Shipments & pallet for our upcoming event",
+      body: "Hi "+first+",\n\nGood morning. We have a few shipments arriving for the event, including several boxes from vendors and one pallet scheduled for delivery on "+delivery+".\n\nThe driver will be able to roll the pallet in. Could you please ensure that these shipments are accepted and stored in the room where we will be hosting our event?\n\nBest regards,\n\nEli Frenkel" };
+  }
+  return { to,
+    subject: "Event setup details for our upcoming event" + (range?(" — "+range):""),
+    body: "Hi "+first+",\n\nOur event at "+venue+" is coming up"+(range?(" on "+range):" soon")+", and I wanted to confirm the setup details so everything is ready:\n\n  - Setup: Thursday from approximately 1:00 PM to 10:00 PM.\n  - Layout: We will need 30 6-foot tables placed around the perimeter of the room (no linens needed). Additionally, we will need 6 tables and 10 chairs placed in the middle of the room. My team will handle the arrangement of these items.\n  - Requirements: We will need a water station during the event, as well as trash cans for use during both setup and the event itself.\n  - Event Hours: 10:00 AM to 5:00 PM daily. However, my team will be on-site from 9:30 AM to 5:30 PM for organization.\n\nPlease let me know if you have any questions. I look forward to working with you!\n\nBest regards,\n\nEli Frenkel" };
+}
+function vpQuickEmails(e, rec){
+  return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <span style="font-size:12px;font-weight:700;color:#374151">✉️ מיילים מוכנים:</span>
+    <button class="btn" data-vp="email_ship" data-ev="${vpEsc(e.evkey)}" style="padding:4px 11px;font-size:11px;background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8" title="פותח טיוטה ב-Gmail: לוודא שהאולם מקבל ומאחסן את המשלוחים + הפלטה">📦 קבלת משלוחים</button>
+    <button class="btn" data-vp="email_setup" data-ev="${vpEsc(e.evkey)}" style="padding:4px 11px;font-size:11px;background:#f0fdf4;border-color:#bbf7d0;color:#15803d" title="פותח טיוטה ב-Gmail: בדיקה לפני האירוע — שולחנות, עמדת מים, שעות, הקמה">🗓️ בדיקה לפני האירוע</button>
+  </div>`;
+}
 function vpHistBlock(evkey, rec){
   const h = (VP_HISTORY[evkey] || []).slice().sort((a,b)=>(b.year||0)-(a.year||0));
   const note = rec.venue_history_note || "";
@@ -417,6 +455,7 @@ function vpRender(){
         ${vpHistBlock(e.evkey, rec)}
         ${vpRelBlock(rec)}
         ${factGrid}
+        ${vpQuickEmails(e, rec)}
         ${unusualRead}
         ${vpSignedBlock(rec, e.evkey)}
         ${contractRead}
@@ -555,6 +594,19 @@ document.addEventListener("click", async ev => {
     navigator.clipboard.writeText(cmd).then(() => {
       el.textContent = "✓ הועתק — הדביקי בצ'אט"; setTimeout(() => { el.textContent = "🤖 בדוק עם קלוד"; }, 2500);
     });
+  }
+  else if (kind === "email_ship" || kind === "email_setup") {
+    const rec2 = vpRec(evkey);
+    const e2 = VP_EVS.find(x => x.evkey === evkey) || { evkey: evkey, class_name: rec2.class_name, venue: rec2.venue, start_date: "", end_date: "" };
+    const tpl = vpEmailTemplate(kind === "email_ship" ? "ship" : "setup", e2, rec2);
+    const url = "https://mail.google.com/mail/?view=cm&fs=1&tf=1"
+      + (tpl.to ? ("&to=" + encodeURIComponent(tpl.to)) : "")
+      + "&su=" + encodeURIComponent(tpl.subject)
+      + "&body=" + encodeURIComponent(tpl.body);
+    window.open(url, "_blank");
+    try { navigator.clipboard.writeText(tpl.subject + "\n\n" + tpl.body); } catch(e3){}
+    const tt = document.getElementById("vp-saved");
+    if (tt) { tt.textContent = tpl.to ? "✉️ נפתחה טיוטה ב-Gmail (גם הועתק ללוח)" : "✉️ נפתחה טיוטה — אין מייל לאיש קשר, מלאי ידנית"; tt.classList.add("show"); setTimeout(() => tt.classList.remove("show"), 4000); }
   }
   else if (kind === "sweep") {
     const rec = vpRec(evkey);
