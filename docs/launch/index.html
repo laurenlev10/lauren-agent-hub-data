@@ -2735,7 +2735,11 @@ End date: </div>
           // Run state: opens /event-summary/?evkey=... — shows empty state if no data yet.
           // Done state: when summary JSON exists, button flips teal (cyan) showing #counted + revenue.
           const evsum = (typeof EVENT_SUMMARY_INDEX !== "undefined") ? EVENT_SUMMARY_INDEX[evKey] : null;
-          if (evsum && evsum.stats) {
+          if (evsum && evsum.manual && !evsum.stats) {
+            // Manual completion (Lauren did the summary by hand) — green check, no fabricated numbers
+            const sumTip = "סומן ידנית כבוצע" + (evsum.manual_note ? (" · " + evsum.manual_note) : "") + (evsum.generated_at ? (" · " + (evsum.generated_at||"").slice(0,10)) : "");
+            rowBtn += '<a class="btn-agent-row btn-summary-row done" href="../event-summary/?evkey=' + evKey + '" target="_blank" rel="noopener" title="' + escapeHtml(sumTip) + '">📊 Inventory Summary ✓</a>';
+          } else if (evsum && evsum.stats) {
             const cnts = evsum.stats;
             const revenue = cnts.total_revenue ? "$" + Math.round(cnts.total_revenue).toLocaleString() : "";
             const sumTip = "סיכום פוסט-אירוע · " + (cnts.counted_count||0) + " נספרו · " + (cnts.unique_products_sold||0) + " מוצרים נמכרו · " + revenue + " · עודכן " + (evsum.generated_at||"").slice(0,10);
