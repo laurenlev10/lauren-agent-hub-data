@@ -126,7 +126,7 @@ def main():
     led["_fills_kept"] = len(FILLS)
     led["_updated_at"] = datetime.now(timezone.utc).isoformat()
     json.dump(led, open(LEDGER_PATH,"w",encoding="utf-8"), ensure_ascii=False, indent=1)
-    print(f"[v2] +{added} new pairs | total trades {len(led['trades'])} | net ${net_d} ({net_t}T) | win% {led['_summary']['win_rate']} | fills kept {len(FILLS)} | cash realized(window) {cash_real}")
+    print(f"[v2] +{added} new pairs | total trades {len(led['trades'])} | net ${net_d} ({net_t}T) | win% {led['_summary']['win_rate']} | fills kept {len(FILLS)} | balance {latest_bal}")
 
 if __name__ == "__main__":
     main()
