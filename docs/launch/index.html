@@ -2374,17 +2374,17 @@ End date: </div>
           } else {
             // closing-status color: green = signed + deposit; red = <35d and not there; yellow = in progress
             var vpRec2 = (VENUE_PAY && VENUE_PAY.events) ? VENUE_PAY.events[evKey] : null;
-            var vpStyle = "", vpMark = "", vpTip = "Venue — תשלומים, צ׳קליסט חוזה ואיש קשר של האירוע";
+            var vpStyle = "", vpMark = "", vpClass = "", vpTip = "Venue — תשלומים, צ׳קליסט חוזה ואיש קשר של האירוע";
             if (vpRec2) {
               var vpSig = vpRec2.signals || {}, vpMan = vpRec2.milestones || {};
               var vpSigned = !!(vpSig.contract_signed || vpMan.contract_signed);
               var vpPaid = (vpRec2.qb_paid_total || 0) > 0 || (vpRec2.deposits || []).some(function(d){ return d.paid; }) || vpMan.deposit;
               var vpDays = Math.round((new Date(ev.start_date + "T12:00:00") - Date.now()) / 864e5);
-              if (vpSigned && vpPaid) { vpStyle = ' style="background:linear-gradient(180deg,#059669,#047857)"'; vpMark = " ✓"; vpTip = "אולם סגור — חוזה חתום + דיפוזיט שולם"; }
-              else if (vpDays >= -3 && vpDays <= 35) { vpStyle = ' style="background:linear-gradient(180deg,#dc2626,#7f1d1d);box-shadow:0 0 0 2px #fecaca"'; vpMark = " ⚠"; vpTip = "דחוף: " + (vpSigned ? "" : "חוזה לא חתום · ") + (vpPaid ? "" : "אין דיפוזיט · ") + vpDays + " ימים לאירוע"; }
-              else if (vpSigned || vpPaid) { vpStyle = ' style="background:linear-gradient(180deg,#b45309,#92400e)"'; vpMark = " …"; vpTip = "בתהליך: " + (vpSigned ? "חוזה חתום" : "חוזה לא חתום") + " · " + (vpPaid ? "דיפוזיט שולם" : "אין דיפוזיט"); }
+              if (vpSigned && vpPaid) { vpClass = " done"; vpMark = " ✓"; vpTip = "אולם סגור — חוזה חתום + דיפוזיט שולם"; }
+              else if (vpDays >= -3 && vpDays <= 35) { vpClass = " warned"; vpStyle = ' style="background:linear-gradient(180deg,#dc2626,#7f1d1d) !important;box-shadow:0 0 0 2px #fecaca"'; vpMark = " ⚠"; vpTip = "דחוף: " + (vpSigned ? "" : "חוזה לא חתום · ") + (vpPaid ? "" : "אין דיפוזיט · ") + vpDays + " ימים לאירוע"; }
+              else if (vpSigned || vpPaid) { vpClass = " warned"; vpStyle = ' style="background:linear-gradient(180deg,#b45309,#92400e) !important"'; vpMark = " …"; vpTip = "בתהליך: " + (vpSigned ? "חוזה חתום" : "חוזה לא חתום") + " · " + (vpPaid ? "דיפוזיט שולם" : "אין דיפוזיט"); }
             }
-            rowBtn += '<a class="btn-agent-row btn-contract-row"' + vpStyle + ' href="../contract/?' + params + '" target="_blank" rel="noopener" title="' + vpTip + '">🏛 Venue' + vpMark + '</a>';
+            rowBtn += '<a class="btn-agent-row btn-contract-row' + vpClass + '"' + vpStyle + ' href="../contract/?' + params + '" target="_blank" rel="noopener" title="' + vpTip + '">🏛 Venue' + vpMark + '</a>';
           }
 
           // 🔍 City Scout — orange opens the per-event Scout Brief dashboard (pre-filled details + Copy-Prompt for Cowork NEW TASK); green opens the finished report from SCOUTS map
