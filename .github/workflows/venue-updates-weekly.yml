@@ -1,47 +1,42 @@
-name: qb-untagged-refresh
-# Daily refresh of the bookkeeping work queue (unfiled QB expenses) + reference lists.
+name: venue-updates-weekly
+# Weekly heads-up of NEW venue correspondence on upcoming events (Lauren 2026-06-30).
+# Refreshes email logs + relationship summaries, then SMSes Lauren + Eli what's new.
 on:
   schedule:
-    - cron: "0 13 * * *"   # 6 AM PT
+    - cron: "0 15 * * 1"   # Monday 8 AM PT
   workflow_dispatch: {}
 permissions:
   contents: write
 jobs:
-  refresh:
+  venue-updates:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Pull unfiled expenses + reference lists
+      - name: Refresh venue email logs + relationship summaries
         env:
-          QB_CLIENT_ID:     ${{ secrets.QB_CLIENT_ID }}
-          QB_CLIENT_SECRET: ${{ secrets.QB_CLIENT_SECRET }}
-          QB_REALM_ID:      ${{ secrets.QB_REALM_ID }}
-          QB_TOKEN_KEY:     ${{ secrets.QB_TOKEN_KEY }}
-          GH_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
-          OCTOPOS_EMAIL:    ${{ secrets.OCTOPOS_EMAIL }}
-          OCTOPOS_PASSWORD: ${{ secrets.OCTOPOS_PASSWORD }}
           GMAIL_CLIENT_ID:     ${{ secrets.GMAIL_CLIENT_ID }}
           GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
           GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          GH_TOKEN:            ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python3 scripts/qb_untagged_pull.py
-          python3 scripts/qb_lists_pull.py
-          python3 scripts/events_index_build.py
-          python3 scripts/qb_fixed_loan_tracker.py
-          python3 scripts/pnl_auto_refresh.py || echo "pnl refresh partial — continuing"
-          python3 scripts/venue_payments_sync.py || echo "venue payments sync partial — continuing"
           python3 scripts/venue_email_digest.py || echo "venue email digest partial — continuing"
-          python3 scripts/venue_relationship_sync.py || echo "venue relationship sync partial — continuing"
+          python3 scripts/venue_relationship_sync.py
       - name: Commit if changed
         run: |
           git config user.email "lauren@noreply.github.com"
           git config user.name  "Lauren (via Actions)"
-          git add docs/state/qb_untagged.json docs/state/qb_lists.json docs/state/events_index.json docs/state/qb_fixed_loan_tracker.json docs/state/event_pnl/ docs/state/venue_payments.json
+          git add docs/state/venue_payments.json
           if ! git diff --cached --quiet; then
-            git commit -m "qb: daily untagged + lists refresh [qb-applied]"
-            git pull --no-rebase -X ours origin main   # regenerated snapshots — ours wins on race
+            git commit -m "venue: weekly email + relationship summary refresh"
+            git pull --no-rebase -X ours origin main
             git push origin main
           fi
+      - name: SMS Lauren + Eli — what's new this week
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          ELI_PHONE:           ${{ secrets.ELI_PHONE }}
+        run: python3 scripts/venue_updates_weekly.py
       - name: Update scheduled-runs lastRunAt
         run: |
           python3 - <<'PY'
@@ -50,14 +45,14 @@ jobs:
           d = json.load(open(p, encoding="utf-8"))
           now = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
           for t in d["tasks"]:
-              if t["id"] == "qb-untagged-refresh":
+              if t["id"] == "venue-updates-weekly":
                   t["lastRunAt"] = now
           d["_updated_at"] = now
           json.dump(d, open(p, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
           PY
           git add docs/scheduled-runs.json
           if ! git diff --cached --quiet; then
-            git commit -m "scheduled-runs: bump qb-untagged-refresh lastRunAt"
+            git commit -m "scheduled-runs: bump venue-updates-weekly lastRunAt"
             git pull --no-rebase -X ours origin main
             git push origin main
           fi
