@@ -116,12 +116,13 @@ table.simple td.muted { color:var(--txt4); }
 .cal-month-label { font-size:16px; font-weight:800; color:var(--txt); min-width:140px; text-align:center; }
 .cal-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; }
 .cal-day-header { font-size:11px; font-weight:800; color:var(--txt4); text-align:center; padding:6px 0; text-transform:uppercase; letter-spacing:.4px; background:#f1f5f9; border-radius:6px; }
-.cal-cell { background:#f8fafc; border:1.5px solid var(--bdr); border-radius:10px; padding:6px 7px 7px; min-height:78px; display:flex; flex-direction:column; gap:2px; position:relative; transition:all .12s; cursor:default; }
+.cal-cell { background:#f8fafc; border:1.5px solid var(--bdr); border-radius:10px; padding:6px 7px 7px; min-height:88px; display:flex; flex-direction:column; gap:2px; position:relative; transition:all .12s; cursor:default; }
 .cal-cell.has-data { cursor:pointer; }
 .cal-cell.has-data:hover { box-shadow:0 4px 12px rgba(15,23,42,.08); transform:translateY(-1px); }
 .cal-cell.outside { background:transparent; border-color:transparent; }
 .cal-cell.outside .day-num { color:#cbd5e1; }
 .cal-cell .day-num { font-size:11px; font-weight:700; color:var(--txt4); }
+.cal-cell .cal-count { font-size:10px; font-weight:700; color:#475569; line-height:1.25; }
 .cal-cell.today .day-num { color:#fff; background:var(--tv); border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; font-weight:800; }
 .cal-cell .pnl { font-size:15px; font-weight:800; line-height:1.15; margin-top:auto; }
 .cal-cell .peak-trough { font-size:10px; color:var(--txt4); display:flex; justify-content:space-between; gap:4px; font-variant-numeric:tabular-nums; font-family:ui-monospace, "SF Mono", monospace; }
@@ -244,6 +245,21 @@ table.simple td.muted { color:var(--txt4); }
 
 <div id="status">⏳ טוען נתונים...</div>
 <div id="report-head"><h1>📑 דוח אסטרטגיה — VWAP 1.2</h1><div class="sub" id="report-head-sub"></div></div>
+
+<!-- P&L Calendar -->
+<div class="cal-section" id="sec-calendar" style="display:none;">
+  <div class="cal-header">
+    <div class="cal-title">📅 לוח שנה <span class="desc">— רווח/הפסד יומי + שיא ושפל אינטרה-day · 🇮🇱 לפי שעון ישראל</span></div>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" id="cal-prev" onclick="calNav(-1)">‹ קודם</button>
+      <span class="cal-month-label" id="cal-month-label">—</span>
+      <button class="cal-nav-btn" id="cal-next" onclick="calNav(1)">הבא ›</button>
+      <button class="cal-nav-btn" id="cal-today" onclick="calToday()">היום</button>
+    </div>
+  </div>
+  <div class="cal-grid" id="cal-grid"></div>
+  <div class="cal-summary" id="cal-summary"></div>
+</div>
 
 <!-- Per-strategy selector + comparison -->
 <div class="strat-sel-section" id="strat-sel-section">
@@ -398,20 +414,7 @@ table.simple td.muted { color:var(--txt4); }
   <div class="insight" id="ins-drawdown"></div>
 </div>
 
-<!-- P&L Calendar -->
-<div class="cal-section" id="sec-calendar" style="display:none;">
-  <div class="cal-header">
-    <div class="cal-title">📅 לוח שנה <span class="desc">— רווח/הפסד יומי + שיא ושפל אינטרה-day · 🇮🇱 לפי שעון ישראל</span></div>
-    <div class="cal-nav">
-      <button class="cal-nav-btn" id="cal-prev" onclick="calNav(-1)">‹ קודם</button>
-      <span class="cal-month-label" id="cal-month-label">—</span>
-      <button class="cal-nav-btn" id="cal-next" onclick="calNav(1)">הבא ›</button>
-      <button class="cal-nav-btn" id="cal-today" onclick="calToday()">היום</button>
-    </div>
-  </div>
-  <div class="cal-grid" id="cal-grid"></div>
-  <div class="cal-summary" id="cal-summary"></div>
-</div>
+
 
 <!-- Hour-of-day + Day-of-week grid -->
 <div class="grid-2">
@@ -1705,9 +1708,9 @@ function renderCalendar() {
       const peakStr = data.peak !== 0 ? "+" + Math.round(data.peak) : "—";
       const trStr = data.trough !== 0 ? Math.round(data.trough) : "—";
       const pnlStr = sign + "$" + Math.abs(Math.round(data.net));
-      const title = `${data.count} עסקאות · שיא: +$${data.peak.toFixed(0)} · שפל: ${data.trough.toFixed(0)} · סורסים: ${[...data.sources].join(",")}`;
-      body = `<div class="peak-trough"><span class="pk">↑${peakStr}</span><span class="tr">↓${trStr}</span></div><div class="pnl">${pnlStr}</div>`;
-      html += `<div class="${cls}" title="${title}">${badge}<div class="day-num">${day}</div>${body}</div>`;
+      const srcLbl = onlyBt ? "BT" : "live";
+      body = `<div class="cal-count">${data.count} עסקאות · ${srcLbl}</div><div class="peak-trough"><span class="pk">שיא ↑${peakStr}</span><span class="tr">שפל ↓${trStr}</span></div><div class="pnl">${pnlStr}</div>`;
+      html += `<div class="${cls}">${badge}<div class="day-num">${day}</div>${body}</div>`;
     } else {
       html += `<div class="${cls}"><div class="day-num">${day}</div></div>`;
     }
