@@ -21,7 +21,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex,nofollow">
-<title>אנליטיקס אסטרטגיה · SMA60</title>
+<title>אנליטיקס אסטרטגיה · VWAP</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
 :root {
@@ -228,7 +228,7 @@ table.simple td.muted { color:var(--txt4); }
 <div class="topbar">
   <div class="brand">
     <div class="brand-title">📈 אנליטיקס אסטרטגיה</div>
-    <div class="brand-sub">SMA60 1.3 · ניתוח עומק על כל העסקאות</div>
+    <div class="brand-sub">VWAP 1.2 · ניתוח עומק על כל העסקאות</div>
   </div>
   <div class="nav">
     <a href="../journal/">📋 יומן עסקאות</a>
@@ -660,7 +660,7 @@ function brokerToClosed(){
   const b = STATE.broker;
   if (!b || !Array.isArray(b.trades)) return [];
   return b.trades.map(function(t){ return {
-    time: t.exit_iso || t.entry_iso, _entry_time_la: t.entry_la || "",
+    time: t.exit_iso || t.entry_iso, entry_time: t.entry_iso || t.exit_iso, _entry_time_la: t.entry_la || "",
     direction: t.direction || "", exit_type: t.result_type || (t.result_dollars>=0?"WIN":"LOSS"),
     ticks: +t.result_ticks || 0, dollars: +t.result_dollars || 0,
     entry_price: t.entry_price, exit_price: t.exit_price, qty: t.qty || 1, danger: 0
@@ -1524,7 +1524,7 @@ function renderExitsBreakdown(closed) {
       const pct = (v / total * 100).toFixed(1);
       const d = dollars[k];
       const avg = v > 0 ? d / v : 0;
-      const emoji = k === "TP" ? "🎯" : k === "SL" ? "🛑" : k === "SWAP" ? "🔄" : "❓";
+      const emoji = k === "TP" ? "🎯" : k === "SL" ? "🛑" : k === "SWAP" ? "🔄" : k === "WIN" ? "🟢" : k === "LOSS" ? "🔴" : "❓";
       return `<tr><td>${emoji} ${k}</td><td class="num">${v}</td><td class="num muted">${pct}%</td><td class="num ${d>=0?'pos':'neg'}">${fmtUSD(d)}</td><td class="num ${avg>=0?'pos':'neg'}">${fmtUSD(avg)}</td></tr>`;
     })
     .join("");
@@ -1537,7 +1537,11 @@ function renderExitsBreakdown(closed) {
   const tpCount = types.TP || 0;
   const slCount = types.SL || 0;
   const swapCount = types.SWAP || 0;
-  if (tpCount > slCount * 1.2) {
+  const winC = types.WIN || 0, lossC = types.LOSS || 0;
+  if (winC || lossC) {
+    document.getElementById("ins-exits").className = "insight";
+    document.getElementById("ins-exits").innerHTML = `<strong>חשבון אמיתי:</strong> ${winC} עסקאות מנצחות מול ${lossC} מפסידות. (לברוקר אין פירוט TP/SL — רק רווח/הפסד לכל עסקה.)`;
+  } else if (tpCount > slCount * 1.2) {
     document.getElementById("ins-exits").className = "insight green";
     document.getElementById("ins-exits").innerHTML = `<strong>יחס חיובי:</strong> ${tpCount} TPs מול ${slCount} SLs — האסטרטגיה תופסת רווחים יותר מההפסדים שלה.`;
   } else if (slCount > tpCount * 1.2) {
@@ -1545,7 +1549,7 @@ function renderExitsBreakdown(closed) {
     document.getElementById("ins-exits").innerHTML = `<strong>יחס שלילי:</strong> ${slCount} SLs מול ${tpCount} TPs. צריך לבחון אם ה-SL רחב מדי או ה-TP צמוד מדי.`;
   } else {
     document.getElementById("ins-exits").className = "insight yel";
-    document.getElementById("ins-exits").innerHTML = `יחס TP/SL מאוזן. אם רוב הרווח מה-SWAPs (${swapCount}), זה אומר שה-SMA60 מזהה היפוכים טוב יותר מ-TP פרוטוקולי.`;
+    document.getElementById("ins-exits").innerHTML = `יחס TP/SL מאוזן. אם רוב הרווח מה-SWAPs (${swapCount}), זה אומר שה-VWAP מזהה היפוכים טוב יותר מ-TP פרוטוקולי.`;
   }
 }
 
