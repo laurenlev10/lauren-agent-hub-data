@@ -1572,8 +1572,9 @@ function getAllTradesForCalendar() {
     });
   }
 
-  // Backtest trades
-  if (STATE.backtest && Array.isArray(STATE.backtest.trades)) {
+  // Backtest trades — but NOT in "real account" mode (the calendar must show ONLY the
+  // real broker trades there; mixing in the indicator backtest double-counts the day).
+  if (SELECTED_STRATEGY !== "real" && STATE.backtest && Array.isArray(STATE.backtest.trades)) {
     for (const t of STATE.backtest.trades) {
       out.push({
         time: new Date(t._received_at).getTime(),
