@@ -278,7 +278,7 @@ table.simple td.muted { color:var(--txt4); }
 
 <!-- Per-hour analysis (respects selector) -->
 <div class="an-section" id="hourly-section" style="display:none;">
-  <h3>🕐 ניתוח לפי שעה (LA) <span id="hourly-which" style="font-weight:600;color:#64748b;font-size:13px;"></span></h3>
+  <h3>🕐 ניתוח לפי שעה × אסטרטגיה (LA) <span id="hourly-which" style="font-weight:600;color:#64748b;font-size:13px;"></span></h3>
   <div class="sub">איזו שעה מרוויחה ואיזו מפסידה — לזיהוי שעות לחסום. בחרי אסטרטגיה בבורר למעלה כדי לנתח כל אחת.</div>
   <div id="hourly-body"></div>
   <div class="an-note" id="hourly-note"></div>
@@ -808,7 +808,6 @@ function applyStrategyFilter(){
   renderComparison();
   renderHourly();
   renderCombined();
-  renderHeatmap();
   renderStrategyStrip();
   renderAll();
 }
@@ -822,23 +821,34 @@ function _stratStats(trs){
 }
 function renderHourly(){
   const sec=document.getElementById("hourly-section"); if(!sec) return;
-  const trs=(STATE.backtest&&Array.isArray(STATE.backtest.trades))?STATE.backtest.trades:[];
-  document.getElementById("hourly-which").textContent = (SELECTED_STRATEGY==="all"||SELECTED_STRATEGY==="real")?"(בקטסט · כל האסטרטגיות)":("— "+SELECTED_STRATEGY.toUpperCase());
-  if(!trs.length){ sec.style.display="none"; return; }
+  const all=(BT_ALL&&Array.isArray(BT_ALL.trades))?BT_ALL.trades:[];
+  const which=document.getElementById("hourly-which"); if(which) which.textContent="(בקטסט · כל האסטרטגיות יחד)";
+  const hm=document.getElementById("heatmap-section"); if(hm) hm.style.display="none";
+  if(!all.length){ sec.style.display="none"; return; }
   sec.style.display="";
-  const H={}; for(let h=0;h<24;h++)H[h]={n:0,net:0,w:0,gp:0,gl:0};
-  trs.forEach(t=>{ const p=(t._entry_time_la||"").split(" "); if(p.length<2)return; const hh=parseInt(p[1].slice(0,2)); if(isNaN(hh))return;
-    const x=+t.result_dollars||0; const o=H[hh]; o.n++; o.net+=x; if(x>0){o.w++;o.gp+=x;} else if(x<0)o.gl+=Math.abs(x); });
+  const strats=[["base","🟦 BASE"],["partial","✂️ PARTIAL"],["momentum","🚀 MOM"]];
+  const H={}; for(let h=0;h<24;h++)H[h]={byS:{base:{n:0,net:0},partial:{n:0,net:0},momentum:{n:0,net:0}},n:0,net:0,w:0,gp:0,gl:0};
+  all.forEach(t=>{ const p=(t._entry_time_la||"").split(" "); if(p.length<2)return; const h=parseInt(p[1].slice(0,2)); if(isNaN(h))return;
+    const x=+t.result_dollars||0; const s2=String(t.strategy||"").toLowerCase(); const o=H[h];
+    if(o.byS[s2]){o.byS[s2].n++;o.byS[s2].net+=x;}
+    o.n++; o.net+=x; if(x>0){o.w++;o.gp+=x;} else if(x<0)o.gl+=Math.abs(x); });
+  let mx=1; for(let h=0;h<24;h++) strats.forEach(([k])=>{ const c=H[h].byS[k]; if(c)mx=Math.max(mx,Math.abs(c.net)); });
+  const bg=(net)=>{ const al=Math.min(1,Math.abs(net)/mx*0.82+0.10); return net>=0?`rgba(22,163,74,${al.toFixed(2)})`:`rgba(220,38,38,${al.toFixed(2)})`; };
   let rows="",bad=[];
   for(let h=0;h<24;h++){ const o=H[h]; if(!o.n)continue;
-    const pf=o.gl?(o.gp/o.gl).toFixed(2):(o.gp>0?"\u221e":"—"); const wr=Math.round(o.w/o.n*100);
     if(o.net<0)bad.push(h);
-    rows+=`<tr><td>${String(h).padStart(2,"0")}:00</td><td>${o.n}</td><td class="${o.net>=0?"pos":"neg"}">${fmtUSD(o.net)}</td><td>${wr}%</td><td>${pf}</td><td>${o.net<0?"\ud83d\udd34":""}</td></tr>`;
+    let win=null,winNet=-Infinity; strats.forEach(([k])=>{ const c=o.byS[k]; if(c&&c.n&&c.net>winNet){winNet=c.net;win=k;} });
+    const tds=strats.map(([k])=>{ const c=o.byS[k]; if(!c||!c.n) return '<td style="background:#f8fafc;color:#cbd5e1">—</td>';
+      const tc=(Math.abs(c.net)/mx>0.42)?"#fff":"#0f172a"; const crown=(k===win&&c.net>0)?" 🏆":"";
+      return `<td style="background:${bg(c.net)};color:${tc}"><b>${fmtUSD(c.net)}${crown}</b><br><span style="font-size:10px;opacity:.85">${c.n} עס'</span></td>`; }).join("");
+    const pf=o.gl?(o.gp/o.gl).toFixed(2):(o.gp>0?"∞":"—"); const wr=Math.round(o.w/o.n*100);
+    rows+=`<tr${o.net<0?' style="background:#fef2f2"':''}><td class="hm-hr">${String(h).padStart(2,"0")}:00</td>${tds}<td class="${o.net>=0?"pos":"neg"}" style="font-weight:800">${fmtUSD(o.net)}</td><td>${wr}%</td><td>${pf}</td></tr>`;
   }
-  document.getElementById("hourly-body").innerHTML=`<div class="strat-cmp"><table class="cmp-tbl"><thead><tr><th>שעה (LA)</th><th>עסקאות</th><th>נטו $</th><th>הצלחה</th><th>PF</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
-  document.getElementById("hourly-note").innerHTML = bad.length
-    ? `🔴 שעות מפסידות (נטו שלילי): <b>${bad.map(h=>String(h).padStart(2,"0")).join(", ")}</b> — שקלי לחסום אותן בפילטר השעות של האינדיקטור.`
-    : "אין שעה עם נטו שלילי בטווח הזה.";
+  document.getElementById("hourly-body").innerHTML=`<div style="overflow-x:auto"><table class="hm-tbl"><thead><tr><th>שעה LA</th><th>🟦 BASE</th><th>✂️ PARTIAL</th><th>🚀 MOM</th><th>נטו (הכל)</th><th>הצלחה</th><th>PF</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const note=document.getElementById("hourly-note");
+  if(note) note.innerHTML = bad.length
+    ? `🏆 = האסטרטגיה הכי רווחית באותה שעה. · 🔴 שעות מפסידות (כל ה-3 יחד): <b>${bad.map(h=>String(h).padStart(2,"0")).join(", ")}</b> — שקלי לחסום בפילטר השעות.`
+    : "🏆 = האסטרטגיה הכי רווחית באותה שעה. · אין שעה עם נטו שלילי.";
 }
 function renderCombined(){
   const sec=document.getElementById("combined-section"); if(!sec) return;
