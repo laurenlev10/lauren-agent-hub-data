@@ -18,6 +18,8 @@ export default {
     html = html.split('"../autotrade_enabled.json"').join(JSON.stringify(RAW + "autotrade_enabled.json"));
     html = html.split('"./backtest-data.json"').join(JSON.stringify(RAW + "analytics/backtest-data.json"));
     html = html.split('"../broker-ledger.json"').join(JSON.stringify(RAW + "broker-ledger.json"));
+    // neutralize the dashboard's Cloudflare-Access hostname guard so it renders on this public viewer
+    html = html.split('var allowed = "dashboard.themakeupblowout.com";').join('var allowed = window.location.hostname;');
     // read-only: strip edit/save controls + a small banner
     const inject =
       "<style>.strategy-strip,#strategy-strip{display:none!important}" +
