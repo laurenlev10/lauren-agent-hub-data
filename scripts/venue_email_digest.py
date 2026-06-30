@@ -27,9 +27,10 @@ EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 
 
 def msg_meta(tok, mid):
-    m = GM._api(tok, f"messages/{mid}", {"format": "metadata",
-                                         "metadataHeaders": ["From", "Subject", "Date"]})
-    h = {x["name"].lower(): x["value"] for x in (m.get("payload") or {}).get("headers", [])}
+    # format=full reliably returns headers + snippet; the old format=metadata call
+    # serialized metadataHeaders as a malformed list param, so From/Subject came back blank.
+    m = GM.get_msg(tok, mid)
+    h = GM.headers_of(m)
     ts = int(m.get("internalDate", "0")) / 1000
     return {"date": dt.datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M"),
             "from": h.get("from", "")[:80], "subject": h.get("subject", "")[:120],
