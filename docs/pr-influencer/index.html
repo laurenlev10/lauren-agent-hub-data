@@ -566,6 +566,16 @@ const RUN = {
     </div>
   </div>
 
+  <div class="card" id="briefs-card">
+    <h2 style="margin-top:0">✍️ חוזים חתומים (Collab Brief)</h2>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">
+      היוצרות חותמות בצ'ק-אין בטופס הדיגיטלי:
+      <a href="https://events.themakeupblowout.com/influencer-brief/" target="_blank" style="color:var(--accent);font-weight:bold">events.themakeupblowout.com/influencer-brief/</a>
+      <button class="small-btn" id="copy-brief-link" style="margin-right:8px">📋 העתיקי לינק לטופס</button>
+    </div>
+    <div id="briefs-list"><span style="color:var(--muted);font-size:12px;font-style:italic;">עדיין אין חתימות.</span></div>
+  </div>
+
   <div class="card">
     <h2 style="margin-top:0">תוצאת ריצה אחרונה</h2>
     <div id="run-summary"></div>
@@ -1051,5 +1061,31 @@ const RUN = {
 })();
 </script>
 
+<script>
+(function(){
+  var btn = document.getElementById("copy-brief-link");
+  if (btn) btn.addEventListener("click", function(){
+    navigator.clipboard.writeText("https://events.themakeupblowout.com/influencer-brief/").then(function(){
+      btn.textContent = "✓ הועתק"; setTimeout(function(){ btn.textContent = "📋 העתיקי לינק לטופס"; }, 2000);
+    });
+  });
+  fetch("../state/influencer_briefs.json?_=" + Date.now(), { cache: "no-store" })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if (!d || !d.briefs) return;
+      var keys = Object.keys(d.briefs); if (!keys.length) return;
+      var html = "";
+      keys.sort().reverse().forEach(function(ev){
+        var rows = d.briefs[ev].map(function(b){
+          var sig = b.signature_url ? '<a href="' + b.signature_url + '" target="_blank">🖊 חתימה</a>' : "—";
+          var when = (b.received_at || "").slice(0,16).replace("T"," ");
+          return "<tr><td>" + (b.full_name || "") + "</td><td>@" + String(b.handle || "").replace(/^@/,"") + "</td><td>" + (b.platform || "") + "</td><td>" + (b.email || "") + "</td><td>" + when + "</td><td>" + sig + "</td></tr>";
+        }).join("");
+        html += '<div style="margin-bottom:12px"><div style="font-weight:bold;font-size:13px;margin-bottom:4px">' + ev + " · " + d.briefs[ev].length + ' חתימות</div><table class="creator-table"><thead><tr><th>שם</th><th>Handle</th><th>פלטפורמה</th><th>אימייל</th><th>מתי</th><th>חתימה</th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+      });
+      document.getElementById("briefs-list").innerHTML = html;
+    }).catch(function(e){});
+})();
+</script>
 </body>
 </html>

@@ -50,6 +50,41 @@ export default {
       return reply({ error: "conflict retries exhausted" }, 502, cors);
     }
 
+    // --- Influencer collab brief (events.themakeupblowout.com/influencer-brief/) ---
+    // Routed by kind, saved to its own state file + signature PNG committed separately.
+    if (report.kind === "influencer_brief") {
+      const BRIEFS = "docs/state/influencer_briefs.json";
+      const bKeyRaw = report.evkey || "unknown";
+      const bKey = String(bKeyRaw).replace(/[^a-z0-9\-]/gi, "-").toLowerCase();
+      const bTs = new Date().toISOString().replace(/[:.]/g, "-");
+      // signature image -> its own file (never store heavy base64 in the JSON)
+      let sigUrl = null;
+      const sigB64 = String(report.signature || "").split(",").pop();
+      if (sigB64 && sigB64.length > 100) {
+        const spath = `docs/state/influencer-brief-signatures/${bKey}/${bTs}.png`;
+        const ok = await ghPutB64(TOKEN, spath, sigB64, `influencer-brief signature ${bKey} ${bTs}`);
+        if (ok) sigUrl = `${SITE}/state/influencer-brief-signatures/${bKey}/${bTs}.png`;
+      }
+      delete report.signature;
+      delete report.photos;
+      if (sigUrl) report.signature_url = sigUrl;
+      report.received_at = new Date().toISOString();
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const cur = await ghGet(TOKEN, BRIEFS);
+        const data = cur.json || { _updated_at: null, briefs: {} };
+        if (!data.briefs) data.briefs = {};
+        const arr = data.briefs[bKeyRaw] || [];
+        arr.push(report);
+        data.briefs[bKeyRaw] = arr;
+        data._updated_at = new Date().toISOString();
+        const res = await ghPutJson(TOKEN, BRIEFS, data, cur.sha,
+          `influencer-brief: ${report.handle || report.full_name || "?"} @ ${bKeyRaw}`);
+        if (res === true) return reply({ ok: true, kind: "influencer_brief", signature_saved: !!sigUrl }, 200, cors);
+        if (res !== 409)  return reply({ error: "github write failed " + res }, 502, cors);
+      }
+      return reply({ error: "conflict retries exhausted" }, 502, cors);
+    }
+
     const rawKey = report.evkey || "unknown";
     const safeKey = String(rawKey).replace(/[^a-z0-9\-]/gi, "-").toLowerCase();
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
