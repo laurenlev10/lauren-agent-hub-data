@@ -239,6 +239,18 @@ table.simple td.muted { color:var(--txt4); }
 .hp-cr b{color:#0f172a}
 .hp-verdict{margin-top:10px;font-size:13px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;color:#78350f}
 @media(max-width:560px){.hp-cards{grid-template-columns:1fr}}
+
+.real-strat, #real-strat-panel{margin-top:10px}
+.rs-head{font-size:13.5px;font-weight:800;color:#0f172a;margin-bottom:8px}
+.rs-est{font-weight:600;color:#94a3b8;font-size:11.5px}
+.rs-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.rs-card{border:2px solid #e2e8f0;border-radius:12px;padding:11px 13px;background:#fcfdff;text-align:center}
+.rs-t{font-size:13px;font-weight:800;margin-bottom:4px}
+.rs-net{font-size:20px;font-weight:900}
+.rs-sub{font-size:11.5px;color:#64748b;margin-top:2px}
+.rs-note{font-size:11.5px;color:#78350f;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:7px 10px;margin-top:8px}
+.cal-strat{font-size:9.5px;font-weight:700;margin-top:2px;line-height:1.35;letter-spacing:-.2px}
+@media(max-width:560px){.rs-cards{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -292,6 +304,7 @@ table.simple td.muted { color:var(--txt4); }
     </div>
   </div>
   <div class="strat-cmp" id="strat-cmp"></div>
+  <div id="real-strat-panel" style="display:none;"></div>
 </div>
 
 <!-- Per-hour analysis (respects selector) -->
@@ -698,7 +711,8 @@ function brokerToClosed(){
     time: t.exit_iso || t.entry_iso, entry_time: t.entry_iso || t.exit_iso, _entry_time_la: t.entry_la || "",
     direction: t.direction || "", exit_type: t.result_type || (t.result_dollars>=0?"WIN":"LOSS"),
     ticks: +t.result_ticks || 0, dollars: +t.result_dollars || 0,
-    entry_price: t.entry_price, exit_price: t.exit_price, qty: t.qty || 1, danger: 0
+    entry_price: t.entry_price, exit_price: t.exit_price, qty: t.qty || 1, danger: 0,
+    strategy: t.strategy || null, strategy_conf: t.strategy_conf || null
   }; });
 }
 function computeClosedTrades() {
@@ -845,7 +859,28 @@ function applyStrategyFilter(){
   renderHourPicker();
   renderCombined();
   renderStrategyStrip();
+  renderRealStrat();
   renderAll();
+}
+function renderRealStrat(){
+  var el=document.getElementById("real-strat-panel"); if(!el) return;
+  if(SELECTED_STRATEGY!=="real"){ el.style.display="none"; return; }
+  var b=STATE.broker; var att=b && b._strategy_attribution;
+  if(!att || !att.per_strategy){ el.style.display="none"; return; }
+  el.style.display="";
+  var meta={base:["🟦 BASE","#2563eb"],partial:["✂️ PARTIAL","#7c3aed"],momentum:["🚀 MOMENTUM","#ea580c"]};
+  var per=att.per_strategy, tg=att.tagged||{};
+  var cards=["base","partial","momentum"].map(function(k){
+    var v=per[k]; if(!v) return "";
+    var wr=v.n?Math.round(v.w/v.n*100):0;
+    return '<div class="rs-card" style="border-color:'+meta[k][1]+'"><div class="rs-t" style="color:'+meta[k][1]+'">'+meta[k][0]+'</div>'
+      +'<div class="rs-net '+(v.net>=0?"pos":"neg")+'">'+fmtUSD(v.net)+'</div>'
+      +'<div class="rs-sub">'+v.n+' עסקאות · '+wr+'% הצלחה</div></div>';
+  }).join("");
+  var unknown=(tg.none||0);
+  el.innerHTML='<div class="rs-head">🏦 P&L אמיתי מהברוקר — פירוק לפי אסטרטגיה <span class="rs-est">(שיוך משוער: תיוג היומן לפי זמן + חתימת הברקט)</span></div>'
+    +'<div class="rs-cards">'+cards+'</div>'
+    +'<div class="rs-note">📎 '+((tg.journal||0)+(tg["journal+sig"]||0))+' שויכו מהיומן · '+(tg.signature||0)+' מחתימת הברקט · <b>'+unknown+'</b> נשארו לא-ודאיים (SWAP קטנים / −150 שלא ניתן להפריד בין BASE ל-PARTIAL). הסכום המשולב האמיתי נשאר מקור האמת; הפירוק הוא הערכה.</div>';
 }
 function _stratStats(trs){
   const arr=(trs||[]).slice().sort((a,b)=> new Date(a._received_at||a._entry_time_la||0) - new Date(b._received_at||b._entry_time_la||0));
@@ -1830,7 +1865,17 @@ function renderCalendar() {
       const trStr = data.trough !== 0 ? Math.round(data.trough) : "—";
       const pnlStr = sign + "$" + Math.abs(Math.round(data.net));
       const srcLbl = onlyBt ? "BT" : "live";
-      body = `<div class="cal-count">${data.count} עסקאות · ${srcLbl}</div><div class="peak-trough"><span class="pk">שיא ↑${peakStr}</span><span class="tr">שפל ↓${trStr}</span></div><div class="pnl">${pnlStr}</div>`;
+      var stratLine = "";
+      if (SELECTED_STRATEGY === "real") {
+        var bs = {}; data.trades.forEach(function(t){ if(t.strategy){ bs[t.strategy]=(bs[t.strategy]||0)+t.dollars; } });
+        var scomp = function(v){ return (v>=0?"+":"-")+"$"+Math.abs(Math.round(v)); };
+        var pp = [];
+        if (bs.base!=null) pp.push('<span style="color:#2563eb">🟦'+scomp(bs.base)+'</span>');
+        if (bs.partial!=null) pp.push('<span style="color:#7c3aed">✂️'+scomp(bs.partial)+'</span>');
+        if (bs.momentum!=null) pp.push('<span style="color:#ea580c">🚀'+scomp(bs.momentum)+'</span>');
+        if (pp.length) stratLine = '<div class="cal-strat">'+pp.join(" ")+'</div>';
+      }
+      body = `<div class="cal-count">${data.count} עסקאות · ${srcLbl}</div><div class="peak-trough"><span class="pk">שיא ↑${peakStr}</span><span class="tr">שפל ↓${trStr}</span></div><div class="pnl">${pnlStr}</div>${stratLine}`;
       html += `<div class="${cls}">${badge}<div class="day-num">${day}</div>${body}</div>`;
     } else {
       html += `<div class="${cls}"><div class="day-num">${day}</div></div>`;
