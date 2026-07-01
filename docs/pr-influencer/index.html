@@ -566,6 +566,16 @@ const RUN = {
     </div>
   </div>
 
+  <div class="card" id="apps-card">
+    <h2 style="margin-top:0">📥 מועמדויות שהוגשו (Collab With Us)</h2>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">
+      יוצרות שהגישו מועמדות לבד בדף הציבורי:
+      <a href="https://events.themakeupblowout.com/collab/" target="_blank" style="color:var(--accent);font-weight:bold">events.themakeupblowout.com/collab/</a>
+      <button class="small-btn" id="copy-collab-link" style="margin-right:8px">📋 העתיקי לינק</button>
+    </div>
+    <div id="apps-list"><span style="color:var(--muted);font-size:12px;font-style:italic;">עדיין אין מועמדויות.</span></div>
+  </div>
+
   <div class="card" id="briefs-card">
     <h2 style="margin-top:0">✍️ חוזים חתומים (Collab Brief)</h2>
     <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">
@@ -1069,6 +1079,26 @@ const RUN = {
       btn.textContent = "✓ הועתק"; setTimeout(function(){ btn.textContent = "📋 העתיקי לינק לטופס"; }, 2000);
     });
   });
+  var cbtn = document.getElementById("copy-collab-link");
+  if (cbtn) cbtn.addEventListener("click", function(){
+    navigator.clipboard.writeText("https://events.themakeupblowout.com/collab/").then(function(){
+      cbtn.textContent = "✓ הועתק"; setTimeout(function(){ cbtn.textContent = "📋 העתיקי לינק"; }, 2000);
+    });
+  });
+  fetch("../state/influencer_applications.json?_=" + Date.now(), { cache: "no-store" })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if (!d || !Array.isArray(d.applications) || !d.applications.length) return;
+      var rows = d.applications.slice().reverse().map(function(a){
+        var prof = "";
+        var h = String(a.handle || "").replace(/^@/, "");
+        if (a.platform === "TikTok") prof = "https://www.tiktok.com/@" + h;
+        else if (a.platform === "YouTube") prof = "https://www.youtube.com/results?search_query=" + encodeURIComponent(h);
+        else prof = "https://www.instagram.com/" + h;
+        return "<tr><td>" + (a.full_name || "") + '</td><td><a href="' + prof + '" target="_blank">@' + h + "</a></td><td>" + (a.platform || "") + "</td><td>" + (a.followers || "") + "</td><td>" + (a.city || "") + "</td><td>" + (a.event || "") + "</td><td>" + (a.email || "") + "</td><td>" + String(a.received_at || "").slice(0,10) + "</td></tr>";
+      }).join("");
+      document.getElementById("apps-list").innerHTML = '<table class="creator-table"><thead><tr><th>שם</th><th>Handle</th><th>פלטפורמה</th><th>עוקבים</th><th>עיר</th><th>אירוע</th><th>אימייל</th><th>מתי</th></tr></thead><tbody>' + rows + "</tbody></table>";
+    }).catch(function(e){});
   fetch("../state/influencer_briefs.json?_=" + Date.now(), { cache: "no-store" })
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(d){

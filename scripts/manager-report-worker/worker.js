@@ -50,6 +50,37 @@ export default {
       return reply({ error: "conflict retries exhausted" }, 502, cors);
     }
 
+    // --- Influencer application (events.themakeupblowout.com/collab/) -------
+    // Inbound "work with us" applications. Appended to their own state file.
+    if (report.kind === "influencer_application") {
+      if (report.website) return reply({ ok: true }, 200, cors);   // honeypot -> pretend success, save nothing
+      const APPS = "docs/state/influencer_applications.json";
+      const app = {
+        received_at: new Date().toISOString(),
+        full_name: String(report.full_name || "").slice(0, 120),
+        handle: String(report.handle || "").slice(0, 80),
+        platform: String(report.platform || "").slice(0, 40),
+        followers: String(report.followers || "").slice(0, 40),
+        city: String(report.city || "").slice(0, 120),
+        email: String(report.email || "").slice(0, 160),
+        phone: String(report.phone || "").slice(0, 40),
+        event: String(report.event || "").slice(0, 160),
+        about: String(report.about || "").slice(0, 600)
+      };
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const cur = await ghGet(TOKEN, APPS);
+        const data = cur.json || { _updated_at: null, applications: [] };
+        if (!Array.isArray(data.applications)) data.applications = [];
+        data.applications.push(app);
+        data._updated_at = new Date().toISOString();
+        const res = await ghPutJson(TOKEN, APPS, data, cur.sha,
+          `influencer-application: ${app.handle || app.full_name || "?"}`);
+        if (res === true) return reply({ ok: true, kind: "influencer_application" }, 200, cors);
+        if (res !== 409)  return reply({ error: "github write failed " + res }, 502, cors);
+      }
+      return reply({ error: "conflict retries exhausted" }, 502, cors);
+    }
+
     // --- Influencer collab brief (events.themakeupblowout.com/influencer-brief/) ---
     // Routed by kind, saved to its own state file + signature PNG committed separately.
     if (report.kind === "influencer_brief") {
