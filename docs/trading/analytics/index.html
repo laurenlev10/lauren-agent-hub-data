@@ -251,6 +251,14 @@ table.simple td.muted { color:var(--txt4); }
 .rs-note{font-size:11.5px;color:#78350f;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:7px 10px;margin-top:8px}
 .cal-strat{font-size:9.5px;font-weight:700;margin-top:2px;line-height:1.35;letter-spacing:-.2px}
 @media(max-width:560px){.rs-cards{grid-template-columns:1fr}}
+
+.mode-bar{display:flex;gap:10px;margin-bottom:12px}
+.mode-btn{flex:1;cursor:pointer;border:2px solid #e2e8f0;border-radius:12px;padding:11px 14px;background:#fff;font-family:inherit;font-size:15px;font-weight:800;color:#334155;display:flex;flex-direction:column;gap:2px;align-items:center;transition:all .12s}
+.mode-btn:hover{transform:translateY(-1px)}
+.mode-btn .mode-sub{font-size:11px;font-weight:600;color:#94a3b8}
+.mode-btn.active[data-mode="research"]{border-color:#7c3aed;background:#faf5ff;color:#6d28d9}
+.mode-btn.active[data-mode="real"]{border-color:#0ea5e9;background:#f0f9ff;color:#0369a1}
+.mode-btn.active .mode-sub{color:inherit;opacity:.85}
 </style>
 </head>
 <body>
@@ -278,11 +286,14 @@ table.simple td.muted { color:var(--txt4); }
 
 <!-- Per-strategy selector + comparison -->
 <div class="strat-sel-section" id="strat-sel-section">
-  <div class="strat-sel-bar">
+  <div class="mode-bar" id="mode-bar">
+    <button class="mode-btn" data-mode="research" onclick="selectMode('research')">🔬 מחקר<span class="mode-sub">נתונים מהאינדיקטור + התראות · כל השעות</span></button>
+    <button class="mode-btn active" data-mode="real" onclick="selectMode('real')">🏦 חשבון אמיתי<span class="mode-sub">רק עסקאות שבאמת סחרתי</span></button>
+  </div>
+  <div class="strat-sel-bar" id="research-substrat" style="display:none;">
     <span class="ss2-label">📑 אסטרטגיה:</span>
     <div class="ss2-btns" id="ss2-btns">
-      <button class="ss2-btn active" data-strat="real"     onclick="selectStrategy('real')">🏦 חשבון אמיתי</button>
-      <button class="ss2-btn"        data-strat="all"      onclick="selectStrategy('all')">הכל (תיאוריה)</button>
+      <button class="ss2-btn active" data-strat="all"      onclick="selectStrategy('all')">הכל</button>
       <button class="ss2-btn"        data-strat="base"     onclick="selectStrategy('base')">🟦 BASE</button>
       <button class="ss2-btn"        data-strat="partial"  onclick="selectStrategy('partial')">✂️ PARTIAL</button>
       <button class="ss2-btn"        data-strat="momentum" onclick="selectStrategy('momentum')">🚀 MOMENTUM</button>
@@ -305,6 +316,14 @@ table.simple td.muted { color:var(--txt4); }
   </div>
   <div class="cal-grid" id="cal-grid"></div>
   <div class="cal-summary" id="cal-summary"></div>
+</div>
+
+<!-- Real per-hour (broker trades only) -->
+<div class="an-section" id="hourly-real-section" style="display:none;">
+  <h3>🕐 ניתוח לפי שעה — חשבון אמיתי <span style="font-weight:600;color:#0369a1;font-size:13px;">(רק עסקאות שסחרת בפועל)</span></h3>
+  <div class="sub">כל שעה — הרווח/הפסד האמיתי מהברוקר, כולל פירוק לפי אסטרטגיה. ⛔ באדום = שעות שאינך סוחרת בהן כרגע.</div>
+  <div id="hourly-real-body"></div>
+  <div class="an-note" id="hourly-real-note"></div>
 </div>
 
 
@@ -525,6 +544,7 @@ const CONFIG_REPO_FILE = "docs/trading/autotrade_enabled.json";
 const AT_TOKEN_KEY = "lauren_gh_token_v1";  // per IRON RULE #7 — localStorage for secrets
 let STATE = { raw: null, trades: [], config: null, backtest: null };
 let SELECTED_STRATEGY = "real";
+let RESEARCH_STRAT = "all";  // remembers research sub-strategy when toggling modes
 // 🕐 Hour picker — Lauren chooses which hours to enable; results recompute live.
 // Default-active = her current strategy hours (blocked = sleep 00-05 + filter 8,18,20).
 const HP_DEFAULT_BLOCKED = [0,1,2,3,4,5,8,18,20];
@@ -845,9 +865,53 @@ function destroyChart(name) {
 
 function strategyMatch(t){ return SELECTED_STRATEGY === "all" || (String(t.strategy||"").toLowerCase() === SELECTED_STRATEGY); }
 function selectStrategy(srt){
-  SELECTED_STRATEGY = srt;
+  if(srt==="real"){ selectMode("real"); return; }
+  RESEARCH_STRAT = srt; SELECTED_STRATEGY = srt;
   document.querySelectorAll("#ss2-btns .ss2-btn").forEach(b => b.classList.toggle("active", b.dataset.strat === srt));
   applyStrategyFilter();
+}
+function selectMode(m){
+  document.querySelectorAll("#mode-bar .mode-btn").forEach(b=>b.classList.toggle("active", b.dataset.mode===m));
+  var sub=document.getElementById("research-substrat");
+  if(m==="real"){ if(sub) sub.style.display="none"; SELECTED_STRATEGY="real"; }
+  else { if(sub) sub.style.display=""; SELECTED_STRATEGY=RESEARCH_STRAT||"all";
+    document.querySelectorAll("#ss2-btns .ss2-btn").forEach(b=>b.classList.toggle("active", b.dataset.strat===SELECTED_STRATEGY)); }
+  applyStrategyFilter();
+}
+function applyModeVisibility(){
+  var real = (SELECTED_STRATEGY==="real");
+  var researchOnly=["strat-cmp","hourly-section","hourpicker-section","combined-section","heatmap-section","backtest-section","sec-sim","strategy-strip"];
+  var realOnly=["real-strat-panel","hourly-real-section","broker-panel"];
+  researchOnly.forEach(function(id){ var e=document.getElementById(id); if(e && real) e.style.display="none"; });
+  realOnly.forEach(function(id){ var e=document.getElementById(id); if(e && !real) e.style.display="none"; });
+}
+function renderHourlyReal(){
+  var sec=document.getElementById("hourly-real-section"); if(!sec) return;
+  if(SELECTED_STRATEGY!=="real"){ sec.style.display="none"; return; }
+  var b=STATE.broker; var T=(b&&Array.isArray(b.trades))?b.trades:[];
+  if(!T.length){ sec.style.display="none"; return; }
+  sec.style.display="";
+  var strats=[["base","🟦 BASE"],["partial","✂️ PARTIAL"],["momentum","🚀 MOM"]];
+  var H={}; for(var h=0;h<24;h++)H[h]={byS:{base:{n:0,net:0},partial:{n:0,net:0},momentum:{n:0,net:0}},n:0,net:0,w:0,gp:0,gl:0};
+  T.forEach(function(t){ var p=(t.entry_la||"").split(" "); if(p.length<2)return; var hh=parseInt(p[1].slice(0,2),10); if(isNaN(hh))return;
+    var x=+t.result_dollars||0; var s2=String(t.strategy||"").toLowerCase(); var o=H[hh];
+    if(o.byS[s2]){o.byS[s2].n++;o.byS[s2].net+=x;}
+    o.n++;o.net+=x; if(x>0){o.w++;o.gp+=x;}else if(x<0)o.gl+=Math.abs(x); });
+  var mx=1; for(var h2=0;h2<24;h2++) strats.forEach(function(pr){ var c=H[h2].byS[pr[0]]; if(c)mx=Math.max(mx,Math.abs(c.net)); });
+  var bg=function(net){ var al=Math.min(1,Math.abs(net)/mx*0.82+0.10); return net>=0?"rgba(22,163,74,"+al.toFixed(2)+")":"rgba(220,38,38,"+al.toFixed(2)+")"; };
+  var rows="",cnt=0;
+  for(var h=0;h<24;h++){ var o=H[h]; if(!o.n)continue; cnt++;
+    var tds=strats.map(function(pr){ var c=o.byS[pr[0]]; if(!c||!c.n) return '<td style="background:#f8fafc;color:#cbd5e1">—</td>';
+      var tc=(Math.abs(c.net)/mx>0.42)?"#fff":"#0f172a";
+      return '<td style="background:'+bg(c.net)+';color:'+tc+'"><b>'+fmtUSD(c.net)+'</b><br><span style="font-size:10px;opacity:.85">'+c.n+" עס'</span></td>"; }).join("");
+    var pf=o.gl?(o.gp/o.gl).toFixed(2):(o.gp>0?"∞":"—"); var wr=Math.round(o.w/o.n*100);
+    var blk=!ACTIVE_HOURS.has(h);
+    var hrTd=blk?'<td class="hm-hr" style="background:#fee2e2;color:#dc2626;font-weight:800" title="שעה חסומה">⛔ '+String(h).padStart(2,"0")+':00</td>':'<td class="hm-hr">'+String(h).padStart(2,"0")+':00</td>';
+    rows+='<tr'+(o.net<0?' style="background:#fef2f2"':'')+'>'+hrTd+tds+'<td class="'+(o.net>=0?"pos":"neg")+'" style="font-weight:800">'+fmtUSD(o.net)+'</td><td>'+wr+'%</td><td>'+pf+'</td></tr>';
+  }
+  document.getElementById("hourly-real-body").innerHTML='<div style="overflow-x:auto"><table class="hm-tbl"><thead><tr><th>שעה LA</th><th>🟦 BASE</th><th>✂️ PARTIAL</th><th>🚀 MOM</th><th>נטו (הכל)</th><th>הצלחה</th><th>PF</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  var note=document.getElementById("hourly-real-note");
+  if(note) note.innerHTML = cnt? 'נתונים אמיתיים מהברוקר בלבד ('+T.length+' עסקאות). הפירוק לאסטרטגיה משוער (חתימת ברקט + זיווג). ⛔ = שעות חסומות כרגע.' : '';
 }
 function applyStrategyFilter(){
   var _real = SELECTED_STRATEGY === "real";
@@ -861,7 +925,9 @@ function applyStrategyFilter(){
   renderCombined();
   renderStrategyStrip();
   renderRealStrat();
+  renderHourlyReal();
   renderAll();
+  applyModeVisibility();
 }
 function renderRealStrat(){
   var el=document.getElementById("real-strat-panel"); if(!el) return;
