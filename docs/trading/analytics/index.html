@@ -911,19 +911,26 @@ function renderHourlyReal(){
     o.n++;o.net+=x; if(x>0){o.w++;o.gp+=x;}else if(x<0)o.gl+=Math.abs(x); });
   var mx=1; for(var h2=0;h2<24;h2++) strats.forEach(function(pr){ var c=H[h2].byS[pr[0]]; if(c)mx=Math.max(mx,Math.abs(c.net)); });
   var bg=function(net){ var al=Math.min(1,Math.abs(net)/mx*0.82+0.10); return net>=0?"rgba(22,163,74,"+al.toFixed(2)+")":"rgba(220,38,38,"+al.toFixed(2)+")"; };
-  var rows="",cnt=0;
-  for(var h=0;h<24;h++){ var o=H[h]; if(!o.n)continue; cnt++;
+  var rows="",cnt=0,pending=0;
+  for(var h=0;h<24;h++){ var o=H[h]; var blk=!ACTIVE_HOURS.has(h);
+    // show: any hour with real trades, OR any ACTIVE (traded) hour even if empty (=טרם). skip empty blocked hours.
+    if(!o.n && blk) continue;
+    var hrTd=blk?'<td class="hm-hr" style="background:#fee2e2;color:#dc2626;font-weight:800" title="שעה חסומה">⛔ '+String(h).padStart(2,"0")+':00</td>':'<td class="hm-hr">'+String(h).padStart(2,"0")+':00</td>';
+    if(!o.n){ // active hour, no real trade yet
+      pending++;
+      rows+='<tr style="opacity:.55">'+hrTd+'<td style="color:#cbd5e1">—</td><td style="color:#cbd5e1">—</td><td style="color:#cbd5e1">—</td><td style="color:#94a3b8;font-style:italic">טרם</td><td style="color:#cbd5e1">—</td><td style="color:#cbd5e1">—</td></tr>';
+      continue;
+    }
+    cnt++;
     var tds=strats.map(function(pr){ var c=o.byS[pr[0]]; if(!c||!c.n) return '<td style="background:#f8fafc;color:#cbd5e1">—</td>';
       var tc=(Math.abs(c.net)/mx>0.42)?"#fff":"#0f172a";
       return '<td style="background:'+bg(c.net)+';color:'+tc+'"><b>'+fmtUSD(c.net)+'</b><br><span style="font-size:10px;opacity:.85">'+c.n+" עס'</span></td>"; }).join("");
     var pf=o.gl?(o.gp/o.gl).toFixed(2):(o.gp>0?"∞":"—"); var wr=Math.round(o.w/o.n*100);
-    var blk=!ACTIVE_HOURS.has(h);
-    var hrTd=blk?'<td class="hm-hr" style="background:#fee2e2;color:#dc2626;font-weight:800" title="שעה חסומה">⛔ '+String(h).padStart(2,"0")+':00</td>':'<td class="hm-hr">'+String(h).padStart(2,"0")+':00</td>';
     rows+='<tr'+(o.net<0?' style="background:#fef2f2"':'')+'>'+hrTd+tds+'<td class="'+(o.net>=0?"pos":"neg")+'" style="font-weight:800">'+fmtUSD(o.net)+'</td><td>'+wr+'%</td><td>'+pf+'</td></tr>';
   }
   document.getElementById("hourly-real-body").innerHTML='<div style="overflow-x:auto"><table class="hm-tbl"><thead><tr><th>שעה LA</th><th>🟦 BASE</th><th>✂️ PARTIAL</th><th>🚀 MOM</th><th>נטו (הכל)</th><th>הצלחה</th><th>PF</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   var note=document.getElementById("hourly-real-note");
-  if(note) note.innerHTML = cnt? 'נתונים אמיתיים מהברוקר בלבד ('+T.length+' עסקאות). הפירוק לאסטרטגיה משוער (חתימת ברקט + זיווג). ⛔ = שעות חסומות כרגע.' : '';
+  if(note) note.innerHTML = cnt? 'נתונים אמיתיים מהברוקר בלבד ('+T.length+' עסקאות). <b>"טרם"</b> = שעה שאת סוחרת בה אבל עדיין לא הייתה בה עסקה אמיתית (תתמלא בהמשך). הפירוק לאסטרטגיה משוער (חתימת ברקט + זיווג). ⛔ = שעות חסומות כרגע.' : '';
 }
 function applyStrategyFilter(){
   var _real = SELECTED_STRATEGY === "real";
