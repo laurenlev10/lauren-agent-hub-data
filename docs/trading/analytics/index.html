@@ -547,8 +547,9 @@ let STATE = { raw: null, trades: [], config: null, backtest: null };
 let SELECTED_STRATEGY = "real";
 let RESEARCH_STRAT = "all";  // remembers research sub-strategy when toggling modes
 // 🕐 Hour picker — Lauren chooses which hours to enable; results recompute live.
-// Default-active = her current strategy hours (blocked = sleep 00-05 + filter 8,18,20).
-const HP_DEFAULT_BLOCKED = [0,1,2,3,4,5,8,18,20];
+// Default-blocked = the IL blocked window 12:00-16:00 = LA 02:00-06:00 (the ONLY block now;
+// the per-hour LA filter 5,8,18,20 was turned OFF on 2026-06-30). So blocked LA hours = 2,3,4,5.
+const HP_DEFAULT_BLOCKED = [2,3,4,5];
 let ACTIVE_HOURS = new Set(Array.from({length:24},(_,h)=>h).filter(h=>!HP_DEFAULT_BLOCKED.includes(h)));
 let BT_ALL = null;
 let LIVE_ALL = [];
