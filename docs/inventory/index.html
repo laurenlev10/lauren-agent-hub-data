@@ -10003,6 +10003,15 @@ function openCompareInvoiceModal(supplierCode, supplierName, orderIndex, opts){
 
   // Lauren 2026-05-27 PM #7 — per-order title shows the order # too
   $("#cmpTitle").textContent = (CMP_CTX.standalone ? "🧾 חשבונית ללא הזמנה · " : "📋 השוואת חשבונית · ") + supplierName + ((CMP_CTX.order_index !== null) ? " · הזמנה #" + (CMP_CTX.order_index + 1) : "");
+  // Lauren 2026-07-01 — RESET the shared modal to its default compare state on every
+  // open. receiveOrderAsIsForSupplier() (קבל הזמנה כמו שהיא) rewrites cmpSub + hides cmpDrop
+  // and never restores them, so a later השוואת חשבונית open inherited the stale DOM
+  // (wrong subtitle, no upload zone). Restore both here so the invoice picker shows.
+  var _sub = document.getElementById('cmpSub');
+  if (_sub) _sub.textContent = _standalone
+    ? '\uD83E\uDDFE \u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA \u05DC\u05DC\u05D0 \u05D4\u05D6\u05DE\u05E0\u05D4 \u2014 \u05D4\u05E2\u05DC\u05D9 \u05D0\u05EA \u05E7\u05D5\u05D1\u05E5 \u05D4\u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA.'
+    : '\u05D1\u05D7\u05E8\u05D9 \u05D0\u05EA \u05D4\u05D7\u05E9\u05D1\u05D5\u05E0\u05D9\u05EA \u05E9\u05DC \u05D4\u05E1\u05E4\u05E7 \u05DB\u05D3\u05D9 \u05DC\u05D4\u05E9\u05D5\u05D5\u05EA \u05DE\u05D5\u05DC \u05D4\u05D4\u05D6\u05DE\u05E0\u05D4 \u05D4\u05E9\u05DE\u05D5\u05E8\u05D4.';
+  var _drop = document.getElementById('cmpDrop'); if (_drop) _drop.style.display = '';
   $("#cmpExpectedBlock").innerHTML = expHtml;
   $("#cmpResult").innerHTML = '';
   $("#cmpFile").value = '';
