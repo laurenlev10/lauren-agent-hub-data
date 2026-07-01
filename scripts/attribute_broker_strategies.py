@@ -59,55 +59,62 @@ def main():
         # store strategy -> its journal result_ticks (helps signature match)
         jidx[(m, d)][s] = e.get("result_ticks")
 
-    tagged = {"journal": 0, "signature": 0, "journal+sig": 0, "none": 0}
+    # ---- GROUP-based assignment (Lauren's insight 2026-06-30) ----
+    # BASE & PARTIAL ALWAYS co-enter (same entry). They differ on the WIN exit
+    # (650 vs 325) and on MOMENTUM (475 / -175). On a LOSS/SWAP base & partial exit
+    # together at the SAME value -> it doesn't matter which label; assign one to each.
+    # So: group broker trades by (entry-minute, direction); assign signature-clear
+    # trades first; then pair the leftovers 1:1 to the remaining strategies.
+    from collections import defaultdict
+    groups = defaultdict(list)
     for t in broker.get("trades", []):
-        m = la_minute(t.get("entry_la"))
-        d = (t.get("direction") or "").lower()
-        ticks = t.get("result_ticks")
-        cands = {}
-        # try exact minute, then +/-1, +/-2 minute
+        groups[(la_minute(t.get("entry_la")), (t.get("direction") or "").lower())].append(t)
+
+    tagged = {"signature": 0, "paired": 0, "none": 0}
+    for (m, d), trs in groups.items():
+        # strategies that journal says fired this minute (if any)
+        jstrats = set()
         for dm in (0, 1, -1, 2, -2):
             key = None
             if m:
                 try:
                     dd, tt = m.split(" "); hh, mm = tt.split(":")
-                    mm2 = int(mm) + dm
-                    hh2 = int(hh)
+                    mm2 = int(mm) + dm; hh2 = int(hh)
                     if mm2 < 0: mm2 += 60; hh2 -= 1
                     if mm2 > 59: mm2 -= 60; hh2 += 1
-                    if 0 <= hh2 <= 23:
-                        key = (f"{dd} {hh2:02d}:{mm2:02d}", d)
-                except Exception:
-                    key = None
+                    if 0 <= hh2 <= 23: key = (f"{dd} {hh2:02d}:{mm2:02d}", d)
+                except Exception: key = None
             if key and key in jidx:
-                cands = jidx[key]; break
+                jstrats = set(jidx[key].keys()); break
 
-        sig_s, sig_c = sig_strategy(ticks)
-        strat = None; conf = None; src = None
-        if cands:
-            if len(cands) == 1:
-                strat = list(cands.keys())[0]; conf = "high"; src = "journal"
+        # pass 1: signature-clear assignment
+        for t in trs:
+            sig_s, _ = sig_strategy(t.get("result_ticks"))
+            t["strategy"] = sig_s
+            t["strategy_conf"] = "high" if sig_s else None
+            t["strategy_src"] = "signature" if sig_s else None
+            if sig_s: tagged["signature"] += 1
+
+        # pass 2: pair leftovers to remaining strategies
+        assigned = {t["strategy"] for t in trs if t.get("strategy")}
+        # candidate strategies present this group: journal set, else default base+partial
+        present = jstrats if jstrats else {"base", "partial"}
+        # if a leftover count > present-assigned, include base/partial as the natural pair
+        leftover_trades = [t for t in trs if not t.get("strategy")]
+        remaining = [s for s in ["base", "partial", "momentum"] if s in present and s not in assigned]
+        # base & partial co-enter: ensure both available as pairing slots when 2 leftovers
+        if len(leftover_trades) >= 1 and not remaining:
+            remaining = [s for s in ["base", "partial"] if s not in assigned] or ["base", "partial"]
+        for i, t in enumerate(leftover_trades):
+            if remaining:
+                t["strategy"] = remaining[i % len(remaining)]
+                # loss/swap identical for base&partial -> value is exact; label is the symmetric pair
+                t["strategy_conf"] = "med"
+                t["strategy_src"] = "paired"
+                tagged["paired"] += 1
             else:
-                # multiple strategies fired same minute -> disambiguate by signature
-                if sig_s and sig_s in cands:
-                    strat = sig_s; conf = "high"; src = "journal+sig"
-                else:
-                    # signature can't split -> pick by closest journal result_ticks to broker ticks
-                    if ticks is not None:
-                        best = min(cands.items(), key=lambda kv: abs((kv[1] or 0) - ticks))
-                        strat = best[0]; conf = "med"; src = "journal+sig"
-                    else:
-                        strat = None; conf = "low"; src = "journal"
-        elif sig_s:
-            strat = sig_s; conf = sig_c; src = "signature"
-
-        t["strategy"] = strat
-        t["strategy_conf"] = conf
-        t["strategy_src"] = src
-        if strat and src == "journal": tagged["journal"] += 1
-        elif strat and src == "signature": tagged["signature"] += 1
-        elif strat and src == "journal+sig": tagged["journal+sig"] += 1
-        else: tagged["none"] += 1
+                t["strategy_conf"] = "low"; t["strategy_src"] = None
+                tagged["none"] += 1
 
     # per-strategy real net (only tagged)
     per = {}

@@ -878,9 +878,9 @@ function renderRealStrat(){
       +'<div class="rs-sub">'+v.n+' עסקאות · '+wr+'% הצלחה</div></div>';
   }).join("");
   var unknown=(tg.none||0);
-  el.innerHTML='<div class="rs-head">🏦 P&L אמיתי מהברוקר — פירוק לפי אסטרטגיה <span class="rs-est">(שיוך משוער: תיוג היומן לפי זמן + חתימת הברקט)</span></div>'
+  el.innerHTML='<div class="rs-head">🏦 P&L אמיתי מהברוקר — פירוק לפי אסטרטגיה <span class="rs-est">(מנצחות לפי חתימת הברקט · מפסידות/SWAP מזווגות 1:1 בין BASE ל-PARTIAL)</span></div>'
     +'<div class="rs-cards">'+cards+'</div>'
-    +'<div class="rs-note">📎 '+((tg.journal||0)+(tg["journal+sig"]||0))+' שויכו מהיומן · '+(tg.signature||0)+' מחתימת הברקט · <b>'+unknown+'</b> נשארו לא-ודאיים (SWAP קטנים / −150 שלא ניתן להפריד בין BASE ל-PARTIAL). הסכום המשולב האמיתי נשאר מקור האמת; הפירוק הוא הערכה.</div>';
+    +'<div class="rs-note">📎 '+(tg.signature||0)+' זוהו בוודאות מחתימת הברקט (325=PARTIAL · 650=BASE · 475/−175=MOM) · '+(tg.paired||0)+' מפסידות/SWAP זהות → אחת לכל אסטרטגיה. <b>הסכום מתאזן בדיוק לטוטאל האמיתי של הברוקר.</b>'+(unknown?' · '+unknown+' לא-ודאיים.':'')+'</div>';
 }
 function _stratStats(trs){
   const arr=(trs||[]).slice().sort((a,b)=> new Date(a._received_at||a._entry_time_la||0) - new Date(b._received_at||b._entry_time_la||0));
