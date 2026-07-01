@@ -534,6 +534,7 @@ const DATA_URL = "../journal-data.json";
 const CONFIG_URL = "../autotrade_enabled.json";
 const BACKTEST_URL = "./backtest-data.json";
 const BROKER_URL = "../broker-ledger.json";
+const RESEARCH_URL = "../research-journal.json";  // all-hours collection feed
 const VIEW_LINK = "https://vwap-view.laurenlev10.workers.dev/";
 function copyViewLink(btn){
   navigator.clipboard.writeText(VIEW_LINK).then(function(){
@@ -576,11 +577,12 @@ async function loadData() {
   document.getElementById("status").className = "";
   try {
     // Fetch journal data, config, AND backtest data in parallel
-    const [dataR, configR, btR, brokerR] = await Promise.all([
+    const [dataR, configR, btR, brokerR, researchR] = await Promise.all([
       fetch(DATA_URL + "?_=" + Date.now(), { cache: "no-store" }),
       fetch(CONFIG_URL + "?_=" + Date.now(), { cache: "no-store" }),
       fetch(BACKTEST_URL + "?_=" + Date.now(), { cache: "no-store" }),
-      fetch(BROKER_URL + "?_=" + Date.now(), { cache: "no-store" }).catch(()=>null)
+      fetch(BROKER_URL + "?_=" + Date.now(), { cache: "no-store" }).catch(()=>null),
+      fetch(RESEARCH_URL + "?_=" + Date.now(), { cache: "no-store" }).catch(()=>null)
     ]);
     if (!dataR.ok) throw new Error("data HTTP " + dataR.status);
     const j = await dataR.json();
@@ -605,6 +607,16 @@ async function loadData() {
     document.getElementById("updated-at").textContent = "עודכן " + updatedAt;
 
     BT_ALL = STATE.backtest;
+    // Merge the all-hours RESEARCH feed (live-collected) into the research dataset,
+    // so the Research view's hourly/picker include newly-collected blocked-hour trades.
+    try {
+      var rj = (researchR && researchR.ok) ? await researchR.json() : null;
+      if (rj && Array.isArray(rj.trades) && rj.trades.length && BT_ALL && Array.isArray(BT_ALL.trades)) {
+        var extra = rj.trades.map(function(t){ return Object.assign({}, t, { _data_origin: "research-live", _research_feed: true }); });
+        BT_ALL = Object.assign({}, BT_ALL, { trades: BT_ALL.trades.concat(extra) });
+        STATE.backtest = BT_ALL;
+      }
+    } catch(e){ console.warn("research feed merge", e); }
     LIVE_ALL = STATE.trades;
     applyStrategyFilter();
   } catch (e) {

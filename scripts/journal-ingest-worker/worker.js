@@ -18,6 +18,7 @@
    =========================================================================== */
 const REPO = "laurenlev10/lauren-agent-hub-data";
 const JOURNAL = "docs/trading/journal-data.json";
+const RESEARCH = "docs/trading/research-journal.json";  // all-hours data-collection feed (filter OFF)
 const TICK = 0.25;            // MNQ tick size (price)
 const DOLLAR_PER_TICK = 0.5;  // MNQ $ per tick
 
@@ -26,10 +27,12 @@ export default {
     const cors = { "Access-Control-Allow-Origin":"*", "Access-Control-Allow-Methods":"POST, OPTIONS", "Access-Control-Allow-Headers":"Content-Type" };
     if (request.method === "OPTIONS") return new Response(null, { headers: cors });
     const url = new URL(request.url);
-    const m = url.pathname.match(/\/(base|partial|momentum)\/?$/i);
+    const m = url.pathname.match(/\/(research\/)?(base|partial|momentum)\/?$/i);
     if (request.method !== "POST") return reply({ error:"POST only" }, 405, cors);
-    if (!m) return reply({ error:"path must end with /base, /partial or /momentum" }, 404, cors);
-    const strategy = m[1].toLowerCase();
+    if (!m) return reply({ error:"path must end with /base, /partial, /momentum (optionally prefixed with /research/)" }, 404, cors);
+    const isResearch = !!m[1];
+    const strategy = m[2].toLowerCase();
+    const FILE = isResearch ? RESEARCH : JOURNAL;
     const TOKEN = (env.GH_TOKEN || "").trim();
     if (!TOKEN) return reply({ error:"server not configured (no GH_TOKEN)" }, 500, cors);
 
@@ -38,12 +41,12 @@ export default {
     catch (e) { try { p = JSON.parse(await request.text()); } catch (e2) { return reply({ error:"bad json" }, 400, cors); } }
 
     // Acknowledge instantly; do the slow GitHub write in the background.
-    ctx.waitUntil(processAlert(TOKEN, strategy, p));
-    return reply({ ok:true, queued:true, strategy }, 200, cors);
+    ctx.waitUntil(processAlert(TOKEN, FILE, strategy, p));
+    return reply({ ok:true, queued:true, strategy, feed: isResearch ? "research" : "live" }, 200, cors);
   }
 };
 
-async function processAlert(TOKEN, strategy, p) {
+async function processAlert(TOKEN, FILE, strategy, p) {
   const now   = new Date();
   const price = parseFloat(p.price);
   const hasEvent = p.event !== undefined && p.event !== null && p.event !== "";
@@ -53,7 +56,7 @@ async function processAlert(TOKEN, strategy, p) {
   const type   = String(p.type   || "").toUpperCase();
 
   for (let attempt = 0; attempt < 8; attempt++) {
-    const cur  = await ghGet(TOKEN, JOURNAL);
+    const cur  = await ghGet(TOKEN, FILE);
     const data = cur.json || { trades: [] };
     data.trades = data.trades || [];
     data._open  = data._open  || {};
@@ -95,7 +98,7 @@ async function processAlert(TOKEN, strategy, p) {
 
     data._updated_at = now.toISOString();
     const tag = hasEvent ? ("ev" + ev) : action;
-    const ok = await ghPut(TOKEN, JOURNAL, data, cur.sha, ("journal: " + strategy + " " + tag).trim());
+    const ok = await ghPut(TOKEN, FILE, data, cur.sha, ((FILE===RESEARCH?"research":"journal") + ": " + strategy + " " + tag).trim());
     if (ok) return;
     await sleep(200 + Math.random()*500);   // write conflict -> back off, re-read, retry
   }
