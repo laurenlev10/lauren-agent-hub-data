@@ -713,7 +713,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
       </div>
       <div style="grid-column: 1 / -1">
         <label>כתובת דף האירוע ⚠️ <span style="color:#dc2626;font-weight:700">חובה</span> — משובץ בכל אימייל ו-DM</label>
-        <input type="text" id="f-event-url" placeholder="https://www.themakeupblowoutsale-group.com/columbia-mo-2026">
+        <input type="text" id="f-event-url" placeholder="https://events.themakeupblowout.com/events/<slug>/ — מתמלא אוטומטית אם דף הנחיתה קיים">
         <div style="font-size:11px;color:var(--muted);margin-top:4px">הדביקי URL מדויק. הסוכן לא מייצר אותו לבד.</div>
       </div>
       <div>
@@ -969,6 +969,36 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     setIf("f-start", "start_date");
     setIf("f-end", "end_date");
     setIf("f-event-url", "event_url");
+  })();
+
+  /* ---- Auto-fill Event URL from the events site (source of truth: upcoming-events.json) ---- */
+  (function autoUrl(){
+    var EVENTS_JSON = "https://raw.githubusercontent.com/laurenlev10/themakeupblowout-events/main/docs/upcoming-events.json";
+    var list = null;
+    function slugCity(s){ return String(s||"").split(",")[0].toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); }
+    function tryFill(){
+      var urlEl = document.getElementById("f-event-url");
+      if (!list || !urlEl || urlEl.value.trim()) return;   // never overwrite what Lauren typed
+      var city = slugCity(document.getElementById("f-city").value);
+      var start = document.getElementById("f-start").value;
+      if (!city || !start) return;
+      for (var i = 0; i < list.length; i++) {
+        var e = list[i];
+        if (e.slug && e.start_date === start && slugCity(e.city) === city) {
+          urlEl.value = "https://events.themakeupblowout.com/events/" + e.slug + "/";
+          urlEl.style.background = "#f0fdf4";
+          return;
+        }
+      }
+    }
+    fetch(EVENTS_JSON + "?_=" + Date.now(), { cache: "no-store" })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ list = Array.isArray(d) ? d : (d.events || []); tryFill(); })
+      .catch(function(){});
+    ["f-city", "f-start"].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.addEventListener("change", tryFill);
+    });
   })();
 
   /* ---- Copy command button ---- */
