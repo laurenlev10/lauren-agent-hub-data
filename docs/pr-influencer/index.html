@@ -748,6 +748,28 @@ const RUN = {
     </div>
   </div>
 
+  <div class="card" id="board-card">
+    <h2 style="margin-top:0">📋 פייפליין (Board)</h2>
+    <div id="funnel-pills" style="margin-bottom:10px;font-size:12px;"></div>
+    <div id="board" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;"></div>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px">▶ = קידום שלב · הסטטוס המלא נשמר אוטומטית ומסונכרן עם הטבלאות למטה. 🖊 = חתמה על הברייף · 📥 = הגישה מועמדות לבד.</div>
+  </div>
+
+  <div class="card" id="followup-card" style="display:none;border-left:6px solid #d97706;">
+    <h2 style="margin-top:0;color:#92400e;">⏰ פולו-אפ ממתין (4+ ימים בלי תשובה)</h2>
+    <div id="followup-list"></div>
+  </div>
+
+  <div class="card" id="crm-card">
+    <div class="section-title collapsed" data-target="crm-body" id="crm-toggle" style="cursor:pointer;display:flex;justify-content:space-between;">
+      <h2 style="margin:0">📚 מאגר היוצרות (כל האירועים)</h2><span class="chevron">◀</span>
+    </div>
+    <div id="crm-body" style="display:none;margin-top:10px;">
+      <input type="text" id="crm-search" placeholder="חיפוש לפי שם / handle / עיר..." style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;margin-bottom:8px;">
+      <div id="crm-list"></div>
+    </div>
+  </div>
+
   <div class="card" id="apps-card">
     <h2 style="margin-top:0">📥 מועמדויות שהוגשו (Collab With Us)</h2>
     <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">
@@ -1005,6 +1027,9 @@ const RUN = {
 
   RemoteSync.load().then(notes => {
     notes = notes || {};
+    window.__prNotes = notes;
+    window.__prSave = function(){ RemoteSync.save(notes); };
+    document.dispatchEvent(new CustomEvent("pr-notes-ready"));
     // Full collab pipeline — 11 stages with tone color-coding
     const STATUSES = [
       { label: "לא פניתי", tone: "neutral" },
@@ -1227,9 +1252,11 @@ const RUN = {
         // Find the creator object for Hall sync
         const creator = allCreators.find(c => slug(c) === k);
         if (creator) updateHallOnStatusChange(creator, newStatus);
+        notes[k + "|status_set_at"] = new Date().toISOString();
         RemoteSync.save(notes);
         renderHall();
         renderReminders(allCreators);
+        document.dispatchEvent(new CustomEvent("pr-status-changed"));
       });
     });
 
@@ -1297,6 +1324,216 @@ const RUN = {
       });
       document.getElementById("briefs-list").innerHTML = html;
     }).catch(function(e){});
+})();
+</script>
+<script>
+/* pr-dashboard v2 — board + follow-up + CRM + auto-connections (2026-07-02) */
+(function(){
+  if (!RUN || !RUN.event) return;
+  var ev = RUN.event;
+  var STAGES = ["לא פניתי","נשלחה טיוטה / DM","ענתה — מעוניינת!","אישרה הגעה (סטורי הועלה)","הגיעה ולקחה מוצרים (חוזה חתום)","הגישה תוכן ✓ (תיוג נכון)"];
+  var OTHER = ["ענתה — לא מעוניינת","לא הגישה תוכן (deadline עבר)","החזירה מוצרים / שילמה","🏆 Hall of Fame","🚫 חסומה לעתיד"];
+  var COLS = STAGES.concat(["אחר"]);
+  var slugify = function(s){ return String(s||"").replace(/[^a-zA-Z0-9]/g,"-").toLowerCase(); };
+  var keyOf = function(c){ return ev.city + "|" + c.rank + "|" + slugify(c.handle||c.display_name); };
+  var notes = null, briefs = null;
+
+  function allCreators(){
+    var inbound = (notes && notes.__inbound__) || [];
+    var inboundCs = inbound.map(function(a,i){
+      return { rank: "in" + i, handle: a.handle, display_name: (a.full_name||"") + " 📥",
+               profile_url: "https://www.instagram.com/" + String(a.handle||"").replace(/^@/,""),
+               followers: a.followers, niche: "inbound", phase: "inbound", email: a.email || null, dm_script: null };
+    });
+    return (RUN.creators||[]).concat(inboundCs);
+  }
+  function stageOf(c){
+    var s = notes[keyOf(c)] || STAGES[0];
+    return s;
+  }
+  function colOf(s){ var i = STAGES.indexOf(s); return i >= 0 ? i : 6; }
+
+  function renderFunnel(){
+    var cs = allCreators();
+    var counts = [0,0,0,0,0,0];
+    cs.forEach(function(c){ var i = colOf(stageOf(c)); if (i <= 5) for (var j = 0; j <= i; j++) counts[j] = (j===0? counts[j]: counts[j]) ; });
+    // simpler: cumulative reach per stage
+    counts = STAGES.map(function(s, i){ return cs.filter(function(c){ return colOf(stageOf(c)) >= i && colOf(stageOf(c)) <= 5; }).length; });
+    var labels = ["ברשימה","נשלחה פנייה","ענו","אישרו","הגיעו+חתמו","הגישו ✓"];
+    document.getElementById("funnel-pills").innerHTML = labels.map(function(l,i){
+      return '<span class="niche-tag" style="margin:2px;background:' + (i>=4?'#dcfce7':'#fce7f3') + '">' + l + ': <b>' + counts[i] + '</b></span>';
+    }).join(" → ");
+  }
+
+  function renderBoard(){
+    var cs = allCreators();
+    var cols = COLS.map(function(){ return []; });
+    cs.forEach(function(c){ cols[colOf(stageOf(c))].push(c); });
+    var signed = {};
+    if (briefs && briefs.briefs) (briefs.briefs["modesto-" + ev.startDate] || briefs.briefs[slugCityKey()] || []).forEach(function(b){ signed[String(b.handle||"").replace(/^@/,"").toLowerCase()] = true; });
+    document.getElementById("board").innerHTML = COLS.map(function(name, i){
+      var cards = cols[i].map(function(c){
+        var h = String(c.handle||"").replace(/^@/,"");
+        var sig = signed[h.toLowerCase()] ? " 🖊" : "";
+        var adv = (i < 5) ? '<button class="small-btn bd-adv" data-k="' + keyOf(c) + '" data-next="' + (i===6?0:i+1) + '" title="קדמי שלב">▶</button>' : "";
+        var back = (i > 0 && i <= 5) ? '<button class="small-btn bd-back" data-k="' + keyOf(c) + '" data-prev="' + (i-1) + '">◀</button>' : "";
+        var st = (i === 6) ? '<div style="font-size:10px;color:#6b7280;margin-top:2px">' + stageOf(c) + '</div>' : "";
+        return '<div style="background:#fff;border:1px solid #f3d1e3;border-radius:8px;padding:6px 8px;margin-bottom:6px;font-size:12px;">' +
+          '<a href="' + c.profile_url + '" target="_blank" style="font-weight:bold;color:var(--accent);text-decoration:none">@' + h + '</a>' + sig +
+          '<div style="color:#6b7280">' + (c.display_name||"") + ' · ' + (typeof c.followers === "number" ? c.followers.toLocaleString() : (c.followers||"")) + '</div>' + st +
+          '<div style="margin-top:4px;display:flex;gap:4px;justify-content:flex-end">' + back + adv + '</div></div>';
+      }).join("");
+      return '<div style="min-width:170px;flex:0 0 170px;background:var(--bg,#FFF0F7);border-radius:10px;padding:8px;">' +
+        '<div style="font-size:11px;font-weight:bold;margin-bottom:6px;color:#9d174d">' + name + ' (' + cols[i].length + ')</div>' + cards + '</div>';
+    }).join("");
+    document.querySelectorAll(".bd-adv").forEach(function(b){ b.addEventListener("click", function(){ setStage(b.dataset.k, STAGES[+b.dataset.next]); }); });
+    document.querySelectorAll(".bd-back").forEach(function(b){ b.addEventListener("click", function(){ setStage(b.dataset.k, STAGES[+b.dataset.prev]); }); });
+  }
+  function slugCityKey(){
+    return String(ev.city||"").split(",")[0].toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + ev.startDate;
+  }
+  function setStage(k, label){
+    notes[k] = label;
+    notes[k + "|status_set_at"] = new Date().toISOString();
+    window.__prSave();
+    var dd = document.querySelector('.status-dropdown[data-key="' + k + '"]');
+    if (dd) dd.value = label;
+    renderBoard(); renderFunnel(); renderFollowups();
+  }
+
+  function renderFollowups(){
+    var due = [];
+    var now = Date.now();
+    allCreators().forEach(function(c){
+      var k = keyOf(c);
+      if (notes[k] !== "נשלחה טיוטה / DM") return;
+      if (notes[k + "|followup_sent_at"]) return;
+      var t = notes[k + "|status_set_at"];
+      var days = t ? Math.floor((now - new Date(t).getTime()) / 86400000) : 99;
+      if (days >= 4) due.push({ c: c, k: k, days: days });
+    });
+    var card = document.getElementById("followup-card");
+    if (!due.length) { card.style.display = "none"; return; }
+    card.style.display = "block";
+    var bump = function(c){
+      var n = String(c.handle||"").replace(/^@/,"");
+      return "hey " + n + ", just bumping this up in case it got buried 💖 totally fine if it's not your vibe — wanted to make sure you saw it! (free makeup pop-up in Modesto July 24-26, $100 product basket for one video)";
+    };
+    document.getElementById("followup-list").innerHTML = due.map(function(d){
+      var days = d.days === 99 ? "?" : d.days;
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #fde68a;font-size:13px;">' +
+        '<span><a href="' + d.c.profile_url + '" target="_blank" style="color:var(--accent);font-weight:bold">@' + String(d.c.handle||"").replace(/^@/,"") + '</a> · ' + days + ' ימים בלי תשובה</span>' +
+        '<span><button class="small-btn fu-copy" data-t="' + bump(d.c).replace(/"/g,"&quot;") + '">📋 העתיקי נודניק</button> ' +
+        '<button class="small-btn fu-done" data-k="' + d.k + '">✓ נשלח</button></span></div>';
+    }).join("");
+    document.querySelectorAll(".fu-copy").forEach(function(b){ b.addEventListener("click", function(){
+      navigator.clipboard.writeText(b.dataset.t.replace(/&quot;/g,'"')).then(function(){ b.textContent = "✓"; setTimeout(function(){ b.textContent = "📋 העתיקי נודניק"; }, 1500); });
+    }); });
+    document.querySelectorAll(".fu-done").forEach(function(b){ b.addEventListener("click", function(){
+      notes[b.dataset.k + "|followup_sent_at"] = new Date().toISOString();
+      window.__prSave(); renderFollowups();
+    }); });
+  }
+
+  /* auto-connect: signed briefs -> status */
+  function syncBriefs(){
+    if (!briefs || !briefs.briefs) return;
+    var evkey = slugCityKey();
+    var list = briefs.briefs[evkey] || [];
+    var early = [STAGES[0], STAGES[1], STAGES[2], STAGES[3]];
+    var changed = false;
+    list.forEach(function(b){
+      var bh = String(b.handle||"").replace(/^@/,"").toLowerCase();
+      allCreators().forEach(function(c){
+        if (String(c.handle||"").replace(/^@/,"").toLowerCase() !== bh) return;
+        var k = keyOf(c);
+        var cur = notes[k] || STAGES[0];
+        if (early.indexOf(cur) !== -1) {
+          notes[k] = STAGES[4];
+          notes[k + "|status_set_at"] = new Date().toISOString();
+          notes[k + "|brief_signed_at"] = b.received_at || new Date().toISOString();
+          changed = true;
+        }
+      });
+    });
+    if (changed) window.__prSave();
+  }
+
+  /* inbound applications -> pipeline button */
+  function enhanceApps(){
+    var appsList = document.getElementById("apps-list");
+    if (!appsList) return;
+    fetch("../state/influencer_applications.json?_=" + Date.now(), { cache: "no-store" })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if (!d || !Array.isArray(d.applications) || !d.applications.length) return;
+        notes.__inbound__ = notes.__inbound__ || [];
+        var have = {}; notes.__inbound__.forEach(function(a){ have[String(a.handle||"").toLowerCase()] = true; });
+        var btns = d.applications.filter(function(a){ return !have[String(a.handle||"").toLowerCase()]; });
+        if (!btns.length) return;
+        var div = document.createElement("div");
+        div.style.cssText = "margin-top:8px";
+        div.innerHTML = btns.map(function(a,i){
+          return '<button class="small-btn app-add" data-i="' + d.applications.indexOf(a) + '">➕ ' + (a.handle||"?") + ' לפייפליין</button> ';
+        }).join("");
+        appsList.appendChild(div);
+        div.querySelectorAll(".app-add").forEach(function(b){ b.addEventListener("click", function(){
+          var a = d.applications[+b.dataset.i];
+          notes.__inbound__ = notes.__inbound__ || [];
+          notes.__inbound__.push({ handle: a.handle, full_name: a.full_name, followers: a.followers, email: a.email, city: a.city, added_at: new Date().toISOString() });
+          window.__prSave(); b.textContent = "✓ נוסף"; b.disabled = true;
+          renderBoard(); renderFunnel();
+        }); });
+      }).catch(function(){});
+  }
+
+  /* CRM */
+  function initCrm(){
+    var toggle = document.getElementById("crm-toggle");
+    toggle.addEventListener("click", function(){
+      var b = document.getElementById("crm-body");
+      var open = b.style.display !== "none";
+      b.style.display = open ? "none" : "block";
+      toggle.querySelector(".chevron").textContent = open ? "◀" : "▼";
+    });
+    fetch("creators.json?_=" + Date.now(), { cache: "no-store" })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if (!d || !d.creators) return;
+        var rows = Object.keys(d.creators).map(function(h){ return d.creators[h]; });
+        function draw(q){
+          q = (q||"").toLowerCase();
+          var f = rows.filter(function(c){
+            return !q || JSON.stringify([c.handle, c.display_name, Object.keys(c.events||{})]).toLowerCase().indexOf(q) !== -1;
+          });
+          document.getElementById("crm-list").innerHTML = '<table class="creator-table"><thead><tr><th>Handle</th><th>שם</th><th>עוקבים</th><th>נישה</th><th>אימייל</th><th>אירועים</th><th>סטטוס נוכחי</th></tr></thead><tbody>' +
+            f.map(function(c){
+              var evs = Object.keys(c.events||{});
+              var st = "";
+              evs.forEach(function(ek){
+                var pref = (c.events[ek].city||"") + "|" + c.events[ek].rank + "|" + slugify(c.handle);
+                if (notes[pref]) st = notes[pref];
+              });
+              return "<tr><td><a href='" + c.profile_url + "' target='_blank'>" + c.handle + "</a></td><td>" + (c.display_name||"") + "</td><td>" + (c.followers||"").toLocaleString() + "</td><td>" + (c.niche||"") + "</td><td>" + (c.email||"—") + "</td><td>" + evs.join("<br>") + "</td><td style='font-size:11px'>" + (st||"—") + "</td></tr>";
+            }).join("") + "</tbody></table>";
+        }
+        draw("");
+        document.getElementById("crm-search").addEventListener("input", function(e){ draw(e.target.value); });
+      }).catch(function(){});
+  }
+
+  function boot(){
+    notes = window.__prNotes;
+    fetch("../state/influencer_briefs.json?_=" + Date.now(), { cache: "no-store" })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(b){ briefs = b; syncBriefs(); renderBoard(); renderFunnel(); renderFollowups(); })
+      .catch(function(){ renderBoard(); renderFunnel(); renderFollowups(); });
+    enhanceApps();
+    initCrm();
+  }
+  if (window.__prNotes) boot();
+  else document.addEventListener("pr-notes-ready", boot);
+  document.addEventListener("pr-status-changed", function(){ if (notes) { renderBoard(); renderFunnel(); renderFollowups(); } });
 })();
 </script>
 </body>
