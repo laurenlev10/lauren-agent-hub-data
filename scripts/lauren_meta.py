@@ -448,8 +448,17 @@ def fetch_fb_post_comments(post_id: str, limit: int = 25, *,
     fields = "id,message,from,created_time,permalink_url,comment_count,like_count,parent"
     params = {"fields": fields, "limit": limit, "access_token": tok,
               "filter": "stream", "order": "chronological"}
-    data = _get(f"/{post_id}/comments", params)
-    return data.get("data", [])
+    # 2026-07-02 — paginate (was first page only; busy posts lost comments 26+)
+    out, after = [], None
+    for _ in range(8):  # cap ~200
+        if after:
+            params["after"] = after
+        data = _get(f"/{post_id}/comments", params)
+        out.extend(data.get("data", []))
+        after = data.get("paging", {}).get("cursors", {}).get("after")
+        if not after or not data.get("data"):
+            break
+    return out
 
 
 def fetch_ig_media_comments(media_id: str, limit: int = 25, *,
@@ -458,14 +467,23 @@ def fetch_ig_media_comments(media_id: str, limit: int = 25, *,
     tok = token or get_token()
     fields = "id,text,username,timestamp,like_count,replies{id,text,username,timestamp}"
     params = {"fields": fields, "limit": limit, "access_token": tok}
-    try:
-        data = _get(f"/{media_id}/comments", params)
-    except RuntimeError:
-        # Sometimes the replies{} expansion trips a Meta backend quirk that
-        # returns concat'd JSON. Retry without expansion.
-        params["fields"] = "id,text,username,timestamp,like_count"
-        data = _get(f"/{media_id}/comments", params)
-    return data.get("data", [])
+    # 2026-07-02 — paginate (was first page only; busy reels lost comments 26+)
+    out, after = [], None
+    for _ in range(8):  # cap ~200
+        if after:
+            params["after"] = after
+        try:
+            data = _get(f"/{media_id}/comments", params)
+        except RuntimeError:
+            # Sometimes the replies{} expansion trips a Meta backend quirk that
+            # returns concat'd JSON. Retry without expansion.
+            params["fields"] = "id,text,username,timestamp,like_count"
+            data = _get(f"/{media_id}/comments", params)
+        out.extend(data.get("data", []))
+        after = data.get("paging", {}).get("cursors", {}).get("after")
+        if not after or not data.get("data"):
+            break
+    return out
 
 
 def fetch_recent_inbox(days: int = 7, *,
@@ -473,8 +491,8 @@ def fetch_recent_inbox(days: int = 7, *,
                        include_ig_dms: bool = False,    # default off — needs Meta capability
                        include_fb_comments: bool = True,
                        include_ig_comments: bool = True,
-                       fb_post_limit: int = 10,
-                       ig_media_limit: int = 10) -> dict:
+                       fb_post_limit: int = 25,
+                       ig_media_limit: int = 25) -> dict:
     """
     Aggregate snapshot for the @meta inbox triage — one round-trip-friendly
     call that returns everything the daily run needs.
@@ -571,13 +589,24 @@ def reply_to_messenger(recipient_id: str, text: str, *,
 
 def reply_to_comment(comment_id: str, text: str, *,
                      dry_run: bool = False,
-                     token: _Optional[str] = None) -> dict:
-    """Reply to an FB or IG comment (same endpoint pattern for both)."""
+                     token: _Optional[str] = None,
+                     ig: _Optional[bool] = None) -> dict:
+    """Reply to an FB or IG comment.
+
+    2026-07-02 FIX — IG comment replies use the /replies edge, NOT /comments
+    (that FB-only edge 400s on IG ids; every IG auto-reply had silently failed
+    since Phase 2b shipped). `ig` may be passed explicitly by callers that know
+    the channel; if None, inferred: FB comment ids contain "_" (postid_commentid),
+    IG comment ids are bare digits.
+    """
+    if ig is None:
+        ig = "_" not in (comment_id or "")
+    edge = "replies" if ig else "comments"
     if dry_run:
-        return {"dry_run": True, "comment_id": comment_id, "text": text}
+        return {"dry_run": True, "comment_id": comment_id, "text": text, "edge": edge}
     tok = token or get_token()
     body = _urlparse.urlencode({"message": text, "access_token": tok}).encode("utf-8")
-    req = _urlreq.Request(f"{API_BASE}/{comment_id}/comments",
+    req = _urlreq.Request(f"{API_BASE}/{comment_id}/{edge}",
                           data=body, method="POST",
                           headers={"Content-Type": "application/x-www-form-urlencoded"})
     with _urlreq.urlopen(req, timeout=20) as resp:

@@ -85,7 +85,8 @@ jobs:
                   if kind == "messenger":
                       resp = reply_to_messenger(tid, text)
                   elif kind in ("fb_comment", "ig_comment"):
-                      resp = reply_to_comment(tid, text)
+                      # 2026-07-02 FIX — IG replies use /replies edge
+                      resp = reply_to_comment(tid, text, ig=(kind == "ig_comment"))
                   else:
                       print(f"⚠ Unknown reply_kind: {kind}")
                       sys.exit(1)

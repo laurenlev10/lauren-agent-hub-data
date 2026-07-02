@@ -615,7 +615,7 @@ _OFF_SCHEDULE_TEMPLATES = [
     "BEST to come for 2027 💄✨ Watch our Facebook for the announcement 👀",
     "Aww mama 💔 No {C} in 2026 — we rotate cities every 1–2 years to give "
     "each one our ALL when we come ✨ Definitely on our radar for 2027 💄💕",
-    "Lovely girl 💕 {C}'s not on our 2026 lineup this year — but trust me, "
+    "Lovely girl 💕 {C} isn't on our 2026 lineup this year — but trust me, "
     "you're heard. We'll do our best to bring the sale to {C} in 2027 💄✨ "
     "Follow our Facebook for the drop 👀",
     "Gorgeous, {C} didn't make 2026 this year 💔 We rotate cities to keep the "
@@ -699,16 +699,25 @@ def _find_in_schedule(place: str, schedule: dict):
     for k in sched_keys:
         if _normalize_place(k) == p:
             return (k, schedule[k])
-    # Substring
-    for k in sched_keys:
-        nk = _normalize_place(k)
-        if p in nk or nk.split(",")[0].strip() in p:
-            return (k, schedule[k])
-    # Concatenated (sanbernardino → san bernardino)
+    # Substring — 2026-07-02 FIX: whole-word matching only + min length 3.
+    # The old raw `p in nk` matched "no" inside "re-no-, nv" and replied about
+    # Reno to "no texas?" comments.
+    import re as _re_sched
+    def _word_in(a, b):
+        return bool(_re_sched.search(r"(?<![a-z0-9])" + _re_sched.escape(a) + r"(?![a-z0-9])", b))
+    if len(p) >= 3:
+        for k in sched_keys:
+            nk = _normalize_place(k)
+            city_part = nk.split(",")[0].strip()
+            if _word_in(p, nk) or (len(city_part) >= 3 and _word_in(city_part, p)):
+                return (k, schedule[k])
+    # Concatenated (sanbernardino → san bernardino) — min 5 chars (was 2:
+    # "no" matched "northlasvegas")
     p_compact = p.replace(" ", "")
-    for k in sched_keys:
-        if _normalize_place(k).replace(" ", "").startswith(p_compact[:8]):
-            return (k, schedule[k])
+    if len(p_compact) >= 5:
+        for k in sched_keys:
+            if _normalize_place(k).replace(" ", "").startswith(p_compact[:8]):
+                return (k, schedule[k])
     return None
 
 
@@ -869,6 +878,12 @@ _PLACE_STOPWORDS = {
     "love","please","pls","plz","hey","hi","of","your","our","next","back","go","going",
     "gonna","visit","visiting","make","made","or","and","y'all","yall","sale","event",
     "show","popup","pop-up","any","chance","time","ever","also","too","this","that",
+    # 2026-07-02 — question/filler words that were leaking into place names
+    # ("What about Texas" → city "What about"; "no texas" → city "no";
+    #  "add San Antonio" → city "add San Antonio")
+    "no","not","yes","what","about","add","adding","why","where","how","who",
+    "never","again","soon","need","needs","here","there","us","only","even",
+    "still","yet","miss","missing","skip","skipped",
 }
 
 # 2026-06-01 — Event-request phrasing WITHOUT the usual "when/coming/visit" trigger
@@ -996,6 +1011,9 @@ def _clean_place_candidate(cand: str) -> str:
     words = cand.strip().rstrip("?.!,").split()
     while words and words[-1].lower() in _PLACE_TRAIL_TRIM:
         words.pop()
+    # 2026-07-02 — strip leading filler/verbs ("add San Antonio", "please come to X")
+    while words and words[0].lower() in _PLACE_STOPWORDS:
+        words.pop(0)
     return " ".join(words).strip()
 
 
@@ -1007,6 +1025,9 @@ def _is_non_place(place: str) -> bool:
         return True
     p = place.strip().lower().rstrip("?.!,")
     if p in _NON_PLACE_WORDS:
+        return True
+    # 2026-07-02 — every word is a stopword ("what about", "no", "add") = not a place
+    if all(w in _PLACE_STOPWORDS for w in p.split()):
         return True
     last = p.split()[-1] if p.split() else ""
     if last in _MONTH_NAMES or p in _MONTH_NAMES:
@@ -1069,6 +1090,70 @@ def _is_tag_only(text: str) -> bool:
     return True
 
 
+
+# 2026-07-02 — State-aware schedule lookup. "Are you coming to New Mexico??"
+# was getting a rotation ("not this year") reply even though Santa Fe + Albuquerque
+# ARE on the 2026 schedule. When a mention resolves to a STATE, answer with that
+# state's upcoming events; when a city misses but its state has events, say so.
+_STATE_ON_SCHEDULE_TEMPLATES = [
+    "YESSS 🎉 We ARE coming to {S}: {LIST}! Fri–Sun 10am–5pm, free admission 💄 See you there?",
+    "Girl, good news — {S} is ON the 2026 tour: {LIST} 💕 Free entry, 10am–5pm. Mark your calendar!",
+    "We got you, {S}! 🙌 Catch us at {LIST} — free admission, Fri–Sun 10am–5pm 💄",
+]
+_CITY_MISS_STATE_HIT_TEMPLATES = [
+    "{C} isn't on the 2026 stop list 💔 BUT we ARE coming to {S}: {LIST}! Worth the trip — free admission, 10am–5pm 💄",
+    "No {C} this year 🥺 but don't worry — {S} is on the 2026 tour: {LIST}! Free entry, Fri–Sun 10am–5pm 💕",
+]
+
+
+def _as_state_code(place: str):
+    """'New Mexico' / 'NM' / 'nevada' → 'NM'/'NV'; None if not a state."""
+    if not place:
+        return None
+    t = place.strip().rstrip("?.!,").strip()
+    if t.upper() in _US_STATES and len(t) == 2:
+        return t.upper()
+    return _STATE_NAME_TO_CODE.get(t.lower())
+
+
+def _state_schedule_hits(state_code: str, schedule: dict, max_hits: int = 2) -> list:
+    """Upcoming (not past) schedule entries in this state → [(city_title, dates)]."""
+    hits = []
+    sc = (state_code or "").lower()
+    for k, d in schedule.items():
+        if "," in k and k.split(",")[1].strip().lower() == sc and not _is_past(d):
+            hits.append((k.split(",")[0].strip().title(), d))
+            if len(hits) >= max_hits:
+                break
+    return hits
+
+
+def _fmt_state_hits(hits: list) -> str:
+    return " & ".join(f"{c} ({d})" for c, d in hits)
+
+
+def _classify_state_mention(state_code: str, kb: dict, seed: str) -> dict:
+    """Bucket-A reply for a state-level mention."""
+    state_name = _US_STATES.get(state_code, state_code)
+    hits = _state_schedule_hits(state_code, kb.get("schedule", {}))
+    if hits:
+        tmpl = _seeded_pick(_STATE_ON_SCHEDULE_TEMPLATES, seed + state_code)
+        return {"bucket": "A",
+                "reason": f"State mention ({state_name}) — {len(hits)} upcoming event(s) in state",
+                "reply": tmpl.format(S=state_name, LIST=_fmt_state_hits(hits)),
+                "event_chip": {"city": hits[0][0], "state": state_code,
+                               "dates": hits[0][1], "status": "upcoming", "confidence": "high"}}
+    return {"bucket": "A",
+            "reason": f"State mention ({state_name}) — no 2026 events in state, rotation reply",
+            "reply": city_rotation_reply(state_name, seed=seed + state_code)}
+
+
+# 2026-07-02 — "what about <place>?" phrasing ("What about San Diego?" was Bucket B)
+WHAT_ABOUT_PAT = re.compile(
+    r"\bwhat\s+about\s+([A-Za-z][A-Za-z.\-']*(?:\s+[A-Za-z][A-Za-z.\-']*){0,3})",
+    re.IGNORECASE,
+)
+
 def classify(text: str, kb: dict) -> dict:
     """
     Return {bucket: 'A'|'B'|'NEG'|'SKIP', reason, suggested_reply} for a message.
@@ -1105,12 +1190,9 @@ def classify(text: str, kb: dict) -> dict:
     # 2026-05-14 PM — state-name-only message ("Ca", "California") → CA event rotation reply
     state_code = _detect_state_name(text)
     if state_code:
-        state_name = _US_STATES[state_code]
-        return {
-            "bucket": "A",
-            "reason": f"State mention ({state_name}) — off-schedule rotation reply",
-            "reply": city_rotation_reply(state_name, seed=kb.get("_seed","") + state_code),
-        }
+        # 2026-07-02 — consult the schedule (was blind rotation reply even when
+        # the state HAS upcoming events)
+        return _classify_state_mention(state_code, kb, kb.get("_seed", ""))
 
     t = text.strip()
 
@@ -1270,7 +1352,7 @@ def classify(text: str, kb: dict) -> dict:
     if place_state:
         _place_for_reply = place_state[0]
     else:
-        m_evt = EVENT_REQUEST_PAT.search(t)
+        m_evt = EVENT_REQUEST_PAT.search(t) or WHAT_ABOUT_PAT.search(t)
         if m_evt:
             cand = _clean_place_candidate(m_evt.group(1))
             # strip a trailing state token off the captured place ("Abilene TX" -> "Abilene")
@@ -1296,6 +1378,10 @@ def classify(text: str, kb: dict) -> dict:
         _place_for_reply = None
     if _place_for_reply:
         seed = kb.get("_seed", "") + _place_for_reply
+        # 2026-07-02 — the "place" may actually be a STATE ("What about Texas")
+        _st = _as_state_code(_place_for_reply)
+        if _st:
+            return _classify_state_mention(_st, kb, kb.get("_seed", ""))
         hit = _find_in_schedule(_place_for_reply, kb["schedule"])
         if hit:
             city_key, dates = hit
@@ -1312,6 +1398,22 @@ def classify(text: str, kb: dict) -> dict:
                     "reply": city_on_schedule_reply(city_title, dates, seed=seed),
                     "event_chip": {"city": city_title, "state": _state,
                                    "dates": dates, "status": "upcoming", "confidence": "high"}}
+        # 2026-07-02 — city not on schedule, but if we KNOW the state and the
+        # state HAS upcoming events, say so ("Las Cruces? no — but Santa Fe &
+        # Albuquerque, NM are coming!") instead of a plain rotation reply.
+        _st2 = place_state[1] if place_state else None
+        if _st2:
+            _hits2 = _state_schedule_hits(_st2, kb.get("schedule", {}))
+            if _hits2:
+                _tmpl2 = _seeded_pick(_CITY_MISS_STATE_HIT_TEMPLATES, seed)
+                return {"bucket": "A",
+                        "reason": f"City+state mention — '{_place_for_reply}' not on schedule but {_st2} has {len(_hits2)} event(s)",
+                        "reply": _tmpl2.format(C=_prettify_place(_place_for_reply),
+                                               S=_US_STATES.get(_st2, _st2),
+                                               LIST=_fmt_state_hits(_hits2)),
+                        "event_chip": {"city": _hits2[0][0], "state": _st2,
+                                       "dates": _hits2[0][1], "status": "upcoming",
+                                       "confidence": "high"}}
         return {"bucket": "A",
                 "reason": f"City+state mention — '{_place_for_reply}' NOT on 2026 schedule, rotation-policy reply",
                 "reply": city_rotation_reply(_place_for_reply, seed=seed)}
@@ -1324,6 +1426,10 @@ def classify(text: str, kb: dict) -> dict:
     m_b = BARE_PLACE_PAT.match(t) if (not m_q and not _starts_with_qword) else None
     if m_q or m_b:
         place = _clean_place_candidate(m_q.group(2) if m_q else m_b.group(1))
+        # 2026-07-02 — "are you coming to New Mexico??" — the place is a STATE
+        _stq = _as_state_code(place)
+        if _stq:
+            return _classify_state_mention(_stq, kb, kb.get("_seed", ""))
         hit = _find_in_schedule(place, kb["schedule"])
         seed = kb.get("_seed", "") + place  # conv-id + place for variation seed
         if hit:
@@ -1997,7 +2103,7 @@ def main():
     print("Fetching inbox snapshot...")
     snap = fetch_recent_inbox(days=7, include_messenger=True, include_ig_dms=False,
                               include_fb_comments=True, include_ig_comments=True,
-                              fb_post_limit=10, ig_media_limit=10)
+                              fb_post_limit=25, ig_media_limit=25)
     print(f"  messenger: {len(snap['messenger'])}, "
           f"fb_comments groups: {len(snap['fb_comments'])}, "
           f"ig_comments groups: {len(snap['ig_comments'])}")
@@ -2324,7 +2430,9 @@ def main():
             if handled.get(key, {}).get("handled"):
                 continue
             try:
-                reply_to_comment(comment_id, c["cls"]["reply"], dry_run=False)
+                # 2026-07-02 FIX — IG replies must go to /replies (channel-aware)
+                reply_to_comment(comment_id, c["cls"]["reply"], dry_run=False,
+                                 ig=(channel == "ig_comment"))
                 handled[key] = {
                     "handled": True, "handledAt": _now_iso(),
                     "method": f"phase2b-{channel}-auto",
@@ -2334,6 +2442,18 @@ def main():
                 print(f"  ❌ {channel} {comment_id}: {e}")
                 c_failed += 1
         print(f"  Phase 2b comment auto-reply: sent={c_sent} failed={c_failed}")
+        # 2026-07-02 — fail-loud (IRON RULE #3 spirit): the IG /comments-endpoint
+        # bug failed EVERY reply for weeks with zero alerts because the run
+        # itself "succeeded". 3+ failures in one run → SMS Lauren.
+        if c_failed >= 3:
+            try:
+                from lauren_sms import send_sms
+                send_sms(os.environ.get("LAUREN_PHONE", "4243547625"),
+                         f"@meta ⚠ {c_failed} תשובות אוטומטיות לתגובות נכשלו בריצה הזו "
+                         f"(נשלחו {c_sent}). צריך לבדוק את הלוג.\n"
+                         "https://github.com/laurenlev10/lauren-agent-hub-data/actions")
+            except Exception as _sms_e:
+                print(f"  ⚠ failure-SMS failed (non-fatal): {_sms_e}")
         if c_sent:
             handled_path.write_text(json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
 
