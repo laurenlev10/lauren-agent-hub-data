@@ -670,9 +670,13 @@ _INTERESTED_PAST_TEMPLATES = [
 # 2026-05-20 PM #2 — Messenger DM "Where is location?" with NO post context.
 # We can't know which event they're asking about, so soften with the
 # next-upcoming event + ask which city they meant. Lauren reviews/edits.
+# 2026-07-02 — Lauren's directive: general "where is the event?" questions get
+# the FULL tour schedule page (direct URL per IRON RULE #6), so nobody has to
+# guess which city they meant. Next-event mention kept as a bonus.
+SCHEDULE_PAGE_URL = "https://www.themakeupblowout.com/#events"
 _LOCATION_NO_CONTEXT_TEMPLATES = [
-    "Hi {first_word} 💜 So sorry — could you let me know which event city you're asking about? Our next stop is {next_city}, {next_state} on {next_dates} 📍 {next_address}. Can't wait to see you wherever you join us ✨💄",
-    "Hey {first_word} 💕 Happy to help! Which city were you asking about? Our next event is in {next_city}, {next_state} — {next_dates} 📍 {next_address}. We'd love to see you 💄✨",
+    "Hey love 💕 All our upcoming cities & dates are right here 👉 " + SCHEDULE_PAGE_URL + " — our next stop is {next_city}, {next_state} {next_dates} 📍 {next_address}. See you there! 💄✨",
+    "Hi babe 💜 You can see the FULL 2026 tour schedule here 👉 " + SCHEDULE_PAGE_URL + " ✨ Next up: {next_city}, {next_state} — {next_dates} 📍 {next_address} 💄",
 ]
 
 
@@ -1543,8 +1547,8 @@ def classify(text: str, kb: dict) -> dict:
                 next_city=nxt_city, next_state=nxt_state,
                 next_dates=nxt.get("dates",""), next_address=nxt.get("address","")
             )
-            return {"bucket": "B",
-                    "reason": f"Location question without post context — soft fallback w/ next event ({nxt_city})",
+            return {"bucket": "A",
+                    "reason": f"Location question w/o context — schedule page + next event ({nxt_city})",
                     "reply": reply,
                     "event_chip": {"city": nxt_city, "state": nxt_state,
                                    "dates": nxt.get("dates",""), "status": "next-upcoming",
@@ -1602,6 +1606,7 @@ You classify ONE Instagram/Facebook comment or DM and, when appropriate, draft t
 - Sign-up gift: FREE Eyeshadow on arrival. Share-our-post bonus gift: FREE Glitter Liner.
 - We ROTATE cities: each city gets a sale roughly once every 1-2 years. If a city is not on the schedule below, it is NOT happening in 2026 — never promise a city or date not listed.
 - Website for online info: https://www.themakeupblowout.com
+- FULL tour schedule page (all cities & dates): https://www.themakeupblowout.com/#events
 
 ## 2026 schedule
 {sched_lines}
@@ -1624,7 +1629,7 @@ If a post caption is provided in the user message, the comment is about THAT eve
 ## Reply rules (bucket A only)
 1. Reply in the SAME language as the comment — English or Spanish ONLY. NEVER Hebrew, never any other language.
 2. Warm, playful brand voice ("girl", "babe", emojis 💄✨💕) — match the energy. In Spanish use the same warmth (amiga, chica).
-3. Max 300 characters. No links. No hashtags.
+3. Max 300 characters. No hashtags. No links EXCEPT https://www.themakeupblowout.com/#events — DO include that link whenever someone asks generally where/when the events are, which cities you visit, or for the schedule (and it's a good add-on for city questions too).
 4. NEVER invent cities, dates, venues, or discounts. Only the schedule above. City asked about but not listed → rotation policy: not this year, we rotate every 1-2 years, it goes on the 2027 wishlist, follow us for announcements. City/date already passed → "we were just there {{dates}}" + rotation message. State asked about → mention that state's upcoming events if any; if only past ones, say we already came this year.
 5. If the event in the post context already ended and the comment is just excitement ("can't wait!"), use SKIP.
 
