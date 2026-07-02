@@ -1578,8 +1578,16 @@ _ES_ISSUE_RE = re.compile(
 
 def _llm_system_prompt(kb: dict) -> str:
     today = dt.date.today().strftime("%B %d, %Y")
-    sched_lines = "\n".join(f"- {city.title()}: {dates}, 2026"
-                            for city, dates in kb.get("schedule", {}).items())
+    # 2026-07-02 — split into two explicit sections (inline PAST/UPCOMING tags
+    # still produced tense mistakes: "we just hit San Jose Aug 28-30" for an
+    # upcoming date)
+    _up, _past = [], []
+    for city, dates in kb.get("schedule", {}).items():
+        (_past if _is_past(dates) else _up).append(f"- {city.title()}: {dates}")
+    sched_lines = ("### UPCOMING events (these have NOT happened yet — always future tense):\n"
+                   + "\n".join(_up)
+                   + "\n\n### PAST 2026 events (already happened — always past tense, never invite):\n"
+                   + "\n".join(_past))
     faq_lines = "\n".join(f"Q: {f['q']}\nA: {f['a']}" for f in kb.get("faqs", []))
     venues = kb.get("_venues", [])
     venue_lines = "\n".join(f"- {v['city']}: {v['venue']}, {v['address']} ({v['dates']})"
@@ -1595,7 +1603,7 @@ You classify ONE Instagram/Facebook comment or DM and, when appropriate, draft t
 - We ROTATE cities: each city gets a sale roughly once every 1-2 years. If a city is not on the schedule below, it is NOT happening in 2026 — never promise a city or date not listed.
 - Website for online info: https://www.themakeupblowout.com
 
-## 2026 schedule (complete — past AND upcoming)
+## 2026 schedule
 {sched_lines}
 
 ## Recent/upcoming venue addresses
