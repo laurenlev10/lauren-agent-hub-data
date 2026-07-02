@@ -1415,14 +1415,26 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
       }
       var html = "";
       keys.sort().reverse().forEach(function(ev){
-        var rows = d.briefs[ev].map(function(b){
+        var rows = d.briefs[ev].map(function(b, bi){
           var sig = b.signature_url ? '<a href="' + b.signature_url + '" target="_blank">🖊 חתימה</a>' : "—";
           var when = (b.received_at || "").slice(0,16).replace("T"," ");
-          return "<tr><td>" + (b.full_name || "") + "</td><td>@" + String(b.handle || "").replace(/^@/,"") + "</td><td>" + (b.platform || "") + "</td><td>" + (b.email || "") + "</td><td>" + when + "</td><td>" + sig + "</td></tr>";
+          var did = "bf-" + ev.replace(/[^a-z0-9]/gi,"") + "-" + bi;
+          var FIELDS = [["אירוע", (b.event_city||"") + " · " + (b.event_dates||"")], ["אולם", b.venue], ["שם מלא", b.full_name], ["Handle", b.handle], ["פלטפורמה", b.platform], ["אימייל", b.email], ["טלפון", b.phone], ["נציגת MBS בצ'ק-אין", b.mbs_rep], ["גרסת תנאים", b.terms_version], ["זמן חתימה (מקומי)", b.signed_at_local], ["התקבל בשרת", b.received_at]];
+          var detail = FIELDS.filter(function(f){ return f[1]; }).map(function(f){ return "<b>" + f[0] + ":</b> " + f[1]; }).join("<br>");
+          if (b.signature_url) detail += '<br><br><img src="' + b.signature_url + '" alt="signature" style="max-width:280px;border:1px solid #eee;border-radius:6px;background:#fff">';
+          return "<tr><td>" + (b.full_name || "") + "</td><td>@" + String(b.handle || "").replace(/^@/,"") + "</td><td>" + (b.platform || "") + "</td><td>" + (b.email || "") + "</td><td>" + when + "</td><td>" + sig + ' · <a href="#" class="bf-toggle" data-t="' + did + '">📄 פרטים</a></td></tr>' +
+            '<tr id="' + did + '" style="display:none"><td colspan="6" style="background:#fdf2f8;font-size:12px;line-height:1.7;padding:10px">' + detail + "</td></tr>";
         }).join("");
         html += '<div style="margin-bottom:12px"><div style="font-weight:bold;font-size:13px;margin-bottom:4px">' + ev + " · " + d.briefs[ev].length + ' חתימות</div><table class="creator-table"><thead><tr><th>שם</th><th>Handle</th><th>פלטפורמה</th><th>אימייל</th><th>מתי</th><th>חתימה</th></tr></thead><tbody>' + rows + "</tbody></table></div>";
       });
       document.getElementById("briefs-list").innerHTML = html;
+      document.querySelectorAll(".bf-toggle").forEach(function(a){
+        a.addEventListener("click", function(e){
+          e.preventDefault();
+          var r = document.getElementById(a.dataset.t);
+          if (r) r.style.display = (r.style.display === "none") ? "" : "none";
+        });
+      });
     }).catch(function(e){});
 })();
 </script>
@@ -1483,7 +1495,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
           '<div style="color:#6b7280">' + (c.display_name||"") + ' · ' + (typeof c.followers === "number" ? c.followers.toLocaleString() : (c.followers||"")) + '</div>' + st +
           '<div style="margin-top:4px;display:flex;gap:4px;justify-content:flex-end">' + back + adv + '</div></div>';
       }).join("");
-      return '<div style="min-width:170px;flex:0 0 170px;background:var(--bg,#FFF0F7);border-radius:10px;padding:8px;">' +
+      return '<div style="min-width:142px;flex:1 1 142px;max-width:200px;background:var(--bg,#FFF0F7);border-radius:10px;padding:6px;">' +
         '<div style="font-size:11px;font-weight:bold;margin-bottom:6px;color:#9d174d">' + name + ' (' + cols[i].length + ')</div>' + cards + '</div>';
     }).join("");
     document.querySelectorAll(".bd-adv").forEach(function(b){ b.addEventListener("click", function(){ setStage(b.dataset.k, STAGES[+b.dataset.next]); }); });
