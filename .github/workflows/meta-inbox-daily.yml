@@ -37,6 +37,10 @@ on:
         description: 'Mark ALL items as handled WITHOUT sending (manual cleanup)'
         type: boolean
         default: false
+      ads_backfill_since:
+        description: 'Backfill AD comments since date (e.g. 2026-01-01). Empty = ACTIVE ads only.'
+        type: string
+        default: 
 
 jobs:
   triage:
@@ -59,6 +63,10 @@ jobs:
           # 2026-07-02 — Claude engine (EN/ES understanding + replies).
           # No key set → automatic fallback to the keyword engine.
           ANTHROPIC_API_KEY:   ${{ secrets.ANTHROPIC_API_KEY }}
+          # 2026-07-02 — ad-comments coverage (dark posts via Marketing API)
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_AD_ACCOUNT_ID:     ${{ secrets.META_AD_ACCOUNT_ID }}
+          ADS_BACKFILL_SINCE:     ${{ inputs.ads_backfill_since }}
         run: |
           ARGS=""
           if [ "${{ github.event_name }}" = "schedule" ]; then

@@ -2253,6 +2253,23 @@ def main():
           f"fb_comments groups: {len(snap['fb_comments'])}, "
           f"ig_comments groups: {len(snap['ig_comments'])}")
 
+    # 2026-07-02 — AD comments (Lauren: "לא לפספס שום מודעה או תגובה בשום מקום").
+    # Dark ad posts don't appear in /{page}/posts; pull them via the Marketing API.
+    from lauren_meta import fetch_ads_comments
+    _ads_since = os.environ.get("ADS_BACKFILL_SINCE", "").strip() or None
+    try:
+        ad_fb, ad_ig, ad_errs = fetch_ads_comments(all_since=_ads_since)
+        known_fb = {g["post"].get("id") for g in snap["fb_comments"]}
+        known_ig = {g["media"].get("id") for g in snap["ig_comments"]}
+        snap["fb_comments"] += [g for g in ad_fb if g["post"].get("id") not in known_fb]
+        snap["ig_comments"] += [g for g in ad_ig if g["media"].get("id") not in known_ig]
+        snap["errors"] += ad_errs[:10]
+        print(f"  ads coverage ({'ALL since ' + _ads_since if _ads_since else 'ACTIVE only'}): "
+              f"+{len(ad_fb)} fb ad-posts, +{len(ad_ig)} ig ad-media with comments"
+              f" ({len(ad_errs)} errors)")
+    except Exception as e:
+        print(f"  ⚠ ads coverage failed (non-fatal): {e}")
+
     # Load dedup memory + filter items Lauren has already handled
     handled = load_handled()
     print(f"  handled-state entries: {len(handled)}")
@@ -2340,6 +2357,10 @@ def main():
         for cmt in grp["comments"]:
             if is_handled(handled, "fb-comment", cmt.get("id", "")):
                 continue
+            # 2026-07-02 — already answered publicly (by Lauren or the agent) → skip
+            _replies = (cmt.get("comments") or {}).get("data", [])
+            if any((r.get("from") or {}).get("id") == get_fb_page_id() for r in _replies):
+                continue
             txt = cmt.get("message", "")
             kb["_seed"] = cmt.get("id", "")
             kb["_post_context"] = {
@@ -2369,6 +2390,10 @@ def main():
         media_permalink = grp["media"].get("permalink", "")
         for cmt in grp["comments"]:
             if is_handled(handled, "ig-comment", cmt.get("id", "")):
+                continue
+            # 2026-07-02 — already answered publicly → skip
+            _reps = (cmt.get("replies") or {}).get("data", [])
+            if any(r.get("username") == "themakeupblowoutsale" for r in _reps):
                 continue
             txt = cmt.get("text", "")
             kb["_seed"] = cmt.get("id", "")

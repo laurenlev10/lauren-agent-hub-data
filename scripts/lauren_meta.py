@@ -445,7 +445,8 @@ def fetch_fb_post_comments(post_id: str, limit: int = 25, *,
                            token: _Optional[str] = None) -> list:
     """Comments on a single FB Page post."""
     tok = token or get_token()
-    fields = "id,message,from,created_time,permalink_url,comment_count,like_count,parent"
+    fields = ("id,message,from,created_time,permalink_url,comment_count,like_count,parent,"
+              "comments.limit(10){from}")  # 2026-07-02 — to skip already-answered
     params = {"fields": fields, "limit": limit, "access_token": tok,
               "filter": "stream", "order": "chronological"}
     # 2026-07-02 — paginate (was first page only; busy posts lost comments 26+)
@@ -560,6 +561,102 @@ def fetch_recent_inbox(days: int = 7, *,
             out["errors"].append(f"ig_media_list: {e}")
 
     return out
+
+
+
+
+# ============================================================================
+# 2026-07-02 — AD comments coverage (Lauren: "לא לפספס שום מודעה או תגובה").
+# Dark/ad-created posts do NOT appear in /{page}/posts (verified: the Spanish
+# Mesa ad post is missing there). The reliable source is the Marketing API:
+# every ad's creative carries effective_object_story_id (FB post) and
+# effective_instagram_media_id (IG ad media). We scan comments on those too.
+# ============================================================================
+
+def fetch_ad_comment_objects(*, all_since: str = None, token: _Optional[str] = None):
+    """Return (fb_story_ids, ig_media_ids) from the ad account.
+
+    all_since='2026-01-01' → EVERY ad created since then (backfill mode).
+    all_since=None         → only ACTIVE/recently-delivering ads (regular runs).
+    """
+    tok = token or _os.environ.get("META_SYSTEM_USER_TOKEN", "").strip() or get_token()
+    acct = _os.environ.get("META_AD_ACCOUNT_ID", "").strip()
+    if not acct:
+        return set(), set()
+    if not acct.startswith("act_"):
+        acct = "act_" + acct
+    story_ids, ig_ids = set(), set()
+    after = None
+    fetched = 0
+    while True:
+        params = {"fields": "created_time,effective_status,"
+                            "creative{effective_object_story_id,effective_instagram_media_id}",
+                  "limit": 100, "access_token": tok}
+        if not all_since:
+            params["filtering"] = _json.dumps([{"field": "effective_status",
+                                                "operator": "IN",
+                                                "value": ["ACTIVE"]}])
+        if after:
+            params["after"] = after
+        data = _get(f"/{acct}/ads", params)
+        rows = data.get("data", [])
+        for a in rows:
+            if all_since and (a.get("created_time", "") or "")[:10] < all_since:
+                continue
+            c = a.get("creative") or {}
+            if c.get("effective_object_story_id"):
+                story_ids.add(c["effective_object_story_id"])
+            if c.get("effective_instagram_media_id"):
+                ig_ids.add(c["effective_instagram_media_id"])
+        fetched += len(rows)
+        after = data.get("paging", {}).get("cursors", {}).get("after")
+        if not after or not rows or fetched >= 2000:
+            break
+    return story_ids, ig_ids
+
+
+def fetch_ads_comments(*, all_since: str = None):
+    """Comment groups for ad objects, shaped like fetch_recent_inbox output.
+
+    Returns (fb_groups, ig_groups, errors). Objects without comments are skipped.
+    """
+    fb_groups, ig_groups, errors = [], [], []
+    try:
+        story_ids, ig_ids = fetch_ad_comment_objects(all_since=all_since)
+    except Exception as e:
+        return [], [], [f"ad_objects: {e}"]
+    tok = get_token()
+    for sid in story_ids:
+        try:
+            cs = fetch_fb_post_comments(sid, limit=50)
+            if not cs:
+                continue
+            try:
+                meta = _get(f"/{sid}", {"fields": "message,permalink_url,created_time",
+                                        "access_token": tok})
+            except Exception:
+                meta = {"id": sid}
+            meta["id"] = sid
+            meta["_is_ad_post"] = True
+            fb_groups.append({"post": meta, "comments": cs})
+        except Exception as e:
+            errors.append(f"ad_fb[{sid}]: {str(e)[:80]}")
+    for mid in ig_ids:
+        try:
+            cs = fetch_ig_media_comments(mid, limit=50)
+            if not cs:
+                continue
+            try:
+                meta = _get(f"/{mid}", {"fields": "caption,permalink,timestamp",
+                                        "access_token": tok})
+            except Exception:
+                meta = {"id": mid}
+            meta["id"] = mid
+            meta["_is_ad_media"] = True
+            ig_groups.append({"media": meta, "comments": cs})
+        except Exception as e:
+            errors.append(f"ad_ig[{mid}]: {str(e)[:80]}")
+    return fb_groups, ig_groups, errors
 
 
 # ============================================================================
