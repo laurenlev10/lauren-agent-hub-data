@@ -501,8 +501,10 @@ def _normalize_place(s: str) -> str:
 
 
 # Common US-place prefixes that often get concatenated in mobile typing.
-_PLACE_PREFIXES = ["san ", "los ", "las ", "el ", "new ", "north ", "south ",
-                   "east ", "west ", "fort ", "saint ", "st "]
+# 2026-07-02 #2 — removed "st " ("stockton" was prettified to "St Ockton") and
+# "el " ("elmira" → "El Mira" risk). Short ambiguous prefixes do more harm than good.
+_PLACE_PREFIXES = ["san ", "los ", "las ", "new ", "north ", "south ",
+                   "east ", "west ", "fort ", "saint "]
 
 def _prettify_place(raw: str) -> str:
     """
@@ -884,6 +886,10 @@ _PLACE_STOPWORDS = {
     "no","not","yes","what","about","add","adding","why","where","how","who",
     "never","again","soon","need","needs","here","there","us","only","even",
     "still","yet","miss","missing","skip","skipped",
+    # 2026-07-02 #2 — "Im Washington" → city was captured as "year Im"
+    "im","i'm","year","years","month","months","week","weekend","today",
+    "sad","happy","glad","live","living","stay","staying","from","born",
+    "see","saw","dont","don't","didnt","didn't","wont","won't",
 }
 
 # 2026-06-01 — Event-request phrasing WITHOUT the usual "when/coming/visit" trigger
@@ -1012,8 +1018,15 @@ def _clean_place_candidate(cand: str) -> str:
     while words and words[-1].lower() in _PLACE_TRAIL_TRIM:
         words.pop()
     # 2026-07-02 — strip leading filler/verbs ("add San Antonio", "please come to X")
-    while words and words[0].lower() in _PLACE_STOPWORDS:
+    _LEAD_TRIM = _PLACE_STOPWORDS | {"see", "saw", "dont", "don't", "didnt", "didn't"}
+    while words and words[0].lower() in _LEAD_TRIM:
         words.pop(0)
+    # 2026-07-02 #2 — strip a trailing state token ("Austin Tx" → "Austin",
+    # "Seattle wa" → "Seattle"); keep single-word candidates intact ("Texas").
+    if len(words) > 1:
+        lastw = words[-1].rstrip("?.!,")
+        if (len(lastw) == 2 and lastw.upper() in _US_STATES) or lastw.lower() in _STATE_NAME_TO_CODE:
+            words.pop()
     return " ".join(words).strip()
 
 
@@ -1028,6 +1041,9 @@ def _is_non_place(place: str) -> bool:
         return True
     # 2026-07-02 — every word is a stopword ("what about", "no", "add") = not a place
     if all(w in _PLACE_STOPWORDS for w in p.split()):
+        return True
+    # 2026-07-02 #2 — any component word is a known non-place ("makeup show with beans")
+    if any(w in _NON_PLACE_WORDS for w in p.split()):
         return True
     last = p.split()[-1] if p.split() else ""
     if last in _MONTH_NAMES or p in _MONTH_NAMES:
@@ -1116,16 +1132,24 @@ def _as_state_code(place: str):
     return _STATE_NAME_TO_CODE.get(t.lower())
 
 
-def _state_schedule_hits(state_code: str, schedule: dict, max_hits: int = 2) -> list:
-    """Upcoming (not past) schedule entries in this state → [(city_title, dates)]."""
+def _state_schedule_hits(state_code: str, schedule: dict, max_hits: int = 2,
+                         past: bool = False) -> list:
+    """Schedule entries in this state → [(city_title, dates)]. past=False →
+    upcoming only; past=True → already-happened only."""
     hits = []
     sc = (state_code or "").lower()
     for k, d in schedule.items():
-        if "," in k and k.split(",")[1].strip().lower() == sc and not _is_past(d):
+        if "," in k and k.split(",")[1].strip().lower() == sc and _is_past(d) == past:
             hits.append((k.split(",")[0].strip().title(), d))
             if len(hits) >= max_hits:
                 break
     return hits
+
+
+_STATE_PAST_TEMPLATES = [
+    "Aww babe, we already hit {S} this year — {LIST} 💔 That wraps {S} for 2026, but it's going straight on the 2027 wishlist 📝💄 Follow our FB for the announcement 👀",
+    "We were JUST in {S}: {LIST} 😭 No more {S} stops this year — but we rotate back every 1–2 years, so stay close 💕",
+]
 
 
 def _fmt_state_hits(hits: list) -> str:
@@ -1143,6 +1167,12 @@ def _classify_state_mention(state_code: str, kb: dict, seed: str) -> dict:
                 "reply": tmpl.format(S=state_name, LIST=_fmt_state_hits(hits)),
                 "event_chip": {"city": hits[0][0], "state": state_code,
                                "dates": hits[0][1], "status": "upcoming", "confidence": "high"}}
+    past_hits = _state_schedule_hits(state_code, kb.get("schedule", {}), max_hits=3, past=True)
+    if past_hits:
+        tmpl = _seeded_pick(_STATE_PAST_TEMPLATES, seed + state_code)
+        return {"bucket": "A",
+                "reason": f"State mention ({state_name}) — only past 2026 events in state",
+                "reply": tmpl.format(S=state_name, LIST=_fmt_state_hits(past_hits))}
     return {"bucket": "A",
             "reason": f"State mention ({state_name}) — no 2026 events in state, rotation reply",
             "reply": city_rotation_reply(state_name, seed=seed + state_code)}
@@ -1295,6 +1325,12 @@ def classify(text: str, kb: dict) -> dict:
                                              dates=info.get("dates",""), address=info["address"],
                                              venue=info.get("venue") or "the venue")}
 
+    # 2026-07-02 #2 — influencer / collab / PR inquiries must reach Lauren
+    # (a "local content creator" message was getting the brands-list FAQ reply)
+    if re.search(r"\b(content\s+creator|influencer|collab(?:oration)?|partnership|"
+                 r"pr\s+list|brand\s+ambassador|work\s+(?:with|together)|promote\s+you)\b", t, re.IGNORECASE):
+        return {"bucket": "B", "reason": "Influencer/collab inquiry — Lauren personally", "reply": None}
+
     # FAQ keyword match (priority over city question — "are you free?" outranks "are you coming")
     for pattern, faq_q in FAQ_KEYWORDS:
         if pattern.search(t):
@@ -1321,8 +1357,19 @@ def classify(text: str, kb: dict) -> dict:
             elif status == "past":          tmpl = _seeded_pick(_INTERESTED_PAST_TEMPLATES, seed)
             else:
                 # status="unknown" — caption's date format was unparseable, but
-                # city/state/venue are valid. Default to "upcoming" template
-                # (best guess since the post is published = event is in future-ish).
+                # city/state/venue are valid. 2026-07-02 #2: if the POST itself is
+                # old (>21 days), the event almost certainly passed — replying
+                # "we're coming!" months later reads bot-broken. Skip instead.
+                _post_date = (kb.get("_post_context") or {}).get("date", "")
+                try:
+                    _age_days = (dt.date.today() - dt.datetime.fromisoformat(
+                        _post_date.replace("Z", "+00:00")).date()).days
+                except Exception:
+                    _age_days = 0
+                if _age_days > 21:
+                    return {"bucket": "SKIP",
+                            "reason": "interest on old post, event date unparseable — no reply needed",
+                            "reply": None}
                 tmpl = _seeded_pick(_INTERESTED_UPCOMING_TEMPLATES, seed)
                 status = "upcoming"
             if tmpl:
