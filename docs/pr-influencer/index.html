@@ -723,7 +723,8 @@ const RUN = {
         <label><input type="checkbox" id="f-heepsy" checked style="width:auto;margin-left:6px"> השתמשי ב-Heepsy ($50/mo) אם המפתח קיים</label>
       </div>
     </div>
-    <button class="copy-btn" id="copy-cmd">📋 העתיקי פקודה</button>
+    <button class="copy-btn" id="copy-cmd">📋 פקודה 1 — חיפוש + פנייה ראשונה + פולו-אפ</button>
+    <button class="copy-btn" id="copy-status-cmd" style="background:#0e7490;margin-top:6px;">📊 פקודה 2 — בדיקת סטטוסים (Heepsy + מייל + חתימות)</button>
     <div style="text-align:center;font-size:12px;color:var(--muted);margin-top:6px">
       מלאי, לחצי על הכפתור, הדביקי בשיחת Cowork חדשה. הסוכן רץ ~10-15 דקות.
     </div>
@@ -981,7 +982,7 @@ const RUN = {
       return;
     }
 
-    const cmd = `@pr-influencer\nCity: ${city}\nYear: ${year}\nVenue: ${venue}\nAddress: ${address}\nEvent dates: ${start} → ${end}\nEvent URL: ${eventUrl}\nFollower range: ${minF} - ${maxF}\nNiches: ${niches.join(", ")}\nUse Heepsy: ${useHeepsy ? "yes" : "no"}`;
+    const cmd = `@pr-influencer\nCity: ${city}\nYear: ${year}\nVenue: ${venue}\nAddress: ${address}\nEvent dates: ${start} → ${end}\nEvent URL: ${eventUrl}\nFollower range: ${minF} - ${maxF}\nNiches: ${niches.join(", ")}\nUse Heepsy: ${useHeepsy ? "yes" : "no"}\nOutreach: full`;
 
     navigator.clipboard.writeText(cmd).then(() => {
       const btn = document.getElementById("copy-cmd");
@@ -989,6 +990,23 @@ const RUN = {
       btn.textContent = "✓ הועתק! הדביקי בשיחת Cowork חדשה";
       btn.classList.add("copied");
       setTimeout(() => { btn.textContent = orig; btn.classList.remove("copied"); }, 2500);
+    });
+  });
+
+  document.getElementById("copy-status-cmd").addEventListener("click", () => {
+    let city = document.getElementById("f-city").value.trim();
+    let start = document.getElementById("f-start").value;
+    if ((!city || !start) && typeof RUN !== "undefined" && RUN && RUN.event) {
+      city = city || RUN.event.city;
+      start = start || RUN.event.startDate;
+    }
+    if (!city || !start) { alert("מלאי עיר + תאריך התחלה (או שתהיה ריצה קיימת)"); return; }
+    const cmd = `@pr-influencer status\nCity: ${city}\nEvent start: ${start}`;
+    navigator.clipboard.writeText(cmd).then(() => {
+      const btn = document.getElementById("copy-status-cmd");
+      const orig = btn.textContent;
+      btn.textContent = "✓ הועתק! הדביקי בשיחת Cowork";
+      setTimeout(() => { btn.textContent = orig; }, 2500);
     });
   });
 
