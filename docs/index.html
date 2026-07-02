@@ -156,6 +156,16 @@
       <span class="corner-emoji">👥</span>
     </a>
 
+
+    <a class="tile" style="background:linear-gradient(135deg,#0866ff 0%,#7b2bf9 55%,#d62976 100%);color:#fff" href="meta/inbox-api-preview/">
+      <span class="pill">Meta</span>
+      <div class="title">📬 Meta Inbox</div>
+      <div class="tag">מסנג׳ר + תגובות פייסבוק ואינסטגרם במקום אחד — הסוכן עונה אוטומטית על שאלות פשוטות (אנגלית וספרדית), תלונות ופניות רגישות מחכות לך עם טיוטה מוכנה. שום תגובה לא נופלת בין הכיסאות.</div>
+      <div class="status" id="status-meta-inbox">מענה אוטומטי · כל 3 שעות</div>
+      <span class="cta">פתחי את התיבה →</span>
+      <span class="corner-emoji">📬</span>
+    </a>
+
     <a class="tile tile-trading" href="trading/">
       <span class="pill">Trading</span>
       <div class="title">📈 Trading Dashboard</div>
@@ -278,5 +288,20 @@
 })();
 </script>
 
+
+<script>
+/* 📬 Meta Inbox live badge — reads pending.json (persistent queue) */
+(function(){
+  fetch('meta/inbox-api-preview/pending.json?_='+Date.now(),{cache:'no-store'})
+    .then(function(r){return r.json();})
+    .then(function(p){
+      var n=Object.keys((p&&p.items)||{}).length;
+      var el=document.getElementById('status-meta-inbox');
+      if(!el)return;
+      el.innerHTML = n>0 ? '<b>'+n+' ממתינות לך</b> · השאר טופל אוטומטית'
+                         : '<b>הכל מטופל ✓</b> · אין ממתינות';
+    }).catch(function(){});
+})();
+</script>
 </body>
 </html>
