@@ -1555,6 +1555,167 @@ def classify(text: str, kb: dict) -> dict:
             "reply": None}
 
 
+
+
+# ============================================================================
+# 2026-07-02 — Claude API engine ("smart" classifier)
+# Understands ANY phrasing (English + Spanish), replies in the commenter's
+# language (EN/ES ONLY — NEVER Hebrew), grounded in the KB schedule + venues.
+# Fail-safe: no ANTHROPIC_API_KEY / API error / invalid output → falls back to
+# the keyword classify() below, so the agent NEVER goes dark.
+# ============================================================================
+
+_LLM_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5")
+_HEBREW_RE = re.compile(r"[\u0590-\u05FF]")
+
+# Spanish safety keywords — hard guardrails BEFORE the LLM (complaints must
+# always reach Lauren, in any language)
+_ES_ISSUE_RE = re.compile(
+    r"\b(estafa|fraude|reembolso|queja|devoluci\u00f3n|devolucion|roto|da\u00f1ado|"
+    r"danado|defectuoso|nunca (lleg\u00f3|llego|recib\u00ed|recibi)|no me (lleg\u00f3|llego)|"
+    r"compr\u00e9|compre y|me enga\u00f1aron)\b", re.IGNORECASE)
+
+
+def _llm_system_prompt(kb: dict) -> str:
+    today = dt.date.today().strftime("%B %d, %Y")
+    sched_lines = "\n".join(f"- {city.title()}: {dates}, 2026"
+                            for city, dates in kb.get("schedule", {}).items())
+    faq_lines = "\n".join(f"Q: {f['q']}\nA: {f['a']}" for f in kb.get("faqs", []))
+    venues = kb.get("_venues", [])
+    venue_lines = "\n".join(f"- {v['city']}: {v['venue']}, {v['address']} ({v['dates']})"
+                            for v in venues[-25:])
+    return f"""You are the social-media assistant for The Makeup Blowout Sale — a traveling weekend makeup sale (Fri-Sun, 10am-5pm, FREE admission, up to 75% off retail). Today is {today}.
+
+You classify ONE Instagram/Facebook comment or DM and, when appropriate, draft the public reply.
+
+## Business facts (the ONLY facts you may use)
+- Hours: Friday, Saturday & Sunday, 10am-5pm. Free admission, no ticket needed. Free parking. Kids welcome.
+- Payments: cash, all cards, tap-to-pay, Apple Pay.
+- Sign-up gift: FREE Eyeshadow on arrival. Share-our-post bonus gift: FREE Glitter Liner.
+- We ROTATE cities: each city gets a sale roughly once every 1-2 years. If a city is not on the schedule below, it is NOT happening in 2026 — never promise a city or date not listed.
+- Website for online info: https://www.themakeupblowout.com
+
+## 2026 schedule (complete — past AND upcoming)
+{sched_lines}
+
+## Recent/upcoming venue addresses
+{venue_lines}
+
+## FAQ (use these answers, may rephrase)
+{faq_lines}
+
+## Post context
+If a post caption is provided in the user message, the comment is about THAT event — use its city/dates/venue.
+
+## Classification buckets
+- "A"   = simple question you can answer confidently from the facts above (city/state/schedule, hours, admission, parking, payment, kids, brands, mystery box, where/address, online ordering). Auto-reply will be posted publicly.
+- "B"   = needs the owner personally: complaints, refunds, past purchases, damaged/missing items, influencer/collab/PR/press/job/vendor inquiries, anything personal, anything you are not SURE about.
+- "NEG" = hostile/skeptical (scam accusations, insults). Never reply.
+- "SKIP"= no reply needed: friend tags, emoji-only, plain praise with no question.
+
+## Reply rules (bucket A only)
+1. Reply in the SAME language as the comment — English or Spanish ONLY. NEVER Hebrew, never any other language.
+2. Warm, playful brand voice ("girl", "babe", emojis 💄✨💕) — match the energy. In Spanish use the same warmth (amiga, chica).
+3. Max 300 characters. No links. No hashtags.
+4. NEVER invent cities, dates, venues, or discounts. Only the schedule above. City asked about but not listed → rotation policy: not this year, we rotate every 1-2 years, it goes on the 2027 wishlist, follow us for announcements. City/date already passed → "we were just there {{dates}}" + rotation message. State asked about → mention that state's upcoming events if any; if only past ones, say we already came this year.
+5. If the event in the post context already ended and the comment is just excitement ("can't wait!"), use SKIP.
+
+## Output — STRICT JSON only, no other text
+{{"bucket":"A|B|NEG|SKIP","language":"en|es","confidence":0.0-1.0,"reason":"<short>","reply":"<text or null>"}}"""
+
+
+def _llm_call(system: str, user_msg: str, api_key: str) -> dict:
+    import urllib.request as _rq
+    body = json.dumps({
+        "model": _LLM_MODEL,
+        "max_tokens": 500,
+        "system": [{"type": "text", "text": system,
+                     "cache_control": {"type": "ephemeral"}}],
+        "messages": [{"role": "user", "content": user_msg}],
+    }).encode("utf-8")
+    req = _rq.Request("https://api.anthropic.com/v1/messages", data=body, method="POST",
+                      headers={"Content-Type": "application/json",
+                               "x-api-key": api_key,
+                               "anthropic-version": "2023-06-01"})
+    with _rq.urlopen(req, timeout=45) as r:
+        out = json.loads(r.read().decode("utf-8"))
+    return out
+
+
+def classify_llm(text: str, kb: dict) -> dict:
+    """Claude-based classification. Raises on any problem (caller falls back)."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("no ANTHROPIC_API_KEY")
+    post_ctx = kb.get("_post_context") or {}
+    caption = (post_ctx.get("caption") or "").strip()
+    user_msg = ""
+    if caption:
+        user_msg += f"POST CAPTION (context):\n{caption[:900]}\n\n"
+    user_msg += f"COMMENT TO CLASSIFY:\n{text.strip()[:1000]}"
+    out = _llm_call(_llm_system_prompt(kb), user_msg, api_key)
+    raw = "".join(b.get("text", "") for b in out.get("content", []) if b.get("type") == "text").strip()
+    # tolerate accidental markdown fences
+    raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw)
+    res = json.loads(raw)
+    bucket = res.get("bucket")
+    if bucket not in ("A", "B", "NEG", "SKIP"):
+        raise ValueError(f"bad bucket {bucket!r}")
+    reply = (res.get("reply") or "").strip() or None
+    conf = float(res.get("confidence") or 0)
+    lang = res.get("language") or "en"
+    # --- validation gates ---
+    if bucket == "A":
+        if not reply:
+            raise ValueError("bucket A with no reply")
+        if _HEBREW_RE.search(reply):
+            raise ValueError("Hebrew leaked into reply")
+        if len(reply) > 500:
+            reply = reply[:500]
+        if conf < 0.75:
+            # not sure enough to auto-post — keep the draft but let Lauren review
+            return {"bucket": "B", "engine": "llm",
+                    "reason": f"LLM low-confidence ({conf:.2f}): {res.get('reason','')}"[:160],
+                    "reply": reply}
+    return {"bucket": bucket, "engine": "llm",
+            "reason": f"LLM ({lang}, {conf:.2f}): {res.get('reason','')}"[:160],
+            "reply": reply if bucket == "A" else (reply or None)}
+
+
+def classify_smart(text: str, kb: dict) -> dict:
+    """Production entry point: deterministic guardrails → LLM → keyword fallback.
+
+    The guardrails run FIRST and are never overridable by the LLM:
+    negative/scam + customer-issue + influencer patterns always protect Lauren.
+    """
+    t = (text or "").strip()
+    if not t or len(t) < 2:
+        return {"bucket": "B", "reason": "empty/too short", "reply": None}
+    # hard guardrails (any language)
+    if NEGATIVE_KEYWORDS.search(t):
+        return {"bucket": "NEG", "reason": "negative keywords detected", "reply": None}
+    if CUSTOMER_ISSUE_PAT.search(t) or _ES_ISSUE_RE.search(t):
+        return {"bucket": "B", "reason": "Customer issue / past purchase — needs Lauren personally",
+                "reply": None}
+    if re.search(r"\b(content\s+creator|influencer|collab(?:oration)?|partnership|"
+                 r"pr\s+list|brand\s+ambassador)\b", t, re.IGNORECASE):
+        return {"bucket": "B", "reason": "Influencer/collab inquiry — Lauren personally", "reply": None}
+    if _is_tag_only(t) and not _place_with_state(t):
+        return {"bucket": "SKIP", "reason": "tag-only-friends (no question)", "reply": None}
+    if _is_emoji_only_friendly(t) or _is_reaction_or_empty(t):
+        return {"bucket": "SKIP", "reason": "emoji/reaction only (auto-done)", "reply": None}
+    # LLM engine
+    if os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        try:
+            return classify_llm(t, kb)
+        except Exception as e:
+            print(f"  ⚠ LLM classify failed ({str(e)[:80]}) — keyword fallback")
+    # keyword engine (fallback / no key)
+    res = classify(t, kb)
+    res.setdefault("engine", "keywords")
+    return res
+
+
 # --- Preview HTML builder ----------------------------------------------------
 
 PAGE_HEAD = '''<!DOCTYPE html>
@@ -2204,7 +2365,8 @@ def main():
         except Exception as e:
             text = f"(error fetching: {e})"
         kb["_seed"] = conv_id  # per-conversation seed for reply variation
-        cls = classify(text, kb)
+        kb["_post_context"] = None  # DMs have no post context
+        cls = classify_smart(text, kb)
         # Build a direct reply URL using the customer's PSID (the participant
         # who is NOT the Page). Format `https://www.facebook.com/messages/t/{psid}`
         # is the only reliable deep-link that opens the specific Messenger thread.
@@ -2247,7 +2409,7 @@ def main():
                 "caption": grp["post"].get("message", ""),
                 "date": grp["post"].get("created_time", ""),
             }
-            cls = classify(txt, kb)
+            cls = classify_smart(txt, kb)
             # FB comment: prefer post permalink (the comment will be visible there;
             # Meta doesn't always expose direct comment-permalinks for replies)
             classified_fb.append({
@@ -2277,7 +2439,7 @@ def main():
                 "caption": grp["media"].get("caption", ""),
                 "date": grp["media"].get("timestamp", ""),
             }
-            cls = classify(txt, kb)
+            cls = classify_smart(txt, kb)
             # IG: tap the reel permalink — comment is visible inline on the reel
             classified_ig.append({
                 "comment_id": cmt.get("id", ""),
