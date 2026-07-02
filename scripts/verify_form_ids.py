@@ -16,6 +16,12 @@ must be IDENTICAL across all four places:
   4. FORM_IDS map in launch/index.html [<evkey>]  (dashboard green chip)
 CAMPAIGNS_RESULTS.webform_id is a soft signal.
 
+PLUS (2026-07-02): every landing page (EN+ES) must contain the
+duplicate-contact fix marker "already_subscribed" — SimpleTexting returns
+418 DuplicateContactPhoneException when the phone is already on the form's
+list, and the page must treat that as success (redirect to share), not show
+"Validation error." to repeat customers.
+
 The landing embed decides which SimpleTexting list a signup lands in. If the
 dashboard/tracking files disagree with the embed, THAT is the bug.
 
@@ -82,8 +88,10 @@ def main():
             continue
         slug = lp["url"].rstrip("/").split("/")[-1]
         checked += 1
-        en = embed_id(read_landing(slug, "index.html"))
-        es = embed_id(read_landing(slug, "index-es.html"))
+        en_txt = read_landing(slug, "index.html")
+        es_txt = read_landing(slug, "index-es.html")
+        en = embed_id(en_txt)
+        es = embed_id(es_txt)
         fm = (FORM_IDS.get(evkey) or {}).get("form_id")
         ef = (efi.get(f"{slug}-{sd}") or {}).get("form_id")
         cw = (CAMP.get(evkey) or {}).get("webform_id")
@@ -98,6 +106,15 @@ def main():
             if not ef: issues.append("event_form_ids.json missing")
             elif ef != truth: issues.append(f"event_form_ids wrong ({ef} != embed {truth})")
             if cw and cw != truth: issues.append(f"CAMPAIGNS_RESULTS.webform_id wrong ({cw} != embed {truth})")
+        # 2026-07-02 invariant (Santa Maria FB complaint): every landing page must
+        # treat SimpleTexting 418 DuplicateContactPhoneException as SUCCESS (redirect
+        # to share page). Marker = the already_subscribed trackEvent in the fixed
+        # handler. A page missing it will show "Validation error." to anyone who
+        # signs up twice — never regress this.
+        if en_txt and "already_subscribed" not in en_txt:
+            issues.append("landing-EN missing duplicate-418 fix (re-signup shows Error)")
+        if es_txt and "already_subscribed" not in es_txt:
+            issues.append("landing-ES missing duplicate-418 fix (re-signup shows Error)")
         if issues:
             problems.append({"event": f"{city} {sd}", "slug": slug, "embed": truth, "issues": issues})
 
