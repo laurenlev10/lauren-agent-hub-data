@@ -657,9 +657,20 @@ const RUNS = {
     "previousRuns": []
   }
 };
-const __evParam = new URLSearchParams(window.location.search).get("ev");
-const __runKeys = Object.keys(RUNS);
-const RUN = RUNS[__evParam] || RUNS[__runKeys[__runKeys.length - 1]] || { "status": "empty", "event": null, "totals": { "found": 0, "phase1": 0, "phase2": 0, "drafts": 0 }, "creators": [], "previousRuns": [] };
+const __q = new URLSearchParams(window.location.search);
+const __empty = { "status": "empty", "event": null, "totals": { "found": 0, "phase1": 0, "phase2": 0, "drafts": 0 }, "creators": [], "previousRuns": [] };
+let __pick = null;
+if (__q.get("ev")) {
+  __pick = RUNS[__q.get("ev")] || null;              // explicit event — show it or nothing
+} else if (__q.get("city") && __q.get("start_date")) {
+  // form-prefill link from a not-yet-run event: match by evkey, else show EMPTY form (never another city's board)
+  const __k = __q.get("city").split(",")[0].toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + __q.get("start_date");
+  __pick = RUNS[__k] || null;
+} else {
+  const __ks = Object.keys(RUNS);
+  __pick = RUNS[__ks[__ks.length - 1]] || null;      // direct visit — latest run
+}
+const RUN = __pick || __empty;
 </script>
 
 <div style="background:#fce7f3;padding:10px 16px;border-bottom:1px solid #fbcfe8;text-align:left;">
