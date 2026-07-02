@@ -612,11 +612,16 @@ async function loadData() {
     // so the Research view's hourly/picker include newly-collected blocked-hour trades.
     try {
       var rj = (researchR && researchR.ok) ? await researchR.json() : null;
-      if (rj && Array.isArray(rj.trades) && rj.trades.length && BT_ALL && Array.isArray(BT_ALL.trades)) {
-        var extra = rj.trades.map(function(t){ return Object.assign({}, t, { _data_origin: "research-live", _research_feed: true }); });
-        BT_ALL = Object.assign({}, BT_ALL, { trades: BT_ALL.trades.concat(extra) });
-        STATE.backtest = BT_ALL;
+      var merged = (BT_ALL && Array.isArray(BT_ALL.trades)) ? BT_ALL.trades.slice() : [];
+      // (a) dedicated research feed (all-hours, filter OFF) if used
+      if (rj && Array.isArray(rj.trades) && rj.trades.length) {
+        merged = merged.concat(rj.trades.map(function(t){ return Object.assign({}, t, { _data_origin: "research-live", _research_feed: true }); }));
       }
+      // (b) the LIVE journal (journal-data.json) — Lauren's journal alerts collect all hours here
+      if (Array.isArray(STATE.trades) && STATE.trades.length) {
+        merged = merged.concat(STATE.trades.filter(function(t){ return !t._status && (t.result_dollars!=null); }).map(function(t){ return Object.assign({}, t, { _data_origin: "live-journal", _research_feed: true }); }));
+      }
+      if (BT_ALL && Array.isArray(BT_ALL.trades)) { BT_ALL = Object.assign({}, BT_ALL, { trades: merged }); STATE.backtest = BT_ALL; }
     } catch(e){ console.warn("research feed merge", e); }
     LIVE_ALL = STATE.trades;
     applyStrategyFilter();
