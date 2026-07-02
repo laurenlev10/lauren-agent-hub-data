@@ -671,6 +671,7 @@ if (__q.get("ev")) {
   __pick = RUNS[__ks[__ks.length - 1]] || null;      // direct visit — latest run
 }
 const RUN = __pick || __empty;
+const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "event" : "master";
 </script>
 
 <div style="background:#fce7f3;padding:10px 16px;border-bottom:1px solid #fbcfe8;text-align:left;">
@@ -807,7 +808,7 @@ const RUN = __pick || __empty;
     <div id="briefs-list"><span style="color:var(--muted);font-size:12px;font-style:italic;">עדיין אין חתימות.</span></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="results-card">
     <h2 style="margin-top:0">תוצאות לפי אירוע <select id="run-picker" style="font-size:13px;padding:4px 8px;border-radius:8px;border:1.5px solid #e5e7eb;margin-right:8px;"></select></h2>
     <div id="run-summary"></div>
 
@@ -1348,7 +1349,21 @@ const RUN = __pick || __empty;
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(d){
       if (!d || !Array.isArray(d.applications) || !d.applications.length) return;
-      var rows = d.applications.slice().reverse().map(function(a){
+      var apps = d.applications;
+      if (!window.__prIsMaster && typeof RUN !== "undefined" && RUN && RUN.event) {
+        var cityWord = String(RUN.event.city||"").split(",")[0].toLowerCase();
+        var others = 0;
+        apps = apps.filter(function(a){
+          var ok = String(a.event||"").toLowerCase().indexOf(cityWord) !== -1 || String(a.event||"").indexOf(RUN.event.startDate) !== -1;
+          if (!ok) others++;
+          return ok;
+        });
+        if (!apps.length) {
+          document.getElementById("apps-list").innerHTML = '<span style="color:var(--muted);font-size:12px;font-style:italic;">אין מועמדויות לאירוע הזה' + (others ? " · יש " + others + " לאירועים אחרים — בתצוגה הראשית" : "") + "</span>";
+          return;
+        }
+      }
+      var rows = apps.slice().reverse().map(function(a){
         var prof = "";
         var h = String(a.handle || "").replace(/^@/, "");
         if (a.platform === "TikTok") prof = "https://www.tiktok.com/@" + h;
@@ -1363,6 +1378,11 @@ const RUN = __pick || __empty;
     .then(function(d){
       if (!d || !d.briefs) return;
       var keys = Object.keys(d.briefs); if (!keys.length) return;
+      if (!window.__prIsMaster && typeof RUN !== "undefined" && RUN && RUN.event) {
+        var curKey = String(RUN.event.city||"").split(",")[0].toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + RUN.event.startDate;
+        keys = keys.filter(function(k){ return k === curKey; });
+        if (!keys.length) return;
+      }
       var html = "";
       keys.sort().reverse().forEach(function(ev){
         var rows = d.briefs[ev].map(function(b){
@@ -1584,6 +1604,25 @@ const RUN = __pick || __empty;
   if (window.__prNotes) boot();
   else document.addEventListener("pr-notes-ready", boot);
   document.addEventListener("pr-status-changed", function(){ if (notes) { renderBoard(); renderFunnel(); renderFollowups(); } });
+})();
+</script>
+<script>
+/* view scoping: per-event shows only its own data; master shows the cross-event picture */
+(function(){
+  var isMaster = (typeof __MODE !== "undefined" && __MODE === "master");
+  function hide(id){ var el = document.getElementById(id); if (el) el.style.display = "none"; }
+  if (isMaster) {
+    hide("board-card"); hide("followup-card"); hide("results-card"); hide("reminders-card");
+    // auto-expand CRM in master view
+    var b = document.getElementById("crm-body");
+    var t = document.getElementById("crm-toggle");
+    if (b) { b.style.display = "block"; }
+    if (t) { var ch = t.querySelector(".chevron"); if (ch) ch.textContent = "▼"; }
+    var h = t && t.querySelector("h2"); if (h) h.textContent = "📚 כל המשפיעניות שפנינו אליהן (כל האירועים)";
+  } else {
+    hide("crm-card");
+  }
+  window.__prIsMaster = isMaster;
 })();
 </script>
 </body>
