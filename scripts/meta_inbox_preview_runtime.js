@@ -60,8 +60,7 @@ function fadeAndRemove(row) {
     const block = document.querySelector(".attention-block");
     if (block) {
       const remaining = block.querySelectorAll(".attention-row").length;
-      const h2 = block.querySelector("h2");
-      if (h2) h2.innerHTML = "👀 " + remaining + " items need your attention";
+      if (window.__updatePendingCount) window.__updatePendingCount(remaining);
       if (remaining === 0) {
         block.style.transition = "opacity 0.3s";
         block.style.opacity = "0";

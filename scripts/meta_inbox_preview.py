@@ -1726,224 +1726,116 @@ def classify_smart(text: str, kb: dict) -> dict:
 
 # --- Preview HTML builder ----------------------------------------------------
 
-PAGE_HEAD = '''<!DOCTYPE html>
+PAGE_HEAD = """<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>@meta — Live Inbox Triage</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>תיבת מטה — The Makeup Blowout</title>
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-     background:#1a1a2a;color:#eee;padding:20px;line-height:1.5}
-h1{color:#f5e45b;font-size:28px;margin-bottom:8px}
-h2{color:#f01070;font-size:20px;margin:24px 0 12px}
-.sub{color:#aaa;font-size:14px;margin-bottom:20px}
-.warning{background:#3a2a0a;border:1px solid #d97706;color:#fbbf24;
-         padding:12px 16px;border-radius:8px;margin-bottom:20px}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
-       gap:12px;margin-bottom:20px}
-.stat{background:#25253a;padding:12px;border-radius:8px;text-align:center}
-.stat .num{font-size:28px;font-weight:700;color:#f5e45b}
-.stat .lbl{font-size:12px;color:#aaa;text-transform:uppercase;margin-top:4px}
-.item{background:#25253a;padding:14px;border-radius:8px;margin-bottom:12px;
-      border-left:4px solid #444}
-.item.bucket-A{border-left-color:#16a34a}
-.item.bucket-B{border-left-color:#f01070}
-.item.bucket-NEG{border-left-color:#dc2626}
-.item .meta{color:#888;font-size:12px;margin-bottom:6px;direction:ltr;text-align:left}
-.item .name{font-weight:700;color:#f5e45b;margin-bottom:6px}
-.item .msg{background:#1a1a2a;padding:10px;border-radius:6px;
-           margin-bottom:8px;white-space:pre-wrap}
-.bucket-pill{display:inline-block;padding:2px 10px;border-radius:12px;
-             font-size:11px;font-weight:700;letter-spacing:.5px}
-.bucket-A .bucket-pill{background:#16a34a;color:#fff}
-.bucket-B .bucket-pill{background:#f01070;color:#fff}
-.bucket-NEG .bucket-pill{background:#dc2626;color:#fff}
-.reason{color:#aaa;font-size:12px;margin-top:6px}
-.reply{background:#0f3a1f;border:1px solid #16a34a;padding:10px;
-       border-radius:6px;margin-top:8px;color:#a7f3d0}
-.reply::before{content:"📤 Suggested reply: ";color:#86efac;font-weight:700;font-size:11px;display:block;margin-bottom:4px}
-.no-reply{color:#fca5a5;font-size:12px;margin-top:6px;font-style:italic}
-.errors{background:#3a1010;color:#fca5a5;padding:12px;border-radius:6px;margin:20px 0}
-footer{margin-top:40px;color:#666;font-size:12px;text-align:center}
+:root{--bg:#0f1117;--card:#171b26;--card2:#1d2331;--line:#262c3d;--txt:#e8eaf0;
+ --dim:#9aa3b5;--pink:#f01070;--green:#22c55e;--amber:#f59e0b;--red:#ef4444;--blue:#3b82f6}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,"Segoe UI",Heebo,Arial,sans-serif;
+ margin:0;padding:20px;max-width:840px;margin-inline:auto;line-height:1.55}
+a{color:var(--blue)}
+.topbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.back{background:var(--card);color:var(--dim);padding:8px 14px;border-radius:10px;text-decoration:none;font-size:13px;font-weight:600;border:1px solid var(--line)}
+h1{font-size:24px;margin:4px 0 2px}
+.fresh{display:inline-flex;gap:6px;align-items:center;background:var(--card);border:1px solid var(--line);
+ color:var(--dim);border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600}
+.fresh .dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block}
+.fresh.stale .dot{background:var(--amber)}
 
-/* === Mobile responsive === */
-@media (max-width: 600px) {
-  body { padding: 12px; font-size: 15px; }
-  h1 { font-size: 22px; }
-  h2 { font-size: 17px; margin: 18px 0 8px; }
-  .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .stat .num { font-size: 22px; }
-  .stat .lbl { font-size: 10px; }
-  .attention-block { padding: 14px 14px; }
-  .attention-block h2 { font-size: 18px; }
-  .attention-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-    padding: 10px 12px;
-  }
-  .attention-row .who { font-size: 13px; }
-  .attention-row .what {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-    font-size: 12px;
-    line-height: 1.4;
-  }
-  .attention-row .reply-btn { width: 100%; text-align: center; }
-  .item { padding: 12px; font-size: 14px; }
-  .item .meta { font-size: 11px; }
-  .item .msg { font-size: 13px; padding: 8px; }
-  .reply { padding: 8px; font-size: 13px; }
-  details summary { padding: 12px; font-size: 14px; }
-}
+/* HERO */
+.hero{border-radius:16px;padding:22px 24px;margin:14px 0;display:flex;gap:16px;align-items:center}
+.hero .big{font-size:42px;line-height:1}
+.hero .t1{font-size:20px;font-weight:800;margin:0}
+.hero .t2{font-size:13.5px;color:rgba(255,255,255,.75);margin-top:3px}
+.hero-ok{background:linear-gradient(135deg,#0c3d24,#14532d);border:1px solid #1f7a44}
+.hero-warn{background:linear-gradient(135deg,#402508,#713f12);border:1px solid #b45309}
+.hero-neg{background:linear-gradient(135deg,#450a0a,#7f1d1d);border:1px solid #b91c1c}
 
-/* Reply button */
-.reply-btn{display:inline-block;background:#f01070;color:#fff !important;
-           padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:700;
-           font-size:13px;margin-top:6px;transition:transform .1s,filter .1s}
-.reply-btn:hover{transform:translateY(-1px);filter:brightness(1.1)}
-.reply-btn::before{content:"💬 "}
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 10px;text-align:center}
+.stat .num{font-size:26px;font-weight:800}
+.stat .lbl{font-size:11.5px;color:var(--dim);margin-top:3px;font-weight:600}
+.stat.green .num{color:var(--green)} .stat.amber .num{color:var(--amber)}
+.stat.gray .num{color:var(--dim)} .stat.blue .num{color:var(--blue)}
+.coverage{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:10px 16px;
+ font-size:12.5px;color:var(--dim);margin:10px 0 18px}
 
-/* "Mark done" button — for items Lauren wants to dismiss without replying */
-.done-btn{display:inline-block;background:#16a34a;color:#fff !important;
-          padding:8px 14px;border-radius:6px;text-decoration:none;font-weight:700;
-          font-size:13px;margin-top:6px;margin-right:6px;cursor:pointer;border:none;
-          font-family:inherit;transition:transform .1s,filter .1s}
-.done-btn:hover{transform:translateY(-1px);filter:brightness(1.1)}
-.done-btn::before{content:"✓ "}
-.done-btn[disabled]{opacity:.5;cursor:default;background:#15803d}
+/* ATTENTION LIST */
+.attention-block{margin:10px 0}
+.attention-block h2{font-size:17px;margin:0 0 10px}
+.attention-list{display:flex;flex-direction:column;gap:12px}
+.attention-row{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.attention-row.neg{border-color:#7f1d1d;background:#1c1214}
+.att-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.chip{display:inline-block;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:700}
+.chip.ig{background:#3a1030;color:#f9a8d4}.chip.fb{background:#102a4a;color:#93c5fd}
+.chip.dm{background:#0f3730;color:#6ee7b7}
+.chip.neg{background:#450a0a;color:#fca5a5}
+.chip.carried{background:#3a2a0a;color:#fbbf24}
+.att-event{font-size:11.5px;color:#c4b5fd;background:#241b3f;border-radius:999px;padding:3px 10px;font-weight:700}
+.att-event.past{color:#fca5a5;background:#3f1b1b}
+.att-time{font-size:11.5px;color:var(--dim);margin-inline-start:auto}
+.att-time.old{color:var(--amber);font-weight:700}
+.who{font-weight:800;font-size:14px}
+.att-message{background:var(--card2);border-radius:10px;padding:10px 12px;font-size:14px;white-space:pre-wrap;word-break:break-word}
+.att-why{font-size:12px;color:var(--dim);margin-top:6px}
+textarea.att-reply{width:100%;background:#12161f;color:var(--txt);border:1px solid var(--line);
+ border-radius:10px;padding:10px 12px;font-family:inherit;font-size:13.5px;min-height:64px;margin-top:10px;direction:ltr;text-align:left}
+.att-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.send-btn{background:var(--pink);color:#fff;border:none;border-radius:9px;padding:9px 16px;font-weight:800;
+ font-size:13px;cursor:pointer;font-family:inherit}
+.send-btn:hover{filter:brightness(1.12)} .send-btn[disabled]{opacity:.55}
+.send-btn.sent{background:#15803d}
+.done-btn{background:transparent;color:var(--green);border:1px solid #1f7a44;border-radius:9px;padding:9px 16px;
+ font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}
+.done-btn:hover{background:#0c3d24} .done-btn[disabled]{opacity:.5}
+.reply-btn-secondary{color:var(--dim);border:1px solid var(--line);border-radius:9px;padding:9px 14px;
+ font-size:13px;text-decoration:none;font-weight:600}
+.handled-fade{opacity:.25;transition:opacity .4s}
 
-/* Sync token gate — token banner only shows if no token yet */
-.token-banner{background:#3a2a0a;border:1px solid #d97706;color:#fbbf24;
-              padding:12px 16px;border-radius:8px;margin:12px 0;font-size:13px}
-.token-banner input{background:#1a1a2a;color:#eee;border:1px solid #555;
-                    padding:6px 10px;border-radius:4px;font-family:monospace;
-                    font-size:11px;width:100%;max-width:400px;margin-top:6px}
-.token-banner button{background:#fbbf24;color:#1a1a2a;font-weight:700;
-                     padding:6px 14px;border-radius:4px;border:none;cursor:pointer;
-                     margin-right:6px;font-family:inherit}
+/* TRANSPARENCY LOG */
+details.log{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:18px 0;overflow:hidden}
+details.log summary{padding:14px 18px;cursor:pointer;font-weight:800;font-size:14.5px;list-style:none;color:var(--txt)}
+details.log summary::-webkit-details-marker{display:none}
+details.log summary::after{content:" ▼";color:var(--dim);font-size:11px}
+details.log[open] summary::after{content:" ▲"}
+.log-item{border-top:1px solid var(--line);padding:12px 18px;font-size:13px}
+.log-item .q{color:var(--dim)} .log-item .a{background:#0c2a1a;border-radius:8px;padding:8px 10px;margin-top:6px;
+ color:#bbf7d0;direction:ltr;text-align:left;white-space:pre-wrap;word-break:break-word}
+.log-item .lwho{font-weight:700}
+.log-item .lmeta{font-size:11px;color:var(--dim);margin-top:4px}
 
-/* When an item is being marked, fade it out */
-.attention-row.handled-fade,.item.handled-fade{opacity:.35;transition:opacity .3s}
-
-/* "Needs your attention" hero block */
-.attention-block{background:linear-gradient(135deg,#7c2d12,#9a3412);
-                 border:2px solid #f01070;border-radius:12px;
-                 padding:18px 22px;margin:20px 0 30px}
-.attention-block h2{color:#fbbf24;margin:0 0 4px;font-size:22px}
-.attention-block p.intro{color:#fde68a;font-size:14px;margin:0 0 14px}
-.attention-list{display:grid;gap:8px}
-.attention-row{background:rgba(0,0,0,0.3);padding:10px 14px;border-radius:8px;
-               display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-.attention-row .who{font-weight:700;color:#f5e45b;flex:0 0 auto}
-.attention-row .what{color:#eee;font-size:13px;flex:1 1 200px;min-width:0;
-                     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.attention-row .reply-btn{margin-top:0;flex:0 0 auto}
-
-
-
-/* Inline reply layout (added 2026-05-08) */
-.attention-row{flex-direction:column;align-items:stretch}
-.attention-row .att-meta{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-.attention-row .att-time{
-  font-size:11px;color:#a8a29e;font-weight:500;direction:ltr;
-  background:rgba(0,0,0,0.35);padding:3px 8px;border-radius:10px;
-  white-space:nowrap;flex:0 0 auto
+.legend{background:var(--card);border-radius:12px;border:1px solid var(--line);padding:12px 16px;font-size:12.5px;color:var(--dim);margin:14px 0}
+.errors{background:#3a2a0a;border-radius:10px;padding:10px 16px;font-size:12px;color:#fbbf24;margin:10px 0}
+.token-banner{background:#3a2a0a;border:1px solid #d97706;color:#fbbf24;padding:12px 16px;border-radius:10px;margin:12px 0;font-size:13px}
+.token-banner input{background:#12161f;color:#eee;border:1px solid #555;padding:6px 10px;border-radius:6px;
+ font-family:monospace;font-size:11px;width:100%;max-width:400px;margin-top:6px}
+.token-banner button{background:#fbbf24;color:#1a1a2a;font-weight:700;padding:6px 14px;border-radius:6px;border:none;cursor:pointer;margin-inline-end:6px;font-family:inherit}
+footer{color:#555;font-size:11.5px;margin:26px 0 8px;text-align:center}
+@media (max-width:600px){
+ body{padding:12px}
+ .stats{grid-template-columns:repeat(2,1fr)}
+ .hero{padding:16px}.hero .big{font-size:34px}.hero .t1{font-size:17px}
+ .att-actions{flex-direction:column}.att-actions>*{width:100%;text-align:center}
 }
-.attention-row .att-time.fresh{color:#fde68a;background:rgba(251,191,36,0.18)}
-.attention-row .att-time.old{color:#f87171;background:rgba(248,113,113,0.15)}
-.attention-row .att-event{
-  font-size:11px;font-weight:600;direction:ltr;
-  padding:3px 9px;border-radius:10px;white-space:nowrap;flex:0 0 auto;
-  background:rgba(251,191,36,0.18);color:#fde68a;
-  border:1px solid rgba(251,191,36,0.35)
-}
-.attention-row .att-event.low{background:rgba(148,148,148,0.18);color:#cbd5e1;border-color:rgba(148,148,148,0.35)}
-.attention-row .att-event.past{background:rgba(248,113,113,0.15);color:#fca5a5;border-color:rgba(248,113,113,0.35)}
-.attention-row .att-message{
-  background:rgba(0,0,0,0.45);padding:10px 12px;border-radius:6px;
-  color:#fde68a;font-size:14px;line-height:1.5;
-  white-space:pre-wrap;word-wrap:break-word;
-  border-left:3px solid #fbbf24
-}
-.attention-row textarea.att-reply{
-  width:100%;min-height:80px;background:#1a1a2a;color:#eee;
-  border:1px solid #555;border-radius:6px;padding:10px 12px;
-  font-family:inherit;font-size:14px;line-height:1.5;
-  resize:vertical;direction:auto
-}
-.attention-row textarea.att-reply:focus{outline:none;border-color:#fbbf24;box-shadow:0 0 0 2px rgba(251,191,36,0.2)}
-.attention-row .att-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.send-btn{
-  background:linear-gradient(180deg,#10b981,#059669);color:#fff !important;
-  padding:9px 16px;border-radius:6px;text-decoration:none;font-weight:800;
-  font-size:14px;cursor:pointer;border:none;font-family:inherit;
-  transition:transform .1s,filter .1s
-}
-.send-btn:hover{transform:translateY(-1px);filter:brightness(1.1)}
-.send-btn[disabled]{opacity:.5;cursor:default;background:#065f46}
-.send-btn.sent{background:#16a34a}
-.reply-btn-secondary{
-  background:transparent;color:#9ca3af !important;
-  padding:8px 12px;border-radius:6px;text-decoration:underline;
-  font-size:12px;font-weight:600
-}
-.reply-btn-secondary:hover{color:#fff !important}
-
-@media (max-width: 600px) {
-  .attention-row .att-message{font-size:13px}
-  .attention-row textarea.att-reply{min-height:90px;font-size:14px}
-  .send-btn{width:100%;text-align:center}
-}
-
-/* Collapsed Bucket A drafts section */
-details.drafts-section {
-  background: #1a2030;
-  border-radius: 8px;
-  margin: 24px 0;
-  padding: 0;
-  border: 1px solid #2a3040;
-}
-details.drafts-section summary {
-  padding: 14px 18px;
-  cursor: pointer;
-  font-weight: 700;
-  color: #aaa;
-  font-size: 15px;
-  user-select: none;
-  list-style: none;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-details.drafts-section summary::-webkit-details-marker { display: none; }
-details.drafts-section summary::after {
-  content: " ▼";
-  color: #555;
-  font-size: 12px;
-}
-details.drafts-section[open] summary::after { content: " ▲"; }
-details.drafts-section summary:hover { color: #fff; background: #1f2540; }
-details.drafts-section .drafts-body { padding: 0 18px 18px }
 </style>
 </head>
 <body>
-'''
+"""
 
-PAGE_FOOT = '''
-<footer>
-Generated by <code>meta_inbox_preview.py</code> · <a href="../" style="color:#888">← Back to @meta dashboard</a>
-</footer>
-
+PAGE_FOOT = """
+<footer>הדף מתעדכן אוטומטית בכל ריצה (כל 3 שעות) · <a href="../" style="color:#667">דשבורד @meta הישן</a></footer>
 <script>
 __RUNTIME_JS__
 </script>
-
 </body>
-</html>'''
+</html>"""
 
 
 
@@ -2117,159 +2009,191 @@ def render_preview(snapshot: dict, classified_messenger: list,
                 "draft":    c["cls"].get("reply") or _make_draft_reply(who_ig, c.get("text", ""), "ig_comment"),
             })
 
-    parts = [PAGE_HEAD]
-    parts.append('''<a href="https://dashboard.themakeupblowout.com/" style="display:inline-block;background:rgba(255,255,255,0.1);color:#aaa;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:13px;margin-bottom:10px;font-weight:600">← חזרה ל-Agent Hub</a>''')
-    parts.append(f"<h1>📬 @meta — Live Inbox Triage</h1>")
-    parts.append(f'<div class="sub">'
-                 f'🕘 סריקה אחרונה: {_format_la_time(snapshot["fetched_at"])} · '
-                 f'Bucket A auto-replies are LIVE · Send Reply button on items below sends via Meta API.</div>')
+    # ================================================================
+    # 2026-07-02 — PERSISTENT PENDING QUEUE ("nothing falls through")
+    # Items needing Lauren are merged into pending.json and carried across
+    # runs until handled — even after the post leaves the scan window.
+    # ================================================================
+    pend_path = _Path("docs/meta/inbox-api-preview/pending.json")
+    try:
+        _old_pend = _json.loads(pend_path.read_text(encoding="utf-8")).get("items", {})
+    except Exception:
+        _old_pend = {}
+    _now = _now_iso()
+    cur_keys = set()
+    for it in attention_items:
+        k = it.get("dedup_key", "")
+        cur_keys.add(k)
+        prev = _old_pend.get(k) or {}
+        it["first_seen"] = prev.get("first_seen") or it.get("received") or _now
+    for k, v in _old_pend.items():
+        if k in cur_keys or _is_handled(k):
+            continue
+        v["carried"] = True                     # out of scan window but still open
+        attention_items.append(v)
+    try:
+        pend_path.parent.mkdir(parents=True, exist_ok=True)
+        pend_path.write_text(_json.dumps(
+            {"_updated_at": _now,
+             "items": {it["dedup_key"]: it for it in attention_items if it.get("dedup_key")}},
+            ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception as _pe:
+        print(f"  ⚠ pending.json write failed: {_pe}")
+    # NEG first, then newest first
+    attention_items.sort(key=lambda it: (it.get("bucket") != "NEG",
+                                         it.get("received") or it.get("first_seen") or ""),
+                         )
+    attention_items.sort(key=lambda it: it.get("received") or it.get("first_seen") or "", reverse=True)
+    attention_items.sort(key=lambda it: it.get("bucket") != "NEG")
+    n_pending = len(attention_items)
+    n_neg_all = sum(1 for it in attention_items if it.get("bucket") == "NEG")
 
-    # === Attention block: items needing Lauren — at the very top ===
+    # counts across ALL channels
+    def _cnt(lst, b): return sum(1 for c in lst if c["cls"]["bucket"] == b)
+    auto_replied = (_cnt(classified_messenger, "A") + _cnt(classified_fb_comments, "A")
+                    + _cnt(classified_ig_comments, "A"))
+    skipped = (_cnt(classified_messenger, "SKIP") + _cnt(classified_fb_comments, "SKIP")
+               + _cnt(classified_ig_comments, "SKIP"))
+    total_comments = len(classified_fb_comments) + len(classified_ig_comments)
+    total_dms = len(classified_messenger)
+
+    _CH_CHIP = {"Messenger": '<span class="chip dm">💬 מסנג׳ר</span>',
+                "FB comment": '<span class="chip fb">📘 פייסבוק</span>',
+                "IG comment": '<span class="chip ig">📸 אינסטגרם</span>'}
+
+    parts = [PAGE_HEAD]
+    parts.append('<div class="topbar">'
+                 '<div><h1>📬 תיבת מטה</h1>'
+                 '<div style="font-size:12.5px;color:var(--dim)">מסנג׳ר · תגובות פייסבוק · תגובות אינסטגרם — מנוהל אוטומטית</div></div>'
+                 f'<div><span class="fresh" id="fresh" data-fetched="{html.escape(snapshot["fetched_at"])}">'
+                 '<span class="dot"></span><span id="fresh-txt">…</span></span>'
+                 '<div style="text-align:center;font-size:11px;color:var(--dim);margin-top:4px" id="next-run"></div></div>'
+                 '<a class="back" href="https://dashboard.themakeupblowout.com/">← Agent Hub</a>'
+                 '</div>')
+
+    # === HERO ===
+    if n_pending == 0:
+        parts.append('<div class="hero hero-ok" id="hero">'
+                     '<div class="big">✅</div><div>'
+                     '<p class="t1">הכל מטופל — שום תגובה לא מחכה לך</p>'
+                     '<p class="t2">כל שאלה שנסרקה נענתה אוטומטית או סומנה כטופלה. פריטים פתוחים נשמרים כאן גם בין ריצות — כלום לא הולך לאיבוד.</p>'
+                     '</div></div>')
+    elif n_neg_all:
+        parts.append(f'<div class="hero hero-neg" id="hero">'
+                     f'<div class="big">🔴</div><div>'
+                     f'<p class="t1"><span id="pending-count">{n_pending}</span> ממתינות לך — כולל {n_neg_all} רגישות</p>'
+                     f'<p class="t2">תגובות רגישות (תלונה/ספקנות) אף פעם לא נענות אוטומטית — רק את. השאר למטה עם טיוטה מוכנה.</p>'
+                     f'</div></div>')
+    else:
+        parts.append(f'<div class="hero hero-warn" id="hero">'
+                     f'<div class="big">👀</div><div>'
+                     f'<p class="t1"><span id="pending-count">{n_pending}</span> תגובות מחכות להחלטה שלך</p>'
+                     f'<p class="t2">לכל אחת יש טיוטה מוכנה — עריכה (אם צריך) → שליחה בלחיצה. הפריטים נשמרים בין ריצות עד שמטפלים בהם.</p>'
+                     f'</div></div>')
+
+    # === STATS ===
+    parts.append('<div class="stats">'
+                 f'<div class="stat green"><div class="num">{auto_replied}</div><div class="lbl">🤖 נענו אוטומטית (בסריקה הזו)</div></div>'
+                 f'<div class="stat amber"><div class="num" id="stat-pending">{n_pending}</div><div class="lbl">👀 מחכות לך</div></div>'
+                 f'<div class="stat gray"><div class="num">{skipped}</div><div class="lbl">😴 לא דורשות מענה</div></div>'
+                 f'<div class="stat blue"><div class="num">{total_comments + total_dms}</div><div class="lbl">📡 נבדקו בסריקה</div></div>'
+                 '</div>')
+    parts.append(f'<div class="coverage">📡 <b>מה כוסה בסריקה האחרונה:</b> 25 הפוסטים האחרונים בפייסבוק + 25 באינסטגרם (כל התגובות, כולל ישנות) + {total_dms} שיחות מסנג׳ר · רץ אוטומטית כל 3 שעות · שאלות פשוטות נענות מיד ע״י מנוע Claude (אנגלית + ספרדית) · תלונות ופניות אישיות תמיד מחכות לך.</div>')
+
+    # === ATTENTION LIST ===
     if attention_items:
         parts.append('<div class="attention-block">')
-        parts.append(f'<h2>👀 {len(attention_items)} items need your attention</h2>')
-        parts.append('<p class="intro">📝 ערכי את הטיוטה אם צריך → 📤 Send Reply → התשובה נשלחת אוטומטית דרך Meta API.</p>')
+        parts.append(f'<h2 id="att-title">👀 ממתינות לטיפול שלך ({n_pending})</h2>')
         parts.append('<div class="attention-list">')
         for item in attention_items:
-            url_attr = html.escape(item["url"]) if item["url"] else "#"
+            url_attr = html.escape(item.get("url") or "") or "#"
             dkey = html.escape(item.get("dedup_key", ""))
             tid  = html.escape(item.get("target_id", ""))
             kind = html.escape(item.get("reply_kind", ""))
             draft = html.escape(item.get("draft") or "")
-            parts.append(f'<div class="attention-row" data-dedup-key="{dkey}" data-target-id="{tid}" data-reply-kind="{kind}">')
-            recv_text, recv_cls = _format_received(item.get("received", ""))
-            time_html = (f'<span class="att-time {recv_cls}" data-iso="{html.escape(item.get("received","") or "")}">🕒 {html.escape(recv_text)}</span>'
-                         if recv_text else '')
-            # 2026-05-20 PM #2 — event chip: shows which event we matched (or guessed) for this item
+            is_neg = item.get("bucket") == "NEG"
+            row_cls = "attention-row neg" if is_neg else "attention-row"
+            parts.append(f'<div class="{row_cls}" data-dedup-key="{dkey}" data-target-id="{tid}" data-reply-kind="{kind}">')
+            chips = [_CH_CHIP.get(item.get("channel", ""), "")]
+            if is_neg:
+                chips.append('<span class="chip neg">⚠️ רגיש — בלי מענה אוטומטי</span>')
+            if item.get("carried"):
+                chips.append('<span class="chip carried">⏳ ממתין מריצה קודמת</span>')
             ev = item.get("event_chip") or {}
             if ev.get("city"):
-                ev_status = ev.get("status","")
-                ev_cls = ev.get("confidence","high")
-                if ev_status == "past": ev_cls = "past"
-                _ev_dates_short = (ev.get("dates","") or "")[:24]
-                event_html = (f'<span class="att-event {ev_cls}" '
-                              f'title="{html.escape(ev.get("status","") or "")}">'
-                              f'🎯 {html.escape(ev.get("city",""))}, {html.escape(ev.get("state",""))} · {html.escape(_ev_dates_short)}'
-                              f'</span>')
-            else:
-                event_html = ''
-            parts.append(f'<div class="att-meta"><span class="who">[{item["channel"]}] {html.escape(item["who"])}</span>{event_html}{time_html}</div>')
-            # Full message text (no truncation — let CSS handle wrap)
-            parts.append(f'<div class="att-message">💬 {html.escape(item["what"])}</div>')
-            # Inline reply textarea + Send button
-            parts.append(f'<textarea class="att-reply" data-key="{dkey}" placeholder="כתבי תשובה...">{draft}</textarea>')
+                ev_cls = "past" if ev.get("status") == "past" else ""
+                chips.append(f'<span class="att-event {ev_cls}">🎯 {html.escape(ev.get("city",""))}, {html.escape(ev.get("state",""))} · {html.escape((ev.get("dates","") or "")[:24])}</span>')
+            recv_text, recv_cls = _format_received(item.get("received", "") or item.get("first_seen", ""))
+            time_html = (f'<span class="att-time {recv_cls}">🕒 {html.escape(recv_text)}</span>' if recv_text else "")
+            parts.append(f'<div class="att-meta">{"".join(chips)}<span class="who">{html.escape(item.get("who","?"))}</span>{time_html}</div>')
+            parts.append(f'<div class="att-message">{html.escape(item.get("what") or "(ללא טקסט)")}</div>')
+            parts.append(f'<textarea class="att-reply" data-key="{dkey}" placeholder="כתבי תשובה (אנגלית/ספרדית)...">{draft}</textarea>')
             parts.append('<div class="att-actions">')
             if tid and kind:
-                parts.append(f'<button class="send-btn" data-key="{dkey}" data-tid="{tid}" data-kind="{kind}" onclick="sendReply(this)">📤 Send Reply</button>')
+                parts.append(f'<button class="send-btn" data-key="{dkey}" data-tid="{tid}" data-kind="{kind}" onclick="sendReply(this)">📤 שלחי את התשובה</button>')
             if dkey:
-                parts.append(f'<button class="done-btn" data-key="{dkey}" onclick="markDone(this)">Skip / Done</button>')
-            if item["url"]:
-                parts.append(f'<a class="reply-btn-secondary" href="{url_attr}" target="_blank" rel="noopener" onclick="markReplyClicked(this)" data-key="{dkey}">↗ Open in Meta</a>')
+                parts.append(f'<button class="done-btn" data-key="{dkey}" onclick="markDone(this)">✓ סמני כטופל (בלי לענות)</button>')
+            if item.get("url"):
+                parts.append(f'<a class="reply-btn-secondary" href="{url_attr}" target="_blank" rel="noopener" onclick="markReplyClicked(this)" data-key="{dkey}">↗ פתחי במטה</a>')
             parts.append('</div></div>')
         parts.append('</div></div>')
 
-    # (verbose warning removed for mobile cleanup)
-
-    # Stats
-    parts.append('''<div class="legend" style="background:#1a2030;border-radius:10px;padding:14px 18px;margin:14px 0;font-size:13px;line-height:1.7">
-<strong style="color:#fbbf24;font-size:14px">📊 מה כל מספר אומר?</strong>
-<div style="margin-top:8px;color:#aaa">
-🟢 <b style="color:#10b981">MESSENGER BUCKET A</b> = הודעות שהסוכן ענה עליהן <b>אוטומטית</b> (KB matched). את לא צריכה לעשות כלום.<br>
-🟡 <b style="color:#fbbf24">MESSENGER BUCKET B</b> = הודעות שהסוכן <b>לא בטוח</b> איך לענות — אלה רואות אותך למעלה ב-"items need your attention".<br>
-🔴 <b style="color:#ef4444">MESSENGER NEGATIVE</b> = הודעות שליליות שהסוכן <b>לא יענה לעולם</b> אוטומטית (תלונות חזקות).<br>
-💬 <b style="color:#9ca3af">FB COMMENTS / IG COMMENTS</b> = תגובות בפוסטים — מנותחות בנפרד.<br>
-📦 <b style="color:#9ca3af">auto-drafts (tap to inspect)</b> = טיוטות שהסוכן הכין; לחיצה תפתח כדי לראות מה נשלח.
-</div></div>''')
-    parts.append('<div class="stats">')
-    for label, num in [("Messenger Bucket A", n_a),
-                       ("Messenger Bucket B", n_b),
-                       ("Messenger Negative", n_neg),
-                       ("FB Comments", n_fb),
-                       ("IG Comments", n_ig)]:
-        parts.append(f'<div class="stat"><div class="num">{num}</div>'
-                     f'<div class="lbl">{label}</div></div>')
-    parts.append('</div>')
+    # === TRANSPARENCY LOG — what the agent answered this scan ===
+    replied = []
+    for c in classified_messenger:
+        if c["cls"]["bucket"] == "A" and c["cls"].get("reply"):
+            replied.append(("💬", c.get("name","?"), c.get("msg",""), c["cls"]["reply"], c.get("reply_url",""), c["cls"].get("reason","")))
+    for c in classified_fb_comments:
+        if c["cls"]["bucket"] == "A" and c["cls"].get("reply"):
+            replied.append(("📘", c.get("from","?"), c.get("text",""), c["cls"]["reply"], c.get("reply_url",""), c["cls"].get("reason","")))
+    for c in classified_ig_comments:
+        if c["cls"]["bucket"] == "A" and c["cls"].get("reply"):
+            replied.append(("📸", "@"+c.get("username","?"), c.get("text",""), c["cls"]["reply"], c.get("reply_url",""), c["cls"].get("reason","")))
+    if replied:
+        parts.append('<details class="log">')
+        parts.append(f'<summary>🤖 מה הסוכן ענה בסריקה הזו ({len(replied)}) — שקיפות מלאה</summary>')
+        for icon, who, q, a, url, reason in replied:
+            parts.append('<div class="log-item">')
+            parts.append(f'<div class="lwho">{icon} {html.escape(who)}</div>')
+            parts.append(f'<div class="q">שאלה: {html.escape(q[:220])}</div>')
+            parts.append(f'<div class="a">{html.escape(a)}</div>')
+            link = f' · <a href="{html.escape(url)}" target="_blank" rel="noopener">פתחי</a>' if url else ""
+            parts.append(f'<div class="lmeta">{html.escape(reason[:110])}{link}</div>')
+            parts.append('</div>')
+        parts.append('</details>')
 
     if snapshot.get("errors"):
-        parts.append('<div class="errors"><strong>Non-fatal errors during fetch:</strong><ul>')
-        for e in snapshot["errors"]:
-            parts.append(f'<li>{html.escape(e[:200])}</li>')
-        parts.append('</ul></div>')
+        parts.append('<div class="errors"><b>שגיאות לא-קריטיות בסריקה:</b> ' +
+                     " · ".join(html.escape(e[:120]) for e in snapshot["errors"][:5]) + '</div>')
 
-    # Per-channel sections — Bucket A only, collapsed by default (Bucket B already in attention block)
-    msg_a = [c for c in classified_messenger if c["cls"]["bucket"] == "A"]
-    fb_a  = [c for c in classified_fb_comments if c["cls"]["bucket"] == "A"]
-    ig_a  = [c for c in classified_ig_comments if c["cls"]["bucket"] == "A"]
+    parts.append('<div class="legend">ℹ️ <b>איך זה עובד:</b> הסוכן סורק כל 3 שעות. שאלות פשוטות (לו״ז ערים, שעות, חניה, תשלום, מותגים — בכל ניסוח, גם ספרדית) נענות אוטומטית ומופיעות בלוג השקיפות. כל השאר מחכה לך כאן עם טיוטה — וגם אם הפוסט יוצא מחלון הסריקה, הפריט נשאר עד שתטפלי בו. תגובה שנעלמה מהרשימה = טופלה.</div>')
 
-    if msg_a:
-        parts.append('<details class="drafts-section">')
-        parts.append(f'<summary>📬 {len(msg_a)} Messenger auto-drafts ready (tap to inspect)</summary>')
-        parts.append('<div class="drafts-body">')
-    for c in msg_a:
-        cls = c["cls"]
-        bucket = cls["bucket"]
-        parts.append(f'<div class="item bucket-{bucket}">')
-        parts.append(f'<div class="meta">conv: {html.escape(c["conv_id"])} · '
-                     f'updated: {html.escape(c.get("updated_time","")[:16])}</div>')
-        parts.append(f'<div class="name">{html.escape(c.get("name","?"))}</div>')
-        parts.append(f'<div class="msg">{html.escape(c.get("msg","(no message text)"))}</div>')
-        parts.append(f'<span class="bucket-pill">Bucket {bucket}</span>')
-        parts.append(f'<div class="reason">{html.escape(cls.get("reason",""))}</div>')
-        if cls.get("reply"):
-            parts.append(f'<div class="reply">{html.escape(cls["reply"])}</div>')
-        else:
-            parts.append('<div class="no-reply">→ Lauren reviews / replies manually</div>')
-        if c.get("reply_url"):
-            parts.append(f'<a class="reply-btn" href="{html.escape(c["reply_url"])}" target="_blank" rel="noopener">💬 Open in Messenger</a>')
-        parts.append('</div>')
-    if msg_a:
-        parts.append('</div></details>')
-
-    # FB comment auto-drafts (collapsed)
-    if fb_a:
-        parts.append('<details class="drafts-section">')
-        parts.append(f'<summary>💬 {len(fb_a)} Facebook auto-drafts (tap to inspect)</summary>')
-        parts.append('<div class="drafts-body">')
-        for c in fb_a:
-            cls = c["cls"]
-            bucket = cls["bucket"]
-            parts.append(f'<div class="item bucket-{bucket}">')
-            parts.append(f'<div class="meta">on post: {html.escape(c.get("post_msg","")[:60])}</div>')
-            parts.append(f'<div class="name">{html.escape(c.get("from","?"))}</div>')
-            parts.append(f'<div class="msg">{html.escape(c.get("text","(no text)"))}</div>')
-            parts.append(f'<span class="bucket-pill">Bucket {bucket}</span>')
-            parts.append(f'<div class="reason">{html.escape(cls.get("reason",""))}</div>')
-            if cls.get("reply"):
-                parts.append(f'<div class="reply">{html.escape(cls["reply"])}</div>')
-            else:
-                parts.append('<div class="no-reply">→ Lauren reviews / replies manually</div>')
-            if c.get("reply_url"):
-                parts.append(f'<a class="reply-btn" href="{html.escape(c["reply_url"])}" target="_blank" rel="noopener">💬 Open on Facebook</a>')
-            parts.append('</div>')
-        parts.append('</div></details>')
-
-    # IG comment auto-drafts (collapsed)
-    if ig_a:
-        parts.append('<details class="drafts-section">')
-        parts.append(f'<summary>📷 {len(ig_a)} Instagram auto-drafts (tap to inspect)</summary>')
-        parts.append('<div class="drafts-body">')
-        for c in ig_a:
-            cls = c["cls"]
-            bucket = cls["bucket"]
-            parts.append(f'<div class="item bucket-{bucket}">')
-            parts.append(f'<div class="meta">on reel: {html.escape(c.get("media_caption","")[:60])}</div>')
-            parts.append(f'<div class="name">@{html.escape(c.get("username","?"))}</div>')
-            parts.append(f'<div class="msg">{html.escape(c.get("text","(no text)"))}</div>')
-            parts.append(f'<span class="bucket-pill">Bucket {bucket}</span>')
-            parts.append(f'<div class="reason">{html.escape(cls.get("reason",""))}</div>')
-            if cls.get("reply"):
-                parts.append(f'<div class="reply">{html.escape(cls["reply"])}</div>')
-            else:
-                parts.append('<div class="no-reply">→ Lauren reviews / replies manually</div>')
-            if c.get("reply_url"):
-                parts.append(f'<a class="reply-btn" href="{html.escape(c["reply_url"])}" target="_blank" rel="noopener">💬 Open on Instagram</a>')
-            parts.append('</div>')
-        parts.append('</div></details>')
+    # freshness + next-run clock
+    parts.append("""<script>
+(function(){
+  var el=document.getElementById('fresh'),tx=document.getElementById('fresh-txt'),nr=document.getElementById('next-run');
+  if(!el)return;
+  var fetched=new Date(el.dataset.fetched);
+  function tick(){
+    var m=Math.max(0,Math.round((Date.now()-fetched.getTime())/60000));
+    tx.textContent = m<60 ? ('עודכן לפני '+m+' דק׳') : ('עודכן לפני '+Math.round(m/60)+' שע׳');
+    if(m>200){el.classList.add('stale');}
+    var now=new Date(); var nx=new Date(now);
+    nx.setUTCMinutes(0,0,0); nx.setUTCHours(now.getUTCMinutes()||now.getUTCSeconds()?now.getUTCHours()+1:now.getUTCHours());
+    while(nx.getUTCHours()%3!==0){nx.setUTCHours(nx.getUTCHours()+1);}
+    if(nx<=now){nx.setUTCHours(nx.getUTCHours()+3);}
+    nr.textContent='סריקה הבאה ~'+nx.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+  }
+  tick(); setInterval(tick,30000);
+})();
+window.__updatePendingCount=function(n){
+  var pc=document.getElementById('pending-count'); if(pc)pc.textContent=n;
+  var sp=document.getElementById('stat-pending'); if(sp)sp.textContent=n;
+  var at=document.getElementById('att-title'); if(at)at.textContent='👀 ממתינות לטיפול שלך ('+n+')';
+  if(n===0){var h=document.getElementById('hero'); if(h){h.className='hero hero-ok';
+    h.innerHTML='<div class="big">✅</div><div><p class="t1">הכל מטופל — שום תגובה לא מחכה לך</p><p class="t2">כל הכבוד! הרשימה נקייה.</p></div>';}}
+};
+</script>""")
 
     rendered = "\n".join(parts) + PAGE_FOOT
     # Inject the runtime JS (kept in a separate file to avoid Python escape hell)
