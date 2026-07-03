@@ -1679,7 +1679,10 @@ def classify_llm(text: str, kb: dict) -> dict:
             try: body = e.read().decode()[:400]
             except Exception: pass
             last = f"HTTP {e.code}: {body}"
-            if e.code in (429, 400, 500, 529) and _att < 3:
+            # Only back off on TRANSIENT errors. A 400 (e.g. "credit balance too
+            # low") is permanent — retrying 4x just hammers the API and slows the
+            # whole run by minutes. Fail fast so the keyword fallback kicks in.
+            if e.code in (429, 500, 529) and _att < 3:
                 _time.sleep(3 * (_att + 1))
                 continue
             raise RuntimeError(last)
