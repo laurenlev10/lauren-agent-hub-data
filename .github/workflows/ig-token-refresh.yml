@@ -1,0 +1,61 @@
+name: Refresh Instagram DM token (monthly)
+
+# The IG_LOGIN_TOKEN (Instagram-login DM token) is long-lived ~60 days but must
+# be refreshed before expiry or IG DM handling silently stops. Runs monthly,
+# well inside the window. IRON RULE #3 — SMS Lauren on failure.
+
+on:
+  schedule:
+    - cron: "0 9 1 * *"   # 1st of each month, 09:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pynacl
+        run: python3 -m pip install pynacl --quiet
+
+      - name: Refresh IG token + update secret
+        env:
+          IG_LOGIN_TOKEN: ${{ secrets.IG_LOGIN_TOKEN }}
+          IG_REFRESH_PAT: ${{ secrets.IG_REFRESH_PAT }}
+        run: python3 scripts/refresh_ig_token.py
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PYR'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists(): raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "ig-token-refresh":
+                  t["lastRunAt"] = now; break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          PYR
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump ig-token-refresh lastRunAt"
+            for i in 1 2 3; do git pull --rebase -X theirs origin main && git push origin main && break; git rebase --abort 2>/dev/null||true; sleep 3; done
+          fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py

@@ -2734,6 +2734,82 @@ def main():
         if c_sent:
             handled_path.write_text(json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
 
+    # === Phase 2c — Instagram DIRECT MESSAGES (2026-07-03) ===
+    # IG DMs are reachable WITHOUT App Review via the Instagram-login token
+    # (IG_LOGIN_TOKEN). We POLL conversations each run (no webhook needed),
+    # classify the latest customer message with the SAME Claude engine, auto-reply
+    # Bucket A, and route B/NEG into the same pending queue Lauren reviews.
+    try:
+        import lauren_ig_dm as _igdm
+        if _igdm.get_token():
+            convs = _igdm.fetch_conversations(limit=25)
+            print(f"  IG DMs: {len(convs)} conversations")
+            d_a = d_b = d_neg = d_skip = d_sent = d_sendfail = 0
+            # load pending (merge-safe) to append IG-DM B/NEG items
+            _pp = Path(__file__).resolve().parent.parent / "docs/meta/inbox-api-preview/pending.json"
+            try:
+                _pend = json.loads(_pp.read_text(encoding="utf-8"))
+            except Exception:
+                _pend = {"_updated_at": None, "items": {}}
+            _pitems = _pend.get("items", {})
+            for cv in convs:
+                cid = cv.get("id", "")
+                parts = (cv.get("participants") or {}).get("data", [])
+                cust = next((pp for pp in parts if pp.get("id") != _igdm.ME_ID), {})
+                cust_user = cust.get("username", "?"); cust_id = cust.get("id", "")
+                msgs = _igdm.fetch_messages(cid, limit=8)
+                last_cust, answered = _igdm.latest_customer_message(msgs)
+                if not last_cust or answered:
+                    continue
+                msg_id = last_cust.get("id") or (cid + ":" + (last_cust.get("created_time") or ""))
+                dkey = dedup_key("ig-dm", msg_id)
+                if handled.get(dkey, {}).get("handled"):
+                    continue
+                txt = (last_cust.get("message") or "").strip()
+                if not txt:
+                    continue
+                kb["_seed"] = msg_id; kb["_post_context"] = None
+                cls = classify_smart(txt, kb)
+                bucket = cls.get("bucket")
+                if bucket == "A" and cls.get("reply"):
+                    d_a += 1
+                    if args.reply_bucket_a and cust_id:
+                        try:
+                            _igdm.send_reply(cust_id, cls["reply"], dry_run=False)
+                            handled[dkey] = {"handled": True, "handledAt": _now_iso(),
+                                             "method": "phase2c-igdm-auto"}
+                            d_sent += 1
+                            continue
+                        except Exception as _e:
+                            # e.g. outside the 24h messaging window -> hand to Lauren
+                            print(f"  ⚠ ig-dm send {cust_user}: {str(_e)[:90]}")
+                            d_sendfail += 1
+                            _pitems[dkey] = {"channel": "IG DM", "who": "@"+cust_user,
+                                "what": txt, "url": f"https://instagram.com/{cust_user}",
+                                "bucket": "B", "dedup_key": dkey, "reply_kind": "ig_dm",
+                                "target_id": cust_id, "received": last_cust.get("created_time",""),
+                                "event_chip": cls.get("event_chip"), "draft": cls.get("reply") or "",
+                                "first_seen": _pitems.get(dkey, {}).get("first_seen") or _now_iso()}
+                elif bucket in ("B", "NEG"):
+                    d_b += (bucket == "B"); d_neg += (bucket == "NEG")
+                    _pitems[dkey] = {"channel": "IG DM", "who": "@"+cust_user,
+                        "what": txt, "url": f"https://instagram.com/{cust_user}",
+                        "bucket": bucket, "dedup_key": dkey, "reply_kind": "ig_dm",
+                        "target_id": cust_id, "received": last_cust.get("created_time",""),
+                        "event_chip": cls.get("event_chip"), "draft": cls.get("reply") or "",
+                        "first_seen": _pitems.get(dkey, {}).get("first_seen") or _now_iso()}
+                else:
+                    d_skip += 1
+            _pend["items"] = _pitems; _pend["_updated_at"] = _now_iso()
+            _pp.write_text(json.dumps(_pend, ensure_ascii=False, indent=1), encoding="utf-8")
+            if d_sent or d_a or d_b or d_neg:
+                handled_path.write_text(json.dumps(handled, indent=2, ensure_ascii=False), encoding="utf-8")
+            print(f"  Phase 2c IG DMs: A={d_a} (sent={d_sent}, sendfail={d_sendfail}) B={d_b} NEG={d_neg} SKIP={d_skip}")
+        else:
+            print("  IG DMs: no IG_LOGIN_TOKEN set — skipping")
+    except Exception as _ige:
+        print(f"  ⚠ Phase 2c IG DM handling failed (non-fatal): {_ige}")
+
     # === Bulk mark all classified items as handled (manual cleanup) ===
     if args.bulk_mark_handled:
         marked = 0
