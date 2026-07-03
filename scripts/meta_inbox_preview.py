@@ -1666,11 +1666,30 @@ def classify_llm(text: str, kb: dict) -> dict:
     if caption:
         user_msg += f"POST CAPTION (context):\n{caption[:900]}\n\n"
     user_msg += f"COMMENT TO CLASSIFY:\n{text.strip()[:1000]}"
-    out = _llm_call(_llm_system_prompt(kb), user_msg, api_key)
+    # 2026-07-03 — retry w/ backoff: the ads backfill hit rate limits (98
+    # fallbacks). Capture the real error body; back off on 429/400/529.
+    import time as _time, urllib.error as _ue
+    out = None; last = None
+    for _att in range(4):
+        try:
+            out = _llm_call(_llm_system_prompt(kb), user_msg, api_key)
+            break
+        except _ue.HTTPError as e:
+            body = ""
+            try: body = e.read().decode()[:200]
+            except Exception: pass
+            last = f"HTTP {e.code}: {body}"
+            if e.code in (429, 400, 500, 529) and _att < 3:
+                _time.sleep(3 * (_att + 1))
+                continue
+            raise RuntimeError(last)
+    if out is None:
+        raise RuntimeError(last or "no response")
     raw = "".join(b.get("text", "") for b in out.get("content", []) if b.get("type") == "text").strip()
-    # tolerate accidental markdown fences
+    # tolerate markdown fences / trailing prose — extract the FIRST JSON object
     raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw)
-    res = json.loads(raw)
+    m_json = re.search(r"\{.*?\}(?=\s*$)|\{.*\}", raw, re.S)
+    res = json.loads(m_json.group(0) if m_json else raw)
     bucket = res.get("bucket")
     if bucket not in ("A", "B", "NEG", "SKIP"):
         raise ValueError(f"bad bucket {bucket!r}")
@@ -1720,6 +1739,12 @@ def classify_smart(text: str, kb: dict) -> dict:
     # LLM engine
     if os.environ.get("ANTHROPIC_API_KEY", "").strip():
         try:
+            import time as _t
+            _now = _t.time()
+            _last = globals().get("_LLM_LAST_CALL", 0)
+            if _now - _last < 1.3:            # ~45 req/min ceiling
+                _t.sleep(1.3 - (_now - _last))
+            globals()["_LLM_LAST_CALL"] = _t.time()
             return classify_llm(t, kb)
         except Exception as e:
             print(f"  ⚠ LLM classify failed ({str(e)[:80]}) — keyword fallback")
