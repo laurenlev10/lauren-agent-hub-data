@@ -1676,7 +1676,7 @@ def classify_llm(text: str, kb: dict) -> dict:
             break
         except _ue.HTTPError as e:
             body = ""
-            try: body = e.read().decode()[:200]
+            try: body = e.read().decode()[:400]
             except Exception: pass
             last = f"HTTP {e.code}: {body}"
             if e.code in (429, 400, 500, 529) and _att < 3:
@@ -1747,7 +1747,7 @@ def classify_smart(text: str, kb: dict) -> dict:
             globals()["_LLM_LAST_CALL"] = _t.time()
             return classify_llm(t, kb)
         except Exception as e:
-            print(f"  ⚠ LLM classify failed ({str(e)[:80]}) — keyword fallback")
+            print(f"  ⚠ LLM classify failed ({str(e)[:300]}) — keyword fallback")
     # keyword engine (fallback / no key)
     res = classify(t, kb)
     res.setdefault("engine", "keywords")
