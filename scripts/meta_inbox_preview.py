@@ -1717,6 +1717,12 @@ def classify_llm(text: str, kb: dict) -> dict:
             "reply": reply if bucket == "A" else (reply or None)}
 
 
+# 2026-07-03 - LLM health tracker. The Claude engine silently 400'd on EVERY
+# comment ("credit balance too low") for ~2 days, unnoticed because the keyword
+# fallback kept working. main() SMSes Lauren (once/day) if the engine is down.
+_LLM_HEALTH = {"attempts": 0, "ok": 0, "credit_low": False, "last_err": ""}
+
+
 def classify_smart(text: str, kb: dict) -> dict:
     """Production entry point: deterministic guardrails → LLM → keyword fallback.
 
@@ -1748,9 +1754,17 @@ def classify_smart(text: str, kb: dict) -> dict:
             if _now - _last < 1.3:            # ~45 req/min ceiling
                 _t.sleep(1.3 - (_now - _last))
             globals()["_LLM_LAST_CALL"] = _t.time()
-            return classify_llm(t, kb)
+            _LLM_HEALTH["attempts"] += 1
+            _res = classify_llm(t, kb)
+            _LLM_HEALTH["ok"] += 1
+            return _res
         except Exception as e:
-            print(f"  ⚠ LLM classify failed ({str(e)[:300]}) — keyword fallback")
+            _LLM_HEALTH["attempts"] += 1
+            _emsg = str(e)
+            _LLM_HEALTH["last_err"] = _emsg[:200]
+            if "credit balance" in _emsg.lower() or "plans & billing" in _emsg.lower():
+                _LLM_HEALTH["credit_low"] = True
+            print(f"  ⚠ LLM classify failed ({_emsg[:300]}) — keyword fallback")
     # keyword engine (fallback / no key)
     res = classify(t, kb)
     res.setdefault("engine", "keywords")
@@ -2464,6 +2478,54 @@ def main():
           f"{sum(1 for c in classified_messenger if c['cls']['bucket']=='A')}/"
           f"{sum(1 for c in classified_messenger if c['cls']['bucket']=='B')}/"
           f"{sum(1 for c in classified_messenger if c['cls']['bucket']=='NEG')}")
+
+    # 2026-07-03 — LLM-down alert. If the Claude engine was attempted but NEVER
+    # succeeded this run (credit-low 400 or any hard error), SMS Lauren — at most
+    # once per day (docs/meta/llm_alert_state.json) so it does not spam every 3h.
+    try:
+        _h = _LLM_HEALTH
+        _alert_path = Path(__file__).resolve().parent.parent / "docs/meta/llm_alert_state.json"
+        if _h["attempts"] > 0 and _h["ok"] == 0:
+            import datetime as _dtm
+            _today = _dtm.datetime.now(_dtm.timezone.utc).strftime("%Y-%m-%d")
+            try:
+                _st = json.loads(_alert_path.read_text()) if _alert_path.exists() else {}
+            except Exception:
+                _st = {}
+            if _st.get("last_alert_date") != _today:
+                if _h["credit_low"]:
+                    _body = ("⚠️ מנוע ה-AI של תיבת המסרים כבוי — אזלו הקרדיטים ב-Anthropic.\n"
+                             "עובר על מילות מפתח בלבד (פחות חכם).\n"
+                             "תיקון: console.anthropic.com ← Plans & Billing")
+                else:
+                    _body = ("⚠️ מנוע ה-AI של תיבת המסרים נכשל בכל הקריאות.\n"
+                             + "שגיאה: " + (_h["last_err"][:120]) + "\n"
+                             + "עובר על מילות מפתח בינתיים.")
+                try:
+                    import lauren_sms as _sms
+                    if _sms.LAUREN_PHONE and os.environ.get("SIMPLETEXTING_TOKEN"):
+                        _sms.send_sms(_sms.LAUREN_PHONE, _body)
+                        print(f"  ✉ LLM-down SMS sent (credit_low={_h['credit_low']})")
+                except Exception as _se:
+                    print(f"  ⚠ LLM-down SMS failed: {_se}")
+                _st["last_alert_date"] = _today
+                _st["credit_low"] = _h["credit_low"]
+                _st["last_err"] = _h["last_err"]
+                try:
+                    _alert_path.write_text(json.dumps(_st, ensure_ascii=False, indent=2))
+                except Exception:
+                    pass
+        elif _h["ok"] > 0 and _alert_path.exists():
+            try:
+                _st = json.loads(_alert_path.read_text())
+                if _st.get("last_alert_date"):
+                    _st["last_alert_date"] = ""
+                    _alert_path.write_text(json.dumps(_st, ensure_ascii=False, indent=2))
+            except Exception:
+                pass
+        print(f"  LLM health: {_h['ok']}/{_h['attempts']} ok, credit_low={_h['credit_low']}")
+    except Exception as _he:
+        print(f"  ⚠ LLM health check failed (non-fatal): {_he}")
 
     # 2026-05-14 — urgent message alerts. Scans all classified items and
     # SMSes Lauren immediately on any urgent flag (not deduplicated against
