@@ -357,6 +357,7 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
     n_not_at_event = 0       # qty>0 but no activity — wasn't at the event
     n_already_counted = 0    # had CR row — trust the count, skip
     n_sold = 0               # had DR row — sold, trust the qty, skip
+    n_restocked_after = 0    # qty>=5 but restocked AFTER the prior event ended — wasn't present then
 
     # 'moved_pids' from snapshot updated_at — back-up signal in case OCTOPOS
     # recount-data missed a sale (the API timing isn't perfectly synced).
@@ -396,6 +397,10 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
             # every weekly recount even though Lauren just verified them.
             created_at = (p.get("created_at") or "")[:10]
             is_new_since_prior = bool(created_at and created_at > prior_end)
+            # Stock last touched after the prior event ended → received for the upcoming
+            # event, so it was NOT present (or was 0) during the prior event. Lauren 2026-07-03.
+            _upd_date = (p.get("updated_at") or "")[:10]
+            _restocked_after_prior = bool(_upd_date and _upd_date > prior_end)
             was_at_event = pid in activity_pids
             had_sale = pid in sale_pids
             was_physically_counted = pid in count_pids
@@ -431,10 +436,20 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
                 # Sold ≥1 unit at the last event → qty is trustworthy, NOT stale.
                 n_sold += 1
                 continue
+            elif stale_enabled and qty >= 5 and _restocked_after_prior:
+                # Lauren 2026-07-03 — the product's stock was last changed AFTER the prior
+                # event ended, i.e. it was RECEIVED for the UPCOMING event and was at 0 (or
+                # absent) during the prior event. It couldn't have "sat unsold" at an event
+                # it wasn't present at. Concrete case: 10 EBS perfumes ordered for Fort Collins
+                # (updated 06-30) that were 0 at Topeka 06-26→06-28. Not a count problem — skip.
+                n_restocked_after += 1
+                continue
             elif stale_enabled and qty >= 5:
                 # Lauren 2026-06-08 — SINGLE stale rule: 5+ units in stock AND zero units
                 # sold at the last CONFIRMED Fri-Sun event (threshold 5+). Count status, prior RECOUNT
                 # tag and updated_at are intentionally NOT conditions anymore.
+                # 2026-07-03 addendum: AND the product was present at the prior event
+                # (stock not received after prior_end) — see the branch above.
                 reason = "sat_unsold"
                 n_sat_unsold += 1
             else:
@@ -462,6 +477,7 @@ def build_worklist(snapshot, activity, prior_start, prior_end, ever_counted_pids
         "preexisting": n_preexisting,
         "excluded_permanent": n_excluded,
         "excluded_not_at_event": n_not_at_event,
+        "excluded_restocked_after_prior": n_restocked_after,
         "excluded_already_counted": n_already_counted,
         "excluded_sold": n_sold,
         "excluded_neg_already_counted": n_neg_skipped_counted,
