@@ -2741,6 +2741,7 @@ def main():
     # Bucket A, and route B/NEG into the same pending queue Lauren reviews.
     try:
         import lauren_ig_dm as _igdm
+        handled_path = Path(__file__).resolve().parent.parent / "docs/meta/handled.json"
         if _igdm.get_token():
             convs = _igdm.fetch_conversations(limit=25)
             print(f"  IG DMs: {len(convs)} conversations")
