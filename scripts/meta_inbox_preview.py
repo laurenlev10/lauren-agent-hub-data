@@ -2056,8 +2056,24 @@ def render_preview(snapshot: dict, classified_messenger: list,
         cur_keys.add(k)
         prev = _old_pend.get(k) or {}
         it["first_seen"] = prev.get("first_seen") or it.get("received") or _now
+    # 2026-07-03 — SELF-HEALING carry-purge. A comment that was RE-FETCHED this
+    # run and is now classified SKIP (friend-tag / emoji / plain praise, no
+    # question) must DROP OUT of the pending queue — NOT be re-carried as its
+    # stale B entry. Root cause of the 2026-07-02 backfill pileup: the first
+    # backfill hit LLM rate-limits (98 fallbacks) and the keyword fallback dumped
+    # ~135 social-noise comments into Bucket B; without this purge the carry loop
+    # re-added every one of them forever, even after the (now-fixed) LLM would
+    # correctly SKIP them. We only purge SKIP (definitively no-reply-needed);
+    # Bucket A that got auto-replied is already removed via handled.json.
+    _resolved_skip = set()
+    for _lst in (classified_messenger, classified_fb_comments, classified_ig_comments):
+        for _c in _lst:
+            if (_c.get("cls") or {}).get("bucket") == "SKIP":
+                _rk = _c.get("dedup_key", "")
+                if _rk:
+                    _resolved_skip.add(_rk)
     for k, v in _old_pend.items():
-        if k in cur_keys or _is_handled(k):
+        if k in cur_keys or _is_handled(k) or k in _resolved_skip:
             continue
         v["carried"] = True                     # out of scan window but still open
         attention_items.append(v)
