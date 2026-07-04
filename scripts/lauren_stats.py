@@ -1038,7 +1038,15 @@ def detect_anomalies(event_data: dict, baselines: dict) -> list:
             out.append({"event": slug, "severity": "warning", "metric": "conv_rate",
                         "observed": round(rate, 3), "expected": baseline_rate,
                         "hypothesis": "page broken? form misconfigured?"})
+        # ROAS anomaly — only meaningful when there is REAL attributed online
+        # revenue. Lauren's event pages are lead-gen (free events, no online
+        # purchase), so revenue is always 0 → ROAS 0 → this used to falsely say
+        # "cut spend on meta creative" on winning lead campaigns. Skip unless
+        # actual revenue exists. (2026-07-04)
+        _rev = ev.get("ad_revenue_attributed", {}) or {}
         for src, roas in ev.get("roas_by_source", {}).items():
+            if float(_rev.get(src, 0) or 0) <= 0:
+                continue
             if roas < 1.5:
                 out.append({"event": slug, "severity": "warning", "metric": f"roas_{src}",
                             "observed": roas, "expected": 3.0,
