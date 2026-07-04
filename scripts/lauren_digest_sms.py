@@ -29,6 +29,34 @@ NOTES        = REPO / "docs" / "launch" / "notes.json"
 ACTIVE_SPEND_THRESHOLD = 5.0  # $/30d — below this we don't dignify with SMS
 
 
+def _city_slug_from_event_slug(slug: str) -> str:
+    """events slug ('santa-maria-ca-2026' = city+state+year) -> FULL city slug
+    ('santa-maria'). IRON RULE #17: never truncate a multi-word city to its first
+    token — 'santa' would collide with santa-ana / santa-fe. Strip the trailing
+    year and the 2-letter state code."""
+    parts = slug.split("-")
+    year = parts[-1] if parts and parts[-1].isdigit() else ""
+    core = parts[:-1] if year else list(parts)
+    if core and len(core[-1]) == 2 and core[-1].isalpha():
+        core = core[:-1]  # drop the 2-letter state code
+    return "-".join(core)
+
+
+def _notes_key_for_slug(slug: str, notes: dict) -> str:
+    """Resolve the notes.json key ('<full-city>-<start_date>') for an events slug,
+    using the full city slug so multi-word cities never cross-match."""
+    city_slug = _city_slug_from_event_slug(slug)
+    year = slug.split("-")[-1]
+    year = year if year.isdigit() else ""
+    cands = [k for k in notes if k.startswith(city_slug + "-") and (not year or year in k)]
+    return cands[0] if cands else ""
+
+
+def _city_label_from_slug(slug: str) -> str:
+    """Human city label from an events slug — 'santa-maria-ca-2026' -> 'Santa Maria'."""
+    return _city_slug_from_event_slug(slug).replace("-", " ").title()
+
+
 def compute_event_averages(events: dict) -> dict:
     """Across all active events, compute mean CPL, CPF, CTR, etc. Used as benchmark
     for individual events ('Cleveland CPL $0.18 = 30% below avg $0.26')."""
@@ -109,12 +137,10 @@ def event_days_label(slug: str) -> str:
         notes = json.loads(NOTES.read_text())
     except Exception:
         return ""
-    city_prefix = slug.split("-")[0]
-    year_suffix = slug.split("-")[-1]
-    candidates = [k for k in notes if k.startswith(city_prefix + "-") and year_suffix in k]
-    if not candidates: return ""
+    nk = _notes_key_for_slug(slug, notes)
+    if not nk: return ""
     # The notes key format is "<city>-<start_date>" e.g. cleveland-2026-05-29
-    parts = candidates[0].split("-")
+    parts = nk.split("-")
     if len(parts) < 4: return ""
     try:
         d = datetime.date(int(parts[-3]), int(parts[-2]), int(parts[-1]))
@@ -156,9 +182,10 @@ def compose_event_sms(slug: str, ev: dict) -> str:
     cpf_meta = meta_spend / meta_leads if meta_leads else None
     cpf_tt   = tt_spend / tt_convs if tt_convs else None
 
-    # City label
-    city = slug.split("-")[0].title()
-    state = slug.split("-")[1].upper() if len(slug.split("-")) >= 2 else ""
+    # City label — full multi-word city (IRON RULE #17), state = the 2-letter code
+    city = _city_label_from_slug(slug)
+    _p = slug.split("-")
+    state = _p[-2].upper() if len(_p) >= 3 and len(_p[-2]) == 2 and _p[-2].isalpha() else ""
     days = event_days_label(slug)
 
     lines = []
@@ -248,11 +275,9 @@ def is_future_event(slug: str) -> bool:
         notes = json.loads(NOTES.read_text())
     except Exception:
         return True
-    city_prefix = slug.split("-")[0]
-    year_suffix = slug.split("-")[-1]
-    candidates = [k for k in notes if k.startswith(city_prefix + "-") and year_suffix in k]
-    if not candidates: return True
-    parts = candidates[0].split("-")
+    nk = _notes_key_for_slug(slug, notes)
+    if not nk: return True
+    parts = nk.split("-")
     if len(parts) < 4: return True
     try:
         event_date = datetime.date(int(parts[-3]), int(parts[-2]), int(parts[-1]))
@@ -293,8 +318,8 @@ def main() -> int:
     header_lines = [f"🎯 6h marketing pulse · {when} PT", ""]
     header_lines.append(f"{len(active)} אירועים פעילים · ממוצע CPL ${mean_cpl:.2f}")
     if best and best != worst:
-        best_city = best.split("-")[0].title()
-        worst_city = worst.split("-")[0].title()
+        best_city = _city_label_from_slug(best)
+        worst_city = _city_label_from_slug(worst)
         header_lines.append(f"🏆 הזול: {best_city}  ·  ⚠️ היקר: {worst_city}")
     header_lines.append("")
     header_lines.append("SMS לכל אירוע ⤵️")
