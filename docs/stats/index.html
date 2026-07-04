@@ -70,6 +70,12 @@
                        padding:3px 8px;border-radius:6px;letter-spacing:.5px}
     .event-card .badge.best{background:#0d2818;color:#22c55e;border:1px solid #22c55e}
     .event-card .badge.worst{background:#281010;color:#ef4444;border:1px solid #ef4444}
+    .event-card.inactive{background:#0e0e15;border-left-color:#33333f;opacity:.62}
+    .event-card.inactive:hover{opacity:1;border-left-color:#6b6b80;box-shadow:none;transform:translateY(-2px)}
+    .event-card .badge.idle{background:#17171f;color:#8a8a9a;border:1px solid #3a3a4a}
+    .grid-divider{grid-column:1/-1;display:flex;align-items:center;gap:12px;color:#7a7a8a;
+                  font-size:13px;font-weight:800;letter-spacing:.3px;margin:10px 2px 0}
+    .grid-divider::before,.grid-divider::after{content:"";flex:1;height:1px;background:#262634}
     .event-card .city{font-size:20px;font-weight:800;color:#fff;margin-bottom:2px}
     .event-card .when{color:#aaa;font-size:13px;margin-bottom:14px}
 
@@ -299,6 +305,7 @@
       return;
     }
 
+    var dividerInserted = false;
     entries.forEach(function(entry){
       var slug = entry.slug, ev = entry.ev;
       var m = ev.meta || {}, t = ev.tiktok || {}, rs = ev.reel_shares || {};
@@ -311,9 +318,17 @@
       var rate   = safeNum(rs.rate_per_hour);
       var fill   = safeNum(ev.eventbrite_capacity) > 0 ? (safeNum(ev.eventbrite_registered) / safeNum(ev.eventbrite_capacity) * 100) : 0;
       var anom   = (ev.anomalies && ev.anomalies.length) ? ev.anomalies[0] : null;
+      var isActive = spend > 0;
+      if (!isActive && !dividerInserted){
+        var dv = document.createElement("div"); dv.className = "grid-divider";
+        dv.textContent = "⏸ לא פעילים עדיין · טרם התחיל פרסום";
+        grid.appendChild(dv); dividerInserted = true;
+      }
       var isBest = slug === bestSlug, isWorst = slug === worstSlug;
-      var cardCls = "event-card" + (isBest ? " best" : "") + (isWorst ? " worst" : "");
-      var badge = isBest ? '<div class="badge best">🏆 הכי טוב</div>' : isWorst ? '<div class="badge worst">⚠️ הכי גרוע</div>' : '';
+      var cardCls = "event-card" + (isBest ? " best" : "") + (isWorst ? " worst" : "") + (isActive ? "" : " inactive");
+      var badge = isBest ? '<div class="badge best">🏆 הכי טוב</div>'
+                : isWorst ? '<div class="badge worst">⚠️ הכי גרוע</div>'
+                : (!isActive ? '<div class="badge idle">⏸ לא פעיל</div>' : '');
       var statsUrl = "https://events.themakeupblowout.com/events/" + slug + "/stats.html";
       var sharesBlock =
         '<div class="shares-block"><div class="shares-row">' +
