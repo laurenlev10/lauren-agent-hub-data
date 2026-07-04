@@ -676,20 +676,38 @@ def _build_reel_shares_block(slug: str, paid_engagement: int) -> dict:
     except Exception:
         return empty
 
-    # Map aggregator slug ("cleveland-oh-2026") → notes key ("cleveland-2026-05-29")
-    # The notes key starts with the city prefix (the part before the state code).
-    city_prefix = slug.split("-")[0]  # "cleveland"
-    year_suffix = slug.split("-")[-1]  # "2026"
+    # Map aggregator slug ("cleveland-oh-2026" = city+state+year) → notes key
+    # ("cleveland-2026-05-29" = FULL-city-slug + start_date). IRON RULE #17: never
+    # truncate a multi-word city. The old `slug.split("-")[0]` used only the FIRST
+    # token as the city ("santa" for "santa-maria-ca-2026"), which collided with
+    # santa-ana / santa-fe and grabbed the wrong (share-less) event → Santa Maria
+    # showed 0 reel shares. Derive the full city slug by stripping the trailing
+    # year and the 2-letter state code instead.
+    _parts = slug.split("-")
+    year_suffix = _parts[-1] if _parts and _parts[-1].isdigit() else ""
+    _core = _parts[:-1] if year_suffix else list(_parts)
+    if _core and len(_core[-1]) == 2 and _core[-1].isalpha():
+        _core = _core[:-1]  # drop the 2-letter state code (e.g. "ca")
+    city_slug = "-".join(_core)  # "santa-maria"
     candidates = [
         k for k in notes.keys()
-        if k.startswith(city_prefix + "-") and year_suffix in k
+        if k.startswith(city_slug + "-") and (not year_suffix or year_suffix in k)
     ]
     if not candidates:
         return empty
-    nk = candidates[0]  # take first match
-    scans = (notes.get(nk) or {}).get("insta_reel_scans") or []
+    nk = candidates[0]  # exact full-city match — no cross-city collision now
+    note = notes.get(nk) or {}
+
+    # Prefer the NEW REEL (slot 2) when Lauren has set it — mirrors the launch
+    # dashboard "NEW REEL" pill, which tracks the latest per-event reel.
+    if note.get("insta_reel_url_2") and (note.get("insta_reel_scans_2") or []):
+        scans = note.get("insta_reel_scans_2") or []
+        reel_url = note.get("insta_reel_url_2")
+    else:
+        scans = note.get("insta_reel_scans") or []
+        reel_url = note.get("insta_reel_url")
     if not scans:
-        return {**empty, "url": (notes.get(nk) or {}).get("insta_reel_url")}
+        return {**empty, "url": reel_url}
 
     # Sort scans by scanned_at to be safe
     scans = sorted(scans, key=lambda s: s.get("scanned_at") or "")
@@ -741,7 +759,7 @@ def _build_reel_shares_block(slug: str, paid_engagement: int) -> dict:
         # Templates should display total + paid_engagement separately, not subtract.
         "organic": None,
         "last_scan_at": latest.get("scanned_at"),
-        "url": (notes.get(nk) or {}).get("insta_reel_url"),
+        "url": reel_url,
         "delta_6h": _delta(6),
         "delta_24h": _delta(24),
         "rate_per_hour": round(rate, 2),
