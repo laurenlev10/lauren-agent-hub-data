@@ -1427,30 +1427,51 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     setIf("f-event-url", "event_url");
   })();
 
-  /* ---- Auto-fill Event URL from the events site (source of truth: upcoming-events.json) ---- */
-  (function autoUrl(){
+  /* ---- Auto-fill the WHOLE form: from the selected event (RUN) + the events site (upcoming-events.json) ---- */
+  (function autoFill(){
     var EVENTS_JSON = "https://raw.githubusercontent.com/laurenlev10/themakeupblowout-events/main/docs/upcoming-events.json";
     var list = null;
     function slugCity(s){ return String(s||"").split(",")[0].toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""); }
-    function tryFill(){
-      var urlEl = document.getElementById("f-event-url");
-      if (!list || !urlEl || urlEl.value.trim()) return;   // never overwrite what Lauren typed
-      var city = slugCity(document.getElementById("f-city").value);
-      var start = document.getElementById("f-start").value;
-      if (!city || !start) return;
-      for (var i = 0; i < list.length; i++) {
-        var e = list[i];
-        if (e.slug && e.start_date === start && slugCity(e.city) === city) {
-          urlEl.value = "https://events.themakeupblowout.com/events/" + e.slug + "/";
-          urlEl.style.background = "#f0fdf4";
-          return;
-        }
-      }
+    function setIfEmpty(id, val){ var el=document.getElementById(id); if(el && !el.value.trim() && val){ el.value=val; el.style.background="#f0fdf4"; } }
+    // Step 1 — seed from the currently-selected run's event (covers ?ev=<evkey> visits)
+    function seedFromRun(){
+      if (typeof RUN === "undefined" || !RUN || !RUN.event) return;
+      var e = RUN.event;
+      setIfEmpty("f-city", e.city);
+      setIfEmpty("f-venue", e.venueName);
+      setIfEmpty("f-address", e.venueAddress);
+      setIfEmpty("f-start", e.startDate);
+      setIfEmpty("f-end", e.endDate);
     }
+    // Step 2 — match the city in upcoming-events.json and fill anything still empty
+    function pickEvent(city, start){
+      var cands = list.filter(function(e){ return slugCity(e.city) === city; });
+      if (!cands.length) return null;
+      if (start){ var exact = cands.filter(function(e){ return e.start_date === start; }); if (exact.length) return exact[0]; }
+      var today = new Date().toISOString().slice(0,10);
+      var future = cands.filter(function(e){ return (e.start_date||"") >= today; }).sort(function(a,b){ return (a.start_date||"").localeCompare(b.start_date||""); });
+      return future[0] || cands[cands.length-1];
+    }
+    function tryFill(){
+      seedFromRun();
+      if (!list) return;
+      var city = slugCity(document.getElementById("f-city").value);
+      if (!city) return;
+      var e = pickEvent(city, document.getElementById("f-start").value);
+      if (!e) return;
+      setIfEmpty("f-venue", e.venue_name);
+      setIfEmpty("f-address", e.venue_address);
+      setIfEmpty("f-start", e.start_date);
+      setIfEmpty("f-end", e.end_date);
+      if (e.slug) setIfEmpty("f-event-url", "https://events.themakeupblowout.com/events/" + e.slug + "/");
+      // last-resort URL fallback from the run itself (past events not in the JSON)
+      if (typeof RUN !== "undefined" && RUN && RUN.event) setIfEmpty("f-event-url", RUN.event.eventUrl);
+    }
+    seedFromRun();
     fetch(EVENTS_JSON + "?_=" + Date.now(), { cache: "no-store" })
       .then(function(r){ return r.json(); })
       .then(function(d){ list = Array.isArray(d) ? d : (d.events || []); tryFill(); })
-      .catch(function(){});
+      .catch(function(){ tryFill(); });
     ["f-city", "f-start"].forEach(function(id){
       var el = document.getElementById(id);
       if (el) el.addEventListener("change", tryFill);
