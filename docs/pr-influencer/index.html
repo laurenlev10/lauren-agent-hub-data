@@ -657,6 +657,24 @@ const RUNS = {
     "previousRuns": []
   },
   "fort-collins-2026-07-03": {
+    "city_accounts": [
+      {
+        "rank": null,
+        "handle": "@this_is_noco",
+        "display_name": "This is NoCo",
+        "profile_url": "https://www.instagram.com/this_is_noco",
+        "platform": "instagram",
+        "followers": null,
+        "niche": "local_events",
+        "source": "instagram-city-hashtag",
+        "found_via_hashtag": "#fortcollins",
+        "evidence": "\u05d7\u05e9\u05d1\u05d5\u05df \u05e2\u05d9\u05e8/\u05d0\u05d9\u05e8\u05d5\u05e2\u05d9\u05dd \u05e9\u05dc Northern Colorado \u2014 \u05dc\u05d5\u05e8\u05df \u05de\u05e6\u05d0\u05d4 \u05d0\u05d5\u05ea\u05d5 \u05ea\u05d7\u05ea #FortCollins. \u05dc\u05d0\u05de\u05ea \u05e2\u05d5\u05e7\u05d1\u05d9\u05dd + \u05de\u05d9\u05d9\u05dc/DM \u05d1\u05e8\u05d9\u05e6\u05ea \u05e4\u05e7\u05d5\u05d3\u05d4 3.",
+        "email": null,
+        "paid_promo_note": null,
+        "phase": "pending_approval",
+        "dm_script": null
+      }
+    ],
     "generated_at": "2026-07-02T15:55:00-07:00",
     "status": "partial",
     "errorReason": "LAST-MINUTE RUN - event starts TOMORROW (Jul 3): DM-first, no story step, no follow-up. Gmail MCP on eli@ (not pr@) - no Gmail drafts; @alegriabeautyco email on dashboard for manual send. HEEPSY DONE (2026-07-02 PM): 9 FC creators added to project 'Modesto July 2026' (trial allows 1 active project - Lauren approved sharing; will upgrade for a clean project). FC-specific bulk email composed in Heepsy (subject 'Last-minute collab: $100 product basket - Fort Collins THIS weekend', follow-up OFF) - reaches the 3 with platform emails (@juliasaesthetics_rn, @cortneyyynicole, @karissanicolehart) - WAITING FOR LAUREN TO CLICK SEND. Borderline not included (>50k): @calm.minded.mom (54K) + @perfectly_emmperfect (~50K, charged political post).",
@@ -1159,9 +1177,14 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
       <div style="grid-column: 1 / -1">
         <label><input type="checkbox" id="f-heepsy" checked style="width:auto;margin-left:6px"> השתמשי ב-Heepsy ($50/mo) אם המפתח קיים</label>
       </div>
+      <div style="grid-column: 1 / -1">
+        <label>🏷️ כינוי אזורי לאשתג (אופציונלי) — לחיפוש חשבונות עיר/אירועים</label>
+        <input type="text" id="f-nickname" placeholder="לדוגמה: NoCo, DFW, SoCal (בלי #)">
+      </div>
     </div>
     <button class="copy-btn" id="copy-cmd">📋 פקודה 1 — חיפוש + פנייה ראשונה + פולו-אפ</button>
     <button class="copy-btn" id="copy-status-cmd" style="background:#0e7490;margin-top:6px;">📊 פקודה 2 — בדיקת סטטוסים (Heepsy + מייל + חתימות)</button>
+    <button class="copy-btn" id="copy-city-cmd" style="background:#7c3aed;margin-top:6px;">📣 פקודה 3 — חיפוש חשבונות עיר/אירועים (האשתג של העיר)</button>
     <div style="text-align:center;font-size:12px;color:var(--muted);margin-top:6px">
       מלאי, לחצי על הכפתור, הדביקי בשיחת Cowork חדשה. הסוכן רץ ~10-15 דקות.
     </div>
@@ -1231,6 +1254,19 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
   <div class="card" id="results-card">
     <h2 style="margin-top:0">תוצאות לפי אירוע <select id="run-picker" style="font-size:13px;padding:4px 8px;border-radius:8px;border:1.5px solid #e5e7eb;margin-right:8px;"></select></h2>
     <div id="run-summary"></div>
+
+    <div id="city-accounts-section" style="margin-top:18px;display:none;">
+      <div class="section-title" data-target="city-accounts-body">
+        <h3>📣 חשבונות עיר/אירועים — שיטת האשתג</h3>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="section-body" id="city-accounts-body">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">חשבונות מקומיים שממליצים על אירועים בעיר (נמצאו לפי האשתג של העיר). אשרי כל חשבון לפני פנייה — אז הוא עובר למעקב.</div>
+        <div id="city-pending-wrap"></div>
+        <div id="city-approved-wrap" style="margin-top:12px"></div>
+        <div id="city-empty" style="display:none;font-size:13px;color:var(--muted);padding:8px 0">עדיין אין תוצאות לאירוע הזה — לחצי "📣 פקודה 3" למעלה, הדביקי בשיחת Cowork, והתוצאות ייכנסו לכאן.</div>
+      </div>
+    </div>
 
     <div id="phase1-section" style="margin-top:18px;display:none;">
       <div class="section-title" data-target="phase1-body">
@@ -1477,6 +1513,30 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     });
   });
 
+  /* ---- Copy command 3: city/events accounts (hashtag method) ---- */
+  document.getElementById("copy-city-cmd").addEventListener("click", () => {
+    const city = document.getElementById("f-city").value.trim();
+    const year = document.getElementById("f-year").value.trim();
+    const start = document.getElementById("f-start").value;
+    const end = document.getElementById("f-end").value;
+    const eventUrl = document.getElementById("f-event-url").value.trim();
+    const nick = document.getElementById("f-nickname").value.trim().replace(/^#/, "");
+    if (!city || !start) { alert("מלאי עיר + תאריך התחלה"); return; }
+    if (!eventUrl || !/^https?:\/\//i.test(eventUrl)) { alert("חסרה כתובת דף האירוע (חובה)"); document.getElementById("f-event-url").focus(); return; }
+    const citySlug = city.split(",")[0].toLowerCase().replace(/[^a-z0-9]+/g, "");
+    const tags = ["#" + citySlug];
+    if (nick) tags.push("#" + nick.toLowerCase().replace(/[^a-z0-9]+/g, ""));
+    tags.push("#" + citySlug + "events");
+    const cmd = `@pr-influencer city-accounts\nCity: ${city}\nYear: ${year}\nEvent dates: ${start} → ${end}\nEvent URL: ${eventUrl}\nCity hashtags: ${tags.join(", ")}\nFollower range: any (local accounts, no cap)\nFind LOCAL events / city-guide accounts (like this_is_noco). Deposit ALL results into THIS event's dashboard (RUN.city_accounts for ${citySlug}-${start}) as phase pending_approval — Lauren approves each before outreach.`;
+    navigator.clipboard.writeText(cmd).then(() => {
+      const btn = document.getElementById("copy-city-cmd");
+      const orig = btn.textContent;
+      btn.textContent = "✓ הועתק! הדביקי בשיחת Cowork חדשה";
+      btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = orig; btn.classList.remove("copied"); }, 2500);
+    });
+  });
+
   (function(){
     var sel = document.getElementById("run-picker");
     if (!sel || typeof RUNS === "undefined") return;
@@ -1663,8 +1723,9 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
       }
     }
 
-    const phase1 = (RUN.creators || []).filter(c => c.phase === "phase_1");
-    const phase2 = (RUN.creators || []).filter(c => c.phase === "phase_2");
+    const isCityAcct = c => (c.source === "instagram-city-hashtag" || c.niche === "local_events");
+    const phase1 = (RUN.creators || []).filter(c => c.phase === "phase_1" && !isCityAcct(c));
+    const phase2 = (RUN.creators || []).filter(c => c.phase === "phase_2" && !isCityAcct(c));
 
     // Phase 1 table
     if (phase1.length) {
@@ -1742,7 +1803,68 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     }
 
     // Status dropdown change → save to notes.json + update tone + sync Hall buckets
-    const allCreators = (RUN.creators || []);
+    const allCreators = (RUN.creators || []).concat(RUN.city_accounts || []);
+
+    /* ---- City / events accounts (hashtag method) ---- */
+    const cityAccts = (RUN.city_accounts || []);
+    const cityKey = a => `${ev.city}|city|${(a.handle || a.display_name || "").replace(/[^a-zA-Z0-9]/g, "-").toLowerCase()}`;
+    function renderCityAccounts(){
+      const sec = document.getElementById("city-accounts-section");
+      const pw = document.getElementById("city-pending-wrap");
+      const aw = document.getElementById("city-approved-wrap");
+      const emptyEl = document.getElementById("city-empty");
+      sec.style.display = "block";
+      if (!cityAccts.length){ emptyEl.style.display = "block"; pw.innerHTML = ""; aw.innerHTML = ""; return; }
+      emptyEl.style.display = "none";
+      const decideOf = a => notes[cityKey(a) + "|approve"] || "pending";
+      const pending = cityAccts.filter(a => decideOf(a) === "pending");
+      const approved = cityAccts.filter(a => decideOf(a) === "approved");
+      if (pending.length){
+        pw.innerHTML = `<div style="font-weight:700;margin-bottom:6px">🆕 ממתינים לאישור (${pending.length})</div>` +
+          `<table class="creator-table"><thead><tr><th>Handle</th><th>עוקבים</th><th>אשתג</th><th>ראיות</th><th>קשר</th><th>פעולה</th></tr></thead><tbody>` +
+          pending.map(a => `<tr>` +
+            `<td><a href="${a.profile_url}" target="_blank">@${(a.handle || "").replace(/^@/, "")}</a></td>` +
+            `<td>${a.followers ? a.followers.toLocaleString() : "—"}</td>` +
+            `<td><span class="niche-tag">${a.found_via_hashtag || ""}</span></td>` +
+            `<td style="font-size:12px">${a.evidence || ""}${a.paid_promo_note ? `<br><span style="color:#92400e">💲 ${a.paid_promo_note}</span>` : ""}</td>` +
+            `<td>${a.email ? ("📧 " + a.email) : "DM"}</td>` +
+            `<td><button class="small-btn city-approve" data-k="${cityKey(a)}">✅ אשר</button> <button class="small-btn city-reject" data-k="${cityKey(a)}">✖ דחה</button></td>` +
+          `</tr>`).join("") + `</tbody></table>`;
+      } else { pw.innerHTML = ""; }
+      if (approved.length){
+        aw.innerHTML = `<div style="font-weight:700;margin:10px 0 6px">✅ מאושרים — במעקב (${approved.length})</div>` +
+          `<table class="creator-table"><thead><tr><th>Handle</th><th>עוקבים</th><th>אשתג</th><th>קשר</th><th>סטטוס</th></tr></thead><tbody>` +
+          approved.map(a => `<tr>` +
+            `<td><a href="${a.profile_url}" target="_blank">@${(a.handle || "").replace(/^@/, "")}</a></td>` +
+            `<td>${a.followers ? a.followers.toLocaleString() : "—"}</td>` +
+            `<td><span class="niche-tag">${a.found_via_hashtag || ""}</span></td>` +
+            `<td>${a.email ? `<a href="https://mail.google.com/mail/u/?authuser=pr@makeupblowoutsalegroup.com#drafts" target="_blank">📧 מייל</a>` : (a.dm_script ? `<button class="small-btn dm-copy-btn" data-script="${(a.dm_script || "").replace(/"/g, "&quot;").replace(/\n/g, "&#10;")}">📋 DM</button>` : "DM")}</td>` +
+            `<td>${statusDropdown(a)}</td>` +
+          `</tr>`).join("") + `</tbody></table>`;
+      } else { aw.innerHTML = ""; }
+      pw.querySelectorAll(".city-approve").forEach(b => b.addEventListener("click", e => {
+        notes[e.target.dataset.k + "|approve"] = "approved";
+        notes[e.target.dataset.k + "|approve_at"] = new Date().toISOString();
+        RemoteSync.save(notes); renderCityAccounts();
+      }));
+      pw.querySelectorAll(".city-reject").forEach(b => b.addEventListener("click", e => {
+        notes[e.target.dataset.k + "|approve"] = "rejected";
+        RemoteSync.save(notes); renderCityAccounts();
+      }));
+      aw.querySelectorAll(".status-dropdown").forEach(d => d.addEventListener("change", e => {
+        const k = e.target.dataset.key; notes[k] = e.target.value;
+        e.target.dataset.tone = TONE_BY_LABEL[e.target.value] || "neutral";
+        const creator = allCreators.find(c => slug(c) === k);
+        if (creator) updateHallOnStatusChange(creator, e.target.value);
+        notes[k + "|status_set_at"] = new Date().toISOString();
+        RemoteSync.save(notes); renderHall();
+      }));
+      aw.querySelectorAll(".dm-copy-btn").forEach(b => b.addEventListener("click", e => {
+        const script = e.target.dataset.script.replace(/&quot;/g, '"').replace(/&#10;/g, "\n");
+        navigator.clipboard.writeText(script).then(() => { const o = e.target.textContent; e.target.textContent = "✓ הועתק"; setTimeout(() => e.target.textContent = o, 2000); });
+      }));
+    }
+    renderCityAccounts();
     document.querySelectorAll(".status-dropdown").forEach(d => {
       d.addEventListener("change", e => {
         const k = e.target.dataset.key;
