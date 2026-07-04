@@ -101,6 +101,15 @@
       body{padding:18px 12px}
       .events-grid{grid-template-columns:1fr}
     }
+    /* Future/Past tabs */
+    .tabs{display:flex;gap:8px;margin:0 0 22px;flex-wrap:wrap}
+    .tab-btn{background:#15151f;border:1px solid #2a2a3a;color:#aaa;font-size:15px;font-weight:800;
+      padding:10px 18px;border-radius:999px;cursor:pointer;transition:all .15s;font-family:inherit;
+      display:flex;align-items:center;gap:8px}
+    .tab-btn:hover{border-color:#f01070;color:#fff}
+    .tab-btn.active{background:linear-gradient(135deg,#f01070,#b8005a);border-color:#f01070;color:#fff;
+      box-shadow:0 4px 16px rgba(240,16,112,.35)}
+    .tab-btn .tab-count{background:rgba(255,255,255,.18);border-radius:999px;padding:1px 9px;font-size:12px;font-weight:900}
   </style>
 </head>
 <body>
@@ -117,183 +126,240 @@
   </div>
 
   <div id="content" style="display:none;">
+    <div class="tabs" id="tabs">
+      <button class="tab-btn active" data-tab="future">🔜 אירועים עתידיים <span class="tab-count" id="cnt-future">0</span></button>
+      <button class="tab-btn" data-tab="past">✅ אירועים שהיו <span class="tab-count" id="cnt-past">0</span></button>
+    </div>
+
     <div class="summary">
-      <h2>סיכום קבוצתי (7 ימים אחרונים)</h2>
+      <h2 id="summary-title">סיכום — אירועים עתידיים</h2>
       <div class="summary-grid" id="summary-grid"></div>
     </div>
 
-    <h2 class="section">אירועים פעילים</h2>
+    <h2 class="section" id="section-title">אירועים עתידיים</h2>
     <div class="events-grid" id="grid"></div>
   </div>
 </div>
 
 <script>
 (async function(){
-  // Source-of-truth lives in themakeupblowout-events repo; try a few endpoints (GH Pages CORS=*).
-  var URLS = [
-    "https://raw.githubusercontent.com/laurenlev10/themakeupblowout-events/main/docs/state/event_analytics.json",
-    "https://events.themakeupblowout.com/state/event_analytics.json"
-  ];
-  var data = null;
-  for (var i=0; i<URLS.length; i++){
-    try {
-      var r = await fetch(URLS[i] + "?_=" + Date.now(), { cache: "no-store" });
-      if (r && r.ok) { data = await r.json(); if (data && data.events) break; }
-    } catch(e) { /* try next */ }
-  }
-
-  var events = data && data.events && Object.keys(data.events).length > 0 ? data.events : null;
-  if (!events) {
-    document.getElementById("nodata").style.display = "block";
-    document.getElementById("pulled-at").textContent = "טרם נטען (אין נתונים)";
-    return;
-  }
-
-  document.getElementById("content").style.display = "block";
-  document.getElementById("pulled-at").textContent =
-    "נמשך לאחרונה: " + (data._updated_at ? new Date(data._updated_at).toLocaleString("he-IL") : "—");
-
-  // ---------- Helpers ----------
   function fmtMoney(n){ if (n == null || isNaN(n)) return "—"; return "$" + Math.round(n).toLocaleString(); }
   function fmtMoneyCents(n){ if (n == null || isNaN(n)) return "—"; return "$" + Number(n).toFixed(2); }
   function fmtInt(n){ if (n == null || isNaN(n)) return "—"; return Number(n).toLocaleString(); }
   function fmtPct(n){ if (n == null || isNaN(n)) return "—"; return Number(n).toFixed(1) + "%"; }
   function safeNum(n){ return (n == null || isNaN(n)) ? 0 : Number(n); }
   function eventCity(slug){
-    // overland-ks-2026 → "Overland, KS"
     var parts = slug.split("-");
-    var year = parts[parts.length-1];
     var st = parts[parts.length-2];
     var city = parts.slice(0, parts.length-2).join(" ");
     return city.replace(/\b\w/g, function(c){ return c.toUpperCase(); }) + ", " + st.toUpperCase();
   }
-
-  // ---------- Group summary ----------
-  var avg = data._averages || {};
-  var totalSpend = 0, totalLpv = 0, totalShares = 0, totalSmsReg = 0, totalEbReg = 0, totalCap = 0;
-  Object.values(events).forEach(function(ev){
-    totalSpend += safeNum(ev.meta && ev.meta.spend) + safeNum(ev.tiktok && ev.tiktok.spend);
-    totalLpv   += safeNum(ev.meta && ev.meta.landing_page_views) + safeNum(ev.tiktok && ev.tiktok.landing_page_views);
-    totalShares+= safeNum(ev.reel_shares && (ev.reel_shares.total_shares || ev.reel_shares.total));
-    totalSmsReg+= safeNum(ev.sms_registered);
-    totalEbReg += safeNum(ev.eventbrite_registered);
-    totalCap   += safeNum(ev.eventbrite_capacity);
-  });
-  var fillPct = totalCap > 0 ? (totalEbReg / totalCap * 100) : 0;
-
-  var sg = document.getElementById("summary-grid");
-  function summaryCell(lbl, val, cls, subVal){
-    var d = document.createElement("div");
-    d.className = "summary-cell";
-    var sub = subVal ? '<div class="sub-val">'+subVal+'</div>' : '';
-    d.innerHTML = '<div class="lbl">'+lbl+'</div><div class="val '+(cls||'')+'">'+val+'</div>'+sub;
-    sg.appendChild(d);
+  async function fetchJson(urls){
+    for (var i=0;i<urls.length;i++){
+      try { var r = await fetch(urls[i] + "?_=" + Date.now(), { cache:"no-store" }); if (r && r.ok){ var j = await r.json(); if (j) return j; } } catch(e){}
+    }
+    return null;
   }
-  summaryCell("אירועים פעילים", String(avg.event_count || Object.keys(events).length));
-  summaryCell("📸 שיתופי ריל (סה\"כ)", fmtInt(totalShares), "pink");
-  summaryCell("הוצאה כוללת", fmtMoney(totalSpend));
-  summaryCell("LPV כולל", fmtInt(totalLpv));
-  summaryCell("CPL ממוצע", fmtMoneyCents(avg.mean_cpl));
-  summaryCell("🏆 הכי טוב", avg.best_event ? eventCity(avg.best_event) : "—", "green",
-              avg.best_cpl ? "CPL " + fmtMoneyCents(avg.best_cpl) : "");
-  summaryCell("⚠️ הכי גרוע", avg.worst_event ? eventCity(avg.worst_event) : "—", "red",
-              avg.worst_cpl ? "CPL " + fmtMoneyCents(avg.worst_cpl) : "");
-  summaryCell("מילוי Eventbrite", fmtPct(fillPct),
-              fillPct >= 50 ? "green" : (fillPct >= 25 ? "" : "red"),
-              fmtInt(totalEbReg) + " / " + fmtInt(totalCap));
 
-  // ---------- Per-event cards ----------
-  // Sort by CPL ascending (best first), events with zero spend go last
-  var entries = Object.entries(events).map(function(e){
-    var slug = e[0], ev = e[1];
-    var cpl = safeNum(ev.meta && ev.meta.cost_per_lpv);
-    var spend = safeNum(ev.meta && ev.meta.spend) + safeNum(ev.tiktok && ev.tiktok.spend);
-    return { slug: slug, ev: ev, cpl: cpl, spend: spend };
-  });
-  entries.sort(function(a, b){
-    if (a.spend < 100 && b.spend >= 100) return 1;
-    if (b.spend < 100 && a.spend >= 100) return -1;
-    if (a.cpl <= 0 && b.cpl > 0) return 1;
-    if (b.cpl <= 0 && a.cpl > 0) return -1;
-    return a.cpl - b.cpl;
-  });
+  // ---------- Load analytics ----------
+  var data = await fetchJson([
+    "https://raw.githubusercontent.com/laurenlev10/themakeupblowout-events/main/docs/state/event_analytics.json",
+    "https://events.themakeupblowout.com/state/event_analytics.json"
+  ]);
+  var events = data && data.events && Object.keys(data.events).length > 0 ? data.events : null;
+  if (!events) {
+    document.getElementById("nodata").style.display = "block";
+    document.getElementById("pulled-at").textContent = "טרם נטען (אין נתונים)";
+    return;
+  }
+  document.getElementById("content").style.display = "block";
+  document.getElementById("pulled-at").textContent =
+    "נמשך לאחרונה: " + (data._updated_at ? new Date(data._updated_at).toLocaleString("he-IL") : "—");
 
-  var grid = document.getElementById("grid");
-  var bestSlug = avg.best_event, worstSlug = avg.worst_event;
-  var meanCpl = safeNum(avg.mean_cpl);
+  // ---------- Load event dates (upcoming-events.json = start/end; notes.json = fallback) ----------
+  var upcoming = await fetchJson([
+    "https://raw.githubusercontent.com/laurenlev10/themakeupblowout-events/main/docs/upcoming-events.json",
+    "https://events.themakeupblowout.com/upcoming-events.json"
+  ]);
+  var dateMap = {};
+  if (upcoming && Array.isArray(upcoming.events)){
+    upcoming.events.forEach(function(e){ if (e.slug) dateMap[e.slug] = { start:e.start_date||null, end:e.end_date||null }; });
+  }
+  // notes.json fallback: keys look like "santa-maria-2026-07-17" => start date
+  var notes = await fetchJson([
+    "https://raw.githubusercontent.com/laurenlev10/lauren-agent-hub-data/main/docs/launch/notes.json"
+  ]);
+  var notesStart = {};
+  if (notes && typeof notes === "object"){
+    Object.keys(notes).forEach(function(k){
+      var m = k.match(/^(.*)-(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) notesStart[m[1] + "-" + m[2]] = m[2] + "-" + m[3] + "-" + m[4];
+    });
+  }
+  function citySlugYear(slug){
+    var parts = slug.split("-");
+    var year = /^\d{4}$/.test(parts[parts.length-1]) ? parts.pop() : "";
+    if (parts.length && /^[a-z]{2}$/i.test(parts[parts.length-1])) parts.pop(); // drop 2-letter state
+    return { city: parts.join("-"), year: year };
+  }
+  var now = new Date();
+  var todayStr = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0") + "-" + String(now.getDate()).padStart(2,"0");
+  function classify(slug){
+    var d = dateMap[slug] || {};
+    var end = d.end, start = d.start;
+    if (!end){
+      var cy = citySlugYear(slug);
+      var fs = notesStart[cy.city + "-" + cy.year];
+      if (fs){ start = fs; var dd = new Date(fs + "T00:00:00"); dd.setDate(dd.getDate()+2);
+        end = dd.getFullYear() + "-" + String(dd.getMonth()+1).padStart(2,"0") + "-" + String(dd.getDate()).padStart(2,"0"); }
+    }
+    if (!end && start) end = start;
+    if (!end) return "future"; // unknown date -> keep it visible in the actionable tab
+    return (end < todayStr) ? "past" : "future";
+  }
 
-  entries.forEach(function(entry){
-    var slug = entry.slug, ev = entry.ev;
-    var m = ev.meta || {}, t = ev.tiktok || {}, rs = ev.reel_shares || {};
-    var spend = safeNum(m.spend) + safeNum(t.spend);
-    var lpv   = safeNum(m.landing_page_views) + safeNum(t.landing_page_views);
-    var cpl   = safeNum(m.cost_per_lpv);
-    var cplCls= cpl > 0 ? (cpl <= meanCpl ? "good" : "bad") : "";
-    var shares = safeNum(rs.total_shares || rs.total);
-    var delta6 = safeNum(rs.delta_6h);
-    var rate   = safeNum(rs.rate_per_hour);
-    var fill   = safeNum(ev.eventbrite_capacity) > 0
-                 ? (safeNum(ev.eventbrite_registered) / safeNum(ev.eventbrite_capacity) * 100) : 0;
-    var anom   = (ev.anomalies && ev.anomalies.length) ? ev.anomalies[0] : null;
+  // Precompute buckets + counts
+  var buckets = { future: [], past: [] };
+  Object.keys(events).forEach(function(slug){ buckets[classify(slug)].push(slug); });
+  document.getElementById("cnt-future").textContent = buckets.future.length;
+  document.getElementById("cnt-past").textContent = buckets.past.length;
 
-    var isBest = slug === bestSlug;
-    var isWorst = slug === worstSlug;
-    var cardCls = "event-card" + (isBest ? " best" : "") + (isWorst ? " worst" : "");
-    var badge = isBest ? '<div class="badge best">🏆 הכי טוב</div>'
-              : isWorst ? '<div class="badge worst">⚠️ הכי גרוע</div>' : '';
+  // ---------- Render one tab ----------
+  function render(tab){
+    var slugs = buckets[tab] || [];
+    var filtered = {};
+    slugs.forEach(function(s){ filtered[s] = events[s]; });
 
-    var statsUrl = "https://events.themakeupblowout.com/events/" + slug + "/stats.html";
+    // Titles
+    document.getElementById("summary-title").textContent = tab === "past" ? "סיכום — אירועים שהיו" : "סיכום — אירועים עתידיים";
+    document.getElementById("section-title").textContent = tab === "past" ? "אירועים שהיו" : "אירועים עתידיים";
 
-    var sharesBlock =
-      '<div class="shares-block">' +
-        '<div class="shares-row">' +
+    // Group totals + best/worst within this tab
+    var totalSpend=0, totalLpv=0, totalShares=0, totalSmsReg=0, totalEbReg=0, totalCap=0;
+    var cplVals=[], bestSlug=null, worstSlug=null, bestCpl=Infinity, worstCpl=-Infinity;
+    Object.keys(filtered).forEach(function(slug){
+      var ev = filtered[slug];
+      var mSpend = safeNum(ev.meta && ev.meta.spend), tSpend = safeNum(ev.tiktok && ev.tiktok.spend);
+      totalSpend += mSpend + tSpend;
+      totalLpv   += safeNum(ev.meta && ev.meta.landing_page_views) + safeNum(ev.tiktok && ev.tiktok.landing_page_views);
+      totalShares+= safeNum(ev.reel_shares && (ev.reel_shares.total_shares || ev.reel_shares.total));
+      totalSmsReg+= safeNum(ev.sms_registered);
+      totalEbReg += safeNum(ev.eventbrite_registered);
+      totalCap   += safeNum(ev.eventbrite_capacity);
+      var cpl = safeNum(ev.meta && ev.meta.cost_per_lpv);
+      if ((mSpend + tSpend) >= 100 && cpl > 0){
+        cplVals.push(cpl);
+        if (cpl < bestCpl){ bestCpl = cpl; bestSlug = slug; }
+        if (cpl > worstCpl){ worstCpl = cpl; worstSlug = slug; }
+      }
+    });
+    var meanCpl = cplVals.length ? cplVals.reduce(function(a,b){return a+b;},0)/cplVals.length : 0;
+    var fillPct = totalCap > 0 ? (totalEbReg / totalCap * 100) : 0;
+
+    // Summary grid
+    var sg = document.getElementById("summary-grid");
+    sg.innerHTML = "";
+    function summaryCell(lbl, val, cls, subVal){
+      var d = document.createElement("div"); d.className = "summary-cell";
+      var sub = subVal ? '<div class="sub-val">'+subVal+'</div>' : '';
+      d.innerHTML = '<div class="lbl">'+lbl+'</div><div class="val '+(cls||'')+'">'+val+'</div>'+sub;
+      sg.appendChild(d);
+    }
+    summaryCell(tab === "past" ? "אירועים שהיו" : "אירועים עתידיים", String(slugs.length));
+    summaryCell("📸 שיתופי ריל (סה\"כ)", fmtInt(totalShares), "pink");
+    summaryCell("הוצאה כוללת", fmtMoney(totalSpend));
+    summaryCell("LPV כולל", fmtInt(totalLpv));
+    summaryCell("CPL ממוצע", meanCpl > 0 ? fmtMoneyCents(meanCpl) : "—");
+    summaryCell("🏆 הכי טוב", bestSlug ? eventCity(bestSlug) : "—", "green", bestSlug ? "CPL " + fmtMoneyCents(bestCpl) : "");
+    summaryCell("⚠️ הכי גרוע", worstSlug ? eventCity(worstSlug) : "—", "red", worstSlug ? "CPL " + fmtMoneyCents(worstCpl) : "");
+    summaryCell("מילוי Eventbrite", fmtPct(fillPct), fillPct >= 50 ? "green" : (fillPct >= 25 ? "" : "red"), fmtInt(totalEbReg) + " / " + fmtInt(totalCap));
+
+    // Cards (sorted by CPL asc, zero-spend last)
+    var entries = Object.keys(filtered).map(function(slug){
+      var ev = filtered[slug];
+      var cpl = safeNum(ev.meta && ev.meta.cost_per_lpv);
+      var spend = safeNum(ev.meta && ev.meta.spend) + safeNum(ev.tiktok && ev.tiktok.spend);
+      return { slug: slug, ev: ev, cpl: cpl, spend: spend };
+    });
+    entries.sort(function(a, b){
+      if (a.spend < 100 && b.spend >= 100) return 1;
+      if (b.spend < 100 && a.spend >= 100) return -1;
+      if (a.cpl <= 0 && b.cpl > 0) return 1;
+      if (b.cpl <= 0 && a.cpl > 0) return -1;
+      return a.cpl - b.cpl;
+    });
+
+    var grid = document.getElementById("grid");
+    grid.innerHTML = "";
+    if (!entries.length){
+      var empty = document.createElement("div");
+      empty.style.cssText = "color:#888;font-size:15px;padding:20px 4px";
+      empty.textContent = tab === "past" ? "אין עדיין אירועים שהיו." : "אין אירועים עתידיים.";
+      grid.appendChild(empty);
+      return;
+    }
+
+    entries.forEach(function(entry){
+      var slug = entry.slug, ev = entry.ev;
+      var m = ev.meta || {}, t = ev.tiktok || {}, rs = ev.reel_shares || {};
+      var spend = safeNum(m.spend) + safeNum(t.spend);
+      var lpv   = safeNum(m.landing_page_views) + safeNum(t.landing_page_views);
+      var cpl   = safeNum(m.cost_per_lpv);
+      var cplCls= cpl > 0 ? (meanCpl > 0 && cpl <= meanCpl ? "good" : "bad") : "";
+      var shares = safeNum(rs.total_shares || rs.total);
+      var delta6 = safeNum(rs.delta_6h);
+      var rate   = safeNum(rs.rate_per_hour);
+      var fill   = safeNum(ev.eventbrite_capacity) > 0 ? (safeNum(ev.eventbrite_registered) / safeNum(ev.eventbrite_capacity) * 100) : 0;
+      var anom   = (ev.anomalies && ev.anomalies.length) ? ev.anomalies[0] : null;
+      var isBest = slug === bestSlug, isWorst = slug === worstSlug;
+      var cardCls = "event-card" + (isBest ? " best" : "") + (isWorst ? " worst" : "");
+      var badge = isBest ? '<div class="badge best">🏆 הכי טוב</div>' : isWorst ? '<div class="badge worst">⚠️ הכי גרוע</div>' : '';
+      var statsUrl = "https://events.themakeupblowout.com/events/" + slug + "/stats.html";
+      var sharesBlock =
+        '<div class="shares-block"><div class="shares-row">' +
           '<div class="shares-lbl">📸 שיתופי ריל</div>' +
-          '<div class="shares-val">' + fmtInt(shares) + '</div>' +
-        '</div>' +
-        '<div class="shares-meta">' +
-          (delta6 ? "+" + delta6 + " ב-6ש " : "") +
+          '<div class="shares-val">' + fmtInt(shares) + '</div></div>' +
+        '<div class="shares-meta">' + (delta6 ? "+" + delta6 + " ב-6ש " : "") +
           (rate > 0 ? "· " + rate.toFixed(1) + "/שעה " : "") +
           (rs.last_scan_at ? "· סריקה: " + new Date(rs.last_scan_at).toLocaleString("he-IL", {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"}) : "טרם נסרק") +
-        '</div>' +
-      '</div>';
+        '</div></div>';
+      var kvBlock =
+        '<div class="kv-grid">' +
+          '<div class="kv"><div class="lbl">הוצאה</div><div class="val">' + fmtMoney(spend) + '</div>' +
+            (t.spend > 0 ? '<div class="sub-val">Meta ' + fmtMoney(m.spend) + ' · TT ' + fmtMoney(t.spend) + '</div>' : '') + '</div>' +
+          '<div class="kv"><div class="lbl">LPV</div><div class="val">' + fmtInt(lpv) + '</div></div>' +
+          '<div class="kv"><div class="lbl">CPL</div><div class="val ' + cplCls + '">' + (cpl > 0 ? fmtMoneyCents(cpl) : "—") + '</div>' +
+            (cpl > 0 && meanCpl > 0 ? '<div class="sub-val">ממוצע ' + fmtMoneyCents(meanCpl) + '</div>' : '') + '</div>' +
+          '<div class="kv"><div class="lbl">CTR</div><div class="val">' + fmtPct(m.ctr) + '</div></div>' +
+        '</div>';
+      var funnelBlock =
+        '<div class="funnel">הרשמות: <strong>SMS ' + fmtInt(ev.sms_registered) + '</strong> · ' +
+          '<strong>Eventbrite ' + fmtInt(ev.eventbrite_registered) + '/' + fmtInt(ev.eventbrite_capacity) + '</strong>' +
+          (fill > 0 ? ' (' + fill.toFixed(0) + '%)' : '') + '</div>';
+      var anomBlock = anom ? '<div class="anomaly">⚠️ ' + (anom.hypothesis || anom.metric || 'אנומליה') + '</div>' : '';
+      var card = document.createElement("a");
+      card.className = cardCls; card.href = statsUrl; card.target = "_blank"; card.rel = "noopener";
+      card.innerHTML = badge + '<div class="city">' + eventCity(slug) + '</div>' +
+        '<div class="when">' + slug + '</div>' + sharesBlock + kvBlock + funnelBlock + anomBlock +
+        '<div class="footer-link">פתח דוח מפורט ←</div>';
+      grid.appendChild(card);
+    });
+  }
 
-    var kvBlock =
-      '<div class="kv-grid">' +
-        '<div class="kv"><div class="lbl">הוצאה</div><div class="val">' + fmtMoney(spend) + '</div>' +
-          (t.spend > 0 ? '<div class="sub-val">Meta ' + fmtMoney(m.spend) + ' · TT ' + fmtMoney(t.spend) + '</div>' : '') +
-        '</div>' +
-        '<div class="kv"><div class="lbl">LPV</div><div class="val">' + fmtInt(lpv) + '</div></div>' +
-        '<div class="kv"><div class="lbl">CPL</div><div class="val ' + cplCls + '">' + (cpl > 0 ? fmtMoneyCents(cpl) : "—") + '</div>' +
-          (cpl > 0 && meanCpl > 0 ? '<div class="sub-val">ממוצע ' + fmtMoneyCents(meanCpl) + '</div>' : '') +
-        '</div>' +
-        '<div class="kv"><div class="lbl">CTR</div><div class="val">' + fmtPct(m.ctr) + '</div></div>' +
-      '</div>';
-
-    var funnelBlock =
-      '<div class="funnel">' +
-        'הרשמות: <strong>SMS ' + fmtInt(ev.sms_registered) + '</strong> · ' +
-        '<strong>Eventbrite ' + fmtInt(ev.eventbrite_registered) + '/' + fmtInt(ev.eventbrite_capacity) + '</strong>' +
-        (fill > 0 ? ' (' + fill.toFixed(0) + '%)' : '') +
-      '</div>';
-
-    var anomBlock = anom ? '<div class="anomaly">⚠️ ' + (anom.hypothesis || anom.metric || 'אנומליה') + '</div>' : '';
-
-    var card = document.createElement("a");
-    card.className = cardCls;
-    card.href = statsUrl;
-    card.target = "_blank";
-    card.rel = "noopener";
-    card.innerHTML =
-      badge +
-      '<div class="city">' + eventCity(slug) + '</div>' +
-      '<div class="when">' + slug + '</div>' +
-      sharesBlock +
-      kvBlock +
-      funnelBlock +
-      anomBlock +
-      '<div class="footer-link">פתח דוח מפורט ←</div>';
-    grid.appendChild(card);
+  // ---------- Tab wiring ----------
+  var tabBtns = document.querySelectorAll(".tab-btn");
+  tabBtns.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      tabBtns.forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      render(btn.getAttribute("data-tab"));
+    });
   });
+
+  // Default: future (actionable). If no future events, show past.
+  var startTab = buckets.future.length ? "future" : "past";
+  tabBtns.forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-tab") === startTab); });
+  render(startTab);
 })();
 </script>
 </body>
