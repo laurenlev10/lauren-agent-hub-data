@@ -1217,24 +1217,40 @@ def compute_funnel(ev_data: dict, days_until_event=None, registration_target: in
     sms_reg = ev_data.get("sms_registered", 0)
     eventbrite_reg = ev_data.get("eventbrite_registered", 0)
     eventbrite_history = eventbrite_history or ev_data.get("eventbrite_history") or []
-    impressions = (ev_data.get("impressions") or {}).get("total", 0) if isinstance(ev_data.get("impressions"), dict) else 0
+
+    # 2026-07-04 — Funnel from PIXEL data (Meta + TikTok), not GA4.
+    # The old code read impressions from a non-existent top-level "impressions"
+    # dict (always 0) and page_views/form_submits from GA4 views/conversions —
+    # which are 0 across every event (GA4 service-account gap). The real numbers
+    # live in ev_data["meta"] / ["tiktok"], already populated by the aggregator.
+    # Prefer GA4 when it actually has data; otherwise fall back to the pixel:
+    #   impressions  = Meta impressions + TikTok impressions
+    #   page_views   = Meta LPV + TikTok LPV (landing-page views)
+    #   form_submits = Meta leads + TikTok conversions
+    _m = ev_data.get("meta") or {}
+    _t = ev_data.get("tiktok") or {}
+    impressions = int(_m.get("impressions", 0) or 0) + int(_t.get("impressions", 0) or 0)
+    _lpv = int(_m.get("landing_page_views", 0) or 0) + int(_t.get("landing_page_views", 0) or 0)
+    _pixel_forms = int(_m.get("leads", 0) or 0) + int(_t.get("conversions", 0) or 0)
+    page_views = int(views_total) if int(views_total) > 0 else _lpv
+    form_submits = int(conv_total) if int(conv_total) > 0 else _pixel_forms
 
     funnel = {
         "impressions": int(impressions),
-        "page_views": int(views_total),
-        "form_submits": int(conv_total),
+        "page_views": int(page_views),
+        "form_submits": int(form_submits),
         "sms_registered": int(sms_reg),
         "eventbrite_registered": int(eventbrite_reg),
     }
 
     rates = {}
     if impressions > 0:
-        rates["ctr"] = round(views_total / impressions * 100, 2)
+        rates["ctr"] = round(page_views / impressions * 100, 2)
         rates["overall"] = round(sms_reg / impressions * 100, 3)
-    if views_total > 0:
-        rates["form_conversion"] = round(conv_total / views_total * 100, 2)
-    if conv_total > 0:
-        rates["sms_capture"] = round(sms_reg / conv_total * 100, 2)
+    if page_views > 0:
+        rates["form_conversion"] = round(form_submits / page_views * 100, 2)
+    if form_submits > 0:
+        rates["sms_capture"] = round(sms_reg / form_submits * 100, 2)
 
     # Forecast: project Eventbrite registrations against capacity target
     forecast = None
