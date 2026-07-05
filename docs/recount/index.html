@@ -141,6 +141,7 @@
       <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
         <span>1️⃣ רשימת ספירה — 🏷️ תג <b>RECOUNT</b> + 💤 לא זזו <span class="pill new" id="list1-count"></span></span>
         <span style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <button class="btn" id="btn-send-count-form" type="button" style="background:#0ea5e9; border-color:#0ea5e9;">📤 שלח טופס ספירה למנהלת</button>
           <button class="btn" id="btn-live-check" type="button" style="background:#7c3aed; border-color:#7c3aed;">🔄 בדוק מי נספר עכשיו</button>
           <span id="live-check-status" style="font-size:12px; color:var(--muted);"></span>
           <button class="btn" id="btn-remind-uncounted" type="button" style="background:#f59e0b; border-color:#f59e0b; display:none;">📱 תזכורת: לא נספרו</button>
@@ -267,6 +268,7 @@
   var city   = params.get("city") || "";
   var state  = params.get("state") || "";
   var CATEGORIES = [];           // [{id,name}] from the public snapshot — tag picker
+  var MGR_COUNTS = null;         // recount_manager_counts.json — manager's count confirmations (2026-07-05)
   var OCT_BASE = "https://themakeup.octoretail.com";
 
   function toast(msg){
@@ -407,6 +409,21 @@
       L.counts.counted = _cc;
     }
 
+    // ── Manager count overlay (recount_manager_counts.json, via the public form) ──
+    // Set 2026-07-05. OCTOPOS can't report exact-match counts, so the event manager
+    // confirms which worklist items she counted through the public count form.
+    var mgr = (MGR_COUNTS && MGR_COUNTS.events && MGR_COUNTS.events[evkey]) ? MGR_COUNTS.events[evkey] : null;
+    window.__MGR = mgr;
+    if (mgr && Array.isArray(mgr.counted_pids)){
+      var mgrSet = {};
+      mgr.counted_pids.forEach(function(p){ mgrSet[Number(p)] = true; });
+      (L.to_count || []).forEach(function(it){
+        if (mgrSet[Number(it.pid)]){ it.counted = true; it.counted_mgr = true; }
+      });
+      L.counts = L.counts || {};
+      L.counts.counted = (L.to_count || []).filter(function(it){ return it.counted; }).length;
+    }
+
     var c = L.counts || {};
     var phase = L.phase || "pre_event";
     var win = L.window || {};
@@ -424,21 +441,31 @@
         '<div class="stat"><div class="num stale">' + (c.tagged_not_counted || 0) + '</div><div class="lbl">⚠️ תג אבל לא נספרו</div></div>' +
       '</div>';
 
-    // LIVE check banner — shows the mid-event counted/remaining tally
-    if (live){
-      var _lc = live.counted_count || 0;
-      var _lt = live.worklist_total || (L.to_count || []).length;
-      var _lr = (live.remaining_count != null) ? live.remaining_count : (_lt - _lc);
-      var _when = esc(live.checked_at || "").replace("T"," ").replace("Z"," UTC");
-      var _ok = _lr <= 0;
+    // Count-progress banner — merges the OCTOPOS auto check + the manager's report
+    if (live || window.__MGR){
+      var _tot = (L.to_count || []).length;
+      var _cnt = (L.to_count || []).filter(function(it){ return it.counted; }).length;
+      var _rem = _tot - _cnt;
+      var _ok = _rem <= 0;
+      var _bits = [];
+      if (live) _bits.push("בדיקת OCTOPOS: " + esc(live.checked_at || "").replace("T"," ").replace("Z"," UTC"));
+      if (window.__MGR && window.__MGR.submitted_at) _bits.push("דיווח מנהלת: " + esc(window.__MGR.submitted_at).replace("T"," ").replace("Z"," UTC") + (window.__MGR.manager ? " · " + esc(window.__MGR.manager) : ""));
       document.getElementById("summary-content").insertAdjacentHTML("beforeend",
         '<div style="margin-top:12px;padding:12px 14px;border-radius:10px;border:2px solid ' +
           (_ok ? "#16a34a" : "#f59e0b") + ';background:' + (_ok ? "#f0fdf4" : "#fffbeb") + ';">' +
           '<div style="font-weight:800;font-size:15px;color:' + (_ok ? "#166534" : "#92400e") + ';">' +
-            (_ok ? "✅ בדיקה חיה: כל " + _lt + " המוצרים נספרו" :
-                   "🔴 בדיקה חיה: נספרו " + _lc + " מתוך " + _lt + " · נותרו " + _lr + " לספירה") +
+            (_ok ? "✅ נספרו כל " + _tot + " המוצרים" :
+                   "🔴 נספרו " + _cnt + " מתוך " + _tot + " · נותרו " + _rem + " לספירה") +
           '</div>' +
-          '<div style="font-size:12px;color:var(--muted);margin-top:4px;">עודכן: ' + _when + '</div>' +
+          (_bits.length ? '<div style="font-size:12px;color:var(--muted);margin-top:4px;">' + _bits.join(" · ") + '</div>' : '') +
+        '</div>');
+    }
+    // Manager notes card
+    if (window.__MGR && window.__MGR.notes){
+      document.getElementById("summary-content").insertAdjacentHTML("beforeend",
+        '<div style="margin-top:10px;padding:11px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;">' +
+          '<div style="font-size:12px;font-weight:800;color:var(--muted);margin-bottom:3px;">📝 הערת המנהלת</div>' +
+          '<div style="font-size:14px;color:var(--text);white-space:pre-wrap;">' + esc(window.__MGR.notes) + '</div>' +
         '</div>');
     }
 
@@ -524,19 +551,33 @@
       copyText(head + body);
     };
 
-    // LIVE check button + "remind the manager about uncounted items" button
+    // LIVE check + send-count-form + remind-uncounted buttons
     var liveBtn = document.getElementById("btn-live-check");
     if (liveBtn) liveBtn.onclick = runLiveCheck;
+
+    // 📤 Send the public count form link to the manager (WhatsApp-ready)
+    var sendFormBtn = document.getElementById("btn-send-count-form");
+    if (sendFormBtn) sendFormBtn.onclick = function(){
+      if (!evkey){ toast("אין מזהה אירוע (evkey) בכתובת"); return; }
+      var lbl = (city || "") + (state ? ", " + state : "");
+      var url = "https://events.themakeupblowout.com/recount-count/?evkey=" + encodeURIComponent(evkey) +
+                (lbl ? "&label=" + encodeURIComponent(lbl) : "");
+      var msg = "Hi! Please fill the count checklist for " + (lbl || "the event") +
+                " — every item starts as ✅ counted; tap any you did NOT finish, add a note if needed, then Send:\n" + url;
+      copyText(msg);
+      toast("✓ הקישור למנהלת הועתק — הדביקי ב-WhatsApp");
+    };
+
+    // Remind about items still not counted (merged: OCTOPOS auto + manager report)
+    var mergedRemaining = (L.to_count || []).filter(function(it){ return !it.counted; });
     var remindBtn = document.getElementById("btn-remind-uncounted");
     if (remindBtn){
-      if (live && (live.remaining_count || 0) > 0 && Array.isArray(live.remaining) && live.remaining.length){
+      if (mergedRemaining.length){
         remindBtn.style.display = "";
         remindBtn.onclick = function(){
-          var when = esc(live.checked_at || "").replace("T"," ").replace("Z"," UTC");
-          var head = "Reminder — please COUNT these " + live.remaining.length +
-                     " items before we close (not counted yet as of " + when + "):\n";
-          var body = live.remaining.map(function(it){
-            return "• " + (it.name || ("#" + it.id)) + (it.sku ? " (" + it.sku + ")" : "");
+          var head = "Reminder — please COUNT these " + mergedRemaining.length + " items before we close:\n";
+          var body = mergedRemaining.map(function(it){
+            return "• " + (it.name || ("#" + it.pid)) + (it.sku ? " (" + it.sku + ")" : "");
           }).join("\n");
           copyText(head + body);
         };
@@ -735,9 +776,12 @@
     fetch("../state/octopos_recount.json?_=" + Date.now(), { cache: "no-store" })
       .then(function(r){ return r.ok ? r.json() : Promise.reject(new Error("recount HTTP " + r.status)); }),
     fetch("../state/octopos_products.json?_=" + Date.now(), { cache: "no-store" })
+      .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }),
+    fetch("../state/recount_manager_counts.json?_=" + Date.now(), { cache: "no-store" })
       .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
   ]).then(function(res){
       var data = res[0], snap = res[1];
+      MGR_COUNTS = res[2] || null;
       window.__SNAP = snap;
       var slice = (evkey && data && data.events) ? data.events[evkey] : null;
       CATEGORIES = (snap && Array.isArray(snap.categories)) ? snap.categories.slice() : [];

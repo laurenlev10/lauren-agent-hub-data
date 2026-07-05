@@ -116,6 +116,47 @@ export default {
       return reply({ error: "conflict retries exhausted" }, 502, cors);
     }
 
+    // --- Recount counting form (events.themakeupblowout.com/recount-count/) ---
+    // Set 2026-07-05. OCTOPOS can't report exact-match (zero-variance) counts, so
+    // the event manager confirms which recount-worklist products she counted here.
+    // Routed by kind, saved per-evkey to its own state file the recount dashboard
+    // reads. The manager needs NO dashboard access — this is a public form.
+    if (report.kind === "recount_count") {
+      const RC = "docs/state/recount_manager_counts.json";
+      const rcKey = String(report.evkey || "unknown");
+      const toNums = (a) => Array.isArray(a) ? a.map(Number).filter((n) => !isNaN(n)) : [];
+      const rec = {
+        counted_pids: toNums(report.counted_pids),
+        not_counted_pids: toNums(report.not_counted_pids),
+        notes: String(report.notes || "").slice(0, 1200),
+        manager: String(report.manager_name || report.manager || "").slice(0, 120),
+        submitted_at: report.submitted_at || new Date().toISOString(),
+        source: String(report.source || "recount-count-form").slice(0, 60)
+      };
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const cur = await ghGet(TOKEN, RC);
+        const data = cur.json || { _updated_at: null, events: {} };
+        if (!data.events) data.events = {};
+        const prev = data.events[rcKey] || {};
+        const subs = Array.isArray(prev.submissions) ? prev.submissions : [];
+        subs.push(rec);
+        data.events[rcKey] = {
+          counted_pids: rec.counted_pids,
+          not_counted_pids: rec.not_counted_pids,
+          notes: rec.notes,
+          manager: rec.manager,
+          submitted_at: rec.submitted_at,
+          submissions: subs.slice(-25)          // keep a short history
+        };
+        data._updated_at = new Date().toISOString();
+        const res = await ghPutJson(TOKEN, RC, data, cur.sha,
+          `recount-count: ${rcKey} — ${rec.manager || "?"} (${rec.counted_pids.length} counted)`);
+        if (res === true) return reply({ ok: true, kind: "recount_count", counted: rec.counted_pids.length }, 200, cors);
+        if (res !== 409)  return reply({ error: "github write failed " + res }, 502, cors);
+      }
+      return reply({ error: "conflict retries exhausted" }, 502, cors);
+    }
+
     const rawKey = report.evkey || "unknown";
     const safeKey = String(rawKey).replace(/[^a-z0-9\-]/gi, "-").toLowerCase();
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
