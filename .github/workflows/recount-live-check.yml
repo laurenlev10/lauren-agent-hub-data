@@ -1,0 +1,61 @@
+name: recount-live-check — LIVE "who has been counted?" (manual, from the recount dashboard)
+
+# Set up 2026-07-05 (Lauren: mid-event she wants to know which RECOUNT-worklist
+# products have ACTUALLY been counted in OCTOPOS yet, so she can remind the
+# manager about the ones still not counted BEFORE the event ends).
+#
+# Dispatched ONLY from the recount dashboard's "🔄 בדוק מי נספר עכשיו" button
+# (workflow_dispatch, input `evkey`). No cron — it's an on-demand check.
+# scripts/recount_live_check.py authenticates to OCTOPOS, pulls
+# /api/v1/get-recount-data, filters to the event window, and writes a `live`
+# block into docs/state/octopos_recount.json for the dashboard to render.
+
+on:
+  workflow_dispatch:
+    inputs:
+      evkey:
+        description: "Event key, e.g. fort-collins-2026-07-03"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  live-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run live recount check
+        env:
+          OCTOPOS_EMAIL:    ${{ secrets.OCTOPOS_EMAIL }}
+          OCTOPOS_PASSWORD: ${{ secrets.OCTOPOS_PASSWORD }}
+        run: python3 scripts/recount_live_check.py --evkey "${{ github.event.inputs.evkey }}"
+
+      - name: Commit live block if changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/state/octopos_recount.json; then
+            git add docs/state/octopos_recount.json
+            git commit -m "recount-live-check: refresh live counted status (${{ github.event.inputs.evkey }})"
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep 3
+            done
+          else
+            echo "No change in octopos_recount.json"
+          fi
+
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py

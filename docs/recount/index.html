@@ -140,7 +140,10 @@
     <div class="card" id="list1-card" style="display:none;">
       <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
         <span>1️⃣ רשימת ספירה — 🏷️ תג <b>RECOUNT</b> + 💤 לא זזו <span class="pill new" id="list1-count"></span></span>
-        <span style="display:flex; gap:8px; flex-wrap:wrap;">
+        <span style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <button class="btn" id="btn-live-check" type="button" style="background:#7c3aed; border-color:#7c3aed;">🔄 בדוק מי נספר עכשיו</button>
+          <span id="live-check-status" style="font-size:12px; color:var(--muted);"></span>
+          <button class="btn" id="btn-remind-uncounted" type="button" style="background:#f59e0b; border-color:#f59e0b; display:none;">📱 תזכורת: לא נספרו</button>
           <button class="btn" id="btn-sms-mgr" type="button" style="background:#FB6F92; border-color:#FB6F92;">📱 העתק להודעה למנהלת</button>
           <button class="btn ghost" id="btn-csv1" type="button">📋 CSV</button>
           <button class="btn ghost" id="btn-print" type="button">🖨️ הדפס</button>
@@ -387,6 +390,23 @@
       }
     }
 
+    // ── LIVE mid-event "who has been counted?" overlay (Lauren 2026-07-05) ──
+    // slice.live is written by the recount-live-check workflow. It marks each
+    // worklist product counted-so-far so Lauren can remind the manager about the
+    // ones still not counted before the event ends.
+    var live = (slice && slice.live) ? slice.live : null;
+    window.__LIVE = live;
+    if (live && Array.isArray(live.counted_pids)){
+      var liveSet = {};
+      live.counted_pids.forEach(function(p){ liveSet[Number(p)] = true; });
+      (L.to_count || []).forEach(function(it){
+        if (liveSet[Number(it.pid)]){ it.counted = true; it.counted_live = true; }
+      });
+      var _cc = (L.to_count || []).filter(function(it){ return it.counted; }).length;
+      L.counts = L.counts || {};
+      L.counts.counted = _cc;
+    }
+
     var c = L.counts || {};
     var phase = L.phase || "pre_event";
     var win = L.window || {};
@@ -404,12 +424,34 @@
         '<div class="stat"><div class="num stale">' + (c.tagged_not_counted || 0) + '</div><div class="lbl">⚠️ תג אבל לא נספרו</div></div>' +
       '</div>';
 
+    // LIVE check banner — shows the mid-event counted/remaining tally
+    if (live){
+      var _lc = live.counted_count || 0;
+      var _lt = live.worklist_total || (L.to_count || []).length;
+      var _lr = (live.remaining_count != null) ? live.remaining_count : (_lt - _lc);
+      var _when = esc(live.checked_at || "").replace("T"," ").replace("Z"," UTC");
+      var _ok = _lr <= 0;
+      document.getElementById("summary-content").insertAdjacentHTML("beforeend",
+        '<div style="margin-top:12px;padding:12px 14px;border-radius:10px;border:2px solid ' +
+          (_ok ? "#16a34a" : "#f59e0b") + ';background:' + (_ok ? "#f0fdf4" : "#fffbeb") + ';">' +
+          '<div style="font-weight:800;font-size:15px;color:' + (_ok ? "#166534" : "#92400e") + ';">' +
+            (_ok ? "✅ בדיקה חיה: כל " + _lt + " המוצרים נספרו" :
+                   "🔴 בדיקה חיה: נספרו " + _lc + " מתוך " + _lt + " · נותרו " + _lr + " לספירה") +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--muted);margin-top:4px;">עודכן: ' + _when + '</div>' +
+        '</div>');
+    }
+
     // LIST 1
     var l1 = L.to_count || [];
     document.getElementById("list1-card").style.display = "block";
     document.getElementById("list1-count").textContent = l1.length;
     renderRows("list1-body", l1, [
-      { get: function(it){ return it.counted ? "✅ נספר" : (it.status || "⬜ לא נספר"); } },
+      { render: function(td, it){
+          if (it.counted){ td.textContent = "✅ נספר"; td.style.color = "#16a34a"; td.style.fontWeight = "700"; }
+          else if (window.__LIVE){ td.textContent = "⬜ עדיין לא נספר"; td.style.color = "#dc2626"; td.style.fontWeight = "700"; }
+          else { td.textContent = it.status || "⬜ לא נספר"; }
+      } },
       { get: function(it){ return num(it.sku); } },
       { get: function(it){ return esc(it.name); } },
       { get: function(it){ return esc(it.supplier); } },
@@ -481,6 +523,28 @@
       }).join("\n");
       copyText(head + body);
     };
+
+    // LIVE check button + "remind the manager about uncounted items" button
+    var liveBtn = document.getElementById("btn-live-check");
+    if (liveBtn) liveBtn.onclick = runLiveCheck;
+    var remindBtn = document.getElementById("btn-remind-uncounted");
+    if (remindBtn){
+      if (live && (live.remaining_count || 0) > 0 && Array.isArray(live.remaining) && live.remaining.length){
+        remindBtn.style.display = "";
+        remindBtn.onclick = function(){
+          var when = esc(live.checked_at || "").replace("T"," ").replace("Z"," UTC");
+          var head = "Reminder — please COUNT these " + live.remaining.length +
+                     " items before we close (not counted yet as of " + when + "):\n";
+          var body = live.remaining.map(function(it){
+            return "• " + (it.name || ("#" + it.id)) + (it.sku ? " (" + it.sku + ")" : "");
+          }).join("\n");
+          copyText(head + body);
+        };
+      } else {
+        remindBtn.style.display = "none";
+      }
+    }
+
     function csvBtn(id, rows, headers){ document.getElementById(id).onclick = function(){ copyText(toCsv(rows, headers)); }; }
     csvBtn("btn-csv1", l1.map(function(it){ return [it.sku, it.name, it.supplier, it.stock, it.counted ? "counted" : "not counted"]; }), ["SKU","Name","Supplier","Stock","Status"]);
     csvBtn("btn-csv2", l2.map(function(it){ return [it.sku, it.name, it.supplier, it.balance, it.last_counted_at, it.was_tagged ? "planned" : "extra"]; }), ["SKU","Name","Supplier","Balance","CountedAt","Source"]);
@@ -602,6 +666,70 @@
     return out;
   }
 
+  // ════════════ LIVE mid-event counted check (Lauren 2026-07-05) ════════════
+  // Dispatches the recount-live-check workflow (which authenticates to OCTOPOS,
+  // reads /get-recount-data, and writes a `live` block into octopos_recount.json),
+  // then polls raw.githubusercontent.com until the fresh block lands and re-renders.
+  var RAW_RECOUNT = "https://raw.githubusercontent.com/laurenlev10/lauren-agent-hub-data/main/docs/state/octopos_recount.json";
+  var LIVE_RUNNING = false;
+  async function runLiveCheck(){
+    if (LIVE_RUNNING) return;
+    var btn = document.getElementById("btn-live-check");
+    var statusEl = document.getElementById("live-check-status");
+    if (!evkey){ toast("אין מזהה אירוע (evkey) בכתובת"); return; }
+    var ghToken = (localStorage.getItem("lauren_gh_token_v1") || "").trim();
+    if (!ghToken){
+      ghToken = prompt("הדביקי GitHub token (יישמר מקומית) כדי להריץ בדיקה חיה:");
+      if (!ghToken) return;
+      ghToken = ghToken.trim(); localStorage.setItem("lauren_gh_token_v1", ghToken);
+    }
+    var prevCheckedAt = (window.__LIVE && window.__LIVE.checked_at) || "";
+    LIVE_RUNNING = true;
+    btn.disabled = true; var orig = btn.textContent; btn.textContent = "⏳ בודק...";
+    if (statusEl) statusEl.textContent = "שולח בקשה לאוקטופוס דרך GitHub Actions...";
+    try {
+      var resp = await fetch("https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/actions/workflows/recount-live-check.yml/dispatches", {
+        method: "POST",
+        headers: { "Authorization": "token " + ghToken, "Accept": "application/vnd.github+json", "Content-Type": "application/json" },
+        body: JSON.stringify({ ref: "main", inputs: { evkey: evkey } })
+      });
+      if (resp.status !== 204){
+        var errTxt = await resp.text();
+        if (resp.status === 401 || resp.status === 403) localStorage.removeItem("lauren_gh_token_v1");
+        throw new Error("HTTP " + resp.status + " " + errTxt.slice(0,120));
+      }
+      if (statusEl) statusEl.textContent = "⏳ רץ... בודק את אוקטופוס (~30-60 שניות)";
+      var found = false;
+      for (var i = 0; i < 30; i++){
+        await new Promise(function(r){ setTimeout(r, 5000); });
+        try {
+          var jr = await fetch(RAW_RECOUNT + "?_=" + Date.now(), { cache: "no-store" });
+          if (jr.ok){
+            var jd = await jr.json();
+            var sl = jd.events && jd.events[evkey];
+            var nc = sl && sl.live && sl.live.checked_at;
+            if (nc && nc !== prevCheckedAt){
+              found = true;
+              CATEGORIES = (window.__SNAP && Array.isArray(window.__SNAP.categories)) ? window.__SNAP.categories.slice() : CATEGORIES;
+              render(sl, liveTaggedFromSnapshot(window.__SNAP), window.__SNAP && window.__SNAP._updated_at);
+              var rem = (sl.live.remaining_count != null) ? sl.live.remaining_count : "?";
+              if (statusEl) statusEl.textContent = "✓ עודכן · נותרו " + rem + " לספירה";
+              toast("✓ בדיקה חיה הושלמה");
+              break;
+            }
+          }
+        } catch(_){}
+        if (statusEl && !found) statusEl.textContent = "⏳ רץ... (" + ((i+1)*5) + " שניות)";
+      }
+      if (!found && statusEl) statusEl.textContent = "⌛ עדיין רץ — רעננִי את הדף בעוד דקה";
+    } catch(e){
+      if (statusEl) statusEl.textContent = "✗ " + e.message;
+      toast("הפעלה נכשלה: " + e.message);
+    }
+    LIVE_RUNNING = false;
+    btn.disabled = false; btn.textContent = orig;
+  }
+
   // ── Load ──
   Promise.all([
     fetch("../state/octopos_recount.json?_=" + Date.now(), { cache: "no-store" })
@@ -610,6 +738,7 @@
       .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
   ]).then(function(res){
       var data = res[0], snap = res[1];
+      window.__SNAP = snap;
       var slice = (evkey && data && data.events) ? data.events[evkey] : null;
       CATEGORIES = (snap && Array.isArray(snap.categories)) ? snap.categories.slice() : [];
       render(slice, liveTaggedFromSnapshot(snap), snap && snap._updated_at);
