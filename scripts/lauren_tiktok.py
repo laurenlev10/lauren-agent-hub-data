@@ -138,102 +138,132 @@ def _enumerate_adgroup_ids(start_date: str, end_date: str, *, only_active=True,
     return ids
 
 
+def _post(path: str, body: dict) -> dict:
+    return _tt_post(path, body)
+
+
 def fetch_ad_comments(*, start_time: str, end_time: str,
                       comment_status=("PUBLIC",), page_size: int = 50,
-                      max_pages: int = 20, retries: int = 1) -> list:
+                      max_pages: int = 20, poll_tries: int = 4,
+                      poll_sleep: float = 2.0) -> list:
     """Return normalized ad comments in [start_time, end_time] (UTC
     'YYYY-MM-DD HH:MM:SS').
 
-    TikTok's /comment/list/ only accepts search_field=ADGROUP_ID (ADVERTISER /
-    CAMPAIGN_ID / AD_ID / VIDEO_ID are rejected, verified 2026-07-07). So we
-    enumerate the advertiser's active ad groups (reporting token) and query
-    comments per ad group (comment token).
+    🛑 TikTok reality (verified live 2026-07-07): the SYNC endpoint
+    /comment/list/ returns code 51010 "Internal Time out" for this advertiser's
+    ads, and the ASYNC export (/comment/task/create/ → /comment/task/check/) is
+    the supported path. BUT the advertiser's campaigns are **Smart+**
+    ("Upgraded Smart Plus"), which the comment API does NOT support:
+      • some ad groups are rejected at task/create with 40002 "This API does not
+        support Upgraded Smart Plus ads."
+      • the rest accept the task but task/check returns status FAILED.
+    So today this returns [] for every ad group — correctly and harmlessly. If
+    Lauren ever runs NON-Smart+ (standard/manual) TikTok campaigns, or TikTok
+    adds Smart+ comment support, this lights up automatically: the async task
+    completes, we download + normalize, and the SAME @meta engine classifies.
 
-    Resilient to code 51010 "Internal Time out" (TikTok's comment backend
-    returns this while it is still provisioning a newly-granted Ad Comments
-    scope, and intermittently under load): retried a few times, then that ad
-    group is skipped so the run stays green. Raises TikTokPermissionError only
-    on a real 40001 scope failure.
+    Uses the comment token to read; the reporting token (get_report_token) only
+    to enumerate ad-group IDs. Raises TikTokPermissionError on a real 40001.
     """
     adv = get_advertiser_id()
     if not get_token() or not adv:
         print("  ⚠ tiktok: comment token/advertiser not set — skipping")
         return []
 
-    # ad-group window = the comment window's dates (reporting wants YYYY-MM-DD)
-    sd = start_time[:10]
-    ed = end_time[:10]
+    sd, ed = start_time[:10], end_time[:10]
     adgroups = _enumerate_adgroup_ids(sd, ed)
     if not adgroups:
         print("  ⚠ tiktok: no active ad groups in window — nothing to scan")
         return []
-    print(f"  scanning {len(adgroups)} active ad group(s) for comments")
+    print(f"  scanning {len(adgroups)} active ad group(s) for comments (async export)")
 
-    out, timeouts = [], 0
-    consec_timeout = 0  # early-abort if the comment backend is down/provisioning
+    out = []
+    smartplus = failed = completed = 0
     for ag in adgroups:
-        page = 1
-        while page <= max_pages:
-            params = {
-                "advertiser_id": adv,
-                "start_time": start_time,
-                "end_time": end_time,
-                "search_field": "ADGROUP_ID",
-                "search_value": ag,
-                "sort_field": "CREATE_TIME",
-                "sort_type": "DESC",
-                "page": page,
-                "page_size": page_size,
-            }
-            if comment_status:
-                params["comment_status"] = _json.dumps(list(comment_status))
-            # try with 51010-tolerant retry
-            data = None
-            for attempt in range(retries + 1):
-                try:
-                    data = _check(_tt_get("/comment/list/", params), "comment_list")
-                    break
-                except TikTokPermissionError:
-                    raise
-                except RuntimeError as e:
-                    if "51010" in str(e) or "Time out" in str(e):
-                        if attempt < retries:
-                            _time.sleep(1.5 * (attempt + 1))
-                            continue
-                        timeouts += 1
-                        data = None
-                        break
-                    raise
-                except _ue.HTTPError as e:
-                    body = ""
-                    try:
-                        body = e.read().decode()[:200]
-                    except Exception:
-                        pass
-                    raise RuntimeError(f"comment_list HTTP {e.code}: {body}")
-            if data is None:
-                consec_timeout += 1
-                # If the first several ad groups ALL time out with zero
-                # successes, the comment backend isn't serving yet (freshly
-                # granted scope still provisioning) — abort fast, retry next run.
-                if consec_timeout >= 6 and not out:
-                    print("  ⚠ tiktok: comment backend not serving yet "
-                          "(6 straight 51010s, 0 results) — aborting this run")
-                    return out
-                break  # skip this ad group (timed out)
-            consec_timeout = 0
-            rows = data.get("comments") or data.get("list") or []
-            for raw in rows:
-                out.append(normalize_comment(raw))
-            pi = data.get("page_info") or {}
-            if not rows or page >= (pi.get("total_page") or page):
+        body = {
+            "advertiser_id": adv,
+            "start_time": start_time,
+            "end_time": end_time,
+            "search_field": "ADGROUP_ID",
+            "search_value": ag,
+        }
+        if comment_status:
+            body["comment_status"] = list(comment_status)
+        try:
+            created = _check(_post("/comment/task/create/", body), "comment_task_create")
+        except TikTokPermissionError:
+            raise
+        except RuntimeError as e:
+            if "Smart Plus" in str(e) or "40002" in str(e):
+                smartplus += 1
+                continue
+            raise
+        task_id = created.get("task_id")
+        if not task_id:
+            continue
+        # poll for completion
+        status = None
+        for _ in range(poll_tries):
+            _time.sleep(poll_sleep)
+            try:
+                chk = _check(_tt_get("/comment/task/check/",
+                                     {"advertiser_id": adv, "task_id": task_id}),
+                             "comment_task_check")
+            except Exception:
                 break
-            page += 1
-            _time.sleep(0.3)
-    if timeouts:
-        print(f"  ⚠ tiktok: {timeouts} ad group(s) returned 51010 (comment "
-              f"backend busy/provisioning) — skipped, will retry next run")
+            status = (chk.get("status") or "").upper()
+            if status in ("COMPLETED", "SUCCESS", "FINISH", "DONE", "FAILED"):
+                break
+        if status == "FAILED" or status is None:
+            failed += 1
+            continue
+        # COMPLETED — download + parse (best-effort; format captured for parser)
+        completed += 1
+        url = chk.get("url") or chk.get("download_url") or chk.get("file_url") or ""
+        rows = _download_comment_export(url) if url else (chk.get("comments") or chk.get("list") or [])
+        if not rows:
+            print(f"  ⚠ tiktok: task {task_id[-6:]} COMPLETED but no rows parsed; "
+                  f"raw check payload: {_json.dumps(chk, ensure_ascii=False)[:300]}")
+        for raw in rows:
+            out.append(normalize_comment(raw))
+
+    notes = []
+    if smartplus:  notes.append(f"{smartplus} Smart+ ad group(s) unsupported by comment API")
+    if failed:     notes.append(f"{failed} export(s) FAILED")
+    if completed:  notes.append(f"{completed} export(s) completed")
+    if notes:
+        print("  ⓘ tiktok comments: " + "; ".join(notes))
     return out
+
+
+def _download_comment_export(url: str) -> list:
+    """Download a completed comment-export file and return a list of raw comment
+    dicts. Handles JSON (list, or {data:{list:[]}}/{comments:[]}) and CSV.
+    Best-effort — the exact format will be confirmed against the first real
+    COMPLETED task (Smart+ blocks all of them today)."""
+    try:
+        with _rq.urlopen(_rq.Request(url), timeout=30) as r:
+            body = r.read()
+    except Exception as e:
+        print(f"  ⚠ tiktok: export download failed: {str(e)[:120]}")
+        return []
+    txt = body.decode("utf-8", "replace").strip()
+    # JSON?
+    try:
+        j = _json.loads(txt)
+        if isinstance(j, list):
+            return j
+        if isinstance(j, dict):
+            return (j.get("data", {}) or {}).get("list") or j.get("comments") or j.get("list") or []
+    except Exception:
+        pass
+    # CSV?
+    import csv, io
+    try:
+        rdr = csv.DictReader(io.StringIO(txt))
+        return [dict(row) for row in rdr]
+    except Exception:
+        return []
 
 
 def normalize_comment(raw: dict) -> dict:

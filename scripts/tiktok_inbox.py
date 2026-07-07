@@ -62,27 +62,33 @@ def main():
         adv = TT.get_advertiser_id()
         ags = TT._enumerate_adgroup_ids(start[:10], end[:10])
         print(f"active ad groups in window: {len(ags)}")
-        if not ags:
-            print("  (none — no comments to fetch)"); return
-        for ag in ags[:8]:
-            params = {"advertiser_id": adv, "start_time": start, "end_time": end,
-                      "search_field": "ADGROUP_ID", "search_value": ag,
-                      "sort_field": "CREATE_TIME", "sort_type": "DESC",
-                      "page": 1, "page_size": 5}
+        smartplus = failed = ok = 0
+        import time as _t
+        for ag in ags[:15]:
             try:
-                raw = TT._tt_get("/comment/list/", params)
+                created = TT._check(TT._tt_post("/comment/task/create/", {
+                    "advertiser_id": adv, "start_time": start, "end_time": end,
+                    "search_field": "ADGROUP_ID", "search_value": ag}), "create")
             except Exception as e:
-                print(f"  ag={ag[-6:]} PROBE ERROR: {e}"); continue
-            code = raw.get("code")
-            if code == 0:
-                d = raw.get("data", {})
-                rows = d.get("comments") or d.get("list") or []
-                print(f"  ag={ag[-6:]} code=0 n={len(rows)} page_info={d.get('page_info')}")
-                if rows:
-                    print(json.dumps(rows[0], ensure_ascii=False, indent=2)[:2000])
-                    return
+                if "Smart Plus" in str(e) or "40002" in str(e):
+                    smartplus += 1; continue
+                print("  create err:", str(e)[:80]); continue
+            tid = created.get("task_id")
+            _t.sleep(2)
+            try:
+                chk = TT._check(TT._tt_get("/comment/task/check/",
+                      {"advertiser_id": adv, "task_id": tid}), "check")
+            except Exception as e:
+                print("  check err:", str(e)[:80]); continue
+            st = (chk.get("status") or "?").upper()
+            if st == "FAILED": failed += 1
             else:
-                print(f"  ag={ag[-6:]} code={code} {raw.get('message','')[:70]}")
+                ok += 1
+                print(f"  ✓ ag={ag[-6:]} status={st} payload={json.dumps(chk,ensure_ascii=False)[:300]}")
+        print(f"PROBE: smartplus_rejected={smartplus} export_failed={failed} export_ok={ok}")
+        if not ok:
+            print("  → TikTok comment API returns no data for these ads "
+                  "(Smart+ unsupported / export FAILED). System stays armed.")
         return
 
     kb = M.load_kb(M._resolve_kb_path())
