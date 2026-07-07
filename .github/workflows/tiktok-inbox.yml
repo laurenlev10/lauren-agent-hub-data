@@ -1,0 +1,141 @@
+name: TikTok ad-comment triage (same engine as @meta — Bucket A auto-reply LIVE)
+
+# TikTok side of the unified comment agent. Reuses the EXACT same classifier as
+# the Meta inbox (meta_inbox_preview.classify_smart) + the SAME review queue
+# (docs/meta/inbox-api-preview/pending.json) + the SAME handled.json. Rules are
+# identical across Instagram / Facebook / TikTok:
+#   Bucket A (simple FAQ)      -> auto public reply (EN/ES), one allowed link
+#   Bucket B / NEG (complaint, -> merged into Lauren's pending.json review queue
+#     influencer, ambiguous)      (channel "TikTok comment")
+#   SKIP                       -> auto-done
+#
+# Cadence mirrors meta-inbox-daily.yml: every 3 hours so replies land fast.
+# Lauren's directive 2026-07-07: same system for every platform, same rules —
+# TikTok behaves EXACTLY like Meta (live auto-reply for Bucket A).
+#
+# INERT-safe: while the advertiser's access token predates the Ad Comments
+# scope, /comment/list/ returns code 40001; the script catches it, prints a
+# note, and exits 0 (no send, no failure). The moment TIKTOK_ACCESS_TOKEN is
+# refreshed via OAuth re-auth to carry the comment scope, this goes live with
+# no further change.
+#
+# Required GitHub Secrets:
+#   TIKTOK_ACCESS_TOKEN   — token WITH the Ad Comments scope (re-auth required)
+#   TIKTOK_ADVERTISER_ID  — 6980817115745943553
+#   ANTHROPIC_API_KEY     — Claude engine (EN/ES). Absent -> keyword fallback.
+#   SIMPLETEXTING_TOKEN / LAUREN_PHONE — failure SMS (IRON RULE #3)
+
+on:
+  schedule:
+    - cron: "20 */3 * * *"   # every 3 hours at :20 UTC (offset from meta's :00)
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: 'Probe only — dump raw /comment/list/ payload, no classify/send'
+        type: boolean
+        default: false
+      no_reply:
+        description: 'Classify + queue only, do NOT auto-reply Bucket A'
+        type: boolean
+        default: false
+      days:
+        description: 'Lookback window in days (default 14)'
+        type: string
+        default: "14"
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install python-docx
+        run: python3 -m pip install python-docx --quiet
+
+      - name: Run TikTok ad-comment triage
+        env:
+          TIKTOK_ACCESS_TOKEN:  ${{ secrets.TIKTOK_ACCESS_TOKEN }}
+          TIKTOK_ADVERTISER_ID: ${{ secrets.TIKTOK_ADVERTISER_ID }}
+          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          DAYS="${{ inputs.days }}"; DAYS="${DAYS:-14}"
+          if [ "${{ inputs.probe }}" = "true" ]; then
+            echo "Manual probe run"
+            python3 scripts/tiktok_inbox.py --probe --days "$DAYS"
+            exit 0
+          fi
+          ARGS="--days $DAYS"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            ARGS="$ARGS --reply"
+            echo "Cron — LIVE Bucket A auto-reply"
+          else
+            if [ "${{ inputs.no_reply }}" = "true" ]; then
+              echo "Manual trigger — classify + queue only (no auto-reply)"
+            else
+              ARGS="$ARGS --reply"
+              echo "Manual trigger — LIVE Bucket A auto-reply"
+            fi
+          fi
+          python3 scripts/tiktok_inbox.py $ARGS
+
+      - name: Commit + push if pending/handled changed
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name  "Lauren (via Actions)"
+          git add docs/meta/inbox-api-preview/pending.json docs/meta/handled.json 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "@tiktok comment triage: $(date -u +%Y-%m-%dT%H:%MZ)"
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
+            echo "pushed updates"
+          else
+            echo "no changes to commit"
+          fi
+
+      - name: Update scheduled-runs.json (refresh lastRunAt)
+        run: |
+          python3 - <<'PYIRON4'
+          import json, datetime
+          from pathlib import Path
+          p = Path("docs/scheduled-runs.json")
+          if not p.exists():
+              raise SystemExit(0)
+          data = json.loads(p.read_text())
+          now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          for t in data.get("tasks", []):
+              if t.get("id") == "tiktok-inbox-check":
+                  t["lastRunAt"] = now
+                  break
+          data["_updated_at"] = now
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+          PYIRON4
+
+      - name: Commit scheduled-runs.json bump
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via Actions)"
+          if ! git diff --quiet docs/scheduled-runs.json; then
+            git add docs/scheduled-runs.json
+            git commit -m "scheduled-runs: bump tiktok-inbox-check lastRunAt"
+            for i in 1 2 3; do
+              git pull --rebase -X theirs origin main && git push origin main && break
+              git rebase --abort 2>/dev/null || true
+              sleep $((RANDOM % 5 + 2))
+            done
+          fi
+
+      # IRON RULE #3 (Lauren 2026-05-10): SMS Lauren if this workflow fails.
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_failure.py
