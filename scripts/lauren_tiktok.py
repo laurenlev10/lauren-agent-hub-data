@@ -35,7 +35,22 @@ TT_BASE = "https://business-api.tiktok.com/open_api/v1.3"
 
 
 def get_token() -> str:
-    return (_os.environ.get("TIKTOK_ACCESS_TOKEN") or "").strip()
+    """Comment-scoped token. The Ad Comments OAuth re-auth (2026-07-07) mints a
+    token that carries ONLY the comment scope — it can read/reply comments but
+    CANNOT do reporting/ad-management. So comments use their OWN secret
+    (TIKTOK_COMMENT_TOKEN); we fall back to TIKTOK_ACCESS_TOKEN only if the
+    dedicated one is unset."""
+    return (_os.environ.get("TIKTOK_COMMENT_TOKEN")
+            or _os.environ.get("TIKTOK_ACCESS_TOKEN") or "").strip()
+
+
+def get_report_token() -> str:
+    """Reporting/ad-management token (TIKTOK_ACCESS_TOKEN) — used ONLY to
+    enumerate ad-group IDs via /report/integrated/get/. Kept separate from the
+    comment token so refreshing one never breaks the other (marketing-stats
+    depends on TIKTOK_ACCESS_TOKEN for spend)."""
+    return (_os.environ.get("TIKTOK_ACCESS_TOKEN")
+            or _os.environ.get("TIKTOK_COMMENT_TOKEN") or "").strip()
 
 
 def get_advertiser_id() -> str:
@@ -77,50 +92,147 @@ def _check(resp: dict, where: str) -> dict:
 # ---------------------------------------------------------------------------
 # READ — ad comments
 # ---------------------------------------------------------------------------
-def fetch_ad_comments(*, start_time: str, end_time: str,
-                      comment_status=("PUBLIC",), page_size: int = 100,
-                      max_pages: int = 30) -> list:
-    """Return normalized ad comments in [start_time, end_time] (UTC 'YYYY-MM-DD HH:MM:SS').
+def _enumerate_adgroup_ids(start_date: str, end_date: str, *, only_active=True,
+                           max_ids: int = 150) -> list:
+    """Ad-group IDs that ran in [start_date, end_date] (YYYY-MM-DD), via the
+    REPORTING endpoint (only path available to us — /adgroup/get/ needs an
+    ad-management scope neither token holds). Only active ads collect comments,
+    so we default to spend>0 ad groups to keep the comment scan small."""
+    adv = get_advertiser_id()
+    tok = get_report_token()
+    if not adv or not tok:
+        return []
+    url = ("https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/"
+           "?" + _up.urlencode({
+               "advertiser_id": adv,
+               "report_type": "BASIC",
+               "data_level": "AUCTION_ADGROUP",
+               "dimensions": _json.dumps(["adgroup_id"]),
+               "metrics": _json.dumps(["adgroup_name", "spend"]),
+               "page_size": 1000,
+               "start_date": start_date,
+               "end_date": end_date,
+           }))
+    req = _rq.Request(url, headers={"Access-Token": tok})
+    try:
+        with _rq.urlopen(req, timeout=30) as r:
+            data = _json.loads(r.read().decode("utf-8"))
+    except Exception as e:
+        print(f"  ⚠ tiktok: adgroup enumeration failed: {str(e)[:120]}")
+        return []
+    ids = []
+    for row in (data.get("data", {}) or {}).get("list", []):
+        ag = (row.get("dimensions") or {}).get("adgroup_id")
+        spend = 0.0
+        try:
+            spend = float((row.get("metrics") or {}).get("spend") or 0)
+        except Exception:
+            pass
+        if not ag:
+            continue
+        if only_active and spend <= 0:
+            continue
+        ids.append(ag)
+        if len(ids) >= max_ids:
+            break
+    return ids
 
-    search_field/search_value default to the whole advertiser (all ads). Pages
-    until exhausted or max_pages. Returns [] gracefully if creds are missing;
-    raises TikTokPermissionError while the scope grant is still pending.
+
+def fetch_ad_comments(*, start_time: str, end_time: str,
+                      comment_status=("PUBLIC",), page_size: int = 50,
+                      max_pages: int = 20, retries: int = 1) -> list:
+    """Return normalized ad comments in [start_time, end_time] (UTC
+    'YYYY-MM-DD HH:MM:SS').
+
+    TikTok's /comment/list/ only accepts search_field=ADGROUP_ID (ADVERTISER /
+    CAMPAIGN_ID / AD_ID / VIDEO_ID are rejected, verified 2026-07-07). So we
+    enumerate the advertiser's active ad groups (reporting token) and query
+    comments per ad group (comment token).
+
+    Resilient to code 51010 "Internal Time out" (TikTok's comment backend
+    returns this while it is still provisioning a newly-granted Ad Comments
+    scope, and intermittently under load): retried a few times, then that ad
+    group is skipped so the run stays green. Raises TikTokPermissionError only
+    on a real 40001 scope failure.
     """
     adv = get_advertiser_id()
     if not get_token() or not adv:
-        print("  ⚠ tiktok: token/advertiser not set — skipping")
+        print("  ⚠ tiktok: comment token/advertiser not set — skipping")
         return []
-    out, page = [], 1
-    while page <= max_pages:
-        params = {
-            "advertiser_id": adv,
-            "start_time": start_time,
-            "end_time": end_time,
-            "search_field": "ADVERTISER",
-            "search_value": adv,
-            "sort_field": "CREATE_TIME",
-            "sort_type": "DESC",
-            "page": page,
-            "page_size": page_size,
-        }
-        if comment_status:
-            params["comment_status"] = _json.dumps(list(comment_status))
-        try:
-            data = _check(_tt_get("/comment/list/", params), "comment_list")
-        except _ue.HTTPError as e:
-            body = ""
-            try: body = e.read().decode()[:200]
-            except Exception: pass
-            raise RuntimeError(f"comment_list HTTP {e.code}: {body}")
-        rows = data.get("comments") or data.get("list") or []
-        for raw in rows:
-            out.append(normalize_comment(raw))
-        pi = data.get("page_info") or {}
-        total_pages = pi.get("total_page") or pi.get("total_number") and page or page
-        if not rows or page >= (pi.get("total_page") or page):
-            break
-        page += 1
-        _time.sleep(0.4)
+
+    # ad-group window = the comment window's dates (reporting wants YYYY-MM-DD)
+    sd = start_time[:10]
+    ed = end_time[:10]
+    adgroups = _enumerate_adgroup_ids(sd, ed)
+    if not adgroups:
+        print("  ⚠ tiktok: no active ad groups in window — nothing to scan")
+        return []
+    print(f"  scanning {len(adgroups)} active ad group(s) for comments")
+
+    out, timeouts = [], 0
+    consec_timeout = 0  # early-abort if the comment backend is down/provisioning
+    for ag in adgroups:
+        page = 1
+        while page <= max_pages:
+            params = {
+                "advertiser_id": adv,
+                "start_time": start_time,
+                "end_time": end_time,
+                "search_field": "ADGROUP_ID",
+                "search_value": ag,
+                "sort_field": "CREATE_TIME",
+                "sort_type": "DESC",
+                "page": page,
+                "page_size": page_size,
+            }
+            if comment_status:
+                params["comment_status"] = _json.dumps(list(comment_status))
+            # try with 51010-tolerant retry
+            data = None
+            for attempt in range(retries + 1):
+                try:
+                    data = _check(_tt_get("/comment/list/", params), "comment_list")
+                    break
+                except TikTokPermissionError:
+                    raise
+                except RuntimeError as e:
+                    if "51010" in str(e) or "Time out" in str(e):
+                        if attempt < retries:
+                            _time.sleep(1.5 * (attempt + 1))
+                            continue
+                        timeouts += 1
+                        data = None
+                        break
+                    raise
+                except _ue.HTTPError as e:
+                    body = ""
+                    try:
+                        body = e.read().decode()[:200]
+                    except Exception:
+                        pass
+                    raise RuntimeError(f"comment_list HTTP {e.code}: {body}")
+            if data is None:
+                consec_timeout += 1
+                # If the first several ad groups ALL time out with zero
+                # successes, the comment backend isn't serving yet (freshly
+                # granted scope still provisioning) — abort fast, retry next run.
+                if consec_timeout >= 6 and not out:
+                    print("  ⚠ tiktok: comment backend not serving yet "
+                          "(6 straight 51010s, 0 results) — aborting this run")
+                    return out
+                break  # skip this ad group (timed out)
+            consec_timeout = 0
+            rows = data.get("comments") or data.get("list") or []
+            for raw in rows:
+                out.append(normalize_comment(raw))
+            pi = data.get("page_info") or {}
+            if not rows or page >= (pi.get("total_page") or page):
+                break
+            page += 1
+            _time.sleep(0.3)
+    if timeouts:
+        print(f"  ⚠ tiktok: {timeouts} ad group(s) returned 51010 (comment "
+              f"backend busy/provisioning) — skipped, will retry next run")
     return out
 
 

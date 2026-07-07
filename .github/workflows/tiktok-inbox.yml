@@ -20,7 +20,8 @@ name: TikTok ad-comment triage (same engine as @meta — Bucket A auto-reply LIV
 # no further change.
 #
 # Required GitHub Secrets:
-#   TIKTOK_ACCESS_TOKEN   — token WITH the Ad Comments scope (re-auth required)
+#   TIKTOK_COMMENT_TOKEN  — comment-scoped token from the Ad Comments re-auth
+#   TIKTOK_ACCESS_TOKEN   — reporting token (enumerates ad groups; spend reports)
 #   TIKTOK_ADVERTISER_ID  — 6980817115745943553
 #   ANTHROPIC_API_KEY     — Claude engine (EN/ES). Absent -> keyword fallback.
 #   SIMPLETEXTING_TOKEN / LAUREN_PHONE — failure SMS (IRON RULE #3)
@@ -56,6 +57,7 @@ jobs:
 
       - name: Run TikTok ad-comment triage
         env:
+          TIKTOK_COMMENT_TOKEN: ${{ secrets.TIKTOK_COMMENT_TOKEN }}
           TIKTOK_ACCESS_TOKEN:  ${{ secrets.TIKTOK_ACCESS_TOKEN }}
           TIKTOK_ADVERTISER_ID: ${{ secrets.TIKTOK_ADVERTISER_ID }}
           ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}

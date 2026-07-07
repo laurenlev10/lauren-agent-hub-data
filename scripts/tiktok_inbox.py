@@ -60,14 +60,29 @@ def main():
 
     if args.probe:
         adv = TT.get_advertiser_id()
-        params = {"advertiser_id": adv, "start_time": start, "end_time": end,
-                  "search_field": "ADVERTISER", "search_value": adv,
-                  "page": 1, "page_size": 5}
-        try:
-            raw = TT._tt_get("/comment/list/", params)
-        except Exception as e:
-            print("PROBE ERROR:", e); return
-        print(json.dumps(raw, ensure_ascii=False, indent=2)[:4000])
+        ags = TT._enumerate_adgroup_ids(start[:10], end[:10])
+        print(f"active ad groups in window: {len(ags)}")
+        if not ags:
+            print("  (none — no comments to fetch)"); return
+        for ag in ags[:8]:
+            params = {"advertiser_id": adv, "start_time": start, "end_time": end,
+                      "search_field": "ADGROUP_ID", "search_value": ag,
+                      "sort_field": "CREATE_TIME", "sort_type": "DESC",
+                      "page": 1, "page_size": 5}
+            try:
+                raw = TT._tt_get("/comment/list/", params)
+            except Exception as e:
+                print(f"  ag={ag[-6:]} PROBE ERROR: {e}"); continue
+            code = raw.get("code")
+            if code == 0:
+                d = raw.get("data", {})
+                rows = d.get("comments") or d.get("list") or []
+                print(f"  ag={ag[-6:]} code=0 n={len(rows)} page_info={d.get('page_info')}")
+                if rows:
+                    print(json.dumps(rows[0], ensure_ascii=False, indent=2)[:2000])
+                    return
+            else:
+                print(f"  ag={ag[-6:]} code={code} {raw.get('message','')[:70]}")
         return
 
     kb = M.load_kb(M._resolve_kb_path())
