@@ -225,16 +225,16 @@ function renderDay(key){
     if(cum<trough){trough=cum;troughT=t;}
     if(cum>runPeak)runPeak=cum;
     if(runPeak-cum>maxdd){maxdd=runPeak-cum;ddT=t;}}
-  const tm=t=>t?`${ilHM(t.xla)} IL / ${laHM(t.xla)} LA`:'—';
+  const tm=t=>t?`${ilHM(t.xla)} IL · ${laHM(t.xla)} LA`:'—';
+  const dcard=(l,v,c,t)=>`<div class="card"><div class="lbl">${l}</div><div class="val ${c}">${v}</div>${t?`<div class="note" style="margin-top:5px">🕐 ${t}</div>`:''}</div>`;
   const [Y,M,D]=key.split('-');
   $('#daysum').innerHTML='<div class="note" style="margin-bottom:6px">יום '+D+'/'+M+'/'+Y+' (ישראל) · '+day.length+' עסקאות</div>'+
     '<div class="row">'+
-    card('סה"כ היום',fmt(cum),cum>=0?'g':'r')+
-    card('רווח שיא (יתרה גבוהה)',fmt(peak),peak>=0?'g':'r')+
-    card('נקודה נמוכה (מינוס שיא)',fmt(trough),trough>=0?'g':'r')+
-    card('Max Drawdown',fmt(-maxdd),'r')+
-    '</div>'+
-    `<div class="note">📈 יתרה גבוהה ביותר בשעה <b>${tm(peakT)}</b> · 📉 נקודה נמוכה בשעה <b>${tm(troughT)}</b> · ⬇️ שיא הדראודאון בשעה <b>${tm(ddT)}</b></div>`;
+    dcard('סה"כ היום',fmt(cum),cum>=0?'g':'r','')+
+    dcard('רווח שיא (יתרה גבוהה)',fmt(peak),peak>=0?'g':'r',tm(peakT))+
+    dcard('נקודה נמוכה (מינוס שיא)',fmt(trough),trough>=0?'g':'r',tm(troughT))+
+    dcard('Max Drawdown',fmt(-maxdd),'r',tm(ddT))+
+    '</div>';
 }
 function runSim(){
   if(!ALL.length){return;}
