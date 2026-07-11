@@ -31,7 +31,7 @@
   .cal .d{background:var(--card);border:1px solid var(--line);border-radius:8px;min-height:52px;padding:5px;font-size:11px}
   .cal .d .n{color:var(--mut)} .cal .d .p{font-weight:700;font-size:13px;margin-top:4px}
   .heat{display:flex;flex-wrap:wrap;gap:4px}
-  .heat .c{width:52px;border-radius:7px;padding:5px;text-align:center;font-size:11px;border:1px solid var(--line)}
+  .heat .c{width:58px;border-radius:7px;padding:5px;text-align:center;font-size:11px;border:1px solid var(--line)}
   .sim input{width:90px;background:#0c1119;border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:6px;font-size:13px}
   .sim label{font-size:13px;color:var(--mut);margin-inline-end:6px}
   @media print{.nav,.sim-ctl{display:none}.wrap{max-height:none}body{background:#fff;color:#000}.card,th{background:#eee}}
@@ -55,9 +55,16 @@
 <div class="row" id="stats"></div>
 
 <h2>🗓️ לוח שנה — רווח יומי (שעון ישראל)</h2>
+<div class="sim-ctl" style="margin-bottom:8px;display:flex;align-items:center;gap:10px">
+  <button onclick="calNav(-1)" style="background:var(--card);border:1px solid var(--line);color:var(--ink);padding:6px 12px;border-radius:8px;cursor:pointer">‹ חודש קודם</button>
+  <span id="calLbl" style="font-weight:700"></span>
+  <button onclick="calNav(1)" style="background:var(--card);border:1px solid var(--line);color:var(--ink);padding:6px 12px;border-radius:8px;cursor:pointer">חודש הבא ›</button>
+</div>
 <div id="cal"></div>
+<h2>📆 סיכום יום (לחצי על יום בלוח · שעון ישראל + LA)</h2>
+<div id="daysum"></div>
 
-<h2>🔥 מפת חום — רווח לפי שעה (ישראל)</h2>
+<h2>🔥 מפת חום — רווח לפי שעה (ישראל · ליד: LA)</h2>
 <div class="heat" id="heat"></div>
 
 <h2>⚙️ בריאות ביצוע</h2>
@@ -76,7 +83,7 @@
   <div id="sim-out"></div>
 </div>
 
-<h2>🚫 מוניטור חלון חסימה (IL 15:25–15:35)</h2>
+<h2>🚫 מוניטור חלון חסימה (IL 15:25–15:35 · LA 05:25–05:35)</h2>
 <div id="block-mon"></div>
 
 <h2>📋 עסקאות 24 שעות אחרונות</h2>
@@ -86,6 +93,7 @@
 
 <script>
 const COMM=1.82, EXP_QTY=4, DPP=2;
+const FVG_START='2026-07-09T21:00:00Z'; // FVG began IL 2026-07-10 00:00 (=UTC 21:00 prev day); earlier = VWAP
 const $=s=>document.querySelector(s);
 const fmt=(n,d=2)=>(n<0?'-':'')+'$'+Math.abs(n).toFixed(d);
 function parseLA(s){if(!s||s.indexOf(' ')<0)return null;const[d,t]=s.split(' '),[dd,mm,yy]=d.split('/'),[H,M]=t.split(':');return new Date(Date.UTC(+yy,+mm-1,+dd,+H,+M));}
@@ -102,7 +110,7 @@ function groupTrades(legs){
   for(const t of legs){const et=new Date(t.entry_iso);if(prev===null||(et-prev)/1000<=90)cur.push(t);else{out.push(cur);cur=[t];}prev=et;}
   if(cur.length)out.push(cur);
   return out.map(s=>{const q=s.reduce((a,x)=>a+(x.qty||0),0);const gross=s.reduce((a,x)=>a+(x.result_dollars||0),0);
-    return {iso:s[0].entry_iso,la:s[0].entry_la,xla:s[s.length-1].exit_la,dir:s[0].direction,qty:q,legs:s.length,
+    return {iso:s[0].entry_iso,xiso:s[s.length-1].exit_iso,la:s[0].entry_la,xla:s[s.length-1].exit_la,dir:s[0].direction,qty:q,legs:s.length,
       ent:+(s.reduce((a,x)=>a+(x.entry_price||0)*(x.qty||0),0)/q).toFixed(2),
       xit:+(s.reduce((a,x)=>a+(x.exit_price||0)*(x.qty||0),0)/q).toFixed(2),
       net:+(gross-q*COMM).toFixed(2)};});
@@ -110,9 +118,10 @@ function groupTrades(legs){
 let ALL=[];
 async function main(){
   let led;try{led=await (await fetch('../broker-ledger.json?_='+Date.now(),{cache:'no-store'})).json();}catch(e){$('#upd').textContent='שגיאה בטעינת נתוני הברוקר';return;}
-  const legs=led.trades||[];
+  const legs=(led.trades||[]).filter(t=>(t.entry_iso||'')>=FVG_START);
   ALL=groupTrades(legs);
   const times=legs.map(t=>new Date(t.exit_iso||t.entry_iso)).filter(d=>!isNaN(d));
+  if(!times.length){$('#upd').textContent='עדיין אין עסקאות FVG (מ-10/07 שעון ישראל)';return;}
   const last=new Date(Math.max.apply(null,times)),cut=new Date(last-24*3600*1000);
   const trades=ALL.filter(t=>new Date(t.iso)>=cut);
   $('#upd').textContent='עודכן '+(led._updated_at||'').slice(0,16).replace('T',' ')+' · '+trades.length+' עסקאות ב-24 שעות · '+ALL.length+' סה"כ';
@@ -138,24 +147,19 @@ async function main(){
     const zero=(H-(0-mn)/rg*H).toFixed(1);
     $('#equity').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="150" preserveAspectRatio="none"><line x1="0" y1="${zero}" x2="${W}" y2="${zero}" stroke="#3a4560" stroke-dasharray="4"/><polyline points="${path}" fill="none" stroke="${eq>=0?'#2ecc71':'#e74c3c'}" stroke-width="2"/></svg><div class="note">עקומת הון מצטברת — ${ALL.length} עסקאות מהברוקר</div>`;}
 
-  // CALENDAR (IL date)
-  const byIL={};for(const t of ALL){const d=ilDate(t.la);if(!d)continue;const k=d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');byIL[k]=(byIL[k]||0)+t.net;}
-  const keys=Object.keys(byIL).sort();
-  if(keys.length){const lastK=keys[keys.length-1];const[Y,Mo]=lastK.split('-').map(Number);
-    const first=new Date(Date.UTC(Y,Mo-1,1)),dim=new Date(Date.UTC(Y,Mo,0)).getUTCDate();
-    let html='<div class="cal">'+['א','ב','ג','ד','ה','ו','ש'].map(h=>`<div class="h">${h}</div>`).join('');
-    for(let i=0;i<first.getUTCDay();i++)html+='<div></div>';
-    for(let day=1;day<=dim;day++){const k=Y+'-'+String(Mo).padStart(2,'0')+'-'+String(day).padStart(2,'0');const v=byIL[k];
-      html+=`<div class="d"><div class="n">${day}</div>${v!==undefined?`<div class="p ${v>=0?'g':'r'}">${fmt(v,0)}</div>`:''}</div>`;}
-    html+='</div><div class="note">חודש '+Mo+'/'+Y+' · לפי תאריך ישראל</div>';$('#cal').innerHTML=html;}
+  // CALENDAR + DAY SUMMARY (IL date)
+  BYD={};for(const t of ALL){const d=ilDate(t.la);if(!d)continue;const k=d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');(BYD[k]=BYD[k]||[]).push(t);}
+  const keys=Object.keys(BYD).sort();
+  if(keys.length){const lastK=keys[keys.length-1];[CALY,CALM]=lastK.split('-').map(Number);DAYKEY=lastK;renderCal();renderDay(lastK);}
 
   // HEATMAP (IL hour)
   const byH={};for(const t of ALL){const h=ilHour(t.la);if(h<0)continue;byH[h]=(byH[h]||0)+t.net;}
   const vals=Object.values(byH),amx=Math.max(1,...vals.map(Math.abs));
-  let hh='';for(let h=0;h<24;h++){const v=byH[h];if(v===undefined){hh+=`<div class="c" style="opacity:.3">${h}</div>`;continue;}
+  let hh='';for(let h=0;h<24;h++){const la=(h-10+24)%24;const v=byH[h];
+    if(v===undefined){hh+=`<div class="c" style="opacity:.3"><div>IL ${h}</div><div style="font-size:9px">LA ${la}</div></div>`;continue;}
     const a=(Math.abs(v)/amx*.7+.15).toFixed(2);const col=v>=0?`rgba(46,204,113,${a})`:`rgba(231,76,60,${a})`;
-    hh+=`<div class="c" style="background:${col}"><div>${h}:00</div><div style="font-weight:700">${fmt(v,0)}</div></div>`;}
-  $('#heat').innerHTML=hh+'<div class="note" style="width:100%">שעה = שעון ישראל · ירוק רווחי / אדום מפסיד</div>';
+    hh+=`<div class="c" style="background:${col}"><div>IL ${h}:00</div><div style="font-size:9px;opacity:.85">LA ${la}:00</div><div style="font-weight:700">${fmt(v,0)}</div></div>`;}
+  $('#heat').innerHTML=hh+'<div class="note" style="width:100%">שעה ראשית = שעון ישראל · ליד = שעון LA · ירוק רווחי / אדום מפסיד</div>';
 
   // THEORETICAL + gap
   let fvg=null;try{fvg=await (await fetch('../fvg-journal.json?_='+Date.now(),{cache:'no-store'})).json();}catch(e){}
@@ -195,6 +199,42 @@ async function main(){
   $('#trades').querySelector('tbody').innerHTML=trades.map((t,i)=>{const flag=(inBlock(t.la)||inBlock(t.xla))?'<span class="pill warn">חסימה</span>':(t.qty<EXP_QTY?'<span class="pill warn">חלקי</span>':'<span class="pill ok">תקין</span>');
     return `<tr class="${t.net>=0?'win':'loss'}"><td>${i+1}</td><td>${laHM(t.la)}</td><td>${ilHM(t.la)}</td><td>${t.dir==='long'?'LONG':'SHORT'}</td><td>${t.qty}</td><td>${t.legs}</td><td>${t.ent}</td><td>${t.xit}</td><td class="${t.net>=0?'g':'r'}">${fmt(t.net)}</td><td>${flag}</td></tr>`;}).join('');
   runSim();
+}
+let BYD={},CALY,CALM,DAYKEY=null;
+const ILMON=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+function calNav(d){CALM+=d;if(CALM<1){CALM=12;CALY--;}if(CALM>12){CALM=1;CALY++;}renderCal();}
+function renderCal(){
+  const first=new Date(Date.UTC(CALY,CALM-1,1)),dim=new Date(Date.UTC(CALY,CALM,0)).getUTCDate();
+  $('#calLbl').textContent=ILMON[CALM-1]+' '+CALY;
+  let html='<div class="cal">'+['א','ב','ג','ד','ה','ו','ש'].map(h=>`<div class="h">${h}</div>`).join('');
+  for(let i=0;i<first.getUTCDay();i++)html+='<div></div>';
+  for(let day=1;day<=dim;day++){const k=CALY+'-'+String(CALM).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    const arr=BYD[k];const v=arr?arr.reduce((a,t)=>a+t.net,0):undefined;
+    const sel=k===DAYKEY?'border-color:#3aa0ff;box-shadow:0 0 0 1px #3aa0ff':'';
+    const clk=arr?`onclick="selectDay('${k}')" style="cursor:pointer;${sel}"`:`style="opacity:.5"`;
+    html+=`<div class="d" ${clk}><div class="n">${day}</div>${v!==undefined?`<div class="p ${v>=0?'g':'r'}">${fmt(v,0)}</div>`:''}</div>`;}
+  html+='</div><div class="note">לפי תאריך ישראל · לחצי על יום לפירוט</div>';$('#cal').innerHTML=html;
+}
+function selectDay(k){DAYKEY=k;renderCal();renderDay(k);}
+function renderDay(key){
+  const day=(BYD[key]||[]).slice().sort((a,b)=>(a.xiso||a.iso||'').localeCompare(b.xiso||b.iso||''));
+  if(!day.length){$('#daysum').innerHTML='<div class="empty">אין עסקאות ביום זה.</div>';return;}
+  let cum=0,peak=-1e9,peakT=null,trough=1e9,troughT=null,runPeak=-1e9,maxdd=0,ddT=null;
+  for(const t of day){cum+=t.net;
+    if(cum>peak){peak=cum;peakT=t;}
+    if(cum<trough){trough=cum;troughT=t;}
+    if(cum>runPeak)runPeak=cum;
+    if(runPeak-cum>maxdd){maxdd=runPeak-cum;ddT=t;}}
+  const tm=t=>t?`IL ${ilHM(t.xla)} · LA ${laHM(t.xla)}`:'—';
+  const dcard=(l,v,c,t)=>`<div class="card"><div class="lbl">${l}</div><div class="val ${c}">${v}</div>${t?`<div class="note" dir="ltr" style="margin-top:5px;text-align:center">🕐 ${t}</div>`:''}</div>`;
+  const [Y,M,D]=key.split('-');
+  $('#daysum').innerHTML='<div class="note" style="margin-bottom:6px">יום '+D+'/'+M+'/'+Y+' (ישראל) · '+day.length+' עסקאות</div>'+
+    '<div class="row">'+
+    dcard('סה"כ היום',fmt(cum),cum>=0?'g':'r','')+
+    dcard('רווח שיא (יתרה גבוהה)',fmt(peak),peak>=0?'g':'r',tm(peakT))+
+    dcard('נקודה נמוכה (מינוס שיא)',fmt(trough),trough>=0?'g':'r',tm(troughT))+
+    dcard('Max Drawdown',fmt(-maxdd),'r',tm(ddT))+
+    '</div>';
 }
 function runSim(){
   if(!ALL.length){return;}
