@@ -34,6 +34,9 @@
 <h2>💰 החשבון האמיתי (מהברוקר)</h2>
 <div class="row" id="kpi-real"></div>
 
+<h2>📅 רווח יומי — כל ההיסטוריה (ברוקר)</h2>
+<div class="row" id="daily"></div>
+
 <h2>⚙️ בריאות ביצוע</h2>
 <div class="row" id="kpi-exec"></div>
 <div class="note">מילוי מלא = עסקה שנכנסה ב-4 חוזים. מילוי חלקי / חלון-חסימה = דגלים אדומים מהניתוח של היום. "היפוך כיוון" ו"פער מול אינדיקטור" יופיעו ברגע שהזנת היומן התיאורטי תהיה פעילה.</div>
@@ -129,6 +132,14 @@ async function main(){
       const dd=Math.abs(tmin(trades[i].la)-tmin(th.la)); if(dd<bd){bd=dd;best=i;} }
     if(best>=0){usedB.add(best);matches.push({th,br:trades[best]});} else matches.push({th,br:null}); }
   const brokerOnly=trades.filter((t,i)=>!usedB.has(i));
+
+  // DAILY P&L (all history, broker) — replaces the old VWAP calendar
+  const byDay={};
+  for(const t of legs){ const la=t.entry_la||''; const d=la.split(' ')[0]; if(!d)continue;
+    if(!byDay[d])byDay[d]={net:0,q:0}; byDay[d].net+=(t.result_dollars||0); byDay[d].q+=(t.qty||0); }
+  const days=Object.keys(byDay).sort((a,b)=>{const pa=a.split('/'),pb=b.split('/');return new Date(pa[2],pa[1]-1,pa[0])-new Date(pb[2],pb[1]-1,pb[0]);});
+  $('#daily').innerHTML=days.map(d=>{const v=+(byDay[d].net-byDay[d].q*COMM).toFixed(2);
+    return `<div class="card" style="min-width:110px"><div class="lbl">${d.slice(0,5)}</div><div class="val ${v>=0?'g':'r'}" style="font-size:19px">${fmt(v,0)}</div></div>`;}).join('');
 
   // EXECUTION HEALTH
   const partial=trades.filter(t=>t.qty<EXP_QTY).length;

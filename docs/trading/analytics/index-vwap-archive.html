@@ -1,0 +1,1997 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<script>
+// 🛑 2026-05-28 — Cloudflare Access hostname guard.
+(function(){
+  var allowed = "dashboard.themakeupblowout.com";
+  if (window.location.hostname === allowed) return;
+  var u = "https://" + allowed + window.location.pathname + window.location.search;
+  document.addEventListener("DOMContentLoaded", function(){
+    document.body.innerHTML = "";
+    document.body.style.cssText = "font-family:sans-serif;padding:40px;text-align:center;direction:rtl;";
+    var h = document.createElement("h2"); h.style.color="#0f172a"; h.textContent="הדף הזה זמין רק דרך הדומיין המאובטח"; document.body.appendChild(h);
+    var p1 = document.createElement("p"); p1.style.cssText="color:#475569;margin-top:16px;"; p1.textContent="מעבירה ל:"; document.body.appendChild(p1);
+    var p2 = document.createElement("p"); var a = document.createElement("a"); a.href=u; a.style.cssText="color:#0ea5e9;font-size:18px;font-weight:700;"; a.textContent=u; p2.appendChild(a); document.body.appendChild(p2);
+    var m = document.createElement("meta"); m.setAttribute("http-equiv","refresh"); m.content="0;url="+u; document.head.appendChild(m);
+  });
+  if (window.stop) try { window.stop(); } catch(e){}
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>אנליטיקס אסטרטגיה · VWAP</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --f: -apple-system, "Segoe UI", "Heebo", system-ui, sans-serif;
+  --tv: #2962ff;
+  --tv-soft: #5b8def;
+  --bg: #f5f7fb;
+  --card: #ffffff;
+  --txt: #0f172a;
+  --txt2: #1e293b;
+  --txt3: #475569;
+  --txt4: #64748b;
+  --grn: #16a34a;
+  --grn-soft: #22c55e;
+  --grn-bg: #dcfce7;
+  --red: #dc2626;
+  --red-soft: #ef4444;
+  --red-bg: #fee2e2;
+  --yel: #ca8a04;
+  --yel-bg: #fef3c7;
+  --bdr: #e2e8f0;
+  --bdr2: #cbd5e1;
+  --r: 14px;
+  --sh: 0 2px 8px rgba(15,23,42,0.06);
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--txt); font-family:var(--f); padding:18px 22px 60px; }
+.topbar { display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:18px; }
+.brand { display:flex; flex-direction:column; gap:2px; }
+.brand-title { font-size:22px; font-weight:800; color:var(--txt); }
+.brand-sub { font-size:13px; color:var(--txt3); font-weight:600; }
+.nav { display:flex; gap:8px; flex-wrap:wrap; }
+.nav a { text-decoration:none; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:700; border:1.5px solid var(--bdr2); color:var(--txt3); background:#fff; transition:all .12s; }
+.nav a:hover { background:#f1f5f9; }
+.nav a.active { background:var(--tv); color:#fff; border-color:var(--tv); }
+.refresh-pill { font-size:12px; color:var(--txt4); display:flex; align-items:center; gap:5px; }
+.refresh-pill button { background:#fff; color:var(--tv); border:1.5px solid var(--tv-soft); border-radius:8px; padding:6px 11px; font-size:12px; font-weight:700; cursor:pointer; font-family:var(--f); }
+.refresh-pill button:hover { background:#e0f2fe; }
+
+/* KPI row */
+.kpi-row { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:18px; }
+.kpi { background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); padding:14px 16px; box-shadow:var(--sh); display:flex; flex-direction:column; gap:4px; }
+.kpi .label { font-size:12px; color:var(--txt4); font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
+.kpi .big { font-size:26px; font-weight:800; color:var(--txt); margin-top:2px; }
+.kpi .sub { font-size:12px; color:var(--txt4); font-weight:600; }
+.kpi.green .big { color:var(--grn); }
+.kpi.red .big { color:var(--red); }
+.kpi.yel .big { color:var(--yel); }
+.kpi.tv .big { color:var(--tv); }
+
+/* sections */
+.section { background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); padding:16px 18px; box-shadow:var(--sh); margin-bottom:14px; }
+.section h2 { margin:0 0 12px; font-size:16px; color:var(--txt); font-weight:800; display:flex; align-items:center; gap:8px; }
+.section h2 .desc { font-weight:500; font-size:13px; color:var(--txt4); }
+.chart-box { height:300px; position:relative; }
+.chart-box.tall { height:380px; }
+
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width: 900px) { .grid-2 { grid-template-columns:1fr; } }
+
+/* insight callouts */
+.insight { background:#f1f5f9; border-right:4px solid var(--tv); padding:10px 14px; border-radius:8px; font-size:13px; color:var(--txt2); line-height:1.55; margin-top:10px; }
+.insight.green { background:#f0fdf4; border-right-color:var(--grn); }
+.insight.red { background:#fef2f2; border-right-color:var(--red); }
+.insight.yel { background:#fef9e7; border-right-color:var(--yel); }
+.insight strong { color:var(--txt); }
+
+/* simple tables */
+table.simple { width:100%; border-collapse:collapse; font-size:13px; }
+table.simple th, table.simple td { padding:8px 12px; text-align:right; border-bottom:1px solid var(--bdr); }
+table.simple th { background:#f1f5f9; color:var(--txt3); font-weight:700; }
+table.simple tr:last-child td { border-bottom:none; }
+table.simple td.num { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
+table.simple td.pos { color:var(--grn); font-weight:700; }
+table.simple td.neg { color:var(--red); font-weight:700; }
+table.simple td.muted { color:var(--txt4); }
+
+/* status */
+#status { font-size:13px; color:var(--txt4); margin-bottom:12px; }
+#status.ok { color:var(--grn); }
+#status.err { color:var(--red); }
+
+/* P&L Calendar */
+.cal-section { background:var(--card); border:1px solid var(--bdr); border-radius:var(--r); padding:16px 18px; box-shadow:var(--sh); margin-bottom:14px; }
+.cal-header { display:flex; justify-content:space-between; align-items:center; gap:14px; margin-bottom:14px; flex-wrap:wrap; }
+.cal-title { font-size:16px; font-weight:800; color:var(--txt); display:flex; align-items:center; gap:8px; }
+.cal-title .desc { font-weight:500; font-size:13px; color:var(--txt4); }
+.cal-nav { display:flex; align-items:center; gap:8px; }
+.cal-nav-btn { background:#fff; color:var(--tv); border:1.5px solid var(--bdr2); border-radius:8px; padding:7px 13px; font-family:var(--f); font-size:13px; font-weight:700; cursor:pointer; transition:all .12s; }
+.cal-nav-btn:hover { background:#f1f5f9; border-color:var(--tv); }
+.cal-nav-btn:disabled { opacity:.5; cursor:not-allowed; }
+.cal-month-label { font-size:16px; font-weight:800; color:var(--txt); min-width:140px; text-align:center; }
+.cal-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; }
+.cal-day-header { font-size:11px; font-weight:800; color:var(--txt4); text-align:center; padding:6px 0; text-transform:uppercase; letter-spacing:.4px; background:#f1f5f9; border-radius:6px; }
+.cal-cell { background:#f8fafc; border:1.5px solid var(--bdr); border-radius:10px; padding:6px 7px 7px; min-height:88px; display:flex; flex-direction:column; gap:2px; position:relative; transition:all .12s; cursor:default; }
+.cal-cell.has-data { cursor:pointer; }
+.cal-cell.has-data:hover { box-shadow:0 4px 12px rgba(15,23,42,.08); transform:translateY(-1px); }
+.cal-cell.outside { background:transparent; border-color:transparent; }
+.cal-cell.outside .day-num { color:#cbd5e1; }
+.cal-cell .day-num { font-size:11px; font-weight:700; color:var(--txt4); }
+.cal-cell .cal-count { font-size:10px; font-weight:700; color:#475569; line-height:1.25; }
+.cal-cell.today .day-num { color:#fff; background:var(--tv); border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; font-weight:800; }
+.cal-cell .pnl { font-size:15px; font-weight:800; line-height:1.15; margin-top:auto; }
+.cal-cell .peak-trough { font-size:10px; color:var(--txt4); display:flex; justify-content:space-between; gap:4px; font-variant-numeric:tabular-nums; font-family:ui-monospace, "SF Mono", monospace; }
+.cal-cell .peak-trough .pk { color:#15803d; }
+.cal-cell .peak-trough .tr { color:#b91c1c; }
+.cal-cell.win { background:linear-gradient(135deg,#dcfce7,#bbf7d0); border-color:#22c55e; }
+.cal-cell.win-big { background:linear-gradient(135deg,#bbf7d0,#86efac); border-color:#16a34a; }
+.cal-cell.win .pnl, .cal-cell.win-big .pnl { color:#15803d; }
+.cal-cell.loss { background:linear-gradient(135deg,#fee2e2,#fecaca); border-color:#ef4444; }
+.cal-cell.loss-big { background:linear-gradient(135deg,#fecaca,#fca5a5); border-color:#dc2626; }
+.cal-cell.loss .pnl, .cal-cell.loss-big .pnl { color:#b91c1c; }
+.cal-cell .bt-badge { position:absolute; top:4px; left:4px; font-size:9px; background:#f59e0b; color:#fff; padding:1px 4px; border-radius:4px; font-weight:800; }
+.cal-summary { background:#f8fafc; border:1px solid var(--bdr); border-radius:8px; padding:10px 14px; margin-top:14px; font-size:13px; color:var(--txt2); display:flex; gap:18px; flex-wrap:wrap; }
+.cal-summary span { display:flex; align-items:center; gap:5px; }
+.cal-summary strong { color:var(--txt); font-weight:800; }
+
+/* Backtest section — distinctive gold/orange so it never gets confused with live data */
+.backtest-section { background:linear-gradient(135deg,#fffbeb,#fef3c7); border:2px solid #f59e0b; border-radius:var(--r); padding:16px 18px; margin-bottom:18px; box-shadow:var(--sh); position:relative; }
+.backtest-section::before { content:"📊 BACKTEST"; position:absolute; top:-11px; right:18px; background:#f59e0b; color:#fff; font-size:11px; font-weight:900; padding:4px 10px; border-radius:8px; letter-spacing:.5px; }
+.backtest-section h2 { margin:0 0 10px; font-size:16px; color:#92400e; font-weight:800; display:flex; align-items:center; gap:8px; }
+.backtest-section h2 .desc { font-weight:500; font-size:13px; color:#a16207; }
+.backtest-section .bt-note { font-size:12px; color:#92400e; background:rgba(255,255,255,0.6); border-right:3px solid #f59e0b; padding:8px 12px; border-radius:8px; margin-bottom:12px; line-height:1.55; }
+.backtest-section .bt-kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
+.backtest-section .bt-kpi { background:#fff; border:1.5px solid #fcd34d; border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:2px; }
+.backtest-section .bt-kpi .lbl { font-size:11px; color:#a16207; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
+.backtest-section .bt-kpi .val { font-size:22px; font-weight:800; color:#0f172a; }
+.backtest-section .bt-kpi.green .val { color:var(--grn); }
+.backtest-section .bt-kpi.red .val { color:var(--red); }
+.backtest-section .bt-kpi .sub { font-size:11px; color:var(--txt4); }
+.backtest-section .bt-chart { height:240px; margin-top:14px; }
+
+/* strategy-start filter strip */
+.strategy-strip { background:linear-gradient(135deg,#fef9e7,#fef3c7); border:1.5px solid #fbbf24; border-radius:12px; padding:11px 16px; margin-bottom:14px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; box-shadow:var(--sh); }
+.strategy-strip .ss-label { font-size:13px; font-weight:800; color:#92400e; display:flex; align-items:center; gap:6px; }
+.strategy-strip .ss-current { flex:1; min-width:200px; font-size:13px; color:#7c2d12; font-weight:600; }
+.strategy-strip .ss-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.strategy-strip input[type="datetime-local"] { padding:7px 11px; border:1.5px solid #cbd5e1; border-radius:8px; font-size:13px; font-family:var(--f); }
+.strategy-strip .ss-btn { background:#fff; color:#0ea5e9; border:1.5px solid #7dd3fc; border-radius:8px; padding:7px 13px; font-family:var(--f); font-size:13px; font-weight:700; cursor:pointer; transition:all .12s; }
+.strategy-strip .ss-btn:hover { background:#e0f2fe; border-color:#0ea5e9; }
+.strategy-strip .ss-btn.primary { background:#16a34a; color:#fff; border-color:#16a34a; }
+.strategy-strip .ss-btn.primary:hover { background:#15803d; }
+.strategy-strip .ss-btn.clear { background:#fff; color:#dc2626; border-color:#fca5a5; }
+.strategy-strip .ss-btn.clear:hover { background:#fee2e2; }
+.strategy-strip .ss-btn:disabled { opacity:.55; cursor:wait; }
+
+/* empty state */
+.empty-state { text-align:center; padding:40px 20px; color:var(--txt4); }
+.empty-state .ico { font-size:48px; opacity:.6; margin-bottom:8px; }
+
+/* === Simulations + report (added 2026-06-25) === */
+.sim-bar{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:10px 0 14px}
+.sim-bar label{font-size:13px;font-weight:700;color:#334155;display:flex;gap:6px;align-items:center}
+.sim-bar input,.sim-bar select{padding:7px 10px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;font-family:inherit;width:120px}
+#sec-sim h3{margin:22px 0 6px;font-size:16px;color:#0f172a}
+#report-head{display:none}
+#report-head h1{margin:0 0 4px;font-size:22px}
+#report-head .sub{color:#475569;font-size:13px}
+@media print{
+  .sim-bar,.strategy-strip,button,.ss-btn,.print-hide{display:none !important}
+  #report-head{display:block !important;margin-bottom:16px;border-bottom:2px solid #0f172a;padding-bottom:10px}
+  .section,.backtest-section,.cal-section,#sec-sim{break-inside:avoid;page-break-inside:avoid}
+  body{padding:6px}
+  a[href]:after{content:""}
+}
+
+/* per-strategy selector + comparison */
+.strat-sel-section { background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; padding:12px 16px; margin-bottom:16px; box-shadow:var(--sh); }
+.strat-sel-bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.ss2-label { font-size:13px; font-weight:800; color:#334155; }
+.ss2-btns { display:flex; gap:7px; flex-wrap:wrap; }
+.ss2-btn { background:#f1f5f9; color:#475569; border:1.5px solid #cbd5e1; border-radius:8px; padding:7px 14px; font-family:var(--f); font-size:13px; font-weight:700; cursor:pointer; transition:all .12s; }
+.ss2-btn:hover { background:#e2e8f0; }
+.ss2-btn.active { background:#0f172a; color:#fff; border-color:#0f172a; }
+.strat-cmp { margin-top:12px; overflow-x:auto; }
+.cmp-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+.cmp-tbl th, .cmp-tbl td { padding:8px 12px; text-align:center; border-bottom:1px solid #eef2f7; }
+.cmp-tbl th { background:#f8fafc; color:#64748b; font-weight:700; font-size:12px; }
+.cmp-tbl td.cmp-name { text-align:right; font-weight:800; color:#0f172a; }
+.cmp-tbl td.pos { color:var(--grn); font-weight:800; }
+.cmp-tbl td.neg { color:var(--red); font-weight:800; }
+.cmp-insight { margin-top:10px; font-size:13px; color:#334155; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:9px 13px; line-height:1.6; }
+
+/* hourly + combined */
+.an-section { background:#fff; border:1.5px solid #e2e8f0; border-radius:12px; padding:14px 16px; margin-bottom:16px; box-shadow:var(--sh); }
+.an-section h3 { margin:0 0 4px; font-size:15px; color:#0f172a; font-weight:800; }
+.an-section .sub { font-size:12px; color:#64748b; margin-bottom:10px; }
+.an-kpis { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.an-kpi { background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:10px; padding:9px 14px; min-width:130px; }
+.an-kpi .l { font-size:11px; color:#64748b; font-weight:700; }
+.an-kpi .v { font-size:20px; font-weight:800; }
+.an-kpi .v.neg { color:var(--red); } .an-kpi .v.pos { color:var(--grn); }
+.an-note { font-size:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:8px 12px; margin-top:8px; line-height:1.55; }
+
+/* heatmap */
+.hm-tbl { width:100%; border-collapse:collapse; font-size:12px; text-align:center; }
+.hm-tbl th { background:#0f172a; color:#fff; font-weight:700; padding:7px 6px; font-size:12px; }
+.hm-tbl td { padding:6px 6px; border:1px solid #fff; font-weight:700; line-height:1.25; }
+.hm-tbl td.hm-hr { background:#f1f5f9; color:#334155; font-weight:800; }
+
+.hp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin:10px 0 4px}
+.hp-chip{cursor:pointer;border:2px solid #cbd5e1;border-radius:11px;padding:8px 6px;text-align:center;font-family:inherit;transition:all .12s;line-height:1.25}
+.hp-chip:hover{transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,0,0,.08)}
+.hp-h{font-size:13px;font-weight:800;color:#0f172a}
+.hp-net{font-size:13px;font-weight:800}
+.hp-n{font-size:10px;color:#64748b}
+.hp-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.hp-act{cursor:pointer;border:1px solid #cbd5e1;background:#fff;border-radius:9px;padding:7px 12px;font-size:12.5px;font-weight:700;color:#334155;font-family:inherit}
+.hp-act:hover{background:#f1f5f9}
+.hp-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.hp-card{border:1px solid #e2e8f0;border-radius:12px;padding:11px 13px;background:#fcfdff}
+.hp-card.sel{border-color:#16a34a;background:rgba(22,163,74,0.05)}
+.hp-ct{font-size:13px;font-weight:800;margin-bottom:6px;color:#0f172a}
+.hp-cr{display:flex;justify-content:space-between;font-size:12.5px;padding:2px 0;color:#475569}
+.hp-cr b{color:#0f172a}
+.hp-verdict{margin-top:10px;font-size:13px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;color:#78350f}
+@media(max-width:560px){.hp-cards{grid-template-columns:1fr}}
+
+.real-strat, #real-strat-panel{margin-top:10px}
+.rs-head{font-size:13.5px;font-weight:800;color:#0f172a;margin-bottom:8px}
+.rs-est{font-weight:600;color:#94a3b8;font-size:11.5px}
+.rs-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.rs-card{border:2px solid #e2e8f0;border-radius:12px;padding:11px 13px;background:#fcfdff;text-align:center}
+.rs-t{font-size:13px;font-weight:800;margin-bottom:4px}
+.rs-net{font-size:20px;font-weight:900}
+.rs-sub{font-size:11.5px;color:#64748b;margin-top:2px}
+.rs-note{font-size:11.5px;color:#78350f;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:7px 10px;margin-top:8px}
+.cal-strat{font-size:9.5px;font-weight:700;margin-top:2px;line-height:1.35;letter-spacing:-.2px}
+@media(max-width:560px){.rs-cards{grid-template-columns:1fr}}
+
+.mode-bar{display:flex;gap:10px;margin-bottom:12px}
+.mode-btn{flex:1;cursor:pointer;border:2px solid #e2e8f0;border-radius:12px;padding:11px 14px;background:#fff;font-family:inherit;font-size:15px;font-weight:800;color:#334155;display:flex;flex-direction:column;gap:2px;align-items:center;transition:all .12s}
+.mode-btn:hover{transform:translateY(-1px)}
+.mode-btn .mode-sub{font-size:11px;font-weight:600;color:#94a3b8}
+.mode-btn.active[data-mode="research"]{border-color:#7c3aed;background:#faf5ff;color:#6d28d9}
+.mode-btn.active[data-mode="real"]{border-color:#0ea5e9;background:#f0f9ff;color:#0369a1}
+.mode-btn.active .mode-sub{color:inherit;opacity:.85}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-title">📈 אנליטיקס אסטרטגיה</div>
+    <div class="brand-sub">VWAP 1.2 · ניתוח עומק על כל העסקאות</div>
+  </div>
+  <div class="nav">
+    <a href="../journal/">📋 יומן עסקאות</a>
+    <a href="./" class="active">📈 אנליטיקס</a>
+    <a href="../">🤖 בוט</a>
+    <a href="../../">🏠 Agent Hub</a>
+  </div>
+  <div class="refresh-pill">
+    <span id="updated-at">⏳ טוען...</span>
+    <button onclick="loadData()">🔄 רענן</button>
+    <button onclick="copyViewLink(this)" title="קישור ציבורי לקריאה בלבד — לשיתוף עם מי שמחוץ למערכת">🔗 העתק קישור לצפייה</button>
+  </div>
+</div>
+
+<div id="status">⏳ טוען נתונים...</div>
+<div id="report-head"><h1>📑 דוח אסטרטגיה — VWAP 1.2</h1><div class="sub" id="report-head-sub"></div></div>
+
+<!-- Per-strategy selector + comparison -->
+<div class="strat-sel-section" id="strat-sel-section">
+  <div class="mode-bar" id="mode-bar">
+    <button class="mode-btn" data-mode="research" onclick="selectMode('research')">🔬 מחקר<span class="mode-sub">נתונים מהאינדיקטור + התראות · כל השעות</span></button>
+    <button class="mode-btn active" data-mode="real" onclick="selectMode('real')">🏦 חשבון אמיתי<span class="mode-sub">רק עסקאות שבאמת סחרתי</span></button>
+  </div>
+  <div class="strat-sel-bar" id="research-substrat" style="display:none;">
+    <span class="ss2-label">📑 אסטרטגיה:</span>
+    <div class="ss2-btns" id="ss2-btns">
+      <button class="ss2-btn active" data-strat="all"      onclick="selectStrategy('all')">הכל</button>
+      <button class="ss2-btn"        data-strat="base"     onclick="selectStrategy('base')">🟦 BASE</button>
+      <button class="ss2-btn"        data-strat="partial"  onclick="selectStrategy('partial')">✂️ PARTIAL</button>
+      <button class="ss2-btn"        data-strat="momentum" onclick="selectStrategy('momentum')">🚀 MOMENTUM</button>
+    </div>
+  </div>
+  <div class="strat-cmp" id="strat-cmp"></div>
+  <div id="real-strat-panel" style="display:none;"></div>
+</div>
+
+<!-- P&L Calendar -->
+<div class="cal-section" id="sec-calendar" style="display:none;">
+  <div class="cal-header">
+    <div class="cal-title">📅 לוח שנה <span class="desc">— רווח/הפסד יומי + שיא ושפל אינטרה-day · 🇮🇱 לפי שעון ישראל</span></div>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" id="cal-prev" onclick="calNav(-1)">‹ קודם</button>
+      <span class="cal-month-label" id="cal-month-label">—</span>
+      <button class="cal-nav-btn" id="cal-next" onclick="calNav(1)">הבא ›</button>
+      <button class="cal-nav-btn" id="cal-today" onclick="calToday()">היום</button>
+    </div>
+  </div>
+  <div class="cal-grid" id="cal-grid"></div>
+  <div class="cal-summary" id="cal-summary"></div>
+</div>
+
+<!-- Real per-hour (broker trades only) -->
+<div class="an-section" id="hourly-real-section" style="display:none;">
+  <h3>🕐 ניתוח לפי שעה — חשבון אמיתי <span style="font-weight:600;color:#0369a1;font-size:13px;">(רק עסקאות שסחרת בפועל)</span></h3>
+  <div class="sub">כל שעה — הרווח/הפסד האמיתי מהברוקר, כולל פירוק לפי אסטרטגיה. ⛔ באדום = שעות שאינך סוחרת בהן כרגע.</div>
+  <div id="hourly-real-body"></div>
+  <div class="an-note" id="hourly-real-note"></div>
+</div>
+
+
+<!-- Per-hour analysis (respects selector) -->
+<div class="an-section" id="hourly-section" style="display:none;">
+  <h3>🕐 ניתוח לפי שעה × אסטרטגיה (LA) <span id="hourly-which" style="font-weight:600;color:#64748b;font-size:13px;"></span></h3>
+  <div class="sub">איזו שעה מרוויחה ואיזו מפסידה — לזיהוי שעות לחסום. בחרי אסטרטגיה בבורר למעלה כדי לנתח כל אחת. ⛔ באדום = שעות שאינך סוחרת בהן כרגע.</div>
+  <div id="hourly-body"></div>
+  <div class="an-note" id="hourly-note"></div>
+</div>
+
+<!-- 🕐 Interactive hour picker -->
+<div class="an-section" id="hourpicker-section" style="display:none;">
+  <h3>🕐 בורר שעות — בחרי אילו שעות להפעיל</h3>
+  <div class="sub">סמני / הורידי כל שעה — התוצאה למטה מתעדכנת מיד. ככה תחליטי אילו שעות כדאי להדליק בהן התראות. 🟢 פעילה כרגע · ⛔ חסומה כרגע · המספר = נטו $ של אותה שעה.</div>
+  <div id="hp-grid" class="hp-grid"></div>
+  <div class="hp-actions">
+    <button class="hp-act" onclick="hpPreset('default')">↩︎ אסטרטגיה נוכחית</button>
+    <button class="hp-act" onclick="hpPreset('all')">✓ כל השעות</button>
+    <button class="hp-act" onclick="hpPreset('profit')">💰 רק שעות רווחיות</button>
+  </div>
+  <div id="hp-summary"></div>
+</div>
+
+<!-- Combined run (all 3 together) -->
+<div class="an-section" id="combined-section" style="display:none;">
+  <h3>🔗 הרצת שלוש האסטרטגיות יחד</h3>
+  <div class="sub">מה קורה כשמריצים BASE+PARTIAL+MOMENTUM ביחד — הדראודאון המשולב האמיתי (הן מתואמות, אז זה לא סכום פשוט).</div>
+  <div class="an-kpis" id="combined-kpis"></div>
+  <div class="an-note" id="combined-note"></div>
+</div>
+
+<!-- Hour x strategy heatmap -->
+<div class="an-section" id="heatmap-section" style="display:none;">
+  <h3>🌡️ מפת חום: שעה (LA) × אסטרטגיה</h3>
+  <div class="sub">נטו $ לכל שעה לכל אסטרטגיה. ירוק = רווחית, אדום = מפסידה, עוצמת הצבע = גודל. מבט אחד על מתי כל אחת חזקה.</div>
+  <div style="overflow-x:auto" id="heatmap-body"></div>
+</div>
+
+<!-- Backtest Baseline section -->
+<div class="backtest-section" id="backtest-section" style="display:none;">
+  <h2>📊 Backtest Baseline <span class="desc">— נתונים מטבלאות האינדיקטור (VWAP 1.2)</span></h2>
+  <div class="bt-note" id="bt-note">⏳ טוען...</div>
+  <div class="bt-kpis" id="bt-kpis"></div>
+  <div class="bt-chart"><canvas id="chart-backtest-equity"></canvas></div>
+</div>
+
+<!-- ===== Simulations + Full Report (added 2026-06-25) ===== -->
+<div class="section" id="sec-sim" style="display:none;">
+  <h2>🧪 סימולציות + דוח מלא <span class="desc">— על נתוני האינדיקטור</span></h2>
+  <div class="sim-bar">
+    <label>הון התחלתי $ <input type="number" id="sim-capital" value="5000" step="500"></label>
+    <label>חוזים <select id="sim-contracts"><option value="1">1</option><option value="2">2</option></select></label>
+    <button class="ss-btn primary" onclick="window.print()">🖨️ הפק דוח PDF</button>
+  </div>
+  <div class="bt-kpis" id="sim-kpis"></div>
+  <div class="chart-box" style="height:260px"><canvas id="chart-sim-equity"></canvas></div>
+  <div class="insight" id="sim-insight"></div>
+
+  <h3>🎯 סימולציית יעד יומי — לעצור או לקחת הכל?</h3>
+  <div class="sim-bar">
+    <label>יעד רווח יומי $ <input type="number" id="sim-target" value="0" step="50" placeholder="0=ללא"></label>
+    <label>עצירת הפסד יומי $ <input type="number" id="sim-stop" value="0" step="50" placeholder="0=ללא"></label>
+  </div>
+  <div class="insight" id="sim-daily-result"></div>
+  <table class="simple" id="sim-daily-table"></table>
+  <div class="insight" id="sim-daily-insight"></div>
+
+  <h3>🔬 מסננים — "מה אם?"</h3>
+  <div class="sim-bar">
+    <label><input type="checkbox" id="wf-long" checked> LONG</label>
+    <label><input type="checkbox" id="wf-short" checked> SHORT</label>
+    <label>אל תסחר בשעות (LA): <input type="text" id="wf-exhours" value="" placeholder="לדוגמה 5,8" style="width:150px"></label>
+  </div>
+  <div class="sim-bar">
+    <button class="ss-btn" onclick="wfPreset('all')">הכל</button>
+    <button class="ss-btn" onclick="wfPreset('no58')">בלי 05/08</button>
+    <button class="ss-btn" onclick="wfPreset('short')">SHORT בלבד</button>
+    <button class="ss-btn" onclick="wfPreset('best')">שעות חזקות בלבד</button>
+  </div>
+  <div class="bt-kpis" id="wf-kpis"></div>
+  <div class="insight" id="wf-insight"></div>
+</div>
+
+<!-- Strategy start-date filter strip -->
+<div class="strategy-strip" id="strategy-strip">
+  <span class="ss-label">🎯 תאריך התחלת אסטרטגיה:</span>
+  <span class="ss-current" id="strategy-current">⏳ טוען...</span>
+  <div class="ss-actions">
+    <input type="datetime-local" id="strategy-date-input" />
+    <button class="ss-btn primary" id="ss-save-date" onclick="saveStrategyDate()">💾 שמור</button>
+    <button class="ss-btn" id="ss-set-now" onclick="setStrategyToNow()">🔄 התחל מעכשיו</button>
+    <button class="ss-btn clear" id="ss-clear" onclick="clearStrategyDate()">🗑️ נקה</button>
+  </div>
+</div>
+
+<!-- Real broker account (broker-ledger.json) -->
+<div id="broker-panel" style="display:none; border:1.5px solid #38bdf8; border-radius:12px; padding:14px 16px; margin-bottom:14px; background:linear-gradient(135deg,#eff6ff,#e0f2fe); box-shadow:var(--sh);">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+    <span style="font-size:15px;font-weight:800;color:#075985;">🏦 החשבון האמיתי (Tradovate דמו)</span>
+    <span id="broker-updated" style="font-size:12px;color:#0369a1;"></span>
+    <span style="margin-inline-start:auto;font-size:11px;color:#64748b;">P&amp;L אמיתי מהברוקר · מתעדכן כל שעה · מאוחד (לא לפי אסטרטגיה)</span>
+  </div>
+  <div id="broker-stats" style="display:flex;gap:18px;flex-wrap:wrap;"></div>
+</div>
+
+<!-- KPI tiles row -->
+<div class="kpi-row" id="kpi-row" style="display:none;">
+  <div class="kpi" id="kpi-trades">
+    <div class="label">סה״כ עסקאות סגורות</div>
+    <div class="big" id="kpi-trades-val">—</div>
+    <div class="sub" id="kpi-trades-sub">—</div>
+  </div>
+  <div class="kpi" id="kpi-winrate">
+    <div class="label">Win Rate</div>
+    <div class="big" id="kpi-winrate-val">—</div>
+    <div class="sub" id="kpi-winrate-sub">—</div>
+  </div>
+  <div class="kpi" id="kpi-profit-factor">
+    <div class="label">Profit Factor</div>
+    <div class="big" id="kpi-profit-factor-val">—</div>
+    <div class="sub" id="kpi-profit-factor-sub">רווחים / הפסדים</div>
+  </div>
+  <div class="kpi" id="kpi-expectancy">
+    <div class="label">Expectancy / עסקה</div>
+    <div class="big" id="kpi-expectancy-val">—</div>
+    <div class="sub" id="kpi-expectancy-sub">$ ממוצע לעסקה</div>
+  </div>
+  <div class="kpi" id="kpi-netpnl">
+    <div class="label">Net P&L</div>
+    <div class="big" id="kpi-netpnl-val">—</div>
+    <div class="sub" id="kpi-netpnl-sub">בדולרים</div>
+  </div>
+  <div class="kpi red" id="kpi-mdd">
+    <div class="label">Max Drawdown</div>
+    <div class="big" id="kpi-mdd-val">—</div>
+    <div class="sub" id="kpi-mdd-sub">הירידה הגדולה מהשיא</div>
+  </div>
+</div>
+
+<!-- Equity curve -->
+<div class="section" id="sec-equity" style="display:none;">
+  <h2>💰 Equity Curve <span class="desc">— ה-balance המצרפי לאורך זמן</span></h2>
+  <div class="chart-box"><canvas id="chart-equity"></canvas></div>
+  <div class="insight" id="ins-equity"></div>
+</div>
+
+<!-- Drawdown -->
+<div class="section" id="sec-drawdown" style="display:none;">
+  <h2>📉 Drawdown <span class="desc">— ירידה מהשיא הקודם</span></h2>
+  <div class="chart-box"><canvas id="chart-drawdown"></canvas></div>
+  <div class="insight" id="ins-drawdown"></div>
+</div>
+
+
+
+<!-- Hour-of-day + Day-of-week grid -->
+<div class="grid-2">
+  <div class="section" id="sec-hod" style="display:none;">
+    <h2>🕐 P&L לפי שעת יום <span class="desc">(LA)</span></h2>
+    <div class="chart-box"><canvas id="chart-hod"></canvas></div>
+    <div class="insight" id="ins-hod"></div>
+  </div>
+  <div class="section" id="sec-dow" style="display:none;">
+    <h2>📅 P&L לפי יום בשבוע <span class="desc">🇮🇱 לפי שעון ישראל</span></h2>
+    <div class="chart-box"><canvas id="chart-dow"></canvas></div>
+    <div class="insight" id="ins-dow"></div>
+  </div>
+</div>
+
+<!-- Distribution + Streaks -->
+<div class="grid-2">
+  <div class="section" id="sec-distribution" style="display:none;">
+    <h2>📊 התפלגות תוצאות עסקאות</h2>
+    <div class="chart-box"><canvas id="chart-distribution"></canvas></div>
+    <div class="insight" id="ins-distribution"></div>
+  </div>
+  <div class="section" id="sec-streaks" style="display:none;">
+    <h2>🔥 רצפים</h2>
+    <table class="simple" id="streaks-table"></table>
+    <div class="insight" id="ins-streaks"></div>
+  </div>
+</div>
+
+<!-- Danger filter analysis -->
+<div class="section" id="sec-danger" style="display:none;">
+  <h2>⚠️ אפקטיביות פילטר Danger</h2>
+  <table class="simple" id="danger-table"></table>
+  <div class="insight" id="ins-danger"></div>
+</div>
+
+<!-- Long vs Short -->
+<div class="section" id="sec-direction" style="display:none;">
+  <h2>↕️ LONG מול SHORT</h2>
+  <table class="simple" id="direction-table"></table>
+  <div class="insight" id="ins-direction"></div>
+</div>
+
+<!-- TP vs SL breakdown -->
+<div class="section" id="sec-exits" style="display:none;">
+  <h2>🎯 סיווג יציאות</h2>
+  <table class="simple" id="exits-table"></table>
+  <div class="insight" id="ins-exits"></div>
+</div>
+
+<script>
+const DATA_URL = "../journal-data.json";
+const CONFIG_URL = "../autotrade_enabled.json";
+const BACKTEST_URL = "./backtest-data.json";
+const BROKER_URL = "../broker-ledger.json";
+const RESEARCH_URL = "../research-journal.json";  // all-hours collection feed
+const VIEW_LINK = "https://vwap-view.laurenlev10.workers.dev/";
+function copyViewLink(btn){
+  navigator.clipboard.writeText(VIEW_LINK).then(function(){
+    var o=btn.textContent; btn.textContent="✓ הקישור הועתק"; setTimeout(function(){btn.textContent=o;},1800);
+  }).catch(function(){ window.prompt("העתיקי את הקישור לצפייה:", VIEW_LINK); });
+}
+const CONFIG_REPO_FILE = "docs/trading/autotrade_enabled.json";
+const AT_TOKEN_KEY = "lauren_gh_token_v1";  // per IRON RULE #7 — localStorage for secrets
+let STATE = { raw: null, trades: [], config: null, backtest: null };
+let SELECTED_STRATEGY = "real";
+let RESEARCH_STRAT = "all";  // remembers research sub-strategy when toggling modes
+// 🕐 Hour picker — Lauren chooses which hours to enable; results recompute live.
+// Default-blocked = the IL blocked window 12:00-16:00 = LA 02:00-06:00 (the ONLY block now;
+// the per-hour LA filter 5,8,18,20 was turned OFF on 2026-06-30). So blocked LA hours = 2,3,4,5.
+const HP_DEFAULT_BLOCKED = [2,3,4,5];
+let ACTIVE_HOURS = new Set(Array.from({length:24},(_,h)=>h).filter(h=>!HP_DEFAULT_BLOCKED.includes(h)));
+let BT_ALL = null;
+let LIVE_ALL = [];
+let CALENDAR_STATE = { viewYear: null, viewMonth: null };  // 0-indexed month
+
+function fmtUSD(v) {
+  if (v == null || isNaN(v)) return "—";
+  const sign = v >= 0 ? "+" : "-";
+  return sign + "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtUSDplain(v) {
+  if (v == null || isNaN(v)) return "—";
+  return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtPct(v, digits) {
+  if (v == null || isNaN(v)) return "—";
+  return (v >= 0 ? "" : "") + v.toFixed(digits != null ? digits : 1) + "%";
+}
+function fmtInt(v) {
+  if (v == null || isNaN(v)) return "—";
+  return Math.round(v).toLocaleString("en-US");
+}
+
+async function loadData() {
+  document.getElementById("status").textContent = "⏳ טוען נתונים...";
+  document.getElementById("status").className = "";
+  try {
+    // Fetch journal data, config, AND backtest data in parallel
+    const [dataR, configR, btR, brokerR, researchR] = await Promise.all([
+      fetch(DATA_URL + "?_=" + Date.now(), { cache: "no-store" }),
+      fetch(CONFIG_URL + "?_=" + Date.now(), { cache: "no-store" }),
+      fetch(BACKTEST_URL + "?_=" + Date.now(), { cache: "no-store" }),
+      fetch(BROKER_URL + "?_=" + Date.now(), { cache: "no-store" }).catch(()=>null),
+      fetch(RESEARCH_URL + "?_=" + Date.now(), { cache: "no-store" }).catch(()=>null)
+    ]);
+    if (!dataR.ok) throw new Error("data HTTP " + dataR.status);
+    const j = await dataR.json();
+    if (!j || !Array.isArray(j.trades)) throw new Error("נתונים לא תקינים");
+    STATE.raw = j;
+    STATE.trades = j.trades;
+
+    if (configR.ok) {
+      STATE.config = await configR.json();
+    } else {
+      STATE.config = {};
+    }
+    if (btR.ok) {
+      STATE.backtest = await btR.json();
+    } else {
+      STATE.backtest = null;
+    }
+    try { STATE.broker = (brokerR && brokerR.ok) ? await brokerR.json() : null; } catch(e){ STATE.broker = null; }
+    try { renderBrokerLedger(); } catch(e){ console.warn("renderBrokerLedger", e); }
+
+    const updatedAt = j._updated_at ? new Date(j._updated_at).toLocaleString("he-IL") : "—";
+    document.getElementById("updated-at").textContent = "עודכן " + updatedAt;
+
+    BT_ALL = STATE.backtest;
+    // Merge the all-hours RESEARCH feed (live-collected) into the research dataset,
+    // so the Research view's hourly/picker include newly-collected blocked-hour trades.
+    try {
+      var rj = (researchR && researchR.ok) ? await researchR.json() : null;
+      var merged = (BT_ALL && Array.isArray(BT_ALL.trades)) ? BT_ALL.trades.slice() : [];
+      // (a) dedicated research feed (all-hours, filter OFF) if used
+      if (rj && Array.isArray(rj.trades) && rj.trades.length) {
+        merged = merged.concat(rj.trades.map(function(t){ return Object.assign({}, t, { _data_origin: "research-live", _research_feed: true }); }));
+      }
+      // (b) the LIVE journal (journal-data.json) — Lauren's journal alerts collect all hours here
+      if (Array.isArray(STATE.trades) && STATE.trades.length) {
+        merged = merged.concat(STATE.trades.filter(function(t){ return !t._status && (t.result_dollars!=null); }).map(function(t){ return Object.assign({}, t, { _data_origin: "live-journal", _research_feed: true }); }));
+      }
+      if (BT_ALL && Array.isArray(BT_ALL.trades)) { BT_ALL = Object.assign({}, BT_ALL, { trades: merged }); STATE.backtest = BT_ALL; }
+    } catch(e){ console.warn("research feed merge", e); }
+    LIVE_ALL = STATE.trades;
+    applyStrategyFilter();
+  } catch (e) {
+    console.error(e);
+    document.getElementById("status").textContent = "❌ שגיאת טעינה: " + e.message;
+    document.getElementById("status").className = "err";
+  }
+}
+
+function renderBrokerLedger(){
+  const el = document.getElementById("broker-panel");
+  if (!el) return;
+  const b = STATE.broker;
+  if (!b || !Array.isArray(b.trades) || !b.trades.length){ el.style.display="none"; return; }
+  el.style.display="block";
+  const s = b._summary || {};
+  const upd = b._updated_at ? new Date(b._updated_at).toLocaleString("he-IL") : "—";
+  document.getElementById("broker-updated").textContent = "עודכן " + upd;
+  const net = (s.net_dollars !== undefined) ? s.net_dollars : b.trades.reduce((a,t)=>a+(t.result_dollars||0),0);
+  const col = net>=0 ? "#16a34a" : "#dc2626";
+  const stat = (label,val,c)=>'<div style="min-width:92px;"><div style="font-size:11px;color:#64748b;font-weight:700;">'+label+'</div><div style="font-size:21px;font-weight:800;color:'+(c||"#0f172a")+';">'+val+'</div></div>';
+  document.getElementById("broker-stats").innerHTML =
+    stat("נטו $", (net>=0?"+":"")+"$"+net.toFixed(2), col) +
+    stat("עסקאות", (s.trades !== undefined ? s.trades : b.trades.length)) +
+    stat("אחוז הצלחה", (s.win_rate !== undefined ? s.win_rate : 0)+"%") +
+    stat("נטו טיקים", (s.net_ticks !== undefined ? s.net_ticks : "—"), col);
+}
+
+function renderStrategyStrip() {
+  const startAt = STATE.config && STATE.config.strategy_started_at;
+  const cur = document.getElementById("strategy-current");
+  const inp = document.getElementById("strategy-date-input");
+  if (startAt) {
+    const d = new Date(startAt);
+    cur.textContent = "📅 מציגה רק עסקאות מ-" + d.toLocaleString("he-IL", { dateStyle: "medium", timeStyle: "short" });
+    // Pre-fill the input with current value (formatted for datetime-local)
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    inp.value = local;
+  } else {
+    cur.textContent = "⚠ אין סינון — האנליטיקס כולל את כל העסקאות מאז ומתמיד";
+    inp.value = "";
+  }
+}
+
+function getStrategyStartTs() {
+  const s = STATE.config && STATE.config.strategy_started_at;
+  if (!s) return 0;
+  const t = new Date(s).getTime();
+  return isFinite(t) ? t : 0;
+}
+
+async function saveStrategyConfigField(value, msg) {
+  let token = (localStorage.getItem(AT_TOKEN_KEY) || "").trim();
+  if (!token) {
+    token = (prompt("הדביקי GitHub PAT (לכתיבה לconfig).\nיישמר ב-localStorage של הדפדפן הזה.") || "").trim();
+    if (!token) return false;
+    localStorage.setItem(AT_TOKEN_KEY, token);
+  }
+  const btn1 = document.getElementById("ss-save-date");
+  const btn2 = document.getElementById("ss-set-now");
+  const btn3 = document.getElementById("ss-clear");
+  [btn1, btn2, btn3].forEach(b => { if (b) b.disabled = true; });
+  try {
+    const getUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + CONFIG_REPO_FILE + "?ref=main";
+    const getR = await fetch(getUrl, { headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json" } });
+    if (!getR.ok) {
+      if (getR.status === 401) { localStorage.removeItem(AT_TOKEN_KEY); throw new Error("PAT לא תקין — נמחק, נסי שוב"); }
+      throw new Error("GitHub GET נכשל: " + getR.status);
+    }
+    const cur = await getR.json();
+    const decoded = JSON.parse(atob(cur.content.replace(/\s/g, "")));
+    decoded.strategy_started_at = value;
+    decoded._updated_at = new Date().toISOString();
+    decoded._updated_by = "browser-analytics-strategy-strip";
+
+    const putUrl = "https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/contents/" + CONFIG_REPO_FILE;
+    const putR = await fetch(putUrl, {
+      method: "PUT",
+      headers: { "Authorization": "token " + token, "Accept": "application/vnd.github+json", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: msg || ("analytics: strategy_started_at = " + (value || "null")),
+        content: btoa(unescape(encodeURIComponent(JSON.stringify(decoded, null, 2)))),
+        sha: cur.sha, branch: "main"
+      })
+    });
+    if (!putR.ok) throw new Error("GitHub PUT נכשל: " + putR.status);
+
+    STATE.config = decoded;
+    renderStrategyStrip();
+    renderAll();
+    return true;
+  } catch (e) {
+    console.error("saveStrategyConfigField failed:", e);
+    alert("שגיאה: " + e.message);
+    return false;
+  } finally {
+    [btn1, btn2, btn3].forEach(b => { if (b) b.disabled = false; });
+  }
+}
+
+async function saveStrategyDate() {
+  const inp = document.getElementById("strategy-date-input");
+  if (!inp.value) { alert("בחרי תאריך קודם"); return; }
+  const iso = new Date(inp.value).toISOString();
+  await saveStrategyConfigField(iso, "analytics: set strategy_started_at to " + iso);
+}
+
+async function setStrategyToNow() {
+  if (!confirm("להגדיר את תאריך התחלת האסטרטגיה ל-עכשיו?\nכל העסקאות לפני הרגע הזה יוסתרו מהאנליטיקס.")) return;
+  const iso = new Date().toISOString();
+  await saveStrategyConfigField(iso, "analytics: strategy reset to now");
+}
+
+async function clearStrategyDate() {
+  if (!confirm("לנקות את תאריך התחלת האסטרטגיה?\nהאנליטיקס יציג שוב את כל העסקאות מאז ומתמיד.")) return;
+  await saveStrategyConfigField(null, "analytics: cleared strategy_started_at");
+}
+
+// =============== Compute closed trades (with explicit P&L) ===============
+function brokerToClosed(){
+  // REAL account (broker-ledger.json): already-paired round-trips with real P&L.
+  const b = STATE.broker;
+  if (!b || !Array.isArray(b.trades)) return [];
+  return b.trades.map(function(t){ return {
+    time: t.exit_iso || t.entry_iso, entry_time: t.entry_iso || t.exit_iso, _entry_time_la: t.entry_la || "",
+    direction: t.direction || "", exit_type: t.result_type || (t.result_dollars>=0?"WIN":"LOSS"),
+    ticks: +t.result_ticks || 0, dollars: +t.result_dollars || 0,
+    entry_price: t.entry_price, exit_price: t.exit_price, qty: t.qty || 1, danger: 0,
+    strategy: t.strategy || null, strategy_conf: t.strategy_conf || null
+  }; });
+}
+function computeClosedTrades() {
+  if (SELECTED_STRATEGY === "real") return brokerToClosed();   // main analytics = REAL account
+  // From journal-data.json: EXIT rows have result_ticks + result_dollars + entry_price.
+  // Also implicit SWAPs (LONG/SHORT entries with opposite-direction prior) — but the
+  // journal renderer side computes those via enrichSwapPnL. We'll replicate that here
+  // to capture all closing events with their P&L.
+  const TICK = 0.25;
+  const TVAL = 0.50;
+
+  // 🛑 2026-05-28 — apply strategy_started_at filter to scope analytics to trades
+  // executed AFTER Lauren switched to the new strategy (Pine v1.3). Trades before that
+  // remain in journal-data.json for reference, but don't affect KPIs / charts.
+  const strategyTs = getStrategyStartTs();
+
+  // Sort by time
+  const sorted = STATE.trades.slice().sort((a, b) => {
+    const ta = new Date(a._received_at || a.time || 0).getTime() || 0;
+    const tb = new Date(b._received_at || b.time || 0).getTime() || 0;
+    return ta - tb;
+  });
+
+  const closed = []; // { time, direction, exit_type, ticks, dollars, entry_price, exit_price, qty, danger }
+  let openEntry = null;
+
+  for (const t of sorted) {
+    if (t._status) continue; // SKIP/ERROR rows
+    // Apply strategy_started_at cutoff — skip events before Lauren's strategy switch
+    if (strategyTs > 0) {
+      const ts = new Date(t._received_at || t.time || 0).getTime();
+      if (!ts || ts < strategyTs) continue;
+    }
+    const type = String(t.type || "").toUpperCase().trim();
+    const isLong = (type === "LONG");
+    const isShort = (type === "SHORT");
+    const isSwapLong = (type === "SWAP LONG");
+    const isSwapShort = (type === "SWAP SHORT");
+    const isExit = type.indexOf("EXIT") === 0;
+    const isAnyLong = isLong || isSwapLong;
+    const isAnyShort = isShort || isSwapShort;
+    const qty = Number(t.quantity) || 1;
+    const price = Number(t.tradovate_fill_price);
+    const usePrice = isFinite(price) ? price : Number(t.price);
+    if (!isFinite(usePrice) && !isExit) continue;
+
+    if (isExit && openEntry) {
+      const isExitLong = type.indexOf("EXIT LONG") === 0;
+      const isExitShort = type.indexOf("EXIT SHORT") === 0;
+      const dirMatch = (isExitLong && openEntry.direction === "long") ||
+                       (isExitShort && openEntry.direction === "short");
+      if (dirMatch) {
+        let ticks = t.result_ticks;
+        let dollars = t.result_dollars;
+        if (ticks == null || dollars == null) {
+          const exitP = Number(t.tradovate_fill_price);
+          const ep = isFinite(exitP) ? exitP : Number(t.price);
+          let diff = ep - openEntry.price;
+          if (openEntry.direction === "short") diff = -diff;
+          ticks = Math.round(diff / TICK);
+          dollars = +(ticks * TVAL * (openEntry.qty || 1)).toFixed(2);
+        }
+        const exitType = type.indexOf(" TP") > 0 ? "TP"
+                       : type.indexOf(" SL") > 0 ? "SL" : "EXIT";
+        closed.push({
+          time: t._received_at || t.time,
+          direction: openEntry.direction,
+          exit_type: exitType,
+          ticks: ticks,
+          dollars: dollars,
+          entry_price: openEntry.price,
+          exit_price: usePrice,
+          qty: openEntry.qty || 1,
+          danger: openEntry.danger || 0,
+          entry_time: openEntry.time,
+        });
+        openEntry = null;
+      } else {
+        // orphan exit — skip
+      }
+    } else if (isAnyLong || isAnyShort) {
+      const newDir = isAnyLong ? "long" : "short";
+      // implicit swap?
+      if (openEntry && openEntry.direction !== newDir) {
+        // close prior as SWAP
+        let diff = usePrice - openEntry.price;
+        if (openEntry.direction === "short") diff = -diff;
+        const ticks = Math.round(diff / TICK);
+        const dollars = +(ticks * TVAL * (openEntry.qty || 1)).toFixed(2);
+        closed.push({
+          time: t._received_at || t.time,
+          direction: openEntry.direction,
+          exit_type: "SWAP",
+          ticks: ticks,
+          dollars: dollars,
+          entry_price: openEntry.price,
+          exit_price: usePrice,
+          qty: openEntry.qty || 1,
+          danger: openEntry.danger || 0,
+          entry_time: openEntry.time,
+        });
+      }
+      // Open new entry (or replace duplicate of same direction)
+      if (!openEntry || openEntry.direction !== newDir) {
+        openEntry = {
+          direction: newDir,
+          price: usePrice,
+          qty: qty,
+          danger: Number(t.danger) || 0,
+          time: t._received_at || t.time,
+        };
+      }
+      // same-direction duplicate → keep original openEntry
+    }
+  }
+
+  return closed;
+}
+
+// =============== Render all sections ===============
+let CHARTS = {};
+
+function destroyChart(name) {
+  if (CHARTS[name]) {
+    CHARTS[name].destroy();
+    delete CHARTS[name];
+  }
+}
+
+function strategyMatch(t){ return SELECTED_STRATEGY === "all" || (String(t.strategy||"").toLowerCase() === SELECTED_STRATEGY); }
+function selectStrategy(srt){
+  if(srt==="real"){ selectMode("real"); return; }
+  RESEARCH_STRAT = srt; SELECTED_STRATEGY = srt;
+  document.querySelectorAll("#ss2-btns .ss2-btn").forEach(b => b.classList.toggle("active", b.dataset.strat === srt));
+  applyStrategyFilter();
+}
+function selectMode(m){
+  document.querySelectorAll("#mode-bar .mode-btn").forEach(b=>b.classList.toggle("active", b.dataset.mode===m));
+  var sub=document.getElementById("research-substrat");
+  if(m==="real"){ if(sub) sub.style.display="none"; SELECTED_STRATEGY="real"; }
+  else { if(sub) sub.style.display=""; SELECTED_STRATEGY=RESEARCH_STRAT||"all";
+    document.querySelectorAll("#ss2-btns .ss2-btn").forEach(b=>b.classList.toggle("active", b.dataset.strat===SELECTED_STRATEGY)); }
+  applyStrategyFilter();
+}
+function applyModeVisibility(){
+  var real = (SELECTED_STRATEGY==="real");
+  var researchOnly=["strat-cmp","hourly-section","hourpicker-section","combined-section","heatmap-section","backtest-section","sec-sim","strategy-strip"];
+  var realOnly=["real-strat-panel","hourly-real-section","broker-panel"];
+  researchOnly.forEach(function(id){ var e=document.getElementById(id); if(e && real) e.style.display="none"; });
+  realOnly.forEach(function(id){ var e=document.getElementById(id); if(e && !real) e.style.display="none"; });
+}
+function renderHourlyReal(){
+  var sec=document.getElementById("hourly-real-section"); if(!sec) return;
+  if(SELECTED_STRATEGY!=="real"){ sec.style.display="none"; return; }
+  var b=STATE.broker; var T=(b&&Array.isArray(b.trades))?b.trades:[];
+  if(!T.length){ sec.style.display="none"; return; }
+  sec.style.display="";
+  var strats=[["base","🟦 BASE"],["partial","✂️ PARTIAL"],["momentum","🚀 MOM"]];
+  var H={}; for(var h=0;h<24;h++)H[h]={byS:{base:{n:0,net:0},partial:{n:0,net:0},momentum:{n:0,net:0}},n:0,net:0,w:0,gp:0,gl:0};
+  T.forEach(function(t){ var p=(t.entry_la||"").split(" "); if(p.length<2)return; var hh=parseInt(p[1].slice(0,2),10); if(isNaN(hh))return;
+    var x=+t.result_dollars||0; var s2=String(t.strategy||"").toLowerCase(); var o=H[hh];
+    if(o.byS[s2]){o.byS[s2].n++;o.byS[s2].net+=x;}
+    o.n++;o.net+=x; if(x>0){o.w++;o.gp+=x;}else if(x<0)o.gl+=Math.abs(x); });
+  var mx=1; for(var h2=0;h2<24;h2++) strats.forEach(function(pr){ var c=H[h2].byS[pr[0]]; if(c)mx=Math.max(mx,Math.abs(c.net)); });
+  var bg=function(net){ var al=Math.min(1,Math.abs(net)/mx*0.82+0.10); return net>=0?"rgba(22,163,74,"+al.toFixed(2)+")":"rgba(220,38,38,"+al.toFixed(2)+")"; };
+  var rows="",cnt=0,pending=0;
+  for(var h=0;h<24;h++){ var o=H[h]; var blk=!ACTIVE_HOURS.has(h);
+    // show: any hour with real trades, OR any ACTIVE (traded) hour even if empty (=טרם). skip empty blocked hours.
+    if(!o.n && blk) continue;
+    var hrTd=blk?'<td class="hm-hr" style="background:#fee2e2;color:#dc2626;font-weight:800" title="שעה חסומה">⛔ '+String(h).padStart(2,"0")+':00</td>':'<td class="hm-hr">'+String(h).padStart(2,"0")+':00</td>';
+    if(!o.n){ // active hour, no real trade yet
+      pending++;
+      rows+='<tr style="opacity:.55">'+hrTd+'<td style="color:#cbd5e1">—</td><td style="color:#cbd5e1">—</td><td style="color:#cbd5e1">—</td><td style="color:#94a3b8;font-style:italic">טרם</td><td style="color:#cbd5e1">—</td><td style="color:#cbd5e1">—</td></tr>';
+      continue;
+    }
+    cnt++;
+    var tds=strats.map(function(pr){ var c=o.byS[pr[0]]; if(!c||!c.n) return '<td style="background:#f8fafc;color:#cbd5e1">—</td>';
+      var tc=(Math.abs(c.net)/mx>0.42)?"#fff":"#0f172a";
+      return '<td style="background:'+bg(c.net)+';color:'+tc+'"><b>'+fmtUSD(c.net)+'</b><br><span style="font-size:10px;opacity:.85">'+c.n+" עס'</span></td>"; }).join("");
+    var pf=o.gl?(o.gp/o.gl).toFixed(2):(o.gp>0?"∞":"—"); var wr=Math.round(o.w/o.n*100);
+    rows+='<tr'+(o.net<0?' style="background:#fef2f2"':'')+'>'+hrTd+tds+'<td class="'+(o.net>=0?"pos":"neg")+'" style="font-weight:800">'+fmtUSD(o.net)+'</td><td>'+wr+'%</td><td>'+pf+'</td></tr>';
+  }
+  document.getElementById("hourly-real-body").innerHTML='<div style="overflow-x:auto"><table class="hm-tbl"><thead><tr><th>שעה LA</th><th>🟦 BASE</th><th>✂️ PARTIAL</th><th>🚀 MOM</th><th>נטו (הכל)</th><th>הצלחה</th><th>PF</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  var note=document.getElementById("hourly-real-note");
+  if(note) note.innerHTML = cnt? 'נתונים אמיתיים מהברוקר בלבד ('+T.length+' עסקאות). <b>"טרם"</b> = שעה שאת סוחרת בה אבל עדיין לא הייתה בה עסקה אמיתית (תתמלא בהמשך). הפירוק לאסטרטגיה משוער (חתימת ברקט + זיווג). ⛔ = שעות חסומות כרגע.' : '';
+}
+function applyStrategyFilter(){
+  var _real = SELECTED_STRATEGY === "real";
+  STATE.trades = _real ? [] : (LIVE_ALL || []).filter(strategyMatch);
+  if (BT_ALL && Array.isArray(BT_ALL.trades)) {
+    STATE.backtest = Object.assign({}, BT_ALL, { trades: _real ? BT_ALL.trades.slice() : BT_ALL.trades.filter(strategyMatch) });
+  }
+  renderComparison();
+  renderHourly();
+  renderHourPicker();
+  renderCombined();
+  renderStrategyStrip();
+  renderRealStrat();
+  renderHourlyReal();
+  renderAll();
+  applyModeVisibility();
+}
+function renderRealStrat(){
+  var el=document.getElementById("real-strat-panel"); if(!el) return;
+  if(SELECTED_STRATEGY!=="real"){ el.style.display="none"; return; }
+  var b=STATE.broker; var att=b && b._strategy_attribution;
+  if(!att || !att.per_strategy){ el.style.display="none"; return; }
+  el.style.display="";
+  var meta={base:["🟦 BASE","#2563eb"],partial:["✂️ PARTIAL","#7c3aed"],momentum:["🚀 MOMENTUM","#ea580c"]};
+  var per=att.per_strategy, tg=att.tagged||{};
+  var cards=["base","partial","momentum"].map(function(k){
+    var v=per[k]; if(!v) return "";
+    var wr=v.n?Math.round(v.w/v.n*100):0;
+    return '<div class="rs-card" style="border-color:'+meta[k][1]+'"><div class="rs-t" style="color:'+meta[k][1]+'">'+meta[k][0]+'</div>'
+      +'<div class="rs-net '+(v.net>=0?"pos":"neg")+'">'+fmtUSD(v.net)+'</div>'
+      +'<div class="rs-sub">'+v.n+' עסקאות · '+wr+'% הצלחה</div></div>';
+  }).join("");
+  var unknown=(tg.none||0);
+  el.innerHTML='<div class="rs-head">🏦 P&L אמיתי מהברוקר — פירוק לפי אסטרטגיה <span class="rs-est">(מנצחות לפי חתימת הברקט · מפסידות/SWAP מזווגות 1:1 בין BASE ל-PARTIAL)</span></div>'
+    +'<div class="rs-cards">'+cards+'</div>'
+    +'<div class="rs-note">📎 '+(tg.signature||0)+' זוהו בוודאות מחתימת הברקט (325=PARTIAL · 650=BASE · 475/−175=MOM) · '+(tg.paired||0)+' מפסידות/SWAP זהות → אחת לכל אסטרטגיה. <b>הסכום מתאזן בדיוק לטוטאל האמיתי של הברוקר.</b>'+(unknown?' · '+unknown+' לא-ודאיים.':'')+'</div>';
+}
+function _stratStats(trs){
+  const arr=(trs||[]).slice().sort((a,b)=> new Date(a._received_at||a._entry_time_la||0) - new Date(b._received_at||b._entry_time_la||0));
+  let net=0,gp=0,gl=0,wn=0,eq=0,pk=0,mdd=0,worst=0,curL=0,maxL=0;
+  arr.forEach(t=>{ const x=+t.result_dollars||0; net+=x;
+    if(x>0){gp+=x;wn++;curL=0;} else if(x<0){gl+=Math.abs(x); if(x<worst)worst=x; curL++; if(curL>maxL)maxL=curL;}
+    eq+=x; if(eq>pk)pk=eq; if(pk-eq>mdd)mdd=pk-eq; });
+  return { n:arr.length, net, pf: gl? gp/gl : (gp>0?Infinity:0), wr:arr.length? wn/arr.length*100 : 0, mdd, worst, maxL };
+}
+function hpSourceTrades(){
+  var src=(BT_ALL&&Array.isArray(BT_ALL.trades))?BT_ALL.trades:[];
+  if(SELECTED_STRATEGY==="all"||SELECTED_STRATEGY==="real") return src;
+  return src.filter(function(t){return String(t.strategy||"").toLowerCase()===SELECTED_STRATEGY;});
+}
+function hpHourOf(t){ var p=(t._entry_time_la||"").split(" "); if(p.length<2)return null; var h=parseInt(p[1].slice(0,2),10); return isNaN(h)?null:h; }
+function hpStats(trs){
+  var net=0,gp=0,gl=0,wn=0,eq=0,pk=0,mdd=0;
+  trs.slice().sort(function(a,b){return new Date(a._received_at||a._entry_time_la||0)-new Date(b._received_at||b._entry_time_la||0);})
+     .forEach(function(t){var x=+t.result_dollars||0; net+=x; if(x>0){gp+=x;wn++;}else if(x<0){gl+=Math.abs(x);} eq+=x; if(eq>pk)pk=eq; if(pk-eq>mdd)mdd=pk-eq;});
+  return {n:trs.length,net:net,pf:gl?gp/gl:(gp>0?Infinity:0),wr:trs.length?wn/trs.length*100:0,mdd:mdd};
+}
+function toggleHour(h){ if(ACTIVE_HOURS.has(h))ACTIVE_HOURS.delete(h); else ACTIVE_HOURS.add(h); renderHourPicker(); renderHourly(); }
+function hpPreset(kind){
+  if(kind==="all"){ ACTIVE_HOURS=new Set(Array.from({length:24},function(_,h){return h;})); }
+  else if(kind==="default"){ ACTIVE_HOURS=new Set(Array.from({length:24},function(_,h){return h;}).filter(function(h){return HP_DEFAULT_BLOCKED.indexOf(h)<0;})); }
+  else if(kind==="profit"){
+    var src=hpSourceTrades(), byH={}; src.forEach(function(t){var h=hpHourOf(t); if(h==null)return; byH[h]=(byH[h]||0)+(+t.result_dollars||0);});
+    ACTIVE_HOURS=new Set(Object.keys(byH).filter(function(h){return byH[h]>0;}).map(Number));
+  }
+  renderHourPicker(); renderHourly();
+}
+function renderHourPicker(){
+  var sec=document.getElementById("hourpicker-section"); if(!sec) return;
+  var src=hpSourceTrades();
+  if(SELECTED_STRATEGY==="real" || !src.length){ sec.style.display="none"; return; }
+  sec.style.display="";
+  // per-hour net + count for source strategy
+  var byH={}; src.forEach(function(t){var h=hpHourOf(t); if(h==null)return; (byH[h]=byH[h]||{n:0,net:0}); byH[h].n++; byH[h].net+=(+t.result_dollars||0);});
+  var hrs=Object.keys(byH).map(Number).sort(function(a,b){return a-b;});
+  var mx=1; hrs.forEach(function(h){mx=Math.max(mx,Math.abs(byH[h].net));});
+  var chips=hrs.map(function(h){
+    var o=byH[h], on=ACTIVE_HOURS.has(h), pos=o.net>=0;
+    var col=pos?"#16a34a":"#dc2626";
+    var bgc=on?(pos?"rgba(22,163,74,0.13)":"rgba(220,38,38,0.13)"):"#f1f5f9";
+    var bord=on?col:"#cbd5e1";
+    var opa=on?"1":"0.55";
+    return '<button class="hp-chip" onclick="toggleHour('+h+')" style="border-color:'+bord+';background:'+bgc+';opacity:'+opa+'">'
+      +'<div class="hp-h">'+(on?"🟢":"⛔")+' '+String(h).padStart(2,"0")+':00</div>'
+      +'<div class="hp-net" style="color:'+col+'">'+fmtUSD(o.net)+'</div>'
+      +'<div class="hp-n">'+o.n+" עס'</div></button>";
+  }).join("");
+  document.getElementById("hp-grid").innerHTML=chips;
+  // summary: selected hours vs all hours
+  var sel=src.filter(function(t){var h=hpHourOf(t); return h!=null && ACTIVE_HOURS.has(h);});
+  var ss=hpStats(sel), as2=hpStats(src);
+  var blocked=hrs.filter(function(h){return !ACTIVE_HOURS.has(h);});
+  var savedNet=0; blocked.forEach(function(h){savedNet+=byH[h].net;});
+  function pf(v){return v===Infinity?"∞":v.toFixed(2);}
+  function card(title,st,cls){
+    return '<div class="hp-card '+(cls||"")+'"><div class="hp-ct">'+title+'</div>'
+      +'<div class="hp-cr"><span>נטו</span><b class="'+(st.net>=0?"pos":"neg")+'">'+fmtUSD(st.net)+'</b></div>'
+      +'<div class="hp-cr"><span>PF</span><b>'+pf(st.pf)+'</b></div>'
+      +'<div class="hp-cr"><span>הצלחה</span><b>'+st.wr.toFixed(1)+'%</b></div>'
+      +'<div class="hp-cr"><span>דראודאון</span><b class="neg">'+fmtUSD(-st.mdd)+'</b></div>'
+      +'<div class="hp-cr"><span>עסקאות</span><b>'+st.n+'</b></div></div>';
+  }
+  var verdict="";
+  if(blocked.length){
+    verdict='<div class="hp-verdict">בחסימת '+blocked.length+' שעות ('+blocked.map(function(h){return String(h).padStart(2,"0");}).join(", ")+') '
+      +(savedNet<0? 'את <b>חוסכת</b> '+fmtUSD(-savedNet)+' של הפסד מצטבר' : 'את <b>מוותרת</b> על '+fmtUSD(savedNet)+' רווח')
+      +' ו-PF '+(ss.pf>=as2.pf?'<b class="pos">עולה</b>':'<b class="neg">יורד</b>')+' מ-'+pf(as2.pf)+' ל-'+pf(ss.pf)+'.</div>';
+  } else {
+    verdict='<div class="hp-verdict">כל השעות פעילות — זו תמונת "כל-השעות" המלאה.</div>';
+  }
+  document.getElementById("hp-summary").innerHTML=
+    '<div class="hp-cards">'+card("🟢 השעות שבחרת",ss,"sel")+card("🔬 כל השעות (מחקר)",as2,"")+'</div>'+verdict;
+}
+function renderHourly(){
+  const sec=document.getElementById("hourly-section"); if(!sec) return;
+  const all=(BT_ALL&&Array.isArray(BT_ALL.trades))?BT_ALL.trades:[];
+  const which=document.getElementById("hourly-which"); if(which) which.textContent="(בקטסט · כל האסטרטגיות יחד)";
+  const hm=document.getElementById("heatmap-section"); if(hm) hm.style.display="none";
+  if(!all.length){ sec.style.display="none"; return; }
+  sec.style.display="";
+  const strats=[["base","🟦 BASE"],["partial","✂️ PARTIAL"],["momentum","🚀 MOM"]];
+  const H={}; for(let h=0;h<24;h++)H[h]={byS:{base:{n:0,net:0},partial:{n:0,net:0},momentum:{n:0,net:0}},n:0,net:0,w:0,gp:0,gl:0};
+  all.forEach(t=>{ const p=(t._entry_time_la||"").split(" "); if(p.length<2)return; const h=parseInt(p[1].slice(0,2)); if(isNaN(h))return;
+    const x=+t.result_dollars||0; const s2=String(t.strategy||"").toLowerCase(); const o=H[h];
+    if(o.byS[s2]){o.byS[s2].n++;o.byS[s2].net+=x;}
+    o.n++; o.net+=x; if(x>0){o.w++;o.gp+=x;} else if(x<0)o.gl+=Math.abs(x); });
+  let mx=1; for(let h=0;h<24;h++) strats.forEach(([k])=>{ const c=H[h].byS[k]; if(c)mx=Math.max(mx,Math.abs(c.net)); });
+  const bg=(net)=>{ const al=Math.min(1,Math.abs(net)/mx*0.82+0.10); return net>=0?`rgba(22,163,74,${al.toFixed(2)})`:`rgba(220,38,38,${al.toFixed(2)})`; };
+  let rows="",bad=[];
+  for(let h=0;h<24;h++){ const o=H[h]; if(!o.n)continue;
+    if(o.net<0)bad.push(h);
+    let win=null,winNet=-Infinity; strats.forEach(([k])=>{ const c=o.byS[k]; if(c&&c.n&&c.net>winNet){winNet=c.net;win=k;} });
+    const tds=strats.map(([k])=>{ const c=o.byS[k]; if(!c||!c.n) return '<td style="background:#f8fafc;color:#cbd5e1">—</td>';
+      const tc=(Math.abs(c.net)/mx>0.42)?"#fff":"#0f172a"; const crown=(k===win&&c.net>0)?" 🏆":"";
+      return `<td style="background:${bg(c.net)};color:${tc}"><b>${fmtUSD(c.net)}${crown}</b><br><span style="font-size:10px;opacity:.85">${c.n} עס'</span></td>`; }).join("");
+    const pf=o.gl?(o.gp/o.gl).toFixed(2):(o.gp>0?"∞":"—"); const wr=Math.round(o.w/o.n*100);
+    var _blk=!ACTIVE_HOURS.has(h);
+    var _hrTd=_blk?`<td class="hm-hr" style="background:#fee2e2;color:#dc2626;font-weight:800" title="שעה חסומה — לא נסחרת כרגע">⛔ ${String(h).padStart(2,"0")}:00</td>`:`<td class="hm-hr">${String(h).padStart(2,"0")}:00</td>`;
+    rows+=`<tr${o.net<0?' style="background:#fef2f2"':''}>${_hrTd}${tds}<td class="${o.net>=0?"pos":"neg"}" style="font-weight:800">${fmtUSD(o.net)}</td><td>${wr}%</td><td>${pf}</td></tr>`;
+  }
+  document.getElementById("hourly-body").innerHTML=`<div style="overflow-x:auto"><table class="hm-tbl"><thead><tr><th>שעה LA</th><th>🟦 BASE</th><th>✂️ PARTIAL</th><th>🚀 MOM</th><th>נטו (הכל)</th><th>הצלחה</th><th>PF</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const note=document.getElementById("hourly-note");
+  if(note) note.innerHTML = bad.length
+    ? `🏆 = האסטרטגיה הכי רווחית באותה שעה. · 🔴 שעות מפסידות (כל ה-3 יחד): <b>${bad.map(h=>String(h).padStart(2,"0")).join(", ")}</b> — שקלי לחסום בפילטר השעות.`
+    : "🏆 = האסטרטגיה הכי רווחית באותה שעה. · אין שעה עם נטו שלילי.";
+}
+function renderCombined(){
+  const sec=document.getElementById("combined-section"); if(!sec) return;
+  const all=(BT_ALL&&Array.isArray(BT_ALL.trades))?BT_ALL.trades.slice():[];
+  if(!all.length){ sec.style.display="none"; return; }
+  sec.style.display="";
+  all.sort((a,b)=>new Date(a._received_at||a._entry_time_la||0)-new Date(b._received_at||b._entry_time_la||0));
+  let eq=0,pk=0,mdd=0,net=0; const day={};
+  all.forEach(t=>{ const x=+t.result_dollars||0; net+=x; eq+=x; if(eq>pk)pk=eq; if(pk-eq>mdd)mdd=pk-eq;
+    const d=(t._entry_time_la||"").split(" ")[0]; day[d]=(day[d]||0)+x; });
+  const worstDay=Math.min(0,...Object.values(day));
+  const sum=(BT_ALL._strategy_summary)||{};
+  const biggestSingleDD=Math.max(...["base","partial","momentum"].map(k=>(sum[k]&&sum[k].max_drawdown)||0),0);
+  function kpi(l,v,cls){return `<div class="an-kpi"><div class="l">${l}</div><div class="v ${cls||""}">${v}</div></div>`;}
+  document.getElementById("combined-kpis").innerHTML =
+    kpi("נטו משולב",fmtUSD(net),net>=0?"pos":"neg")+
+    kpi("📉 דראודאון משולב",fmtUSD(-mdd),"neg")+
+    kpi("💔 היום הגרוע ביותר",fmtUSD(worstDay),"neg")+
+    kpi("עסקאות (3 יחד)",all.length,"");
+  document.getElementById("combined-note").innerHTML =
+    `הדראודאון המשולב (<b>${fmtUSD(-mdd)}</b>) גדול מהדראודאון של כל אסטרטגיה לבדה (הכי גדול: ${fmtUSD(-biggestSingleDD)}) — כי השלוש מתואמות וההפסדים מצטברים יחד. ביום הגרוע ביותר ירדת <b>${fmtUSD(worstDay)}</b> בשלושתן. שקלי סייז קטן יותר אם מריצה את כולן.`;
+}
+function renderHeatmap(){
+  const sec=document.getElementById("heatmap-section"); if(!sec) return;
+  const all=(BT_ALL&&Array.isArray(BT_ALL.trades))?BT_ALL.trades:[];
+  if(!all.length){ sec.style.display="none"; return; }
+  sec.style.display="";
+  const strats=["base","partial","momentum"]; const cell={};
+  all.forEach(t=>{ const p=(t._entry_time_la||"").split(" "); if(p.length<2)return; const h=parseInt(p[1].slice(0,2)); if(isNaN(h))return;
+    cell[h]=cell[h]||{}; cell[h][t.strategy]=cell[h][t.strategy]||{n:0,net:0}; cell[h][t.strategy].n++; cell[h][t.strategy].net+=(+t.result_dollars||0); });
+  let mx=1; Object.values(cell).forEach(r=>strats.forEach(sx=>{ if(r[sx])mx=Math.max(mx,Math.abs(r[sx].net)); }));
+  function bg(net){ const a=Math.min(1,Math.abs(net)/mx*0.82+0.10); return net>=0?`rgba(22,163,74,${a.toFixed(2)})`:`rgba(220,38,38,${a.toFixed(2)})`; }
+  let rows="";
+  for(let h=0;h<24;h++){ if(!cell[h])continue;
+    const tds=strats.map(sx=>{ const o=cell[h][sx]; if(!o||!o.n) return '<td style="background:#f8fafc;color:#cbd5e1">—</td>';
+      const tc=(Math.abs(o.net)/mx>0.42)?"#fff":"#0f172a";
+      return `<td style="background:${bg(o.net)};color:${tc}"><b>${fmtUSD(o.net)}</b><br><span style="font-size:10px;opacity:.85">${o.n} עס'</span></td>`; }).join("");
+    rows+=`<tr><td class="hm-hr">${String(h).padStart(2,"0")}:00</td>${tds}</tr>`;
+  }
+  document.getElementById("heatmap-body").innerHTML=`<table class="hm-tbl"><thead><tr><th>שעה LA</th><th>🟦 BASE</th><th>✂️ PARTIAL</th><th>🚀 MOM</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function renderComparison(){
+  const el = document.getElementById("strat-cmp"); if(!el) return;
+  const src = (BT_ALL && Array.isArray(BT_ALL.trades)) ? BT_ALL.trades : [];
+  const strats = [["base","🟦 BASE"],["partial","✂️ PARTIAL"],["momentum","🚀 MOMENTUM"]];
+  const stats = strats.map(([k,lbl])=>({k,lbl,st:_stratStats(src.filter(t=>String(t.strategy||"").toLowerCase()===k))}));
+  const withData = stats.filter(o=>o.st.n>0);
+  if(!withData.length){ el.innerHTML = `<div style="font-size:13px;color:#94a3b8;padding:6px 2px;">אין עדיין נתונים — העלי טבלאות אינדיקטור לכל אסטרטגיה.</div>`; return; }
+  // safest = lowest max-drawdown; best worst-loss = smallest magnitude
+  const safeK = withData.slice().sort((a,b)=>a.st.mdd-b.st.mdd)[0].k;
+  const rows = stats.map(({k,lbl,st})=>{
+    if(!st.n) return `<tr style="opacity:.4"><td class="cmp-name">${lbl}</td><td colspan="7" style="text-align:center;font-size:12px;color:#94a3b8;">— אין נתונים —</td></tr>`;
+    const pf = st.pf===Infinity ? "∞" : st.pf.toFixed(2);
+    const star = k===safeK ? ' <span title="הדראודאון הנמוך ביותר" style="color:#16a34a">🛡️</span>' : '';
+    return `<tr><td class="cmp-name">${lbl}${star}</td><td>${st.n}</td><td class="${st.net>=0?'pos':'neg'}">${fmtUSD(st.net)}</td><td>${pf}</td><td>${st.wr.toFixed(1)}%</td><td class="neg" style="font-weight:800">${fmtUSD(-st.mdd)}</td><td class="neg">${fmtUSD(st.worst)}</td><td>${st.maxL}</td></tr>`;
+  }).join("");
+  let insight="";
+  if(withData.length>=2){
+    const byDD=withData.slice().sort((a,b)=>a.st.mdd-b.st.mdd);
+    const byPF=withData.slice().sort((a,b)=>b.st.pf-a.st.pf);
+    insight=`<div class="cmp-insight">🛡️ <b>הכי בטוחה</b> (דראודאון הנמוך ביותר): <b>${byDD[0].lbl}</b> — דראודאון מקס ${fmtUSD(-byDD[0].st.mdd)}, הפסד בודד גדול ${fmtUSD(byDD[0].st.worst)}. &nbsp;|&nbsp; 💪 <b>הרווחית ביותר</b> (PF): <b>${byPF[0].lbl}</b>.</div>`;
+  }
+  el.innerHTML = `<table class="cmp-tbl"><thead><tr><th>אסטרטגיה</th><th>עסקאות</th><th>נטו $</th><th>PF</th><th>אחוז הצלחה</th><th>📉 דראודאון מקס</th><th>💔 הפסד גדול</th><th>🔁 רצף הפסד</th></tr></thead><tbody>${rows}</tbody></table>${insight}`;
+}
+function renderAll() {
+  // Render the backtest baseline first — it's independent of live data
+  renderBacktest();
+  try { renderSimReport(); } catch(e){ console.warn("renderSimReport", e); }
+
+  // Render the Calendar early — it uses backtest + bypass-filter live, so it should
+  // always render regardless of strategy_started_at filter killing the live count.
+  renderCalendar();
+
+  const closed = computeClosedTrades();
+  if (!closed.length) {
+    const strategyTs = getStrategyStartTs();
+    if (strategyTs > 0) {
+      document.getElementById("status").textContent = "📭 אין עדיין עסקאות סגורות מאז " + new Date(strategyTs).toLocaleString("he-IL") + " — האנליטיקס יתמלא ברגע שיהיו תוצאות.";
+    } else {
+      document.getElementById("status").textContent = "🤷 אין עסקאות סגורות בנתונים";
+    }
+    document.getElementById("status").className = "";
+    // Hide all sections
+    ["kpi-row","sec-equity","sec-drawdown","sec-hod","sec-dow","sec-distribution","sec-streaks","sec-danger","sec-direction","sec-exits"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = "none";
+    });
+    return;
+  }
+
+  document.getElementById("status").textContent = "✓ נטענו " + closed.length + " עסקאות סגורות" + (getStrategyStartTs() > 0 ? " (מסונן מתאריך ההתחלה)" : "");
+  document.getElementById("status").className = "ok";
+
+  document.getElementById("kpi-row").style.display = "grid";
+  renderKPIs(closed);
+
+  document.getElementById("sec-equity").style.display = "block";
+  renderEquityCurve(closed);
+
+  document.getElementById("sec-drawdown").style.display = "block";
+  renderDrawdown(closed);
+
+  document.getElementById("sec-hod").style.display = "block";
+  renderHourOfDay(closed);
+
+  document.getElementById("sec-dow").style.display = "block";
+  renderDayOfWeek(closed);
+
+  document.getElementById("sec-distribution").style.display = "block";
+  renderDistribution(closed);
+
+  document.getElementById("sec-streaks").style.display = "block";
+  renderStreaks(closed);
+
+  document.getElementById("sec-danger").style.display = "block";
+  renderDangerAnalysis(closed);
+
+  document.getElementById("sec-direction").style.display = "block";
+  renderDirection(closed);
+
+  document.getElementById("sec-exits").style.display = "block";
+  renderExitsBreakdown(closed);
+}
+
+function renderBacktest() {
+  if (!STATE.backtest || !Array.isArray(STATE.backtest.trades) || !STATE.backtest.trades.length) return;
+  const bt = STATE.backtest;
+  const trades = bt.trades;
+
+  // Compute backtest stats
+  const wins = trades.filter(t => t.result_dollars > 0);
+  const losses = trades.filter(t => t.result_dollars < 0);
+  const grossWin = wins.reduce((s, t) => s + t.result_dollars, 0);
+  const grossLoss = Math.abs(losses.reduce((s, t) => s + t.result_dollars, 0));
+  const net = grossWin - grossLoss;
+  const winRate = trades.length > 0 ? (wins.length / trades.length) * 100 : 0;
+  const profitFactor = grossLoss > 0 ? grossWin / grossLoss : Infinity;
+  const expectancy = net / trades.length;
+
+  // Max drawdown
+  const sorted = trades.slice().sort((a, b) => new Date(a._received_at).getTime() - new Date(b._received_at).getTime());
+  let peak = 0, balance = 0, mdd = 0;
+  for (const t of sorted) {
+    balance += t.result_dollars;
+    if (balance > peak) peak = balance;
+    const dd = peak - balance;
+    if (dd > mdd) mdd = dd;
+  }
+
+  document.getElementById("backtest-section").style.display = "block";
+
+  // Render note
+  const indicatorSum = bt.summary_from_indicator || {};
+  const computedSum = bt.summary_computed || {};
+  document.getElementById("bt-note").innerHTML =
+    `<strong>${bt._note || ""}</strong>` +
+    `<br>📋 <strong>סיכום מהאינדיקטור:</strong> ${indicatorSum.total_trades || "—"} עסקאות · ` +
+    `${indicatorSum.wins || "—"} ✓ / ${indicatorSum.losses || "—"} ✗ / ${indicatorSum.swaps || "—"} 🔄 · ` +
+    `${indicatorSum.win_rate_pct || "—"}% Win Rate · +${indicatorSum.net_ticks || "—"} ticks / $${indicatorSum.net_dollars || "—"}` +
+    (computedSum.total_trades !== indicatorSum.total_trades
+      ? `<br>⚠ הצלחתי לזהות ${computedSum.total_trades} עסקאות מתוך ${indicatorSum.total_trades} שהאינדיקטור מדווח עליהן — שורה אחת לא ברורה בתמונה.`
+      : "");
+
+  // Render KPIs
+  const pfDisp = isFinite(profitFactor) ? profitFactor.toFixed(2) : "∞";
+  const html =
+    `<div class="bt-kpi"><div class="lbl">סה״כ עסקאות</div><div class="val">${trades.length}</div><div class="sub">${wins.length} ✓ · ${losses.length} ✗</div></div>` +
+    `<div class="bt-kpi ${winRate>=70?"green":""}"><div class="lbl">Win Rate</div><div class="val">${winRate.toFixed(1)}%</div><div class="sub">${wins.length}/${trades.length}</div></div>` +
+    `<div class="bt-kpi ${profitFactor>=1.5?"green":""}"><div class="lbl">Profit Factor</div><div class="val">${pfDisp}</div><div class="sub">רווחים/הפסדים</div></div>` +
+    `<div class="bt-kpi ${expectancy>=0?"green":"red"}"><div class="lbl">Exp / עסקה</div><div class="val">${fmtUSD(expectancy)}</div><div class="sub">ממוצע</div></div>` +
+    `<div class="bt-kpi ${net>=0?"green":"red"}"><div class="lbl">Net P&L</div><div class="val">${fmtUSD(net)}</div><div class="sub">$ לחוזה</div></div>` +
+    `<div class="bt-kpi red"><div class="lbl">Max DD</div><div class="val">-${fmtUSDplain(mdd)}</div><div class="sub">מהשיא</div></div>`;
+  document.getElementById("bt-kpis").innerHTML = html;
+
+  // Render equity curve
+  destroyChart("backtestEquity");
+  let bal = 0;
+  const points = sorted.map(t => {
+    bal += t.result_dollars;
+    return { x: new Date(t._received_at), y: bal };
+  });
+  CHARTS.backtestEquity = new Chart(document.getElementById("chart-backtest-equity"), {
+    type: "line",
+    data: {
+      labels: points.map(p => p.x.toLocaleString("he-IL", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })),
+      datasets: [{
+        label: "Backtest Balance ($)",
+        data: points.map(p => p.y),
+        borderColor: "#f59e0b",
+        backgroundColor: "rgba(245, 158, 11, 0.15)",
+        borderWidth: 2,
+        borderDash: [6, 4],   // dashed line so visually clear it's backtest
+        fill: true,
+        tension: 0.2,
+        pointRadius: 2,
+        pointHoverRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => "$" + c.parsed.y.toFixed(2) } }
+      },
+      scales: { y: { ticks: { callback: v => "$" + v } } }
+    }
+  });
+}
+
+let SIM_CHART=null;
+function wfHr(r){return parseInt((r._entry_time_la||"").split(" ")[1].slice(0,2));}
+function wfPreset(pp){
+  var L=document.getElementById("wf-long"),S=document.getElementById("wf-short"),H=document.getElementById("wf-exhours");
+  if(pp==="all"){L.checked=true;S.checked=true;H.value="";}
+  else if(pp==="no58"){L.checked=true;S.checked=true;H.value="5,8";}
+  else if(pp==="short"){L.checked=false;S.checked=true;H.value="";}
+  else if(pp==="best"){L.checked=true;S.checked=true;H.value="0,1,2,3,4,5,6,8,10,11,13,14,16,18,19,20,21,23";}
+  renderWhatIf();
+}
+function _wfStat(rs){var net=0,gp=0,gl=0,wn=0,eq=0,pk=0,mdd=0;for(var i=0;i<rs.length;i++){var x=rs[i].result_dollars;net+=x;if(x>0){gp+=x;wn++;}else gl+=Math.abs(x);eq+=x;if(eq>pk)pk=eq;if(pk-eq>mdd)mdd=pk-eq;}return {n:rs.length,net:net,pf:gl?gp/gl:99,wr:rs.length?wn/rs.length*100:0,mdd:mdd};}
+function renderWhatIf(){
+  if(!STATE.backtest||!STATE.backtest.trades) return;
+  var trades=STATE.backtest.trades;
+  var L=document.getElementById("wf-long").checked, S=document.getElementById("wf-short").checked;
+  var ex=(document.getElementById("wf-exhours").value||"").split(",").map(function(x){return parseInt(x.trim());}).filter(function(x){return !isNaN(x);});
+  var mult=parseInt(document.getElementById("sim-contracts").value)||1;
+  var rows=trades.filter(function(r){ if(r.direction==="long"&&!L)return false; if(r.direction==="short"&&!S)return false; if(ex.indexOf(wfHr(r))>=0)return false; return true; });
+  var s=_wfStat(rows), base=_wfStat(trades);
+  function k(lbl,val,sub,cls){return '<div class="bt-kpi '+(cls||"")+'"><div class="lbl">'+lbl+'</div><div class="val">'+val+'</div><div class="sub">'+sub+'</div></div>';}
+  document.getElementById("wf-kpis").innerHTML=
+    k("עסקאות",s.n,"מתוך "+base.n,"")+
+    k("Net",fmtUSD(s.net*mult),"בסינון",s.net>=0?"green":"red")+
+    k("Profit Factor",s.pf.toFixed(2),"בסיס "+base.pf.toFixed(2),s.pf>=base.pf?"green":"red")+
+    k("Win Rate",s.wr.toFixed(1)+"%","בסיס "+base.wr.toFixed(1)+"%",s.wr>=base.wr?"green":"")+
+    k("Max DD","-"+fmtUSDplain(s.mdd*mult),"בסיס -"+fmtUSDplain(base.mdd*mult),s.mdd<=base.mdd?"green":"red");
+  var dn=(s.net-base.net)*mult;
+  document.getElementById("wf-insight").innerHTML="💡 בסינון: Net "+fmtUSD(s.net*mult)+" ("+(dn>=0?"+":"")+fmtUSDplain(dn)+" מול לקיחת הכל), PF "+s.pf.toFixed(2)+", דראודאון -"+fmtUSDplain(s.mdd*mult)+"."+((s.pf>base.pf&&s.mdd<base.mdd)?" ✅ הסינון משפר גם רווחיות וגם סיכון.":"");
+}
+function _simBind(id,ev){var el=document.getElementById(id); if(el&&!el._simBound){el.addEventListener(ev,renderSimReport); el._simBound=true;}}
+function renderSimReport(){
+  if(!STATE.backtest||!Array.isArray(STATE.backtest.trades)||!STATE.backtest.trades.length) return;
+  var trades=STATE.backtest.trades.slice().sort(function(a,b){return new Date(a._received_at)-new Date(b._received_at);});
+  document.getElementById("sec-sim").style.display="block";
+  _simBind("sim-capital","input");_simBind("sim-contracts","change");_simBind("sim-target","input");_simBind("sim-stop","input");
+  var cap=parseFloat(document.getElementById("sim-capital").value)||5000;
+  var mult=parseInt(document.getElementById("sim-contracts").value)||1;
+  var bal=cap,peak=cap,mdd=0,mddPct=0,pts=[{x:trades[0]._received_at,y:cap}];
+  for(var i=0;i<trades.length;i++){bal+=trades[i].result_dollars*mult; if(bal>peak)peak=bal; var dd=peak-bal; if(dd>mdd)mdd=dd; var ddp=peak>0?(peak-bal)/peak*100:0; if(ddp>mddPct)mddPct=ddp; pts.push({x:trades[i]._received_at,y:bal});}
+  var net=bal-cap, ret=cap>0?net/cap*100:0;
+  function k(lbl,val,sub,cls){return '<div class="bt-kpi '+(cls||"")+'"><div class="lbl">'+lbl+'</div><div class="val">'+val+'</div><div class="sub">'+sub+'</div></div>';}
+  document.getElementById("sim-kpis").innerHTML=
+    k("הון התחלתי",fmtUSDplain(cap),mult+" חוזה","")+
+    k("יתרה סופית",fmtUSDplain(bal),"היום",bal>=cap?"green":"red")+
+    k("רווח/הפסד",fmtUSD(net),"מצטבר",net>=0?"green":"red")+
+    k("תשואה",ret.toFixed(1)+"%","על "+fmtUSDplain(cap),ret>=0?"green":"red")+
+    k("Max Drawdown","-"+fmtUSDplain(mdd),mddPct.toFixed(1)+"% מהשיא","red");
+  if(SIM_CHART)SIM_CHART.destroy();
+  SIM_CHART=new Chart(document.getElementById("chart-sim-equity"),{type:"line",
+    data:{labels:pts.map(function(p){return new Date(p.x).toLocaleDateString("he-IL",{month:"short",day:"numeric"});}),
+      datasets:[{label:"יתרת חשבון",data:pts.map(function(p){return p.y;}),borderColor:"#16a34a",backgroundColor:"rgba(22,163,74,.12)",borderWidth:2,fill:true,tension:.2,pointRadius:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return "$"+c.parsed.y.toFixed(0);}}}},scales:{y:{ticks:{callback:function(v){return "$"+v;}}}}}});
+  document.getElementById("sim-insight").innerHTML=
+    "💡 התחלת עם <b>"+fmtUSDplain(cap)+"</b> ב-"+mult+" חוזה/ים → היום <b>"+fmtUSDplain(bal)+"</b> (<b>"+(ret>=0?"+":"")+ret.toFixed(1)+"%</b>). הירידה הכי גדולה מהשיא בדרך: <b>-"+fmtUSDplain(mdd)+"</b> ("+mddPct.toFixed(1)+"%)."+(mult>1?" (הסכומים ב-"+mult+" חוזים.)":"");
+  var rh=document.getElementById("report-head-sub"); if(rh)rh.textContent="נוצר "+new Date().toLocaleString("he-IL")+" · "+trades.length+" עסקאות · נתוני אינדיקטור (לא ברוקר)";
+  _simBind("wf-long","change");_simBind("wf-short","change");_simBind("wf-exhours","input");
+  renderDailySim(trades,mult);
+  try{ renderWhatIf(); }catch(e){ console.warn("whatif",e); }
+}
+function renderDailySim(trades,mult){
+  var days={};
+  for(var i=0;i<trades.length;i++){var d=(trades[i]._entry_time_la||"").split(" ")[0]; (days[d]=days[d]||[]).push(trades[i].result_dollars);}
+  var keys=Object.keys(days);
+  function sim(target,stop){var tot=0; for(var j=0;j<keys.length;j++){var c=0,arr=days[keys[j]]; for(var m=0;m<arr.length;m++){c+=arr[m]; if(target&&c>=target)break; if(stop&&c<=-stop)break;} tot+=c;} return tot;}
+  var baseline=sim(0,0);
+  var tIn=parseFloat(document.getElementById("sim-target").value)||0;
+  var sIn=parseFloat(document.getElementById("sim-stop").value)||0;
+  var chosen=sim(tIn,sIn), diff=chosen-baseline;
+  document.getElementById("sim-daily-result").innerHTML=
+    "עם יעד רווח <b>"+(tIn?("$"+tIn):"—")+"</b> ועצירת הפסד <b>"+(sIn?("$"+sIn):"—")+"</b>: <b>"+fmtUSDplain(chosen*mult)+"</b> לעומת לקחת הכל <b>"+fmtUSDplain(baseline*mult)+"</b> → <b style=\"color:"+(diff>=0?"#15803d":"#b91c1c")+"\">"+(diff>=0?"+":"")+fmtUSDplain(diff*mult)+"</b>";
+  var presets=[[0,0],[175,0],[350,0],[525,0],[0,150],[0,300],[0,600],[350,300],[700,600]];
+  var rows="<tr><th>יעד רווח יומי</th><th>עצירת הפסד יומי</th><th>תוצאה</th><th>מול לקיחת הכל</th></tr>";
+  for(var q=0;q<presets.length;q++){var T=presets[q][0],S=presets[q][1],v=sim(T,S),dd=v-baseline;
+    rows+="<tr><td>"+(T?("$"+T):"—")+"</td><td>"+(S?("$"+S):"—")+"</td><td>"+fmtUSDplain(v*mult)+"</td><td style=\"color:"+(dd>=0?"#15803d":"#b91c1c")+"\">"+(dd>=0?"+":"")+fmtUSDplain(dd*mult)+"</td></tr>";}
+  document.getElementById("sim-daily-table").innerHTML=rows;
+  document.getElementById("sim-daily-insight").innerHTML=
+    "💡 <b>המסקנה:</b> באסטרטגיה הזו <b>יעד רווח יומי פוגע</b> — הוא קוטע את הימים הגדולים שנושאים את כל הרווח (יעד +$175 ליום חותך מ-"+fmtUSDplain(baseline*mult)+" ל-"+fmtUSDplain(sim(175,0)*mult)+"). <b>עצירת הפסד</b> רחבה (~$600) משפרת בשוליים בלבד. השורה התחתונה: <b>עדיף לקחת את כל העסקאות</b> ולתת לימים המנצחים לרוץ. (ניתוח in-sample על העבר — לא הבטחה לעתיד.)";
+}
+
+function renderKPIs(closed) {
+  const n = closed.length;
+  const wins = closed.filter(t => t.dollars > 0);
+  const losses = closed.filter(t => t.dollars < 0);
+  const breakeven = closed.filter(t => t.dollars === 0);
+  const grossWin = wins.reduce((s, t) => s + t.dollars, 0);
+  const grossLoss = Math.abs(losses.reduce((s, t) => s + t.dollars, 0));
+  const net = grossWin - grossLoss;
+  const winRate = n > 0 ? (wins.length / n) * 100 : 0;
+  const profitFactor = grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? Infinity : 0);
+  const expectancy = n > 0 ? net / n : 0;
+
+  // Max drawdown
+  let peak = 0, balance = 0, mdd = 0;
+  const sorted = closed.slice().sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  for (const t of sorted) {
+    balance += t.dollars;
+    if (balance > peak) peak = balance;
+    const dd = peak - balance;
+    if (dd > mdd) mdd = dd;
+  }
+
+  document.getElementById("kpi-trades-val").textContent = fmtInt(n);
+  document.getElementById("kpi-trades-sub").textContent = `${wins.length} ✓ · ${losses.length} ✗ · ${breakeven.length} =`;
+
+  document.getElementById("kpi-winrate-val").textContent = fmtPct(winRate, 1);
+  document.getElementById("kpi-winrate-sub").textContent = `${wins.length}/${n} עסקאות`;
+  document.getElementById("kpi-winrate").className = "kpi " + (winRate >= 50 ? "green" : winRate >= 40 ? "yel" : "red");
+
+  const pfDisplay = isFinite(profitFactor) ? profitFactor.toFixed(2) : "∞";
+  document.getElementById("kpi-profit-factor-val").textContent = pfDisplay;
+  document.getElementById("kpi-profit-factor").className = "kpi " + (profitFactor >= 1.5 ? "green" : profitFactor >= 1 ? "yel" : "red");
+
+  document.getElementById("kpi-expectancy-val").textContent = fmtUSD(expectancy);
+  document.getElementById("kpi-expectancy").className = "kpi " + (expectancy > 0 ? "green" : "red");
+
+  document.getElementById("kpi-netpnl-val").textContent = fmtUSD(net);
+  document.getElementById("kpi-netpnl-sub").textContent = `רווחים ${fmtUSDplain(grossWin)} · הפסדים ${fmtUSDplain(grossLoss)}`;
+  document.getElementById("kpi-netpnl").className = "kpi " + (net > 0 ? "green" : "red");
+
+  document.getElementById("kpi-mdd-val").textContent = "-" + fmtUSDplain(mdd);
+  document.getElementById("kpi-mdd-sub").textContent = "מהשיא ל-low";
+}
+
+function renderEquityCurve(closed) {
+  destroyChart("equity");
+  const sorted = closed.slice().sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  let balance = 0;
+  const points = sorted.map(t => {
+    balance += t.dollars;
+    return { x: new Date(t.time), y: balance };
+  });
+
+  CHARTS.equity = new Chart(document.getElementById("chart-equity"), {
+    type: "line",
+    data: {
+      labels: points.map(p => p.x.toLocaleString("he-IL", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })),
+      datasets: [{
+        label: "Balance ($)",
+        data: points.map(p => p.y),
+        borderColor: "#16a34a",
+        backgroundColor: "rgba(22, 163, 74, 0.1)",
+        borderWidth: 2,
+        fill: true,
+        tension: 0.2,
+        pointRadius: 3,
+        pointHoverRadius: 5
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => "$" + c.parsed.y.toFixed(2) } } },
+      scales: { y: { ticks: { callback: v => "$" + v } } }
+    }
+  });
+
+  const finalBalance = balance;
+  const peak = Math.max(...points.map(p => p.y), 0);
+  const lowest = Math.min(...points.map(p => p.y), 0);
+  document.getElementById("ins-equity").innerHTML =
+    `<strong>סיכום:</strong> Balance סופי ${fmtUSD(finalBalance)} · שיא ${fmtUSD(peak)} · low ${fmtUSD(lowest)}. ` +
+    (finalBalance > 0 ? "<strong>האסטרטגיה רווחית</strong> בטווח הנוכחי." : "האסטרטגיה הפסידה בטווח הנוכחי — צריך לבחון את הסיבות.");
+}
+
+function renderDrawdown(closed) {
+  destroyChart("drawdown");
+  const sorted = closed.slice().sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  let peak = 0, balance = 0;
+  const points = sorted.map(t => {
+    balance += t.dollars;
+    if (balance > peak) peak = balance;
+    return { x: new Date(t.time), y: -(peak - balance) };
+  });
+
+  let mdd = 0;
+  points.forEach(p => { if (p.y < mdd) mdd = p.y; });
+
+  CHARTS.drawdown = new Chart(document.getElementById("chart-drawdown"), {
+    type: "line",
+    data: {
+      labels: points.map(p => p.x.toLocaleString("he-IL", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })),
+      datasets: [{
+        label: "Drawdown ($)",
+        data: points.map(p => p.y),
+        borderColor: "#dc2626",
+        backgroundColor: "rgba(220, 38, 38, 0.15)",
+        borderWidth: 2,
+        fill: true,
+        tension: 0.2,
+        pointRadius: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => "$" + c.parsed.y.toFixed(2) } } },
+      scales: { y: { ticks: { callback: v => "$" + v } } }
+    }
+  });
+
+  document.getElementById("ins-drawdown").innerHTML =
+    `<strong>Max Drawdown:</strong> ${fmtUSD(mdd)}. ` +
+    `זה אומר שמהשיא המקסימלי שלך, ה-balance ירד בכך בשלב מסוים. עבור פרופ פירם — צריך לוודא שזה לא חורג מ-trailing drawdown של החשבון.`;
+}
+
+function renderHourOfDay(closed) {
+  destroyChart("hod");
+  // Compute net P&L per hour of day (LA timezone)
+  const byHour = {};
+  for (let i = 0; i < 24; i++) byHour[i] = { count: 0, wins: 0, losses: 0, net: 0 };
+
+  for (const t of closed) {
+    const d = new Date(t.entry_time || t.time);
+    // Convert to LA — quick approximation: use toLocaleString
+    const laHourStr = d.toLocaleString("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", hour12: false });
+    const hour = parseInt(laHourStr, 10);
+    if (isNaN(hour)) continue;
+    byHour[hour].count++;
+    byHour[hour].net += t.dollars;
+    if (t.dollars > 0) byHour[hour].wins++;
+    else if (t.dollars < 0) byHour[hour].losses++;
+  }
+
+  const labels = Object.keys(byHour);
+  const data = labels.map(h => byHour[h].net);
+  const colors = data.map(v => v >= 0 ? "rgba(22,163,74,0.7)" : "rgba(220,38,38,0.7)");
+
+  CHARTS.hod = new Chart(document.getElementById("chart-hod"), {
+    type: "bar",
+    data: {
+      labels: labels.map(h => h + ":00"),
+      datasets: [{
+        label: "Net P&L by hour (LA)",
+        data: data,
+        backgroundColor: colors,
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: c => "Net: $" + c.parsed.y.toFixed(2),
+          afterLabel: c => {
+            const h = parseInt(c.label, 10);
+            const r = byHour[h];
+            return `${r.count} עסקאות · ${r.wins} ✓ · ${r.losses} ✗`;
+          }
+        } }
+      },
+      scales: { y: { ticks: { callback: v => "$" + v } } }
+    }
+  });
+
+  // Find best/worst hours
+  const hoursWithTrades = Object.entries(byHour).filter(([,r]) => r.count > 0);
+  hoursWithTrades.sort(([,a], [,b]) => b.net - a.net);
+  const bestHour = hoursWithTrades[0];
+  const worstHour = hoursWithTrades[hoursWithTrades.length - 1];
+
+  if (bestHour && worstHour && bestHour[0] !== worstHour[0]) {
+    document.getElementById("ins-hod").innerHTML =
+      `<strong>שעה רווחית:</strong> ${bestHour[0]}:00 LA (${fmtUSD(bestHour[1].net)} מ-${bestHour[1].count} עסקאות) · ` +
+      `<strong>שעה הפסדית:</strong> ${worstHour[0]}:00 LA (${fmtUSD(worstHour[1].net)} מ-${worstHour[1].count} עסקאות).`;
+  } else {
+    document.getElementById("ins-hod").innerHTML = `אין עדיין מספיק עסקאות לפיצול לפי שעה.`;
+  }
+}
+
+function renderDayOfWeek(closed) {
+  destroyChart("dow");
+  const dayNames = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+  const byDay = {};
+  for (let i = 0; i < 7; i++) byDay[i] = { count: 0, net: 0, wins: 0, losses: 0 };
+
+  // 🛑 2026-05-28 — Use Israel timezone for day-of-week attribution (one trading
+  // session = one IL day; see calendar comment). The browser locale (LA) would
+  // misattribute late-night trades to the wrong day.
+  for (const t of closed) {
+    const ts = t.entry_time || t.time;
+    // Get day-of-week in IL by extracting the date string, then parsing it as IL midnight
+    const ymd = ilYMD(ts); // "YYYY-MM-DD" in IL
+    // Compute day-of-week from YMD: treat as UTC midnight (timezone-neutral for day-of-week purposes)
+    const dt = new Date(ymd + "T12:00:00Z"); // noon to avoid TZ edge
+    const day = dt.getUTCDay();
+    byDay[day].count++;
+    byDay[day].net += t.dollars;
+    if (t.dollars > 0) byDay[day].wins++;
+    else if (t.dollars < 0) byDay[day].losses++;
+  }
+
+  const labels = dayNames;
+  const data = Object.values(byDay).map(r => r.net);
+  const colors = data.map(v => v >= 0 ? "rgba(22,163,74,0.7)" : "rgba(220,38,38,0.7)");
+
+  CHARTS.dow = new Chart(document.getElementById("chart-dow"), {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Net P&L",
+        data: data,
+        backgroundColor: colors,
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: c => "Net: $" + c.parsed.y.toFixed(2),
+          afterLabel: c => {
+            const day = labels.indexOf(c.label);
+            const r = byDay[day];
+            return `${r.count} עסקאות · ${r.wins} ✓ · ${r.losses} ✗`;
+          }
+        } }
+      },
+      scales: { y: { ticks: { callback: v => "$" + v } } }
+    }
+  });
+
+  const withTrades = Object.entries(byDay).filter(([,r]) => r.count > 0);
+  withTrades.sort(([,a], [,b]) => b.net - a.net);
+  if (withTrades.length > 0) {
+    const best = withTrades[0];
+    document.getElementById("ins-dow").innerHTML =
+      `<strong>היום הכי רווחי:</strong> ${dayNames[best[0]]} (${fmtUSD(best[1].net)} מ-${best[1].count} עסקאות).`;
+  }
+}
+
+function renderDistribution(closed) {
+  destroyChart("distribution");
+  // Bucket trades by tick result
+  const bucketSize = 100;
+  const buckets = {};
+  for (const t of closed) {
+    const b = Math.floor(t.ticks / bucketSize) * bucketSize;
+    buckets[b] = (buckets[b] || 0) + 1;
+  }
+  const sorted = Object.keys(buckets).map(Number).sort((a, b) => a - b);
+  const labels = sorted.map(b => `${b} עד ${b + bucketSize}`);
+  const data = sorted.map(b => buckets[b]);
+  const colors = sorted.map(b => b >= 0 ? "rgba(22,163,74,0.7)" : "rgba(220,38,38,0.7)");
+
+  CHARTS.distribution = new Chart(document.getElementById("chart-distribution"), {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "מספר עסקאות",
+        data: data,
+        backgroundColor: colors,
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { ticks: { precision: 0 } } }
+    }
+  });
+
+  const ticks = closed.map(t => t.ticks);
+  const avgTicks = ticks.reduce((s, t) => s + t, 0) / ticks.length;
+  const medianTicks = ticks.slice().sort((a,b) => a-b)[Math.floor(ticks.length / 2)];
+  document.getElementById("ins-distribution").innerHTML =
+    `<strong>טיקים ממוצעים לעסקה:</strong> ${avgTicks.toFixed(1)} · <strong>חציון:</strong> ${medianTicks}.`;
+}
+
+function renderStreaks(closed) {
+  const sorted = closed.slice().sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  let curWin = 0, curLoss = 0;
+  let maxWin = 0, maxLoss = 0;
+  for (const t of sorted) {
+    if (t.dollars > 0) {
+      curWin++; curLoss = 0;
+      if (curWin > maxWin) maxWin = curWin;
+    } else if (t.dollars < 0) {
+      curLoss++; curWin = 0;
+      if (curLoss > maxLoss) maxLoss = curLoss;
+    } else { curWin = 0; curLoss = 0; }
+  }
+
+  // Current streak — based on last trade
+  const lastTrade = sorted[sorted.length - 1];
+  let curStreak = "—";
+  if (lastTrade) {
+    if (curWin > 0) curStreak = `🔥 ${curWin} ניצחונות ברצף`;
+    else if (curLoss > 0) curStreak = `❄️ ${curLoss} הפסדים ברצף`;
+  }
+
+  document.getElementById("streaks-table").innerHTML = `
+    <tr><th>מה</th><th>ערך</th></tr>
+    <tr><td>🔥 רצף ניצחונות הכי ארוך</td><td class="num pos">${maxWin}</td></tr>
+    <tr><td>❄️ רצף הפסדים הכי ארוך</td><td class="num neg">${maxLoss}</td></tr>
+    <tr><td>📍 רצף נוכחי</td><td>${curStreak}</td></tr>
+  `;
+  document.getElementById("ins-streaks").innerHTML =
+    `אם רצף ההפסדים הכי גדול שלך הוא ${maxLoss}, את צריכה להחזיק ${maxLoss + 2} עסקאות בערך עתודה ב-Apex PA לפני שאת מסתבכת.`;
+}
+
+function renderDangerAnalysis(closed) {
+  const safe = closed.filter(t => !t.danger);
+  const dangerous = closed.filter(t => t.danger);
+  function stats(arr) {
+    if (!arr.length) return { count: 0, winRate: 0, net: 0, expectancy: 0 };
+    const wins = arr.filter(t => t.dollars > 0).length;
+    const net = arr.reduce((s, t) => s + t.dollars, 0);
+    return { count: arr.length, winRate: wins / arr.length * 100, net, expectancy: net / arr.length };
+  }
+  const s = stats(safe), d = stats(dangerous);
+
+  document.getElementById("danger-table").innerHTML = `
+    <tr><th>קטגוריה</th><th>עסקאות</th><th>Win Rate</th><th>Net P&L</th><th>Exp / עסקה</th></tr>
+    <tr><td>🟢 רגיל (danger=0)</td><td class="num">${s.count}</td><td class="num">${fmtPct(s.winRate)}</td><td class="num ${s.net>=0?'pos':'neg'}">${fmtUSD(s.net)}</td><td class="num ${s.expectancy>=0?'pos':'neg'}">${fmtUSD(s.expectancy)}</td></tr>
+    <tr><td>⚠️ מסוכן (danger=1)</td><td class="num">${d.count}</td><td class="num">${fmtPct(d.winRate)}</td><td class="num ${d.net>=0?'pos':'neg'}">${fmtUSD(d.net)}</td><td class="num ${d.expectancy>=0?'pos':'neg'}">${fmtUSD(d.expectancy)}</td></tr>
+  `;
+
+  if (d.count === 0) {
+    document.getElementById("ins-danger").className = "insight";
+    document.getElementById("ins-danger").innerHTML = "אין עדיין עסקאות בשעות המסוכנות (danger=1) — או שהסינון פעיל ומבטל אותן.";
+  } else if (d.expectancy < s.expectancy) {
+    document.getElementById("ins-danger").className = "insight green";
+    document.getElementById("ins-danger").innerHTML = `<strong>הסינון יעיל:</strong> השעות הרגילות מרוויחות ${fmtUSD(s.expectancy)} לעסקה בממוצע, השעות המסוכנות רק ${fmtUSD(d.expectancy)}. <strong>שווה לסמן סינון</strong> אם עדיין לא עשית.`;
+  } else {
+    document.getElementById("ins-danger").className = "insight yel";
+    document.getElementById("ins-danger").innerHTML = `<strong>הסינון לא יעיל:</strong> בפועל השעות "המסוכנות" (${fmtUSD(d.expectancy)} / עסקה) דווקא יותר טובות מהרגילות (${fmtUSD(s.expectancy)} / עסקה). שווה לחשוב לבטל את הסינון.`;
+  }
+}
+
+function renderDirection(closed) {
+  const longs = closed.filter(t => t.direction === "long");
+  const shorts = closed.filter(t => t.direction === "short");
+  function stats(arr) {
+    if (!arr.length) return { count: 0, winRate: 0, net: 0, expectancy: 0 };
+    const wins = arr.filter(t => t.dollars > 0).length;
+    const net = arr.reduce((s, t) => s + t.dollars, 0);
+    return { count: arr.length, winRate: wins / arr.length * 100, net, expectancy: net / arr.length };
+  }
+  const l = stats(longs), s = stats(shorts);
+
+  document.getElementById("direction-table").innerHTML = `
+    <tr><th>כיוון</th><th>עסקאות</th><th>Win Rate</th><th>Net P&L</th><th>Exp / עסקה</th></tr>
+    <tr><td>🔼 LONG</td><td class="num">${l.count}</td><td class="num">${fmtPct(l.winRate)}</td><td class="num ${l.net>=0?'pos':'neg'}">${fmtUSD(l.net)}</td><td class="num ${l.expectancy>=0?'pos':'neg'}">${fmtUSD(l.expectancy)}</td></tr>
+    <tr><td>🔽 SHORT</td><td class="num">${s.count}</td><td class="num">${fmtPct(s.winRate)}</td><td class="num ${s.net>=0?'pos':'neg'}">${fmtUSD(s.net)}</td><td class="num ${s.expectancy>=0?'pos':'neg'}">${fmtUSD(s.expectancy)}</td></tr>
+  `;
+
+  if (l.count && s.count) {
+    if (Math.abs(l.expectancy - s.expectancy) < 5) {
+      document.getElementById("ins-direction").innerHTML = `<strong>איזון יפה:</strong> LONG ו-SHORT מבצעים דומה. האסטרטגיה לא מוטה לכיוון מסוים.`;
+    } else if (l.expectancy > s.expectancy) {
+      document.getElementById("ins-direction").className = "insight yel";
+      document.getElementById("ins-direction").innerHTML = `<strong>LONG טוב יותר:</strong> כיוון לונג מרוויח ${fmtUSD(l.expectancy)} לעסקה לעומת ${fmtUSD(s.expectancy)} ב-SHORT. אולי שווה לסנן SHORTs?`;
+    } else {
+      document.getElementById("ins-direction").className = "insight yel";
+      document.getElementById("ins-direction").innerHTML = `<strong>SHORT טוב יותר:</strong> כיוון שורט מרוויח ${fmtUSD(s.expectancy)} לעסקה לעומת ${fmtUSD(l.expectancy)} ב-LONG. אולי שווה לסנן LONGs?`;
+    }
+  }
+}
+
+function renderExitsBreakdown(closed) {
+  const types = { TP: 0, SL: 0, SWAP: 0, EXIT: 0 };
+  const dollars = { TP: 0, SL: 0, SWAP: 0, EXIT: 0 };
+  for (const t of closed) {
+    types[t.exit_type] = (types[t.exit_type] || 0) + 1;
+    dollars[t.exit_type] = (dollars[t.exit_type] || 0) + t.dollars;
+  }
+
+  const rows = Object.entries(types)
+    .filter(([k, v]) => v > 0)
+    .map(([k, v]) => {
+      const total = closed.length;
+      const pct = (v / total * 100).toFixed(1);
+      const d = dollars[k];
+      const avg = v > 0 ? d / v : 0;
+      const emoji = k === "TP" ? "🎯" : k === "SL" ? "🛑" : k === "SWAP" ? "🔄" : k === "WIN" ? "🟢" : k === "LOSS" ? "🔴" : "❓";
+      return `<tr><td>${emoji} ${k}</td><td class="num">${v}</td><td class="num muted">${pct}%</td><td class="num ${d>=0?'pos':'neg'}">${fmtUSD(d)}</td><td class="num ${avg>=0?'pos':'neg'}">${fmtUSD(avg)}</td></tr>`;
+    })
+    .join("");
+
+  document.getElementById("exits-table").innerHTML = `
+    <tr><th>סוג</th><th>מספר</th><th>%</th><th>Net P&L</th><th>ממוצע / עסקה</th></tr>
+    ${rows}
+  `;
+
+  const tpCount = types.TP || 0;
+  const slCount = types.SL || 0;
+  const swapCount = types.SWAP || 0;
+  const winC = types.WIN || 0, lossC = types.LOSS || 0;
+  if (winC || lossC) {
+    document.getElementById("ins-exits").className = "insight";
+    document.getElementById("ins-exits").innerHTML = `<strong>חשבון אמיתי:</strong> ${winC} עסקאות מנצחות מול ${lossC} מפסידות. (לברוקר אין פירוט TP/SL — רק רווח/הפסד לכל עסקה.)`;
+  } else if (tpCount > slCount * 1.2) {
+    document.getElementById("ins-exits").className = "insight green";
+    document.getElementById("ins-exits").innerHTML = `<strong>יחס חיובי:</strong> ${tpCount} TPs מול ${slCount} SLs — האסטרטגיה תופסת רווחים יותר מההפסדים שלה.`;
+  } else if (slCount > tpCount * 1.2) {
+    document.getElementById("ins-exits").className = "insight red";
+    document.getElementById("ins-exits").innerHTML = `<strong>יחס שלילי:</strong> ${slCount} SLs מול ${tpCount} TPs. צריך לבחון אם ה-SL רחב מדי או ה-TP צמוד מדי.`;
+  } else {
+    document.getElementById("ins-exits").className = "insight yel";
+    document.getElementById("ins-exits").innerHTML = `יחס TP/SL מאוזן. אם רוב הרווח מה-SWAPs (${swapCount}), זה אומר שה-VWAP מזהה היפוכים טוב יותר מ-TP פרוטוקולי.`;
+  }
+}
+
+// ============== P&L Calendar (per-day net + peak + trough) ==============
+function getAllTradesForCalendar() {
+  // Combine live (journal) and backtest trades into one list. The calendar shows BOTH —
+  // strategy_started_at filter is intentionally NOT applied so Lauren can see historic
+  // calendar even after she sets a strategy reset. Backtest cells are marked separately.
+  const out = [];
+
+  // Live closed trades — use computeClosedTrades but bypass the start-date filter
+  // by temporarily nulling STATE.config.strategy_started_at
+  const savedStartAt = STATE.config && STATE.config.strategy_started_at;
+  if (STATE.config) STATE.config.strategy_started_at = null;
+  const live = computeClosedTrades();
+  if (STATE.config) STATE.config.strategy_started_at = savedStartAt;
+
+  for (const t of live) {
+    if (!t.dollars && t.dollars !== 0) continue;
+    out.push({
+      time: new Date(t.time).getTime(),
+      dollars: t.dollars,
+      source: "live",
+    });
+  }
+
+  // Backtest trades — but NOT in "real account" mode (the calendar must show ONLY the
+  // real broker trades there; mixing in the indicator backtest double-counts the day).
+  if (SELECTED_STRATEGY !== "real" && STATE.backtest && Array.isArray(STATE.backtest.trades)) {
+    for (const t of STATE.backtest.trades) {
+      out.push({
+        time: new Date(t._received_at).getTime(),
+        dollars: t.result_dollars,
+        source: "backtest",
+      });
+    }
+  }
+
+  return out.sort((a, b) => a.time - b.time);
+}
+
+function ilYMD(timestamp) {
+  // 🛑 2026-05-28 — Get year-month-day in ISRAEL timezone — returns "YYYY-MM-DD".
+  // Lauren explicitly requested IL because the trading day (CME futures) maps cleanly
+  // to a single IL date (~01:00 to ~23:00 IL = one date), whereas LA splits the same
+  // session across two calendar dates (15:00 to next-day 14:00). One trading session
+  // = one IL day = one calendar cell. Way less confusing.
+  const d = new Date(timestamp);
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric", month: "2-digit", day: "2-digit"
+  });
+  return fmt.format(d);
+}
+
+function calNav(delta) {
+  CALENDAR_STATE.viewMonth += delta;
+  if (CALENDAR_STATE.viewMonth < 0) { CALENDAR_STATE.viewMonth = 11; CALENDAR_STATE.viewYear--; }
+  if (CALENDAR_STATE.viewMonth > 11) { CALENDAR_STATE.viewMonth = 0; CALENDAR_STATE.viewYear++; }
+  renderCalendar();
+}
+
+function calToday() {
+  const now = new Date();
+  CALENDAR_STATE.viewYear = now.getFullYear();
+  CALENDAR_STATE.viewMonth = now.getMonth();
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const all = getAllTradesForCalendar();
+  if (!all.length) {
+    document.getElementById("sec-calendar").style.display = "none";
+    return;
+  }
+  document.getElementById("sec-calendar").style.display = "block";
+
+  // Default month: month containing the latest trade
+  if (CALENDAR_STATE.viewYear == null) {
+    const last = new Date(all[all.length - 1].time);
+    CALENDAR_STATE.viewYear = last.getFullYear();
+    CALENDAR_STATE.viewMonth = last.getMonth();
+  }
+
+  // Group trades by LA day
+  const byDay = {}; // key: "YYYY-MM-DD" → { net, peak, trough, count, sources, trades[] }
+  for (const t of all) {
+    const k = ilYMD(t.time);
+    if (!byDay[k]) byDay[k] = { net: 0, peak: 0, trough: 0, count: 0, sources: new Set(), trades: [] };
+    byDay[k].trades.push(t);
+  }
+
+  // For each day, walk trades chronologically and track running cumulative for peak/trough
+  Object.keys(byDay).forEach(k => {
+    const d = byDay[k];
+    d.trades.sort((a, b) => a.time - b.time);
+    let running = 0, peak = 0, trough = 0;
+    for (const t of d.trades) {
+      running += t.dollars;
+      if (running > peak) peak = running;
+      if (running < trough) trough = running;
+      d.sources.add(t.source);
+    }
+    d.net = running;
+    d.peak = peak;
+    d.trough = trough;
+    d.count = d.trades.length;
+  });
+
+  // Compute month label
+  const monthNames = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+  document.getElementById("cal-month-label").textContent = monthNames[CALENDAR_STATE.viewMonth] + " " + CALENDAR_STATE.viewYear;
+
+  // Build grid
+  const firstDay = new Date(CALENDAR_STATE.viewYear, CALENDAR_STATE.viewMonth, 1);
+  const lastDay = new Date(CALENDAR_STATE.viewYear, CALENDAR_STATE.viewMonth + 1, 0);
+  const startDow = firstDay.getDay(); // 0=Sunday
+  const daysInMonth = lastDay.getDate();
+
+  const dayHeaders = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+  let html = "";
+  for (const h of dayHeaders) html += `<div class="cal-day-header">${h}</div>`;
+
+  // Padding for days before the 1st
+  for (let i = 0; i < startDow; i++) html += `<div class="cal-cell outside"></div>`;
+
+  const todayYMD = ilYMD(Date.now());
+  let monthNet = 0, monthDays = 0, monthBest = -Infinity, monthWorst = Infinity, monthPeak = 0, monthTrough = 0;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateObj = new Date(CALENDAR_STATE.viewYear, CALENDAR_STATE.viewMonth, day);
+    const ymd = ilYMD(dateObj.getTime());
+    const data = byDay[ymd];
+    const isToday = (ymd === todayYMD);
+
+    let cls = "cal-cell";
+    let badge = "";
+    let body = "";
+    if (isToday) cls += " today";
+
+    if (data) {
+      cls += " has-data";
+      monthNet += data.net;
+      monthDays++;
+      if (data.net > monthBest) monthBest = data.net;
+      if (data.net < monthWorst) monthWorst = data.net;
+      if (data.peak > monthPeak) monthPeak = data.peak;
+      if (data.trough < monthTrough) monthTrough = data.trough;
+
+      const onlyBt = data.sources.size === 1 && data.sources.has("backtest");
+      if (onlyBt) badge = `<span class="bt-badge">BT</span>`;
+
+      // Color classes by magnitude
+      const absN = Math.abs(data.net);
+      if (data.net > 100) cls += " win-big";
+      else if (data.net > 0) cls += " win";
+      else if (data.net < -100) cls += " loss-big";
+      else if (data.net < 0) cls += " loss";
+
+      const sign = data.net >= 0 ? "+" : "-";
+      const peakStr = data.peak !== 0 ? "+" + Math.round(data.peak) : "—";
+      const trStr = data.trough !== 0 ? Math.round(data.trough) : "—";
+      const pnlStr = sign + "$" + Math.abs(Math.round(data.net));
+      const srcLbl = onlyBt ? "BT" : "live";
+      var stratLine = "";
+      if (SELECTED_STRATEGY === "real") {
+        var bs = {}; data.trades.forEach(function(t){ if(t.strategy){ bs[t.strategy]=(bs[t.strategy]||0)+t.dollars; } });
+        var scomp = function(v){ return (v>=0?"+":"-")+"$"+Math.abs(Math.round(v)); };
+        var pp = [];
+        if (bs.base!=null) pp.push('<span style="color:#2563eb">🟦'+scomp(bs.base)+'</span>');
+        if (bs.partial!=null) pp.push('<span style="color:#7c3aed">✂️'+scomp(bs.partial)+'</span>');
+        if (bs.momentum!=null) pp.push('<span style="color:#ea580c">🚀'+scomp(bs.momentum)+'</span>');
+        if (pp.length) stratLine = '<div class="cal-strat">'+pp.join(" ")+'</div>';
+      }
+      body = `<div class="cal-count">${data.count} עסקאות · ${srcLbl}</div><div class="peak-trough"><span class="pk">שיא ↑${peakStr}</span><span class="tr">שפל ↓${trStr}</span></div><div class="pnl">${pnlStr}</div>${stratLine}`;
+      html += `<div class="${cls}">${badge}<div class="day-num">${day}</div>${body}</div>`;
+    } else {
+      html += `<div class="${cls}"><div class="day-num">${day}</div></div>`;
+    }
+  }
+
+  document.getElementById("cal-grid").innerHTML = html;
+
+  // Month summary
+  let summary = `<span>📊 <strong>${monthDays}</strong> ימי מסחר</span>`;
+  if (monthDays > 0) {
+    const netCls = monthNet >= 0 ? "pos" : "neg";
+    summary += `<span>💰 Net: <strong class="${netCls}" style="color:${monthNet>=0?"#15803d":"#b91c1c"}">${fmtUSD(monthNet)}</strong></span>`;
+    if (isFinite(monthBest)) summary += `<span>🏆 יום הכי טוב: <strong style="color:#15803d">${fmtUSD(monthBest)}</strong></span>`;
+    if (isFinite(monthWorst)) summary += `<span>📉 יום הכי גרוע: <strong style="color:#b91c1c">${fmtUSD(monthWorst)}</strong></span>`;
+    if (monthPeak !== 0) summary += `<span>⬆ שיא חודשי: <strong style="color:#15803d">${fmtUSD(monthPeak)}</strong></span>`;
+    if (monthTrough !== 0) summary += `<span>⬇ שפל חודשי: <strong style="color:#b91c1c">${fmtUSD(monthTrough)}</strong></span>`;
+  } else {
+    summary += `<span style="color:var(--txt4)">אין עסקאות בחודש זה</span>`;
+  }
+  document.getElementById("cal-summary").innerHTML = summary;
+}
+
+loadData();
+</script>
+</body>
+</html>
