@@ -66,6 +66,7 @@
 
 <h2>🔥 מפת חום — רווח לפי שעה (ישראל · ליד: LA)</h2>
 <div class="heat" id="heat"></div>
+<div id="hourtrades" style="margin-top:10px"></div>
 
 <h2>⚙️ בריאות ביצוע</h2>
 <div class="row" id="kpi-exec"></div>
@@ -158,7 +159,7 @@ async function main(){
   let hh='';for(let h=0;h<24;h++){const la=(h-10+24)%24;const v=byH[h];
     if(v===undefined){hh+=`<div class="c" style="opacity:.3"><div>IL ${h}</div><div style="font-size:9px">LA ${la}</div></div>`;continue;}
     const a=(Math.abs(v)/amx*.7+.15).toFixed(2);const col=v>=0?`rgba(46,204,113,${a})`:`rgba(231,76,60,${a})`;
-    hh+=`<div class="c" style="background:${col}"><div>IL ${h}:00</div><div style="font-size:9px;opacity:.85">LA ${la}:00</div><div style="font-weight:700">${fmt(v,0)}</div></div>`;}
+    hh+=`<div class="c" onclick="selectHour(${h})" style="cursor:pointer;background:${col}"><div>IL ${h}:00</div><div style="font-size:9px;opacity:.85">LA ${la}:00</div><div style="font-weight:700">${fmt(v,0)}</div></div>`;}
   $('#heat').innerHTML=hh+'<div class="note" style="width:100%">שעה ראשית = שעון ישראל · ליד = שעון LA · ירוק רווחי / אדום מפסיד</div>';
 
   // THEORETICAL + gap
@@ -235,6 +236,16 @@ function renderDay(key){
     dcard('נקודה נמוכה (מינוס שיא)',fmt(trough),trough>=0?'g':'r',tm(troughT))+
     dcard('Max Drawdown',fmt(-maxdd),'r',tm(ddT))+
     '</div>';
+}
+function selectHour(h){
+  const rows=ALL.filter(t=>ilHour(t.la)===h).sort((a,b)=>(a.iso||'').localeCompare(b.iso||''));
+  const la=(h-10+24)%24, tot=rows.reduce((a,t)=>a+t.net,0);
+  if(!rows.length){$('#hourtrades').innerHTML=`<div class="empty">אין עסקאות בשעה IL ${h}:00.</div>`;return;}
+  let html=`<div class="note" dir="ltr" style="margin-bottom:6px;text-align:right">🕐 IL ${h}:00 · LA ${la}:00 — ${rows.length} עסקאות · סה"כ ${fmt(tot)}</div>`;
+  html+='<div class="wrap"><table><thead><tr><th>תאריך IL</th><th>שעה IL</th><th>שעה LA</th><th>כיוון</th><th>חוזים</th><th>נטו $</th></tr></thead><tbody>'+
+    rows.map(t=>{const d=ilDate(t.la);const dk=d?`${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}`:'';
+      return `<tr class="${t.net>=0?'win':'loss'}"><td>${dk}</td><td>${ilHM(t.la)}</td><td>${laHM(t.la)}</td><td>${t.dir==='long'?'LONG':'SHORT'}</td><td>${t.qty}</td><td class="${t.net>=0?'g':'r'}">${fmt(t.net)}</td></tr>`;}).join('')+'</tbody></table></div>';
+  $('#hourtrades').innerHTML=html;
 }
 function runSim(){
   if(!ALL.length){return;}
