@@ -14,6 +14,7 @@ from lauren_sms import send_sms
 
 REPO = Path(__file__).resolve().parent.parent
 COMM = 1.82
+FVG_START = "2026-07-09T21:00:00Z"  # FVG began IL 2026-07-10 00:00; earlier = VWAP
 LAUREN_PHONE = os.environ.get("LAUREN_PHONE", "4243547625")
 
 
@@ -45,7 +46,7 @@ def main():
     legs = led.get("trades", [])
     now = dt.datetime.now(dt.timezone.utc)
     wk = now - dt.timedelta(days=7)
-    weekly = [t for t in legs if pi(t.get("entry_iso", "")) and pi(t["entry_iso"]) >= wk]
+    weekly = [t for t in legs if (t.get("entry_iso","") >= FVG_START) and pi(t.get("entry_iso","")) and pi(t["entry_iso"]) >= wk]
     if not weekly:
         print("no FVG trades this week — skipping SMS"); return
     trades = group(weekly)

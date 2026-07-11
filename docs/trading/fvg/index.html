@@ -86,6 +86,7 @@
 
 <script>
 const COMM=1.82, EXP_QTY=4, DPP=2;
+const FVG_START='2026-07-09T21:00:00Z'; // FVG began IL 2026-07-10 00:00 (=UTC 21:00 prev day); earlier = VWAP
 const $=s=>document.querySelector(s);
 const fmt=(n,d=2)=>(n<0?'-':'')+'$'+Math.abs(n).toFixed(d);
 function parseLA(s){if(!s||s.indexOf(' ')<0)return null;const[d,t]=s.split(' '),[dd,mm,yy]=d.split('/'),[H,M]=t.split(':');return new Date(Date.UTC(+yy,+mm-1,+dd,+H,+M));}
@@ -110,9 +111,10 @@ function groupTrades(legs){
 let ALL=[];
 async function main(){
   let led;try{led=await (await fetch('../broker-ledger.json?_='+Date.now(),{cache:'no-store'})).json();}catch(e){$('#upd').textContent='שגיאה בטעינת נתוני הברוקר';return;}
-  const legs=led.trades||[];
+  const legs=(led.trades||[]).filter(t=>(t.entry_iso||'')>=FVG_START);
   ALL=groupTrades(legs);
   const times=legs.map(t=>new Date(t.exit_iso||t.entry_iso)).filter(d=>!isNaN(d));
+  if(!times.length){$('#upd').textContent='עדיין אין עסקאות FVG (מ-10/07 שעון ישראל)';return;}
   const last=new Date(Math.max.apply(null,times)),cut=new Date(last-24*3600*1000);
   const trades=ALL.filter(t=>new Date(t.iso)>=cut);
   $('#upd').textContent='עודכן '+(led._updated_at||'').slice(0,16).replace('T',' ')+' · '+trades.length+' עסקאות ב-24 שעות · '+ALL.length+' סה"כ';
