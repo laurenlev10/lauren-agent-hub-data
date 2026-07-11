@@ -105,33 +105,77 @@ async function main(){
     card('עמלות',fmt(-comm),'r')
   ].join('');
 
+  // ---- theoretical feed + matching ----
+  let fvg=null; try{fvg=await (await fetch('../fvg-journal.json?_='+Date.now(),{cache:'no-store'})).json();}catch(e){}
+  const DPP=2; // $ per point MNQ
+  const theo=[]; // theoretical entries in window
+  if(fvg&&fvg.events){
+    for(const e of fvg.events){ if((e.event||'')!=='entry')continue;
+      const t=parseLA(e.la); if(!t||t<cut)continue;
+      const dir=Number(e.dir)||1, entry=+e.price, part=+e.partial, main=+e.main, stop=+e.stop, qty=+e.qty||4;
+      const lv=[entry,part,main,stop].every(x=>isFinite(x));
+      // WIN = 3 contracts exit at partial + 1 (runner) at main.  STOP = all 4 exit together at stop.
+      const gWin = lv ? (3*(part-entry)+1*(main-entry))*dir*DPP : null;
+      const gStop= lv ? (4*(stop-entry))*dir*DPP : null;
+      theo.push({la:e.la,dir,entry,qty,
+        winNet: lv?+(gWin-4*COMM).toFixed(2):null,
+        stopNet:lv?+(gStop-4*COMM).toFixed(2):null});
+    }
+  }
+  function tmin(la){const d=parseLA(la);return d?d.getTime():0;}
+  const usedB=new Set(); const matches=[]; // {theo,broker}
+  for(const th of theo){ let best=-1,bd=6*60*1000;
+    for(let i=0;i<trades.length;i++){ if(usedB.has(i))continue;
+      const dd=Math.abs(tmin(trades[i].la)-tmin(th.la)); if(dd<bd){bd=dd;best=i;} }
+    if(best>=0){usedB.add(best);matches.push({th,br:trades[best]});} else matches.push({th,br:null}); }
+  const brokerOnly=trades.filter((t,i)=>!usedB.has(i));
+
   // EXECUTION HEALTH
   const partial=trades.filter(t=>t.qty<EXP_QTY).length;
   const full=trades.length-partial;
   const blk=trades.filter(t=>inBlock(t.la)||inBlock(t.xla)).length;
+  const desync=matches.filter(m=>m.br&&((m.th.dir===1?'long':'short')!==m.br.dir)).length;
+  const haveTheo=theo.length>0;
+  // gap
+  let theoTotal=0, realTotal=net, phantomLoss=0, desyncCost=0, slip=0;
+  for(const m of matches){
+    if(!m.br){ if(m.th.winNet!=null){theoTotal+=m.th.winNet; phantomLoss+= -m.th.winNet;} continue; } // phantom: assume full win
+    const thDir=m.th.dir===1?'long':'short';
+    // outcome inferred from broker: win -> both targets; loss -> all 4 out at stop
+    const thVal = (m.br.net>=0 ? m.th.winNet : m.th.stopNet);
+    if(thVal==null) continue;
+    theoTotal+=thVal;
+    if(thDir!==m.br.dir) desyncCost += (m.br.net - (m.th.winNet!=null?m.th.winNet:thVal)); // wrong side
+    else slip += (m.br.net - thVal);
+  }
+  const gap=+(realTotal-theoTotal).toFixed(2);
   $('#kpi-exec').innerHTML=[
     card('מילוי מלא (4 חוזים)',Math.round(100*full/trades.length)+'%',full/trades.length>=.9?'g':'a'),
-    card('מילוי חלקי',partial+' עסקאות',partial?'r':'g'),
-    card('עסקאות בחלון חסימה',blk,blk?'a':'g'),
-    card('היפוך כיוון','—','b'),
-    card('פער מול אינדיקטור','—','b')
+    card('מילוי חלקי',partial,partial?'r':'g'),
+    card('בחלון חסימה',blk,blk?'a':'g'),
+    card('היפוך כיוון',haveTheo?desync:'—',desync?'r':(haveTheo?'g':'b')),
+    card('פער מול אינדיקטור',haveTheo?fmt(gap):'—',gap<0?'r':'g')
   ].join('');
 
-  // GAP (theoretical feed)
-  let fvg=null; try{fvg=await (await fetch('../fvg-journal.json?_='+Date.now(),{cache:'no-store'})).json();}catch(e){}
-  if(!fvg||!(fvg.events&&fvg.events.length)){
-    $('#gap-block').innerHTML='<div class="empty">ממתין להזנת היומן התיאורטי מהאינדיקטור. ברגע שההתראה בטריידינג-ויו פעילה — כאן יופיע הפער הכולל (גרף מול ברוקר) ופירוקו לפי סיבה: החלקה · מילוי חלקי · עסקאות רפאים · היפוך כיוון · חסימה.</div>';
+  // GAP block
+  if(!haveTheo){
+    $('#gap-block').innerHTML='<div class="empty">ממתין להזנת התראות הכניסה מהאינדיקטור. ברגע שיזרמו — כאן יופיע הפער הכולל ופירוקו: עסקאות רפאים · היפוך כיוון · החלקה/מילוי חלקי.</div>';
+  } else {
+    $('#gap-block').innerHTML=
+      '<div class="row">'+
+        card('אינדיקטור (תיאורטי)',fmt(theoTotal),theoTotal>=0?'g':'r')+
+        card('ברוקר (אמיתי)',fmt(realTotal),realTotal>=0?'g':'r')+
+        card('פער כולל',fmt(gap),gap<0?'r':'g')+
+      '</div>'+
+      '<table><thead><tr><th>מקור הפער</th><th>סכום</th></tr></thead><tbody>'+
+      `<tr><td>עסקאות רפאים (כניסה ללא ברוקר)</td><td class="r">${fmt(phantomLoss)}</td></tr>`+
+      `<tr><td>היפוך כיוון</td><td class="r">${fmt(desyncCost)}</td></tr>`+
+      `<tr><td>החלקה + מילוי חלקי</td><td class="${slip<0?'r':'g'}">${fmt(slip)}</td></tr>`+
+      '</tbody></table>'+
+      '<div class="note">P/L תיאורטי משוחזר מהיעדים בכניסה (3×פרשיאל + 1×ראשי), התוצאה (ניצחון/סטופ) נגזרת מהברוקר. רפאים מונחים כמנצחת מלאה.</div>';
   }
 
   // BLOCK MONITOR
-  const bt=trades.filter(t=>inBlock(t.la)||inBlock(t.xla)||t.qty<EXP_QTY);
-  if(!bt.length){$('#block-mon').innerHTML='<div class="empty">אין דגלים סביב חלון החסימה ב-24 השעות האחרונות. ✓</div>';}
-  else{
-    $('#block-mon').innerHTML='<table><thead><tr><th>שעה LA</th><th>שעה IL</th><th>כיוון</th><th>חוזים</th><th>נטו $</th><th>דגל</th></tr></thead><tbody>'+
-      bt.map(t=>{const flags=[];if(inBlock(t.la)||inBlock(t.xla))flags.push('חלון חסימה');if(t.qty<EXP_QTY)flags.push('מילוי חלקי ('+t.qty+'/4)');
-        return `<tr class="flag"><td>${laHM(t.la)}</td><td>${ilHM(t.la)}</td><td>${t.dir==='long'?'LONG':'SHORT'}</td><td>${t.qty}</td><td class="${t.net>=0?'g':'r'}">${fmt(t.net)}</td><td><span class="pill warn">${flags.join(' · ')}</span></td></tr>`;}).join('')+'</tbody></table>';
-  }
-
   // ALL TRADES
   $('#trades').querySelector('tbody').innerHTML=trades.map((t,i)=>{
     const flag=(inBlock(t.la)||inBlock(t.xla))?'<span class="pill warn">חסימה</span>':(t.qty<EXP_QTY?'<span class="pill warn">חלקי</span>':'<span class="pill ok">תקין</span>');
