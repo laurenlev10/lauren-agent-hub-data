@@ -9,25 +9,32 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Arial,sans-serif;padding:18px}
   h1{font-size:22px;margin:0 0 2px} .sub{color:var(--mut);font-size:13px;margin-bottom:16px}
-  .row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;flex:1;min-width:150px}
-  .card .lbl{color:var(--mut);font-size:12px;margin-bottom:6px}
-  .card .val{font-size:24px;font-weight:700}
+  .row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;flex:1;min-width:130px}
+  .card .lbl{color:var(--mut);font-size:12px;margin-bottom:6px} .card .val{font-size:23px;font-weight:700}
   .g{color:var(--grn)} .r{color:var(--red)} .b{color:var(--blu)} .a{color:var(--amb)}
   h2{font-size:16px;margin:22px 0 10px;border-right:3px solid var(--blu);padding-right:8px}
   table{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);border-radius:10px;overflow:hidden}
   th,td{padding:7px 9px;text-align:center;border-bottom:1px solid var(--line)}
-  th{background:#141a26;color:var(--mut);font-weight:600;position:sticky;top:0}
-  tr.win td{background:rgba(46,204,113,.07)} tr.loss td{background:rgba(231,76,60,.07)}
-  tr.flag td{background:rgba(245,166,35,.14)}
+  th{background:#141a26;color:var(--mut);font-weight:600}
+  tr.win td{background:rgba(46,204,113,.07)} tr.loss td{background:rgba(231,76,60,.07)} tr.flag td{background:rgba(245,166,35,.14)}
   .pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
   .pill.ok{background:rgba(46,204,113,.15);color:var(--grn)} .pill.warn{background:rgba(245,166,35,.18);color:var(--amb)}
   .note{color:var(--mut);font-size:12px;margin:6px 0 0}
-  .wrap{max-height:520px;overflow:auto;border-radius:10px}
+  .wrap{max-height:460px;overflow:auto;border-radius:10px}
   .empty{color:var(--mut);font-style:italic;padding:14px;background:var(--card);border-radius:10px}
   .nav{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-  .nav a{text-decoration:none;background:var(--card);border:1px solid var(--line);color:var(--ink);padding:8px 14px;border-radius:9px;font-size:13px;font-weight:600;transition:.15s}
-  .nav a:hover{border-color:var(--blu);color:var(--blu)}
+  .nav a,.nav button{text-decoration:none;background:var(--card);border:1px solid var(--line);color:var(--ink);padding:8px 14px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer}
+  .nav a:hover,.nav button:hover{border-color:var(--blu);color:var(--blu)}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .cal .h{color:var(--mut);font-size:11px;text-align:center;padding:3px}
+  .cal .d{background:var(--card);border:1px solid var(--line);border-radius:8px;min-height:52px;padding:5px;font-size:11px}
+  .cal .d .n{color:var(--mut)} .cal .d .p{font-weight:700;font-size:13px;margin-top:4px}
+  .heat{display:flex;flex-wrap:wrap;gap:4px}
+  .heat .c{width:52px;border-radius:7px;padding:5px;text-align:center;font-size:11px;border:1px solid var(--line)}
+  .sim input{width:90px;background:#0c1119;border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:6px;font-size:13px}
+  .sim label{font-size:13px;color:var(--mut);margin-inline-end:6px}
+  @media print{.nav,.sim-ctl{display:none}.wrap{max-height:none}body{background:#fff;color:#000}.card,th{background:#eee}}
 </style>
 </head>
 <body>
@@ -35,6 +42,7 @@
   <a href="../../">🏠 מרכז הניהול</a>
   <a href="../journal/">📋 יומן עסקאות</a>
   <a href="javascript:location.reload()">🔄 רענן</a>
+  <button onclick="window.print()">🖨️ ייצוא PDF</button>
 </div>
 <h1>📈 FVG — אינדיקטור מול מציאות</h1>
 <div class="sub">EZTrade FVG BOT 6.1 · MNQU2026 · חשבון Tradovate demo 30647272 · <span id="upd">טוען…</span></div>
@@ -42,164 +50,163 @@
 <h2>💰 החשבון האמיתי (מהברוקר)</h2>
 <div class="row" id="kpi-real"></div>
 
-<h2>📅 רווח יומי — כל ההיסטוריה (ברוקר)</h2>
-<div class="row" id="daily"></div>
+<h2>📊 עקומת הון + סטטיסטיקה (כל ההיסטוריה)</h2>
+<div class="card" style="margin-bottom:12px"><div id="equity"></div></div>
+<div class="row" id="stats"></div>
+
+<h2>🗓️ לוח שנה — רווח יומי (שעון ישראל)</h2>
+<div id="cal"></div>
+
+<h2>🔥 מפת חום — רווח לפי שעה (ישראל)</h2>
+<div class="heat" id="heat"></div>
 
 <h2>⚙️ בריאות ביצוע</h2>
 <div class="row" id="kpi-exec"></div>
-<div class="note">מילוי מלא = עסקה שנכנסה ב-4 חוזים. מילוי חלקי / חלון-חסימה = דגלים אדומים מהניתוח של היום. "היפוך כיוון" ו"פער מול אינדיקטור" יופיעו ברגע שהזנת היומן התיאורטי תהיה פעילה.</div>
 
 <h2>🔬 אינדיקטור מול ברוקר — הפער</h2>
 <div id="gap-block"></div>
 
+<h2>🎯 סימולטור יעד יומי</h2>
+<div class="card sim">
+  <div class="sim-ctl" style="margin-bottom:10px">
+    <label>יעד רווח יומי $</label><input id="tgt" type="number" value="600">
+    <label style="margin-inline-start:14px">סטופ יומי $</label><input id="mxl" type="number" value="400">
+    <button onclick="runSim()" style="margin-inline-start:10px;background:var(--blu);border:0;color:#fff;padding:6px 14px;border-radius:8px;cursor:pointer">חשב</button>
+  </div>
+  <div id="sim-out"></div>
+</div>
+
 <h2>🚫 מוניטור חלון חסימה (IL 15:25–15:35)</h2>
 <div id="block-mon"></div>
 
-<h2>📋 כל העסקאות (מאוחדות)</h2>
+<h2>📋 עסקאות 24 שעות אחרונות</h2>
 <div class="wrap"><table id="trades"><thead><tr>
 <th>#</th><th>שעה LA</th><th>שעה IL</th><th>כיוון</th><th>חוזים</th><th>רגליים</th><th>כניסה</th><th>יציאה</th><th>נטו $</th><th>דגל</th>
 </tr></thead><tbody></tbody></table></div>
 
 <script>
-const COMM=1.82, EXP_QTY=4;
+const COMM=1.82, EXP_QTY=4, DPP=2;
 const $=s=>document.querySelector(s);
-function fmt(n,d=2){return (n<0?'-':'')+'$'+Math.abs(n).toFixed(d);}
-function parseLA(s){ // "DD/MM/YYYY HH:MM:SS" -> Date (treat as LA naive)
-  if(!s||s.indexOf(' ')<0)return null;
-  const [d,t]=s.split(' '),[dd,mm,yy]=d.split('/'),[H,M]=t.split(':');
-  return new Date(Date.UTC(+yy,+mm-1,+dd,+H,+M));
-}
-function ilHM(la){const dt=parseLA(la);if(!dt)return '';dt.setUTCHours(dt.getUTCHours()+10);return String(dt.getUTCHours()).padStart(2,'0')+':'+String(dt.getUTCMinutes()).padStart(2,'0');}
+const fmt=(n,d=2)=>(n<0?'-':'')+'$'+Math.abs(n).toFixed(d);
+function parseLA(s){if(!s||s.indexOf(' ')<0)return null;const[d,t]=s.split(' '),[dd,mm,yy]=d.split('/'),[H,M]=t.split(':');return new Date(Date.UTC(+yy,+mm-1,+dd,+H,+M));}
+function ilDate(la){const d=parseLA(la);if(!d)return null;d.setUTCHours(d.getUTCHours()+10);return d;}
+function ilHM(la){const d=ilDate(la);return d?String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0'):'';}
+function ilHour(la){const d=ilDate(la);return d?d.getUTCHours():-1;}
 function laHM(la){return la&&la.indexOf(' ')>0?la.split(' ')[1].slice(0,5):'';}
-function ilMinutes(la){const dt=parseLA(la);if(!dt)return -1;dt.setUTCHours(dt.getUTCHours()+10);return dt.getUTCHours()*60+dt.getUTCMinutes();}
-const BLK_A=15*60+25, BLK_B=15*60+35; // IL block window
-function inBlock(la){const m=ilMinutes(la);return m>=BLK_A-3&&m<=BLK_B+3;} // ±3min around block
-
+const BLK_A=15*60+25,BLK_B=15*60+35;
+function inBlock(la){const d=ilDate(la);if(!d)return false;const m=d.getUTCHours()*60+d.getUTCMinutes();return m>=BLK_A-3&&m<=BLK_B+3;}
+function card(l,v,c){return `<div class="card"><div class="lbl">${l}</div><div class="val ${c||''}">${v}</div></div>`;}
 function groupTrades(legs){
   legs=legs.slice().sort((a,b)=>(a.entry_iso||'').localeCompare(b.entry_iso||''));
   const out=[];let cur=[],prev=null;
-  for(const t of legs){const et=new Date(t.entry_iso);
-    if(prev===null||(et-prev)/1000<=90)cur.push(t);else{out.push(cur);cur=[t];}prev=et;}
+  for(const t of legs){const et=new Date(t.entry_iso);if(prev===null||(et-prev)/1000<=90)cur.push(t);else{out.push(cur);cur=[t];}prev=et;}
   if(cur.length)out.push(cur);
-  return out.map(s=>{
-    const q=s.reduce((a,x)=>a+(x.qty||0),0);
-    const gross=s.reduce((a,x)=>a+(x.result_dollars||0),0);
-    const net=+(gross-q*COMM).toFixed(2);
-    const ent=+(s.reduce((a,x)=>a+(x.entry_price||0)*(x.qty||0),0)/q).toFixed(2);
-    const xit=+(s.reduce((a,x)=>a+(x.exit_price||0)*(x.qty||0),0)/q).toFixed(2);
-    return {la:s[0].entry_la,xla:s[s.length-1].exit_la,dir:s[0].direction,qty:q,legs:s.length,ent,xit,net};
-  });
+  return out.map(s=>{const q=s.reduce((a,x)=>a+(x.qty||0),0);const gross=s.reduce((a,x)=>a+(x.result_dollars||0),0);
+    return {iso:s[0].entry_iso,la:s[0].entry_la,xla:s[s.length-1].exit_la,dir:s[0].direction,qty:q,legs:s.length,
+      ent:+(s.reduce((a,x)=>a+(x.entry_price||0)*(x.qty||0),0)/q).toFixed(2),
+      xit:+(s.reduce((a,x)=>a+(x.exit_price||0)*(x.qty||0),0)/q).toFixed(2),
+      net:+(gross-q*COMM).toFixed(2)};});
 }
-function card(lbl,val,cls){return `<div class="card"><div class="lbl">${lbl}</div><div class="val ${cls||''}">${val}</div></div>`;}
-
+let ALL=[];
 async function main(){
-  let led;
-  try{led=await (await fetch('../broker-ledger.json?_='+Date.now(),{cache:'no-store'})).json();}
-  catch(e){$('#upd').textContent='שגיאה בטעינת נתוני הברוקר';return;}
-  // last 24h window
+  let led;try{led=await (await fetch('../broker-ledger.json?_='+Date.now(),{cache:'no-store'})).json();}catch(e){$('#upd').textContent='שגיאה בטעינת נתוני הברוקר';return;}
   const legs=led.trades||[];
+  ALL=groupTrades(legs);
   const times=legs.map(t=>new Date(t.exit_iso||t.entry_iso)).filter(d=>!isNaN(d));
-  const last=new Date(Math.max.apply(null,times)), cut=new Date(last-24*3600*1000);
-  const win=legs.filter(t=>new Date(t.entry_iso)>=cut);
-  const trades=groupTrades(win);
-  $('#upd').textContent='עודכן '+(led._updated_at||'').slice(0,16).replace('T',' ')+' · 24 שעות אחרונות · '+trades.length+' עסקאות';
+  const last=new Date(Math.max.apply(null,times)),cut=new Date(last-24*3600*1000);
+  const trades=ALL.filter(t=>new Date(t.iso)>=cut);
+  $('#upd').textContent='עודכן '+(led._updated_at||'').slice(0,16).replace('T',' ')+' · '+trades.length+' עסקאות ב-24 שעות · '+ALL.length+' סה"כ';
 
-  // REAL account KPIs
-  const net=trades.reduce((a,t)=>a+t.net,0), wins=trades.filter(t=>t.net>=0).length;
-  const comm=win.reduce((a,t)=>a+(t.qty||0),0)*COMM;
-  $('#kpi-real').innerHTML=[
-    card('רווח נטו',fmt(net),net>=0?'g':'r'),
-    card('עסקאות',trades.length,'b'),
-    card('אחוז הצלחה',Math.round(100*wins/trades.length)+'%',wins/trades.length>=.5?'g':'a'),
-    card('ממוצע לעסקה',fmt(net/trades.length),net>=0?'g':'r'),
-    card('רגליים (מילויים)',win.length,''),
-    card('עמלות',fmt(-comm),'r')
-  ].join('');
+  // REAL (24h)
+  const net=trades.reduce((a,t)=>a+t.net,0),wins=trades.filter(t=>t.net>=0).length;
+  const comm=trades.reduce((a,t)=>a+t.qty,0)*COMM;
+  $('#kpi-real').innerHTML=[card('רווח נטו (24ש)',fmt(net),net>=0?'g':'r'),card('עסקאות',trades.length,'b'),
+    card('אחוז הצלחה',trades.length?Math.round(100*wins/trades.length)+'%':'—',wins/trades.length>=.5?'g':'a'),
+    card('ממוצע לעסקה',trades.length?fmt(net/trades.length):'—',net>=0?'g':'r'),card('עמלות',fmt(-comm),'r')].join('');
 
-  // ---- theoretical feed + matching ----
-  let fvg=null; try{fvg=await (await fetch('../fvg-journal.json?_='+Date.now(),{cache:'no-store'})).json();}catch(e){}
-  const DPP=2; // $ per point MNQ
-  const theo=[]; // theoretical entries in window
-  if(fvg&&fvg.events){
-    for(const e of fvg.events){ if((e.event||'')!=='entry')continue;
-      const t=parseLA(e.la); if(!t||t<cut)continue;
-      const dir=Number(e.dir)||1, entry=+e.price, part=+e.partial, main=+e.main, stop=+e.stop, qty=+e.qty||4;
-      const lv=[entry,part,main,stop].every(x=>isFinite(x));
-      // WIN = 3 contracts exit at partial + 1 (runner) at main.  STOP = all 4 exit together at stop.
-      const gWin = lv ? (3*(part-entry)+1*(main-entry))*dir*DPP : null;
-      const gStop= lv ? (4*(stop-entry))*dir*DPP : null;
-      theo.push({la:e.la,dir,entry,qty,
-        winNet: lv?+(gWin-4*COMM).toFixed(2):null,
-        stopNet:lv?+(gStop-4*COMM).toFixed(2):null});
-    }
-  }
-  function tmin(la){const d=parseLA(la);return d?d.getTime():0;}
-  const usedB=new Set(); const matches=[]; // {theo,broker}
-  for(const th of theo){ let best=-1,bd=6*60*1000;
-    for(let i=0;i<trades.length;i++){ if(usedB.has(i))continue;
-      const dd=Math.abs(tmin(trades[i].la)-tmin(th.la)); if(dd<bd){bd=dd;best=i;} }
-    if(best>=0){usedB.add(best);matches.push({th,br:trades[best]});} else matches.push({th,br:null}); }
-  const brokerOnly=trades.filter((t,i)=>!usedB.has(i));
+  // STATS (all history) + equity
+  let eq=0,peak=0,maxdd=0,sw=0,sl=0,nw=0,nl=0,streak=0,mstreak=0;const pts=[];
+  for(const t of ALL){eq+=t.net;pts.push(eq);peak=Math.max(peak,eq);maxdd=Math.max(maxdd,peak-eq);
+    if(t.net>=0){sw+=t.net;nw++;streak=0;}else{sl+=t.net;nl++;streak++;mstreak=Math.max(mstreak,streak);}}
+  const pf=sl!==0?(sw/Math.abs(sl)):0, payoff=(nw&&nl)?((sw/nw)/(Math.abs(sl)/nl)):0, wr=ALL.length?100*nw/ALL.length:0;
+  $('#stats').innerHTML=[card('רווח כולל',fmt(eq),eq>=0?'g':'r'),card('Profit Factor',pf.toFixed(2),pf>=1.3?'g':pf>=1?'a':'r'),
+    card('Max Drawdown',fmt(-maxdd),'r'),card('רצף הפסדים ארוך',mstreak,'a'),card('יחס רווח:הפסד',payoff.toFixed(2),payoff>=1?'g':'a'),
+    card('אחוז הצלחה כולל',Math.round(wr)+'%',wr>=50?'g':'a')].join('');
+  // equity SVG
+  if(pts.length){const W=900,H=140,mn=Math.min(0,...pts),mx=Math.max(0,...pts),rg=(mx-mn)||1;
+    const path=pts.map((v,i)=>`${(i/(pts.length-1||1)*W).toFixed(1)},${(H-(v-mn)/rg*H).toFixed(1)}`).join(' ');
+    const zero=(H-(0-mn)/rg*H).toFixed(1);
+    $('#equity').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="150" preserveAspectRatio="none"><line x1="0" y1="${zero}" x2="${W}" y2="${zero}" stroke="#3a4560" stroke-dasharray="4"/><polyline points="${path}" fill="none" stroke="${eq>=0?'#2ecc71':'#e74c3c'}" stroke-width="2"/></svg><div class="note">עקומת הון מצטברת — ${ALL.length} עסקאות מהברוקר</div>`;}
 
-  // DAILY P&L (all history, broker) — replaces the old VWAP calendar
-  const byDay={};
-  for(const t of legs){ const la=t.entry_la||''; const d=la.split(' ')[0]; if(!d)continue;
-    if(!byDay[d])byDay[d]={net:0,q:0}; byDay[d].net+=(t.result_dollars||0); byDay[d].q+=(t.qty||0); }
-  const days=Object.keys(byDay).sort((a,b)=>{const pa=a.split('/'),pb=b.split('/');return new Date(pa[2],pa[1]-1,pa[0])-new Date(pb[2],pb[1]-1,pb[0]);});
-  $('#daily').innerHTML=days.map(d=>{const v=+(byDay[d].net-byDay[d].q*COMM).toFixed(2);
-    return `<div class="card" style="min-width:110px"><div class="lbl">${d.slice(0,5)}</div><div class="val ${v>=0?'g':'r'}" style="font-size:19px">${fmt(v,0)}</div></div>`;}).join('');
+  // CALENDAR (IL date)
+  const byIL={};for(const t of ALL){const d=ilDate(t.la);if(!d)continue;const k=d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');byIL[k]=(byIL[k]||0)+t.net;}
+  const keys=Object.keys(byIL).sort();
+  if(keys.length){const lastK=keys[keys.length-1];const[Y,Mo]=lastK.split('-').map(Number);
+    const first=new Date(Date.UTC(Y,Mo-1,1)),dim=new Date(Date.UTC(Y,Mo,0)).getUTCDate();
+    let html='<div class="cal">'+['א','ב','ג','ד','ה','ו','ש'].map(h=>`<div class="h">${h}</div>`).join('');
+    for(let i=0;i<first.getUTCDay();i++)html+='<div></div>';
+    for(let day=1;day<=dim;day++){const k=Y+'-'+String(Mo).padStart(2,'0')+'-'+String(day).padStart(2,'0');const v=byIL[k];
+      html+=`<div class="d"><div class="n">${day}</div>${v!==undefined?`<div class="p ${v>=0?'g':'r'}">${fmt(v,0)}</div>`:''}</div>`;}
+    html+='</div><div class="note">חודש '+Mo+'/'+Y+' · לפי תאריך ישראל</div>';$('#cal').innerHTML=html;}
 
-  // EXECUTION HEALTH
-  const partial=trades.filter(t=>t.qty<EXP_QTY).length;
-  const full=trades.length-partial;
+  // HEATMAP (IL hour)
+  const byH={};for(const t of ALL){const h=ilHour(t.la);if(h<0)continue;byH[h]=(byH[h]||0)+t.net;}
+  const vals=Object.values(byH),amx=Math.max(1,...vals.map(Math.abs));
+  let hh='';for(let h=0;h<24;h++){const v=byH[h];if(v===undefined){hh+=`<div class="c" style="opacity:.3">${h}</div>`;continue;}
+    const a=(Math.abs(v)/amx*.7+.15).toFixed(2);const col=v>=0?`rgba(46,204,113,${a})`:`rgba(231,76,60,${a})`;
+    hh+=`<div class="c" style="background:${col}"><div>${h}:00</div><div style="font-weight:700">${fmt(v,0)}</div></div>`;}
+  $('#heat').innerHTML=hh+'<div class="note" style="width:100%">שעה = שעון ישראל · ירוק רווחי / אדום מפסיד</div>';
+
+  // THEORETICAL + gap
+  let fvg=null;try{fvg=await (await fetch('../fvg-journal.json?_='+Date.now(),{cache:'no-store'})).json();}catch(e){}
+  const theo=[];if(fvg&&fvg.events)for(const e of fvg.events){if((e.event||'')!=='entry')continue;const t=parseLA(e.la);if(!t||t<cut)continue;
+    const dir=Number(e.dir)||1,en=+e.price,pa=+e.partial,ma=+e.main,so=+e.stop;const lv=[en,pa,ma,so].every(isFinite);
+    theo.push({la:e.la,dir,winNet:lv?+((3*(pa-en)+1*(ma-en))*dir*DPP-4*COMM).toFixed(2):null,stopNet:lv?+((4*(so-en))*dir*DPP-4*COMM).toFixed(2):null});}
+  const usedB=new Set(),matches=[];
+  for(const th of theo){let best=-1,bd=6*60*1000;for(let i=0;i<trades.length;i++){if(usedB.has(i))continue;const dd=Math.abs(new Date(trades[i].iso)-parseLA(th.la));if(dd<bd){bd=dd;best=i;}}
+    if(best>=0){usedB.add(best);matches.push({th,br:trades[best]});}else matches.push({th,br:null});}
+  const partial=trades.filter(t=>t.qty<EXP_QTY).length,full=trades.length-partial;
   const blk=trades.filter(t=>inBlock(t.la)||inBlock(t.xla)).length;
-  const desync=matches.filter(m=>m.br&&((m.th.dir===1?'long':'short')!==m.br.dir)).length;
   const haveTheo=theo.length>0;
-  // gap
-  let theoTotal=0, realTotal=net, phantomLoss=0, desyncCost=0, slip=0;
-  for(const m of matches){
-    if(!m.br){ if(m.th.winNet!=null){theoTotal+=m.th.winNet; phantomLoss+= -m.th.winNet;} continue; } // phantom: assume full win
-    const thDir=m.th.dir===1?'long':'short';
-    // outcome inferred from broker: win -> both targets; loss -> all 4 out at stop
-    const thVal = (m.br.net>=0 ? m.th.winNet : m.th.stopNet);
-    if(thVal==null) continue;
-    theoTotal+=thVal;
-    if(thDir!==m.br.dir) desyncCost += (m.br.net - (m.th.winNet!=null?m.th.winNet:thVal)); // wrong side
-    else slip += (m.br.net - thVal);
-  }
-  const gap=+(realTotal-theoTotal).toFixed(2);
-  $('#kpi-exec').innerHTML=[
-    card('מילוי מלא (4 חוזים)',Math.round(100*full/trades.length)+'%',full/trades.length>=.9?'g':'a'),
-    card('מילוי חלקי',partial,partial?'r':'g'),
-    card('בחלון חסימה',blk,blk?'a':'g'),
-    card('היפוך כיוון',haveTheo?desync:'—',desync?'r':(haveTheo?'g':'b')),
-    card('פער מול אינדיקטור',haveTheo?fmt(gap):'—',gap<0?'r':'g')
-  ].join('');
-
-  // GAP block
-  if(!haveTheo){
-    $('#gap-block').innerHTML='<div class="empty">ממתין להזנת התראות הכניסה מהאינדיקטור. ברגע שיזרמו — כאן יופיע הפער הכולל ופירוקו: עסקאות רפאים · היפוך כיוון · החלקה/מילוי חלקי.</div>';
-  } else {
-    $('#gap-block').innerHTML=
-      '<div class="row">'+
-        card('אינדיקטור (תיאורטי)',fmt(theoTotal),theoTotal>=0?'g':'r')+
-        card('ברוקר (אמיתי)',fmt(realTotal),realTotal>=0?'g':'r')+
-        card('פער כולל',fmt(gap),gap<0?'r':'g')+
-      '</div>'+
+  const desync=matches.filter(m=>m.br&&((m.th.dir===1?'long':'short')!==m.br.dir)).length;
+  let theoTotal=0,phantomLoss=0,desyncCost=0,slip=0;
+  for(const m of matches){if(!m.br){if(m.th.winNet!=null){theoTotal+=m.th.winNet;phantomLoss-=m.th.winNet;}continue;}
+    const thVal=m.br.net>=0?m.th.winNet:m.th.stopNet;if(thVal==null)continue;theoTotal+=thVal;
+    if((m.th.dir===1?'long':'short')!==m.br.dir)desyncCost+=(m.br.net-(m.th.winNet!=null?m.th.winNet:thVal));else slip+=(m.br.net-thVal);}
+  const gap=+(net-theoTotal).toFixed(2);
+  $('#kpi-exec').innerHTML=[card('מילוי מלא (4)',trades.length?Math.round(100*full/trades.length)+'%':'—',full/trades.length>=.9?'g':'a'),
+    card('מילוי חלקי',partial,partial?'r':'g'),card('בחלון חסימה',blk,blk?'a':'g'),
+    card('היפוך כיוון',haveTheo?desync:'—',desync?'r':(haveTheo?'g':'b')),card('פער מול אינדיקטור',haveTheo?fmt(gap):'—',gap<0?'r':'g')].join('');
+  $('#gap-block').innerHTML = !haveTheo
+    ? '<div class="empty">ממתין להזנת התראות הכניסה מהאינדיקטור. ברגע שיזרמו — יופיע כאן הפער הכולל ופירוקו: עסקאות רפאים · היפוך כיוון · החלקה/מילוי חלקי.</div>'
+    : '<div class="row">'+card('אינדיקטור (תיאורטי)',fmt(theoTotal),theoTotal>=0?'g':'r')+card('ברוקר (אמיתי)',fmt(net),net>=0?'g':'r')+card('פער כולל',fmt(gap),gap<0?'r':'g')+'</div>'+
       '<table><thead><tr><th>מקור הפער</th><th>סכום</th></tr></thead><tbody>'+
-      `<tr><td>עסקאות רפאים (כניסה ללא ברוקר)</td><td class="r">${fmt(phantomLoss)}</td></tr>`+
-      `<tr><td>היפוך כיוון</td><td class="r">${fmt(desyncCost)}</td></tr>`+
-      `<tr><td>החלקה + מילוי חלקי</td><td class="${slip<0?'r':'g'}">${fmt(slip)}</td></tr>`+
-      '</tbody></table>'+
-      '<div class="note">P/L תיאורטי משוחזר מהיעדים בכניסה (3×פרשיאל + 1×ראשי), התוצאה (ניצחון/סטופ) נגזרת מהברוקר. רפאים מונחים כמנצחת מלאה.</div>';
-  }
+      `<tr><td>עסקאות רפאים</td><td class="r">${fmt(phantomLoss)}</td></tr><tr><td>היפוך כיוון</td><td class="r">${fmt(desyncCost)}</td></tr><tr><td>החלקה + מילוי חלקי</td><td class="${slip<0?'r':'g'}">${fmt(slip)}</td></tr></tbody></table>`+
+      '<div class="note">P/L תיאורטי משוחזר מהיעדים (3×פרשיאל + 1×ראשי / סטופ = 4 חוזים). התוצאה נגזרת מהברוקר. רפאים = מנצחת מלאה משוערת.</div>';
 
   // BLOCK MONITOR
-  // ALL TRADES
-  $('#trades').querySelector('tbody').innerHTML=trades.map((t,i)=>{
-    const flag=(inBlock(t.la)||inBlock(t.xla))?'<span class="pill warn">חסימה</span>':(t.qty<EXP_QTY?'<span class="pill warn">חלקי</span>':'<span class="pill ok">תקין</span>');
-    return `<tr class="${t.net>=0?'win':'loss'}"><td>${i+1}</td><td>${laHM(t.la)}</td><td>${ilHM(t.la)}</td><td>${t.dir==='long'?'LONG':'SHORT'}</td><td>${t.qty}</td><td>${t.legs}</td><td>${t.ent}</td><td>${t.xit}</td><td class="${t.net>=0?'g':'r'}">${fmt(t.net)}</td><td>${flag}</td></tr>`;
-  }).join('');
+  const bt=trades.filter(t=>inBlock(t.la)||inBlock(t.xla)||t.qty<EXP_QTY);
+  $('#block-mon').innerHTML=!bt.length?'<div class="empty">אין דגלים סביב חלון החסימה ב-24 השעות האחרונות. ✓</div>'
+    :'<table><thead><tr><th>שעה LA</th><th>שעה IL</th><th>כיוון</th><th>חוזים</th><th>נטו $</th><th>דגל</th></tr></thead><tbody>'+
+      bt.map(t=>{const f=[];if(inBlock(t.la)||inBlock(t.xla))f.push('חלון חסימה');if(t.qty<EXP_QTY)f.push('מילוי חלקי ('+t.qty+'/4)');
+        return `<tr class="flag"><td>${laHM(t.la)}</td><td>${ilHM(t.la)}</td><td>${t.dir==='long'?'LONG':'SHORT'}</td><td>${t.qty}</td><td class="${t.net>=0?'g':'r'}">${fmt(t.net)}</td><td><span class="pill warn">${f.join(' · ')}</span></td></tr>`;}).join('')+'</tbody></table>';
+
+  // TRADES
+  $('#trades').querySelector('tbody').innerHTML=trades.map((t,i)=>{const flag=(inBlock(t.la)||inBlock(t.xla))?'<span class="pill warn">חסימה</span>':(t.qty<EXP_QTY?'<span class="pill warn">חלקי</span>':'<span class="pill ok">תקין</span>');
+    return `<tr class="${t.net>=0?'win':'loss'}"><td>${i+1}</td><td>${laHM(t.la)}</td><td>${ilHM(t.la)}</td><td>${t.dir==='long'?'LONG':'SHORT'}</td><td>${t.qty}</td><td>${t.legs}</td><td>${t.ent}</td><td>${t.xit}</td><td class="${t.net>=0?'g':'r'}">${fmt(t.net)}</td><td>${flag}</td></tr>`;}).join('');
+  runSim();
+}
+function runSim(){
+  if(!ALL.length){return;}
+  const tgt=parseFloat($('#tgt').value)||0,mxl=parseFloat($('#mxl').value)||0;
+  const byD={};for(const t of ALL){const d=ilDate(t.la);if(!d)continue;const k=d.getUTCFullYear()+'-'+d.getUTCMonth()+'-'+d.getUTCDate();(byD[k]=byD[k]||[]).push(t);}
+  let actual=0,sim=0,stoppedT=0,stoppedL=0;
+  for(const k in byD){const day=byD[k].sort((a,b)=>(a.iso||'').localeCompare(b.iso||''));let cum=0,done=false,dayTotal=0;
+    for(const t of day){dayTotal+=t.net;if(done)continue;cum+=t.net;if(tgt&&cum>=tgt){done=true;stoppedT++;}else if(mxl&&cum<=-mxl){done=true;stoppedL++;}}
+    actual+=dayTotal;sim+=cum;}
+  const diff=+(sim-actual).toFixed(2);
+  $('#sim-out').innerHTML='<div class="row">'+card('בפועל (כל העסקאות)',fmt(actual),actual>=0?'g':'r')+card('עם יעד/סטופ יומי',fmt(sim),sim>=0?'g':'r')+card('הפרש',fmt(diff),diff>=0?'g':'r')+'</div>'+
+    `<div class="note">ימים שנעצרו ביעד: ${stoppedT} · ימים שנעצרו בסטופ: ${stoppedL}. ${diff>=0?'היעד/סטופ שיפרו את התוצאה.':'היעד/סטופ הזיקו — עדיף לקחת את כל העסקאות.'}</div>`;
 }
 main();
 </script>
