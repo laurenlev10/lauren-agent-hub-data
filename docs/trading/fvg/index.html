@@ -31,7 +31,7 @@
   .cal .d{background:var(--card);border:1px solid var(--line);border-radius:8px;min-height:52px;padding:5px;font-size:11px}
   .cal .d .n{color:var(--mut)} .cal .d .p{font-weight:700;font-size:13px;margin-top:4px}
   .heat{display:flex;flex-wrap:wrap;gap:4px}
-  .heat .c{width:52px;border-radius:7px;padding:5px;text-align:center;font-size:11px;border:1px solid var(--line)}
+  .heat .c{width:58px;border-radius:7px;padding:5px;text-align:center;font-size:11px;border:1px solid var(--line)}
   .sim input{width:90px;background:#0c1119;border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:6px;font-size:13px}
   .sim label{font-size:13px;color:var(--mut);margin-inline-end:6px}
   @media print{.nav,.sim-ctl{display:none}.wrap{max-height:none}body{background:#fff;color:#000}.card,th{background:#eee}}
@@ -57,7 +57,7 @@
 <h2>🗓️ לוח שנה — רווח יומי (שעון ישראל)</h2>
 <div id="cal"></div>
 
-<h2>🔥 מפת חום — רווח לפי שעה (ישראל)</h2>
+<h2>🔥 מפת חום — רווח לפי שעה (ישראל · ליד: LA)</h2>
 <div class="heat" id="heat"></div>
 
 <h2>⚙️ בריאות ביצוע</h2>
@@ -76,7 +76,7 @@
   <div id="sim-out"></div>
 </div>
 
-<h2>🚫 מוניטור חלון חסימה (IL 15:25–15:35)</h2>
+<h2>🚫 מוניטור חלון חסימה (IL 15:25–15:35 · LA 05:25–05:35)</h2>
 <div id="block-mon"></div>
 
 <h2>📋 עסקאות 24 שעות אחרונות</h2>
@@ -154,10 +154,11 @@ async function main(){
   // HEATMAP (IL hour)
   const byH={};for(const t of ALL){const h=ilHour(t.la);if(h<0)continue;byH[h]=(byH[h]||0)+t.net;}
   const vals=Object.values(byH),amx=Math.max(1,...vals.map(Math.abs));
-  let hh='';for(let h=0;h<24;h++){const v=byH[h];if(v===undefined){hh+=`<div class="c" style="opacity:.3">${h}</div>`;continue;}
+  let hh='';for(let h=0;h<24;h++){const la=(h-10+24)%24;const v=byH[h];
+    if(v===undefined){hh+=`<div class="c" style="opacity:.3"><div>IL ${h}</div><div style="font-size:9px">LA ${la}</div></div>`;continue;}
     const a=(Math.abs(v)/amx*.7+.15).toFixed(2);const col=v>=0?`rgba(46,204,113,${a})`:`rgba(231,76,60,${a})`;
-    hh+=`<div class="c" style="background:${col}"><div>${h}:00</div><div style="font-weight:700">${fmt(v,0)}</div></div>`;}
-  $('#heat').innerHTML=hh+'<div class="note" style="width:100%">שעה = שעון ישראל · ירוק רווחי / אדום מפסיד</div>';
+    hh+=`<div class="c" style="background:${col}"><div>IL ${h}:00</div><div style="font-size:9px;opacity:.85">LA ${la}:00</div><div style="font-weight:700">${fmt(v,0)}</div></div>`;}
+  $('#heat').innerHTML=hh+'<div class="note" style="width:100%">שעה ראשית = שעון ישראל · ליד = שעון LA · ירוק רווחי / אדום מפסיד</div>';
 
   // THEORETICAL + gap
   let fvg=null;try{fvg=await (await fetch('../fvg-journal.json?_='+Date.now(),{cache:'no-store'})).json();}catch(e){}

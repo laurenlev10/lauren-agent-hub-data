@@ -55,9 +55,15 @@ def main():
     wr = round(100 * wins / len(trades))
     partial = sum(1 for t in trades if t["qty"] < 4)
     # per-day best/worst
+    def il_date(la):
+        try:
+            d = dt.datetime.strptime(la, "%d/%m/%Y %H:%M:%S") + dt.timedelta(hours=10)
+            return d.strftime("%d/%m")
+        except Exception:
+            return (la or "").split(" ")[0][:5]
     byday = {}
     for t in trades:
-        d = (t["la"] or "").split(" ")[0]
+        d = il_date(t["la"])
         byday[d] = byday.get(d, 0) + t["net"]
     best = max(byday.items(), key=lambda x: x[1]) if byday else ("", 0)
     worst = min(byday.items(), key=lambda x: x[1]) if byday else ("", 0)
@@ -65,7 +71,7 @@ def main():
     lines = ["📊 סיכום שבועי — FVG (חשבון אמיתי)",
              f"רווח נטו: ${net:,.2f}",
              f"{len(trades)} עסקאות · {wr}% הצלחה",
-             f"יום הכי טוב: {best[0][:5]} ${best[1]:,.0f} · הכי גרוע: {worst[0][:5]} ${worst[1]:,.0f}"]
+             f"יום הכי טוב: {best[0]} ${best[1]:,.0f} · הכי גרוע: {worst[0]} ${worst[1]:,.0f} (שעון ישראל)"]
     if partial:
         lines.append(f"⚠ {partial} מילויים חלקיים (פחות מ-4 חוזים)")
 
