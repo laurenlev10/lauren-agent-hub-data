@@ -646,15 +646,16 @@ const FIRMS = {
   },
 };
 
-let ACTIVE_FIRM = 'blusky';
+let ACTIVE_FIRM = 'apex';
+let SHOW_ARCHIVED = false;
 
 function updateFirmCapBanner(firmKey){
   const el = document.getElementById('firm-cap-text');
   const badge = document.getElementById('firm-cap-badge');
   if(!el || !badge) return;
-  const accCount = (firmKey==='blusky') ? (S.accs||[]).length
-                 : (firmKey==='apex')   ? (S.apexAccs||[]).length
-                 : (S.lucidAccs||[]).length;
+  const accCount = (firmKey==='blusky') ? ACCS.filter(a=>!a.archived).length
+                 : (firmKey==='apex')   ? (S.apexAccs||[]).filter(a=>!a.archived).length
+                 : (S.lucidAccs||[]).filter(a=>!a.archived).length;
   if(!window.RULES){
     el.textContent = accCount + ' חשבונות פעילים בחברה הזו';
     badge.textContent = '—';
@@ -704,16 +705,16 @@ function switchFirm(firmKey){
 
 // ════════════ ACCOUNTS ════════════
 const ACCS = [
-  { id:'a0', name:'200K PROPEL', short:'200K', num:'BSKEFUTSTAELI91678', plan:'PROPEL 200K',
+  { archived:true, id:'a0', name:'200K PROPEL', short:'200K', num:'BSKEFUTSTAELI91678', plan:'PROPEL 200K',
     startBal:200000, trailDD:2000, burnStart:198000, p1T:6000, p2T:3000, p1Trig:1800, p2Trig:900,
     color:'#1a6ed4', colorBg:'#ddeeff', colorMid:'#93c5fd', isStatic:true },
-  { id:'a1', name:'50K PROPEL', short:'50K P', num:'BSKEPROPELELI61627', plan:'PROPEL 50K',
+  { archived:true, id:'a1', name:'50K PROPEL', short:'50K P', num:'BSKEPROPELELI61627', plan:'PROPEL 50K',
     startBal:50000, trailDD:2000, burnStart:48000, p1T:3000, p2T:3000, p1Trig:1500, p2Trig:900,
     color:'#166534', colorBg:'#dcfce7', colorMid:'#86efac' },
-  { id:'a2', name:'50K LAUNCH', short:'50K L', num:'BSKELAUNCHELI99671', plan:'LAUNCH 50K',
+  { archived:true, id:'a2', name:'50K LAUNCH', short:'50K L', num:'BSKELAUNCHELI99671', plan:'LAUNCH 50K',
     startBal:50000, trailDD:2000, burnStart:48000, p1T:3000, p2T:3000, p1Trig:1500, p2Trig:900,
     color:'#6d28d9', colorBg:'#ede9fe', colorMid:'#c4b5fd' },
-  { id:'a3', name:'50K LAUNCH II', short:'50K L2', num:'BSKELAUNCHELI36013', plan:'LAUNCH 50K',
+  { archived:true, id:'a3', name:'50K LAUNCH II', short:'50K L2', num:'BSKELAUNCHELI36013', plan:'LAUNCH 50K',
     startBal:50000, trailDD:2000, burnStart:48000, p1T:3000, p2T:3000, p1Trig:1500, p2Trig:900,
     color:'#0891b2', colorBg:'#e0f2fe', colorMid:'#7dd3fc', isLaunch:true },
 ];
@@ -1016,6 +1017,10 @@ function fd(s){ const d=new Date(s+'T00:00:00'); return`${HE[d.getDay()]} ${d.to
 function pc(n){ return n>0?'var(--grn)':n<0?'var(--red)':'var(--txt3)'; }
 
 // ════════════ RENDER ════════════
+function archiveBar(n){
+  if(!n) return '';
+  return `<div style="grid-column:1/-1;background:#f8fafc;border:1.5px dashed #cbd5e1;border-radius:10px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;font-weight:700;color:#64748b">🗄️ ${n} חשבונות בארכיון (שרופים · הנתונים והחוקים נשמרים)<button onclick="SHOW_ARCHIVED=!SHOW_ARCHIVED;renderAll();" style="margin-inline-start:auto;background:#e2e8f0;border:1px solid #cbd5e1;border-radius:8px;padding:5px 12px;cursor:pointer;font-weight:700;color:#475569">${SHOW_ARCHIVED?'הסתר ארכיון':'הצג ארכיון'}</button></div>`;
+}
 function renderAll(){
   try{ updateFirmCapBanner(ACTIVE_FIRM || 'blusky'); }catch(e){}
   
@@ -1027,13 +1032,15 @@ function renderAll(){
     if(accsArr.length===0){
       grid.innerHTML = buildEmptyFirmState(ACTIVE_FIRM);
     } else {
-      grid.innerHTML = accsArr.map((_,i)=>buildFirmAccBlock(ACTIVE_FIRM,i)).join('');
+      const arch = accsArr.filter(a=>a.archived).length;
+      grid.innerHTML = archiveBar(arch) + accsArr.map((a,i)=>(a.archived&&!SHOW_ARCHIVED)?'':buildFirmAccBlock(ACTIVE_FIRM,i)).join('');
     }
     document.getElementById('overall-insight').style.display='none';
     return;
   }
 
-  grid.innerHTML = ACCS.map((acc,i) => buildAccBlock(i)).join('');
+  const barch = ACCS.filter(a=>a.archived).length;
+  grid.innerHTML = archiveBar(barch) + ACCS.map((acc,i) => (acc.archived&&!SHOW_ARCHIVED)?'':buildAccBlock(i)).join('');
   if(S.insights) applyInsights(S.insights);
   ACCS.forEach((_,i) => {
     if(openPanels[i]) {
