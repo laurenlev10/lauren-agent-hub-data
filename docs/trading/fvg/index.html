@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📈 FVG — אינדיקטור מול מציאות</title>
+<style>
+  :root{--bg:#0f1420;--card:#1a2130;--ink:#e8edf5;--mut:#8f9bb3;--grn:#2ecc71;--red:#e74c3c;--blu:#3aa0ff;--amb:#f5a623;--line:#2a3346}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Arial,sans-serif;padding:18px}
+  h1{font-size:22px;margin:0 0 2px} .sub{color:var(--mut);font-size:13px;margin-bottom:16px}
+  .row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;flex:1;min-width:150px}
+  .card .lbl{color:var(--mut);font-size:12px;margin-bottom:6px}
+  .card .val{font-size:24px;font-weight:700}
+  .g{color:var(--grn)} .r{color:var(--red)} .b{color:var(--blu)} .a{color:var(--amb)}
+  h2{font-size:16px;margin:22px 0 10px;border-right:3px solid var(--blu);padding-right:8px}
+  table{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);border-radius:10px;overflow:hidden}
+  th,td{padding:7px 9px;text-align:center;border-bottom:1px solid var(--line)}
+  th{background:#141a26;color:var(--mut);font-weight:600;position:sticky;top:0}
+  tr.win td{background:rgba(46,204,113,.07)} tr.loss td{background:rgba(231,76,60,.07)}
+  tr.flag td{background:rgba(245,166,35,.14)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+  .pill.ok{background:rgba(46,204,113,.15);color:var(--grn)} .pill.warn{background:rgba(245,166,35,.18);color:var(--amb)}
+  .note{color:var(--mut);font-size:12px;margin:6px 0 0}
+  .wrap{max-height:520px;overflow:auto;border-radius:10px}
+  .empty{color:var(--mut);font-style:italic;padding:14px;background:var(--card);border-radius:10px}
+</style>
+</head>
+<body>
+<h1>📈 FVG — אינדיקטור מול מציאות</h1>
+<div class="sub">EZTrade FVG BOT 6.1 · MNQU2026 · חשבון Tradovate demo 30647272 · <span id="upd">טוען…</span></div>
+
+<h2>💰 החשבון האמיתי (מהברוקר)</h2>
+<div class="row" id="kpi-real"></div>
+
+<h2>⚙️ בריאות ביצוע</h2>
+<div class="row" id="kpi-exec"></div>
+<div class="note">מילוי מלא = עסקה שנכנסה ב-4 חוזים. מילוי חלקי / חלון-חסימה = דגלים אדומים מהניתוח של היום. "היפוך כיוון" ו"פער מול אינדיקטור" יופיעו ברגע שהזנת היומן התיאורטי תהיה פעילה.</div>
+
+<h2>🔬 אינדיקטור מול ברוקר — הפער</h2>
+<div id="gap-block"></div>
+
+<h2>🚫 מוניטור חלון חסימה (IL 15:25–15:35)</h2>
+<div id="block-mon"></div>
+
+<h2>📋 כל העסקאות (מאוחדות)</h2>
+<div class="wrap"><table id="trades"><thead><tr>
+<th>#</th><th>שעה LA</th><th>שעה IL</th><th>כיוון</th><th>חוזים</th><th>רגליים</th><th>כניסה</th><th>יציאה</th><th>נטו $</th><th>דגל</th>
+</tr></thead><tbody></tbody></table></div>
+
+<script>
+const COMM=1.82, EXP_QTY=4;
+const $=s=>document.querySelector(s);
+function fmt(n,d=2){return (n<0?'-':'')+'$'+Math.abs(n).toFixed(d);}
+function parseLA(s){ // "DD/MM/YYYY HH:MM:SS" -> Date (treat as LA naive)
+  if(!s||s.indexOf(' ')<0)return null;
+  const [d,t]=s.split(' '),[dd,mm,yy]=d.split('/'),[H,M]=t.split(':');
+  return new Date(Date.UTC(+yy,+mm-1,+dd,+H,+M));
+}
+function ilHM(la){const dt=parseLA(la);if(!dt)return '';dt.setUTCHours(dt.getUTCHours()+10);return String(dt.getUTCHours()).padStart(2,'0')+':'+String(dt.getUTCMinutes()).padStart(2,'0');}
+function laHM(la){return la&&la.indexOf(' ')>0?la.split(' ')[1].slice(0,5):'';}
+function ilMinutes(la){const dt=parseLA(la);if(!dt)return -1;dt.setUTCHours(dt.getUTCHours()+10);return dt.getUTCHours()*60+dt.getUTCMinutes();}
+const BLK_A=15*60+25, BLK_B=15*60+35; // IL block window
+function inBlock(la){const m=ilMinutes(la);return m>=BLK_A-3&&m<=BLK_B+3;} // ±3min around block
+
+function groupTrades(legs){
+  legs=legs.slice().sort((a,b)=>(a.entry_iso||'').localeCompare(b.entry_iso||''));
+  const out=[];let cur=[],prev=null;
+  for(const t of legs){const et=new Date(t.entry_iso);
+    if(prev===null||(et-prev)/1000<=90)cur.push(t);else{out.push(cur);cur=[t];}prev=et;}
+  if(cur.length)out.push(cur);
+  return out.map(s=>{
+    const q=s.reduce((a,x)=>a+(x.qty||0),0);
+    const gross=s.reduce((a,x)=>a+(x.result_dollars||0),0);
+    const net=+(gross-q*COMM).toFixed(2);
+    const ent=+(s.reduce((a,x)=>a+(x.entry_price||0)*(x.qty||0),0)/q).toFixed(2);
+    const xit=+(s.reduce((a,x)=>a+(x.exit_price||0)*(x.qty||0),0)/q).toFixed(2);
+    return {la:s[0].entry_la,xla:s[s.length-1].exit_la,dir:s[0].direction,qty:q,legs:s.length,ent,xit,net};
+  });
+}
+function card(lbl,val,cls){return `<div class="card"><div class="lbl">${lbl}</div><div class="val ${cls||''}">${val}</div></div>`;}
+
+async function main(){
+  let led;
+  try{led=await (await fetch('../broker-ledger.json?_='+Date.now(),{cache:'no-store'})).json();}
+  catch(e){$('#upd').textContent='שגיאה בטעינת נתוני הברוקר';return;}
+  // last 24h window
+  const legs=led.trades||[];
+  const times=legs.map(t=>new Date(t.exit_iso||t.entry_iso)).filter(d=>!isNaN(d));
+  const last=new Date(Math.max.apply(null,times)), cut=new Date(last-24*3600*1000);
+  const win=legs.filter(t=>new Date(t.entry_iso)>=cut);
+  const trades=groupTrades(win);
+  $('#upd').textContent='עודכן '+(led._updated_at||'').slice(0,16).replace('T',' ')+' · 24 שעות אחרונות · '+trades.length+' עסקאות';
+
+  // REAL account KPIs
+  const net=trades.reduce((a,t)=>a+t.net,0), wins=trades.filter(t=>t.net>=0).length;
+  const comm=win.reduce((a,t)=>a+(t.qty||0),0)*COMM;
+  $('#kpi-real').innerHTML=[
+    card('רווח נטו',fmt(net),net>=0?'g':'r'),
+    card('עסקאות',trades.length,'b'),
+    card('אחוז הצלחה',Math.round(100*wins/trades.length)+'%',wins/trades.length>=.5?'g':'a'),
+    card('ממוצע לעסקה',fmt(net/trades.length),net>=0?'g':'r'),
+    card('רגליים (מילויים)',win.length,''),
+    card('עמלות',fmt(-comm),'r')
+  ].join('');
+
+  // EXECUTION HEALTH
+  const partial=trades.filter(t=>t.qty<EXP_QTY).length;
+  const full=trades.length-partial;
+  const blk=trades.filter(t=>inBlock(t.la)||inBlock(t.xla)).length;
+  $('#kpi-exec').innerHTML=[
+    card('מילוי מלא (4 חוזים)',Math.round(100*full/trades.length)+'%',full/trades.length>=.9?'g':'a'),
+    card('מילוי חלקי',partial+' עסקאות',partial?'r':'g'),
+    card('עסקאות בחלון חסימה',blk,blk?'a':'g'),
+    card('היפוך כיוון','—','b'),
+    card('פער מול אינדיקטור','—','b')
+  ].join('');
+
+  // GAP (theoretical feed)
+  let fvg=null; try{fvg=await (await fetch('../fvg-journal.json?_='+Date.now(),{cache:'no-store'})).json();}catch(e){}
+  if(!fvg||!(fvg.events&&fvg.events.length)){
+    $('#gap-block').innerHTML='<div class="empty">ממתין להזנת היומן התיאורטי מהאינדיקטור. ברגע שההתראה בטריידינג-ויו פעילה — כאן יופיע הפער הכולל (גרף מול ברוקר) ופירוקו לפי סיבה: החלקה · מילוי חלקי · עסקאות רפאים · היפוך כיוון · חסימה.</div>';
+  }
+
+  // BLOCK MONITOR
+  const bt=trades.filter(t=>inBlock(t.la)||inBlock(t.xla)||t.qty<EXP_QTY);
+  if(!bt.length){$('#block-mon').innerHTML='<div class="empty">אין דגלים סביב חלון החסימה ב-24 השעות האחרונות. ✓</div>';}
+  else{
+    $('#block-mon').innerHTML='<table><thead><tr><th>שעה LA</th><th>שעה IL</th><th>כיוון</th><th>חוזים</th><th>נטו $</th><th>דגל</th></tr></thead><tbody>'+
+      bt.map(t=>{const flags=[];if(inBlock(t.la)||inBlock(t.xla))flags.push('חלון חסימה');if(t.qty<EXP_QTY)flags.push('מילוי חלקי ('+t.qty+'/4)');
+        return `<tr class="flag"><td>${laHM(t.la)}</td><td>${ilHM(t.la)}</td><td>${t.dir==='long'?'LONG':'SHORT'}</td><td>${t.qty}</td><td class="${t.net>=0?'g':'r'}">${fmt(t.net)}</td><td><span class="pill warn">${flags.join(' · ')}</span></td></tr>`;}).join('')+'</tbody></table>';
+  }
+
+  // ALL TRADES
+  $('#trades').querySelector('tbody').innerHTML=trades.map((t,i)=>{
+    const flag=(inBlock(t.la)||inBlock(t.xla))?'<span class="pill warn">חסימה</span>':(t.qty<EXP_QTY?'<span class="pill warn">חלקי</span>':'<span class="pill ok">תקין</span>');
+    return `<tr class="${t.net>=0?'win':'loss'}"><td>${i+1}</td><td>${laHM(t.la)}</td><td>${ilHM(t.la)}</td><td>${t.dir==='long'?'LONG':'SHORT'}</td><td>${t.qty}</td><td>${t.legs}</td><td>${t.ent}</td><td>${t.xit}</td><td class="${t.net>=0?'g':'r'}">${fmt(t.net)}</td><td>${flag}</td></tr>`;
+  }).join('');
+}
+main();
+</script>
+</body>
+</html>
