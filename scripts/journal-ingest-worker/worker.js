@@ -19,6 +19,7 @@
 const REPO = "laurenlev10/lauren-agent-hub-data";
 const JOURNAL = "docs/trading/journal-data.json";
 const RESEARCH = "docs/trading/research-journal.json";  // all-hours data-collection feed (filter OFF)
+const FVG_FILE = "docs/trading/fvg-journal.json";  // FVG theoretical (indicator) events — reconstructed by the dashboard
 const TICK = 0.25;            // MNQ tick size (price)
 const DOLLAR_PER_TICK = 0.5;  // MNQ $ per tick
 
@@ -27,9 +28,17 @@ export default {
     const cors = { "Access-Control-Allow-Origin":"*", "Access-Control-Allow-Methods":"POST, OPTIONS", "Access-Control-Allow-Headers":"Content-Type" };
     if (request.method === "OPTIONS") return new Response(null, { headers: cors });
     const url = new URL(request.url);
-    const m = url.pathname.match(/\/(research\/)?(base|partial|momentum)\/?$/i);
     if (request.method !== "POST") return reply({ error:"POST only" }, 405, cors);
-    if (!m) return reply({ error:"path must end with /base, /partial, /momentum (optionally prefixed with /research/)" }, 404, cors);
+    const TOKEN0 = (env.GH_TOKEN || "").trim();
+    if (!TOKEN0) return reply({ error:"server not configured (no GH_TOKEN)" }, 500, cors);
+    // ---- FVG theoretical feed (EZTrade indicator) ----
+    if (/\/fvg\/?$/i.test(url.pathname)) {
+      let pf; try { pf = await request.json(); } catch(e){ try { pf = JSON.parse(await request.text()); } catch(e2){ return reply({error:"bad json"},400,cors);} }
+      ctx.waitUntil(processFvg(TOKEN0, pf));
+      return reply({ ok:true, queued:true, feed:"fvg" }, 200, cors);
+    }
+    const m = url.pathname.match(/\/(research\/)?(base|partial|momentum)\/?$/i);
+    if (!m) return reply({ error:"path must end with /fvg, /base, /partial, /momentum (optionally prefixed with /research/)" }, 404, cors);
     const isResearch = !!m[1];
     const strategy = m[2].toLowerCase();
     const FILE = isResearch ? RESEARCH : JOURNAL;
@@ -103,6 +112,31 @@ async function processAlert(TOKEN, FILE, strategy, p) {
     await sleep(200 + Math.random()*500);   // write conflict -> back off, re-read, retry
   }
   // give up silently; the hourly broker reconciler is the backstop
+}
+
+async function processFvg(TOKEN, p) {
+  const now = new Date();
+  const num = v => (v===undefined||v===null||v==="")?null:(isNaN(parseFloat(v))?String(v):parseFloat(v));
+  const evt = {
+    received_at: now.toISOString(),
+    la: laStr(now),
+    event: String(p.event || p.action || "").toLowerCase(),  // entry | close | tp | sl | swap | time
+    dir:   (p.dir!==undefined) ? Number(p.dir) : (String(p.sentiment||"").toLowerCase()==="bearish"? -1 : (String(p.sentiment||"").toLowerCase()==="bullish"?1:null)),
+    unit:  p.unit || p.strategy || null,          // e.g. "A-3contracts" | "B-1contract"
+    qty:   num(p.qty),
+    price: num(p.price),
+    target:num(p.target), stop: num(p.stop), pnl: num(p.pnl)
+  };
+  for (let attempt=0; attempt<8; attempt++) {
+    const cur = await ghGet(TOKEN, FVG_FILE);
+    const data = cur.json || { events: [] };
+    data.events = data.events || [];
+    data.events.push(evt);
+    if (data.events.length > 4000) data.events = data.events.slice(-4000);
+    data._updated_at = now.toISOString();
+    if (await ghPut(TOKEN, FVG_FILE, data, cur.sha, "fvg: " + (evt.event||"event"))) return;
+    await sleep(200 + Math.random()*500);
+  }
 }
 
 function mkOpen(dir, price, now) {
