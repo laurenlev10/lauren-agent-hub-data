@@ -60,6 +60,17 @@
   .queue .qi{padding:6px 0;border-top:1px solid var(--line);}
   .toast{position:fixed;inset-block-end:20px;inset-inline-start:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;}
   .toast.show{opacity:1;}
+
+  .ship-badge{display:inline-flex;align-items:center;gap:6px;background:#dc2626;color:#fff;font-weight:800;font-size:13px;padding:6px 13px;border-radius:999px;box-shadow:0 4px 12px rgba(220,38,38,.35);animation:shipPulse 1.8s ease-in-out infinite;text-decoration:none;}
+  .ship-badge.zero{background:#16a34a;box-shadow:none;animation:none;}
+  @keyframes shipPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+  .ship-card{border:2px solid #dc2626;background:#fef2f2;}
+  .ship-card.zero{border-color:var(--green);background:#f0fdf4;}
+  .ship-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .ship-table th{padding:8px;color:#991b1b;font-size:11px;border-bottom:2px solid #fecaca;text-align:right;}
+  .ship-table td{padding:8px;border-bottom:1px solid #fee2e2;}
+  .ship-table a.open{color:#dc2626;font-weight:800;text-decoration:none;}
+  .ship-stale{font-size:12px;color:var(--muted);margin-top:10px;}
 </style>
 </head>
 <body>
@@ -68,6 +79,7 @@
   <header>
     <h1>🟢 MYSTERY BOX</h1>
     <a id="liveBtn" class="live-btn disabled" href="#" target="_blank" rel="noopener">דף המכירה החי →</a>
+    <a id="shipBadge" class="ship-badge zero" href="#" target="_blank" rel="noopener" style="display:none">📦 —</a>
   </header>
   <div class="sub">מוצר הדגל — BEST SELLER · נמכר אונליין (Shopify) ובאירועים · מנוהל ע״י סוכן <b>@shopify</b></div>
 
@@ -104,6 +116,12 @@
         <span class="qi">🛒</span><span class="qt"><b>קישור הרכישה (לכפתורים)</b><small>2026 Mystery Box · $49.95</small></span>
       </a>
     </div>
+  </div>
+
+  <!-- הזמנות לשילוח (Lauren 2026-07-12) -->
+  <div class="card ship-card zero" id="shipCard">
+    <h2 id="shipTitle">📦 הזמנות לשילוח</h2>
+    <div id="shipBody"><div class="pending">ייטען מ-@shopify</div></div>
   </div>
 
   <!-- מכירות -->
@@ -213,6 +231,34 @@ if(location.search.indexOf("tab=events")>-1){ showTab("events"); }
   function money(v){ return (v===null||v===undefined) ? "—" : "$"+Number(v).toLocaleString(); }
   function num(v){ return (v===null||v===undefined) ? "—" : Number(v).toLocaleString(); }
 
+  function renderShip(sh){
+    var badge=document.getElementById("shipBadge");
+    var card=document.getElementById("shipCard");
+    var title=document.getElementById("shipTitle");
+    var body=document.getElementById("shipBody");
+    badge.style.display="inline-flex";
+    var n=(sh&&typeof sh.count==="number")?sh.count:0;
+    var orders=(sh&&sh.orders)||[];
+    var adminAll=(sh&&sh.admin_unfulfilled_url)||"https://admin.shopify.com/store/the-makeup-blowout-sale-group/orders";
+    badge.href=adminAll;
+    if(n>0){
+      badge.className="ship-badge"; badge.textContent="📦 "+n+" לשילוח";
+      card.className="card ship-card"; title.textContent="📦 "+n+" הזמנות ממתינות לשילוח";
+      var rows=orders.map(function(o){
+        return '<tr><td class="num" style="font-weight:800">'+o.name+'</td><td>'+(o.customer||"")+'</td>'+
+               '<td style="color:#64748b">'+(o.date||"")+'</td>'+
+               '<td>$'+Number(o.total||0).toLocaleString()+'</td>'+
+               '<td><a class="open" href="'+(o.admin_url||adminAll)+'" target="_blank" rel="noopener">פתחי ושלחי →</a></td></tr>';
+      }).join("");
+      var stale=(sh&&sh.stale_count)?'<div class="ship-stale">＋ '+sh.stale_count+' הזמנות ישנות (2020–2025) לא-משולחות — מסומנות כלא-רלוונטיות ולא נספרות. <a href="'+adminAll+'" target="_blank" rel="noopener" style="color:#64748b">צפייה בכולן</a></div>':"";
+      body.innerHTML='<table class="ship-table"><tr><th>הזמנה</th><th>לקוח/ה</th><th>תאריך</th><th>סכום</th><th></th></tr>'+rows+'</table>'+stale;
+    } else {
+      badge.className="ship-badge zero"; badge.textContent="📦 הכל שולח";
+      card.className="card ship-card zero"; title.textContent="📦 הזמנות לשילוח";
+      body.innerHTML='<div class="pending" style="color:#15803d;background:#f0fdf4;border-color:#bbf7d0">✓ אין הזמנות שממתינות לשילוח</div>';
+    }
+  }
+
   function renderSales(s){
     var el=document.getElementById("salesBody");
     if(!s){ return; }
@@ -269,6 +315,7 @@ if(location.search.indexOf("tab=events")>-1){ showTab("events"); }
     renderSales(st&&st.sales);
     renderFunnel(st&&st.funnel);
     renderInv(st&&st.inventory);
+    renderShip(st&&st.orders_to_ship);
     renderQueue(st);
     var q=(st&&st.design_queue)||{};
     if(q.box_image_url) document.getElementById("f_box").value=q.box_image_url;
