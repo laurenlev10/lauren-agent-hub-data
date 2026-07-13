@@ -101,6 +101,15 @@
     100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); transform: scale(1); }
   }
 
+  /* 🛒 Shopify MYSTERY BOX — square pulses when there are paid orders awaiting shipment (2026-07-12) */
+  .tile-shopify.needs-ship { animation: shipPulse 1.35s ease-in-out infinite; }
+  .tile-shopify.needs-ship:hover { animation: shipPulse 1.35s ease-in-out infinite; }
+  @keyframes shipPulse {
+    0%   { box-shadow: 0 6px 22px rgba(0,0,0,0.10), 0 0 0 0 rgba(239,68,68,0.60); }
+    60%  { box-shadow: 0 6px 22px rgba(0,0,0,0.10), 0 0 0 16px rgba(239,68,68,0); }
+    100% { box-shadow: 0 6px 22px rgba(0,0,0,0.10), 0 0 0 0 rgba(239,68,68,0); }
+  }
+
   /* Color themes */
   .tile-makeup    { background: linear-gradient(135deg, #ec4899 0%, #db2777 50%, #9333ea 100%); }
   .tile-protask   { background: linear-gradient(135deg, #f97316 0%, #c2410c 45%, #6b21a8 100%); }
@@ -206,8 +215,9 @@
       <span class="corner-emoji">📉</span>
     </a>
 
-    <a class="tile tile-shopify" href="shopify/">
+    <a class="tile tile-shopify" id="tile-shopify" href="shopify/">
       <span class="pill">Shopify</span>
+      <span class="alert-badge" id="shopify-ship-badge"></span>
       <div class="title">🟢 MYSTERY BOX</div>
       <div class="tag">ה‑MYSTERY BOX — מוצר הדגל / BEST SELLER. שני טאבים: 🛒 מכירות אונליין (Shopify) + 🎪 מכירות באירועים (כמויות וממוצע לפי אוקטופוס). מנוהל ע״י הסוכן @shopify.</div>
       <div class="status" id="status-shopify">אונליין + אירועים · מעקב חי</div>
@@ -379,6 +389,33 @@
     if(total>0){ el.textContent="\ud83d\udd14 "+total+" \u05d7\u05d3\u05e9"; el.classList.add("on"); el.title=repliedCount+" \u05e2\u05e0\u05d5 \u00b7 "+untriaged+" \u05de\u05d5\u05e2\u05de\u05d3\u05d5\u05d9\u05d5\u05ea \u05d7\u05d3\u05e9\u05d5\u05ea"; }
     else { el.classList.remove("on"); }
   });
+})();
+</script>
+<script>
+/* 🛒 MYSTERY BOX ship-alert (2026-07-12) — the square blinks + a red badge shows the count
+   whenever there are paid Shopify orders still waiting to be shipped.
+   Source: state/shopify_mystery_box.json -> orders_to_ship.count (2026 paid, unfulfilled;
+   old 2020-2025 stale orders are excluded upstream). Self-clears once everything is shipped. */
+(function(){
+  fetch("state/shopify_mystery_box.json?_="+Date.now(),{cache:"no-store"})
+    .then(function(r){ return r.ok ? r.json() : {}; })
+    .then(function(d){
+      var n = (d && d.orders_to_ship && d.orders_to_ship.count) || 0;
+      var tile = document.getElementById("tile-shopify");
+      var badge = document.getElementById("shopify-ship-badge");
+      if(n>0){
+        if(tile) tile.classList.add("needs-ship");
+        if(badge){
+          badge.textContent = "\ud83d\udce6 "+n+" \u05dc\u05de\u05e9\u05dc\u05d5\u05d7";
+          badge.classList.add("on");
+          badge.title = n+" \u05d4\u05d6\u05de\u05e0\u05d5\u05ea \u05e9\u05d5\u05dc\u05de\u05d5 \u05d5\u05de\u05de\u05ea\u05d9\u05e0\u05d5\u05ea \u05dc\u05de\u05e9\u05dc\u05d5\u05d7";
+        }
+      } else {
+        if(tile) tile.classList.remove("needs-ship");
+        if(badge) badge.classList.remove("on");
+      }
+    })
+    .catch(function(){});
 })();
 </script>
 </body>
