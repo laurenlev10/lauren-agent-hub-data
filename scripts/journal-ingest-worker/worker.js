@@ -33,7 +33,7 @@ export default {
     if (!TOKEN0) return reply({ error:"server not configured (no GH_TOKEN)" }, 500, cors);
     // ---- FVG theoretical feed (EZTrade indicator) ----
     if (/\/fvg\/?$/i.test(url.pathname)) {
-      let pf; try { pf = await request.json(); } catch(e){ try { pf = JSON.parse(await request.text()); } catch(e2){ return reply({error:"bad json"},400,cors);} }
+      let pf; try { pf = looseParse(await request.text()); } catch(e){ return reply({error:"bad json"},400,cors); }
       ctx.waitUntil(processFvg(TOKEN0, pf));
       return reply({ ok:true, queued:true, feed:"fvg" }, 200, cors);
     }
@@ -46,8 +46,8 @@ export default {
     if (!TOKEN) return reply({ error:"server not configured (no GH_TOKEN)" }, 500, cors);
 
     let p;
-    try { p = await request.json(); }
-    catch (e) { try { p = JSON.parse(await request.text()); } catch (e2) { return reply({ error:"bad json" }, 400, cors); } }
+    try { p = looseParse(await request.text()); }
+    catch (e) { return reply({ error:"bad json" }, 400, cors); }
 
     // Acknowledge instantly; do the slow GitHub write in the background.
     ctx.waitUntil(processAlert(TOKEN, FILE, strategy, p));
@@ -125,7 +125,9 @@ async function processFvg(TOKEN, p) {
     unit:  p.unit || p.strategy || null,          // e.g. "A-3contracts" | "B-1contract"
     qty:   num(p.qty),
     price: num(p.price),
-    target:num(p.target), stop: num(p.stop), pnl: num(p.pnl)
+    partial: num(p.partial),
+    target: (p.main!==undefined && p.main!==null && p.main!=="") ? num(p.main) : num(p.target),
+    stop: num(p.stop), pnl: num(p.pnl)
   };
   for (let attempt=0; attempt<8; attempt++) {
     const cur = await ghGet(TOKEN, FVG_FILE);
@@ -157,6 +159,19 @@ function laStr(d) {
   const f = new Intl.DateTimeFormat("en-GB", { timeZone:"America/Los_Angeles", day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit", hour12:false });
   const o = {}; for (const x of f.formatToParts(d)) o[x.type] = x.value;
   return o.day + "/" + o.month + "/" + o.year + " " + o.hour + ":" + o.minute;
+}
+function looseParse(text){
+  const t = String(text == null ? "" : text);
+  try { return JSON.parse(t); }
+  catch(e){
+    // TradingView renders a `na` plot() as bare NaN, bare `na`, or an EMPTY value
+    // (e.g. "main":,) -> all invalid JSON. Repair each to null so an entry is never lost.
+    const repaired = t
+      .replace(/(:\s*)-?(NaN|Infinity)\b(\s*[,}\]])/gi, "$1null$3")  // NaN / Infinity
+      .replace(/(:\s*)na\b(\s*[,}\]])/gi, "$1null$2")                // bare na
+      .replace(/:(\s*)([,}\]])/g, ":null$2");                        // empty value  "x":,  or  "x":}
+    return JSON.parse(repaired);
+  }
 }
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 function reply(obj, status, cors){ return new Response(JSON.stringify(obj), { status, headers: { "Content-Type":"application/json", ...cors } }); }
