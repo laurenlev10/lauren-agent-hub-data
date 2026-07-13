@@ -2962,7 +2962,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     var cnt = document.getElementById("tohandle-count"); if (cnt) cnt.textContent = "(" + rows.length + ")";
     var head = '<table class="creator-table"><thead><tr>' +
       '<th>Handle</th><th>שם</th><th>עוקבים</th><th>נישה</th><th>אימייל</th>' +
-      '<th>אירוע</th><th>פלטפורמה</th><th>סטטוס נוכחי</th><th>מתי</th></tr></thead><tbody>';
+      '<th>אירוע</th><th>פלטפורמה</th><th>סטטוס נוכחי</th><th>מתי</th><th>מענה מהיר</th></tr></thead><tbody>';
     var body = rows.map(function(r){
       var c = r.c, h = String(c.handle||"").replace(/^@/,"");
       var prof = c.profile_url || ("https://www.instagram.com/" + h);
@@ -2970,6 +2970,24 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
       var pf = c.platform ? (c.platform.charAt(0).toUpperCase() + c.platform.slice(1)) : "";
       var when = r.setAt ? String(r.setAt).slice(0,10) : "";
       var pbadge = r.partnership ? ' <span class="niche-tag" style="background:#fef9c3;color:#854d0e">💬 Partnership — בדקי טקסט באינסטגרם</span>' : '';
+      var first = String(c.display_name || h).trim().split(/\s+/)[0] || h;
+      var cityShort = String(r.ev.city || "").split(",")[0].trim();
+      var today = new Date().toISOString().slice(0,10);
+      var evDate = r.ev.endDate || r.ev.startDate || "";
+      var past = evDate && evDate < today;
+      var FORM = "https://events.themakeupblowout.com/collab/";
+      var repFuture = "Hi " + first + "! \uD83D\uDC95 So happy you're interested! To lock in your spot and your $100 product basket, just fill out our quick collab form here \uD83D\uDC49 " + FORM + " \u2014 once you submit it we'll send over the full brief and all the timing details. Can't wait to have you at " + cityShort + "! \u2728";
+      var repPast = "Hi " + first + "! \uD83D\uDC95 Thank you so much for wanting to be part of our " + cityShort + " pop-up \u2014 I'm so sorry we didn't connect in time for that one! \uD83D\uDE14 We'd absolutely love to have you at our next event near you. I'm keeping you on our list and I'll reach out the moment we have a date in your area. Thank you so much for your patience and excitement! \uD83D\uDE4F\u2728";
+      var repBrief = "Hi " + first + "! \uD83D\uDC95 Thanks so much \u2014 here are the details: it's a free makeup pop-up where you'll get a $100 product basket (you pick everything at the event) in exchange for one filmed + edited video there. To grab your spot and get the full brief, just fill out our quick form \uD83D\uDC49 " + FORM + " and we'll take it from there! \u2728";
+      var recFuture = past ? "" : "background:#dcfce7;color:#166534;border-color:#86efac;";
+      var recPast = past ? "background:#dcfce7;color:#166534;border-color:#86efac;" : "";
+      var hint = past ? '<div style="font-size:10px;color:#b45309;margin-bottom:3px">\uD83D\uDD59 האירוע עבר</div>' : '<div style="font-size:10px;color:#166534;margin-bottom:3px">\uD83D\uDCC5 אירוע עתידי</div>';
+      var actions = '<div style="display:flex;flex-direction:column;gap:4px;min-width:168px">' + hint +
+        '<a class="small-btn" href="' + prof + '" target="_blank" style="text-align:center">\u2709\uFE0F \u05e4\u05ea\u05d7\u05d9 \u05e6\u05f3\u05d0\u05d8 \u05dc\u05de\u05e2\u05e0\u05d4</a>' +
+        '<button class="small-btn th-reply" data-r="' + encodeURIComponent(repFuture) + '" style="' + recFuture + '">\uD83D\uDCCB \u05d0\u05d9\u05e8\u05d5\u05e2 \u05e2\u05ea\u05d9\u05d3\u05d9 \u2014 \u05de\u05dc\u05d0\u05d9 \u05d8\u05d5\u05e4\u05e1</button>' +
+        '<button class="small-btn th-reply" data-r="' + encodeURIComponent(repPast) + '" style="' + recPast + '">\uD83D\uDCCB \u05d0\u05d9\u05e8\u05d5\u05e2 \u05e2\u05d1\u05e8 \u2014 \u05e0\u05e9\u05de\u05d5\u05e8 \u05e7\u05e9\u05e8</button>' +
+        '<button class="small-btn th-reply" data-r="' + encodeURIComponent(repBrief) + '">\uD83D\uDCCB \u05e9\u05dc\u05d9\u05d7\u05ea \u05e4\u05e8\u05d8\u05d9\u05dd + \u05d8\u05d5\u05e4\u05e1</button>' +
+      '</div>';
       return '<tr>' +
         '<td><a href="' + prof + '" target="_blank" style="color:var(--accent);font-weight:bold">@' + h + '</a></td>' +
         '<td>' + (c.display_name || "") + '</td>' +
@@ -2980,9 +2998,19 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
         '<td>' + pf + '</td>' +
         '<td><span class="niche-tag" style="background:#dcfce7;color:#166534">ענתה — מעוניינת!</span>' + pbadge + '</td>' +
         '<td>' + when + '</td>' +
+        '<td style="vertical-align:top">' + actions + '</td>' +
       '</tr>';
     }).join("");
     document.getElementById("tohandle-list").innerHTML = head + body + '</tbody></table>';
+    document.querySelectorAll("#tohandle-list .th-reply").forEach(function(b){
+      b.addEventListener("click", function(){
+        var txt = decodeURIComponent(b.dataset.r || "");
+        navigator.clipboard.writeText(txt).then(function(){
+          var orig = b.innerHTML; b.innerHTML = "\u2713 \u05d4\u05d5\u05e2\u05ea\u05e7!";
+          setTimeout(function(){ b.innerHTML = orig; }, 1500);
+        });
+      });
+    });
     return true;
   }
   var tries = 0;
