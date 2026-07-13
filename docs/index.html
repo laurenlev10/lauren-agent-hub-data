@@ -116,6 +116,10 @@
   .tile.pr-tile-alert { animation: shipPulse 1.35s ease-in-out infinite; }
   .tile.pr-tile-alert:hover { animation: shipPulse 1.35s ease-in-out infinite; }
 
+  /* 🤝 Local PR — square pulses when a partner org replied (2026-07-13) */
+  .tile.pr-org-alert,
+  .tile.pr-org-alert:hover { animation: shipPulse 1.35s ease-in-out infinite; }
+
   /* Color themes */
   .tile-makeup    { background: linear-gradient(135deg, #ec4899 0%, #db2777 50%, #9333ea 100%); }
   .tile-protask   { background: linear-gradient(135deg, #f97316 0%, #c2410c 45%, #6b21a8 100%); }
@@ -239,6 +243,16 @@
       <div class="status">Board לכל אירוע · פולו‑אפ · Heepsy</div>
       <span class="cta">פתחי את מרכז המשפיעניות →</span>
       <span class="corner-emoji">🎬</span>
+    </a>
+
+    <a class="tile" id="tile-pr-org" style="background:linear-gradient(135deg,#f472b6 0%,#c026d3 55%,#7c3aed 100%);color:#fff" href="pr-organization/">
+      <span class="pill">Local PR</span>
+      <span class="alert-badge" id="pr-org-alert-badge"></span>
+      <div class="title">🤝 Local PR</div>
+      <div class="tag">מציאת שותפי PR מקומיים לכל אירוע — ארגוני נשים, בתי ספר לקוסמטיקה, עמותות. טיוטות מייל מוכנות ב-pr@ + מעקב סטטוס. מנוהל ע״י @pr-organization.</div>
+      <div class="status">שותפים לכל אירוע · טיוטות ב-pr@</div>
+      <span class="cta">פתחי את לוח ה-PR →</span>
+      <span class="corner-emoji">🤝</span>
     </a>
 
     <a class="tile" style="background:linear-gradient(135deg,#7c3aed,#4c1d95);color:#fff" href="suppliers/">
@@ -423,6 +437,30 @@
       }
     })
     .catch(function(){});
+})();
+</script>
+<script>
+/* 🤝 Local PR hub badge (2026-07-13) — blinks when a partner org replied to a PR email.
+   Source: pr-organization/replies.json -> count (written by the daily pr-reply-check task).
+   Self-clears when a later daily run finds no new replies. */
+(function(){
+  fetch("pr-organization/replies.json?_="+Date.now(),{cache:"no-store"})
+    .then(function(r){ return r.ok ? r.json() : {}; }).catch(function(){ return {}; })
+    .then(function(d){
+      var n = (d && typeof d.count === "number") ? d.count : 0;
+      var el = document.getElementById("pr-org-alert-badge");
+      if(!el) return;
+      var tile = el.closest(".tile");
+      if(n>0){
+        el.textContent = "\ud83d\udd14 "+n+" \u05ea\u05e9\u05d5\u05d1\u05d5\u05ea";
+        el.classList.add("on");
+        el.title = n+" \u05ea\u05e9\u05d5\u05d1\u05d5\u05ea \u05d7\u05d3\u05e9\u05d5\u05ea \u05de\u05d0\u05e8\u05d2\u05d5\u05e0\u05d9\u05dd \u05dc\u05de\u05d9\u05d9\u05dc\u05d9 \u05d4-PR";
+        if(tile) tile.classList.add("pr-org-alert");
+      } else {
+        el.classList.remove("on");
+        if(tile) tile.classList.remove("pr-org-alert");
+      }
+    });
 })();
 </script>
 </body>
