@@ -1875,6 +1875,12 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     </div>
   </div>
 
+  <div class="card" id="tohandle-card" style="display:none;border-left:6px solid #16a34a;">
+    <h2 style="margin-top:0;color:#166534;">🔔 מועמדות לטיפול <span id="tohandle-count" style="font-size:13px;color:#6b7280;font-weight:normal"></span></h2>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">משפיעניות שענו שהן מעוניינות — צריך לקדם אותן לשלב הבא. (מתעדכן אוטומטית מסריקת ה-DM כל 6 שעות)</div>
+    <div id="tohandle-list"></div>
+  </div>
+
   <div class="card" id="apps-card">
     <h2 style="margin-top:0">📥 מועמדויות שהוגשו (Collab With Us)</h2>
     <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">
@@ -2918,6 +2924,70 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
   var tries = 0;
   var iv = setInterval(function(){ tries++; if (build() || tries > 40) clearInterval(iv); }, 250);
   document.addEventListener("pr-status-changed", build);
+})();
+</script>
+<script>
+/* "מועמדות לטיפול" — replied creators rendered as a full-detail card above the
+   applications card (2026-07-13). Global in master view; scoped to the event
+   in per-event view. Reads window.__prNotes + the global RUNS. */
+(function(){
+  var REPLIED = "ענתה — מעוניינת!";
+  function slug(x){ return String(x||"").replace(/[^a-zA-Z0-9]/g,"-").toLowerCase(); }
+  function render(){
+    var notes = window.__prNotes;
+    if (!notes || typeof RUNS === "undefined") return false;
+    var isMaster = (typeof __MODE === "undefined") || __MODE === "master";
+    var curCity = null;
+    try { if (!isMaster && typeof RUN !== "undefined" && RUN && RUN.event) curCity = RUN.event.city; } catch(e){}
+    var rows = [], seen = {};
+    Object.keys(RUNS).forEach(function(evk){
+      var run = RUNS[evk]; if (!run || !run.event || !run.creators) return;
+      var ev = run.event;
+      if (!isMaster && curCity && ev.city !== curCity) return;
+      run.creators.forEach(function(c){
+        var key = ev.city + "|" + c.rank + "|" + slug(c.handle||c.display_name);
+        if (notes[key] !== REPLIED || seen[key]) return;
+        seen[key] = true;
+        var note = notes[key + "|note"] || "";
+        rows.push({ c: c, ev: ev, setAt: notes[key + "|status_set_at"] || "",
+                    partnership: /Partnership/i.test(note) });
+      });
+    });
+    var card = document.getElementById("tohandle-card");
+    if (!card) return true;
+    if (!rows.length){ card.style.display = "none"; return true; }
+    // newest reply first
+    rows.sort(function(a,b){ return String(b.setAt).localeCompare(String(a.setAt)); });
+    card.style.display = "";
+    var cnt = document.getElementById("tohandle-count"); if (cnt) cnt.textContent = "(" + rows.length + ")";
+    var head = '<table class="creator-table"><thead><tr>' +
+      '<th>Handle</th><th>שם</th><th>עוקבים</th><th>נישה</th><th>אימייל</th>' +
+      '<th>אירוע</th><th>פלטפורמה</th><th>סטטוס נוכחי</th><th>מתי</th></tr></thead><tbody>';
+    var body = rows.map(function(r){
+      var c = r.c, h = String(c.handle||"").replace(/^@/,"");
+      var prof = c.profile_url || ("https://www.instagram.com/" + h);
+      var fol = (typeof c.followers === "number") ? c.followers.toLocaleString() : (c.followers || "");
+      var pf = c.platform ? (c.platform.charAt(0).toUpperCase() + c.platform.slice(1)) : "";
+      var when = r.setAt ? String(r.setAt).slice(0,10) : "";
+      var pbadge = r.partnership ? ' <span class="niche-tag" style="background:#fef9c3;color:#854d0e">💬 Partnership — בדקי טקסט באינסטגרם</span>' : '';
+      return '<tr>' +
+        '<td><a href="' + prof + '" target="_blank" style="color:var(--accent);font-weight:bold">@' + h + '</a></td>' +
+        '<td>' + (c.display_name || "") + '</td>' +
+        '<td>' + fol + '</td>' +
+        '<td><span class="niche-tag">' + (c.niche || "") + '</span></td>' +
+        '<td>' + (c.email ? ('<a href="mailto:' + c.email + '">' + c.email + '</a>') : "—") + '</td>' +
+        '<td>' + (r.ev.city || "") + ' · ' + (r.ev.startDate || "") + '</td>' +
+        '<td>' + pf + '</td>' +
+        '<td><span class="niche-tag" style="background:#dcfce7;color:#166534">ענתה — מעוניינת!</span>' + pbadge + '</td>' +
+        '<td>' + when + '</td>' +
+      '</tr>';
+    }).join("");
+    document.getElementById("tohandle-list").innerHTML = head + body + '</tbody></table>';
+    return true;
+  }
+  var tries = 0;
+  var iv = setInterval(function(){ tries++; if (render() || tries > 40) clearInterval(iv); }, 250);
+  document.addEventListener("pr-status-changed", render);
 })();
 </script>
 </body>
