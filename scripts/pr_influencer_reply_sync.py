@@ -268,13 +268,37 @@ def _scan_ig_dms(idx, notes, logged, new_replies, status_flips):
         except Exception:
             continue
         cust, _answered = igdm.latest_customer_message(msgs)
-        if not cust:
+
+        # Two reply signals:
+        #  1. A readable message FROM the creator (standard DM) -> we have the text.
+        #  2. Partnership-inbox reply: Meta HIDES the text of Creator-Marketplace
+        #     "Partnership messages", so `cust` is None even though she replied.
+        #     But the account's instant auto-reply ("Hi, thanks for contacting
+        #     us…") only fires on an INBOUND message — so its presence in a
+        #     contacted creator's 1:1 thread is a reliable API signal that she
+        #     replied. (Verified live 2026-07-13: @abbeyhans replied in the
+        #     Partnership inbox — text invisible to the API, auto-reply present.)
+        #     NOTE: depends on the IG instant-reply feature staying ON.
+        auto_prefix = getattr(igdm, "AUTO_REPLY_PREFIX", "Hi, thanks for contacting us")
+        has_auto = any((m.get("message") or "").startswith(auto_prefix) for m in msgs)
+
+        if cust and (cust.get("message") or "").strip():
+            text = (cust.get("message") or "").strip()
+            when = (cust.get("created_time") or "")[:10]
+            new_status = S_REPLIED_NO if _DECLINE_RE.search(text) else S_REPLIED_YES
+            note_stamp = f"ענתה ב-IG DM {when}".strip()
+            log_msg = f"IG DM: {text[:160]}"
+            partnership = False
+        elif has_auto:
+            # Partnership reply — she engaged, text not exposed by the API.
+            text = ""
+            when = (c.get("updated_time") or "")[:10]
+            new_status = S_REPLIED_YES  # a reply to outreach = interest; Lauren can downgrade
+            note_stamp = f"ענתה בתיבת Partnership {when} (טקסט לא נגיש ל-API — בדקי באינסטגרם)".strip()
+            log_msg = "IG DM (Partnership inbox — text not exposed by API)"
+            partnership = True
+        else:
             continue  # only WE messaged — no reply yet
-        text = (cust.get("message") or "").strip()
-        if not text:
-            continue
-        when = (cust.get("created_time") or "")[:10]
-        new_status = S_REPLIED_NO if _DECLINE_RE.search(text) else S_REPLIED_YES
 
         for t in idx[nh]:
             rid = "igdm:" + t["key"]
@@ -286,12 +310,12 @@ def _scan_ig_dms(idx, notes, logged, new_replies, status_flips):
             if cur in EARLY:
                 notes[key] = new_status
                 notes[key + "|status_set_at"] = _now_iso()
-                stamp = f"ענתה ב-IG DM {when}".strip()
                 prev = notes.get(key + "|note")
-                notes[key + "|note"] = (prev + " · " + stamp) if prev and stamp not in prev else stamp
+                notes[key + "|note"] = (prev + " · " + note_stamp) if prev and note_stamp not in prev else note_stamp
                 status_flips.append((key, cur, new_status))
                 flipped = True
-            rec = _rec(rid, "ig-dm", t, creator, f"IG DM: {text[:160]}", flipped)
+            rec = _rec(rid, "ig-dm", t, creator, log_msg, flipped)
+            rec["partnership"] = partnership
             notes["__replies__"].append(rec)
             logged.add(rid)
             new_replies.append(rec)
