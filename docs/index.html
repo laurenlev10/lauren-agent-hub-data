@@ -170,6 +170,7 @@
 
 
     <a class="tile" style="background:linear-gradient(135deg,#0866ff 0%,#7b2bf9 55%,#d62976 100%);color:#fff" href="meta/inbox-api-preview/">
+      <span class="notif-badge" id="meta-notif">0</span>
       <span class="pill">Meta</span>
       <div class="title">📬 Meta Inbox</div>
       <div class="tag">מסנג׳ר + תגובות פייסבוק ואינסטגרם במקום אחד — הסוכן עונה אוטומטית על שאלות פשוטות (אנגלית וספרדית), תלונות ופניות רגישות מחכות לך עם טיוטה מוכנה. שום תגובה לא נופלת בין הכיסאות.</div>
@@ -340,6 +341,15 @@
       if(!el)return;
       el.innerHTML = n>0 ? '<b>'+n+' ממתינות לך</b> · השאר טופל אוטומטית'
                          : '<b>הכל מטופל ✓</b> · אין ממתינות';
+      var badge=document.getElementById('meta-notif');
+      var tile=el.closest('.tile');
+      if(n>0){
+        if(badge){ badge.textContent = n>99?'99+':n; badge.style.display='flex'; }
+        if(tile){ tile.classList.add('has-notif'); }
+      } else {
+        if(badge){ badge.style.display='none'; }
+        if(tile){ tile.classList.remove('has-notif'); }
+      }
     }).catch(function(){});
 })();
 </script>
