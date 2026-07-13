@@ -57,6 +57,15 @@ OTHER = ["ענתה — לא מעוניינת", "לא הגישה תוכן (deadli
 STATUS_SET = set(STAGES + OTHER)
 # Only auto-advance a creator sitting in one of these early stages.
 EARLY = {"", "לא פניתי", "נשלחה טיוטה / DM"}
+# A creator sitting in EARLY who DMs us back = a reply we must surface.
+S_REPLIED_NO = "ענתה — לא מעוניינת"
+# Light sentiment: obvious declines route to the "not interested" bucket
+# (still surfaced), everything else to "ענתה — מעוניינת!".
+_DECLINE_RE = re.compile(
+    r"(no thanks|no thank you|not interested|i'?m not interested|not for me|"
+    r"i'?ll pass|i will pass|unsubscribe|please stop|not able to|can'?t make it|"
+    r"cannot make it|won'?t be able|not this time|no gracias|no me interesa)",
+    re.I)
 
 
 def _now_iso() -> str:
@@ -143,6 +152,15 @@ def main() -> int:
     except (Exception, SystemExit) as e:
         print(f"[meta] skipped (token not ready / fetch failed): {e}")
 
+    # ---- Source C: Instagram DM replies (token-gated, FAIL-SOFT) ----
+    # The reliable auto-path Lauren asked for: an influencer who replied in an
+    # IG DM (incl. the Partnership-messages inbox) is matched by username to the
+    # creator we contacted, and flipped out of the early stage automatically.
+    try:
+        _scan_ig_dms(idx, notes, logged, new_replies, status_flips)
+    except (Exception, SystemExit) as e:
+        print(f"[ig-dm] skipped (token not ready / fetch failed): {e}")
+
     if dry:
         print(f"DRY RUN — {len(new_replies)} new replies, {len(status_flips)} flips")
         for k, o, n in status_flips:
@@ -217,6 +235,66 @@ def _scan_meta_comments(idx, notes, logged, new_replies):
             _match_comment(idx, notes, logged, new_replies,
                            author=frm.get("name"), text=c.get("message"),
                            where="FB comment")
+
+
+def _scan_ig_dms(idx, notes, logged, new_replies, status_flips):
+    """Source C — match IG DM senders to contacted creators by username.
+
+    For every conversation whose non-us participant is a creator we contacted
+    AND who is still in an EARLY stage, look for a real reply FROM the creator.
+    If found: flip status (interested, or 'not interested' on an obvious
+    decline), stamp a note, log to __replies__, and queue an SMS. Idempotent
+    via the log id 'igdm:<status-key>'. Token-gated + fail-soft."""
+    import lauren_ig_dm as igdm
+    if not igdm.get_token():
+        raise RuntimeError("no IG_LOGIN_TOKEN")
+
+    convs = igdm.fetch_all_conversations(folder="primary", limit=50, max_pages=4)
+    print(f"[ig-dm] scanning {len(convs)} IG DM conversations")
+    for c in convs:
+        parts = ((c.get("participants") or {}).get("data")) or []
+        creator = next((p.get("username") for p in parts
+                        if (p.get("username") or "").lower() != "themakeupblowoutsale"
+                        and p.get("username")), None)
+        if not creator:
+            continue
+        nh = norm_handle(creator)
+        if nh not in idx:
+            continue
+
+        # Only pull messages when there's a match to score.
+        try:
+            msgs = igdm.fetch_messages(c.get("id"), limit=15)
+        except Exception:
+            continue
+        cust, _answered = igdm.latest_customer_message(msgs)
+        if not cust:
+            continue  # only WE messaged — no reply yet
+        text = (cust.get("message") or "").strip()
+        if not text:
+            continue
+        when = (cust.get("created_time") or "")[:10]
+        new_status = S_REPLIED_NO if _DECLINE_RE.search(text) else S_REPLIED_YES
+
+        for t in idx[nh]:
+            rid = "igdm:" + t["key"]
+            if rid in logged:
+                continue
+            key = t["key"]
+            cur = notes.get(key, "")
+            flipped = False
+            if cur in EARLY:
+                notes[key] = new_status
+                notes[key + "|status_set_at"] = _now_iso()
+                stamp = f"ענתה ב-IG DM {when}".strip()
+                prev = notes.get(key + "|note")
+                notes[key + "|note"] = (prev + " · " + stamp) if prev and stamp not in prev else stamp
+                status_flips.append((key, cur, new_status))
+                flipped = True
+            rec = _rec(rid, "ig-dm", t, creator, f"IG DM: {text[:160]}", flipped)
+            notes["__replies__"].append(rec)
+            logged.add(rid)
+            new_replies.append(rec)
 
 
 def _match_comment(idx, notes, logged, new_replies, *, author, text, where):
