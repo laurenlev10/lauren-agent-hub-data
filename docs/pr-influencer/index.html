@@ -1865,6 +1865,13 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     <div id="followup-list"></div>
   </div>
 
+  <div class="card" id="pool-card" style="display:none;border-left:6px solid #a855f7;">
+    <h2 style="margin-top:0;color:#7e22ce;">⭐ מאגר חם — מעוניינות לעתיד <span id="pool-count" style="font-size:13px;color:#6b7280;font-weight:normal"></span></h2>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">כל מי שהביעה עניין אי-פעם (ענתה מעוניינת ומעלה) + מועמדות מהטופס — נשמרות כאן לתמיד, מכל האירועים. חפשי לפי עיר/נישה והוסיפי אותן לאירוע עתידי בלחיצה, כדי שלא נפספס אותן בפעם הבאה.</div>
+    <input type="text" id="pool-search" placeholder="חיפוש לפי שם / handle / עיר / נישה..." style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;margin-bottom:8px;">
+    <div id="pool-list"></div>
+  </div>
+
   <div class="card" id="crm-card">
     <div class="section-title collapsed" data-target="crm-body" id="crm-toggle" style="cursor:pointer;display:flex;justify-content:space-between;">
       <h2 style="margin:0">📚 מאגר היוצרות (כל האירועים)</h2><span class="chevron">◀</span>
@@ -2670,7 +2677,15 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
                profile_url: "https://www.instagram.com/" + String(a.handle||"").replace(/^@/,""),
                followers: a.followers, niche: "inbound", phase: "inbound", email: a.email || null, dm_script: null };
     });
-    return (RUN.creators||[]).concat(inboundCs);
+    var mroster = ((notes && notes.__manual_roster__) || {})[slugCityKey()] || [];
+    var mrosterCs = mroster.map(function(a){
+      return { rank: a.rank || ("pool-" + String(a.handle||"").replace(/[^a-z0-9]/gi,"").toLowerCase()),
+               handle: a.handle, display_name: (a.display_name||"") + " \u2b50",
+               profile_url: a.profile_url || ("https://www.instagram.com/" + String(a.handle||"").replace(/^@/,"")),
+               followers: a.followers, niche: a.niche || "pool", phase: "pool",
+               platform: a.platform, email: a.email || null, dm_script: null };
+    });
+    return (RUN.creators||[]).concat(inboundCs).concat(mrosterCs);
   }
   function stageOf(c){
     var s = notes[keyOf(c)] || STAGES[0];
@@ -3016,6 +3031,115 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
   var tries = 0;
   var iv = setInterval(function(){ tries++; if (render() || tries > 40) clearInterval(iv); }, 250);
   document.addEventListener("pr-status-changed", render);
+})();
+</script>
+<script>
+/* ⭐ מאגר חם — permanent pool of every creator who ever showed interest across
+   ALL events (WARM statuses) + Collab applicants, deduped by handle, forever.
+   Searchable; "add to a future event" writes notes.__manual_roster__[evkey] so
+   she reappears in that event's roster (allCreators reads it). (2026-07-13) */
+(function(){
+  var WARM = ["ענתה — מעוניינת!","אישרה הגעה (סטורי הועלה)","הגיעה ולקחה מוצרים (חוזה חתום)","הגישה תוכן ✓ (תיוג נכון)","🏆 Hall of Fame"];
+  function slug(x){ return String(x||"").replace(/[^a-zA-Z0-9]/g,"-").toLowerCase(); }
+  function norm(x){ return String(x||"").replace(/^@/,"").replace(/[^a-z0-9]/gi,"").toLowerCase(); }
+  var q = "";
+  function futureEvents(){
+    var today = new Date().toISOString().slice(0,10), out = [];
+    Object.keys((typeof RUNS!=="undefined"&&RUNS)||{}).forEach(function(k){
+      var e = RUNS[k] && RUNS[k].event; if (!e) return;
+      var d = e.endDate || e.startDate || "";
+      if (d && d >= today) out.push({ key:k, label:(e.city||k)+" · "+(e.startDate||"") });
+    });
+    out.sort(function(a,b){ return a.label.localeCompare(b.label); });
+    return out;
+  }
+  function collect(){
+    var notes = window.__prNotes; if (!notes || typeof RUNS==="undefined") return null;
+    var pool = {};
+    function add(rec){
+      var nh = norm(rec.handle); if (!nh) return;
+      var p = pool[nh];
+      if (!p){ rec.events = []; pool[nh] = rec; p = rec; }
+      ["display_name","followers","niche","email","platform","profile_url"].forEach(function(f){ if (!p[f] && rec[f]) p[f]=rec[f]; });
+      if (rec._ev && p.events.indexOf(rec._ev)===-1) p.events.push(rec._ev);
+      if (rec._when && (!p._when || rec._when > p._when)) p._when = rec._when;
+    }
+    Object.keys(RUNS).forEach(function(evk){
+      var run = RUNS[evk]; if (!run || !run.event || !run.creators) return; var ev = run.event;
+      run.creators.forEach(function(c){
+        var st = notes[ev.city+"|"+c.rank+"|"+slug(c.handle||c.display_name)];
+        if (WARM.indexOf(st) === -1) return;
+        add({ handle:c.handle, display_name:c.display_name, followers:c.followers, niche:c.niche,
+              email:c.email, platform:c.platform, profile_url:c.profile_url,
+              _ev:(ev.city||""), _when:(notes[ev.city+"|"+c.rank+"|"+slug(c.handle||c.display_name)+"|status_set_at"]||"") });
+      });
+    });
+    (notes.__inbound__||[]).forEach(function(a){
+      add({ handle:a.handle, display_name:a.full_name, followers:a.followers, niche:a.niche||"inbound",
+            email:a.email, platform:a.platform, profile_url:a.profile_url,
+            _ev:(a.city||a.event||"מועמדות"), _when:(a.received_at||"") });
+    });
+    return Object.keys(pool).map(function(k){ return pool[k]; });
+  }
+  function render(){
+    var list = collect(); if (!list) return false;
+    var card = document.getElementById("pool-card"); if (!card) return true;
+    if (!list.length){ card.style.display = "none"; return true; }
+    card.style.display = "";
+    var cnt = document.getElementById("pool-count"); if (cnt) cnt.textContent = "("+list.length+")";
+    var fq = norm(q);
+    var shown = !fq ? list : list.filter(function(p){
+      return (norm(p.handle)+" "+norm(p.display_name)+" "+norm(p.niche)+" "+(p.events||[]).map(norm).join(" ")).indexOf(fq) !== -1;
+    });
+    shown.sort(function(a,b){ return String(b._when).localeCompare(String(a._when)); });
+    var fe = futureEvents();
+    var evOpts = fe.map(function(e){ return '<option value="'+e.key+'">'+e.label+'</option>'; }).join("");
+    var head = '<table class="creator-table"><thead><tr><th>Handle</th><th>שם</th><th>עוקבים</th><th>נישה</th><th>אימייל</th><th>אירועים</th><th>פלטפורמה</th><th>הוסיפי לאירוע עתידי</th></tr></thead><tbody>';
+    var body = shown.map(function(p){
+      var h = String(p.handle||"").replace(/^@/,"");
+      var prof = p.profile_url || ("https://www.instagram.com/"+h);
+      var fol = (typeof p.followers==="number") ? p.followers.toLocaleString() : (p.followers||"");
+      var pf = p.platform ? (p.platform.charAt(0).toUpperCase()+p.platform.slice(1)) : "";
+      var evs = (p.events||[]).filter(function(v,i,a){return a.indexOf(v)===i;}).join(", ");
+      var addCell = fe.length ?
+        ('<select class="pool-ev small-btn" style="max-width:150px">'+evOpts+'</select> '+
+         '<button class="small-btn pool-add" data-h="'+encodeURIComponent(p.handle||"")+'" data-n="'+encodeURIComponent(p.display_name||"")+'" data-f="'+(p.followers||"")+'" data-ni="'+encodeURIComponent(p.niche||"")+'" data-e="'+encodeURIComponent(p.email||"")+'" data-pf="'+encodeURIComponent(p.platform||"")+'" data-pr="'+encodeURIComponent(prof)+'">➕ הוסיפי</button>')
+        : '<span style="color:var(--muted);font-size:11px">אין אירוע עתידי ברשימה</span>';
+      return '<tr>'+
+        '<td><a href="'+prof+'" target="_blank" style="color:var(--accent);font-weight:bold">@'+h+'</a></td>'+
+        '<td>'+(p.display_name||"")+'</td>'+
+        '<td>'+fol+'</td>'+
+        '<td><span class="niche-tag">'+(p.niche||"")+'</span></td>'+
+        '<td>'+(p.email?('<a href="mailto:'+p.email+'">'+p.email+'</a>'):"—")+'</td>'+
+        '<td style="font-size:11px">'+evs+'</td>'+
+        '<td>'+pf+'</td>'+
+        '<td>'+addCell+'</td>'+
+      '</tr>';
+    }).join("");
+    document.getElementById("pool-list").innerHTML = head + body + '</tbody></table>';
+    document.querySelectorAll("#pool-list .pool-add").forEach(function(b){
+      b.addEventListener("click", function(){
+        var sel = b.parentNode.querySelector(".pool-ev"); var evk = sel ? sel.value : "";
+        if (!evk){ return; }
+        var notes = window.__prNotes; if (!notes) return;
+        notes.__manual_roster__ = notes.__manual_roster__ || {};
+        var arr = notes.__manual_roster__[evk] = notes.__manual_roster__[evk] || [];
+        var handle = decodeURIComponent(b.dataset.h||"");
+        if (arr.some(function(x){ return norm(x.handle)===norm(handle); })){ b.textContent="✓ כבר באירוע"; return; }
+        arr.push({ rank:"pool-"+norm(handle), handle:handle, display_name:decodeURIComponent(b.dataset.n||""),
+                   followers:(b.dataset.f?Number(b.dataset.f):null), niche:decodeURIComponent(b.dataset.ni||""),
+                   email:decodeURIComponent(b.dataset.e||"")||null, platform:decodeURIComponent(b.dataset.pf||""),
+                   profile_url:decodeURIComponent(b.dataset.pr||""), source:"pool", added_at:new Date().toISOString() });
+        if (window.__prSave) window.__prSave();
+        document.dispatchEvent(new Event("pr-status-changed"));
+        b.textContent="✓ נוספה!";
+      });
+    });
+    return true;
+  }
+  document.addEventListener("input", function(e){ if (e.target && e.target.id==="pool-search"){ q=e.target.value; render(); } });
+  document.addEventListener("pr-status-changed", render);
+  var tries=0, iv=setInterval(function(){ tries++; if (render()||tries>40) clearInterval(iv); }, 250);
 })();
 </script>
 </body>
