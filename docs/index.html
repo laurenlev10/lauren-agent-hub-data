@@ -100,6 +100,9 @@
     70%  { box-shadow: 0 0 0 10px rgba(239,68,68,0); transform: scale(1.06); }
     100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); transform: scale(1); }
   }
+  /* 📬 Meta Inbox — whole square pulses red when pending items await Lauren */
+  #tile-meta-inbox.has-alert,
+  #tile-meta-inbox.has-alert:hover { animation: shipPulse 1.35s ease-in-out infinite; }
 
   /* 🛒 Shopify MYSTERY BOX — square pulses when there are paid orders awaiting shipment (2026-07-12) */
   .tile-shopify.needs-ship { animation: shipPulse 1.35s ease-in-out infinite; }
@@ -178,8 +181,8 @@
     </a>
 
 
-    <a class="tile" style="background:linear-gradient(135deg,#0866ff 0%,#7b2bf9 55%,#d62976 100%);color:#fff" href="meta/inbox-api-preview/">
-      <span class="notif-badge" id="meta-notif">0</span>
+    <a class="tile" id="tile-meta-inbox" style="background:linear-gradient(135deg,#0866ff 0%,#7b2bf9 55%,#d62976 100%);color:#fff" href="meta/inbox-api-preview/">
+      <span class="alert-badge" id="meta-inbox-badge"></span>
       <span class="pill">Meta</span>
       <div class="title">📬 Meta Inbox</div>
       <div class="tag">מסנג׳ר + תגובות פייסבוק ואינסטגרם במקום אחד — הסוכן עונה אוטומטית על שאלות פשוטות (אנגלית וספרדית), תלונות ופניות רגישות מחכות לך עם טיוטה מוכנה. שום תגובה לא נופלת בין הכיסאות.</div>
@@ -351,14 +354,14 @@
       if(!el)return;
       el.innerHTML = n>0 ? '<b>'+n+' ממתינות לך</b> · השאר טופל אוטומטית'
                          : '<b>הכל מטופל ✓</b> · אין ממתינות';
-      var badge=document.getElementById('meta-notif');
-      var tile=el.closest('.tile');
+      var badge=document.getElementById('meta-inbox-badge');
+      var tile=document.getElementById('tile-meta-inbox');
       if(n>0){
-        if(badge){ badge.textContent = n>99?'99+':n; badge.style.display='flex'; }
-        if(tile){ tile.classList.add('has-notif'); }
+        if(badge){ badge.textContent='🔔 '+n+' חדש'; badge.classList.add('on'); badge.title=n+' פניות מחכות לך'; }
+        if(tile){ tile.classList.add('has-alert'); }
       } else {
-        if(badge){ badge.style.display='none'; }
-        if(tile){ tile.classList.remove('has-notif'); }
+        if(badge){ badge.classList.remove('on'); }
+        if(tile){ tile.classList.remove('has-alert'); }
       }
     }).catch(function(){});
 })();
