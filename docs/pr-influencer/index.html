@@ -2276,6 +2276,11 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     <h2 style="margin-top:0">תוצאות לפי אירוע <select id="run-picker" style="font-size:13px;padding:4px 8px;border-radius:8px;border:1.5px solid #e5e7eb;margin-right:8px;"></select></h2>
     <div id="run-summary"></div>
 
+    <div id="allresults-section" style="margin-top:14px;display:none;">
+      <div id="allresults-title" style="margin-bottom:8px"></div>
+      <div style="overflow-x:auto"><table class="creator-table" id="allresults-table"></table></div>
+    </div>
+
     <div id="city-accounts-section" style="margin-top:18px;display:none;">
       <div class="section-title" data-target="city-accounts-body">
         <h3>📣 חשבונות עיר/אירועים — שיטת האשתג</h3>
@@ -2768,6 +2773,60 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     const isCityAcct = c => (c.source === "instagram-city-hashtag" || c.niche === "local_events");
     const phase1 = (RUN.creators || []).filter(c => c.phase === "phase_1" && !isCityAcct(c));
     const phase2 = (RUN.creators || []).filter(c => c.phase === "phase_2" && !isCityAcct(c));
+
+    // 🔎 Full titled search-results table (Lauren 2026-07-13 — "one organized table + a title like תוצאות החיפוש של פקודה 1")
+    (function renderAllResults(){
+      const secEl = document.getElementById("allresults-section");
+      if (!secEl) return;
+      const evx = RUN.event || {}, tx = RUN.totals || {};
+      const creatorRows = (RUN.creators || []);
+      const cityRows = (RUN.city_accounts || []);
+      if (!creatorRows.length && !cityRows.length){ secEl.style.display = "none"; return; }
+      secEl.style.display = "block";
+      const cmdNo = (cityRows.length && !creatorRows.length) ? "3" : "1";
+      const phaseLabel = p => p==="phase_1" ? "📧 מייל מוכן" : p==="phase_2" ? "📱 DM ידני" : p==="pending_approval" ? "🆕 חשבון עיר — ממתין לאישור" : (p||"");
+      const fol = f => (typeof f==="number" && f>0) ? f.toLocaleString() : "—";
+      const esc = s => String(s).replace(/"/g,"&quot;").replace(/\n/g,"&#10;");
+      const dmCell = s => s ? `<button class="small-btn dm-copy-btn" data-script="${esc(s)}">📋 העתיקי DM</button>` : "—";
+      const emailCell = e => e ? `<a href="mailto:${e}">${e}</a>` : "—";
+      let rows = "";
+      creatorRows.forEach((c,i) => {
+        rows += `<tr>`+
+          `<td>${c.rank || (i+1)}</td>`+
+          `<td><a href="${c.profile_url}" target="_blank">@${(c.handle||"").replace(/^@/,"")}</a></td>`+
+          `<td>${c.display_name||""}</td>`+
+          `<td>${c.platform||""}</td>`+
+          `<td>${fol(c.followers)}</td>`+
+          `<td><span class="niche-tag">${c.niche||""}</span></td>`+
+          `<td>${phaseLabel(c.phase)}</td>`+
+          `<td><span class="score-tag">${c.score||0}</span></td>`+
+          `<td>${emailCell(c.email)}</td>`+
+          `<td style="font-size:11px;color:var(--muted);max-width:230px">${(c.city_signal||[]).join("; ")}</td>`+
+          `<td>${dmCell(c.dm_script)}</td>`+
+        `</tr>`;
+      });
+      cityRows.forEach(a => {
+        rows += `<tr style="background:#fdf4ff">`+
+          `<td>—</td>`+
+          `<td><a href="${a.profile_url}" target="_blank">@${(a.handle||"").replace(/^@/,"")}</a></td>`+
+          `<td>${a.display_name||""}</td>`+
+          `<td>${a.platform||""}</td>`+
+          `<td>${fol(a.followers)}</td>`+
+          `<td><span class="niche-tag">${a.niche||"local_events"}</span></td>`+
+          `<td>${phaseLabel(a.phase)}</td>`+
+          `<td>—</td>`+
+          `<td>${emailCell(a.email)}</td>`+
+          `<td style="font-size:11px;color:var(--muted);max-width:230px">${a.evidence||""}</td>`+
+          `<td>${dmCell(a.dm_script)}</td>`+
+        `</tr>`;
+      });
+      document.getElementById("allresults-title").innerHTML =
+        `<div style="font-size:18px;font-weight:800">🔎 תוצאות החיפוש — פקודה ${cmdNo}</div>`+
+        `<div style="font-size:13px;color:var(--muted);margin-top:2px">${evx.city||""}${evx.state? ", "+evx.state : ""} · ${evx.dateRange||""}${evx.venueName? " · "+evx.venueName : ""}</div>`+
+        `<div style="font-size:12px;margin-top:6px">סה"כ <b>${tx.found || (creatorRows.length+cityRows.length)}</b> נמצאו · 📧 Phase 1 (מייל): <b>${tx.phase1||0}</b> · 📱 Phase 2 (DM): <b>${tx.phase2||0}</b> · 🆕 חשבונות עיר/אירועים ממתינים לאישור: <b>${(tx.pending_approval!=null?tx.pending_approval:cityRows.length)}</b></div>`;
+      document.getElementById("allresults-table").innerHTML =
+        `<thead><tr><th>#</th><th>Handle</th><th>שם</th><th>פלטפורמה</th><th>עוקבים</th><th>נישה</th><th>פאזה</th><th>ציון</th><th>אימייל</th><th>ראיות / מיקום</th><th>DM</th></tr></thead><tbody>${rows}</tbody>`;
+    })();
 
     // Phase 1 table
     if (phase1.length) {
