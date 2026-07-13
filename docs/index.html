@@ -88,6 +88,18 @@
     position: absolute; left: -10px; bottom: -28px;
     font-size: 110px; opacity: 0.13; line-height: 1; pointer-events: none;
   }
+  .tile .alert-badge {
+    position: absolute; top: 14px; left: 14px; z-index: 4;
+    background: #ef4444; color: #fff; font-weight: 800; font-size: 12px;
+    padding: 5px 11px; border-radius: 999px; display: none; letter-spacing: .2px;
+    box-shadow: 0 0 0 0 rgba(239,68,68,.75);
+  }
+  .tile .alert-badge.on { display: inline-flex; align-items: center; gap: 5px; animation: prPulse 1.3s infinite; }
+  @keyframes prPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(239,68,68,.75); transform: scale(1); }
+    70%  { box-shadow: 0 0 0 10px rgba(239,68,68,0); transform: scale(1.06); }
+    100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); transform: scale(1); }
+  }
 
   /* Color themes */
   .tile-makeup    { background: linear-gradient(135deg, #ec4899 0%, #db2777 50%, #9333ea 100%); }
@@ -204,6 +216,7 @@
 
     <a class="tile" style="background:linear-gradient(135deg,#d946ef 0%,#a21caf 55%,#701a75 100%);color:#fff" href="pr-influencer/">
       <span class="pill">PR</span>
+      <span class="alert-badge" id="pr-alert-badge"></span>
       <div class="title">✨ משפיעניות</div>
       <div class="tag">כל המשפיעניות המקומיות שפנינו אליהן אי‑פעם — פייפליין לכל אירוע, חוזים חתומים, מועמדויות מדף Collab With Us, ומאגר CRM חוצה‑אירועים. מנוהל ע״י @pr-influencer.</div>
       <div class="status">Board לכל אירוע · פולו‑אפ · Heepsy</div>
@@ -328,6 +341,34 @@
       el.innerHTML = n>0 ? '<b>'+n+' ממתינות לך</b> · השאר טופל אוטומטית'
                          : '<b>הכל מטופל ✓</b> · אין ממתינות';
     }).catch(function(){});
+})();
+</script>
+<script>
+/* PR-influencer hub badge (2026-07-12) — blinks when influencers need attention:
+   creators who replied ("ענתה — מעוניינת!") + untriaged Collab applications.
+   Self-clears as Lauren advances statuses / adds applicants to the pipeline. */
+(function(){
+  function norm(h){ h=String(h||"").toLowerCase().trim(); if(h.indexOf("/")>=0)h=h.split("/").pop(); h=h.replace(/^@+/,""); return h.replace(/[^a-z0-9]/g,""); }
+  Promise.all([
+    fetch("pr-influencer/notes.json?_="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():{};}).catch(function(){return {};}),
+    fetch("state/influencer_applications.json?_="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():{};}).catch(function(){return {};})
+  ]).then(function(res){
+    var notes=res[0]||{}, apps=(res[1]&&res[1].applications)||[];
+    var REPLIED="\u05e2\u05e0\u05ea\u05d4 \u2014 \u05de\u05e2\u05d5\u05e0\u05d9\u05d9\u05e0\u05ea!";
+    var repliedHandles={}, repliedCount=0;
+    Object.keys(notes).forEach(function(k){
+      if(notes[k]!==REPLIED)return;
+      var pp=k.split("|"); if(pp.length!==3)return;
+      repliedCount++; repliedHandles[norm(pp[2])]=true;
+    });
+    var inbound={}; (notes.__inbound__||[]).forEach(function(a){ inbound[norm(a.handle)]=true; });
+    var untriaged=apps.filter(function(a){ var h=norm(a.handle); return h && !inbound[h] && !repliedHandles[h]; }).length;
+    var total=repliedCount+untriaged;
+    var el=document.getElementById("pr-alert-badge");
+    if(!el)return;
+    if(total>0){ el.textContent="\ud83d\udd14 "+total+" \u05d7\u05d3\u05e9"; el.classList.add("on"); el.title=repliedCount+" \u05e2\u05e0\u05d5 \u00b7 "+untriaged+" \u05de\u05d5\u05e2\u05de\u05d3\u05d5\u05d9\u05d5\u05ea \u05d7\u05d3\u05e9\u05d5\u05ea"; }
+    else { el.classList.remove("on"); }
+  });
 })();
 </script>
 </body>
