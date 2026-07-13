@@ -2874,5 +2874,47 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
   window.__prIsMaster = isMaster;
 })();
 </script>
+<script>
+/* reply-alert banner (2026-07-12) — surfaces influencer replies at the very top
+   so a reply can never be visually missed. Reads window.__prNotes: shows every
+   creator at "ענתה — מעוניינת!" not yet advanced + any review-only match from
+   the __replies__ log (e.g. comment matches). */
+(function(){
+  var REPLIED = "ענתה — מעוניינת!";
+  function build(){
+    var notes = window.__prNotes;
+    if (!notes) return false;
+    var items = [], seen = {};
+    Object.keys(notes).forEach(function(k){
+      if (notes[k] !== REPLIED) return;
+      var parts = k.split("|");
+      if (parts.length !== 3) return;
+      seen[k] = true;
+      items.push({ handle: parts[2].replace(/^-+|-+$/g,""), city: parts[0], tag: "ענתה — מעוניינת" });
+    });
+    (notes.__replies__ || []).forEach(function(r){
+      if (r.status_flipped || seen[r.key]) return;
+      seen[r.key] = true;
+      items.push({ handle: String(r.handle||"").replace(/^-+|-+$/g,""), city: r.city, tag: "👀 ייתכן שענתה — לבדיקה" });
+    });
+    var el = document.getElementById("reply-alert");
+    if (!items.length){ if (el) el.remove(); return true; }
+    if (!el){
+      el = document.createElement("div");
+      el.id = "reply-alert";
+      el.style.cssText = "margin:10px auto;max-width:1100px;background:#dcfce7;border:2px solid #16a34a;border-radius:12px;padding:10px 14px;font-size:14px;line-height:1.7;color:#14532d;box-shadow:0 2px 8px rgba(0,0,0,.08)";
+      document.body.insertBefore(el, document.body.firstChild);
+    }
+    el.innerHTML = "<b>🔔 " + items.length + " משפיעניות ענו — לטיפול:</b> " +
+      items.slice(0,12).map(function(i){
+        return '<a href="https://www.instagram.com/' + i.handle + '" target="_blank" style="color:#14532d;font-weight:bold;text-decoration:underline">@' + i.handle + "</a> <span style=\"color:#166534\">(" + (i.city||"") + " · " + i.tag + ")</span>";
+      }).join(" · ") + (items.length > 12 ? " …ועוד " + (items.length - 12) : "");
+    return true;
+  }
+  var tries = 0;
+  var iv = setInterval(function(){ tries++; if (build() || tries > 40) clearInterval(iv); }, 250);
+  document.addEventListener("pr-status-changed", build);
+})();
+</script>
 </body>
 </html>
