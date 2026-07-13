@@ -2583,77 +2583,20 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
 
 <script>
 (function(){
-  var btn = document.getElementById("copy-brief-link");
-  if (btn) btn.addEventListener("click", function(){
-    navigator.clipboard.writeText("https://events.themakeupblowout.com/influencer-brief/").then(function(){
-      btn.textContent = "✓ הועתק"; setTimeout(function(){ btn.textContent = "📋 העתיקי לינק לטופס"; }, 2000);
-    });
-  });
-  var cbtn = document.getElementById("copy-collab-link");
-  if (cbtn) cbtn.addEventListener("click", function(){
-    navigator.clipboard.writeText("https://events.themakeupblowout.com/collab/").then(function(){
-      cbtn.textContent = "✓ הועתק"; setTimeout(function(){ cbtn.textContent = "📋 העתיקי לינק"; }, 2000);
-    });
-  });
-  var __briefsByHandle = {};
-  function __normH(x){ return String(x||"").replace(/^@/,"").replace(/[^a-z0-9]/gi,"").toLowerCase(); }
-  function __evDate(evStr){ var m=String(evStr||"").match(/(\d{4}-\d{2}-\d{2})/); return m?m[1]:""; }
-  var __APPSTAT = ["ענתה — מעוניינת!","אישרה הגעה (סטורי הועלה)","הגיעה ולקחה מוצרים (חוזה חתום)","הגישה תוכן ✓ (תיוג נכון)","ענתה — לא מעוניינת","🚫 חסומה לעתיד"];
-  var __bc = document.getElementById("briefs-card"); if (__bc) __bc.style.display = "none";  // merged into applications
+  function normH(x){ return String(x||"").replace(/^@/,"").replace(/[^a-z0-9]/gi,"").toLowerCase(); }
+  window.__prApps = window.__prApps || [];
+  window.__prBriefsByHandle = window.__prBriefsByHandle || {};
+  // applications + contracts are now folded into "מועמדות לטיפול" — hide the standalone cards
+  ["apps-card","briefs-card"].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display="none"; });
   fetch("../state/influencer_briefs.json?_=" + Date.now(), { cache: "no-store" })
     .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(d){
-      if (d && d.briefs) Object.keys(d.briefs).forEach(function(ev){
-        (d.briefs[ev]||[]).forEach(function(b){ __briefsByHandle[__normH(b.handle)] = b; });
-      });
-    })
+    .then(function(d){ if (d && d.briefs) Object.keys(d.briefs).forEach(function(ev){ (d.briefs[ev]||[]).forEach(function(b){ window.__prBriefsByHandle[normH(b.handle)] = b; }); }); })
     .catch(function(){})
     .then(function(){ return fetch("../state/influencer_applications.json?_=" + Date.now(), { cache: "no-store" }); })
     .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(d){
-      var listEl = document.getElementById("apps-list"); if (!listEl) return;
-      if (!d || !Array.isArray(d.applications) || !d.applications.length) return;
-      var notes = window.__prNotes || {};
-      var today = new Date().toISOString().slice(0,10);
-      var apps = d.applications.slice().filter(function(a){ var dd=__evDate(a.event); return !dd || dd >= today; }); // FUTURE only
-      if (!window.__prIsMaster && typeof RUN !== "undefined" && RUN && RUN.event) {
-        var cityWord = String(RUN.event.city||"").split(",")[0].toLowerCase();
-        apps = apps.filter(function(a){ return String(a.event||"").toLowerCase().indexOf(cityWord) !== -1 || String(a.event||"").indexOf(RUN.event.startDate) !== -1; });
-      }
-      if (!apps.length){ listEl.innerHTML = '<span style="color:var(--muted);font-size:12px;font-style:italic;">אין מועמדויות לאירוע עתידי כרגע.</span>'; return; }
-      var detailRows = [];
-      var rows = apps.slice().reverse().map(function(a){
-        var h = String(a.handle || "").replace(/^@/, ""); var nh = __normH(h);
-        var prof = (a.platform === "TikTok") ? ("https://www.tiktok.com/@" + h)
-                 : (a.platform === "YouTube") ? ("https://www.youtube.com/results?search_query=" + encodeURIComponent(h))
-                 : ("https://www.instagram.com/" + h);
-        var skey = "app|" + nh; var cur = notes[skey] || "ענתה — מעוניינת!";
-        var opts = __APPSTAT.map(function(st){ return '<option value="'+st+'"'+(st===cur?' selected':'')+'>'+st+'</option>'; }).join("");
-        var statusSel = '<select class="app-status" data-k="'+encodeURIComponent(skey)+'">'+opts+'</select>';
-        var b = __briefsByHandle[nh]; var contract;
-        if (b){
-          var did = "abf-" + nh;
-          var F = [["אירוע",(b.event_city||"")+" · "+(b.event_dates||"")],["אולם",b.venue],["שם מלא",b.full_name],["Handle",b.handle],["פלטפורמה",b.platform],["אימייל",b.email],["טלפון",b.phone],["נציגת MBS",b.mbs_rep],["זמן חתימה",b.signed_at_local],["התקבל",b.received_at]];
-          var detail = F.filter(function(f){return f[1];}).map(function(f){return "<b>"+f[0]+":</b> "+f[1];}).join("<br>");
-          if (b.signature_url) detail += '<br><br><img src="'+b.signature_url+'" style="max-width:260px;border:1px solid #eee;border-radius:6px;background:#fff">';
-          contract = '<span class="niche-tag" style="background:#dcfce7;color:#166534">✍️ חתום</span> ' + (b.signature_url?('<a href="'+b.signature_url+'" target="_blank">🖊</a> '):'') + '<a href="#" class="abf-toggle" data-t="'+did+'">📄 פרטים</a>';
-          detailRows.push('<tr id="'+did+'" style="display:none"><td colspan="9" style="background:#fdf2f8;font-size:12px;line-height:1.7;padding:10px">'+detail+'</td></tr>');
-        } else {
-          contract = '<button class="small-btn app-brief">📋 שלחי טופס חוזה</button>';
-        }
-        return "<tr><td>" + (a.full_name || "") + '</td><td><a href="' + prof + '" target="_blank">@' + h + "</a></td><td>" + (a.platform || "") + "</td><td>" + (a.followers || "") + "</td><td>" + (a.event || "") + "</td><td>" + (a.email || "") + "</td><td>" + String(a.received_at || "").slice(0,10) + "</td><td>"+statusSel+"</td><td>"+contract+"</td></tr>" + (b ? detailRows[detailRows.length-1] : "");
-      }).join("");
-      listEl.innerHTML = '<table class="creator-table"><thead><tr><th>שם</th><th>Handle</th><th>פלטפורמה</th><th>עוקבים</th><th>אירוע</th><th>אימייל</th><th>מתי</th><th>סטטוס</th><th>חוזה</th></tr></thead><tbody>' + rows + "</tbody></table>";
-      listEl.querySelectorAll(".app-status").forEach(function(sel){
-        sel.addEventListener("change", function(){ var k=decodeURIComponent(sel.dataset.k||""); var n=window.__prNotes; if(!n||!k)return; n[k]=sel.value; n[k+"|status_set_at"]=new Date().toISOString(); if(window.__prSave)window.__prSave(); });
-      });
-      listEl.querySelectorAll(".app-brief").forEach(function(btn){
-        btn.addEventListener("click", function(){ navigator.clipboard.writeText("https://events.themakeupblowout.com/influencer-brief/").then(function(){ var o=btn.textContent; btn.textContent="✓ הקישור הועתק"; setTimeout(function(){ btn.textContent=o; },1500); }); });
-      });
-      listEl.querySelectorAll(".abf-toggle").forEach(function(aa){
-        aa.addEventListener("click", function(e){ e.preventDefault(); var r=document.getElementById(aa.dataset.t); if(r)r.style.display=(r.style.display==="none")?"":"none"; });
-      });
-    }).catch(function(e){});
+    .then(function(d){ if (d && Array.isArray(d.applications)) window.__prApps = d.applications; })
+    .catch(function(){})
+    .then(function(){ document.dispatchEvent(new Event("pr-data-loaded")); });
 })();
 </script>
 <script>
@@ -2918,6 +2861,8 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
       if (notes[k] !== REPLIED || notes[k + "|handled"]) return;
       var parts = k.split("|");
       if (parts.length !== 3) return;
+      var nh = String(parts[2]||"").replace(/^-+|-+$/g,"").replace(/[^a-z0-9]/gi,"").toLowerCase();
+      if (notes["handled|"+nh]) return;
       seen[k] = true;
       items.push({ handle: parts[2].replace(/^-+|-+$/g,""), city: parts[0], tag: "ענתה — מעוניינת" });
     });
@@ -2946,114 +2891,129 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
 })();
 </script>
 <script>
-/* "מועמדות לטיפול" — replied creators rendered as a full-detail card above the
-   applications card (2026-07-13). Global in master view; scoped to the event
-   in per-event view. Reads window.__prNotes + the global RUNS. */
+/* "מועמדות לטיפול" — UNIFIED actionable list: contacted replies + Collab-form
+   applicants + contract signers, one row per creator (deduped by handle), with
+   badges (📥 applied / ✍️ signed / 💬 partnership), a status dropdown, quick-reply
+   templates, and "✓ טופלה" (→ warm pool). Stays here until Lauren clicks טופלה
+   (per-person notes["handled|<nh>"]; legacy per-key "<key>|handled" honored). */
 (function(){
   var REPLIED = "ענתה — מעוניינת!";
-  var TH_STAGES = ["לא פניתי","נשלחה טיוטה / DM","ענתה — מעוניינת!","אישרה הגעה (סטורי הועלה)","הגיעה ולקחה מוצרים (חוזה חתום)","הגישה תוכן ✓ (תיוג נכון)"];
-  var TH_OTHER = ["ענתה — לא מעוניינת","לא הגישה תוכן (deadline עבר)","החזירה מוצרים / שילמה","🏆 Hall of Fame","🚫 חסומה לעתיד"];
+  var STAGES = ["לא פניתי","נשלחה טיוטה / DM","ענתה — מעוניינת!","אישרה הגעה (סטורי הועלה)","הגיעה ולקחה מוצרים (חוזה חתום)","הגישה תוכן ✓ (תיוג נכון)"];
+  var OTHER = ["ענתה — לא מעוניינת","לא הגישה תוכן (deadline עבר)","החזירה מוצרים / שילמה","🏆 Hall of Fame","🚫 חסומה לעתיד"];
+  var ACTIONABLE = { "ענתה — מעוניינת!":1,"אישרה הגעה (סטורי הועלה)":1,"הגיעה ולקחה מוצרים (חוזה חתום)":1,"הגישה תוכן ✓ (תיוג נכון)":1 };
   function slug(x){ return String(x||"").replace(/[^a-zA-Z0-9]/g,"-").toLowerCase(); }
-  function render(){
-    var notes = window.__prNotes;
-    if (!notes || typeof RUNS === "undefined") return false;
-    var isMaster = (typeof __MODE === "undefined") || __MODE === "master";
-    var curCity = null;
-    try { if (!isMaster && typeof RUN !== "undefined" && RUN && RUN.event) curCity = RUN.event.city; } catch(e){}
-    var rows = [], seen = {};
-    Object.keys(RUNS).forEach(function(evk){
-      var run = RUNS[evk]; if (!run || !run.event || !run.creators) return;
-      var ev = run.event;
-      if (!isMaster && curCity && ev.city !== curCity) return;
+  function normH(x){ return String(x||"").replace(/^@/,"").replace(/[^a-z0-9]/gi,"").toLowerCase(); }
+  function cleanH(x){ x=String(x||"").trim(); if(x.indexOf("@")>-1) x=x.split("@").pop(); else if(x.indexOf("/")>-1) x=x.split("/").filter(Boolean).pop(); return x.replace(/^@/,""); }
+  function isHandled(notes,nh,statusKey){ return !!(notes["handled|"+nh] || (statusKey && notes[statusKey+"|handled"])); }
+  function build(){
+    var notes = window.__prNotes; if (!notes || typeof RUNS==="undefined") return null;
+    var isMaster = (typeof __MODE==="undefined")||__MODE==="master";
+    var curCity=null; try{ if(!isMaster && typeof RUN!=="undefined" && RUN && RUN.event) curCity=RUN.event.city; }catch(e){}
+    var apps = window.__prApps||[]; var briefsByH = window.__prBriefsByHandle||{};
+    var people = {};
+    function ensure(nh){ if(!people[nh]) people[nh]={ nh:nh, applied:false, signed:false, partnership:false, statusKey:null, status:null, _when:"" }; return people[nh]; }
+    Object.keys(RUNS).forEach(function(evk){ var run=RUNS[evk]; if(!run||!run.event||!run.creators) return; var ev=run.event;
+      if (!isMaster && curCity && ev.city!==curCity) return;
       run.creators.forEach(function(c){
-        var key = ev.city + "|" + c.rank + "|" + slug(c.handle||c.display_name);
-        if (notes[key] !== REPLIED || seen[key] || notes[key + "|handled"]) return;
-        seen[key] = true;
-        var note = notes[key + "|note"] || "";
-        rows.push({ c: c, ev: ev, key: key, setAt: notes[key + "|status_set_at"] || "",
-                    partnership: /Partnership/i.test(note) });
+        var key = ev.city+"|"+c.rank+"|"+slug(c.handle||c.display_name); var st=notes[key];
+        if (!st) return;
+        var nh=normH(c.handle); if(!nh) return; var pp=ensure(nh);
+        pp.statusKey=key; pp.status=st;
+        pp.handle=pp.handle||c.handle; pp.display_name=pp.display_name||c.display_name;
+        if (pp.followers==null) pp.followers=c.followers; pp.niche=pp.niche||c.niche; pp.email=pp.email||c.email;
+        pp.platform=pp.platform||c.platform; pp.profile_url=pp.profile_url||c.profile_url;
+        pp.event=pp.event||((ev.city||"")+" · "+(ev.startDate||""));
+        if (/Partnership/i.test(notes[key+"|note"]||"")) pp.partnership=true;
+        pp._when = notes[key+"|status_set_at"]||pp._when;
       });
     });
-    var card = document.getElementById("tohandle-card");
-    if (!card) return true;
-    if (!rows.length){ card.style.display = "none"; return true; }
-    // newest reply first
-    rows.sort(function(a,b){ return String(b.setAt).localeCompare(String(a.setAt)); });
-    card.style.display = "";
-    var cnt = document.getElementById("tohandle-count"); if (cnt) cnt.textContent = "(" + rows.length + ")";
-    var head = '<table class="creator-table"><thead><tr>' +
-      '<th>Handle</th><th>שם</th><th>עוקבים</th><th>נישה</th><th>אימייל</th>' +
-      '<th>אירוע</th><th>פלטפורמה</th><th>סטטוס נוכחי</th><th>מתי</th><th>מענה מהיר</th></tr></thead><tbody>';
-    var body = rows.map(function(r){
-      var c = r.c, h = String(c.handle||"").replace(/^@/,"");
-      var prof = c.profile_url || ("https://www.instagram.com/" + h);
-      var fol = (typeof c.followers === "number") ? c.followers.toLocaleString() : (c.followers || "");
-      var pf = c.platform ? (c.platform.charAt(0).toUpperCase() + c.platform.slice(1)) : "";
-      var when = r.setAt ? String(r.setAt).slice(0,10) : "";
-      var pbadge = r.partnership ? ' <span class="niche-tag" style="background:#fef9c3;color:#854d0e">💬 Partnership — בדקי טקסט באינסטגרם</span>' : '';
-      var first = String(c.display_name || h).trim().split(/\s+/)[0] || h;
-      var cityShort = String(r.ev.city || "").split(",")[0].trim();
-      var today = new Date().toISOString().slice(0,10);
-      var evDate = r.ev.endDate || r.ev.startDate || "";
-      var past = evDate && evDate < today;
-      var FORM = "https://events.themakeupblowout.com/collab/";
-      var repFuture = "Hi " + first + "! \uD83D\uDC95 So happy you're interested! To lock in your spot and your $100 product basket, just fill out our quick collab form here \uD83D\uDC49 " + FORM + " \u2014 once you submit it we'll send over the full brief and all the timing details. Can't wait to have you at " + cityShort + "! \u2728";
-      var repPast = "Hi " + first + "! \uD83D\uDC95 Thank you so much for wanting to be part of our " + cityShort + " pop-up \u2014 I'm so sorry we didn't connect in time for that one! \uD83D\uDE14 We'd absolutely love to have you at our next event near you. I'm keeping you on our list and I'll reach out the moment we have a date in your area. Thank you so much for your patience and excitement! \uD83D\uDE4F\u2728";
-      var repBrief = "Hi " + first + "! \uD83D\uDC95 Thanks so much \u2014 here are the details: it's a free makeup pop-up where you'll get a $100 product basket (you pick everything at the event) in exchange for one filmed + edited video there. To grab your spot and get the full brief, just fill out our quick form \uD83D\uDC49 " + FORM + " and we'll take it from there! \u2728";
-      var recFuture = past ? "" : "background:#dcfce7;color:#166534;border-color:#86efac;";
-      var recPast = past ? "background:#dcfce7;color:#166534;border-color:#86efac;" : "";
-      var hint = past ? '<div style="font-size:10px;color:#b45309;margin-bottom:3px">\uD83D\uDD59 האירוע עבר</div>' : '<div style="font-size:10px;color:#166534;margin-bottom:3px">\uD83D\uDCC5 אירוע עתידי</div>';
-      var actions = '<div style="display:flex;flex-direction:column;gap:4px;min-width:168px">' + hint +
-        '<a class="small-btn" href="' + prof + '" target="_blank" style="text-align:center">\u2709\uFE0F \u05e4\u05ea\u05d7\u05d9 \u05e6\u05f3\u05d0\u05d8 \u05dc\u05de\u05e2\u05e0\u05d4</a>' +
-        '<button class="small-btn th-reply" data-r="' + encodeURIComponent(repFuture) + '" style="' + recFuture + '">\uD83D\uDCCB \u05d0\u05d9\u05e8\u05d5\u05e2 \u05e2\u05ea\u05d9\u05d3\u05d9 \u2014 \u05de\u05dc\u05d0\u05d9 \u05d8\u05d5\u05e4\u05e1</button>' +
-        '<button class="small-btn th-reply" data-r="' + encodeURIComponent(repPast) + '" style="' + recPast + '">\uD83D\uDCCB \u05d0\u05d9\u05e8\u05d5\u05e2 \u05e2\u05d1\u05e8 \u2014 \u05e0\u05e9\u05de\u05d5\u05e8 \u05e7\u05e9\u05e8</button>' +
-        '<button class="small-btn th-reply" data-r="' + encodeURIComponent(repBrief) + '">\uD83D\uDCCB \u05e9\u05dc\u05d9\u05d7\u05ea \u05e4\u05e8\u05d8\u05d9\u05dd + \u05d8\u05d5\u05e4\u05e1</button>' +
-        '<button class="small-btn th-handled" data-k="' + encodeURIComponent(r.key) + '" style="border-color:#16a34a;color:#166534;font-weight:700;margin-top:2px">\u2713 \u05d8\u05d5\u05e4\u05dc\u05d4 \u2014 \u05dc\u05de\u05d0\u05d2\u05e8 \u05d4\u05d7\u05dd \u2b50</button>' +
+    apps.forEach(function(a){ var nh=normH(a.handle); if(!nh) return; var pp=ensure(nh); pp.applied=true;
+      pp.handle=pp.handle||a.handle; pp.display_name=pp.display_name||a.full_name;
+      if (pp.followers==null) pp.followers=a.followers; pp.niche=pp.niche||a.niche; pp.email=pp.email||a.email;
+      pp.platform=pp.platform||a.platform; pp.event=pp.event||a.event;
+      if (!pp.statusKey){ pp.statusKey="app|"+nh; pp.status=notes["app|"+nh]||REPLIED; }
+      if (!pp._when) pp._when=a.received_at||"";
+    });
+    Object.keys(briefsByH).forEach(function(nh){ var b=briefsByH[nh]; var pp=ensure(nh); pp.signed=true; pp.brief=b;
+      pp.handle=pp.handle||b.handle; pp.display_name=pp.display_name||b.full_name; pp.email=pp.email||b.email; pp.platform=pp.platform||b.platform;
+      pp.event=pp.event||((b.event_city||"")+" · "+(b.event_dates||""));
+      if (!pp.statusKey){ pp.statusKey="app|"+nh; pp.status=notes["app|"+nh]||REPLIED; }
+    });
+    var rows=[];
+    Object.keys(people).forEach(function(nh){ var pp=people[nh];
+      if (isHandled(notes,nh,pp.statusKey)) return;
+      if (!(pp.applied || pp.signed || ACTIONABLE[pp.status])) return;
+      rows.push(pp);
+    });
+    rows.sort(function(a,b){ return String(b._when).localeCompare(String(a._when)); });
+    return { rows:rows, notes:notes };
+  }
+  function render(){
+    var r = build(); if (!r) return false;
+    var card=document.getElementById("tohandle-card"); if(!card) return true;
+    if (!r.rows.length){ card.style.display="none"; return true; }
+    card.style.display="";
+    var cnt=document.getElementById("tohandle-count"); if(cnt) cnt.textContent="("+r.rows.length+")";
+    var notes=r.notes;
+    var head='<table class="creator-table"><thead><tr><th>Handle</th><th>שם</th><th>עוקבים</th><th>נישה</th><th>אימייל</th><th>אירוע</th><th>פלטפורמה</th><th>מה עשתה</th><th>סטטוס</th><th>מענה מהיר</th></tr></thead><tbody>';
+    var body=r.rows.map(function(pp){
+      var h=cleanH(pp.handle);
+      var prof=pp.profile_url || ((pp.platform==="TikTok")?("https://www.tiktok.com/@"+h):(pp.platform==="YouTube")?("https://www.youtube.com/results?search_query="+encodeURIComponent(h)):("https://www.instagram.com/"+h));
+      var fol=(typeof pp.followers==="number")?pp.followers.toLocaleString():(pp.followers||"");
+      var pf=pp.platform?(String(pp.platform).charAt(0).toUpperCase()+String(pp.platform).slice(1)):"";
+      var badges=[];
+      if (pp.applied) badges.push('<span class="niche-tag" style="background:#dbeafe;color:#1e40af">📥 הגישה מועמדות</span>');
+      if (pp.signed) badges.push('<span class="niche-tag" style="background:#dcfce7;color:#166534">✍️ חתמה חוזה</span>');
+      if (pp.partnership) badges.push('<span class="niche-tag" style="background:#fef9c3;color:#854d0e">💬 Partnership</span>');
+      if (!pp.applied && !pp.signed) badges.push('<span class="niche-tag" style="background:#fce7f3;color:#9d174d">✉️ ענתה</span>');
+      var detailRow="";
+      var b=pp.brief;
+      if (b){ var did="thbf-"+pp.nh;
+        var F=[["אירוע",(b.event_city||"")+" · "+(b.event_dates||"")],["אולם",b.venue],["שם מלא",b.full_name],["Handle",b.handle],["פלטפורמה",b.platform],["אימייל",b.email],["טלפון",b.phone],["נציגת MBS",b.mbs_rep],["זמן חתימה",b.signed_at_local],["התקבל",b.received_at]];
+        var detail=F.filter(function(f){return f[1];}).map(function(f){return "<b>"+f[0]+":</b> "+f[1];}).join("<br>");
+        if (b.signature_url) detail+='<br><br><img src="'+b.signature_url+'" style="max-width:260px;border:1px solid #eee;border-radius:6px;background:#fff">';
+        badges.push('<a href="#" class="th-bf-toggle" data-t="'+did+'">📄 פרטי חוזה</a>');
+        detailRow='<tr id="'+did+'" style="display:none"><td colspan="10" style="background:#fdf2f8;font-size:12px;line-height:1.7;padding:10px">'+detail+'</td></tr>';
+      }
+      var cur=pp.status||REPLIED;
+      var statusSel='<select class="th-status" data-k="'+encodeURIComponent(pp.statusKey||("app|"+pp.nh))+'">'+STAGES.concat(OTHER).map(function(st){ return '<option value="'+st+'"'+(st===cur?' selected':'')+'>'+st+'</option>'; }).join("")+'</select>';
+      var first=String(pp.display_name||h).trim().split(/\s+/)[0]||h;
+      var cityShort=String(pp.event||"").split(",")[0].split("·")[0].trim();
+      var FORM="https://events.themakeupblowout.com/collab/"; var BRIEF="https://events.themakeupblowout.com/influencer-brief/";
+      var repFuture="Hi "+first+"! 💕 So happy you're interested! To lock in your spot and your $100 product basket, just fill out our quick collab form here 👉 "+FORM+" — once you submit it we'll send over the full brief and all the timing details. Can't wait to have you"+(cityShort?(" at "+cityShort):"")+"! ✨";
+      var repBrief="Hi "+first+"! 💕 Amazing — to lock everything in, please fill out our quick contract form here 👉 "+BRIEF+" (takes 1 min). Once it's signed you're all set — can't wait to have you there! ✨";
+      var repPast="Hi "+first+"! 💕 Thank you so much for wanting to be part of our"+(cityShort?(" "+cityShort):"")+" pop-up — I'm so sorry we didn't connect in time for that one! 😔 We'd absolutely love to have you at our next event near you. I'm keeping you on our list and I'll reach out the moment we have a date in your area. Thank you so much for your patience and excitement! 🙏✨";
+      var actions='<div style="display:flex;flex-direction:column;gap:4px;min-width:172px">'+
+        '<a class="small-btn" href="'+prof+'" target="_blank" style="text-align:center">✉️ פתחי צ׳אט</a>'+
+        '<button class="small-btn th-reply" data-r="'+encodeURIComponent(repFuture)+'">📋 מענה: מלאי טופס</button>'+
+        '<button class="small-btn th-reply" data-r="'+encodeURIComponent(repBrief)+'">📋 מענה: שלחי חוזה</button>'+
+        '<button class="small-btn th-reply" data-r="'+encodeURIComponent(repPast)+'">📋 מענה: נשמור קשר</button>'+
+        '<button class="small-btn th-handled" data-nh="'+encodeURIComponent(pp.nh)+'" style="border-color:#16a34a;color:#166534;font-weight:700;margin-top:2px">✓ טופלה — למאגר ⭐</button>'+
       '</div>';
-      return '<tr>' +
-        '<td><a href="' + prof + '" target="_blank" style="color:var(--accent);font-weight:bold">@' + h + '</a></td>' +
-        '<td>' + (c.display_name || "") + '</td>' +
-        '<td>' + fol + '</td>' +
-        '<td><span class="niche-tag">' + (c.niche || "") + '</span></td>' +
-        '<td>' + (c.email ? ('<a href="mailto:' + c.email + '">' + c.email + '</a>') : "—") + '</td>' +
-        '<td>' + (r.ev.city || "") + ' · ' + (r.ev.startDate || "") + '</td>' +
-        '<td>' + pf + '</td>' +
-        '<td><select class="th-status" data-k="' + encodeURIComponent(r.key) + '">' + TH_STAGES.concat(TH_OTHER).map(function(st){ return '<option value="'+st+'"'+(notes[r.key]===st?' selected':'')+'>'+st+'</option>'; }).join("") + '</select>' + pbadge + '</td>' +
-        '<td>' + when + '</td>' +
-        '<td style="vertical-align:top">' + actions + '</td>' +
-      '</tr>';
+      return '<tr>'+
+        '<td><a href="'+prof+'" target="_blank" style="color:var(--accent);font-weight:bold">@'+h+'</a></td>'+
+        '<td>'+(pp.display_name||"")+'</td>'+
+        '<td>'+fol+'</td>'+
+        '<td><span class="niche-tag">'+(pp.niche||"")+'</span></td>'+
+        '<td>'+(pp.email?('<a href="mailto:'+pp.email+'">'+pp.email+'</a>'):"—")+'</td>'+
+        '<td>'+(pp.event||"")+'</td>'+
+        '<td>'+pf+'</td>'+
+        '<td style="font-size:11px;line-height:1.9">'+badges.join(" ")+'</td>'+
+        '<td>'+statusSel+'</td>'+
+        '<td style="vertical-align:top">'+actions+'</td>'+
+      '</tr>'+detailRow;
     }).join("");
-    document.getElementById("tohandle-list").innerHTML = head + body + '</tbody></table>';
-    document.querySelectorAll("#tohandle-list .th-reply").forEach(function(b){
-      b.addEventListener("click", function(){
-        var txt = decodeURIComponent(b.dataset.r || "");
-        navigator.clipboard.writeText(txt).then(function(){
-          var orig = b.innerHTML; b.innerHTML = "\u2713 \u05d4\u05d5\u05e2\u05ea\u05e7!";
-          setTimeout(function(){ b.innerHTML = orig; }, 1500);
-        });
-      });
-    });
-    document.querySelectorAll("#tohandle-list .th-handled").forEach(function(b){
-      b.addEventListener("click", function(){
-        var k = decodeURIComponent(b.dataset.k || ""); var notes = window.__prNotes; if (!notes || !k) return;
-        notes[k + "|handled"] = new Date().toISOString();
-        if (window.__prSave) window.__prSave();
-        document.dispatchEvent(new Event("pr-status-changed"));
-      });
-    });
-    document.querySelectorAll("#tohandle-list .th-status").forEach(function(sel){
-      sel.addEventListener("change", function(){
-        var k = decodeURIComponent(sel.dataset.k || ""); var notes = window.__prNotes; if (!notes || !k) return;
-        notes[k] = sel.value; notes[k + "|status_set_at"] = new Date().toISOString();
-        if (window.__prSave) window.__prSave();
-        document.dispatchEvent(new Event("pr-status-changed"));
-      });
-    });
+    document.getElementById("tohandle-list").innerHTML=head+body+'</tbody></table>';
+    var listEl=document.getElementById("tohandle-list");
+    listEl.querySelectorAll(".th-reply").forEach(function(b){ b.addEventListener("click",function(){ var t=decodeURIComponent(b.dataset.r||""); navigator.clipboard.writeText(t).then(function(){ var o=b.innerHTML; b.innerHTML="✓ הועתק!"; setTimeout(function(){b.innerHTML=o;},1500); }); }); });
+    listEl.querySelectorAll(".th-handled").forEach(function(b){ b.addEventListener("click",function(){ var nh=decodeURIComponent(b.dataset.nh||""); var notes=window.__prNotes; if(!notes||!nh)return; notes["handled|"+nh]=new Date().toISOString(); if(window.__prSave)window.__prSave(); document.dispatchEvent(new Event("pr-status-changed")); }); });
+    listEl.querySelectorAll(".th-status").forEach(function(sel){ sel.addEventListener("change",function(){ var k=decodeURIComponent(sel.dataset.k||""); var notes=window.__prNotes; if(!notes||!k)return; notes[k]=sel.value; notes[k+"|status_set_at"]=new Date().toISOString(); if(window.__prSave)window.__prSave(); document.dispatchEvent(new Event("pr-status-changed")); }); });
+    listEl.querySelectorAll(".th-bf-toggle").forEach(function(aa){ aa.addEventListener("click",function(e){ e.preventDefault(); var rr=document.getElementById(aa.dataset.t); if(rr)rr.style.display=(rr.style.display==="none")?"":"none"; }); });
     return true;
   }
-  var tries = 0;
-  var iv = setInterval(function(){ tries++; if (render() || tries > 40) clearInterval(iv); }, 250);
   document.addEventListener("pr-status-changed", render);
+  document.addEventListener("pr-data-loaded", render);
+  var tries=0, iv=setInterval(function(){ tries++; if(render()||tries>60) clearInterval(iv); }, 250);
 })();
 </script>
 <script>
@@ -3078,33 +3038,33 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
   }
   function collect(){
     var notes = window.__prNotes; if (!notes || typeof RUNS==="undefined") return null;
+    var apps = window.__prApps||[]; var briefsByH = window.__prBriefsByHandle||{};
     var pool = {};
-    function add(rec){
-      var nh = norm(rec.handle); if (!nh) return;
-      var p = pool[nh];
-      if (!p){ rec.events = []; pool[nh] = rec; p = rec; }
-      ["display_name","followers","niche","email","platform","profile_url"].forEach(function(f){ if (!p[f] && rec[f]) p[f]=rec[f]; });
-      if (rec._ev && p.events.indexOf(rec._ev)===-1) p.events.push(rec._ev);
-      if (rec._when && (!p._when || rec._when > p._when)) p._when = rec._when;
-    }
+    function ensure(nh){ if(!pool[nh]) pool[nh]={ nh:nh, events:[] }; return pool[nh]; }
+    function fill(p, rec){ ["handle","display_name","followers","niche","email","platform","profile_url"].forEach(function(f){ if((p[f]==null||p[f]==="") && rec[f]!=null) p[f]=rec[f]; }); if(rec._ev && p.events.indexOf(rec._ev)===-1) p.events.push(rec._ev); if(rec._when && (!p._when||rec._when>p._when)) p._when=rec._when; }
     Object.keys(RUNS).forEach(function(evk){
       var run = RUNS[evk]; if (!run || !run.event || !run.creators) return; var ev = run.event;
       run.creators.forEach(function(c){
         var key = ev.city+"|"+c.rank+"|"+slug(c.handle||c.display_name);
         var st = notes[key];
         if (WARM.indexOf(st) === -1) return;
-        if (st === "\u05e2\u05e0\u05ea\u05d4 \u2014 \u05de\u05e2\u05d5\u05e0\u05d9\u05d9\u05e0\u05ea!" && !notes[key+"|handled"]) return; // still in "\u05dc\u05d8\u05d9\u05e4\u05d5\u05dc"
-        add({ handle:c.handle, display_name:c.display_name, followers:c.followers, niche:c.niche,
+        var nh = norm(c.handle); if (!nh) return; var pp = ensure(nh); pp._statusKey = key;
+        fill(pp, { handle:c.handle, display_name:c.display_name, followers:c.followers, niche:c.niche,
               email:c.email, platform:c.platform, profile_url:c.profile_url,
               _ev:(ev.city||""), _when:(notes[key+"|status_set_at"]||"") });
       });
     });
-    (notes.__inbound__||[]).forEach(function(a){
-      add({ handle:a.handle, display_name:a.full_name, followers:a.followers, niche:a.niche||"inbound",
-            email:a.email, platform:a.platform, profile_url:a.profile_url,
-            _ev:(a.city||a.event||"מועמדות"), _when:(a.received_at||"") });
+    apps.forEach(function(a){ var nh = norm(a.handle); if(!nh) return; var pp = ensure(nh); pp.applied=true;
+      fill(pp, { handle:a.handle, display_name:a.full_name, followers:a.followers, niche:a.niche||"inbound",
+            email:a.email, platform:a.platform, _ev:(a.event||"מועמדות"), _when:(a.received_at||"") }); });
+    Object.keys(briefsByH).forEach(function(nh){ var b=briefsByH[nh]; var pp=ensure(nh); pp.signed=true;
+      fill(pp, { handle:b.handle, display_name:b.full_name, email:b.email, platform:b.platform, _ev:(b.event_city||"") }); });
+    var out = [];
+    Object.keys(pool).forEach(function(nh){ var pp=pool[nh];
+      var handled = notes["handled|"+nh] || (pp._statusKey && notes[pp._statusKey+"|handled"]);
+      if (handled) out.push(pp);
     });
-    return Object.keys(pool).map(function(k){ return pool[k]; });
+    return out;
   }
   function render(){
     var list = collect(); if (!list) return false;
