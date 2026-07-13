@@ -2595,65 +2595,63 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
       cbtn.textContent = "✓ הועתק"; setTimeout(function(){ cbtn.textContent = "📋 העתיקי לינק"; }, 2000);
     });
   });
-  fetch("../state/influencer_applications.json?_=" + Date.now(), { cache: "no-store" })
-    .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(d){
-      if (!d || !Array.isArray(d.applications) || !d.applications.length) return;
-      var apps = d.applications;
-      if (!window.__prIsMaster && typeof RUN !== "undefined" && RUN && RUN.event) {
-        var cityWord = String(RUN.event.city||"").split(",")[0].toLowerCase();
-        var others = 0;
-        apps = apps.filter(function(a){
-          var ok = String(a.event||"").toLowerCase().indexOf(cityWord) !== -1 || String(a.event||"").indexOf(RUN.event.startDate) !== -1;
-          if (!ok) others++;
-          return ok;
-        });
-        if (!apps.length) {
-          document.getElementById("apps-list").innerHTML = '<span style="color:var(--muted);font-size:12px;font-style:italic;">אין מועמדויות לאירוע הזה' + (others ? " · יש " + others + " לאירועים אחרים — בתצוגה הראשית" : "") + "</span>";
-          return;
-        }
-      }
-      var rows = apps.slice().reverse().map(function(a){
-        var prof = "";
-        var h = String(a.handle || "").replace(/^@/, "");
-        if (a.platform === "TikTok") prof = "https://www.tiktok.com/@" + h;
-        else if (a.platform === "YouTube") prof = "https://www.youtube.com/results?search_query=" + encodeURIComponent(h);
-        else prof = "https://www.instagram.com/" + h;
-        return "<tr><td>" + (a.full_name || "") + '</td><td><a href="' + prof + '" target="_blank">@' + h + "</a></td><td>" + (a.platform || "") + "</td><td>" + (a.followers || "") + "</td><td>" + (a.city || "") + "</td><td>" + (a.event || "") + "</td><td>" + (a.email || "") + "</td><td>" + String(a.received_at || "").slice(0,10) + "</td></tr>";
-      }).join("");
-      document.getElementById("apps-list").innerHTML = '<table class="creator-table"><thead><tr><th>שם</th><th>Handle</th><th>פלטפורמה</th><th>עוקבים</th><th>עיר</th><th>אירוע</th><th>אימייל</th><th>מתי</th></tr></thead><tbody>' + rows + "</tbody></table>";
-    }).catch(function(e){});
+  var __briefsByHandle = {};
+  function __normH(x){ return String(x||"").replace(/^@/,"").replace(/[^a-z0-9]/gi,"").toLowerCase(); }
+  function __evDate(evStr){ var m=String(evStr||"").match(/(\d{4}-\d{2}-\d{2})/); return m?m[1]:""; }
+  var __APPSTAT = ["ענתה — מעוניינת!","אישרה הגעה (סטורי הועלה)","הגיעה ולקחה מוצרים (חוזה חתום)","הגישה תוכן ✓ (תיוג נכון)","ענתה — לא מעוניינת","🚫 חסומה לעתיד"];
+  var __bc = document.getElementById("briefs-card"); if (__bc) __bc.style.display = "none";  // merged into applications
   fetch("../state/influencer_briefs.json?_=" + Date.now(), { cache: "no-store" })
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(d){
-      if (!d || !d.briefs) return;
-      var keys = Object.keys(d.briefs); if (!keys.length) return;
-      if (!window.__prIsMaster && typeof RUN !== "undefined" && RUN && RUN.event) {
-        var curKey = String(RUN.event.city||"").split(",")[0].toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") + "-" + RUN.event.startDate;
-        keys = keys.filter(function(k){ return k === curKey; });
-        if (!keys.length) return;
-      }
-      var html = "";
-      keys.sort().reverse().forEach(function(ev){
-        var rows = d.briefs[ev].map(function(b, bi){
-          var sig = b.signature_url ? '<a href="' + b.signature_url + '" target="_blank">🖊 חתימה</a>' : "—";
-          var when = (b.received_at || "").slice(0,16).replace("T"," ");
-          var did = "bf-" + ev.replace(/[^a-z0-9]/gi,"") + "-" + bi;
-          var FIELDS = [["אירוע", (b.event_city||"") + " · " + (b.event_dates||"")], ["אולם", b.venue], ["שם מלא", b.full_name], ["Handle", b.handle], ["פלטפורמה", b.platform], ["אימייל", b.email], ["טלפון", b.phone], ["נציגת MBS בצ'ק-אין", b.mbs_rep], ["גרסת תנאים", b.terms_version], ["זמן חתימה (מקומי)", b.signed_at_local], ["התקבל בשרת", b.received_at]];
-          var detail = FIELDS.filter(function(f){ return f[1]; }).map(function(f){ return "<b>" + f[0] + ":</b> " + f[1]; }).join("<br>");
-          if (b.signature_url) detail += '<br><br><img src="' + b.signature_url + '" alt="signature" style="max-width:280px;border:1px solid #eee;border-radius:6px;background:#fff">';
-          return "<tr><td>" + (b.full_name || "") + "</td><td>@" + String(b.handle || "").replace(/^@/,"") + "</td><td>" + (b.platform || "") + "</td><td>" + (b.email || "") + "</td><td>" + when + "</td><td>" + sig + ' · <a href="#" class="bf-toggle" data-t="' + did + '">📄 פרטים</a></td></tr>' +
-            '<tr id="' + did + '" style="display:none"><td colspan="6" style="background:#fdf2f8;font-size:12px;line-height:1.7;padding:10px">' + detail + "</td></tr>";
-        }).join("");
-        html += '<div style="margin-bottom:12px"><div style="font-weight:bold;font-size:13px;margin-bottom:4px">' + ev + " · " + d.briefs[ev].length + ' חתימות</div><table class="creator-table"><thead><tr><th>שם</th><th>Handle</th><th>פלטפורמה</th><th>אימייל</th><th>מתי</th><th>חתימה</th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+      if (d && d.briefs) Object.keys(d.briefs).forEach(function(ev){
+        (d.briefs[ev]||[]).forEach(function(b){ __briefsByHandle[__normH(b.handle)] = b; });
       });
-      document.getElementById("briefs-list").innerHTML = html;
-      document.querySelectorAll(".bf-toggle").forEach(function(a){
-        a.addEventListener("click", function(e){
-          e.preventDefault();
-          var r = document.getElementById(a.dataset.t);
-          if (r) r.style.display = (r.style.display === "none") ? "" : "none";
-        });
+    })
+    .catch(function(){})
+    .then(function(){ return fetch("../state/influencer_applications.json?_=" + Date.now(), { cache: "no-store" }); })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      var listEl = document.getElementById("apps-list"); if (!listEl) return;
+      if (!d || !Array.isArray(d.applications) || !d.applications.length) return;
+      var notes = window.__prNotes || {};
+      var today = new Date().toISOString().slice(0,10);
+      var apps = d.applications.slice().filter(function(a){ var dd=__evDate(a.event); return !dd || dd >= today; }); // FUTURE only
+      if (!window.__prIsMaster && typeof RUN !== "undefined" && RUN && RUN.event) {
+        var cityWord = String(RUN.event.city||"").split(",")[0].toLowerCase();
+        apps = apps.filter(function(a){ return String(a.event||"").toLowerCase().indexOf(cityWord) !== -1 || String(a.event||"").indexOf(RUN.event.startDate) !== -1; });
+      }
+      if (!apps.length){ listEl.innerHTML = '<span style="color:var(--muted);font-size:12px;font-style:italic;">אין מועמדויות לאירוע עתידי כרגע.</span>'; return; }
+      var detailRows = [];
+      var rows = apps.slice().reverse().map(function(a){
+        var h = String(a.handle || "").replace(/^@/, ""); var nh = __normH(h);
+        var prof = (a.platform === "TikTok") ? ("https://www.tiktok.com/@" + h)
+                 : (a.platform === "YouTube") ? ("https://www.youtube.com/results?search_query=" + encodeURIComponent(h))
+                 : ("https://www.instagram.com/" + h);
+        var skey = "app|" + nh; var cur = notes[skey] || "ענתה — מעוניינת!";
+        var opts = __APPSTAT.map(function(st){ return '<option value="'+st+'"'+(st===cur?' selected':'')+'>'+st+'</option>'; }).join("");
+        var statusSel = '<select class="app-status" data-k="'+encodeURIComponent(skey)+'">'+opts+'</select>';
+        var b = __briefsByHandle[nh]; var contract;
+        if (b){
+          var did = "abf-" + nh;
+          var F = [["אירוע",(b.event_city||"")+" · "+(b.event_dates||"")],["אולם",b.venue],["שם מלא",b.full_name],["Handle",b.handle],["פלטפורמה",b.platform],["אימייל",b.email],["טלפון",b.phone],["נציגת MBS",b.mbs_rep],["זמן חתימה",b.signed_at_local],["התקבל",b.received_at]];
+          var detail = F.filter(function(f){return f[1];}).map(function(f){return "<b>"+f[0]+":</b> "+f[1];}).join("<br>");
+          if (b.signature_url) detail += '<br><br><img src="'+b.signature_url+'" style="max-width:260px;border:1px solid #eee;border-radius:6px;background:#fff">';
+          contract = '<span class="niche-tag" style="background:#dcfce7;color:#166534">✍️ חתום</span> ' + (b.signature_url?('<a href="'+b.signature_url+'" target="_blank">🖊</a> '):'') + '<a href="#" class="abf-toggle" data-t="'+did+'">📄 פרטים</a>';
+          detailRows.push('<tr id="'+did+'" style="display:none"><td colspan="9" style="background:#fdf2f8;font-size:12px;line-height:1.7;padding:10px">'+detail+'</td></tr>');
+        } else {
+          contract = '<button class="small-btn app-brief">📋 שלחי טופס חוזה</button>';
+        }
+        return "<tr><td>" + (a.full_name || "") + '</td><td><a href="' + prof + '" target="_blank">@' + h + "</a></td><td>" + (a.platform || "") + "</td><td>" + (a.followers || "") + "</td><td>" + (a.event || "") + "</td><td>" + (a.email || "") + "</td><td>" + String(a.received_at || "").slice(0,10) + "</td><td>"+statusSel+"</td><td>"+contract+"</td></tr>" + (b ? detailRows[detailRows.length-1] : "");
+      }).join("");
+      listEl.innerHTML = '<table class="creator-table"><thead><tr><th>שם</th><th>Handle</th><th>פלטפורמה</th><th>עוקבים</th><th>אירוע</th><th>אימייל</th><th>מתי</th><th>סטטוס</th><th>חוזה</th></tr></thead><tbody>' + rows + "</tbody></table>";
+      listEl.querySelectorAll(".app-status").forEach(function(sel){
+        sel.addEventListener("change", function(){ var k=decodeURIComponent(sel.dataset.k||""); var n=window.__prNotes; if(!n||!k)return; n[k]=sel.value; n[k+"|status_set_at"]=new Date().toISOString(); if(window.__prSave)window.__prSave(); });
+      });
+      listEl.querySelectorAll(".app-brief").forEach(function(btn){
+        btn.addEventListener("click", function(){ navigator.clipboard.writeText("https://events.themakeupblowout.com/influencer-brief/").then(function(){ var o=btn.textContent; btn.textContent="✓ הקישור הועתק"; setTimeout(function(){ btn.textContent=o; },1500); }); });
+      });
+      listEl.querySelectorAll(".abf-toggle").forEach(function(aa){
+        aa.addEventListener("click", function(e){ e.preventDefault(); var r=document.getElementById(aa.dataset.t); if(r)r.style.display=(r.style.display==="none")?"":"none"; });
       });
     }).catch(function(e){});
 })();
@@ -2953,6 +2951,8 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
    in per-event view. Reads window.__prNotes + the global RUNS. */
 (function(){
   var REPLIED = "ענתה — מעוניינת!";
+  var TH_STAGES = ["לא פניתי","נשלחה טיוטה / DM","ענתה — מעוניינת!","אישרה הגעה (סטורי הועלה)","הגיעה ולקחה מוצרים (חוזה חתום)","הגישה תוכן ✓ (תיוג נכון)"];
+  var TH_OTHER = ["ענתה — לא מעוניינת","לא הגישה תוכן (deadline עבר)","החזירה מוצרים / שילמה","🏆 Hall of Fame","🚫 חסומה לעתיד"];
   function slug(x){ return String(x||"").replace(/[^a-zA-Z0-9]/g,"-").toLowerCase(); }
   function render(){
     var notes = window.__prNotes;
@@ -3018,7 +3018,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
         '<td>' + (c.email ? ('<a href="mailto:' + c.email + '">' + c.email + '</a>') : "—") + '</td>' +
         '<td>' + (r.ev.city || "") + ' · ' + (r.ev.startDate || "") + '</td>' +
         '<td>' + pf + '</td>' +
-        '<td><span class="niche-tag" style="background:#dcfce7;color:#166534">ענתה — מעוניינת!</span>' + pbadge + '</td>' +
+        '<td><select class="th-status" data-k="' + encodeURIComponent(r.key) + '">' + TH_STAGES.concat(TH_OTHER).map(function(st){ return '<option value="'+st+'"'+(notes[r.key]===st?' selected':'')+'>'+st+'</option>'; }).join("") + '</select>' + pbadge + '</td>' +
         '<td>' + when + '</td>' +
         '<td style="vertical-align:top">' + actions + '</td>' +
       '</tr>';
@@ -3037,6 +3037,14 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
       b.addEventListener("click", function(){
         var k = decodeURIComponent(b.dataset.k || ""); var notes = window.__prNotes; if (!notes || !k) return;
         notes[k + "|handled"] = new Date().toISOString();
+        if (window.__prSave) window.__prSave();
+        document.dispatchEvent(new Event("pr-status-changed"));
+      });
+    });
+    document.querySelectorAll("#tohandle-list .th-status").forEach(function(sel){
+      sel.addEventListener("change", function(){
+        var k = decodeURIComponent(sel.dataset.k || ""); var notes = window.__prNotes; if (!notes || !k) return;
+        notes[k] = sel.value; notes[k + "|status_set_at"] = new Date().toISOString();
         if (window.__prSave) window.__prSave();
         document.dispatchEvent(new Event("pr-status-changed"));
       });
