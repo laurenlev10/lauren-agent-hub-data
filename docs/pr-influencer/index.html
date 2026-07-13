@@ -3265,6 +3265,11 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     var h = t && t.querySelector("h2"); if (h) h.textContent = "📚 כל המשפיעניות שפנינו אליהן (כל האירועים)";
   } else {
     hide("crm-card");
+    // Lauren 2026-07-13: in event view, lift the search-results card to the very top
+    // (above "מועמדות לטיפול" and the rest) so the results table is the first thing seen.
+    var cont = document.querySelector(".container");
+    var rc = document.getElementById("results-card");
+    if (cont && rc){ var hd = cont.querySelector("header"); cont.insertBefore(rc, hd ? hd.nextSibling : cont.firstChild); }
   }
   window.__prIsMaster = isMaster;
 })();
