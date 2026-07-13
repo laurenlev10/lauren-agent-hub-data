@@ -80,12 +80,69 @@ def _load_secret(env_var: str, workspace_filename: str, local_filename: str, req
     raise SystemExit(f"{env_var} not set and no fallback file at {local_filename}")
 
 
+# --- 2026-07-12: self-healing Page token (fixes the 100-day silent outage) ---
+# The stored Page token can be invalidated at any time (password change / Facebook
+# security reset -> error 190 subcode 460, OR the ~60-day expiry of a plain Page
+# token). When that happens the inbox agent used to fail SILENTLY (caught the auth
+# error, returned 0 comments, workflow stayed green, no SMS). To make that
+# impossible: validate the stored token once per process; if it's dead/missing,
+# MINT a fresh one from the never-expiring System User token (GET /{page_id}
+# ?fields=access_token). A page token minted from a System User with Full Control
+# also never expires. If even the SU token is dead, get_token() RAISES -> the
+# workflow fails -> IRON RULE #3 failure SMS fires. So it either self-heals or
+# alerts; it can never go silently broken again.
+_PAGE_TOKEN_CACHE = None
+
+
+def _token_is_valid(tok: str) -> bool:
+    if not tok:
+        return False
+    try:
+        _get("/me", {"access_token": tok, "fields": "id"})
+        return True
+    except Exception:
+        return False
+
+
+def _mint_page_token_from_su() -> _Optional[str]:
+    """Mint a fresh (never-expiring) Page token from the System User token."""
+    su = _load_secret("META_SYSTEM_USER_TOKEN", ".meta_system_user_token",
+                      "meta_system_user_token.txt", required=False)
+    if not su:
+        return None
+    try:
+        pid = get_fb_page_id()
+        data = _get(f"/{pid}", {"fields": "access_token", "access_token": su})
+        return data.get("access_token") or None
+    except Exception:
+        return None
+
+
 def get_token() -> str:
-    """Returns Page Access Token. Used by Messenger conversations, FB Page posts —
-    endpoints Meta explicitly gates to require a Page Access Token (not a System User
-    token, which would 400 with code 190 'This method must be called with a Page
-    Access Token')."""
-    return _load_secret("META_PAGE_TOKEN", ".meta_page_token", "meta_page_token.txt")
+    """Returns a VALID Page Access Token. Used by Messenger conversations, FB Page
+    posts, comment reads/replies — endpoints Meta gates to a Page Access Token (a
+    System User token would 400 with code 190 'This method must be called with a
+    Page Access Token').
+
+    Self-healing: if the stored META_PAGE_TOKEN is invalid/missing, auto-mints a
+    fresh never-expiring Page token from the System User token. Raises only if BOTH
+    tokens are dead (-> workflow failure -> IRON RULE #3 SMS)."""
+    global _PAGE_TOKEN_CACHE
+    if _PAGE_TOKEN_CACHE:
+        return _PAGE_TOKEN_CACHE
+    stored = _load_secret("META_PAGE_TOKEN", ".meta_page_token",
+                          "meta_page_token.txt", required=False)
+    if _token_is_valid(stored):
+        _PAGE_TOKEN_CACHE = stored
+        return stored
+    minted = _mint_page_token_from_su()
+    if minted:
+        print("lauren_meta: stored Page token invalid -> minted fresh token from System User token (self-heal)")
+        _PAGE_TOKEN_CACHE = minted
+        return minted
+    raise SystemExit("META_PAGE_TOKEN invalid/missing AND could not mint from "
+                     "META_SYSTEM_USER_TOKEN. Both Meta tokens are dead - "
+                     "re-auth needed (see IRON RULE #8).")
 
 
 def get_insights_token() -> str:
