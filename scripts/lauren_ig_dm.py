@@ -48,14 +48,20 @@ def _get(path: str, params: dict) -> dict:
         return _json.loads(r.read().decode("utf-8"))
 
 
-def fetch_conversations(limit: int = 25) -> list:
-    """Return IG DM conversations (newest first) with participants."""
+def fetch_conversations(limit: int = 25, folder: str | None = None) -> list:
+    """Return IG DM conversations (newest first) with participants.
+
+    folder: pass "primary" to include the *Partnership messages* / primary
+    inbox (where influencer-outreach replies land). Default None = the plain
+    /me/conversations view (back-compat with the @meta inbox agent)."""
     if not get_token():
         print("  ⚠ ig-dm: no IG_LOGIN_TOKEN — skipping IG DMs")
         return []
+    params = {"platform": "instagram", "fields": "id,updated_time,participants", "limit": limit}
+    if folder:
+        params["folder"] = folder
     try:
-        d = _get("me/conversations",
-                 {"platform": "instagram", "fields": "id,updated_time,participants", "limit": limit})
+        d = _get("me/conversations", params)
         return d.get("data", [])
     except _ue.HTTPError as e:
         print(f"  ⚠ ig-dm conversations HTTP {e.code}: {e.read().decode()[:150]}")
@@ -63,6 +69,39 @@ def fetch_conversations(limit: int = 25) -> list:
     except Exception as e:
         print(f"  ⚠ ig-dm conversations failed: {e}")
         return []
+
+
+def fetch_all_conversations(folder: str = "primary", limit: int = 50,
+                            max_pages: int = 4) -> list:
+    """Paginated conversation pull (newest first), across up to max_pages.
+    Used by the PR-influencer reply-sync so partnership replies aren't missed
+    just because they fell past the first page. Fail-soft on any error."""
+    if not get_token():
+        print("  ⚠ ig-dm: no IG_LOGIN_TOKEN — skipping IG DMs")
+        return []
+    out, seen = [], set()
+    params = {"platform": "instagram", "fields": "id,updated_time,participants", "limit": limit}
+    if folder:
+        params["folder"] = folder
+    path = "me/conversations"
+    for _ in range(max_pages):
+        try:
+            d = _get(path, params)
+        except _ue.HTTPError as e:
+            print(f"  ⚠ ig-dm conversations HTTP {e.code}: {e.read().decode()[:150]}")
+            break
+        except Exception as e:
+            print(f"  ⚠ ig-dm conversations failed: {e}")
+            break
+        for c in d.get("data", []):
+            cid = c.get("id")
+            if cid and cid not in seen:
+                seen.add(cid); out.append(c)
+        after = (((d.get("paging") or {}).get("cursors") or {}).get("after"))
+        if not after:
+            break
+        params = dict(params); params["after"] = after
+    return out
 
 
 def fetch_messages(conv_id: str, limit: int = 8) -> list:
