@@ -112,6 +112,9 @@
     60%  { box-shadow: 0 6px 22px rgba(0,0,0,0.10), 0 0 0 16px rgba(239,68,68,0); }
     100% { box-shadow: 0 6px 22px rgba(0,0,0,0.10), 0 0 0 0 rgba(239,68,68,0); }
   }
+  /* ✨ PR-influencer — same pulse as MYSTERY BOX when replies / new applications await (2026-07-12) */
+  .tile.pr-tile-alert { animation: shipPulse 1.35s ease-in-out infinite; }
+  .tile.pr-tile-alert:hover { animation: shipPulse 1.35s ease-in-out infinite; }
 
   /* Color themes */
   .tile-makeup    { background: linear-gradient(135deg, #ec4899 0%, #db2777 50%, #9333ea 100%); }
@@ -389,8 +392,9 @@
     var total=repliedCount+untriaged;
     var el=document.getElementById("pr-alert-badge");
     if(!el)return;
-    if(total>0){ el.textContent="\ud83d\udd14 "+total+" \u05d7\u05d3\u05e9"; el.classList.add("on"); el.title=repliedCount+" \u05e2\u05e0\u05d5 \u00b7 "+untriaged+" \u05de\u05d5\u05e2\u05de\u05d3\u05d5\u05d9\u05d5\u05ea \u05d7\u05d3\u05e9\u05d5\u05ea"; }
-    else { el.classList.remove("on"); }
+    var tile=el.closest(".tile");
+    if(total>0){ el.textContent="\ud83d\udd14 "+total+" \u05d7\u05d3\u05e9"; el.classList.add("on"); el.title=repliedCount+" \u05e2\u05e0\u05d5 \u00b7 "+untriaged+" \u05de\u05d5\u05e2\u05de\u05d3\u05d5\u05d9\u05d5\u05ea \u05d7\u05d3\u05e9\u05d5\u05ea"; if(tile)tile.classList.add("pr-tile-alert"); }
+    else { el.classList.remove("on"); if(tile)tile.classList.remove("pr-tile-alert"); }
   });
 })();
 </script>
