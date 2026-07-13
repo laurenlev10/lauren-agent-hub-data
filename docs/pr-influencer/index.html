@@ -1766,7 +1766,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     <div class="subtitle">חיפוש משפיעניות מקומיות (1k-50k) ב-3 פאזות: Google בלוגים → IG/TikTok/YouTube → Heepsy</div>
   </header>
 
-  <div class="card">
+  <div class="card" id="newsearch-card">
     <h2 style="margin-top:0">הרצת חיפוש חדש</h2>
     <div class="form-grid">
       <div>
@@ -2721,6 +2721,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
   }
 
   function renderFollowups(){
+    if (window.__prIsMaster) { var mc = document.getElementById("followup-card"); if (mc) mc.style.display = "none"; return; }
     var due = [];
     var now = Date.now();
     allCreators().forEach(function(c){
@@ -2861,7 +2862,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
   var isMaster = (typeof __MODE !== "undefined" && __MODE === "master");
   function hide(id){ var el = document.getElementById(id); if (el) el.style.display = "none"; }
   if (isMaster) {
-    hide("board-card"); hide("followup-card"); hide("results-card"); hide("reminders-card");
+    hide("board-card"); hide("followup-card"); hide("results-card"); hide("reminders-card"); hide("newsearch-card");
     // auto-expand CRM in master view
     var b = document.getElementById("crm-body");
     var t = document.getElementById("crm-toggle");
