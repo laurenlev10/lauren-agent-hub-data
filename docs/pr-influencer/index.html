@@ -3393,12 +3393,19 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
   function slug(x){ return String(x||"").replace(/[^a-zA-Z0-9]/g,"-").toLowerCase(); }
   function norm(x){ return String(x||"").replace(/^@/,"").replace(/[^a-z0-9]/gi,"").toLowerCase(); }
   var q = "";
+  if (!window.__prUpcoming){ window.__prUpcoming = []; fetch("../state/upcoming_events.json?_="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null;}).then(function(d){ if(d&&Array.isArray(d.events)) window.__prUpcoming=d.events; render(); }).catch(function(){}); }
   function futureEvents(){
-    var today = new Date().toISOString().slice(0,10), out = [];
+    var today = new Date().toISOString().slice(0,10), out = [], seen = {};
+    (window.__prUpcoming||[]).forEach(function(e){
+      var d = e.end_date || e.start_date || ""; if (!(d && d >= today)) return;
+      var key = e.event_key || (slug(String(e.city||"").split(",")[0]) + "-" + (e.start_date||""));
+      var label = (e.city||"") + (e.state?(", "+e.state):"") + " · " + (e.start_date||"");
+      if (!seen[key]){ seen[key]=1; out.push({ key:key, label:label }); }
+    });
     Object.keys((typeof RUNS!=="undefined"&&RUNS)||{}).forEach(function(k){
       var e = RUNS[k] && RUNS[k].event; if (!e) return;
-      var d = e.endDate || e.startDate || "";
-      if (d && d >= today) out.push({ key:k, label:(e.city||k)+" · "+(e.startDate||"") });
+      var d = e.endDate || e.startDate || ""; if (!(d && d >= today)) return;
+      if (!seen[k]){ seen[k]=1; out.push({ key:k, label:(e.city||k)+" · "+(e.startDate||"") }); }
     });
     out.sort(function(a,b){ return a.label.localeCompare(b.label); });
     return out;
@@ -3445,7 +3452,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     });
     shown.sort(function(a,b){ return String(b._when).localeCompare(String(a._when)); });
     var fe = futureEvents();
-    var evOpts = fe.map(function(e){ return '<option value="'+e.key+'">'+e.label+'</option>'; }).join("");
+    var dlist = '<datalist id="pool-ev-list">' + fe.map(function(e){ return '<option value="'+String(e.label).replace(/"/g,"&quot;")+'"></option>'; }).join("") + '</datalist>';
     var head = '<table class="creator-table"><thead><tr><th>Handle</th><th>שם</th><th>עוקבים</th><th>נישה</th><th>אימייל</th><th>אירועים</th><th>פלטפורמה</th><th>הוסיפי לאירוע עתידי</th></tr></thead><tbody>';
     var body = shown.map(function(p){
       var h = String(p.handle||"").replace(/^@/,"");
@@ -3454,7 +3461,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
       var pf = p.platform ? (p.platform.charAt(0).toUpperCase()+p.platform.slice(1)) : "";
       var evs = (p.events||[]).filter(function(v,i,a){return a.indexOf(v)===i;}).join(", ");
       var addCell = fe.length ?
-        ('<select class="pool-ev small-btn" style="max-width:150px">'+evOpts+'</select> '+
+        ('<input class="pool-ev small-btn" list="pool-ev-list" placeholder="הקלידי עיר..." style="max-width:150px"> '+
          '<button class="small-btn pool-add" data-h="'+encodeURIComponent(p.handle||"")+'" data-n="'+encodeURIComponent(p.display_name||"")+'" data-f="'+(p.followers||"")+'" data-ni="'+encodeURIComponent(p.niche||"")+'" data-e="'+encodeURIComponent(p.email||"")+'" data-pf="'+encodeURIComponent(p.platform||"")+'" data-pr="'+encodeURIComponent(prof)+'">➕ הוסיפי</button>')
         : '<span style="color:var(--muted);font-size:11px">אין אירוע עתידי ברשימה</span>';
       return '<tr>'+
@@ -3468,11 +3475,14 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
         '<td>'+addCell+'</td>'+
       '</tr>';
     }).join("");
-    document.getElementById("pool-list").innerHTML = head + body + '</tbody></table>';
+    document.getElementById("pool-list").innerHTML = head + body + '</tbody></table>' + dlist;
     document.querySelectorAll("#pool-list .pool-add").forEach(function(b){
       b.addEventListener("click", function(){
-        var sel = b.parentNode.querySelector(".pool-ev"); var evk = sel ? sel.value : "";
-        if (!evk){ return; }
+        var inp = b.parentNode.querySelector(".pool-ev"); var val = (inp?inp.value:"").trim();
+        var fe2 = futureEvents();
+        var m = fe2.filter(function(e){ return e.label===val; })[0] || (val ? fe2.filter(function(e){ return e.label.toLowerCase().indexOf(val.toLowerCase())!==-1; })[0] : null);
+        if (!val || !m){ b.textContent="בחרי עיר מהרשימה"; setTimeout(function(){ b.textContent="➕ הוסיפי"; },1800); return; }
+        var evk = m.key;
         var notes = window.__prNotes; if (!notes) return;
         notes.__manual_roster__ = notes.__manual_roster__ || {};
         var arr = notes.__manual_roster__[evk] = notes.__manual_roster__[evk] || [];
