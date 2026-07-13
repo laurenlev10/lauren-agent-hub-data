@@ -2278,6 +2278,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
 
     <div id="allresults-section" style="margin-top:14px;display:none;">
       <div id="allresults-title" style="margin-bottom:8px"></div>
+      <style>#allresults-table th,#allresults-table td{padding:6px 7px;font-size:12px;white-space:normal}#allresults-table .small-btn{white-space:nowrap}</style>
       <div style="overflow-x:auto"><table class="creator-table" id="allresults-table"></table></div>
     </div>
 
@@ -2794,6 +2795,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
         rows += `<tr>`+
           `<td>${c.rank || (i+1)}</td>`+
           `<td><a href="${c.profile_url}" target="_blank">@${(c.handle||"").replace(/^@/,"")}</a></td>`+
+          `<td>${dmCell(c.dm_script)}</td>`+
           `<td>${c.display_name||""}</td>`+
           `<td>${c.platform||""}</td>`+
           `<td>${fol(c.followers)}</td>`+
@@ -2801,14 +2803,14 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
           `<td>${phaseLabel(c.phase)}</td>`+
           `<td><span class="score-tag">${c.score||0}</span></td>`+
           `<td>${emailCell(c.email)}</td>`+
-          `<td style="font-size:11px;color:var(--muted);max-width:230px">${(c.city_signal||[]).join("; ")}</td>`+
-          `<td>${dmCell(c.dm_script)}</td>`+
+          `<td style="font-size:11px;color:var(--muted);max-width:200px">${(c.city_signal||[]).join("; ")}</td>`+
         `</tr>`;
       });
       cityRows.forEach(a => {
         rows += `<tr style="background:#fdf4ff">`+
           `<td>—</td>`+
           `<td><a href="${a.profile_url}" target="_blank">@${(a.handle||"").replace(/^@/,"")}</a></td>`+
+          `<td>${dmCell(a.dm_script)}</td>`+
           `<td>${a.display_name||""}</td>`+
           `<td>${a.platform||""}</td>`+
           `<td>${fol(a.followers)}</td>`+
@@ -2816,8 +2818,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
           `<td>${phaseLabel(a.phase)}</td>`+
           `<td>—</td>`+
           `<td>${emailCell(a.email)}</td>`+
-          `<td style="font-size:11px;color:var(--muted);max-width:230px">${a.evidence||""}</td>`+
-          `<td>${dmCell(a.dm_script)}</td>`+
+          `<td style="font-size:11px;color:var(--muted);max-width:200px">${a.evidence||""}</td>`+
         `</tr>`;
       });
       document.getElementById("allresults-title").innerHTML =
@@ -2825,7 +2826,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
         `<div style="font-size:13px;color:var(--muted);margin-top:2px">${evx.city||""}${evx.state? ", "+evx.state : ""} · ${evx.dateRange||""}${evx.venueName? " · "+evx.venueName : ""}</div>`+
         `<div style="font-size:12px;margin-top:6px">סה"כ <b>${tx.found || (creatorRows.length+cityRows.length)}</b> נמצאו · 📧 Phase 1 (מייל): <b>${tx.phase1||0}</b> · 📱 Phase 2 (DM): <b>${tx.phase2||0}</b> · 🆕 חשבונות עיר/אירועים ממתינים לאישור: <b>${(tx.pending_approval!=null?tx.pending_approval:cityRows.length)}</b></div>`;
       document.getElementById("allresults-table").innerHTML =
-        `<thead><tr><th>#</th><th>Handle</th><th>שם</th><th>פלטפורמה</th><th>עוקבים</th><th>נישה</th><th>פאזה</th><th>ציון</th><th>אימייל</th><th>ראיות / מיקום</th><th>DM</th></tr></thead><tbody>${rows}</tbody>`;
+        `<thead><tr><th>#</th><th>Handle</th><th>DM</th><th>שם</th><th>פלטפורמה</th><th>עוקבים</th><th>נישה</th><th>פאזה</th><th>ציון</th><th>אימייל</th><th>ראיות / מיקום</th></tr></thead><tbody>${rows}</tbody>`;
     })();
 
     // Phase 1 table
