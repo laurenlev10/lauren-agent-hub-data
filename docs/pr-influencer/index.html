@@ -1869,7 +1869,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     <h2 style="margin-top:0;color:#7e22ce;">⭐ מאגר חם — מעוניינות לעתיד <span id="pool-count" style="font-size:13px;color:#6b7280;font-weight:normal"></span></h2>
     <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">כל מי שהביעה עניין אי-פעם (ענתה מעוניינת ומעלה) + מועמדות מהטופס — נשמרות כאן לתמיד, מכל האירועים. חפשי לפי עיר/נישה והוסיפי אותן לאירוע עתידי בלחיצה, כדי שלא נפספס אותן בפעם הבאה.</div>
     <input type="text" id="pool-search" placeholder="חיפוש לפי שם / handle / עיר / נישה..." style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;margin-bottom:8px;">
-    <div id="pool-list"></div>
+    <div id="pool-list" style="overflow-x:auto"></div>
   </div>
 
   <div class="card" id="crm-card">
@@ -1885,7 +1885,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
   <div class="card" id="tohandle-card" style="display:none;border-left:6px solid #16a34a;">
     <h2 style="margin-top:0;color:#166534;">🔔 מועמדות לטיפול <span id="tohandle-count" style="font-size:13px;color:#6b7280;font-weight:normal"></span></h2>
     <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">משפיעניות שענו שהן מעוניינות — צריך לקדם אותן לשלב הבא. (מתעדכן אוטומטית מסריקת ה-DM כל 6 שעות)</div>
-    <div id="tohandle-list"></div>
+    <div id="tohandle-list" style="overflow-x:auto"></div>
   </div>
 
   <div class="card" id="apps-card">
@@ -2911,7 +2911,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     if (!notes) return false;
     var items = [], seen = {};
     Object.keys(notes).forEach(function(k){
-      if (notes[k] !== REPLIED) return;
+      if (notes[k] !== REPLIED || notes[k + "|handled"]) return;
       var parts = k.split("|");
       if (parts.length !== 3) return;
       seen[k] = true;
@@ -2961,10 +2961,10 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
       if (!isMaster && curCity && ev.city !== curCity) return;
       run.creators.forEach(function(c){
         var key = ev.city + "|" + c.rank + "|" + slug(c.handle||c.display_name);
-        if (notes[key] !== REPLIED || seen[key]) return;
+        if (notes[key] !== REPLIED || seen[key] || notes[key + "|handled"]) return;
         seen[key] = true;
         var note = notes[key + "|note"] || "";
-        rows.push({ c: c, ev: ev, setAt: notes[key + "|status_set_at"] || "",
+        rows.push({ c: c, ev: ev, key: key, setAt: notes[key + "|status_set_at"] || "",
                     partnership: /Partnership/i.test(note) });
       });
     });
@@ -3002,6 +3002,7 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
         '<button class="small-btn th-reply" data-r="' + encodeURIComponent(repFuture) + '" style="' + recFuture + '">\uD83D\uDCCB \u05d0\u05d9\u05e8\u05d5\u05e2 \u05e2\u05ea\u05d9\u05d3\u05d9 \u2014 \u05de\u05dc\u05d0\u05d9 \u05d8\u05d5\u05e4\u05e1</button>' +
         '<button class="small-btn th-reply" data-r="' + encodeURIComponent(repPast) + '" style="' + recPast + '">\uD83D\uDCCB \u05d0\u05d9\u05e8\u05d5\u05e2 \u05e2\u05d1\u05e8 \u2014 \u05e0\u05e9\u05de\u05d5\u05e8 \u05e7\u05e9\u05e8</button>' +
         '<button class="small-btn th-reply" data-r="' + encodeURIComponent(repBrief) + '">\uD83D\uDCCB \u05e9\u05dc\u05d9\u05d7\u05ea \u05e4\u05e8\u05d8\u05d9\u05dd + \u05d8\u05d5\u05e4\u05e1</button>' +
+        '<button class="small-btn th-handled" data-k="' + encodeURIComponent(r.key) + '" style="border-color:#16a34a;color:#166534;font-weight:700;margin-top:2px">\u2713 \u05d8\u05d5\u05e4\u05dc\u05d4 \u2014 \u05dc\u05de\u05d0\u05d2\u05e8 \u05d4\u05d7\u05dd \u2b50</button>' +
       '</div>';
       return '<tr>' +
         '<td><a href="' + prof + '" target="_blank" style="color:var(--accent);font-weight:bold">@' + h + '</a></td>' +
@@ -3024,6 +3025,14 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
           var orig = b.innerHTML; b.innerHTML = "\u2713 \u05d4\u05d5\u05e2\u05ea\u05e7!";
           setTimeout(function(){ b.innerHTML = orig; }, 1500);
         });
+      });
+    });
+    document.querySelectorAll("#tohandle-list .th-handled").forEach(function(b){
+      b.addEventListener("click", function(){
+        var k = decodeURIComponent(b.dataset.k || ""); var notes = window.__prNotes; if (!notes || !k) return;
+        notes[k + "|handled"] = new Date().toISOString();
+        if (window.__prSave) window.__prSave();
+        document.dispatchEvent(new Event("pr-status-changed"));
       });
     });
     return true;
@@ -3067,11 +3076,13 @@ const __MODE = (__q.get("ev") || (__q.get("city") && __q.get("start_date"))) ? "
     Object.keys(RUNS).forEach(function(evk){
       var run = RUNS[evk]; if (!run || !run.event || !run.creators) return; var ev = run.event;
       run.creators.forEach(function(c){
-        var st = notes[ev.city+"|"+c.rank+"|"+slug(c.handle||c.display_name)];
+        var key = ev.city+"|"+c.rank+"|"+slug(c.handle||c.display_name);
+        var st = notes[key];
         if (WARM.indexOf(st) === -1) return;
+        if (st === "\u05e2\u05e0\u05ea\u05d4 \u2014 \u05de\u05e2\u05d5\u05e0\u05d9\u05d9\u05e0\u05ea!" && !notes[key+"|handled"]) return; // still in "\u05dc\u05d8\u05d9\u05e4\u05d5\u05dc"
         add({ handle:c.handle, display_name:c.display_name, followers:c.followers, niche:c.niche,
               email:c.email, platform:c.platform, profile_url:c.profile_url,
-              _ev:(ev.city||""), _when:(notes[ev.city+"|"+c.rank+"|"+slug(c.handle||c.display_name)+"|status_set_at"]||"") });
+              _ev:(ev.city||""), _when:(notes[key+"|status_set_at"]||"") });
       });
     });
     (notes.__inbound__||[]).forEach(function(a){
