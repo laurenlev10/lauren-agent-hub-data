@@ -647,15 +647,27 @@ function onModerateClick(btn) {
   const platform  = btn.dataset.platform;
   const row = btn.closest(".attention-row");
 
-  // Instagram BLOCK has no API — open the profile so Lauren blocks manually.
-  if (action === "block" && platform === "ig") {
-    let handle = "";
-    const whoEl = row && row.querySelector(".who");
-    if (whoEl) handle = (whoEl.textContent || "").trim().replace(/^@/, "");
-    const url = handle ? ("https://instagram.com/" + encodeURIComponent(handle))
-                       : ((row && row.dataset.metaUrl) || "https://instagram.com/");
+  // BLOCK is MANUAL for both platforms: Meta does not expose the commenter's
+  // identity to the API (that's why the author shows "?"), so a programmatic ban
+  // is impossible. Open the profile (IG) or the post (FB) so Lauren can block
+  // where Meta DOES show the name, in one place. No API dispatch.
+  if (action === "block") {
+    let url = "";
+    if (platform === "ig") {
+      let handle = "";
+      const whoEl = row && row.querySelector(".who");
+      if (whoEl) handle = (whoEl.textContent || "").trim().replace(/^@/, "");
+      if (handle) url = "https://instagram.com/" + encodeURIComponent(handle);
+    }
+    if (!url) {
+      const link = row && row.querySelector("a.reply-btn-secondary");
+      url = (link && link.getAttribute("href")) || "https://www.facebook.com/";
+    }
     window.open(url, "_blank", "noopener");
-    alert("אינסטגרם לא מאפשרת חסימה דרך המערכת — פתחתי לך את הפרופיל של המגיב.\nלחצי על ⋯ ← Block כדי לחסום, ואז 'סמני כטופל'.");
+    const msg = (platform === "ig")
+      ? "אינסטגרם לא מאפשרת חסימה דרך ה-API — פתחתי את הפרופיל של המגיב.\nלחצי ⋯ ← Block, ואז 'סמני כטופל'."
+      : "פייסבוק לא חושפת את זהות המגיב ל-API (לכן מופיע '?'), אז אי אפשר לחסום אוטומטית.\nפתחתי את הפוסט — מצאי את התגובה ← ⋯ ← Ban / Hide, ואז 'סמני כטופל'.";
+    alert(msg);
     return;
   }
 
@@ -682,10 +694,16 @@ window.onModerateClick = onModerateClick;
       if (!actions) return;
       const wrap = document.createElement("div");
       wrap.className = "mod-actions";
+      const TITLES = {
+        hide: "מסתיר את התגובה מהציבור (הפיך — המגיב עדיין רואה את עצמו)",
+        delete: "מוחק את התגובה לצמיתות (לכולם)",
+        block: "פותח את הפוסט/פרופיל לחסימה ידנית (Meta לא מאפשרת חסימה דרך API)"
+      };
       const mk = function (action, label, cls) {
         const b = document.createElement("button");
         b.className = "mod-btn " + cls;
         b.textContent = label;
+        b.title = TITLES[action] || "";
         b.dataset.action = action;
         b.dataset.key = row.dataset.dedupKey;
         b.dataset.cid = ref.id;
