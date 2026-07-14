@@ -5586,15 +5586,27 @@ async function persistOctoposOverride(productId, field, value){
 var ALL_EVENTS = [];   // [{city, state, start_date, end_date}, ...] — populated by loadAllEvents
 async function loadAllEvents(){
   try{
-    // Fetch the launch HTML and extract SCHEDULE const via regex.
+    // Fetch the launch HTML and extract the SCHEDULE const via regex.
     var r = await fetch("../launch/index.html?_=" + Date.now(), { cache: "no-store" });
     if (!r.ok) return;
     var html = await r.text();
-    var m = html.match(/const SCHEDULE\s*=\s*(\[[\s\S]*?\])\s*;\s*\n/);
-    if (m) {
-      try { ALL_EVENTS = JSON.parse(m[1]); }
-      catch(e) { console.warn("loadAllEvents JSON parse failed"); ALL_EVENTS = []; }
+    // 2026-07-14 fix: SCHEDULE may be a flat array (legacy) OR an object keyed by
+    // year ({"2026":[...],"2027":[...],...}) — the current launch page uses the
+    // object form. Match either shape, then FLATTEN every year's array into ALL_EVENTS.
+    // Before this fix the array-only regex never matched the object form, so ALL_EVENTS
+    // stayed empty and "העבר לאירוע הבא" always failed with "לא נמצא אירוע הבא".
+    var m = html.match(/const SCHEDULE\s*=\s*([\[{][\s\S]*?[\]}])\s*;\s*(?:\r?\n|$)/);
+    if (!m) { console.warn("loadAllEvents: SCHEDULE not found"); return; }
+    var parsed;
+    try { parsed = JSON.parse(m[1]); }
+    catch(e) { console.warn("loadAllEvents JSON parse failed"); ALL_EVENTS = []; return; }
+    var flat = [];
+    if (Array.isArray(parsed)) {
+      flat = parsed;
+    } else if (parsed && typeof parsed === "object") {
+      Object.keys(parsed).forEach(function(k){ if (Array.isArray(parsed[k])) flat = flat.concat(parsed[k]); });
     }
+    ALL_EVENTS = flat;
   } catch(e){ console.warn("loadAllEvents failed:", e); }
 }
 
