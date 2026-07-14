@@ -1845,6 +1845,20 @@ textarea.att-reply{width:100%;background:#12161f;color:var(--txt);border:1px sol
 .reply-btn-secondary{color:var(--dim);border:1px solid var(--line);border-radius:9px;padding:9px 14px;
  font-size:13px;text-decoration:none;font-weight:600}
 .handled-fade{opacity:.25;transition:opacity .4s}
+/* comment moderation (hide/delete/block) — injected by runtime JS on comment rows */
+.mod-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.mod-btn{background:transparent;border:1px solid var(--line);border-radius:9px;padding:7px 13px;
+ font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--dim)}
+.mod-btn:hover{filter:brightness(1.15)} .mod-btn[disabled]{opacity:.5}
+.mod-btn.mod-hide{color:#c7a94a;border-color:#7a5f1f}
+.mod-btn.mod-hide:hover{background:#2a2109}
+.mod-btn.mod-del{color:#e06666;border-color:#7f2d2d}
+.mod-btn.mod-del:hover{background:#2a1414}
+.mod-btn.mod-block{color:#d17ad1;border-color:#6d2d6d}
+.mod-btn.mod-block:hover{background:#241024}
+.mod-btn.sent{background:#15803d;color:#fff;border-color:#15803d}
+.mod-hidden-kept{opacity:.72;border-inline-start:3px solid #7a5f1f}
+.mod-hidden-kept .att-message{text-decoration:line-through;color:var(--dim)}
 
 /* TRANSPARENCY LOG */
 details.log{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:18px 0;overflow:hidden}

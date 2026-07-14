@@ -767,16 +767,99 @@ def reply_to_comment(comment_id: str, text: str, *,
         return _json.loads(resp.read().decode("utf-8"))
 
 
+def _infer_ig(comment_id: str, ig: _Optional[bool] = None) -> bool:
+    """Infer platform from a comment id: FB ids look like postid_commentid
+    (contain '_'); IG comment ids are bare digits."""
+    if ig is not None:
+        return ig
+    return "_" not in (comment_id or "")
+
+
 def hide_comment(comment_id: str, *,
+                 ig: _Optional[bool] = None,
+                 unhide: bool = False,
                  dry_run: bool = False,
                  token: _Optional[str] = None) -> dict:
-    """Hide a Facebook comment (sets is_hidden=true)."""
+    """Hide (or unhide) an FB or IG comment.
+
+    FB uses the ``is_hidden`` field; Instagram uses ``hide`` — different names,
+    so we branch on platform. ``ig`` may be passed explicitly; if None it is
+    inferred (IG ids are bare digits, FB ids contain '_'). Hiding is reversible
+    (pass unhide=True). The commenter is NOT notified and can still see their
+    own comment — the quietest way to remove a bad comment from public view.
+    """
+    ig = _infer_ig(comment_id, ig)
+    field = "hide" if ig else "is_hidden"
+    val = "false" if unhide else "true"
     if dry_run:
-        return {"dry_run": True, "comment_id": comment_id, "action": "hide"}
+        return {"dry_run": True, "comment_id": comment_id,
+                "action": ("unhide" if unhide else "hide"), "field": field,
+                "value": val, "ig": ig}
     tok = token or get_token()
-    body = _urlparse.urlencode({"is_hidden": "true", "access_token": tok}).encode("utf-8")
+    body = _urlparse.urlencode({field: val, "access_token": tok}).encode("utf-8")
     req = _urlreq.Request(f"{API_BASE}/{comment_id}",
                           data=body, method="POST",
                           headers={"Content-Type": "application/x-www-form-urlencoded"})
     with _urlreq.urlopen(req, timeout=20) as resp:
         return _json.loads(resp.read().decode("utf-8"))
+
+
+def delete_comment(comment_id: str, *,
+                   dry_run: bool = False,
+                   token: _Optional[str] = None) -> dict:
+    """Permanently delete an FB or IG comment on our own post/media.
+
+    Unlike hide, delete is irreversible and the comment disappears for everyone.
+    Works for both platforms (DELETE /{comment_id})."""
+    if dry_run:
+        return {"dry_run": True, "comment_id": comment_id, "action": "delete"}
+    tok = token or get_token()
+    req = _urlreq.Request(f"{API_BASE}/{comment_id}?access_token={_urlparse.quote(tok)}",
+                          method="DELETE")
+    with _urlreq.urlopen(req, timeout=20) as resp:
+        return _json.loads(resp.read().decode("utf-8"))
+
+
+def block_commenter(comment_id: str, *,
+                    page_id: _Optional[str] = None,
+                    dry_run: bool = False,
+                    token: _Optional[str] = None) -> dict:
+    """Best-effort: ban the FB user who wrote a comment, from the Page.
+
+    Meta anonymizes many commenters (that's why the dashboard shows "?" for the
+    author), so ``from.id`` is often unavailable — in that case this raises
+    RuntimeError("no_identity") and the caller should tell Lauren to block
+    manually. Instagram has NO block API — do not route IG comments here.
+    """
+    tok = token or get_token()
+    pid = page_id or get_fb_page_id()
+    if dry_run:
+        return {"dry_run": True, "comment_id": comment_id, "action": "block", "page_id": pid}
+    # 1) resolve the commenter's identity
+    from_id = None
+    try:
+        u = f"{API_BASE}/{comment_id}?fields=from&access_token={_urlparse.quote(tok)}"
+        with _urlreq.urlopen(u, timeout=20) as r:
+            info = _json.loads(r.read().decode("utf-8"))
+        from_id = ((info or {}).get("from") or {}).get("id")
+    except Exception:
+        from_id = None
+    if not from_id:
+        raise RuntimeError("no_identity")
+    # 2) ban from the Page — Meta accepts asid/user/psid depending on id type
+    last = None
+    for key in ("asid", "user", "psid"):
+        try:
+            body = _urlparse.urlencode({key: from_id, "access_token": tok}).encode("utf-8")
+            req = _urlreq.Request(f"{API_BASE}/{pid}/blocked",
+                                  data=body, method="POST",
+                                  headers={"Content-Type": "application/x-www-form-urlencoded"})
+            with _urlreq.urlopen(req, timeout=20) as resp:
+                out = _json.loads(resp.read().decode("utf-8"))
+            out["_blocked_id"] = from_id
+            out["_via"] = key
+            return out
+        except Exception as e:
+            last = e
+            continue
+    raise (last or RuntimeError("block_failed"))
