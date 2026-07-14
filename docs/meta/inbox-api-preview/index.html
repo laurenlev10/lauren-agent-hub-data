@@ -81,6 +81,8 @@ textarea.att-reply{width:100%;background:#12161f;color:var(--txt);border:1px sol
 .mod-btn.mod-block{color:#d17ad1;border-color:#6d2d6d}
 .mod-btn.mod-block:hover{background:#241024}
 .mod-btn.sent{background:#15803d;color:#fff;border-color:#15803d}
+.mod-hidden-kept{opacity:.72;border-inline-start:3px solid #7a5f1f}
+.mod-hidden-kept .att-message{text-decoration:line-through;color:var(--dim)}
 
 /* TRANSPARENCY LOG */
 details.log{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:18px 0;overflow:hidden}
@@ -576,12 +578,21 @@ async function dispatchModerate(action, dedupKey, commentId, platform, btn, row)
   //    so its appearance there is our success signal. If it never appears
   //    (Meta failed, block not possible, etc.) we KEEP the row on the board.
   btn.textContent = "\u23f3 \u05de\u05d0\u05e9\u05e8 \u05de\u05d5\u05dc Meta\u2026";
-  const ok = await waitForModerationConfirm(dedupKey);
+  const ok = await waitForModerationConfirm(dedupKey, action);
   if (ok) {
     const doneTxt = { hide: "\u2713 \u05d4\u05d5\u05e1\u05ea\u05e8", delete: "\u2713 \u05e0\u05de\u05d7\u05e7", block: "\u2713 \u05e0\u05d7\u05e1\u05dd" };
     btn.textContent = doneTxt[action] || "\u2713";
     btn.classList.add("sent");
-    setTimeout(() => fadeAndRemove(row), 1000);   // only remove on real success
+    btn.disabled = true;
+    if (action === "hide") {
+      // Hide is quiet + reversible \u2014 KEEP the row so Lauren can still escalate
+      // to Block/Delete on the same comment (hide first, then block the person).
+      // It is already marked handled on the server, so it will not come back on
+      // the next scan; only Delete/Block (terminal) fade the row away.
+      if (row) row.classList.add("mod-hidden-kept");
+    } else {
+      setTimeout(() => fadeAndRemove(row), 1000);
+    }
   } else {
     btn.disabled = false;
     btn.textContent = "\u26a0 \u05dc\u05d0 \u05d4\u05e6\u05dc\u05d9\u05d7 \u2014 \u05e0\u05e1\u05d9 \u05e9\u05d5\u05d1";
@@ -592,15 +603,16 @@ async function dispatchModerate(action, dedupKey, commentId, platform, btn, row)
 
 // Poll handled.json (via the GitHub Contents API — reflects commits in real time)
 // until the moderate workflow marks THIS item handled, or we time out (~2 min).
-async function waitForModerationConfirm(dedupKey, opts) {
+async function waitForModerationConfirm(dedupKey, action, opts) {
   const attempts = (opts && opts.attempts) || 24;
   const intervalMs = (opts && opts.intervalMs) || 5000;
+  const wantVia = "moderate-" + action;   // exact action, so hide\u2192block waits for the block
   for (let i = 0; i < attempts; i++) {
     await new Promise(function (r) { setTimeout(r, intervalMs); });
     try {
       const h = await fetchHandled();
       const rec = h && h.data && h.data[dedupKey];
-      if (rec && rec.handled && typeof rec.via === "string" && rec.via.indexOf("moderate-") === 0) {
+      if (rec && rec.handled && rec.via === wantVia) {
         return true;
       }
     } catch (e) { /* transient network — keep polling */ }

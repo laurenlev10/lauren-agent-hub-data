@@ -1857,6 +1857,8 @@ textarea.att-reply{width:100%;background:#12161f;color:var(--txt);border:1px sol
 .mod-btn.mod-block{color:#d17ad1;border-color:#6d2d6d}
 .mod-btn.mod-block:hover{background:#241024}
 .mod-btn.sent{background:#15803d;color:#fff;border-color:#15803d}
+.mod-hidden-kept{opacity:.72;border-inline-start:3px solid #7a5f1f}
+.mod-hidden-kept .att-message{text-decoration:line-through;color:var(--dim)}
 
 /* TRANSPARENCY LOG */
 details.log{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:18px 0;overflow:hidden}
