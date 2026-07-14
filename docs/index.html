@@ -361,12 +361,21 @@
 
 
 <script>
-/* 📬 Meta Inbox live badge — reads pending.json (persistent queue) */
+/* 📬 Meta Inbox live badge — reads pending.json (persistent queue) MINUS
+   handled.json (items Lauren already replied to / hid / deleted / marked done).
+   pending.json only refreshes every 3h on the scan, but handled.json updates the
+   instant Lauren acts — so we subtract it here to keep the count live. */
 (function(){
-  fetch('meta/inbox-api-preview/pending.json?_='+Date.now(),{cache:'no-store'})
-    .then(function(r){return r.json();})
-    .then(function(p){
-      var n=Object.keys((p&&p.items)||{}).length;
+  Promise.all([
+    fetch('meta/inbox-api-preview/pending.json?_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():{};}).catch(function(){return {};}),
+    fetch('meta/handled.json?_='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.json():{};}).catch(function(){return {};})
+  ])
+    .then(function(res){
+      var p=res[0]||{}, handled=res[1]||{};
+      var items=(p&&p.items)||{};
+      var n=Object.keys(items).filter(function(k){
+        return !(handled[k]&&handled[k].handled);
+      }).length;
       var el=document.getElementById('status-meta-inbox');
       if(!el)return;
       el.innerHTML = n>0 ? '<b>'+n+' ממתינות לך</b> · השאר טופל אוטומטית'
