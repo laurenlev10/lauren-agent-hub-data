@@ -1,0 +1,162 @@
+name: Meta — moderate comment (hide/delete/block, on demand)
+
+# Triggered by repository_dispatch from the @meta inbox dashboard's
+# 🙈 Hide / 🗑️ Delete / 🚫 Block buttons.
+# client_payload = {dedup_key, comment_id, platform, action}
+#   action   : "hide" | "delete" | "block"
+#   platform : "fb" | "ig"
+# Uses the server-side META_PAGE_TOKEN secret (same as meta-send-reply).
+# On success marks the item handled in docs/meta/handled.json so it disappears
+# from the pending queue on the next scan.
+
+on:
+  repository_dispatch:
+    types: [moderate-meta-comment]
+
+jobs:
+  moderate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Moderate Meta comment
+        id: moderate
+        env:
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          META_FB_PAGE_ID: ${{ secrets.META_FB_PAGE_ID }}
+          PAYLOAD_JSON:    ${{ toJSON(github.event.client_payload) }}
+        run: |
+          python3 - <<'PY'
+          import os, sys, json, datetime, time, urllib.error
+          sys.path.insert(0, "scripts")
+          from lauren_meta import hide_comment, delete_comment, block_commenter
+
+          payload  = json.loads(os.environ.get("PAYLOAD_JSON") or "{}")
+          action   = (payload.get("action") or "").lower()
+          cid      = payload.get("comment_id", "")
+          platform = (payload.get("platform") or "").lower()
+          dkey     = payload.get("dedup_key", "")
+          ig       = (platform == "ig")
+
+          print(f"Moderate: action={action} platform={platform} comment_id={cid[:24]}... dkey={dkey}")
+
+          if not (action and cid):
+              print("⚠ Missing action/comment_id — skipping")
+              sys.exit(0)
+
+          def _emit_error_detail(reason: str, hebrew: str):
+              gh_env = os.environ.get("GITHUB_ENV", "")
+              if not gh_env: return
+              try:
+                  with open(gh_env, "a") as f:
+                      f.write(f"ERROR_DETAIL<<EOF_DETAIL\n{hebrew}\nפריט: {dkey}\nEOF_DETAIL\n")
+                      f.write(f"ERROR_CATEGORY={reason}\n")
+              except Exception as e:
+                  print(f"⚠ couldn't write GITHUB_ENV: {e}")
+
+          def _classify(body_text: str) -> tuple:
+              t = (body_text or "").lower()
+              if "permission" in t:
+                  return ("permission", "❌ חסרה הרשאה ל-Meta API לפעולה הזו. בדקי token.")
+              if "rate" in t or "limit" in t or "too many" in t:
+                  return ("rate_limit", "❌ rate limit ב-Meta. המתיני 10 דק'.")
+              if any(k in t for k in ["deleted", "not exist", "cannot be loaded", "does not exist", "unsupported get"]):
+                  return ("gone", "❌ התגובה כבר לא קיימת (אולי נמחקה).")
+              clipped = (body_text or "")[:140].replace("\n", " ")
+              return ("unknown", f"❌ {clipped}")
+
+          ACTION_HE = {"hide": "הסתרה", "delete": "מחיקה", "block": "חסימה"}
+          ok = False
+          last_err = None
+          for attempt in (1, 2):
+              try:
+                  if action == "hide":
+                      resp = hide_comment(cid, ig=ig)
+                  elif action == "delete":
+                      resp = delete_comment(cid)
+                  elif action == "block":
+                      if ig:
+                          print("⚠ IG has no block API — should be handled client-side. Skipping.")
+                          _emit_error_detail("ig_no_block",
+                              "ℹ️ לאינסטגרם אין חסימה דרך API — חסמי ידנית מהפרופיל.")
+                          last_err = RuntimeError("ig_no_block"); break
+                      resp = block_commenter(cid)
+                  else:
+                      print(f"⚠ Unknown action: {action}"); sys.exit(1)
+                  print(f"✓ {action} OK (attempt {attempt}): {resp}")
+                  ok = True; last_err = None; break
+              except urllib.error.HTTPError as e:
+                  body = ""
+                  try: body = e.read().decode("utf-8", errors="replace")
+                  except Exception: pass
+                  cat, he = _classify(body)
+                  print(f"❌ Meta HTTP {e.code} (attempt {attempt}, {cat}): {body[:400]}")
+                  _emit_error_detail(cat, f"❌ {ACTION_HE.get(action, action)} נכשלה. {he}")
+                  last_err = e; break
+              except RuntimeError as e:
+                  if str(e) == "no_identity":
+                      print("❌ block: commenter identity not exposed by Meta")
+                      _emit_error_detail("no_identity",
+                          "❌ Meta לא חושפת את זהות המגיב — לא ניתן לחסום דרך API. חסמי ידנית מהפוסט.")
+                      last_err = e; break
+                  print(f"❌ runtime error: {e}")
+                  _emit_error_detail("runtime", f"❌ {ACTION_HE.get(action, action)} נכשלה: {str(e)[:120]}")
+                  last_err = e; break
+              except (TimeoutError, OSError) as e:
+                  print(f"⚠ timeout attempt {attempt}: {e}")
+                  if attempt == 1:
+                      time.sleep(3); continue
+                  _emit_error_detail("timeout", f"⏱ Meta לא ענה (timeout) על {ACTION_HE.get(action, action)}. נסי שוב.")
+                  last_err = e; break
+              except Exception as e:
+                  print(f"❌ unexpected: {type(e).__name__}: {e}")
+                  _emit_error_detail("unexpected", f"❌ {type(e).__name__}: {str(e)[:120]}")
+                  last_err = e; break
+
+          if not ok:
+              sys.exit(1)
+
+          # Mark handled so the item drops from the pending queue
+          if dkey:
+              path = "docs/meta/handled.json"
+              try:
+                  data = json.load(open(path)) if os.path.exists(path) else {}
+                  data[dkey] = {
+                      "handled": True,
+                      "handledAt": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                      "via": f"moderate-{action}",
+                  }
+                  json.dump(data, open(path, "w"), indent=2, ensure_ascii=False)
+                  print(f"✓ Marked {dkey} handled ({action}) in {path}")
+              except Exception as e:
+                  print(f"⚠ Failed to update handled.json: {e}")
+          PY
+
+      - name: Commit handled.json update
+        run: |
+          git config user.email "lauren@noreply.github.com"
+          git config user.name "Lauren (via meta-moderate)"
+          git add docs/meta/handled.json 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+              git commit -m "@meta: mark comment moderated (hide/delete/block)"
+              for i in 1 2 3; do
+                git pull --rebase -X theirs origin main && git push origin main && break
+                git rebase --abort 2>/dev/null || true
+                sleep $((RANDOM % 5 + 2))
+              done
+          fi
+
+      # IRON RULE #3 (Lauren 2026-05-10): SMS Lauren on failure.
+      - name: SMS Lauren on failure
+        if: failure()
+        env:
+          SIMPLETEXTING_TOKEN: ${{ secrets.SIMPLETEXTING_TOKEN }}
+          LAUREN_PHONE:        ${{ secrets.LAUREN_PHONE || '4243547625' }}
+          WORKFLOW_NAME:       ${{ github.workflow }}
+          JOB_NAME:            ${{ github.job }}
+          RUN_URL:             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ERROR_DETAIL:        ${{ env.ERROR_DETAIL }}
+          ERROR_CATEGORY:      ${{ env.ERROR_CATEGORY }}
+        run: python3 scripts/notify_failure.py

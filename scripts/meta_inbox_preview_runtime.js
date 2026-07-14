@@ -203,3 +203,124 @@ async function sendReply(btn) {
 }
 
 window.sendReply = sendReply;
+
+// ===== Comment moderation: 🙈 Hide / 🗑️ Delete / 🚫 Block (added 2026-07-14) =====
+// Buttons are injected into each COMMENT row (fb_comment / ig_comment) and fire a
+// repository_dispatch (event_type "moderate-meta-comment") → meta-moderate.yml,
+// which calls the Meta Graph API with the server-side Page token.
+//   hide   → reversible, quiet (comment stays visible only to its author)
+//   delete → permanent, both FB + IG
+//   block  → FB: page-ban via API (best-effort); IG: open profile to block manually
+// The comment id + platform are parsed from the dedup key (fb-comment:<id> / ig-comment:<id>)
+// so this works even for IG rows whose data-target-id is empty.
+
+function _parseCommentRef(dedupKey) {
+  // "fb-comment:123_456" → {platform:"fb", id:"123_456"}
+  const m = /^(fb|ig)-comment:(.+)$/.exec(dedupKey || "");
+  if (!m) return null;
+  return { platform: m[1], id: m[2] };
+}
+
+async function dispatchModerate(action, dedupKey, commentId, platform, btn, row) {
+  const token = getToken();
+  if (!token) { promptForToken(); return; }
+  const labels = { hide: "🙈 מסתיר…", delete: "🗑️ מוחק…", block: "🚫 חוסם…" };
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = labels[action] || "…";
+  try {
+    const res = await fetch("https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/dispatches", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + token,
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        event_type: "moderate-meta-comment",
+        client_payload: { dedup_key: dedupKey, comment_id: commentId, platform: platform, action: action }
+      })
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error("HTTP " + res.status + ": " + t.slice(0, 160));
+    }
+    const doneTxt = { hide: "✓ הוסתר", delete: "✓ נמחק", block: "✓ נחסם" };
+    btn.textContent = doneTxt[action] || "✓";
+    btn.classList.add("sent");
+    // Mark handled + fade the row out (same as reply flow)
+    try { await markHandledRemote(dedupKey); } catch (e) { console.warn("handled save failed:", e); }
+    setTimeout(() => fadeAndRemove(row), 1200);
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = orig;
+    alert("הפעולה נכשלה: " + e + "\n(אם זה נמשך — נסי 'פתחי במטה' ותעשי ידנית)");
+  }
+}
+
+function onModerateClick(btn) {
+  const action   = btn.dataset.action;
+  const dedupKey = btn.dataset.key;
+  const commentId = btn.dataset.cid;
+  const platform = btn.dataset.platform;
+  const row = btn.closest(".attention-row");
+
+  // Instagram BLOCK has no API — open the profile so Lauren blocks manually.
+  if (action === "block" && platform === "ig") {
+    let handle = "";
+    const whoEl = row && row.querySelector(".who");
+    if (whoEl) handle = (whoEl.textContent || "").trim().replace(/^@/, "");
+    const url = handle ? ("https://instagram.com/" + encodeURIComponent(handle))
+                       : ((row && row.dataset.metaUrl) || "https://instagram.com/");
+    window.open(url, "_blank", "noopener");
+    alert("אינסטגרם לא מאפשרת חסימה דרך המערכת — פתחתי לך את הפרופיל של המגיב.\nלחצי על ⋯ → Block כדי לחסום, ואז 'סמני כטופל'.");
+    return;
+  }
+
+  const confirmMsg = {
+    delete: "למחוק את התגובה לצמיתות? זו פעולה בלתי הפיכה (התגובה נעלמת לכולם).",
+    block:  "לחסום את המגיב מהעמוד? הוא לא יוכל להגיב יותר."
+  };
+  if (confirmMsg[action] && !confirm(confirmMsg[action])) return;
+
+  dispatchModerate(action, dedupKey, commentId, platform, btn, row);
+}
+window.onModerateClick = onModerateClick;
+
+// Inject the moderation button group into every comment row on load.
+(function injectModerationButtons() {
+  function build() {
+    document.querySelectorAll('.attention-row').forEach(function (row) {
+      const kind = row.dataset.replyKind || "";
+      if (kind !== "fb_comment" && kind !== "ig_comment") return;      // comments only
+      if (row.querySelector(".mod-actions")) return;                    // already added
+      const ref = _parseCommentRef(row.dataset.dedupKey);
+      if (!ref) return;
+      const actions = row.querySelector(".att-actions");
+      if (!actions) return;
+
+      const wrap = document.createElement("div");
+      wrap.className = "mod-actions";
+      const mk = function (action, label, cls) {
+        const b = document.createElement("button");
+        b.className = "mod-btn " + cls;
+        b.textContent = label;
+        b.dataset.action = action;
+        b.dataset.key = row.dataset.dedupKey;
+        b.dataset.cid = ref.id;
+        b.dataset.platform = ref.platform;
+        b.setAttribute("onclick", "onModerateClick(this)");
+        return b;
+      };
+      wrap.appendChild(mk("hide",   "🙈 הסתר",  "mod-hide"));
+      wrap.appendChild(mk("delete", "🗑️ מחק",  "mod-del"));
+      wrap.appendChild(mk("block",  "🚫 חסום",  "mod-block"));
+      actions.appendChild(wrap);
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", build);
+  } else {
+    build();
+  }
+})();
