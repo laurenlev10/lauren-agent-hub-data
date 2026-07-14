@@ -33,7 +33,9 @@ export default {
     if (!TOKEN0) return reply({ error:"server not configured (no GH_TOKEN)" }, 500, cors);
     // ---- FVG theoretical feed (EZTrade indicator) ----
     if (/\/fvg\/?$/i.test(url.pathname)) {
-      let pf; try { pf = looseParse(await request.text()); } catch(e){ return reply({error:"bad json"},400,cors); }
+      const rawFvg = await request.text();
+      let pf; try { pf = looseParse(rawFvg); }
+      catch(e){ ctx.waitUntil(ghPutText(TOKEN0, "docs/trading/_fvg_debug.txt", "BAD JSON @ "+new Date().toISOString()+" | err="+e.message+"\n"+rawFvg+"\n")); return reply({error:"bad json", detail:e.message},400,cors); }
       ctx.waitUntil(processFvg(TOKEN0, pf));
       return reply({ ok:true, queued:true, feed:"fvg" }, 200, cors);
     }
@@ -160,6 +162,15 @@ function laStr(d) {
   const o = {}; for (const x of f.formatToParts(d)) o[x.type] = x.value;
   return o.day + "/" + o.month + "/" + o.year + " " + o.hour + ":" + o.minute;
 }
+async function ghPutText(token, path, text){
+  try{
+    const cur = await ghGet(token, path);
+    const body = { message:"fvg debug capture", content: btoa(unescape(encodeURIComponent(String(text)))), branch:"main" };
+    if (cur.sha) body.sha = cur.sha;
+    await fetch("https://api.github.com/repos/" + REPO + "/contents/" + path,
+      { method:"PUT", headers:{ "Authorization":"token "+token, "Accept":"application/vnd.github+json", "Content-Type":"application/json", "User-Agent":"journal-ingest" }, body: JSON.stringify(body) });
+  }catch(e){}
+}
 function looseParse(text){
   const t = String(text == null ? "" : text);
   try { return JSON.parse(t); }
@@ -169,6 +180,7 @@ function looseParse(text){
     const repaired = t
       .replace(/(:\s*)-?(NaN|Infinity)\b(\s*[,}\]])/gi, "$1null$3")  // NaN / Infinity
       .replace(/(:\s*)na\b(\s*[,}\]])/gi, "$1null$2")                // bare na
+      .replace(/(:\s*)\{\{.*?\}\}(\s*[,}\]])/g, "$1null$2")       // unsubstituted {{plot(...)}} literal
       .replace(/:(\s*)([,}\]])/g, ":null$2");                        // empty value  "x":,  or  "x":}
     return JSON.parse(repaired);
   }
