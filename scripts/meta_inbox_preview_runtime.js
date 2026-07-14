@@ -224,10 +224,13 @@ function _parseCommentRef(dedupKey) {
 async function dispatchModerate(action, dedupKey, commentId, platform, btn, row) {
   const token = getToken();
   if (!token) { promptForToken(); return; }
-  const labels = { hide: "🙈 מסתיר…", delete: "🗑️ מוחק…", block: "🚫 חוסם…" };
+  const workingTxt = { hide: "\ud83d\ude48 \u05de\u05e1\u05ea\u05d9\u05e8\u2026", delete: "\ud83d\uddd1\ufe0f \u05de\u05d5\u05d7\u05e7\u2026", block: "\ud83d\udeab \u05d7\u05d5\u05e1\u05dd\u2026" };
   const orig = btn.textContent;
   btn.disabled = true;
-  btn.textContent = labels[action] || "…";
+  btn.textContent = workingTxt[action] || "\u2026";
+
+  // 1) Fire the dispatch. A 200 here only means GitHub ACCEPTED the request —
+  //    NOT that Meta succeeded. So we do not remove the row yet.
   try {
     const res = await fetch("https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/dispatches", {
       method: "POST",
@@ -241,21 +244,49 @@ async function dispatchModerate(action, dedupKey, commentId, platform, btn, row)
         client_payload: { dedup_key: dedupKey, comment_id: commentId, platform: platform, action: action }
       })
     });
-    if (!res.ok) {
-      const t = await res.text();
-      throw new Error("HTTP " + res.status + ": " + t.slice(0, 160));
-    }
-    const doneTxt = { hide: "✓ הוסתר", delete: "✓ נמחק", block: "✓ נחסם" };
-    btn.textContent = doneTxt[action] || "✓";
-    btn.classList.add("sent");
-    // Mark handled + fade the row out (same as reply flow)
-    try { await markHandledRemote(dedupKey); } catch (e) { console.warn("handled save failed:", e); }
-    setTimeout(() => fadeAndRemove(row), 1200);
+    if (!res.ok) { const t = await res.text(); throw new Error("HTTP " + res.status + ": " + t.slice(0, 160)); }
   } catch (e) {
     btn.disabled = false;
     btn.textContent = orig;
-    alert("הפעולה נכשלה: " + e + "\n(אם זה נמשך — נסי 'פתחי במטה' ותעשי ידנית)");
+    alert("\u05dc\u05d0 \u05d4\u05e6\u05dc\u05d7\u05ea\u05d9 \u05dc\u05e9\u05dc\u05d5\u05d7 \u05d0\u05ea \u05d4\u05d1\u05e7\u05e9\u05d4: " + e);
+    return;
   }
+
+  // 2) Wait for the SERVER to confirm the action really worked. The workflow
+  //    writes handled.json ONLY when Meta returns success (hide/delete/block),
+  //    so its appearance there is our success signal. If it never appears
+  //    (Meta failed, block not possible, etc.) we KEEP the row on the board.
+  btn.textContent = "\u23f3 \u05de\u05d0\u05e9\u05e8 \u05de\u05d5\u05dc Meta\u2026";
+  const ok = await waitForModerationConfirm(dedupKey);
+  if (ok) {
+    const doneTxt = { hide: "\u2713 \u05d4\u05d5\u05e1\u05ea\u05e8", delete: "\u2713 \u05e0\u05de\u05d7\u05e7", block: "\u2713 \u05e0\u05d7\u05e1\u05dd" };
+    btn.textContent = doneTxt[action] || "\u2713";
+    btn.classList.add("sent");
+    setTimeout(() => fadeAndRemove(row), 1000);   // only remove on real success
+  } else {
+    btn.disabled = false;
+    btn.textContent = "\u26a0 \u05dc\u05d0 \u05d4\u05e6\u05dc\u05d9\u05d7 \u2014 \u05e0\u05e1\u05d9 \u05e9\u05d5\u05d1";
+    btn.classList.add("mod-failed");
+    alert("\u05d4\u05e4\u05e2\u05d5\u05dc\u05d4 \u05dc\u05d0 \u05d0\u05d5\u05e9\u05e8\u05d4 \u05de\u05d5\u05dc Meta \u2014 \u05d4\u05ea\u05d2\u05d5\u05d1\u05d4 \u05e0\u05e9\u05d0\u05e8\u05ea \u05d1\u05d3\u05e9\u05d1\u05d5\u05e8\u05d3.\n(\u05d0\u05d5\u05dc\u05d9 \u05d7\u05e1\u05d9\u05de\u05d4 \u05e9\u05dc\u05d0 \u05e0\u05d9\u05ea\u05df \u05dc\u05d1\u05e6\u05e2, \u05d0\u05d5 \u05e9\u05d2\u05d9\u05d0\u05d4 \u05d6\u05de\u05e0\u05d9\u05ea). \u05e0\u05e1\u05d9 \u05e9\u05d5\u05d1 \u05d0\u05d5 \u05d4\u05e9\u05ea\u05de\u05e9\u05d9 \u05d1'\u05e4\u05ea\u05d7\u05d9 \u05d1\u05de\u05d8\u05d4'.");
+  }
+}
+
+// Poll handled.json (via the GitHub Contents API — reflects commits in real time)
+// until the moderate workflow marks THIS item handled, or we time out (~2 min).
+async function waitForModerationConfirm(dedupKey, opts) {
+  const attempts = (opts && opts.attempts) || 24;
+  const intervalMs = (opts && opts.intervalMs) || 5000;
+  for (let i = 0; i < attempts; i++) {
+    await new Promise(function (r) { setTimeout(r, intervalMs); });
+    try {
+      const h = await fetchHandled();
+      const rec = h && h.data && h.data[dedupKey];
+      if (rec && rec.handled && typeof rec.via === "string" && rec.via.indexOf("moderate-") === 0) {
+        return true;
+      }
+    } catch (e) { /* transient network — keep polling */ }
+  }
+  return false;
 }
 
 function onModerateClick(btn) {
