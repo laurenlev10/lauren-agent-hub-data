@@ -526,32 +526,68 @@ window.sendReply = sendReply;
 </script>
 <script>
 // ===== Comment moderation: 🙈 Hide / 🗑️ Delete / 🚫 Block (added 2026-07-14) =====
-// Buttons are injected into each COMMENT row (fb_comment / ig_comment) and fire a
-// repository_dispatch (event_type "moderate-meta-comment") → meta-moderate.yml,
-// which calls the Meta Graph API with the server-side Page token.
-//   hide   → reversible, quiet (comment stays visible only to its author)
-//   delete → permanent, both FB + IG
+// Buttons injected into each COMMENT row fire a repository_dispatch
+// ("moderate-meta-comment") → meta-moderate.yml, which calls the Meta Graph API
+// with the server-side Page token and writes a per-item result to
+// docs/meta/moderation_results.json. We poll that file so the real outcome shows
+// fast (success OR the actual failure reason). The comment id + platform are
+// parsed from the dedup key so this works even for IG rows with empty target_id.
+//   hide   → reversible, quiet; KEEPS the row so you can then Block/Delete
+//   delete → permanent (FB + IG); removes the row
 //   block  → FB: page-ban via API (best-effort); IG: open profile to block manually
-// The comment id + platform are parsed from the dedup key (fb-comment:<id> / ig-comment:<id>)
-// so this works even for IG rows whose data-target-id is empty.
+
+const MOD_RESULTS_PATH = "docs/meta/moderation_results.json";
 
 function _parseCommentRef(dedupKey) {
-  // "fb-comment:123_456" → {platform:"fb", id:"123_456"}
   const m = /^(fb|ig)-comment:(.+)$/.exec(dedupKey || "");
   if (!m) return null;
   return { platform: m[1], id: m[2] };
 }
 
+async function fetchModerationResults() {
+  const headers = { "Accept": "application/vnd.github+json" };
+  const t = getToken();
+  if (t) headers["Authorization"] = "Bearer " + t;
+  const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${MOD_RESULTS_PATH}?ref=main&_=${Date.now()}`;
+  const res = await fetch(url, { headers, cache: "no-store" });
+  if (res.status === 404) return {};
+  if (!res.ok) throw new Error("GET " + res.status);
+  const j = await res.json();
+  return JSON.parse(b64decode(j.content) || "{}");
+}
+
+// Poll the results file until the workflow records THIS action for THIS item
+// (fresh: at >= when we dispatched). Returns {ok, reason} or null on timeout.
+async function waitForModerationResult(dedupKey, action, startedAt, opts) {
+  const attempts = (opts && opts.attempts) || 30;
+  const intervalMs = (opts && opts.intervalMs) || 4000;
+  for (let i = 0; i < attempts; i++) {
+    await new Promise(function (r) { setTimeout(r, intervalMs); });
+    try {
+      const results = await fetchModerationResults();
+      const rec = results && results[dedupKey];
+      if (rec && rec.action === action && rec.at) {
+        const at = Date.parse(rec.at);
+        if (!isNaN(at) && at >= (startedAt - 4000)) {
+          return { ok: !!rec.ok, reason: rec.reason || "" };
+        }
+      }
+    } catch (e) { /* transient network — keep polling */ }
+  }
+  return null;
+}
+
 async function dispatchModerate(action, dedupKey, commentId, platform, btn, row) {
   const token = getToken();
   if (!token) { promptForToken(); return; }
-  const workingTxt = { hide: "\ud83d\ude48 \u05de\u05e1\u05ea\u05d9\u05e8\u2026", delete: "\ud83d\uddd1\ufe0f \u05de\u05d5\u05d7\u05e7\u2026", block: "\ud83d\udeab \u05d7\u05d5\u05e1\u05dd\u2026" };
+  const startedAt = Date.now();
+  const workingTxt = { hide: "🙈 מסתיר…", delete: "🗑️ מוחק…", block: "🚫 חוסם…" };
   const orig = btn.textContent;
   btn.disabled = true;
-  btn.textContent = workingTxt[action] || "\u2026";
+  btn.textContent = workingTxt[action] || "…";
 
-  // 1) Fire the dispatch. A 200 here only means GitHub ACCEPTED the request —
-  //    NOT that Meta succeeded. So we do not remove the row yet.
+  // 1) Fire the dispatch. A 200 here only means GitHub accepted the request —
+  //    not that Meta succeeded — so we do not remove the row yet.
   try {
     const res = await fetch("https://api.github.com/repos/laurenlev10/lauren-agent-hub-data/dispatches", {
       method: "POST",
@@ -569,62 +605,46 @@ async function dispatchModerate(action, dedupKey, commentId, platform, btn, row)
   } catch (e) {
     btn.disabled = false;
     btn.textContent = orig;
-    alert("\u05dc\u05d0 \u05d4\u05e6\u05dc\u05d7\u05ea\u05d9 \u05dc\u05e9\u05dc\u05d5\u05d7 \u05d0\u05ea \u05d4\u05d1\u05e7\u05e9\u05d4: " + e);
+    alert("לא הצלחתי לשלוח את הבקשה: " + e);
     return;
   }
 
-  // 2) Wait for the SERVER to confirm the action really worked. The workflow
-  //    writes handled.json ONLY when Meta returns success (hide/delete/block),
-  //    so its appearance there is our success signal. If it never appears
-  //    (Meta failed, block not possible, etc.) we KEEP the row on the board.
-  btn.textContent = "\u23f3 \u05de\u05d0\u05e9\u05e8 \u05de\u05d5\u05dc Meta\u2026";
-  const ok = await waitForModerationConfirm(dedupKey, action);
-  if (ok) {
-    const doneTxt = { hide: "\u2713 \u05d4\u05d5\u05e1\u05ea\u05e8", delete: "\u2713 \u05e0\u05de\u05d7\u05e7", block: "\u2713 \u05e0\u05d7\u05e1\u05dd" };
-    btn.textContent = doneTxt[action] || "\u2713";
+  // 2) Wait for the server's real result.
+  btn.textContent = "⏳ מאשר מול Meta…";
+  const result = await waitForModerationResult(dedupKey, action, startedAt);
+
+  if (result && result.ok) {
+    const doneTxt = { hide: "✓ הוסתר", delete: "✓ נמחק", block: "✓ נחסם" };
+    btn.textContent = doneTxt[action] || "✓";
     btn.classList.add("sent");
     btn.disabled = true;
     if (action === "hide") {
-      // Hide is quiet + reversible \u2014 KEEP the row so Lauren can still escalate
-      // to Block/Delete on the same comment (hide first, then block the person).
-      // It is already marked handled on the server, so it will not come back on
-      // the next scan; only Delete/Block (terminal) fade the row away.
+      // Hide is quiet + reversible — keep the row so Lauren can still Block/Delete
+      // the same comment. Already marked handled on the server, so it won't return.
       if (row) row.classList.add("mod-hidden-kept");
     } else {
-      setTimeout(() => fadeAndRemove(row), 1000);
+      setTimeout(() => fadeAndRemove(row), 1000);   // delete/block are terminal
     }
-  } else {
+  } else if (result && !result.ok) {
+    // Real failure — show the actual reason and KEEP the row on the board.
     btn.disabled = false;
-    btn.textContent = "\u26a0 \u05dc\u05d0 \u05d4\u05e6\u05dc\u05d9\u05d7 \u2014 \u05e0\u05e1\u05d9 \u05e9\u05d5\u05d1";
+    btn.textContent = "⚠ לא הצליח";
     btn.classList.add("mod-failed");
-    alert("\u05d4\u05e4\u05e2\u05d5\u05dc\u05d4 \u05dc\u05d0 \u05d0\u05d5\u05e9\u05e8\u05d4 \u05de\u05d5\u05dc Meta \u2014 \u05d4\u05ea\u05d2\u05d5\u05d1\u05d4 \u05e0\u05e9\u05d0\u05e8\u05ea \u05d1\u05d3\u05e9\u05d1\u05d5\u05e8\u05d3.\n(\u05d0\u05d5\u05dc\u05d9 \u05d7\u05e1\u05d9\u05de\u05d4 \u05e9\u05dc\u05d0 \u05e0\u05d9\u05ea\u05df \u05dc\u05d1\u05e6\u05e2, \u05d0\u05d5 \u05e9\u05d2\u05d9\u05d0\u05d4 \u05d6\u05de\u05e0\u05d9\u05ea). \u05e0\u05e1\u05d9 \u05e9\u05d5\u05d1 \u05d0\u05d5 \u05d4\u05e9\u05ea\u05de\u05e9\u05d9 \u05d1'\u05e4\u05ea\u05d7\u05d9 \u05d1\u05de\u05d8\u05d4'.");
+    alert(result.reason || "הפעולה נכשלה מול Meta — התגובה נשארת בדשבורד.");
+  } else {
+    // No result recorded in time.
+    btn.disabled = false;
+    btn.textContent = "⚠ אין אישור";
+    btn.classList.add("mod-failed");
+    alert("לא קיבלתי אישור מ-Meta בזמן. התגובה נשארת בדשבורד — נסי שוב עוד רגע, או 'פתחי במטה'.");
   }
-}
-
-// Poll handled.json (via the GitHub Contents API — reflects commits in real time)
-// until the moderate workflow marks THIS item handled, or we time out (~2 min).
-async function waitForModerationConfirm(dedupKey, action, opts) {
-  const attempts = (opts && opts.attempts) || 24;
-  const intervalMs = (opts && opts.intervalMs) || 5000;
-  const wantVia = "moderate-" + action;   // exact action, so hide\u2192block waits for the block
-  for (let i = 0; i < attempts; i++) {
-    await new Promise(function (r) { setTimeout(r, intervalMs); });
-    try {
-      const h = await fetchHandled();
-      const rec = h && h.data && h.data[dedupKey];
-      if (rec && rec.handled && rec.via === wantVia) {
-        return true;
-      }
-    } catch (e) { /* transient network — keep polling */ }
-  }
-  return false;
 }
 
 function onModerateClick(btn) {
-  const action   = btn.dataset.action;
-  const dedupKey = btn.dataset.key;
+  const action    = btn.dataset.action;
+  const dedupKey  = btn.dataset.key;
   const commentId = btn.dataset.cid;
-  const platform = btn.dataset.platform;
+  const platform  = btn.dataset.platform;
   const row = btn.closest(".attention-row");
 
   // Instagram BLOCK has no API — open the profile so Lauren blocks manually.
@@ -635,7 +655,7 @@ function onModerateClick(btn) {
     const url = handle ? ("https://instagram.com/" + encodeURIComponent(handle))
                        : ((row && row.dataset.metaUrl) || "https://instagram.com/");
     window.open(url, "_blank", "noopener");
-    alert("אינסטגרם לא מאפשרת חסימה דרך המערכת — פתחתי לך את הפרופיל של המגיב.\nלחצי על ⋯ → Block כדי לחסום, ואז 'סמני כטופל'.");
+    alert("אינסטגרם לא מאפשרת חסימה דרך המערכת — פתחתי לך את הפרופיל של המגיב.\nלחצי על ⋯ ← Block כדי לחסום, ואז 'סמני כטופל'.");
     return;
   }
 
@@ -654,13 +674,12 @@ window.onModerateClick = onModerateClick;
   function build() {
     document.querySelectorAll('.attention-row').forEach(function (row) {
       const kind = row.dataset.replyKind || "";
-      if (kind !== "fb_comment" && kind !== "ig_comment") return;      // comments only
-      if (row.querySelector(".mod-actions")) return;                    // already added
+      if (kind !== "fb_comment" && kind !== "ig_comment") return;   // comments only
+      if (row.querySelector(".mod-actions")) return;                 // already added
       const ref = _parseCommentRef(row.dataset.dedupKey);
       if (!ref) return;
       const actions = row.querySelector(".att-actions");
       if (!actions) return;
-
       const wrap = document.createElement("div");
       wrap.className = "mod-actions";
       const mk = function (action, label, cls) {
@@ -674,19 +693,15 @@ window.onModerateClick = onModerateClick;
         b.setAttribute("onclick", "onModerateClick(this)");
         return b;
       };
-      wrap.appendChild(mk("hide",   "🙈 הסתר",  "mod-hide"));
+      wrap.appendChild(mk("hide",   "🙈 הסתר", "mod-hide"));
       wrap.appendChild(mk("delete", "🗑️ מחק",  "mod-del"));
-      wrap.appendChild(mk("block",  "🚫 חסום",  "mod-block"));
+      wrap.appendChild(mk("block",  "🚫 חסום", "mod-block"));
       actions.appendChild(wrap);
     });
   }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", build);
-  } else {
-    build();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build);
+  else build();
 })();
-
 </script>
 </body>
 </html>
