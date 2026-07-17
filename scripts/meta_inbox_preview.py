@@ -1197,7 +1197,7 @@ def classify(text: str, kb: dict) -> dict:
     SKIP    = no action needed (tag-only friend mentions, etc.) — never auto-reply, never shown to Lauren.
     """
     if not text or len(text.strip()) < 2:
-        return {"bucket": "B", "reason": "empty/too short", "reply": None}
+        return {"bucket": "SKIP", "reason": "empty/too short (auto-done)", "reply": None}
 
     # 2026-06-01 — detect a "City State" / "City, ST" location mention up front so
     # it can rescue messages that older checks would mis-bucket (a bare "Denver
@@ -1731,7 +1731,7 @@ def classify_smart(text: str, kb: dict) -> dict:
     """
     t = (text or "").strip()
     if not t or len(t) < 2:
-        return {"bucket": "B", "reason": "empty/too short", "reply": None}
+        return {"bucket": "SKIP", "reason": "empty/too short (auto-done)", "reply": None}
     # hard guardrails (any language)
     if NEGATIVE_KEYWORDS.search(t):
         return {"bucket": "NEG", "reason": "negative keywords detected", "reply": None}
