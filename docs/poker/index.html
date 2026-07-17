@@ -146,6 +146,25 @@
   .fnum{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#3a2b06;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
   .fstep .ftxt{flex:1}.fstep .ftitle{font-weight:700;font-size:14px}.fstep .fdesc{font-size:12px;color:var(--muted)}
   .fstep .farrow{color:var(--gold);font-size:18px}
+
+  /* onboarding + tour */
+  .tour-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:none}
+  .tour-backdrop.show{display:block}
+  .tour-hi{position:relative;z-index:210;box-shadow:0 0 0 3px var(--gold),0 0 0 8px rgba(233,196,106,.30)!important;border-radius:12px;animation:tourpulse 1.3s infinite}
+  @keyframes tourpulse{0%,100%{box-shadow:0 0 0 3px var(--gold),0 0 0 6px rgba(233,196,106,.30)}50%{box-shadow:0 0 0 3px var(--gold),0 0 0 13px rgba(233,196,106,.10)}}
+  .tour-tip{position:fixed;z-index:220;max-width:300px;background:var(--card);border:1px solid var(--gold);border-radius:14px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.5);display:none}
+  .tour-tip.show{display:block}
+  .tour-tip h4{margin:0 0 6px;color:var(--gold);font-size:15px}
+  .tour-tip p{margin:0 0 12px;font-size:14px;line-height:1.6}
+  .tour-tip .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .tour-tip .cnt{font-size:12px;color:var(--muted)}
+  .welcome{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:230;display:none;align-items:center;justify-content:center;padding:16px}
+  .welcome.show{display:flex}
+  .welcome .wcard{max-width:470px;background:radial-gradient(circle at 20% 0%,rgba(233,196,106,.14),transparent 55%),linear-gradient(135deg,#0a2e23,#0d3f2f);border:1px solid var(--gold);border-radius:20px;padding:26px;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .welcome h2{margin:0 0 6px;font-size:24px}
+  .welcome .wstep{display:flex;gap:10px;align-items:flex-start;margin:9px 0;font-size:14px;line-height:1.5}
+  .welcome .wnum{width:24px;height:24px;border-radius:50%;background:var(--gold);color:#3a2b06;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:13px}
+  .helpbtn{background:rgba(0,0,0,.25);border:1px solid var(--gold);border-radius:10px;padding:8px 12px;font-size:13px;color:var(--gold);cursor:pointer;font-weight:600}
 </style>
 </head>
 <body>
@@ -154,7 +173,10 @@
     <h1>🃏 GTO Trainer — MTT</h1>
     <div class="sub">מכון האימון של אלי פרנקל · Preflop · ICM · Push/Fold · יומן טורנירים</div>
   </div>
-  <a class="backlink" href="../">← חזרה למרכז</a>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button class="helpbtn" onclick="startTour()">❓ סיור</button>
+    <a class="backlink" href="../">← חזרה למרכז</a>
+  </div>
 </header>
 
 <div class="wrap">
@@ -190,7 +212,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="daily-card">
       <h3>🎯 אימון יומי <span id="daily-done" style="display:none;color:var(--ok)">· ✓ הושלם היום!</span></h3>
       <div class="mini">היעד: 18 החלטות ביום. עקביות מנצחת כמות.</div>
       <div class="lvlbar" style="margin-top:8px"><div id="daily-bar" style="width:0%"></div></div>
@@ -524,6 +546,22 @@
   </div>
 </div>
 
+<div class="tour-backdrop" id="tourBackdrop"></div>
+<div class="tour-tip" id="tourTip">
+  <h4 id="tt-title"></h4><p id="tt-text"></p>
+  <div class="row"><span class="cnt" id="tt-cnt"></span>
+    <span><button class="btn ghost" style="padding:8px 12px" onclick="tourEnd()">דלג</button>
+    <button class="btn primary" style="padding:8px 14px" id="tt-next" onclick="tourNext()">הבא ←</button></span></div>
+</div>
+<div class="welcome" id="welcome"><div class="wcard">
+  <h2>🃏 ברוך הבא, אלי</h2>
+  <div class="mini" style="margin-bottom:12px">זה מכון האימון שלך. יש כאן הרבה כלים — אבל המסלול פשוט. ככה זה עובד:</div>
+  <div class="wstep"><div class="wnum">1</div><div><b>📚 לימוד</b> — 10 שיעורים קצרים שמלמדים GTO ו-ICM מאפס.</div></div>
+  <div class="wstep"><div class="wnum">2</div><div><b>♠️ תרגול יומי</b> — Push/Fold ו-ICM, 5-10 דקות ביום, בונים רצף.</div></div>
+  <div class="wstep"><div class="wnum">3</div><div><b>🔥 חימום</b> לפני כל טורניר · <b>📝 מבחן</b> אחת לשבוע.</div></div>
+  <div class="wstep"><div class="wnum">4</div><div><b>📓 יומן</b> אחרי כל טורניר · <b>📈 קריירה</b> ו-<b>🏁 יעדים</b> למעקב.</div></div>
+  <div class="row-actions" style="margin-top:18px"><button class="btn primary" onclick="welcomeStartTour()">▶️ קח אותי לסיור מודרך</button><button class="btn ghost" onclick="welcomeClose()">אתחיל לבד</button></div>
+</div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1182,10 +1220,54 @@ function renderUpcoming(){var box=document.getElementById("u-list");if(!box)retu
 var HERO_QUOTES=["אלופים לא נולדים בשולחן הגמר — הם נבנים בכל החלטה קטנה שלפניו.","ההבדל בין בינוני למצוין הוא מה שאתה עושה כשהכי קשה לקפל.","ICM לא לוקח ממך אגרסיביות — הוא מלמד אותך מתי היא שווה זהב.","כל יד היא הזדמנות ללמוד. כל סשן הוא עוד צעד קדימה.","הסבלנות שליד השולחן נבנית בתרגול הרחק ממנו.","אתה כבר יודע לשחק. עכשיו לומדים לנצח את השלבים המאוחרים.","החלטה נכונה חוזרת אלף פעם — זה מה שהופך מזל לתוצאה."];
 function initHero(){var q=document.getElementById("heroQuote");if(q)q.textContent="“"+pick(HERO_QUOTES)+"”";}
 
+/* ============================================================
+   ONBOARDING + GUIDED TOUR
+   ============================================================ */
+var TOUR=[
+ {sel:'.tab[data-tab="learn"]',t:"מתחילים כאן 📚",x:"10 שיעורים קצרים שמלמדים GTO ו-ICM מאפס. עבור עליהם לפי הסדר."},
+ {sel:'.tab[data-tab="pushfold"]',t:"אחר כך: תרגול ♠️",x:"Push/Fold — שאב או קיפול לפי עומק הסטאק. הכלי הכי חשוב בטורניר."},
+ {sel:'.tab[data-tab="spot"]',t:"ICM 🎯",x:"ההחלטות שמבדילות טורניר מקאש — מתי לקפל גם יד חזקה."},
+ {sel:'#daily-card',t:"אימון יומי",x:"יעד של 18 החלטות ביום. עקביות בונה רצף ימים 🔥."},
+ {sel:'.tab[data-tab="warmup"]',t:"לפני טורניר 🔥",x:"חימום מהיר של 5 דקות כדי להיכנס בראש נכון."},
+ {sel:'.tab[data-tab="exam"]',t:"מבחן שבועי 📝",x:"10 שאלות עם ציון — ככה רואים התקדמות לאורך זמן."},
+ {sel:'.tab[data-tab="journal"]',t:"אחרי טורניר 📓",x:"תעד תוצאות וידיים מאתגרות. המערכת מחשבת ROI ו-ITM."},
+ {sel:'.tab[data-tab="career"]',t:"הקריירה שלך 📈",x:"הנתונים האמיתיים והמטרה: לסגור את הפער בשולחן הגמר."},
+ {sel:'.tab[data-tab="goals"]',t:"יעדים ודרגות 🏁",x:"אבני דרך שנפתחות מהאימון ומעלות אותך בדרגה."}
+];
+var tourI=0,tourEl=null;
+function startTour(){welcomeClose();tourI=0;go("overview");document.getElementById("tourBackdrop").classList.add("show");tourShow();}
+function tourShow(){
+ if(tourEl)tourEl.classList.remove("tour-hi");
+ var st=TOUR[tourI],el=document.querySelector(st.sel);tourEl=el;
+ if(el){el.classList.add("tour-hi");try{el.scrollIntoView({block:"center",behavior:"smooth"});}catch(e){}}
+ document.getElementById("tt-title").textContent=st.t;
+ document.getElementById("tt-text").textContent=st.x;
+ document.getElementById("tt-cnt").textContent=(tourI+1)+" / "+TOUR.length;
+ document.getElementById("tt-next").textContent=(tourI+1<TOUR.length)?"הבא ←":"סיום ✓";
+ var tip=document.getElementById("tourTip");tip.classList.add("show");
+ setTimeout(function(){positionTip(el,tip);},280);
+}
+function positionTip(el,tip){
+ var th=tip.offsetHeight,tw=tip.offsetWidth,vw=window.innerWidth,vh=window.innerHeight,top,left;
+ if(el){var r=el.getBoundingClientRect();top=r.bottom+12;if(top+th>vh-10)top=Math.max(10,r.top-th-12);
+  left=Math.min(Math.max(10,r.left+r.width/2-tw/2),vw-tw-10);}
+ else{top=vh/2-th/2;left=vw/2-tw/2;}
+ tip.style.top=top+"px";tip.style.left=left+"px";
+}
+function tourNext(){if(tourI+1<TOUR.length){tourI++;tourShow();}else tourEnd();}
+function tourEnd(){if(tourEl)tourEl.classList.remove("tour-hi");tourEl=null;
+ document.getElementById("tourBackdrop").classList.remove("show");document.getElementById("tourTip").classList.remove("show");
+ try{localStorage.setItem("poker_tour_v1","1");}catch(e){}}
+function welcomeStartTour(){welcomeClose();startTour();}
+function welcomeClose(){document.getElementById("welcome").classList.remove("show");try{localStorage.setItem("poker_tour_v1","1");}catch(e){}}
+function maybeOnboard(){try{if(!localStorage.getItem("poker_tour_v1"))document.getElementById("welcome").classList.add("show");}catch(e){}}
+window.addEventListener("resize",function(){var tip=document.getElementById("tourTip");if(tip&&tip.classList.contains("show"))positionTip(tourEl,tip);});
+
 /* ---------- init ---------- */
 loadLocal();initHero();renderAll();buildSpotPool();
 var jd=document.getElementById("j-date");if(jd)jd.value=todayKey();
 loadCloud();
+maybeOnboard();
 </script>
 </body>
 </html>
