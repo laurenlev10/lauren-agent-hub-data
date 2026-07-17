@@ -164,6 +164,7 @@
     <div class="tab" data-tab="spot">🎯 ICM</div>
     <div class="tab" data-tab="math">🧮 Math</div>
     <div class="tab" data-tab="journal">📓 יומן</div>
+    <div class="tab" data-tab="career">📈 קריירה</div>
     <div class="tab" data-tab="goals">🏁 יעדים</div>
     <div class="tab" data-tab="ref">📖 מדריך</div>
   </div>
@@ -358,6 +359,40 @@
     </div>
   </div>
 
+  <!-- ===== CAREER ===== -->
+  <div class="panel" id="p-career">
+    <div class="card">
+      <h3>📈 הקריירה של אלי — הנתונים האמיתיים</h3>
+      <div class="mini">מיובא מ-CardPlayer. ההצגה היא של הכספים (cashes) בלבד — כניסות שלא הגיעו לכסף אינן מתועדות שם, לכן אין כאן ROI, אלא תמונת קריירה.</div>
+      <div class="statgrid" style="margin-top:12px">
+        <div class="stat"><div class="n" id="c-earn">$0</div><div class="l">רווחים מתועדים</div></div>
+        <div class="stat"><div class="n" id="c-cashes">0</div><div class="l">כניסות לכסף</div></div>
+        <div class="stat"><div class="n" id="c-titles">0</div><div class="l">אליפויות 🏆</div></div>
+        <div class="stat"><div class="n" id="c-best">$0</div><div class="l">הזכייה הגדולה</div></div>
+      </div>
+    </div>
+    <div class="card" id="c-insight-card">
+      <h3>🎯 הפער — ומה עושים איתו</h3>
+      <div class="note" id="c-insight"></div>
+      <div class="row-actions">
+        <button class="btn primary" onclick="go('learn')">📚 ללמוד את המשחק המאוחר</button>
+        <button class="btn ghost" onclick="go('spot')">🎯 לתרגל ICM</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📅 רווחים לפי שנה</h3>
+      <div class="chartbox"><canvas id="careerChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>🏅 הזכיות הגדולות</h3>
+      <div style="overflow-x:auto"><table class="jt"><thead><tr><th>תאריך</th><th>אירוע</th><th>Buy-in</th><th>מקום</th><th>זכייה</th></tr></thead><tbody id="c-top"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h3>🥇 יעדי קריירה (החלום)</h3>
+      <div id="c-goals"></div>
+    </div>
+  </div>
+
   <!-- ===== GOALS ===== -->
   <div class="panel" id="p-goals">
     <div class="card">
@@ -483,6 +518,7 @@ function go(tab){
   if(tab==="spot"&&!window._spotLoaded){spotNext();window._spotLoaded=true;}
   if(tab==="math"&&!window._mathLoaded){mathNext();window._mathLoaded=true;}
   if(tab==="learn")renderLearn();
+  if(tab==="career")renderCareer();
   if(tab==="journal")renderJournal();
   if(tab==="goals")renderGoals();
   if(tab==="overview")renderOverview();
@@ -652,7 +688,8 @@ function renderAll(){renderOverview();var d=document.getElementById("j-date");if
   var cs=document.getElementById("j-cur");if(cs)cs.value=cur();
   if(document.getElementById("p-journal").classList.contains("active"))renderJournal();
   if(document.getElementById("p-goals").classList.contains("active"))renderGoals();
-  if(document.getElementById("p-learn").classList.contains("active"))renderLearn();}
+  if(document.getElementById("p-learn").classList.contains("active"))renderLearn();
+  if(document.getElementById("p-career").classList.contains("active"))renderCareer();}
 function resetStats(){if(!confirm("לאפס את נתוני האימון? (היומן יישמר)"))return;
   POKER.stats={answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}};renderOverview();scheduleSave();toast("נתוני האימון אופסו");}
 
@@ -785,6 +822,103 @@ document.addEventListener("keydown",function(e){if(e.key==="Enter"&&document.get
 
 /* ---------- toast ---------- */
 var _tt=null;function toast(msg){var t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");if(_tt)clearTimeout(_tt);_tt=setTimeout(function(){t.classList.remove("show");},2200);}
+
+/* ============================================================
+   CAREER — real CardPlayer history (cashes only)
+   ============================================================ */
+var CAREER_OFFICIAL={earnings:192602,cashes:55,titles:0};
+var CAREER=[
+ {d:"2021-09-11",e:"$570 Deepstack · Commerce Series",b:570,p:2,w:31885},
+ {d:"2026-07-13",e:"$1,500 NLH · WSOP",b:1500,p:34,w:19200},
+ {d:"2021-11-17",e:"$10,000 Main Event · WSOP",b:10000,p:898,w:15000},
+ {d:"2024-06-21",e:"$2,200 Mystery Bounty · Wynn Summer",b:2200,p:18,w:12510},
+ {d:"2024-06-21",e:"$3,000 Freezeout · WSOP",b:3000,p:60,w:9679},
+ {d:"2019-09-15",e:"$1,100 $1M GTD · Commerce",b:1100,p:18,w:7630},
+ {d:"2022-04-24",e:"$300 NLH · San Diego Spring",b:240,p:6,w:7065},
+ {d:"2021-11-21",e:"$1,100 NLH · LA Poker Open",b:1100,p:15,w:5640},
+ {d:"2022-06-22",e:"$1,500 Millionaire Maker · WSOP",b:1500,p:382,w:5165},
+ {d:"2025-07-09",e:"$1,100 $250K GTD · Wynn Summer",b:1100,p:12,w:5032},
+ {d:"2019-11-03",e:"C$3,300 · WPT Montreal",b:2490,p:103,w:4949},
+ {d:"2018-05-20",e:"$1,100 $1M GTD · CA State",b:1100,p:46,w:4700},
+ {d:"2023-06-12",e:"$300 Gladiators · WSOP",b:300,p:133,w:3540},
+ {d:"2023-06-28",e:"$1,500 Millionaire Maker · WSOP",b:1500,p:823,w:3440},
+ {d:"2019-05-05",e:"$240 Bounty · CA State",b:240,p:3,w:3380},
+ {d:"2022-07-06",e:"$1,000 Mystery Bounty · WSOP",b:1000,p:464,w:3120},
+ {d:"2019-06-07",e:"$500 Big 50 · WSOP",b:500,p:1032,w:2814},
+ {d:"2024-07-10",e:"$600 Ultra Stack · WSOP",b:600,p:512,w:2801},
+ {d:"2009-05-09",e:"NLH Rebuy Ev.9 · CA State",b:200,p:13,w:2581},
+ {d:"2019-04-28",e:"$350 Bounty · CA State",b:350,p:5,w:2540},
+ {d:"2021-10-26",e:"$1,000 Double Stack · WSOP",b:1000,p:275,w:2463},
+ {d:"2019-07-03",e:"$888 Crazy Eights · WSOP",b:888,p:671,w:2202},
+ {d:"2025-07-02",e:"$1,000 Freezeout · WSOP",b:1000,p:1354,w:2000},
+ {d:"2019-10-20",e:"$1,100 CPPT Quantum Main · Bicycle",b:1100,p:48,w:1960},
+ {d:"2025-07-04",e:"$800 NLH · WSOP",b:800,p:567,w:1874},
+ {d:"2019-05-13",e:"$350 Jacked Stack · CA State",b:350,p:12,w:1860},
+ {d:"2022-06-21",e:"$500 Grand Stack · Grand Summer",b:500,p:17,w:1835},
+ {d:"2022-07-13",e:"$1,111 One More One Drop · WSOP",b:1111,p:794,w:1778},
+ {d:"2018-07-03",e:"$888 Crazy Eights · WSOP",b:888,p:897,w:1619},
+ {d:"2018-07-14",e:"$340 $100K GTD · Grand Slam",b:340,p:15,w:1600},
+ {d:"2019-07-11",e:"$1,111 Little One Drop · WSOP",b:1111,p:769,w:1586},
+ {d:"2022-07-14",e:"$777 Seven Max · WSOP",b:777,p:635,w:1555},
+ {d:"2019-09-08",e:"$570 Deep Stack · Commerce",b:570,p:67,w:1460},
+ {d:"2019-04-12",e:"$300 Quantum · Liz Flynt Spring",b:300,p:34,w:1400},
+ {d:"2021-12-09",e:"$400 Monster Quantum · WSOP-C Bike",b:400,p:66,w:1205},
+ {d:"2019-09-01",e:"$120 Twitter Exclusive · Commerce",b:120,p:6,w:1160},
+ {d:"2021-12-01",e:"$300 Quantum · WSOP-C Bike",b:300,p:71,w:1020},
+ {d:"2019-05-28",e:"$350 $300K GTD · Memorial Day",b:350,p:80,w:1000},
+ {d:"2026-03-26",e:"$360 Bounty · Winnin o the Green",b:360,p:5,w:870},
+ {d:"2019-03-05",e:"$400 Monster Stack · WSOP-C LA",b:400,p:126,w:865},
+ {d:"2019-09-08",e:"$240 Bounty · Commerce",b:240,p:8,w:840},
+ {d:"2020-03-10",e:"$400 Quantum Monster · WSOP-C CA",b:400,p:67,w:775},
+ {d:"2019-10-29",e:"C$550 · WPT Montreal",b:415,p:210,w:766},
+ {d:"2011-02-25",e:"Quantum Reload · The Big Event",b:110,p:69,w:750},
+ {d:"2019-12-05",e:"$400 Monster Stack · WSOP-C CA",b:400,p:87,w:725},
+ {d:"2022-05-07",e:"$250 NLH · CA State",b:250,p:58,w:710},
+ {d:"2023-07-03",e:"$400 Colossus · WSOP",b:400,p:2090,w:640},
+ {d:"2024-01-15",e:"$300 $300K GTD · LA Poker Classic",b:300,p:167,w:640},
+ {d:"2019-12-16",e:"$250 Quantum · WSOP-C CA",b:250,p:69,w:610},
+ {d:"2020-10-18",e:"$400 MonsterStack · DeepStack Showdown",b:354,p:175,w:600},
+ {d:"2012-11-09",e:"Double Stack Turbo · LA Poker Open",b:225,p:19,w:530},
+ {d:"2019-05-23",e:"$85 Bounty · Memorial Day",b:85,p:8,w:330},
+ {d:"2019-12-22",e:"$235 Bounty · Holiday Classic",b:235,p:9,w:325},
+ {d:"2018-03-13",e:"$200 Bounty · March Extravaganza",b:174,p:10,w:268},
+ {d:"2009-11-30",e:"Event 4 Bounty · Turkey Shoot",b:80,p:34,w:110}
+];
+var careerChart=null;
+function renderCareer(){
+  var earn=0,best=0,bestP=9999,ft=0;
+  CAREER.forEach(function(r){earn+=r.w;if(r.w>best)best=r.w;if(r.p<bestP)bestP=r.p;if(r.p<=9)ft++;});
+  document.getElementById("c-earn").textContent="$"+CAREER_OFFICIAL.earnings.toLocaleString("en-US");
+  document.getElementById("c-cashes").textContent=CAREER_OFFICIAL.cashes;
+  document.getElementById("c-titles").textContent=CAREER_OFFICIAL.titles;
+  document.getElementById("c-best").textContent="$"+best.toLocaleString("en-US");
+  document.getElementById("c-insight").innerHTML="<b>55 כניסות לכסף · $192,602 · אבל 0 אליפויות</b>, והמקום הכי טוב אי-פעם הוא <b>מקום 2</b> ("+ft+" פעמים בטופ 9). זה בדיוק הסיפור: אתה מגיע עמוק — ולא סוגר. הפער נמצא ב<b>שלב המאוחר ובשולחן הגמר</b>, שם ICM ו-Push/Fold מכריעים. זה מה שהמכון הזה מאמן. תסגור את הפער הזה — ותהפוך cashes לאליפויות.";
+  // top cashes
+  var top=CAREER.slice().sort(function(a,b){return b.w-a.w;}).slice(0,10);
+  var tb=document.getElementById("c-top");tb.innerHTML="";
+  top.forEach(function(r){var tr=document.createElement("tr");
+    tr.innerHTML="<td>"+r.d+"</td><td>"+r.e+"</td><td>$"+r.b.toLocaleString("en-US")+"</td><td>"+(r.p===bestP?"<b style='color:var(--gold)'>"+r.p+"</b>":r.p)+"</td><td class='net-pos'>$"+r.w.toLocaleString("en-US")+"</td>";
+    tb.appendChild(tr);});
+  // by year chart
+  var by={};CAREER.forEach(function(r){var y=r.d.slice(0,4);by[y]=(by[y]||0)+r.w;});
+  var yrs=Object.keys(by).sort();
+  if(typeof Chart!=="undefined"){
+    if(careerChart){careerChart.destroy();careerChart=null;}
+    careerChart=new Chart(document.getElementById("careerChart").getContext("2d"),{type:"bar",
+      data:{labels:yrs,datasets:[{label:"רווחים",data:yrs.map(function(y){return Math.round(by[y]);}),backgroundColor:"rgba(233,196,106,.65)",borderColor:"#e9c46a",borderWidth:1}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{y:{ticks:{color:"#9fc4b4",callback:function(v){return "$"+(v/1000)+"k";}},grid:{color:"rgba(255,255,255,.06)"}},x:{ticks:{color:"#9fc4b4"},grid:{display:false}}}}});
+  }
+  // career dream goals
+  var cg=document.getElementById("c-goals");
+  var goals=[
+   {ico:"🏆",t:"האליפות הראשונה — מקום 1"},
+   {ico:"💵",t:"לשבור את השיא: זכייה מעל $31,885"},
+   {ico:"🎯",t:"שולחן גמר ב-WSOP"},
+   {ico:"💎",t:"Score ראשון בן 6 ספרות ($100K+)"}
+  ];
+  cg.innerHTML=goals.map(function(g){return '<div class="goalcard"><div class="gico">'+g.ico+'</div><div class="gmid"><div class="gname">'+g.t+'</div></div></div>';}).join("");
+}
 
 /* ============================================================
    LEARN / ACADEMY — teach before practice
