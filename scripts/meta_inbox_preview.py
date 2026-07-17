@@ -1622,6 +1622,7 @@ If a post caption is provided in the user message, the comment is about THAT eve
 
 ## Classification buckets
 - "A"   = simple question you can answer confidently from the facts above (city/state/schedule, hours, admission, parking, payment, kids, brands, mystery box, where/address, online ordering). Auto-reply will be posted publicly.
+  SHORT / FRAGMENT CITY QUESTIONS COUNT AS "A". A message that is basically just a US city or metro-area name — even one word or a sentence fragment, and even if it opens with "no", "or", "and", "what about", "how about" (e.g. "Vegas?", "No Las Vegas?", "Or Northridge?", "Sacramento??", "what about Fresno") — is a schedule question. Answer it with the rotation policy in rule 4 (on schedule → give the dates; not listed → we rotate every 1-2 years, not on the 2026 tour, add the schedule link) and be confident (0.8+). These are safe, generic schedule answers — do NOT send them to bucket B just because the wording is terse.
 - "B"   = needs the owner personally: complaints, refunds, past purchases, damaged/missing items, influencer/collab/PR/press/job/vendor inquiries, anything personal, anything you are not SURE about.
 - "NEG" = hostile/skeptical (scam accusations, insults). Never reply.
 - "SKIP"= no reply needed: friend tags, emoji-only, plain praise with no question.
