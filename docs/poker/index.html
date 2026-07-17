@@ -164,7 +164,10 @@
     <div class="tab" data-tab="pushfold">♠️ Push/Fold</div>
     <div class="tab" data-tab="spot">🎯 ICM</div>
     <div class="tab" data-tab="math">🧮 Math</div>
+    <div class="tab" data-tab="warmup">🔥 חימום</div>
+    <div class="tab" data-tab="exam">📝 מבחן</div>
     <div class="tab" data-tab="journal">📓 יומן</div>
+    <div class="tab" data-tab="upcoming">🗓️ טורנירים</div>
     <div class="tab" data-tab="career">📈 קריירה</div>
     <div class="tab" data-tab="goals">🏁 יעדים</div>
     <div class="tab" data-tab="ref">📖 מדריך</div>
@@ -185,6 +188,17 @@
         <span class="hero-badge">🔥 רצף: <b id="hero-streak" style="color:var(--gold);margin-inline-start:4px">0</b></span>
         <span class="hero-badge">🎯 דיוק: <b id="hero-acc" style="color:var(--gold);margin-inline-start:4px">—</b></span>
       </div>
+    </div>
+
+    <div class="card">
+      <h3>🎯 אימון יומי <span id="daily-done" style="display:none;color:var(--ok)">· ✓ הושלם היום!</span></h3>
+      <div class="mini">היעד: 18 החלטות ביום. עקביות מנצחת כמות.</div>
+      <div class="lvlbar" style="margin-top:8px"><div id="daily-bar" style="width:0%"></div></div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px">
+        <span class="mini">היום: <b id="daily-count" style="color:var(--gold)">0/18</b></span>
+        <span class="mini">רצף ימים: <b id="daily-streak" style="color:var(--gold)">0</b> 🔥</span>
+      </div>
+      <div class="row-actions"><button class="btn primary" onclick="go('pushfold')">התחל אימון יומי</button><button class="btn ghost" onclick="go('warmup')">🔥 חימום לפני טורניר</button></div>
     </div>
 
     <div class="card">
@@ -311,6 +325,31 @@
     </div>
   </div>
 
+  <!-- ===== WARM-UP ===== -->
+  <div class="panel" id="p-warmup">
+    <div class="card" id="wu-intro">
+      <h3>🔥 חימום לפני טורניר</h3>
+      <div class="note">יושב לטורניר עוד מעט? הרץ חימום מהיר של ~5 דקות — 10 החלטות מעורבות (Push/Fold + ICM + מתמטיקה), ובסוף תזכורות מיינדסט לפני שאתה מתיישב לשולחן.</div>
+      <div class="row-actions"><button class="btn primary" onclick="warmupStart()">▶️ התחל חימום</button></div>
+    </div>
+    <div class="card" id="wu-card" style="display:none"><div id="wu-quiz"></div></div>
+  </div>
+
+  <!-- ===== EXAM ===== -->
+  <div class="panel" id="p-exam">
+    <div class="card" id="ex-intro">
+      <h3>📝 מבחן</h3>
+      <div class="note">10 שאלות מעורבות — בלי חשיפת תשובה תוך כדי. בסוף מקבל ציון וסקירה מלאה. עשה מבחן אחת לשבוע כדי לראות את ההתקדמות.</div>
+      <div class="statgrid" style="margin:10px 0">
+        <div class="stat"><div class="n" id="ex-best">—</div><div class="l">הציון הכי גבוה</div></div>
+        <div class="stat"><div class="n" id="ex-count">0</div><div class="l">מבחנים שנעשו</div></div>
+      </div>
+      <div class="row-actions"><button class="btn primary" onclick="examStart()">▶️ התחל מבחן</button></div>
+      <div id="ex-hist" style="margin-top:12px"></div>
+    </div>
+    <div class="card" id="ex-card" style="display:none"><div id="ex-quiz"></div></div>
+  </div>
+
   <!-- ===== JOURNAL ===== -->
   <div class="panel" id="p-journal">
     <div class="card">
@@ -359,6 +398,39 @@
       </thead><tbody id="jbody"></tbody></table></div>
       <div class="mini" id="jempty" style="display:none">עוד לא תיעדת טורנירים. מלא את הטופס למעלה אחרי הטורניר הבא 🙂</div>
     </div>
+
+    <div class="card">
+      <h3>🃏 ניתוח ידיים — ספריית הידיים שלך</h3>
+      <div class="mini">תעד יד מאתגרת או היד שעפת עליה. המערכת נותנת עיקרון GTO/ICM לפי העומק והשלב.</div>
+      <div class="form-grid" style="margin-top:10px">
+        <div class="fld"><label>היד</label><input id="h-hand" placeholder="A♠K♦ / TT"></div>
+        <div class="fld"><label>סטאק (bb)</label><input type="number" id="h-stack" placeholder="14"></div>
+        <div class="fld"><label>פוזיציה</label><input id="h-pos" placeholder="BTN / BB"></div>
+        <div class="fld"><label>שלב</label><input id="h-stage" placeholder="בועה / שולחן גמר / מוקדם"></div>
+        <div class="fld"><label>מה עשית</label><input id="h-action" placeholder="שאב / קלל / קיפול"></div>
+        <div class="fld"><label>תוצאה</label><input id="h-result" placeholder="עפתי / זכיתי בפוט"></div>
+        <div class="fld wide"><label>הערות / לקח</label><textarea id="h-notes" rows="2"></textarea></div>
+      </div>
+      <div class="row-actions"><button class="btn primary" onclick="handAdd()">💾 שמור יד לספרייה</button></div>
+      <div id="h-list" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- ===== UPCOMING ===== -->
+  <div class="panel" id="p-upcoming">
+    <div class="card">
+      <h3>🗓️ טורנירים קרובים</h3>
+      <div class="mini">תכנן לאילו טורנירים לכוון, עם ספירה לאחור. לכל טורניר יש כפתור חימום ישיר.</div>
+      <div class="form-grid" style="margin-top:10px">
+        <div class="fld"><label>תאריך</label><input type="date" id="u-date"></div>
+        <div class="fld"><label>מקום</label><input type="text" id="u-venue" placeholder="Commerce / WSOP..."></div>
+        <div class="fld"><label>טורניר</label><input type="text" id="u-series" placeholder="Main Event"></div>
+        <div class="fld"><label>Buy-in</label><input type="number" id="u-buyin" placeholder="0"></div>
+        <div class="fld wide"><label>יעד אישי לטורניר</label><input type="text" id="u-goal" placeholder="להגיע לשולחן גמר · לשחק ICM ממושמע"></div>
+      </div>
+      <div class="row-actions"><button class="btn primary" onclick="upcomingAdd()">➕ הוסף ללוח</button></div>
+    </div>
+    <div class="card"><div id="u-list"></div></div>
   </div>
 
   <!-- ===== CAREER ===== -->
@@ -464,7 +536,7 @@ var STATE_REPO_FILE="docs/state/poker_training.json";
 var REPO="laurenlev10/lauren-agent-hub-data";
 var POKER={_updated_at:null,settings:{currency:"$"},
   stats:{answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}},
-  journal:[],goals_custom:[],lessons_done:{}};
+  journal:[],goals_custom:[],lessons_done:{},exams:[],upcoming:[],hands:[]};
 var TOPIC_LABELS={pushfold:"Push/Fold",icm:"ICM / קאש-מול-טורניר",postflop:"Postflop",bluff:"בלוף/חסימות",mdf:"MDF (הגנה)",potodds:"Pot Odds",combos:"Bluff Combos"};
 function pick(a){return a[Math.floor(Math.random()*a.length)];}
 function todayKey(){return new Date().toISOString().slice(0,10);}
@@ -479,7 +551,7 @@ function record(topic,ok){
   if(ok){s.correct++;s.by_topic[topic].c++;s.daily[dk].c++;s.streak++;if(s.streak>s.best)s.best=s.streak;}else s.streak=0;
   renderOverview();scheduleSave();
 }
-function migrate(){if(!POKER.settings)POKER.settings={currency:"$"};if(!POKER.journal)POKER.journal=[];if(!POKER.goals_custom)POKER.goals_custom=[];if(!POKER.lessons_done)POKER.lessons_done={};if(!POKER.stats)POKER.stats={answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}};}
+function migrate(){if(!POKER.settings)POKER.settings={currency:"$"};if(!POKER.journal)POKER.journal=[];if(!POKER.goals_custom)POKER.goals_custom=[];if(!POKER.lessons_done)POKER.lessons_done={};if(!POKER.exams)POKER.exams=[];if(!POKER.upcoming)POKER.upcoming=[];if(!POKER.hands)POKER.hands=[];if(!POKER.stats)POKER.stats={answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}};}
 function loadLocal(){try{var r=localStorage.getItem("poker_training_v1");if(r){var j=JSON.parse(r);if(j&&j.stats)POKER=j;}}catch(e){}migrate();}
 function saveLocal(){try{localStorage.setItem("poker_training_v1",JSON.stringify(POKER));}catch(e){}}
 async function loadCloud(){
@@ -521,7 +593,9 @@ function go(tab){
   if(tab==="math"&&!window._mathLoaded){mathNext();window._mathLoaded=true;}
   if(tab==="learn")renderLearn();
   if(tab==="career")renderCareer();
-  if(tab==="journal")renderJournal();
+  if(tab==="journal"){renderJournal();renderHands();}
+  if(tab==="exam")renderExam();
+  if(tab==="upcoming")renderUpcoming();
   if(tab==="goals")renderGoals();
   if(tab==="overview")renderOverview();
   window.scrollTo({top:0,behavior:"smooth"});
@@ -684,14 +758,17 @@ function renderOverview(){
   if(box.innerHTML==="")box.innerHTML='<div class="mini">עוד לא תרגלת. בחר מודול והתחל 🙂</div>';
   var wb=document.getElementById("weakbox");
   if(worst){wb.style.display="block";wb.innerHTML="⚠️ הנקודה החלשה שלך כרגע: <b>"+TOPIC_LABELS[worst]+"</b> ("+wp+"% הצלחה). כדאי לתרגל אותה יותר.";}else wb.style.display="none";
-  renderJourney();
+  renderDaily();renderJourney();
 }
 function renderAll(){renderOverview();var d=document.getElementById("j-date");if(d&&!d.value)d.value=todayKey();
   var cs=document.getElementById("j-cur");if(cs)cs.value=cur();
   if(document.getElementById("p-journal").classList.contains("active"))renderJournal();
   if(document.getElementById("p-goals").classList.contains("active"))renderGoals();
   if(document.getElementById("p-learn").classList.contains("active"))renderLearn();
-  if(document.getElementById("p-career").classList.contains("active"))renderCareer();}
+  if(document.getElementById("p-career").classList.contains("active"))renderCareer();
+  if(document.getElementById("p-exam").classList.contains("active"))renderExam();
+  if(document.getElementById("p-upcoming").classList.contains("active"))renderUpcoming();
+  if(document.getElementById("p-journal").classList.contains("active"))renderHands();}
 function resetStats(){if(!confirm("לאפס את נתוני האימון? (היומן יישמר)"))return;
   POKER.stats={answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}};renderOverview();scheduleSave();toast("נתוני האימון אופסו");}
 
@@ -828,73 +905,78 @@ var _tt=null;function toast(msg){var t=document.getElementById("toast");t.textCo
 /* ============================================================
    CAREER — real CardPlayer history (cashes only)
    ============================================================ */
-var CAREER_OFFICIAL={earnings:192602,cashes:55,titles:0};
+var CAREER_OFFICIAL={earnings:206259,cashes:60,titles:1};
 var CAREER=[
- {d:"2021-09-11",e:"$570 Deepstack · Commerce Series",b:570,p:2,w:31885},
- {d:"2026-07-13",e:"$1,500 NLH · WSOP",b:1500,p:34,w:19200},
- {d:"2021-11-17",e:"$10,000 Main Event · WSOP",b:10000,p:898,w:15000},
- {d:"2024-06-21",e:"$2,200 Mystery Bounty · Wynn Summer",b:2200,p:18,w:12510},
- {d:"2024-06-21",e:"$3,000 Freezeout · WSOP",b:3000,p:60,w:9679},
- {d:"2019-09-15",e:"$1,100 $1M GTD · Commerce",b:1100,p:18,w:7630},
- {d:"2022-04-24",e:"$300 NLH · San Diego Spring",b:240,p:6,w:7065},
- {d:"2021-11-21",e:"$1,100 NLH · LA Poker Open",b:1100,p:15,w:5640},
- {d:"2022-06-22",e:"$1,500 Millionaire Maker · WSOP",b:1500,p:382,w:5165},
- {d:"2025-07-09",e:"$1,100 $250K GTD · Wynn Summer",b:1100,p:12,w:5032},
- {d:"2019-11-03",e:"C$3,300 · WPT Montreal",b:2490,p:103,w:4949},
- {d:"2018-05-20",e:"$1,100 $1M GTD · CA State",b:1100,p:46,w:4700},
- {d:"2023-06-12",e:"$300 Gladiators · WSOP",b:300,p:133,w:3540},
- {d:"2023-06-28",e:"$1,500 Millionaire Maker · WSOP",b:1500,p:823,w:3440},
- {d:"2019-05-05",e:"$240 Bounty · CA State",b:240,p:3,w:3380},
- {d:"2022-07-06",e:"$1,000 Mystery Bounty · WSOP",b:1000,p:464,w:3120},
- {d:"2019-06-07",e:"$500 Big 50 · WSOP",b:500,p:1032,w:2814},
- {d:"2024-07-10",e:"$600 Ultra Stack · WSOP",b:600,p:512,w:2801},
- {d:"2009-05-09",e:"NLH Rebuy Ev.9 · CA State",b:200,p:13,w:2581},
- {d:"2019-04-28",e:"$350 Bounty · CA State",b:350,p:5,w:2540},
- {d:"2021-10-26",e:"$1,000 Double Stack · WSOP",b:1000,p:275,w:2463},
- {d:"2019-07-03",e:"$888 Crazy Eights · WSOP",b:888,p:671,w:2202},
- {d:"2025-07-02",e:"$1,000 Freezeout · WSOP",b:1000,p:1354,w:2000},
- {d:"2019-10-20",e:"$1,100 CPPT Quantum Main · Bicycle",b:1100,p:48,w:1960},
- {d:"2025-07-04",e:"$800 NLH · WSOP",b:800,p:567,w:1874},
- {d:"2019-05-13",e:"$350 Jacked Stack · CA State",b:350,p:12,w:1860},
- {d:"2022-06-21",e:"$500 Grand Stack · Grand Summer",b:500,p:17,w:1835},
- {d:"2022-07-13",e:"$1,111 One More One Drop · WSOP",b:1111,p:794,w:1778},
- {d:"2018-07-03",e:"$888 Crazy Eights · WSOP",b:888,p:897,w:1619},
- {d:"2018-07-14",e:"$340 $100K GTD · Grand Slam",b:340,p:15,w:1600},
- {d:"2019-07-11",e:"$1,111 Little One Drop · WSOP",b:1111,p:769,w:1586},
- {d:"2022-07-14",e:"$777 Seven Max · WSOP",b:777,p:635,w:1555},
- {d:"2019-09-08",e:"$570 Deep Stack · Commerce",b:570,p:67,w:1460},
- {d:"2019-04-12",e:"$300 Quantum · Liz Flynt Spring",b:300,p:34,w:1400},
- {d:"2021-12-09",e:"$400 Monster Quantum · WSOP-C Bike",b:400,p:66,w:1205},
- {d:"2019-09-01",e:"$120 Twitter Exclusive · Commerce",b:120,p:6,w:1160},
- {d:"2021-12-01",e:"$300 Quantum · WSOP-C Bike",b:300,p:71,w:1020},
- {d:"2019-05-28",e:"$350 $300K GTD · Memorial Day",b:350,p:80,w:1000},
+ {d:"2026-07-11",e:"$1,500 The Closer · WSOP",b:1500,p:34,w:19200},
  {d:"2026-03-26",e:"$360 Bounty · Winnin o the Green",b:360,p:5,w:870},
- {d:"2019-03-05",e:"$400 Monster Stack · WSOP-C LA",b:400,p:126,w:865},
- {d:"2019-09-08",e:"$240 Bounty · Commerce",b:240,p:8,w:840},
- {d:"2020-03-10",e:"$400 Quantum Monster · WSOP-C CA",b:400,p:67,w:775},
- {d:"2019-10-29",e:"C$550 · WPT Montreal",b:415,p:210,w:766},
- {d:"2011-02-25",e:"Quantum Reload · The Big Event",b:110,p:69,w:750},
- {d:"2019-12-05",e:"$400 Monster Stack · WSOP-C CA",b:400,p:87,w:725},
- {d:"2022-05-07",e:"$250 NLH · CA State",b:250,p:58,w:710},
- {d:"2023-07-03",e:"$400 Colossus · WSOP",b:400,p:2090,w:640},
- {d:"2024-01-15",e:"$300 $300K GTD · LA Poker Classic",b:300,p:167,w:640},
- {d:"2019-12-16",e:"$250 Quantum · WSOP-C CA",b:250,p:69,w:610},
- {d:"2020-10-18",e:"$400 MonsterStack · DeepStack Showdown",b:354,p:175,w:600},
- {d:"2012-11-09",e:"Double Stack Turbo · LA Poker Open",b:225,p:19,w:530},
- {d:"2019-05-23",e:"$85 Bounty · Memorial Day",b:85,p:8,w:330},
+ {d:"2025-07-09",e:"$1,100 · Wynn Summer Classic",b:1100,p:12,w:5032},
+ {d:"2025-07-02",e:"$800 Summer Celebration · WSOP",b:800,p:567,w:1874},
+ {d:"2025-07-02",e:"$400 Accelerated · WSOP Deepstacks",b:400,p:8,w:2706},
+ {d:"2025-06-29",e:"$1,000 Mini Main · WSOP",b:1000,p:1354,w:2000},
+ {d:"2025-06-28",e:"$200 Accelerated · WSOP Deepstacks 🏆",b:200,p:1,w:14309},
+ {d:"2024-07-07",e:"$600 Ultra Stack · WSOP",b:600,p:512,w:2801},
+ {d:"2024-06-19",e:"$3,000 Freezeout · WSOP",b:3000,p:60,w:9679},
+ {d:"2024-06-17",e:"$2,200 Mystery Bounty · Wynn Summer",b:2200,p:18,w:12510},
+ {d:"2024-01-12",e:"$300 · LA Poker Classic",b:300,p:167,w:640},
+ {d:"2023-06-30",e:"$400 Colossus · WSOP",b:400,p:2090,w:640},
+ {d:"2023-06-23",e:"$1,500 Millionaire Maker · WSOP",b:1500,p:823,w:3440},
+ {d:"2023-06-07",e:"$300 Gladiators · WSOP",b:300,p:133,w:3540},
+ {d:"2022-07-10",e:"$777 Lucky 7s 7-Handed · WSOP",b:777,p:635,w:1555},
+ {d:"2022-07-07",e:"$1,000 One More One Drop · WSOP",b:1000,p:794,w:1778},
+ {d:"2022-07-05",e:"$400 Daily Deep Stack · WSOP",b:400,p:62,w:701},
+ {d:"2022-07-02",e:"$700 Million Dollar Bounty · WSOP",b:700,p:464,w:3120},
+ {d:"2022-06-21",e:"$500 Grand Stack · MGM Grand Summer",b:500,p:17,w:1835},
+ {d:"2022-06-17",e:"$1,500 Millionaire Maker · WSOP",b:1500,p:382,w:5165},
+ {d:"2022-05-02",e:"$250 The Bear · CSPC",b:250,p:58,w:710},
+ {d:"2021-12-06",e:"$400 Monster Stack · WSOPC LA",b:400,p:66,w:1205},
+ {d:"2021-11-27",e:"$300 · WSOPC LA",b:300,p:71,w:1020},
+ {d:"2021-11-19",e:"$1,100 LAPO Main Event",b:1100,p:15,w:5640},
+ {d:"2021-11-04",e:"$10,000 Main Event · WSOP",b:10000,p:898,w:15000},
+ {d:"2021-10-22",e:"$1,000 Double Stack · WSOP",b:1000,p:275,w:2463},
+ {d:"2021-09-07",e:"$570 Deepstack · Commerce Series",b:570,p:2,w:31885},
+ {d:"2020-10-13",e:"$400 MonsterStack · Venetian",b:400,p:175,w:600},
+ {d:"2020-03-08",e:"$400 Monster Stack · WSOPC Bike",b:400,p:67,w:775},
  {d:"2019-12-22",e:"$235 Bounty · Holiday Classic",b:235,p:9,w:325},
- {d:"2018-03-13",e:"$200 Bounty · March Extravaganza",b:174,p:10,w:268},
- {d:"2009-11-30",e:"Event 4 Bounty · Turkey Shoot",b:80,p:34,w:110}
+ {d:"2019-12-11",e:"$365 · WSOPC Bike",b:365,p:69,w:610},
+ {d:"2019-12-02",e:"$400 Monster Stack · WSOPC Bike",b:400,p:87,w:725},
+ {d:"2019-10-29",e:"C$3,300 WPT Main · Montreal",b:2490,p:103,w:4947},
+ {d:"2019-10-25",e:"C$550 WPT500 · Montreal",b:415,p:210,w:766},
+ {d:"2019-10-17",e:"$1,100 CPPT Main · Big Poker Oktober",b:1100,p:48,w:1960},
+ {d:"2019-10-05",e:"$360 Quantum Million · Big Poker Okt",b:360,p:105,w:1860},
+ {d:"2019-09-09",e:"$1,100 Main Event · Commerce",b:1100,p:18,w:7630},
+ {d:"2019-09-08",e:"$140 Big Bounty · Commerce",b:140,p:8,w:840},
+ {d:"2019-09-02",e:"$570 Deep Stack · Commerce",b:570,p:67,w:1460},
+ {d:"2019-09-01",e:"$120 Twitter Exclusive · Commerce",b:120,p:6,w:1160},
+ {d:"2019-07-06",e:"$1,000 Little One One Drop · WSOP",b:1000,p:769,w:1586},
+ {d:"2019-06-28",e:"$888 Crazy Eights · WSOP",b:888,p:671,w:2202},
+ {d:"2019-05-30",e:"$500 BIG 50 · WSOP",b:500,p:1032,w:2814},
+ {d:"2019-05-28",e:"$300 Main Event · Memorial Day",b:300,p:80,w:1000},
+ {d:"2019-05-23",e:"$85 Event 4 · Memorial Day",b:85,p:8,w:330},
+ {d:"2019-05-13",e:"$350 Jacked Stack · CSPC",b:350,p:12,w:1860},
+ {d:"2019-05-05",e:"$240 KO Big Bounty · CSPC",b:240,p:3,w:3380},
+ {d:"2019-04-28",e:"$350 KO Bounty · CSPC",b:350,p:5,w:2540},
+ {d:"2019-04-07",e:"$300 Quantum · Liz Flynt Spring",b:300,p:34,w:1400},
+ {d:"2019-03-03",e:"$400 Monster Stack · WSOPC LA",b:400,p:126,w:865},
+ {d:"2018-07-14",e:"$340 Event #1 · Grand Slam",b:340,p:15,w:1600},
+ {d:"2018-07-01",e:"$150 10PM Turbo · Rio Daily",b:150,p:7,w:700},
+ {d:"2018-06-30",e:"$888 Crazy Eights · WSOP",b:888,p:897,w:1619},
+ {d:"2018-05-14",e:"$1,100 Main Event · CSPC",b:1100,p:46,w:4700},
+ {d:"2018-03-13",e:"$200 Bounty · March Extravaganza",b:200,p:10,w:268},
+ {d:"2013-07-06",e:"$235 · Rio Daily Deepstacks",b:235,p:97,w:448},
+ {d:"2012-11-09",e:"$225 Deep Stack Turbo · LA Poker Open",b:225,p:19,w:530},
+ {d:"2011-02-25",e:"$130 Quantum Reload · The Big Event",b:130,p:69,w:750},
+ {d:"2009-11-30",e:"$120 Bounty · Ho Ho Hold'em",b:120,p:34,w:110},
+ {d:"2009-05-09",e:"$220 · CSPC",b:220,p:13,w:2581}
 ];
 var careerChart=null;
 function renderCareer(){
-  var earn=0,best=0,bestP=9999,ft=0;
-  CAREER.forEach(function(r){earn+=r.w;if(r.w>best)best=r.w;if(r.p<bestP)bestP=r.p;if(r.p<=9)ft++;});
+  var earn=0,best=0,bestP=9999,ft=0,wins=0;
+  CAREER.forEach(function(r){earn+=r.w;if(r.w>best)best=r.w;if(r.p<bestP)bestP=r.p;if(r.p<=9)ft++;if(r.p===1)wins++;});
   document.getElementById("c-earn").textContent="$"+CAREER_OFFICIAL.earnings.toLocaleString("en-US");
   document.getElementById("c-cashes").textContent=CAREER_OFFICIAL.cashes;
-  document.getElementById("c-titles").textContent=CAREER_OFFICIAL.titles;
+  document.getElementById("c-titles").textContent=wins;
   document.getElementById("c-best").textContent="$"+best.toLocaleString("en-US");
-  document.getElementById("c-insight").innerHTML="<b>55 כניסות לכסף · $192,602 · אבל 0 אליפויות</b>, והמקום הכי טוב אי-פעם הוא <b>מקום 2</b> ("+ft+" פעמים בטופ 9). זה בדיוק הסיפור: אתה מגיע עמוק — ולא סוגר. הפער נמצא ב<b>שלב המאוחר ובשולחן הגמר</b>, שם ICM ו-Push/Fold מכריעים. זה מה שהמכון הזה מאמן. תסגור את הפער הזה — ותהפוך cashes לאליפויות.";
+  document.getElementById("c-insight").innerHTML="<b>"+CAREER_OFFICIAL.cashes+" כניסות לכסף · $"+CAREER_OFFICIAL.earnings.toLocaleString('en-US')+"</b>. יש ניצחון אחד (דיילי ב-WSOP, $14,309) — אבל בשדות הגדולים והמשמעותיים המקום הכי טוב אי-פעם הוא <b>מקום 2</b> (Commerce Deepstack, $31,885), עם "+ft+" ריצות לטופ 9. זה הסיפור: אתה מגיע עמוק — הפער הוא <b>בסגירה בשולחן הגמר</b>, שם ICM ו-Push/Fold מכריעים. סגור אותו, והריצות העמוקות יהפכו לאליפויות.";
   // top cashes
   var top=CAREER.slice().sort(function(a,b){return b.w-a.w;}).slice(0,10);
   var tb=document.getElementById("c-top");tb.innerHTML="";
@@ -981,6 +1063,120 @@ function renderLearn(){
   var pr=document.getElementById("learnprog");if(pr)pr.textContent=n+"/"+LESSONS.length+" שיעורים";
   var fl=document.getElementById("learnfill");if(fl)fl.style.width=Math.round(100*n/LESSONS.length)+"%";
 }
+
+/* ============================================================
+   MINI-QUIZ ENGINE (shared by Warm-up + Exam) + DAILY + HANDS + UPCOMING
+   ============================================================ */
+var DAILY_TARGET=18;
+function v(id){return (document.getElementById(id).value||"").trim();}
+function pfItem(){var b=pick(Object.keys(PF_RAW)),ps=pick(["MP","CO","BTN"]),st=pick(BUCKET_STACKS[b]),h=randHandDisplay();var sh=PF_SETS[b][ps].has(h.canon);
+ return {topic:"pushfold",kind:"choice",prompt:"שאב או קיפול?",
+  sub:'<div class="handbig" style="font-size:34px;margin:2px 0">'+h.disp+'</div><div class="mini" style="text-align:center">'+st+'bb · '+POS_LABEL[ps]+'</div>',
+  options:["🚀 שאב","🚮 קיפול"],correct:sh?0:1,explain:"ב-"+st+"bb מ-"+POS_LABEL[ps]+" טווח השאב: "+PF_RAW[b][ps].join(", ")};}
+function spotItem(cats){var pool=SPOTS.filter(function(x){return !cats||cats.indexOf(x.c)>=0;});var sp=pick(pool);
+ return {topic:sp.c,kind:"choice",prompt:sp.q,sub:"",options:sp.o,correct:sp.a,explain:sp.why};}
+function mathItem(){var m=genMath("mixed");return {topic:m.topic,kind:"num",prompt:m.q,answer:m.ans,tol:m.tol,unit:m.unit,integer:m.integer,explain:m.formula+" — "+m.why};}
+var QZ={items:[],i:0,score:0,answers:[],el:null,reveal:true,onDone:null};
+function quizStart(el,items,reveal,onDone){QZ={items:items,i:0,score:0,answers:[],el:el,reveal:reveal,onDone:onDone};quizRender();}
+function quizRender(){
+ var q=QZ.items[QZ.i],el=QZ.el;
+ var html='<div class="mini">שאלה '+(QZ.i+1)+' מתוך '+QZ.items.length+'</div>'+
+   '<div class="qbox" style="min-height:auto">'+q.prompt+'</div>'+(q.sub||"");
+ if(q.kind==="choice"){html+='<div class="opts" id="qz-opts"></div>';}
+ else{html+='<div class="numrow"><input class="num" id="qz-num" type="number" step="0.1" placeholder="?"><span class="unit">'+q.unit+'</span><button class="btn primary" onclick="quizNum()">אישור</button></div>';}
+ html+='<div class="feedback" id="qz-fb"></div><div class="row-actions" id="qz-next" style="display:none"><button class="btn primary" onclick="quizNext()">'+((QZ.i+1<QZ.items.length)?"הבא ←":"סיום ✓")+'</button></div>';
+ el.innerHTML=html;
+ if(q.kind==="choice"){var ob=document.getElementById("qz-opts");q.options.forEach(function(t,idx){var d=document.createElement("div");d.className="opt";d.innerHTML=t;d.onclick=function(){quizChoice(idx);};ob.appendChild(d);});}
+ else{var n=document.getElementById("qz-num");if(n)n.focus();}
+}
+function quizGrade(ok,q){QZ.answers.push({q:q,ok:ok});if(ok)QZ.score++;record(q.topic,ok);}
+function quizChoice(idx){if(document.getElementById("qz-next").style.display!=="none")return;var q=QZ.items[QZ.i],ok=idx===q.correct;quizGrade(ok,q);
+ var opts=document.getElementById("qz-opts").children;
+ for(var k=0;k<opts.length;k++){opts[k].onclick=null;if(QZ.reveal){if(k===q.correct)opts[k].classList.add("correct");else if(k===idx)opts[k].classList.add("wrong");else opts[k].classList.add("dim");}else if(k===idx){opts[k].style.borderColor="var(--gold)";opts[k].style.background="rgba(233,196,106,.12)";}}
+ quizAfter(ok,q);}
+function quizNum(){var q=QZ.items[QZ.i],raw=document.getElementById("qz-num").value;if(raw==="")return;var ok=Math.abs(parseFloat(raw)-q.answer)<=q.tol;quizGrade(ok,q);document.getElementById("qz-num").disabled=true;quizAfter(ok,q);}
+function quizAfter(ok,q){if(QZ.reveal){var fb=document.getElementById("qz-fb");fb.className="feedback show "+(ok?"good":"err");fb.innerHTML=(ok?"✅ נכון!":"❌ לא נכון")+'<div style="margin-top:6px">'+q.explain+'</div>';}document.getElementById("qz-next").style.display="";}
+function quizNext(){QZ.i++;if(QZ.i<QZ.items.length)quizRender();else QZ.onDone(QZ);}
+
+/* Warm-up */
+function warmupStart(){var seq=["pf","icm","pf","math","icm","pf","icm","math","pf","icm"];
+ var items=seq.map(function(t){return t==="pf"?pfItem():(t==="math"?mathItem():spotItem(["icm","pushfold"]));});
+ document.getElementById("wu-intro").style.display="none";document.getElementById("wu-card").style.display="block";
+ quizStart(document.getElementById("wu-quiz"),items,true,warmupDone);}
+function warmupDone(qz){
+ document.getElementById("wu-quiz").innerHTML='<div style="text-align:center"><div class="handbig" style="font-size:28px">🎯 מוכן לשולחן</div><div class="stat" style="display:inline-block;min-width:150px;margin-top:6px"><div class="n">'+qz.score+'/'+qz.items.length+'</div><div class="l">ציון חימום</div></div></div>'+
+ '<div class="note" style="margin-top:14px"><b>3 תזכורות לפני שאתה יושב:</b><br>• בכל יד שאל: "האם זו אותה החלטה בקאש? אם לא — למה ICM שינה אותה?"<br>• סטאק קצר = אגרסיבי · סטאק גדול קרוב לבועה = שמרן.<br>• שחק החלטות, לא תוצאות. נשימה אחרי כל bad-beat.</div>'+
+ '<div class="hero-quote" style="margin-top:12px">“'+pick(HERO_QUOTES)+'”</div>'+
+ '<div class="row-actions"><button class="btn primary" onclick="warmupReset()">חימום נוסף</button><button class="btn ghost" onclick="go(\'overview\')">בהצלחה בטורניר 🍀</button></div>';}
+function warmupReset(){document.getElementById("wu-intro").style.display="block";document.getElementById("wu-card").style.display="none";}
+
+/* Exam */
+function examStart(){var items=[];for(var i=0;i<10;i++){var r=Math.random();items.push(r<0.4?spotItem(null):(r<0.7?pfItem():mathItem()));}
+ document.getElementById("ex-intro").style.display="none";document.getElementById("ex-card").style.display="block";
+ quizStart(document.getElementById("ex-quiz"),items,false,examDone);}
+function examDone(qz){var pct=Math.round(100*qz.score/qz.items.length);
+ POKER.exams=POKER.exams||[];POKER.exams.push({date:todayKey(),score:qz.score,total:qz.items.length,pct:pct});scheduleSave();
+ var grade=pct>=90?"מצוין! 🏆":(pct>=70?"טוב מאוד 👍":(pct>=50?"בדרך הנכונה":"צריך עוד תרגול"));
+ var review=qz.answers.map(function(a,i){return '<div class="opt '+(a.ok?"correct":"wrong")+'" style="cursor:default"><b>'+(i+1)+'.</b> '+(a.ok?"✅ ":"❌ ")+'<span style="font-size:13px">'+a.q.explain+'</span></div>';}).join("");
+ document.getElementById("ex-quiz").innerHTML='<div style="text-align:center"><div class="handbig" style="font-size:44px;color:var(--gold)">'+pct+'</div><div class="mini">'+qz.score+'/'+qz.items.length+' · '+grade+'</div></div>'+
+  '<h3 style="margin-top:16px">סקירת השאלות</h3><div class="opts">'+review+'</div>'+
+  '<div class="row-actions"><button class="btn primary" onclick="examReset()">מבחן חדש</button><button class="btn ghost" onclick="go(\'overview\')">חזרה</button></div>'+examHistoryHtml();}
+function examReset(){document.getElementById("ex-intro").style.display="block";document.getElementById("ex-card").style.display="none";renderExam();}
+function examHistoryHtml(){var e=(POKER.exams||[]).slice().reverse().slice(0,12);if(!e.length)return"";
+ return '<h3 style="margin-top:16px">ציונים אחרונים</h3>'+e.map(function(x){return '<div class="goalcard"><div class="gico">📝</div><div class="gmid"><div class="gname">'+x.date+'</div></div><div class="gval">'+x.pct+' ('+x.score+'/'+x.total+')</div></div>';}).join("");}
+function renderExam(){var best=0;(POKER.exams||[]).forEach(function(x){if(x.pct>best)best=x.pct;});
+ var b=document.getElementById("ex-best");if(b)b.textContent=(POKER.exams&&POKER.exams.length)?best:"—";
+ var c=document.getElementById("ex-count");if(c)c.textContent=(POKER.exams||[]).length;
+ var h=document.getElementById("ex-hist");if(h)h.innerHTML=examHistoryHtml();}
+
+/* Daily */
+function isoD(dt){return dt.toISOString().slice(0,10);}
+function dailyStreak(){var d=POKER.stats.daily||{},T=DAILY_TARGET,streak=0,day=new Date();
+ var tk=isoD(day);if(!(d[tk]&&d[tk].a>=T))day.setDate(day.getDate()-1);
+ while(true){var k=isoD(day);if(d[k]&&d[k].a>=T){streak++;day.setDate(day.getDate()-1);}else break;}
+ return streak;}
+function renderDaily(){var dk=todayKey(),today=(POKER.stats.daily[dk]&&POKER.stats.daily[dk].a)||0,pct=Math.min(100,Math.round(100*today/DAILY_TARGET));
+ var bar=document.getElementById("daily-bar");if(bar)bar.style.width=pct+"%";
+ var c=document.getElementById("daily-count");if(c)c.textContent=today+"/"+DAILY_TARGET;
+ var st=document.getElementById("daily-streak");if(st)st.textContent=dailyStreak();
+ var dn=document.getElementById("daily-done");if(dn)dn.style.display=today>=DAILY_TARGET?"inline":"none";}
+
+/* Hand library */
+function handAdd(){var h=v("h-hand");if(!h){toast("איזו יד?");return;}
+ POKER.hands=POKER.hands||[];var stk=parseInt(document.getElementById("h-stack").value)||null;
+ POKER.hands.push({id:"h"+Date.now(),date:todayKey(),stage:v("h-stage"),stack:stk,pos:v("h-pos"),hand:h,action:v("h-action"),result:v("h-result"),notes:v("h-notes")});
+ ["h-hand","h-stack","h-pos","h-stage","h-action","h-result","h-notes"].forEach(function(id){document.getElementById(id).value="";});
+ renderHands();scheduleSave();toast("היד נשמרה לספרייה");}
+function handHint(stack,stage){if(stack&&stack<=15)return "בעומק "+stack+"bb זה אזור Push/Fold — שאב או קיפול. בדוק מול טווחי הסטאק ב-📖 מדריך.";
+ if(stage&&/בוע|גמר|final|itm|כסף/i.test(stage))return "שלב עם לחץ ICM — שאל: האם זו אותה החלטה בקאש? אם לא, ה-ICM מצדיק לשחק הדוק יותר.";
+ return "שאל תמיד: קאש מול טורניר? ומה עומק הסטאק שלי?";}
+function handDel(id){POKER.hands=(POKER.hands||[]).filter(function(x){return x.id!==id;});renderHands();scheduleSave();}
+function renderHands(){var box=document.getElementById("h-list");if(!box)return;var arr=(POKER.hands||[]).slice().reverse();
+ box.innerHTML=arr.length?"":'<div class="mini">עדיין אין ידיים בספרייה. תעד את היד הבאה שתאתגר אותך.</div>';
+ arr.forEach(function(x){var d=document.createElement("div");d.className="goalcard";
+  d.innerHTML='<div class="gico">🃏</div><div class="gmid"><div class="gname">'+esc(x.hand)+(x.stack?" · "+x.stack+"bb":"")+(x.pos?" · "+esc(x.pos):"")+(x.stage?" · "+esc(x.stage):"")+'</div>'+
+   ((x.action||x.result)?'<div class="mini">'+(x.action?"פעולה: "+esc(x.action):"")+(x.result?" · "+esc(x.result):"")+'</div>':'')+
+   (x.notes?'<div class="mini">'+esc(x.notes)+'</div>':'')+
+   '<div class="mini" style="color:var(--gold)">💡 '+handHint(x.stack,x.stage)+'</div></div>'+
+   '<div class="gval"><span class="del" onclick="handDel(\''+x.id+'\')">🗑️</span></div>';
+  box.appendChild(d);});}
+
+/* Upcoming tournaments */
+function upcomingAdd(){var dt=document.getElementById("u-date").value;if(!dt){toast("בחר תאריך");return;}
+ POKER.upcoming=POKER.upcoming||[];POKER.upcoming.push({id:"u"+Date.now(),date:dt,venue:v("u-venue"),series:v("u-series"),buyin:parseFloat(document.getElementById("u-buyin").value)||0,goal:v("u-goal")});
+ ["u-venue","u-series","u-buyin","u-goal"].forEach(function(id){document.getElementById(id).value="";});
+ renderUpcoming();scheduleSave();toast("נוסף ללוח");}
+function upcomingDel(id){POKER.upcoming=(POKER.upcoming||[]).filter(function(x){return x.id!==id;});renderUpcoming();scheduleSave();}
+function renderUpcoming(){var box=document.getElementById("u-list");if(!box)return;
+ var arr=(POKER.upcoming||[]).slice().sort(function(a,b){return a.date.localeCompare(b.date);}),today=todayKey();
+ if(!arr.length){box.innerHTML='<div class="mini">אין טורנירים מתוכננים. הוסף יעד להתכונן אליו — ותקבל ספירה לאחור וכפתור חימום.</div>';return;}
+ box.innerHTML="";
+ arr.forEach(function(t){var days=Math.ceil((new Date(t.date)-new Date(today))/86400000);
+  var cd=days<0?"עבר":(days===0?"היום! 🔥":"עוד "+days+" ימים");
+  var d=document.createElement("div");d.className="goalcard";
+  d.innerHTML='<div class="gico">🗓️</div><div class="gmid"><div class="gname">'+(esc(t.series)||"טורניר")+(t.venue?" · "+esc(t.venue):"")+'</div><div class="mini">'+t.date+" · "+cd+(t.buyin?" · $"+t.buyin:"")+(t.goal?" · יעד: "+esc(t.goal):"")+'</div></div>'+
+   '<div class="gval"><button class="btn ghost" style="padding:6px 10px" onclick="go(\'warmup\')">🔥 חימום</button> <span class="del" onclick="upcomingDel(\''+t.id+'\')">🗑️</span></div>';
+  box.appendChild(d);});}
 
 /* ---------- hero quotes ---------- */
 var HERO_QUOTES=["אלופים לא נולדים בשולחן הגמר — הם נבנים בכל החלטה קטנה שלפניו.","ההבדל בין בינוני למצוין הוא מה שאתה עושה כשהכי קשה לקפל.","ICM לא לוקח ממך אגרסיביות — הוא מלמד אותך מתי היא שווה זהב.","כל יד היא הזדמנות ללמוד. כל סשן הוא עוד צעד קדימה.","הסבלנות שליד השולחן נבנית בתרגול הרחק ממנו.","אתה כבר יודע לשחק. עכשיו לומדים לנצח את השלבים המאוחרים.","החלטה נכונה חוזרת אלף פעם — זה מה שהופך מזל לתוצאה."];
