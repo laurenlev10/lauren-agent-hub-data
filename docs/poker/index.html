@@ -123,6 +123,28 @@
   .goalcard.done .gtrack>div{background:var(--ok)}
   .goalcard .gval{font-size:12px;color:var(--muted);white-space:nowrap}
   .chartbox{position:relative;height:240px;margin-top:10px}
+
+  /* lessons / academy */
+  .lesson{background:var(--card2);border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden}
+  .lesson.done{border-color:var(--ok)}
+  .lesson summary{cursor:pointer;padding:14px 16px;font-size:15px;list-style:none;display:flex;align-items:center;gap:10px}
+  .lesson summary::-webkit-details-marker{display:none}
+  .lesson .lico{font-size:20px}
+  .lesson .lmin{color:var(--muted);font-size:12px;margin-inline-start:auto}
+  .lesson .ldone{color:var(--ok);font-weight:800;font-size:16px}
+  .lesson .lbody{padding:0 16px 16px;font-size:14px;line-height:1.75;color:#dcece4}
+  .lesson .ltake{margin-top:10px;background:rgba(233,196,106,.07);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  .lesson .ltake ul{margin:6px 0 0;padding-inline-start:18px}
+  .lesson .ltake li{margin:3px 0}
+  .learnhead{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .learnhead .lvlbar{flex:1;margin-top:0}
+  /* recommended flow */
+  .flow{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .fstep{display:flex;align-items:center;gap:12px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;transition:.12s}
+  .fstep:hover{border-color:var(--gold);transform:translateX(-2px)}
+  .fnum{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#3a2b06;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .fstep .ftxt{flex:1}.fstep .ftitle{font-weight:700;font-size:14px}.fstep .fdesc{font-size:12px;color:var(--muted)}
+  .fstep .farrow{color:var(--gold);font-size:18px}
 </style>
 </head>
 <body>
@@ -137,6 +159,7 @@
 <div class="wrap">
   <div class="tabs">
     <div class="tab active" data-tab="overview">📊 סקירה</div>
+    <div class="tab" data-tab="learn">📚 לימוד</div>
     <div class="tab" data-tab="pushfold">♠️ Push/Fold</div>
     <div class="tab" data-tab="spot">🎯 ICM</div>
     <div class="tab" data-tab="math">🧮 Math</div>
@@ -158,6 +181,18 @@
         <span class="hero-badge">🏅 דרגה: <b id="hero-level" style="color:var(--gold);margin-inline-start:4px">—</b></span>
         <span class="hero-badge">🔥 רצף: <b id="hero-streak" style="color:var(--gold);margin-inline-start:4px">0</b></span>
         <span class="hero-badge">🎯 דיוק: <b id="hero-acc" style="color:var(--gold);margin-inline-start:4px">—</b></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🗺️ מהיכן מתחילים?</h3>
+      <div class="mini">המסלול המומלץ — בדיוק בסדר הזה. אין צורך לנחש.</div>
+      <div class="flow">
+        <div class="fstep" onclick="go('learn')"><div class="fnum">1</div><div class="ftxt"><div class="ftitle">📚 למד את היסודות</div><div class="fdesc">10 שיעורים קצרים מאפס — GTO, ICM, Push/Fold, מיינדסט</div></div><div class="farrow">←</div></div>
+        <div class="fstep" onclick="go('pushfold')"><div class="fnum">2</div><div class="ftxt"><div class="ftitle">♠️ תרגל כל יום (5-10 דק')</div><div class="fdesc">Push/Fold ו-ICM — עד שזה הופך לאינטואיציה</div></div><div class="farrow">←</div></div>
+        <div class="fstep" onclick="go('spot')"><div class="fnum">3</div><div class="ftxt"><div class="ftitle">🎯 בחן את ההבנה</div><div class="fdesc">ספוטים אמיתיים של קאש-מול-טורניר</div></div><div class="farrow">←</div></div>
+        <div class="fstep" onclick="go('journal')"><div class="fnum">4</div><div class="ftxt"><div class="ftitle">📓 תעד ונתח כל טורניר</div><div class="fdesc">Buy-in, זכייה, וההערה החשובה: מה למדת</div></div><div class="farrow">←</div></div>
+        <div class="fstep" onclick="go('goals')"><div class="fnum">5</div><div class="ftxt"><div class="ftitle">🏁 כבוש יעדים ועלה בדרגה</div><div class="fdesc">אבני דרך שנפתחות מהאימון ומהיומן</div></div><div class="farrow">←</div></div>
       </div>
     </div>
 
@@ -196,6 +231,19 @@
     </div>
   </div>
 
+  <!-- ===== LEARN / ACADEMY ===== -->
+  <div class="panel" id="p-learn">
+    <div class="card">
+      <h3>📚 בית הספר ל-GTO בטורנירים</h3>
+      <div class="mini">מניחים שאתה מתחיל מאפס. עבור על השיעורים לפי הסדר — כל שיעור קצר, ובסופו כפתור לתרגל את מה שלמדת. סמן ✓ כשסיימת.</div>
+      <div class="learnhead" style="margin-top:12px">
+        <span class="mini" id="learnprog" style="white-space:nowrap">0/10 שיעורים</span>
+        <div class="lvlbar"><div id="learnfill" style="width:0%"></div></div>
+      </div>
+      <div id="learnlist" style="margin-top:10px"></div>
+    </div>
+  </div>
+
   <!-- ===== PUSH / FOLD ===== -->
   <div class="panel" id="p-pushfold">
     <div class="card">
@@ -219,6 +267,7 @@
   <!-- ===== ICM & SPOTS ===== -->
   <div class="panel" id="p-spot">
     <div class="card">
+      <div class="note">כל שאלה היא סיטואציה אמיתית מטורניר. בחר תשובה — ומיד תקבל את הנכונה + הסבר <b>למה ICM שינה אותה</b>. התחל ב"ICM".</div>
       <div class="chips" id="spotchips">
         <div class="chip active" data-c="all">הכל</div>
         <div class="chip" data-c="icm">ICM / קאש-מול-טורניר</div>
@@ -239,6 +288,7 @@
   <!-- ===== MATH ===== -->
   <div class="panel" id="p-math">
     <div class="card">
+      <div class="note">הכנס תשובה מספרית ולחץ בדוק. המערכת מגרילה מצב חדש בכל פעם ומראה את הנוסחה. המטרה: שהמספרים יהפכו לאינטואיציה.</div>
       <div class="chips" id="mathchips">
         <div class="chip active" data-m="mixed">🎲 מעורב</div>
         <div class="chip" data-m="mdf">MDF</div>
@@ -377,7 +427,7 @@ var STATE_REPO_FILE="docs/state/poker_training.json";
 var REPO="laurenlev10/lauren-agent-hub-data";
 var POKER={_updated_at:null,settings:{currency:"$"},
   stats:{answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}},
-  journal:[],goals_custom:[]};
+  journal:[],goals_custom:[],lessons_done:{}};
 var TOPIC_LABELS={pushfold:"Push/Fold",icm:"ICM / קאש-מול-טורניר",postflop:"Postflop",bluff:"בלוף/חסימות",mdf:"MDF (הגנה)",potodds:"Pot Odds",combos:"Bluff Combos"};
 function pick(a){return a[Math.floor(Math.random()*a.length)];}
 function todayKey(){return new Date().toISOString().slice(0,10);}
@@ -392,7 +442,7 @@ function record(topic,ok){
   if(ok){s.correct++;s.by_topic[topic].c++;s.daily[dk].c++;s.streak++;if(s.streak>s.best)s.best=s.streak;}else s.streak=0;
   renderOverview();scheduleSave();
 }
-function migrate(){if(!POKER.settings)POKER.settings={currency:"$"};if(!POKER.journal)POKER.journal=[];if(!POKER.goals_custom)POKER.goals_custom=[];if(!POKER.stats)POKER.stats={answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}};}
+function migrate(){if(!POKER.settings)POKER.settings={currency:"$"};if(!POKER.journal)POKER.journal=[];if(!POKER.goals_custom)POKER.goals_custom=[];if(!POKER.lessons_done)POKER.lessons_done={};if(!POKER.stats)POKER.stats={answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}};}
 function loadLocal(){try{var r=localStorage.getItem("poker_training_v1");if(r){var j=JSON.parse(r);if(j&&j.stats)POKER=j;}}catch(e){}migrate();}
 function saveLocal(){try{localStorage.setItem("poker_training_v1",JSON.stringify(POKER));}catch(e){}}
 async function loadCloud(){
@@ -432,6 +482,7 @@ function go(tab){
   if(tab==="pushfold"&&!window._pfLoaded){pfNext();window._pfLoaded=true;}
   if(tab==="spot"&&!window._spotLoaded){spotNext();window._spotLoaded=true;}
   if(tab==="math"&&!window._mathLoaded){mathNext();window._mathLoaded=true;}
+  if(tab==="learn")renderLearn();
   if(tab==="journal")renderJournal();
   if(tab==="goals")renderGoals();
   if(tab==="overview")renderOverview();
@@ -520,7 +571,9 @@ function milestones(){
   var s=POKER.stats,acc=s.answered?100*s.correct/s.answered:0;
   var pf=s.by_topic.pushfold||{a:0,c:0},ic=s.by_topic.icm||{a:0,c:0},k=journalKPIs();
   var pfp=pf.a>=20?Math.round(100*pf.c/pf.a):0,icp=ic.a>=15?Math.round(100*ic.c/ic.a):0,accp=s.answered>=30?Math.round(acc):0;
+  var ld=lessonsDoneCount();
   return [
+   {ico:"📚",label:"6 שיעורי יסוד",cur:ld,target:6,unit:""},
    {ico:"🎓",label:"תרגול ראשון",cur:Math.min(s.answered,1),target:1,unit:""},
    {ico:"💯",label:"100 ידיים תרגול",cur:s.answered,target:100,unit:""},
    {ico:"🔥",label:"רצף של 10 נכונות",cur:s.best,target:10,unit:""},
@@ -598,7 +651,8 @@ function renderOverview(){
 function renderAll(){renderOverview();var d=document.getElementById("j-date");if(d&&!d.value)d.value=todayKey();
   var cs=document.getElementById("j-cur");if(cs)cs.value=cur();
   if(document.getElementById("p-journal").classList.contains("active"))renderJournal();
-  if(document.getElementById("p-goals").classList.contains("active"))renderGoals();}
+  if(document.getElementById("p-goals").classList.contains("active"))renderGoals();
+  if(document.getElementById("p-learn").classList.contains("active"))renderLearn();}
 function resetStats(){if(!confirm("לאפס את נתוני האימון? (היומן יישמר)"))return;
   POKER.stats={answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}};renderOverview();scheduleSave();toast("נתוני האימון אופסו");}
 
@@ -731,6 +785,66 @@ document.addEventListener("keydown",function(e){if(e.key==="Enter"&&document.get
 
 /* ---------- toast ---------- */
 var _tt=null;function toast(msg){var t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");if(_tt)clearTimeout(_tt);_tt=setTimeout(function(){t.classList.remove("show");},2200);}
+
+/* ============================================================
+   LEARN / ACADEMY — teach before practice
+   ============================================================ */
+var LESSONS=[
+ {id:"gto",ico:"🧠",mins:2,title:"מה זה GTO — ולמה אתה צריך אותו",
+  body:"GTO (Game Theory Optimal) היא אסטרטגיה מאוזנת שאי אפשר לנצל — לא משנה מה היריב עושה, הוא לא מרוויח נגדך לאורך זמן. החדשות הטובות: בטורנירים אתה לא צריך GTO מושלם, אתה צריך את החלקים שמחזירים הכי הרבה — <b>Preflop נכון</b> ו-<b>ICM</b>. קודם מבינים את הבסיס, אחר כך מתרגלים אותו עד שהוא הופך לאינטואיציה.",
+  take:["GTO = אסטרטגיה שלא ניתנת לניצול","בטורניר מתמקדים ב-Preflop + ICM","לא צריך מושלם — צריך עקבי"],cta:{tab:"spot",label:"קדימה לספוטים"}},
+ {id:"icm",ico:"💰",mins:3,title:"ICM — צ'יפים הם לא כסף",
+  body:"בקאש כל צ'יפ שווה אותו דבר. בטורניר — לא. ככל שמתקרבים לפרסים, כל צ'יפ שאתה מסכן שווה יותר כסף ממה שאתה יכול לזכות. דוגמה: 4 שחקנים, פרסים 1000/500/300/200. אם לכולם 10,000 צ'יפ — ה-EV שלך בכסף הוא 500$. עכשיו אם לך 25,000 ולכל אחד מהשאר 5,000 — ה-EV שלך כ-850-900$, למרות שיש לך 'רק' חצי מהצ'יפים. <b>המסקנה:</b> סטאק גדול → שחק שמרן (כל צ'יפ יקר). סטאק קצר → אגרסיבי (אתה כבר מת אם לא תפעל).",
+  take:["צ'יפים ≠ כסף","סטאק גדול = לשחק שמרן","סטאק קצר = לשחק אגרסיבי"],cta:{tab:"spot",label:"תרגל ICM"}},
+ {id:"stack",ico:"📏",mins:2,title:"עומק סטאק — למה bb קובע הכל",
+  body:"כמה בליינדים (bb) יש לך זה הנתון הכי חשוב לפני כל החלטה. <b>100bb</b> — עמוק, הרבה פוסטפלופ. <b>40bb</b> — עדיין גמיש. <b>20-30bb</b> — אזור ה-3bet/fold. <b>15bb ומטה</b> — Push/Fold טהור. אותה יד משוחקת אחרת לגמרי לפי העומק: 88 עם 14bb זה שאב, עם 40bb זה קלל/רייז.",
+  take:["bb קובע את כל ההחלטה","15bb ומטה = Push/Fold","אותה יד = החלטה אחרת לפי עומק"],cta:{tab:"pushfold",label:"תרגל Push/Fold"}},
+ {id:"pf",ico:"♠️",mins:3,title:"Push/Fold — הכלי הכי חשוב בטורניר",
+  body:"עם 15bb ומטה, ברוב המצבים ההחלטה היא שאב-או-קיפול. יש טווחים מדויקים לפי סטאק ופוזיציה (הטבלה המלאה בלשונית '📖 מדריך'). ככל שהסטאק קטן יותר — דוחפים יותר ידיים. ככל שהפוזיציה מאוחרת יותר (Button) — רחב יותר; מ-MP צר. זה הכלי שהכי משפיע על התוצאות שלך.",
+  take:["≤15bb: שאב או קיפול","סטאק קצר יותר → טווח רחב יותר","BTN רחב, MP צר"],cta:{tab:"pushfold",label:"תרגל עכשיו"}},
+ {id:"zone",ico:"🎯",mins:3,title:"אזור 20-30bb — איפה מנוסים טועים",
+  body:"20-30bb הוא האזור שהכי כואב לשחקנים מנוסים. הטעות הנפוצה: לקרוא 3-bet עם AJ / KQ / 88-99 במקום 4bet-שאב או קיפול. <b>הכלל:</b> אם פתחו לפניך — ברוב המקרים קיפול או 3-bet All-in. ה-Call הכי מסוכן (משחק OOP בלי אופציות אחרי הפלופ). כשאתה פותח — היה אגרסיבי בגניבות מ-CO / BTN / SB.",
+  take:["אל תעשה flat-call ב-25bb","קיפול או 3bet-שאב","גנוב הרבה מ-CO/BTN"],cta:{tab:"spot",label:"ספוטים"}},
+ {id:"open",ico:"📋",mins:2,title:"טווחי פתיחה לפי שלב הטורניר",
+  body:"ככל שמתקדמים בטורניר — מצמצמים טווחים ב-30-40%. <b>מוקדם</b> (40+ שחקנים): CO ~25%, BTN 40-45%. <b>קרוב לבועה:</b> CO 12-14%, BTN 18-22%. <b>Final Table:</b> CO 10-12%, BTN 15-18%. הטבלה המלאה בלשונית '📖 מדריך'.",
+  take:["מאוחר יותר = צר יותר","BTN תמיד רחב מ-CO","קרוב לבועה = הידוק חד"],cta:{tab:"ref",label:"לטבלאות"}},
+ {id:"icmspots",ico:"🧩",mins:3,title:"ICM בפועל — מתי לקפל AK / TT / AQ",
+  body:"3 מצבים קלאסיים שקורים רק בטורניר: <b>(1)</b> בבועה, 12bb עם TT מול שאב 7bb — Fold (בקאש קלל קל). <b>(2)</b> שולחן גמר, 35bb עם AQ מול שאב 18bb — Fold. <b>(3)</b> נשארו 3, A9 ב-BB מול שאב — Fold גם אם +EV בצ'יפים. השאלה שתמיד תשאל אחרי כל יד: <i>'האם זו אותה החלטה בקאש? אם לא — למה ICM שינה אותה?'</i>",
+  take:["בבועה מקפלים גם ידיים חזקות","chipEV חיובי ≠ $EV חיובי","תמיד לשאול: קאש מול טורניר?"],cta:{tab:"spot",label:"תרגל ICM"}},
+ {id:"math",ico:"🧮",mins:3,title:"המתמטיקה — MDF, Pot Odds, איזון בלוף",
+  body:"שלוש נוסחאות שמנחות איזון: <b>MDF</b> (כמה להגן) = Pot/(Pot+Bet). <b>Pot Odds</b> (כמה אקוויטי צריך לקלל) = Call/(Pot+Call). <b>יחס ערך:בלוף</b> — בהימור פוט מלא 2:1, בחצי פוט 3:1. לא צריך לחשב חי בשולחן — צריך שהמספרים יהיו אינטואיציה.",
+  take:["MDF = Pot/(Pot+Bet)","הימור גדול → מגנים פחות","פוט מלא = 2:1 ערך:בלוף"],cta:{tab:"math",label:"תרגל מתמטיקה"}},
+ {id:"blockers",ico:"🃏",mins:2,title:"חסימות ובלופים על הריבר",
+  body:"בלוף טוב אינו אקראי — הוא נשען על חסימות. אם אתה מחזיק את ה-A של הצבע, יש פחות פלאשים חזקים ביד היריב → הוא מקפל יותר → הבלוף משתלם. על הריבר, בלי ערך show-down, בלוף מאוזן הוא הדרך היחידה לנצח את הפוט.",
+  take:["בלוף עם חסימות לידיים החזקות","אזן ערך מול בלוף","בלי show-down → בלוף מאוזן"],cta:{tab:"spot",label:"ספוטים"}},
+ {id:"mindset",ico:"🧘",mins:3,title:"מיינדסט — המשחק המנטלי",
+  body:"המשחק המנטלי מכריע לא פחות מהקלפים. <b>שחק החלטות, לא תוצאות:</b> יד בודדת היא מזל; החלטה נכונה שחוזרת אלף פעם היא תוצאה. <b>נהל Tilt:</b> אחרי bad-beat — קח נשימה, אל תשנה סגנון. <b>סבלנות אינה פסיביות:</b> היא לחכות לרגע שבו הקצה שלך גדול. <b>Bankroll:</b> שחק רק בטורנירים שאתה יכול להרשות לעצמך — כדי שכל החלטה תהיה נקייה מפחד.",
+  take:["שחק החלטות, לא תוצאות","אל תשנה סגנון אחרי bad-beat","סבלנות = לחכות לקצה","Bankroll נכון = החלטות נקיות"],cta:{tab:"overview",label:"חזרה לבית"}}
+];
+function lessonsDoneCount(){var d=POKER.lessons_done||{},n=0;LESSONS.forEach(function(l){if(d[l.id])n++;});return n;}
+function toggleLesson(id){POKER.lessons_done=POKER.lessons_done||{};POKER.lessons_done[id]=!POKER.lessons_done[id];renderLearn();renderOverview();scheduleSave();}
+function goLesson(tab){go(tab);}
+function renderLearn(){
+  var list=document.getElementById("learnlist");if(!list)return;list.innerHTML="";
+  var done=POKER.lessons_done||{};
+  LESSONS.forEach(function(l,i){
+    var isD=!!done[l.id];
+    var takes=l.take.map(function(t){return "<li>"+t+"</li>";}).join("");
+    var d=document.createElement("div");d.className="lesson"+(isD?" done":"");
+    d.innerHTML='<details><summary><span class="lico">'+l.ico+'</span><b>'+(i+1)+'. '+l.title+'</b>'+
+      '<span class="lmin">⏱ '+l.mins+' דק\'</span>'+(isD?'<span class="ldone">✓</span>':'')+'</summary>'+
+      '<div class="lbody">'+l.body+
+      '<div class="ltake"><b>מה לזכור:</b><ul>'+takes+'</ul></div>'+
+      '<div class="row-actions">'+
+      '<button class="btn ghost" onclick="toggleLesson(\''+l.id+'\')">'+(isD?'↩ בטל סימון':'✓ סמן כנלמד')+'</button>'+
+      '<button class="btn primary" onclick="goLesson(\''+l.cta.tab+'\')">'+l.cta.label+' →</button>'+
+      '</div></div></details>';
+    list.appendChild(d);
+  });
+  var n=lessonsDoneCount();
+  var pr=document.getElementById("learnprog");if(pr)pr.textContent=n+"/"+LESSONS.length+" שיעורים";
+  var fl=document.getElementById("learnfill");if(fl)fl.style.width=Math.round(100*n/LESSONS.length)+"%";
+}
 
 /* ---------- hero quotes ---------- */
 var HERO_QUOTES=["אלופים לא נולדים בשולחן הגמר — הם נבנים בכל החלטה קטנה שלפניו.","ההבדל בין בינוני למצוין הוא מה שאתה עושה כשהכי קשה לקפל.","ICM לא לוקח ממך אגרסיביות — הוא מלמד אותך מתי היא שווה זהב.","כל יד היא הזדמנות ללמוד. כל סשן הוא עוד צעד קדימה.","הסבלנות שליד השולחן נבנית בתרגול הרחק ממנו.","אתה כבר יודע לשחק. עכשיו לומדים לנצח את השלבים המאוחרים.","החלטה נכונה חוזרת אלף פעם — זה מה שהופך מזל לתוצאה."];
