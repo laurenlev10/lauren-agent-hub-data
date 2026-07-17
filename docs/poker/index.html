@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🃏 GTO Trainer — MTT</title>
+<style>
+  :root{
+    --felt:#0b3d2e; --felt2:#0a2e23; --gold:#e9c46a; --gold2:#d4a83a;
+    --ink:#eaf4ef; --muted:#9fc4b4; --card:#0f4a37; --card2:#0d3f2f;
+    --ok:#22c55e; --bad:#ef4444; --warn:#f59e0b; --chip:#134e3a; --line:#1c6047;
+    --red:#e5484d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:var(--ink);
+    background:radial-gradient(circle at 50% 0%,#12543e 0%,var(--felt) 45%,var(--felt2) 100%);
+    min-height:100vh;padding:0 0 60px}
+  a{color:inherit}
+  .wrap{max-width:940px;margin:0 auto;padding:0 16px}
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 16px 8px;max-width:940px;margin:0 auto;flex-wrap:wrap}
+  .brand h1{margin:0;font-size:26px;letter-spacing:.5px}
+  .brand .sub{color:var(--muted);font-size:13px;margin-top:2px}
+  .backlink{background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13px;text-decoration:none;color:var(--gold)}
+  .tabs{display:flex;gap:8px;margin:14px 0;flex-wrap:wrap}
+  .tab{flex:1;min-width:110px;text-align:center;padding:12px 8px;border-radius:12px;background:var(--card2);border:1px solid var(--line);cursor:pointer;font-size:14px;font-weight:600;user-select:none;transition:.15s}
+  .tab.active{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#3a2b06;border-color:var(--gold)}
+  .panel{display:none;animation:fade .2s}.panel.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin:12px 0;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+  h3{margin:0 0 6px}
+  .statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  @media(max-width:640px){.statgrid{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+  .stat .n{font-size:30px;font-weight:800;color:var(--gold)}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:2px}
+  .bars{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+  .barrow{display:flex;align-items:center;gap:10px}
+  .barrow .name{width:150px;font-size:13px;color:var(--muted)}
+  .bartrack{flex:1;height:14px;background:var(--card2);border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+  .barfill{height:100%;background:linear-gradient(90deg,var(--gold2),var(--gold));border-radius:8px;transition:width .4s}
+  .barrow .pct{width:86px;text-align:left;font-size:12px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 14px}
+  .chip{padding:8px 14px;border-radius:999px;background:var(--chip);border:1px solid var(--line);cursor:pointer;font-size:13px;user-select:none}
+  .chip.active{background:var(--gold);color:#3a2b06;border-color:var(--gold);font-weight:700}
+  .qmeta{color:var(--gold);font-weight:700;font-size:14px;margin-bottom:6px}
+  .qbox{font-size:19px;line-height:1.55;margin:4px 0 14px;min-height:52px}
+  .scene{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0 14px;font-size:16px;line-height:1.6}
+  .opts{display:flex;flex-direction:column;gap:10px}
+  .opt{padding:14px 16px;border-radius:12px;background:var(--card2);border:1px solid var(--line);cursor:pointer;font-size:15px;transition:.12s}
+  .opt:hover{border-color:var(--gold)}
+  .opt.correct{background:rgba(34,197,94,.18);border-color:var(--ok)}
+  .opt.wrong{background:rgba(239,68,68,.16);border-color:var(--bad)}
+  .opt.dim{opacity:.55}
+  .numrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  input.num{font-size:22px;padding:12px 14px;width:150px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--ink);text-align:center}
+  .unit{color:var(--muted);font-size:16px}
+  .btn{padding:12px 22px;border-radius:12px;border:none;cursor:pointer;font-size:15px;font-weight:700}
+  .btn.primary{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#3a2b06}
+  .btn.ghost{background:var(--card2);color:var(--ink);border:1px solid var(--line)}
+  .btn.big{flex:1;min-width:140px;padding:20px;font-size:18px}
+  .btn.shove{background:linear-gradient(135deg,#f59e0b,#e5484d);color:#fff}
+  .btn.fold{background:var(--card2);color:var(--ink);border:1px solid var(--line)}
+  .feedback{margin-top:14px;padding:14px 16px;border-radius:12px;font-size:15px;line-height:1.6;display:none}
+  .feedback.show{display:block}
+  .feedback.good{background:rgba(34,197,94,.14);border:1px solid var(--ok)}
+  .feedback.err{background:rgba(239,68,68,.12);border:1px solid var(--bad)}
+  .feedback .formula{margin-top:8px;color:var(--gold);font-family:Consolas,monospace;font-size:14px;direction:ltr;text-align:left}
+  .handbig{font-size:48px;font-weight:800;letter-spacing:4px;text-align:center;margin:6px 0}
+  .handbig .r{color:#ff6b6b}
+  .pfmeta{display:flex;justify-content:center;gap:26px;margin:2px 0 12px;flex-wrap:wrap}
+  .pfmeta div{text-align:center}
+  .pfmeta .v{font-size:24px;font-weight:800;color:var(--gold)}
+  .pfmeta .k{font-size:12px;color:var(--muted)}
+  .weak{background:rgba(245,158,11,.12);border:1px solid var(--warn);border-radius:12px;padding:12px 16px;margin-top:12px;font-size:14px}
+  .note{background:rgba(233,196,106,.08);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.6;margin:10px 0}
+  .sync{font-size:12px;color:var(--muted);margin-top:10px;text-align:center}.sync b{color:var(--gold)}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;opacity:0;transition:.3s;z-index:99;border:1px solid var(--line)}.toast.show{opacity:1}
+  .mini{font-size:12px;color:var(--muted);margin-top:4px}
+  .row-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .kbd{display:inline-block;background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:12px;color:var(--muted)}
+  table.rng{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  table.rng th,table.rng td{border:1px solid var(--line);padding:8px 10px;text-align:right}
+  table.rng th{background:var(--card2);color:var(--gold)}
+  table.rng td.pos{color:var(--muted);white-space:nowrap}
+  code.rr{direction:ltr;display:inline-block;font-family:Consolas,monospace;color:var(--ink)}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>🃏 GTO Trainer — MTT</h1>
+    <div class="sub">מסלול הלמידה של אלי: Preflop לפי עומק סטאק · ICM · Push/Fold · ניתוח החלטות</div>
+  </div>
+  <a class="backlink" href="../">← חזרה למרכז</a>
+</header>
+
+<div class="wrap">
+  <div class="tabs">
+    <div class="tab active" data-tab="overview">📊 סקירה</div>
+    <div class="tab" data-tab="pushfold">♠️ Push / Fold</div>
+    <div class="tab" data-tab="spot">🎯 ICM & ספוטים</div>
+    <div class="tab" data-tab="math">🧮 Math Drills</div>
+    <div class="tab" data-tab="ref">📖 טווחים וכללים</div>
+  </div>
+
+  <!-- ===== OVERVIEW ===== -->
+  <div class="panel active" id="p-overview">
+    <div class="card">
+      <div class="statgrid">
+        <div class="stat"><div class="n" id="s-acc">—</div><div class="l">דיוק כולל</div></div>
+        <div class="stat"><div class="n" id="s-streak">0</div><div class="l">רצף נוכחי 🔥</div></div>
+        <div class="stat"><div class="n" id="s-best">0</div><div class="l">רצף שיא</div></div>
+        <div class="stat"><div class="n" id="s-today">0</div><div class="l">תרגלת היום</div></div>
+      </div>
+      <div class="weak" id="weakbox" style="display:none"></div>
+    </div>
+    <div class="card">
+      <h3>דיוק לפי נושא</h3>
+      <div class="mini">הנקודה החלשה מודגשת למעלה — שם כדאי להשקיע.</div>
+      <div class="bars" id="topicbars"></div>
+    </div>
+    <div class="card">
+      <div class="note"><b>מסלול הלמידה שלך (מהשיחה):</b> להתמקד בשני הדברים עם התשואה הכי גבוהה — <b>Preflop לפי עומק סטאק</b> ו-<b>ICM</b>. אזור ה-<b>20-30bb</b> הוא הכי כואב לשחקנים מנוסים. השאלה שמלווה כל החלטה: <i>"האם זו אותה החלטה בקאש? אם לא — למה ה-ICM שינה אותה?"</i></div>
+      <div class="row-actions">
+        <button class="btn primary" onclick="go('pushfold')">♠️ תרגל Push/Fold</button>
+        <button class="btn ghost" onclick="go('spot')">🎯 תרגל ICM</button>
+        <button class="btn ghost" onclick="go('math')">🧮 מתמטיקה</button>
+        <button class="btn ghost" onclick="resetStats()">איפוס נתונים</button>
+      </div>
+      <div class="sync" id="syncline">מסונכרן דרך GitHub · <b id="syncstate">טוען…</b></div>
+    </div>
+  </div>
+
+  <!-- ===== PUSH / FOLD ===== -->
+  <div class="panel" id="p-pushfold">
+    <div class="card">
+      <div class="note">כשמקפלים אליך (folded to you) — <b>שאב או קיפול?</b> הטווחים מבוססים על טבלת ה-3-bet-All-in לפי סטאק מהשיחה. שים לב: אלה טווחי <b>chipEV</b> — קרוב לבועה מהדקים אותם.</div>
+      <div class="handbig" id="pf-hand">—</div>
+      <div class="pfmeta">
+        <div><div class="v" id="pf-stack">—</div><div class="k">סטאק (bb)</div></div>
+        <div><div class="v" id="pf-pos">—</div><div class="k">פוזיציה</div></div>
+      </div>
+      <div class="row-actions">
+        <button class="btn big shove" onclick="pfAnswer(true)">🚀 שאב (All-in)</button>
+        <button class="btn big fold" onclick="pfAnswer(false)">🚮 קיפול</button>
+      </div>
+      <div class="feedback" id="pf-fb"></div>
+      <div class="row-actions" id="pf-nextrow" style="display:none">
+        <button class="btn primary" onclick="pfNext()">הבא ← <span class="kbd">Enter</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ICM & SPOTS ===== -->
+  <div class="panel" id="p-spot">
+    <div class="card">
+      <div class="chips" id="spotchips">
+        <div class="chip active" data-c="all">הכל</div>
+        <div class="chip" data-c="icm">ICM / קאש-מול-טורניר</div>
+        <div class="chip" data-c="pushfold">Push/Fold</div>
+        <div class="chip" data-c="postflop">Postflop</div>
+        <div class="chip" data-c="bluff">בלוף / חסימות</div>
+      </div>
+      <div class="qmeta" id="sp-cat"></div>
+      <div class="scene" id="sp-q"></div>
+      <div class="opts" id="sp-opts"></div>
+      <div class="feedback" id="sp-fb"></div>
+      <div class="row-actions" id="sp-nextrow" style="display:none">
+        <button class="btn primary" onclick="spotNext()">הבא ←</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MATH ===== -->
+  <div class="panel" id="p-math">
+    <div class="card">
+      <div class="chips" id="mathchips">
+        <div class="chip active" data-m="mixed">🎲 מעורב</div>
+        <div class="chip" data-m="mdf">MDF — הגנה</div>
+        <div class="chip" data-m="potodds">Pot Odds — אקוויטי</div>
+        <div class="chip" data-m="combos">Bluff Combos</div>
+      </div>
+      <div class="qmeta" id="m-topic"></div>
+      <div class="qbox" id="m-q"></div>
+      <div class="numrow">
+        <input class="num" id="m-input" type="number" step="0.1" inputmode="decimal" placeholder="?">
+        <span class="unit" id="m-unit">%</span>
+        <button class="btn primary" id="m-check" onclick="mathCheck()">בדוק</button>
+        <button class="btn ghost" id="m-next" onclick="mathNext()" style="display:none">הבא ←</button>
+      </div>
+      <div class="mini"><span class="kbd">Enter</span> בודק / עובר לשאלה הבאה.</div>
+      <div class="feedback" id="m-fb"></div>
+    </div>
+  </div>
+
+  <!-- ===== REFERENCE ===== -->
+  <div class="panel" id="p-ref">
+    <div class="card">
+      <h3>🥇 כללי הזהב</h3>
+      <div class="note">ככל שאתה יותר <b>קרוב לבועה</b> וככל שהסטאק שלך יותר <b>בינוני</b> — שחק יותר <b>שמרני</b>. ככל שהסטאק יותר קצר — יותר <b>אגרסיבי</b> (כי אתה כבר "מת" אם לא תפעל).</div>
+      <div class="note"><b>שיטת החזרה היומית:</b> אחרי כל סשן, קח <b>3 ידיים</b> ושאל: (1) האם זו אותה החלטה בקאש? (2) אם לא — למה שיניתי? זה הכלי הכי מהיר להפנים ICM.</div>
+    </div>
+    <div class="card">
+      <h3>♠️ Push / Fold — 3-bet All-in לפי סטאק</h3>
+      <div class="mini">כשמקפלים אליך. זה "הדבר הכי חשוב בטורנירים".</div>
+      <table class="rng">
+        <tr><th>סטאק</th><th>פוזיציה</th><th>טווח שאב</th></tr>
+        <tr><td rowspan="3">12–15bb</td><td class="pos">MP</td><td><code class="rr">77+, AQ+, AJs+, KQs</code></td></tr>
+        <tr><td class="pos">CO</td><td><code class="rr">66+, AJ+, ATs+, KQs, KJs</code></td></tr>
+        <tr><td class="pos">BTN</td><td><code class="rr">55+, AT+, A8s+, KJs+, QJs, JTs</code></td></tr>
+        <tr><td rowspan="3">16–22bb</td><td class="pos">MP</td><td><code class="rr">88+, AK, AQs</code></td></tr>
+        <tr><td class="pos">CO</td><td><code class="rr">77+, AQ+, AJs</code></td></tr>
+        <tr><td class="pos">BTN</td><td><code class="rr">66+, AJ+, ATs+, KQs</code></td></tr>
+        <tr><td>23–30bb</td><td class="pos">כללי</td><td><code class="rr">99+, AK, AQs</code> — ולרוב עדיף 3-bet קטן, לא all-in</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>📋 טווחי פתיחה לפי שלב הטורניר</h3>
+      <table class="rng">
+        <tr><th>שלב</th><th>CO</th><th>BTN</th><th>Blinds (הגנה)</th></tr>
+        <tr><td class="pos">מוקדם (40+ שחקנים)</td><td>~25%</td><td>40–45%</td><td>רחב מאוד</td></tr>
+        <tr><td class="pos">קרוב לבועה</td><td>12–14%</td><td>18–22%</td><td>צר בהרבה</td></tr>
+        <tr><td class="pos">Final Table</td><td>10–12%</td><td>15–18%</td><td>מאוד צר</td></tr>
+      </table>
+      <div class="mini">כלל: ככל שמתקרבים לשלבים המאוחרים — לצמצם את הטווח ב-30-40%.</div>
+    </div>
+    <div class="card">
+      <h3>🎯 אזור 25bb (הכי כואב)</h3>
+      <div class="note"><b>פתיחה:</b> MP 14% (<code class="rr">77+, AJs+, AQo+, KQs</code>) · CO 22% · BTN 35–38%.<br>
+      <b>קלל נגד Raise:</b> מ-MP רק <code class="rr">88+, AQs, AK</code> · מ-CO <code class="rr">77+, AJs+, AQo, KQs</code>.<br>
+      <b>הכלל:</b> אם פתחו לפניך — ברוב המקרים <b>קיפול או 3-bet All-in</b>. ה-Call הוא הכי מסוכן (out of position, בלי אופציות אחרי הפלופ).</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   GTO Trainer — MTT   (client-side, math + ranges verified)
+   Focus per Eli's learning path: Preflop by stack · ICM · Push/Fold
+   Progress synced via GitHub Contents API (IRON RULE #7).
+   ============================================================ */
+var STATE_URL="../state/poker_training.json";
+var STATE_REPO_FILE="docs/state/poker_training.json";
+var REPO="laurenlev10/lauren-agent-hub-data";
+var POKER={_updated_at:null,stats:{answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}}};
+var TOPIC_LABELS={pushfold:"Push/Fold",icm:"ICM / קאש-מול-טורניר",postflop:"Postflop",bluff:"בלוף/חסימות",mdf:"MDF (הגנה)",potodds:"Pot Odds",combos:"Bluff Combos"};
+
+/* ---------- persistence ---------- */
+function todayKey(){return new Date().toISOString().slice(0,10);}
+function ensureTopic(t){if(!POKER.stats.by_topic[t])POKER.stats.by_topic[t]={a:0,c:0};}
+function record(topic,ok){
+  var s=POKER.stats;ensureTopic(topic);
+  s.answered++;s.by_topic[topic].a++;
+  var dk=todayKey();if(!s.daily[dk])s.daily[dk]={a:0,c:0};s.daily[dk].a++;
+  if(ok){s.correct++;s.by_topic[topic].c++;s.daily[dk].c++;s.streak++;if(s.streak>s.best)s.best=s.streak;}
+  else{s.streak=0;}
+  renderOverview();scheduleSave();
+}
+function loadLocal(){try{var r=localStorage.getItem("poker_training_v1");if(r){var j=JSON.parse(r);if(j&&j.stats)POKER=j;}}catch(e){}}
+function saveLocal(){try{localStorage.setItem("poker_training_v1",JSON.stringify(POKER));}catch(e){}}
+async function loadCloud(){
+  try{var r=await fetch(STATE_URL+"?_="+Date.now(),{cache:"no-store"});
+    if(r.ok){var j=await r.json();var ct=Date.parse(j._updated_at||0)||0,lt=Date.parse(POKER._updated_at||0)||0;
+      if(ct>=lt&&j.stats)POKER=j;}}catch(e){}
+  renderOverview();setSync(hasToken()?"מוכן לסנכרון":"מקומי (אין GitHub token)");
+}
+function hasToken(){return !!(localStorage.getItem("lauren_gh_token_v1")||"").trim();}
+function setSync(t){var el=document.getElementById("syncstate");if(el)el.textContent=t;}
+var _saveTimer=null,_saving=false;
+function scheduleSave(){saveLocal();POKER._updated_at=new Date().toISOString();
+  if(_saveTimer)clearTimeout(_saveTimer);_saveTimer=setTimeout(saveCloud,6000);}
+async function saveCloud(){
+  if(_saving)return;var token=(localStorage.getItem("lauren_gh_token_v1")||"").trim();
+  if(!token){setSync("מקומי בלבד (אין token)");return;}
+  _saving=true;setSync("שומר…");
+  try{var base="https://api.github.com/repos/"+REPO+"/contents/"+STATE_REPO_FILE;var sha=null;
+    var g=await fetch(base+"?ref=main&_="+Date.now(),{headers:{Authorization:"token "+token,Accept:"application/vnd.github+json"},cache:"no-store"});
+    if(g.ok){var gj=await g.json();sha=gj.sha;}
+    POKER._updated_at=new Date().toISOString();
+    var content=JSON.stringify(POKER,null,2);
+    var body={message:"poker-training: progress "+new Date().toISOString(),content:btoa(unescape(encodeURIComponent(content))),branch:"main"};
+    if(sha)body.sha=sha;
+    var p=await fetch(base,{method:"PUT",headers:{Authorization:"token "+token,Accept:"application/vnd.github+json","Content-Type":"application/json"},body:JSON.stringify(body)});
+    setSync(p.ok?"נשמר ב-GitHub ✓ "+new Date().toLocaleTimeString('he-IL'):"שמירה נכשלה ⚠");
+  }catch(e){setSync("שמירה נכשלה ⚠");}
+  _saving=false;
+}
+window.addEventListener("pagehide",function(){if(_saveTimer){clearTimeout(_saveTimer);saveCloud();}});
+document.addEventListener("visibilitychange",function(){if(document.visibilityState==="hidden"&&_saveTimer){clearTimeout(_saveTimer);saveCloud();}});
+
+/* ---------- tabs ---------- */
+function go(tab){
+  document.querySelectorAll(".tab").forEach(function(t){t.classList.toggle("active",t.dataset.tab===tab);});
+  document.querySelectorAll(".panel").forEach(function(p){p.classList.remove("active");});
+  document.getElementById("p-"+tab).classList.add("active");
+  if(tab==="pushfold"&&!window._pfLoaded){pfNext();window._pfLoaded=true;}
+  if(tab==="spot"&&!window._spotLoaded){spotNext();window._spotLoaded=true;}
+  if(tab==="math"&&!window._mathLoaded){mathNext();window._mathLoaded=true;}
+  if(tab==="overview")renderOverview();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+document.querySelectorAll(".tab").forEach(function(t){t.onclick=function(){go(t.dataset.tab);};});
+
+/* ---------- overview ---------- */
+function renderOverview(){
+  var s=POKER.stats;var acc=s.answered?Math.round(100*s.correct/s.answered):null;
+  document.getElementById("s-acc").textContent=acc===null?"—":acc+"%";
+  document.getElementById("s-streak").textContent=s.streak||0;
+  document.getElementById("s-best").textContent=s.best||0;
+  var dk=todayKey();document.getElementById("s-today").textContent=(s.daily[dk]&&s.daily[dk].a)||0;
+  var order=["pushfold","icm","mdf","potodds","combos","postflop","bluff"];
+  var box=document.getElementById("topicbars");box.innerHTML="";var worst=null,wp=101;
+  order.forEach(function(t){var rec=s.by_topic[t];if(!rec||rec.a===0)return;
+    var pct=Math.round(100*rec.c/rec.a);if(rec.a>=3&&pct<wp){wp=pct;worst=t;}
+    var row=document.createElement("div");row.className="barrow";
+    row.innerHTML='<div class="name">'+TOPIC_LABELS[t]+'</div><div class="bartrack"><div class="barfill" style="width:'+pct+'%"></div></div><div class="pct">'+pct+'% ('+rec.c+'/'+rec.a+')</div>';
+    box.appendChild(row);});
+  if(box.innerHTML==="")box.innerHTML='<div class="mini">עוד לא תרגלת. בחר מודול והתחל 🙂</div>';
+  var wb=document.getElementById("weakbox");
+  if(worst){wb.style.display="block";wb.innerHTML="⚠️ הנקודה החלשה שלך כרגע: <b>"+TOPIC_LABELS[worst]+"</b> ("+wp+"% הצלחה). כדאי לתרגל אותה יותר.";}
+  else wb.style.display="none";
+}
+function resetStats(){if(!confirm("לאפס את כל נתוני התרגול?"))return;
+  POKER.stats={answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}};renderOverview();scheduleSave();toast("הנתונים אופסו");}
+
+/* ============================================================
+   PUSH / FOLD TRAINER — ranges encoded from the conversation
+   ============================================================ */
+function rankVal(c){return {A:14,K:13,Q:12,J:11,T:10}[c]||parseInt(c,10);}
+function rankChar(r){return {14:"A",13:"K",12:"Q",11:"J",10:"T"}[r]||String(r);}
+function canonHand(r1,r2,suited){if(r1===r2)return rankChar(r1)+rankChar(r1);var hi=Math.max(r1,r2),lo=Math.min(r1,r2);return rankChar(hi)+rankChar(lo)+(suited?"s":"o");}
+function expandToken(tok,set){
+  tok=tok.replace(/-/g,"").replace(/10/g,"T").trim();
+  if(/^([2-9TJQKA])\1\+$/.test(tok)){var r=rankVal(tok[0]);for(var x=r;x<=14;x++)set.add(rankChar(x)+rankChar(x));return;}
+  if(/^([2-9TJQKA])\1$/.test(tok)){set.add(tok);return;}
+  var plus=/\+$/.test(tok),suitedFlag=/s\+?$/.test(tok);
+  var core=tok.replace(/\+$/,"").replace(/s$/,"");
+  if(core.length!==2)return;
+  var hi=rankVal(core[0]),kick=rankVal(core[1]);
+  var incs=suitedFlag?[true]:[true,false];
+  var topKick=plus?hi-1:kick;
+  for(var k=kick;k<=topKick;k++){if(k===hi)continue;incs.forEach(function(su){set.add(canonHand(hi,k,su));});}
+}
+function buildSet(tokens){var s=new Set();tokens.forEach(function(t){expandToken(t,s);});return s;}
+var PF_RAW={
+ "12-15":{MP:["77+","AQ+","AJs+","KQs"],CO:["66+","AJ+","ATs+","KQs","KJs"],BTN:["55+","AT+","A8s+","KJs+","QJs","JTs"]},
+ "16-22":{MP:["88+","AK","AQs"],CO:["77+","AQ+","AJs"],BTN:["66+","AJ+","ATs+","KQs"]},
+ "23-30":{MP:["99+","AK","AQs"],CO:["99+","AK","AQs"],BTN:["99+","AK","AQs"]}
+};
+var PF_SETS={};Object.keys(PF_RAW).forEach(function(b){PF_SETS[b]={};Object.keys(PF_RAW[b]).forEach(function(p){PF_SETS[b][p]=buildSet(PF_RAW[b][p]);});});
+var BUCKET_STACKS={"12-15":[12,13,14,15],"16-22":[16,18,20,22],"23-30":[24,26,28,30]};
+var POS_LABEL={MP:"MP (אמצעית)",CO:"Cutoff",BTN:"Button"};
+var SUITS=["♠","♥","♦","♣"];var REDSUIT={"♥":1,"♦":1};
+function pick(a){return a[Math.floor(Math.random()*a.length)];}
+function randHandDisplay(){
+  var ranks=[14,13,12,11,10,9,8,7,6,5,4,3,2];
+  var r1=pick(ranks),r2=pick(ranks);
+  var suited=false,s1,s2;
+  if(r1===r2){s1=pick(SUITS);do{s2=pick(SUITS);}while(s2===s1);}
+  else{suited=Math.random()<0.30;s1=pick(SUITS);if(suited)s2=s1;else{do{s2=pick(SUITS);}while(s2===s1);}}
+  return {r1:r1,r2:r2,suited:suited,canon:canonHand(r1,r2,suited),
+    hi:Math.max(r1,r2),lo:Math.min(r1,r2),
+    disp:'<span class="'+(REDSUIT[s1]?"r":"")+'">'+rankChar(r1)+s1+'</span> <span class="'+(REDSUIT[s2]?"r":"")+'">'+rankChar(r2)+s2+'</span>'};
+}
+var curPF=null;
+function pfNext(){
+  var bucket=pick(Object.keys(PF_RAW)),pos=pick(["MP","CO","BTN"]),stack=pick(BUCKET_STACKS[bucket]);
+  var h=randHandDisplay();var shove=PF_SETS[bucket][pos].has(h.canon);
+  curPF={bucket:bucket,pos:pos,stack:stack,hand:h,shove:shove};
+  document.getElementById("pf-hand").innerHTML=h.disp;
+  document.getElementById("pf-stack").textContent=stack;
+  document.getElementById("pf-pos").textContent=POS_LABEL[pos];
+  document.getElementById("pf-fb").className="feedback";
+  document.getElementById("pf-nextrow").style.display="none";
+}
+function pfAnswer(choseShove){
+  if(!curPF||document.getElementById("pf-nextrow").style.display!=="none")return;
+  var ok=(choseShove===curPF.shove);record("pushfold",ok);
+  var fb=document.getElementById("pf-fb");
+  var verdict=curPF.shove?"שאב 🚀":"קיפול 🚮";
+  var rangeTxt=PF_RAW[curPF.bucket][curPF.pos].join(", ");
+  var extra=curPF.bucket==="23-30"?" בעומק הזה לרוב עדיף 3-bet קטן על all-in — שאב רק עם הקצה הזה.":"";
+  var icmNote=" 🔸 זכור: זה chipEV — קרוב לבועה מהדקים את הטווח.";
+  fb.className="feedback show "+(ok?"good":"err");
+  fb.innerHTML=(ok?"✅ נכון! ":"❌ לא — התשובה: <b>"+verdict+"</b>")+
+    "<div style='margin-top:8px'>ב-<b>"+curPF.stack+"bb</b> מ-<b>"+POS_LABEL[curPF.pos]+"</b> טווח השאב: <code class='rr'>"+rangeTxt+"</code>."+extra+icmNote+"</div>";
+  document.getElementById("pf-nextrow").style.display="";
+}
+document.addEventListener("keydown",function(e){
+  if(e.key==="Enter"&&document.getElementById("p-pushfold").classList.contains("active")&&document.getElementById("pf-nextrow").style.display!=="none")pfNext();
+});
+
+/* ============================================================
+   ICM & SPOT QUIZ
+   ============================================================ */
+var SPOTS=[
+ {c:"icm",q:"<b>Bubble</b> (השולחן האחרון לפני הפרסים). יש לך <b>12bb</b> עם <b>T♠T♥</b>. שחקן עם <b>7bb</b> עושה all-in לפניך. בקאש זה קלל קל. ומה בטורניר?",
+  o:["קלל","קיפול","depends"],a:1,
+  why:"בטורניר — Fold. אם תפסיד אתה יוצא בלי פרס; אם תנצח הרווחת רק ~14bb. ה-ICM אומר שהסיכון גדול בהרבה מהתועלת. זו בדיוק ההחלטה ש'הפוכה' מקאש."},
+ {c:"icm",q:"<b>Final Table</b>, 6 שחקנים. יש לך <b>35bb</b>. שחקן עם <b>18bb</b> עושה all-in באמצע, ולך <b>A♣Q♦</b>. בקאש קוראים. ומה בטורניר?",
+  o:["קלל","קיפול","raise"],a:1,
+  why:"Fold. AQo מול טווח all-in של 18bb היא רק מעט מעל 50%, והסיכון הכספי עצום בשולחן גמר. chipEV חיובי אבל $EV שלילי."},
+ {c:"icm",q:"נשארו <b>3 שחקנים</b>. אתה 2nd עם <b>25bb</b>, המנהיג 55bb, ולך <b>A♠9♦</b> ב-BB. ה-SB (השלישי, 20bb) עושה all-in. מה עושים?",
+  o:["קלל — A9 מול SB רחב","קיפול — ICM","raise"],a:1,
+  why:"Fold. גם אם זה +EV בצ'יפים, זה −EV בכסף: אם תפסיד תישאר עם ~5bb ב-3 ידיים; אם תנצח תהפוך לשני עם פער קטן. הקפיצה בפרס לא מצדיקה את הסיכון."},
+ {c:"icm",q:"18 שחקנים, <b>11 מקומות בתשלום</b> (קרוב לבועה). יש לך <b>14bb</b> ב-CO עם <b>8♥8♠</b>. שחקן עם 40bb פותח 2.2bb מ-MP. מה הכי נכון?",
+  o:["קלל ולראות פלופ","קיפול","3-bet All-in"],a:1,
+  why:"קרוב לבועה עם סטאק בינוני — 88 כאן הוא לרוב Fold. הטווח של פותח 40bb מ-MP חזק; קלל משאיר אותך out-of-position, ו-3bet-shove מסכן את כל הסטאק ממש לפני הכסף. (מוקדם יותר בטורניר — זה היה 3bet-שאב קל.)"},
+ {c:"icm",q:"אותו מצב אבל מוקדם בטורניר — <b>50 שחקנים</b> נשארו, אתה עם <b>8♥8♠</b> ו-14bb, פותחים לפניך מ-MP. איך משחקים לעומת קרוב-לבועה?",
+  o:["יותר אגרסיבי (3bet-שאב סביר)","אותו דבר בדיוק","יותר שמרני"],a:0,
+  why:"רחוק מהבועה אין לחץ ICM כמעט — 88 עם 14bb הוא 3-bet All-in סטנדרטי. אותה יד משנה ערך דרמטית לפי שלב הטורניר. זה לב ה-ICM."},
+ {c:"icm",q:"<b>סאטלייט</b>: N הראשונים מקבלים כרטיס שווה-ערך, ואתה כבר <b>מובטח בנוחות</b> (30bb). מישהו עושה all-in 25bb לתוך <b>A♠A♥</b> שלך. מה עושים?",
+  o:["קלל — אלה אלות","קיפול — כבר בפנים","raise"],a:1,
+  why:"בסאטלייט, אם אתה כבר מובטח — כל צ'יפ נוסף כמעט חסר ערך, אבל הפסד מסכן את הכרטיס. מקפלים אפילו AA. זה המצב הכי קיצוני של ICM."},
+ {c:"icm",q:"<b>Bubble</b>, אתה <b>צ'יפ-לידר</b>. סטאק קצר עושה all-in ולך <b>K♠Q♠</b> ב-BB, מכסה בקלות. מה עושים?",
+  o:["קלל — לוחץ, סיכון קטן","קיפול","depends"],a:0,
+  why:"כצ'יפ-לידר הסיכון היחסי קטן וניצחון מחסל יריב. KQs מול טווח שאב רחב של קצר = קלל קל. כאן ICM דווקא מעודד ללחוץ על הקצרים — בניגוד לסטאק בינוני שחייב להיזהר."},
+ // ---- Push/Fold ----
+ {c:"pushfold",q:"טורניר מאוחר. <b>6bb</b> ב-<b>UTG</b>, היד <b>9♦8♦</b>. מה עושים?",
+  o:["All-in","קיפול","לימפ"],a:0,
+  why:"בסטאק 5-7bb, 98s זה שאב סטנדרטי גם מ-UTG. (בעומק 10-15bb זה כבר Fold מ-UTG.) הבעיה בידיים כאלה היא בד״כ שהיריב קורא רחב מדי — לא השאב שלך."},
+ {c:"pushfold",q:"<b>10bb</b> ב-<b>Button</b>, מקפלים אליך, היד <b>K♣9♦</b>. שאב או קיפול?",
+  o:["All-in","קיפול","min-raise"],a:0,
+  why:"טווח השאב מה-BTN ב-10bb רחב מאוד (~40-50%). K9o בפנים. לוקח את הבליינדים בתדירות גבוהה."},
+ {c:"pushfold",q:"<b>25bb</b>, מישהו פתח לפניך מ-CO ואתה ב-BTN עם <b>A♣J♦</b>. מה בד״כ הכי טוב?",
+  o:["3-bet All-in או קיפול","קלל בלבד","min-raise/fold"],a:0,
+  why:"ב-25bb, כשפתחו לפניך, ה-Call הוא הכי מסוכן (OOP-ish, בלי אופציות אחרי הפלופ). AJo כאן — או 3-bet-שאב או קיפול. זו הטעות הנפוצה של מנוסים: לקרוא 3bet במקום."},
+ // ---- Postflop ----
+ {c:"postflop",q:"פתחת BTN, ה-BB קילל. פלופ <b>A♠7♦2♣</b> (יבש). ה-BB עשה check. אתה ה-PFR. הכי GTO?",
+  o:["c-bet קטן (~⅓) בתדירות גבוהה","c-bet פוט","check back"],a:0,
+  why:"בורד A-high יבש — יתרון טווח ו-nut ברור. c-bet קטן על כמעט כל הטווח: זול, לוקח פוטים, ומכחיש equity."},
+ {c:"postflop",q:"פתחת מ-UTG, ה-BB קילל. פלופ <b>9♥7♥6♠</b> (רטוב, מחובר). ה-BB עשה check. נכון יותר?",
+  o:["check בתדירות גבוהה","c-bet גדול על כל הטווח","all-in"],a:0,
+  why:"הבורד פוגע בטווח ההגנה של ה-BB יותר מבטווח פתיחת UTG. מוותרים על יתרון הטווח — בודקים הרבה, מגנים בזהירות."},
+ // ---- Bluff / blockers / MDF ----
+ {c:"bluff",q:"ריבר, הבורד השלים <b>שלושה לבבות</b>. אין לך זוג אבל אתה מחזיק <b>A♥</b> (חוסם פלאש-גבוה). מהלך GTO?",
+  o:["בלוף — חוסם את הצבע החזק","ויתור","קלל"],a:0,
+  why:"עקרון החסימות: A♥ מפחית קומבינציות פלאש חזק אצל היריב → הוא מקפל יותר. אלה בדיוק הידיים שכדאי לבלף איתן."},
+ {c:"bluff",q:"ריבר. היריב מהמר <b>פוט מלא</b>. לפי MDF צריך להגן ~50%, והיד שלך בדיוק <b>bluff-catcher</b> בתחתית הטווח. מה עושה GTO?",
+  o:["מערבב (indifferent)","תמיד קלל","תמיד קיפול"],a:0,
+  why:"בנקודת האיזון ה-bluff-catcher אדיש (EV קלל = EV קיפול). GTO מערבב בתדירות ששומרת אותך בלתי-ניתן-לניצול."},
+ {c:"bluff",q:"היריב מהמר <b>הימור-יתר 2× פוט</b> על הריבר. כמה עליך להגן (MDF)?",
+  o:["~33%","~50%","~67%"],a:0,
+  why:"MDF = Pot/(Pot+Bet) = 100/300 = 33%. הימור גדול → מגנים על פחות. אל תיפול למלכודת 'להגן יותר מדי' מול הימורים ענקיים."},
+];
+var spotCat="all",spotPool=[],spotIdx=0,curSpot=null;
+document.querySelectorAll("#spotchips .chip").forEach(function(c){
+  c.onclick=function(){document.querySelectorAll("#spotchips .chip").forEach(function(x){x.classList.remove("active");});
+    c.classList.add("active");spotCat=c.dataset.c;buildSpotPool();spotNext();};});
+function buildSpotPool(){
+  spotPool=SPOTS.map(function(_,i){return i;}).filter(function(i){return spotCat==="all"||SPOTS[i].c===spotCat;});
+  for(var i=spotPool.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=spotPool[i];spotPool[i]=spotPool[j];spotPool[j]=t;}
+  spotIdx=0;
+}
+function spotNext(){
+  if(!spotPool.length)buildSpotPool();if(spotIdx>=spotPool.length)buildSpotPool();
+  curSpot=SPOTS[spotPool[spotIdx]];spotIdx++;
+  document.getElementById("sp-cat").textContent=TOPIC_LABELS[curSpot.c]||curSpot.c;
+  document.getElementById("sp-q").innerHTML=curSpot.q;
+  var box=document.getElementById("sp-opts");box.innerHTML="";
+  curSpot.o.forEach(function(txt,i){var d=document.createElement("div");d.className="opt";d.innerHTML=txt;d.onclick=function(){spotAnswer(i);};box.appendChild(d);});
+  document.getElementById("sp-fb").className="feedback";
+  document.getElementById("sp-nextrow").style.display="none";
+}
+function spotAnswer(i){
+  if(document.getElementById("sp-nextrow").style.display!=="none")return;
+  var ok=(i===curSpot.a);record(curSpot.c,ok);
+  var opts=document.getElementById("sp-opts").children;
+  for(var k=0;k<opts.length;k++){if(k===curSpot.a)opts[k].classList.add("correct");else if(k===i)opts[k].classList.add("wrong");else opts[k].classList.add("dim");opts[k].onclick=null;}
+  var fb=document.getElementById("sp-fb");fb.className="feedback show "+(ok?"good":"err");
+  fb.innerHTML=(ok?"✅ נכון!":"❌ לא — התשובה: <b>"+curSpot.o[curSpot.a]+"</b>")+"<div style='margin-top:8px'>"+curSpot.why+"</div>";
+  document.getElementById("sp-nextrow").style.display="";
+}
+
+/* ============================================================
+   MATH DRILLS  (verified)
+   MDF=Pot/(Pot+Bet) · PotOdds=Call/(PotNow+Call) · Bluffs=Value*Bet/(Pot+Bet)
+   ============================================================ */
+var mathMode="mixed";
+document.querySelectorAll("#mathchips .chip").forEach(function(c){
+  c.onclick=function(){document.querySelectorAll("#mathchips .chip").forEach(function(x){x.classList.remove("active");});
+    c.classList.add("active");mathMode=c.dataset.m;mathNext();};});
+var POTS=[60,80,100,120,150,180,200,240];
+var FRACS=[{f:0.33,txt:"⅓ פוט"},{f:0.5,txt:"½ פוט"},{f:0.66,txt:"⅔ פוט"},{f:0.75,txt:"¾ פוט"},{f:1,txt:"פוט מלא"},{f:1.25,txt:"1.25× פוט"},{f:1.5,txt:"1.5× פוט"},{f:2,txt:"2× פוט"}];
+var VALUES=[6,8,9,12,15,16,18,20,24];var curMath=null;
+function genMath(mode){
+  if(mode==="mixed")mode=pick(["mdf","potodds","combos"]);
+  var pot=pick(POTS),fr=pick(FRACS),bet=Math.round(pot*fr.f);
+  if(mode==="mdf"){var ans=100*pot/(pot+bet);
+    return {topic:"mdf",unit:"%",tol:1.5,ans:ans,
+      q:"הקופה <b>$"+pot+"</b>. היריב מהמר <b>$"+bet+"</b> ("+fr.txt+"). כמה אחוז מהטווח חובה להגן כדי לא להיות ניתן לניצול?",
+      formula:"MDF = Pot/(Pot+Bet) = "+pot+"/"+(pot+bet)+" = "+ans.toFixed(1)+"%",
+      why:"אם תגן פחות מזה — בלוף בגודל הזה מרוויח אוטומטית. הימור גדול יותר → מגנים פחות."};}
+  if(mode==="potodds"){var pn=pot+bet,call=bet,a=100*call/(pn+call);
+    return {topic:"potodds",unit:"%",tol:1.5,ans:a,
+      q:"בקופה עכשיו <b>$"+pn+"</b> (כולל הימור היריב). לקלל אתה משלם <b>$"+call+"</b>. כמה אקוויטי צריך שהקלל יהיה רווחי בדיוק?",
+      formula:"Equity = Call/(Pot+Call) = "+call+"/"+(pn+call)+" = "+a.toFixed(1)+"%",
+      why:"סף האיזון: אם היד זוכה ביותר מזה — קלל רווחי; פחות — זריקה."};}
+  var V=pick(VALUES),bl=V*bet/(pot+bet),ans2=Math.round(bl);
+  return {topic:"combos",unit:"קומבינציות",tol:0.6,ans:ans2,integer:true,
+    q:"יש לך <b>"+V+"</b> קומבינציות ערך שאיתן אתה מהמר על הריבר בגודל <b>"+fr.txt+"</b>. כמה קומבינציות בלוף לאיזון GTO?",
+    formula:"Bluffs = Value × Bet/(Pot+Bet) = "+V+"×"+bet+"/"+(pot+bet)+" = "+bl.toFixed(1)+" ≈ "+ans2,
+    why:"היחס ערך:בלוף בהימור פוט = 2:1, בחצי פוט 3:1, ובהימור-יתר קטן יותר. הימור גדול → יותר בלופים מותרים."};
+}
+function mathNext(){
+  curMath=genMath(mathMode);
+  document.getElementById("m-topic").textContent=TOPIC_LABELS[curMath.topic];
+  document.getElementById("m-q").innerHTML=curMath.q;
+  document.getElementById("m-unit").textContent=curMath.unit;
+  var inp=document.getElementById("m-input");inp.value="";inp.disabled=false;inp.focus();
+  document.getElementById("m-check").style.display="";document.getElementById("m-next").style.display="none";
+  document.getElementById("m-fb").className="feedback";
+}
+function mathCheck(){
+  if(!curMath)return;var raw=document.getElementById("m-input").value;if(raw===""){toast("הכנס תשובה");return;}
+  var val=parseFloat(raw),ok=Math.abs(val-curMath.ans)<=curMath.tol;record(curMath.topic,ok);
+  var fb=document.getElementById("m-fb");var at=curMath.integer?curMath.ans:curMath.ans.toFixed(1)+"%";
+  fb.className="feedback show "+(ok?"good":"err");
+  fb.innerHTML=(ok?"✅ נכון! ":"❌ לא מדויק. הנכון: <b>"+at+"</b>")+'<div class="formula">'+curMath.formula+'</div><div style="margin-top:8px">'+curMath.why+'</div>';
+  document.getElementById("m-input").disabled=true;document.getElementById("m-check").style.display="none";
+  document.getElementById("m-next").style.display="";document.getElementById("m-next").focus();
+}
+document.getElementById("m-input").addEventListener("keydown",function(e){if(e.key==="Enter")mathCheck();});
+document.addEventListener("keydown",function(e){
+  if(e.key==="Enter"&&document.getElementById("p-math").classList.contains("active")&&document.getElementById("m-next").style.display!=="none")mathNext();});
+
+/* ---------- toast ---------- */
+var _tt=null;
+function toast(msg){var t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");if(_tt)clearTimeout(_tt);_tt=setTimeout(function(){t.classList.remove("show");},2200);}
+
+/* ---------- init ---------- */
+loadLocal();renderOverview();buildSpotPool();loadCloud();
+</script>
+</body>
+</html>
