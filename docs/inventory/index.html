@@ -10028,6 +10028,12 @@ function openCompareInvoiceModal(supplierCode, supplierName, orderIndex, opts){
   $("#cmpResult").innerHTML = '';
   $("#cmpFile").value = '';
   var cb0 = document.getElementById('cmpConfirmBlock'); if (cb0) cb0.style.display = 'none';
+  // Lauren 2026-07-17 — RESET the confirm button on every open. The shared modal
+  // (cmpModalBg) is reused across suppliers; after a successful push confirmInvoiceCompared
+  // leaves cmpConfirmBtn disabled + labeled "\u2705 \u05D4\u05E1\u05EA\u05D9\u05D9\u05DD". Without this reset the NEXT
+  // supplier inherits the stuck/disabled button, so Lauren can't push its invoice.
+  var cb0btn = document.getElementById('cmpConfirmBtn');
+  if (cb0btn) { cb0btn.disabled = false; cb0btn.textContent = '\u2705 \u05E2\u05D3\u05DB\u05DF \u05E7\u05D1\u05DC\u05EA \u05E1\u05D7\u05D5\u05E8\u05D4'; }
   $("#cmpModalBg").style.display = 'flex';
 
   // Try to restore a previously parsed invoice — from the appropriate slot
