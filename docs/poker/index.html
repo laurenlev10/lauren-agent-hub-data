@@ -1223,6 +1223,16 @@ var LESSONS=[
   body:"המשחק המנטלי מכריע לא פחות מהקלפים. <b>שחק החלטות, לא תוצאות:</b> יד בודדת היא מזל; החלטה נכונה שחוזרת אלף פעם היא תוצאה. <b>נהל Tilt:</b> אחרי bad-beat — קח נשימה, אל תשנה סגנון. <b>סבלנות אינה פסיביות:</b> היא לחכות לרגע שבו הקצה שלך גדול. <b>Bankroll:</b> שחק רק בטורנירים שאתה יכול להרשות לעצמך — כדי שכל החלטה תהיה נקייה מפחד.",
   take:["שחק החלטות, לא תוצאות","אל תשנה סגנון אחרי bad-beat","סבלנות = לחכות לקצה","Bankroll נכון = החלטות נקיות"],cta:{tab:"overview",label:"חזרה לבית"}}
 ];
+var LESSON_SIM={gto:1,stack:1,pf:1,icm:2,open:3,zone:4,icmspots:5};
+var LESSON_SIM_NAME={1:"Push/Fold",2:"מול Shove",3:"מול Open",4:"מול 3-bet",5:"ICM לחוץ"};
+function goSimLevel(n){
+  var S=simState();
+  S.mode="levels";
+  if(S.unlocked<n)S.unlocked=n;   // לימוד השיעור פותח את הרמה
+  S.level=n;curSim=null;
+  scheduleSave();go("sim");
+  renderSimMode();renderSimLevels();genSim();
+}
 function lessonsDoneCount(){var d=POKER.lessons_done||{},n=0;LESSONS.forEach(function(l){if(d[l.id])n++;});return n;}
 function toggleLesson(id){POKER.lessons_done=POKER.lessons_done||{};POKER.lessons_done[id]=!POKER.lessons_done[id];renderLearn();renderOverview();scheduleSave();}
 function goLesson(tab){go(tab);}
@@ -1236,10 +1246,11 @@ function renderLearn(){
     d.innerHTML='<details><summary><span class="lico">'+l.ico+'</span><b>'+(i+1)+'. '+l.title+'</b>'+
       '<span class="lmin">⏱ '+l.mins+' דק\'</span>'+(isD?'<span class="ldone">✓</span>':'')+'</summary>'+
       '<div class="lbody">'+l.body+
-      '<div class="ltake"><b>מה לזכור:</b><ul>'+takes+'</ul></div>'+
+      '<div class="ltake"><b>מה לזכור:</b><ul>'+takes+'</ul>'+(LESSON_SIM[l.id]?'<div class="mini" style="margin-top:8px">🎲 התרגול המתאים: <b>רמה '+LESSON_SIM[l.id]+' — '+LESSON_SIM_NAME[LESSON_SIM[l.id]]+'</b> בסימולטור (השיעור פותח אותה).</div>':'')+'</div>'+
       '<div class="row-actions">'+
       '<button class="btn ghost" onclick="toggleLesson(\''+l.id+'\')">'+(isD?'↩ בטל סימון':'✓ סמן כנלמד')+'</button>'+
       '<button class="btn primary" onclick="goLesson(\''+l.cta.tab+'\')">'+l.cta.label+' →</button>'+
+      (LESSON_SIM[l.id]?'<button class="btn primary" onclick="goSimLevel('+LESSON_SIM[l.id]+')">🎲 תרגל בסימולטור: '+LESSON_SIM_NAME[LESSON_SIM[l.id]]+' →</button>':'')+
       '</div></div></details>';
     list.appendChild(d);
   });
