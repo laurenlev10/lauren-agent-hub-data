@@ -175,6 +175,13 @@
   .cards{direction:ltr;unicode-bidi:isolate;display:inline-block;white-space:nowrap}
   .pfmode{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 10px}
   .pfscen{text-align:center;color:var(--gold);font-weight:700;font-size:15px;margin:2px 0 8px}
+
+  /* glossary */
+  .gsearch{width:100%;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--ink);font-size:15px;font-family:inherit}
+  .gcat{color:var(--gold);font-weight:800;font-size:14px;margin:16px 0 7px;border-bottom:1px solid var(--line);padding-bottom:4px}
+  .gitem{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 13px;margin-bottom:7px}
+  .gterm{font-weight:800;font-size:14px;direction:ltr;unicode-bidi:isolate;display:inline-block;color:var(--gold)}
+  .gdef{font-size:13px;color:#cfe3da;line-height:1.65;margin-top:3px}
 </style>
 </head>
 <body>
@@ -526,6 +533,12 @@
   <!-- ===== REFERENCE ===== -->
   <div class="panel" id="p-ref">
     <div class="card">
+      <h3>📕 מילון מושגים</h3>
+      <div class="mini">כל מונח שמופיע במערכת, עם הסבר בעברית. אפשר לחפש גם מונח וגם מילה מתוך ההסבר.</div>
+      <input class="gsearch" id="gsearch" placeholder="🔍 חיפוש… (למשל ICM, MDF, Blocker, Bubble)" oninput="renderGlossary()" style="margin-top:10px">
+      <div id="glist" style="margin-top:6px"></div>
+    </div>
+    <div class="card">
       <h3>🥇 כללי הזהב</h3>
       <div class="note">ככל שאתה יותר <b>קרוב לבועה</b> והסטאק <b>בינוני</b> — שחק יותר <b>שמרני</b>. ככל שהסטאק <b>קצר</b> — יותר <b>אגרסיבי</b> (אתה כבר "מת" אם לא תפעל).</div>
       <div class="note"><b>שיטת החזרה היומית:</b> אחרי כל סשן קח <b>3 ידיים</b> ושאל: (1) האם זו אותה החלטה בקאש? (2) אם לא — למה שיניתי? הכלי הכי מהיר להפנים ICM.</div>
@@ -657,6 +670,7 @@ function go(tab){
   if(tab==="math"&&!window._mathLoaded){mathNext();window._mathLoaded=true;}
   if(tab==="learn")renderLearn();
   if(tab==="career")renderCareer();
+  if(tab==="ref")renderGlossary();
   if(tab==="journal"){renderJournal();renderHands();}
   if(tab==="exam")renderExam();
   if(tab==="upcoming")renderUpcoming();
@@ -1285,6 +1299,107 @@ function renderUpcoming(){var box=document.getElementById("u-list");if(!box)retu
    '<div class="gval"><button class="btn ghost" style="padding:6px 10px" onclick="go(\'warmup\')">🔥 חימום</button> <span class="del" onclick="upcomingDel(\''+t.id+'\')">🗑️</span></div>';
   box.appendChild(d);});}
 
+/* ============================================================
+   GLOSSARY
+   ============================================================ */
+var GLOSSARY=[
+["יסודות ותורת המשחק","GTO (Game Theory Optimal)","אסטרטגיה מאוזנת שאי אפשר לנצל: לא משנה מה היריב עושה, הוא לא מרוויח נגדך לאורך זמן. זו אסטרטגיה הגנתית — היא לא מנסה לנצל טעויות, אלא לא להפסיד."],
+["יסודות ותורת המשחק","Nash Equilibrium","נקודת שיווי משקל שבה לאף שחקן לא משתלם לסטות מהאסטרטגיה שלו. זה הבסיס המתמטי לטבלאות ה-Push/Fold במערכת."],
+["יסודות ותורת המשחק","Exploitative","ההפך מ-GTO: סטייה מכוונת מהאיזון כדי לנצל חולשה ספציפית של יריב. מרוויח יותר מול שחקן חלש, אבל חושף אותך לניצול בעצמך."],
+["יסודות ותורת המשחק","Solver","תוכנה שמחשבת את האסטרטגיה האופטימלית לסיטואציה נתונה (למשל GTO Wizard, PioSolver)."],
+["יסודות ותורת המשחק","EV (Expected Value)","תוחלת — כמה תרוויח או תפסיד בממוצע מהחלטה מסוימת אם תחזור עליה אינסוף פעמים. החלטה נכונה היא כזו עם EV חיובי, גם אם הפעם הפסדת."],
+["יסודות ותורת המשחק","chipEV","תוחלת שנמדדת בצ׳יפים. זו המדידה הרלוונטית בקאש ובשלבים מוקדמים של טורניר."],
+["יסודות ותורת המשחק","$EV","תוחלת שנמדדת בכסף אמיתי, אחרי התאמת ICM. בטורניר זה מה שבאמת קובע — יש החלטות עם chipEV חיובי אבל $EV שלילי."],
+["יסודות ותורת המשחק","Equity","אחוז הסיכוי של היד שלך לזכות בפוט מול יד או טווח מסוים. לדוגמה AK מול QQ היא בערך 43% equity."],
+["יסודות ותורת המשחק","Fold Equity","הערך שנובע מהסיכוי שהיריב פשוט יקפל. זה מה שהופך Shove ליד בינונית לרווחי — לא צריך לנצח בשואודאון."],
+["יסודות ותורת המשחק","Variance","התנודתיות — כמה התוצאות בפועל סוטות מהתוחלת. בטורנירים היא עצומה, ולכן שופטים החלטות ולא תוצאות."],
+["יסודות ותורת המשחק","Frequency","באיזו תדירות משחקים פעולה מסוימת. GTO מוגדר בתדירויות, לא בכללים נוקשים."],
+["יסודות ותורת המשחק","Mixed Strategy","לשחק את אותה יד לפעמים כך ולפעמים אחרת (למשל 50% Call, 50% Fold), כדי לא ליצור דפוס שניתן לקריאה."],
+["יסודות ותורת המשחק","Indifference","מצב שבו ל-EV של שתי האפשרויות זהה — לא משנה מה תעשה. זו המטרה שאליה GTO דוחף את היריב."],
+["יסודות ותורת המשחק","Range","כל אוסף הידיים שאפשר להחזיק בסיטואציה נתונה. שחקנים טובים חושבים בטווחים, לא בידיים בודדות."],
+["יסודות ותורת המשחק","Polarized Range","טווח מקוטב: ידיים חזקות מאוד + בלופים, בלי אמצע. מתאים להימורים גדולים."],
+["יסודות ותורת המשחק","Linear / Merged Range","טווח רציף של הידיים הטובות ביותר בסדר יורד, בלי בלופים. מתאים להימורים קטנים."],
+["יסודות ותורת המשחק","Range Advantage","מצב שבו הבורד מתאים לטווח שלך יותר מאשר לטווח היריב — מצדיק תוקפנות."],
+["יסודות ותורת המשחק","Nut Advantage","יתרון בידיים הכי חזקות שאפשר להחזיק על הבורד. מצדיק הימורים גדולים."],
+["יסודות ותורת המשחק","Blocker","קלף שאתה מחזיק ושמפחית את מספר הקומבינציות החזקות שהיריב יכול להחזיק. הבסיס לבלוף חכם."],
+["יסודות ותורת המשחק","Bluff-catcher","יד בינונית שמנצחת רק בלופים ומפסידה לכל יד אמיתית."],
+
+["פעולות בשולחן","All-in","להמר את כל הסטאק."],
+["פעולות בשולחן","Shove","All-in יזום, בדרך כלל בסטאק קצר. המונח המרכזי בטורנירים."],
+["פעולות בשולחן","Open-shove","Shove כשכולם קיפלו לפניך. טווח רחב יחסית."],
+["פעולות בשולחן","3-bet Shove","Shove מעל מישהו שכבר פתח. טווח צר בהרבה, כי הפותח כבר הראה חוזק."],
+["פעולות בשולחן","Fold","לזרוק את היד ולוותר על הפוט."],
+["פעולות בשולחן","Call","להשוות להימור של היריב."],
+["פעולות בשולחן","Check","לוותר על ההימור בלי לזרוק — להעביר את התור."],
+["פעולות בשולחן","Bet","הימור ראשון בסבב."],
+["פעולות בשולחן","Raise","להעלות מעל הימור קיים."],
+["פעולות בשולחן","Open / Open-raise","ההעלאה הראשונה בסבב הפריפלופ."],
+["פעולות בשולחן","3-bet","העלאה מעל ה-Open (ההעלאה השלישית בספירה כולל הבליינד)."],
+["פעולות בשולחן","4-bet","העלאה מעל 3-bet."],
+["פעולות בשולחן","Limp","להשלים את הבליינד בלי להעלות. נחשב חלש ברוב המצבים."],
+["פעולות בשולחן","C-bet (Continuation Bet)","הימור בפלופ על ידי מי שהעלה לפני הפלופ."],
+["פעולות בשולחן","Check-raise","לעשות Check ואז להעלות אחרי שהיריב הימר."],
+["פעולות בשולחן","Overbet","הימור גדול מהפוט. מגדיל את ה-Fold Equity ומאפשר יותר בלופים."],
+["פעולות בשולחן","Squeeze","3-bet אחרי שאחד פתח ואחר כבר עשה Call — לוחץ על שניהם."],
+["פעולות בשולחן","Cover","מצב שבו הסטאק שלך גדול מזה של היריב, כך שאתה לא יכול להתפוצץ מולו."],
+
+["פוזיציות","UTG (Under the Gun)","הראשון לפעול אחרי הבליינדים — הפוזיציה הכי מוקדמת והכי צרה."],
+["פוזיציות","MP (Middle Position)","פוזיציה אמצעית."],
+["פוזיציות","HJ (Hijack)","שתי פוזיציות לפני ה-Button."],
+["פוזיציות","CO (Cutoff)","הפוזיציה שלפני ה-Button. טווח רחב יחסית."],
+["פוזיציות","BTN (Button)","הפוזיציה הכי טובה — פועל אחרון אחרי הפלופ. הטווח הכי רחב."],
+["פוזיציות","SB (Small Blind)","בליינד קטן. מהמר חצי בליינד לפני חלוקת הקלפים ופועל ראשון אחרי הפלופ."],
+["פוזיציות","BB (Big Blind)","בליינד גדול. כבר השקיע כסף בפוט, ולכן מגן על טווח רחב."],
+["פוזיציות","IP / OOP","In Position — פועל אחרון (יתרון). Out of Position — פועל ראשון (חיסרון)."],
+
+["טורנירים","ICM (Independent Chip Model)","המודל שמתרגם צ׳יפים לכסף אמיתי. ככל שמתקרבים לפרסים, ערך הצ׳יפ שאתה מסכן גבוה מערך הצ׳יפ שאתה יכול לזכות — ולכן משחקים הדוק יותר."],
+["טורנירים","Bubble","הרגע שלפני הכסף — עוד שחקן אחד נופל וכולם בפרסים. השלב עם לחץ ה-ICM הגבוה ביותר."],
+["טורנירים","ITM (In The Money)","להגיע לתשלום."],
+["טורנירים","Final Table","שולחן הגמר. קפיצות הפרסים הגדולות ביותר, ולכן גם לחץ ICM מקסימלי."],
+["טורנירים","Pay Jump","הפרש הפרס בין מקום למקום. ככל שהקפיצה גדולה יותר — משחקים שמרני יותר."],
+["טורנירים","Risk Premium","התוספת ל-equity שאתה נדרש כדי להצדיק סיכון תחת ICM, מעבר לחישוב הרגיל בצ׳יפים."],
+["טורנירים","Bubble Factor","מדד לכמה יקר לך להתפוצץ מול יריב מסוים. הכי גבוה מול מי שמכסה אותך."],
+["טורנירים","Satellite","טורניר שבו הפרסים הם כרטיסים שווי-ערך. ברגע שהבטחת כרטיס, צ׳יפים נוספים כמעט חסרי ערך — ומקפלים אפילו AA."],
+["טורנירים","PKO / Bounty","טורניר עם פרס כספי על ראשו של כל שחקן. ערך ה-Bounty מצדיק Call רחב יותר מהרגיל."],
+["טורנירים","Stack Depth","עומק הסטאק בבליינדים (bb). הנתון הכי חשוב לפני כל החלטה."],
+["טורנירים","bb (Big Blinds)","יחידת המדידה של הסטאק. 15bb פירושו שיש לך פי 15 מהבליינד הגדול."],
+["טורנירים","Ante","תשלום חובה נוסף שמגדיל את הפוט ומעודד תוקפנות. ב-MTT מודרני משולם על ידי ה-BB (BB Ante)."],
+["טורנירים","Short Stack","סטאק קצר (בערך 15bb ומטה) — אזור ה-Push/Fold."],
+["טורנירים","Chip Leader","בעל הסטאק הגדול בשולחן. יכול ללחוץ על כולם כי הוא מסכן מעט יחסית."],
+["טורנירים","Push/Fold","אזור שבו ההחלטה מצטמצמת ל-Shove או Fold בלבד, כי אין מספיק צ׳יפים למשחק אחרי הפלופ."],
+["טורנירים","Freezeout / Re-entry / Rebuy","Freezeout — נפסלת ואין חזרה. Re-entry / Rebuy — אפשר לקנות כניסה נוספת."],
+["טורנירים","Deal","חלוקת פרסים מוסכמת בין השחקנים שנותרו בשולחן הגמר, בדרך כלל לפי ICM."],
+
+["מתמטיקה מעשית","MDF (Minimum Defense Frequency)","כמה אחוז מהטווח חייבים להגן כדי שהבלוף של היריב לא יהיה רווחי אוטומטית. הנוסחה: Pot ÷ (Pot + Bet). מול הימור פוט — 50%."],
+["מתמטיקה מעשית","Pot Odds","האקוויטי המינימלי שצריך כדי ש-Call יהיה רווחי. הנוסחה: Call ÷ (Pot + Call)."],
+["מתמטיקה מעשית","Implied Odds","הכסף הנוסף שאתה צופה לזכות בו בסבבים הבאים אם תפגע ביד. מצדיק Call שלא משתלם לפי Pot Odds בלבד."],
+["מתמטיקה מעשית","Value:Bluff Ratio","היחס בין ידיי ערך לבלופים שמשאיר את היריב אדיש. בהימור פוט — 2:1, בחצי פוט — 3:1."],
+["מתמטיקה מעשית","Combos","מספר הקומבינציות של יד: זוג = 6, Suited = 4, Offsuit = 12. הבסיס לאיזון בלופים."],
+["מתמטיקה מעשית","Outs","הקלפים שיהפכו את היד שלך למנצחת."],
+["מתמטיקה מעשית","Rule of 2 and 4","קירוב מהיר: מספר ה-Outs כפול 2 (קלף אחד לבוא) או כפול 4 (שני קלפים) נותן בערך את האקוויטי באחוזים."],
+["מתמטיקה מעשית","Suited / Offsuit","Suited (s) — שני קלפים באותו סימן. Offsuit (o) — סימנים שונים. Suited שווה יותר בזכות אפשרות ה-Flush."]
+];
+function renderGlossary(){
+  var box=document.getElementById("glist");if(!box)return;
+  var q=((document.getElementById("gsearch")||{}).value||"").trim().toLowerCase();
+  var cats=[],by={};
+  GLOSSARY.forEach(function(r){
+    var cat=r[0],term=r[1],def=r[2];
+    if(q && (term+" "+def+" "+cat).toLowerCase().indexOf(q)<0) return;
+    if(!by[cat]){by[cat]=[];cats.push(cat);}
+    by[cat].push([term,def]);
+  });
+  if(!cats.length){box.innerHTML='<div class="mini" style="margin-top:10px">לא נמצא מונח מתאים.</div>';return;}
+  var html="";
+  cats.forEach(function(c){
+    html+='<div class="gcat">'+c+'</div>';
+    by[c].forEach(function(it){
+      html+='<div class="gitem"><span class="gterm">'+it[0]+'</span><div class="gdef">'+it[1]+'</div></div>';
+    });
+  });
+  box.innerHTML=html;
+}
+
 /* ---------- hero quotes ---------- */
 var HERO_QUOTES=["אלופים לא נולדים בשולחן הגמר — הם נבנים בכל החלטה קטנה שלפניו.","ההבדל בין בינוני למצוין הוא מה שאתה עושה כשהכי קשה לקפל.","ICM לא לוקח ממך אגרסיביות — הוא מלמד אותך מתי היא שווה זהב.","כל יד היא הזדמנות ללמוד. כל סשן הוא עוד צעד קדימה.","הסבלנות שליד השולחן נבנית בתרגול הרחק ממנו.","אתה כבר יודע לשחק. עכשיו לומדים לנצח את השלבים המאוחרים.","החלטה נכונה חוזרת אלף פעם — זה מה שהופך מזל לתוצאה."];
 function initHero(){var q=document.getElementById("heroQuote");if(q)q.textContent="“"+pick(HERO_QUOTES)+"”";}
@@ -1333,7 +1448,7 @@ function maybeOnboard(){try{if(!localStorage.getItem("poker_tour_v1"))document.g
 window.addEventListener("resize",function(){var tip=document.getElementById("tourTip");if(tip&&tip.classList.contains("show"))positionTip(tourEl,tip);});
 
 /* ---------- init ---------- */
-loadLocal();initHero();renderAll();buildSpotPool();
+loadLocal();renderGlossary();initHero();renderAll();buildSpotPool();
 var jd=document.getElementById("j-date");if(jd)jd.value=todayKey();
 loadCloud();
 maybeOnboard();
