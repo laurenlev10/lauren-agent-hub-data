@@ -196,6 +196,9 @@
   .lvls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
   .lvl{flex:1;min-width:92px;text-align:center;padding:10px 6px;border-radius:12px;background:var(--card2);border:1px solid var(--line);cursor:pointer;font-size:12px}
   .lvl.active{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#3a2b06;border-color:var(--gold);font-weight:700}
+  .lvl .sp{font-size:10px;color:var(--muted)}
+  .lvl.active .sp{color:#4a3906;font-weight:600}
+  .lvl.active .ln{color:#3a2b06}
   .lvl.locked{opacity:.42;cursor:not-allowed}
   .lvl .ln{font-size:16px;font-weight:800}
   .seats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
@@ -1662,7 +1665,7 @@ function renderSimLevels(){
     var locked=L.n>S.unlocked, st=S.stats[L.n]||{a:0,c:0};
     var d=document.createElement("div");
     d.className="lvl"+(S.level===L.n?" active":"")+(locked?" locked":"");
-    d.innerHTML='<div class="ln">'+(locked?"🔒":L.n)+'</div><div>'+L.t+'</div><div class="sp" style="font-size:10px;color:var(--muted)">'+(st.a?Math.round(simAcc(L.n))+"% · "+st.a:L.d)+'</div>';
+    d.innerHTML='<div class="ln">'+(locked?"🔒":L.n)+'</div><div>'+L.t+'</div><div class="sp">'+(st.a?Math.round(simAcc(L.n))+"% · "+st.a:L.d)+'</div>';
     if(!locked)d.onclick=function(){S.level=L.n;genSim();renderSimLevels();scheduleSave();};
     box.appendChild(d);
   });
