@@ -169,6 +169,12 @@
   /* gentle attention pulse on primary in-page actions */
   .pulse-hint{animation:btnpulse 1.8s ease-in-out infinite}
   @keyframes btnpulse{0%,100%{box-shadow:0 0 0 0 rgba(233,196,106,.55)}50%{box-shadow:0 0 0 10px rgba(233,196,106,0)}}
+
+  /* card rendering must stay LTR inside RTL text */
+  .handbig{direction:ltr;unicode-bidi:isolate}
+  .cards{direction:ltr;unicode-bidi:isolate;display:inline-block;white-space:nowrap}
+  .pfmode{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 10px}
+  .pfscen{text-align:center;color:var(--gold);font-weight:700;font-size:15px;margin:2px 0 8px}
 </style>
 </head>
 <body>
@@ -290,16 +296,21 @@
   <!-- ===== PUSH / FOLD ===== -->
   <div class="panel" id="p-pushfold">
     <div class="card">
-      <div class="note"><b>למה יש כאן רק שתי אפשרויות?</b> בסטאק קצר (עד ~15bb), כשמקפלים אליך — ההחלטה מצטמצמת ל-<b>שאב (All-in)</b> או <b>קיפול</b>. אין raise קטן (כל העלאה כבר מחייבת את כל הסטאק) ואין call (אין הימור לשלם עליו). זו בדיוק הסיבה שזו המיומנות הכי חשובה בטורנירים — היא פשוטה וברורה. הטווחים הם <b>chipEV</b> סטנדרטיים; קרוב לבועה מהדקים אותם.</div>
+      <div class="note"><b>למה יש כאן רק שתי אפשרויות?</b> בסטאק קצר ההחלטה מצטמצמת ל-<b>Shove (All-in)</b> או <b>Fold</b> — אין Raise קטן (כל העלאה כבר מחייבת את הסטאק) ואין Call (אין הימור לשלם עליו). יש שני מצבים אמיתיים: <b>Open-shove</b> (מקפלים אליך) ו-<b>3-bet Shove</b> (פתחו לפניך) — בחר למעלה. טווחי ה-Open-shove מחושבים לפי <b>Nash equilibrium</b>.</div>
       <div class="row-actions" style="margin-top:-2px;margin-bottom:2px"><button class="btn ghost" onclick="go('learn')">📚 חדש בנושא? קרא קודם את השיעור על Push/Fold</button></div>
+      <div class="pfmode" id="pfmode">
+        <div class="chip active" data-pf="open">מקפלים אליך (Open-shove)</div>
+        <div class="chip" data-pf="threebet">פתחו לפניך (3-bet Shove)</div>
+      </div>
+      <div class="pfscen" id="pf-scenario">מקפלים אליך — Shove או Fold?</div>
       <div class="handbig" id="pf-hand">—</div>
       <div class="pfmeta">
         <div><div class="v" id="pf-stack">—</div><div class="k">סטאק (bb)</div></div>
         <div><div class="v" id="pf-pos">—</div><div class="k">פוזיציה</div></div>
       </div>
       <div class="row-actions">
-        <button class="btn big shove" onclick="pfAnswer(true)">🚀 שאב</button>
-        <button class="btn big fold" onclick="pfAnswer(false)">🚮 קיפול</button>
+        <button class="btn big shove" onclick="pfAnswer(true)">🚀 Shove</button>
+        <button class="btn big fold" onclick="pfAnswer(false)">🚮 Fold</button>
       </div>
       <div class="feedback" id="pf-fb"></div>
       <div class="row-actions" id="pf-nextrow" style="display:none">
@@ -430,11 +441,11 @@
       <h3>🃏 ניתוח ידיים — ספריית הידיים שלך</h3>
       <div class="mini">תעד יד מאתגרת או היד שעפת עליה. המערכת נותנת עיקרון GTO/ICM לפי העומק והשלב.</div>
       <div class="form-grid" style="margin-top:10px">
-        <div class="fld"><label>היד</label><input id="h-hand" placeholder="A♠K♦ / TT"></div>
+        <div class="fld"><label>היד</label><input id="h-hand" placeholder="<span class='cards'>A♠K♦</span> / TT"></div>
         <div class="fld"><label>סטאק (bb)</label><input type="number" id="h-stack" placeholder="14"></div>
         <div class="fld"><label>פוזיציה</label><input id="h-pos" placeholder="BTN / BB"></div>
         <div class="fld"><label>שלב</label><input id="h-stage" placeholder="בועה / שולחן גמר / מוקדם"></div>
-        <div class="fld"><label>מה עשית</label><input id="h-action" placeholder="שאב / קלל / קיפול"></div>
+        <div class="fld"><label>מה עשית</label><input id="h-action" placeholder="Shove / Call / Fold"></div>
         <div class="fld"><label>תוצאה</label><input id="h-result" placeholder="עפתי / זכיתי בפוט"></div>
         <div class="fld wide"><label>הערות / לקח</label><textarea id="h-notes" rows="2"></textarea></div>
       </div>
@@ -520,9 +531,19 @@
       <div class="note"><b>שיטת החזרה היומית:</b> אחרי כל סשן קח <b>3 ידיים</b> ושאל: (1) האם זו אותה החלטה בקאש? (2) אם לא — למה שיניתי? הכלי הכי מהיר להפנים ICM.</div>
     </div>
     <div class="card">
-      <h3>♠️ Push / Fold — 3-bet All-in לפי סטאק</h3>
+      <h3>♠️ Open-shove — טווחי Nash (מקפלים אליך)</h3>
+      <div class="mini">מחושב אצלנו לפי Nash equilibrium (chipEV · סטאקים שווים · BB ante). אחוז מהידיים שהם Shove:</div>
       <table class="rng">
-        <tr><th>סטאק</th><th>פוזיציה</th><th>טווח שאב</th></tr>
+        <tr><th>פוזיציה</th><th>6bb</th><th>8bb</th><th>10bb</th><th>12bb</th><th>15bb</th></tr>
+        <tr><td class="pos">MP</td><td>25.5%</td><td>17.6%</td><td>15.5%</td><td>14.3%</td><td>12.8%</td></tr>
+        <tr><td class="pos">CO</td><td>37.3%</td><td>33.0%</td><td>30.0%</td><td>28.8%</td><td>23.7%</td></tr>
+        <tr><td class="pos">BTN</td><td>49.6%</td><td>45.1%</td><td>40.6%</td><td>36.3%</td><td>33.6%</td></tr>
+        <tr><td class="pos">SB</td><td>77.4%</td><td>71.9%</td><td>65.9%</td><td>60.8%</td><td>55.1%</td></tr>
+      </table>
+      <div class="mini" style="margin-top:6px">ככל שהסטאק קצר יותר והפוזיציה מאוחרת יותר — הטווח רחב יותר. אלה טווחי chipEV; קרוב לבועה מהדקים.</div>
+      <h3 style="margin-top:18px">♠️ 3-bet Shove — Shove מעל מי שפתח</h3>
+      <table class="rng">
+        <tr><th>סטאק</th><th>פוזיציה</th><th>טווח Shove</th></tr>
         <tr><td rowspan="3">12–15bb</td><td class="pos">MP</td><td><code class="rr">77+, AQ+, AJs+, KQs</code></td></tr>
         <tr><td class="pos">CO</td><td><code class="rr">66+, AJ+, ATs+, KQs, KJs</code></td></tr>
         <tr><td class="pos">BTN</td><td><code class="rr">55+, AT+, A8s+, KJs+, QJs, JTs</code></td></tr>
@@ -545,8 +566,8 @@
     <div class="card">
       <h3>🎯 אזור 25bb (הכי כואב)</h3>
       <div class="note"><b>פתיחה:</b> MP 14% (<code class="rr">77+, AJs+, AQo+, KQs</code>) · CO 22% · BTN 35–38%.<br>
-      <b>קלל נגד Raise:</b> מ-MP רק <code class="rr">88+, AQs, AK</code> · מ-CO <code class="rr">77+, AJs+, AQo, KQs</code>.<br>
-      <b>הכלל:</b> אם פתחו לפניך — ברוב המקרים <b>קיפול או 3-bet All-in</b>. ה-Call הכי מסוכן.</div>
+      <b>Call נגד Raise:</b> מ-MP רק <code class="rr">88+, AQs, AK</code> · מ-CO <code class="rr">77+, AJs+, AQo, KQs</code>.<br>
+      <b>הכלל:</b> אם פתחו לפניך — ברוב המקרים <b>Fold או 3-bet All-in</b>. ה-Call הכי מסוכן.</div>
     </div>
   </div>
 </div>
@@ -846,45 +867,88 @@ function randHandDisplay(){
   return {canon:canonHand(r1,r2,suited),
     disp:'<span class="'+(REDSUIT[s1]?"r":"")+'">'+rankChar(r1)+s1+'</span> <span class="'+(REDSUIT[s2]?"r":"")+'">'+rankChar(r2)+s2+'</span>'};
 }
+var NASH={
+ "MP-6":{p:25.5,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K8s","QJs","QJo","QTs","JTs"]},
+ "MP-8":{p:17.6,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A7s","A6s","A5s","A4s","KQs","KQo","KJs","KJo","KTs","QJs","QTs","JTs","T9s","98s"]},
+ "MP-10":{p:15.5,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A8s","A7s","A5s","KQs","KQo","KJs","KTs","QJs","QTs","JTs","J9s","T9s","98s"]},
+ "MP-12":{p:14.3,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","A9s","A8s","KQs","KQo","KJs","KTs","K9s","QJs","QTs","JTs","J9s","T9s","98s"]},
+ "MP-15":{p:12.8,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","AKs","AKo","AQs","AQo","AJs","AJo","ATs","KQs","KQo","KJs","KTs","K9s","QJs","QTs","JTs","J9s","T9s","98s"]},
+ "CO-6":{p:37.3,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","A2o","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K9o","K8s","K8o","K7s","K7o","K6s","K6o","K5s","K4s","K3s","K2s","QJs","QJo","QTs","QTo","Q9s","Q9o","Q8s","Q7s","Q6s","JTs","JTo","J9s","J8s","T9s","T8s","98s"]},
+ "CO-8":{p:33.0,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","A2o","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K9o","K8s","K7s","K6s","K5s","QJs","QJo","QTs","QTo","Q9s","Q8s","JTs","JTo","J9s","J8s","T9s","T8s","98s","87s","86s","76s"]},
+ "CO-10":{p:30.0,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","A2o","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K8s","K7s","K6s","QJs","QJo","QTs","Q9s","JTs","J9s","J8s","T9s","T8s","98s","97s","87s","86s","76s"]},
+ "CO-12":{p:28.8,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A2s","KQs","KQo","KJs","KJo","KTs","KTo","K9s","QJs","QJo","QTs","QTo","Q9s","Q8s","JTs","J9s","J8s","T9s","T8s","98s","97s","87s","86s","76s","65s"]},
+ "CO-15":{p:23.7,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A6s","A5s","A4s","A3s","A2s","KQs","KQo","KJs","KJo","KTs","K9s","QJs","QJo","QTs","Q9s","Q8s","JTs","J9s","J8s","T9s","T8s","T7s","98s","97s","87s","86s","76s","65s"]},
+ "BTN-6":{p:49.6,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","A2o","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K9o","K8s","K8o","K7s","K7o","K6s","K6o","K5s","K5o","K4s","K4o","K3s","K3o","K2s","K2o","QJs","QJo","QTs","QTo","Q9s","Q9o","Q8s","Q8o","Q7s","Q7o","Q6s","Q6o","Q5s","Q4s","Q3s","Q2s","JTs","JTo","J9s","J9o","J8s","J8o","J7s","J6s","J5s","T9s","T9o","T8s","T7s","98s","97s","87s","76s"]},
+ "BTN-8":{p:45.1,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","A2o","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K9o","K8s","K8o","K7s","K7o","K6s","K6o","K5s","K5o","K4s","K4o","K3s","K2s","QJs","QJo","QTs","QTo","Q9s","Q9o","Q8s","Q8o","Q7s","Q6s","Q5s","Q4s","JTs","JTo","J9s","J9o","J8s","J7s","T9s","T9o","T8s","T7s","98s","97s","96s","87s","86s","76s","65s","54s"]},
+ "BTN-10":{p:40.6,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","A2o","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K9o","K8s","K8o","K7s","K7o","K6s","K5s","K4s","K3s","K2s","QJs","QJo","QTs","QTo","Q9s","Q9o","Q8s","Q7s","Q6s","Q5s","JTs","JTo","J9s","J8s","J7s","T9s","T9o","T8s","T7s","98s","97s","96s","87s","86s","76s","75s","65s","54s"]},
+ "BTN-12":{p:36.3,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","A2o","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K9o","K8s","K7s","K6s","K5s","K4s","K3s","QJs","QJo","QTs","QTo","Q9s","Q8s","JTs","JTo","J9s","J8s","J7s","T9s","T8s","T7s","T6s","98s","97s","96s","87s","86s","85s","76s","75s","65s","54s"]},
+ "BTN-15":{p:33.6,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","A2o","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K8s","K7s","K6s","K5s","QJs","QJo","QTs","QTo","Q9s","Q8s","JTs","JTo","J9s","J8s","T9s","T8s","T7s","98s","97s","96s","87s","86s","76s","65s","54s"]},
+ "SB-6":{p:77.4,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","A2o","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K9o","K8s","K8o","K7s","K7o","K6s","K6o","K5s","K5o","K4s","K4o","K3s","K3o","K2s","K2o","QJs","QJo","QTs","QTo","Q9s","Q9o","Q8s","Q8o","Q7s","Q7o","Q6s","Q6o","Q5s","Q5o","Q4s","Q4o","Q3s","Q3o","Q2s","Q2o","JTs","JTo","J9s","J9o","J8s","J8o","J7s","J7o","J6s","J6o","J5s","J5o","J4s","J4o","J3s","J3o","J2s","J2o","T9s","T9o","T8s","T8o","T7s","T7o","T6s","T6o","T5s","T5o","T4s","T4o","T3s","T2s","98s","98o","97s","97o","96s","96o","95s","94s","93s","92s","87s","87o","86s","86o","85s","84s","76s","76o","75s","74s","73s","65s","65o","64s","63s","54s","53s","52s","43s"]},
+ "SB-8":{p:71.9,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","A2o","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K9o","K8s","K8o","K7s","K7o","K6s","K6o","K5s","K5o","K4s","K4o","K3s","K3o","K2s","K2o","QJs","QJo","QTs","QTo","Q9s","Q9o","Q8s","Q8o","Q7s","Q7o","Q6s","Q6o","Q5s","Q5o","Q4s","Q4o","Q3s","Q3o","Q2s","Q2o","JTs","JTo","J9s","J9o","J8s","J8o","J7s","J7o","J6s","J6o","J5s","J5o","J4s","J4o","J3s","J2s","T9s","T9o","T8s","T8o","T7s","T7o","T6s","T6o","T5s","T4s","T3s","T2s","98s","98o","97s","97o","96s","95s","94s","87s","87o","86s","86o","85s","84s","76s","76o","75s","74s","65s","65o","64s","63s","54s","53s","52s","43s"]},
+ "SB-10":{p:65.9,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","A2o","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K9o","K8s","K8o","K7s","K7o","K6s","K6o","K5s","K5o","K4s","K4o","K3s","K3o","K2s","K2o","QJs","QJo","QTs","QTo","Q9s","Q9o","Q8s","Q8o","Q7s","Q7o","Q6s","Q6o","Q5s","Q5o","Q4s","Q4o","Q3s","Q3o","Q2s","JTs","JTo","J9s","J9o","J8s","J8o","J7s","J7o","J6s","J5s","J4s","J3s","J2s","T9s","T9o","T8s","T8o","T7s","T7o","T6s","T5s","T4s","T3s","98s","98o","97s","97o","96s","95s","87s","87o","86s","85s","84s","76s","76o","75s","74s","65s","65o","64s","63s","54s","53s","52s","43s"]},
+ "SB-12":{p:60.8,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","A2o","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K9o","K8s","K8o","K7s","K7o","K6s","K6o","K5s","K5o","K4s","K4o","K3s","K3o","K2s","K2o","QJs","QJo","QTs","QTo","Q9s","Q9o","Q8s","Q8o","Q7s","Q7o","Q6s","Q6o","Q5s","Q5o","Q4s","Q3s","Q2s","JTs","JTo","J9s","J9o","J8s","J8o","J7s","J6s","J5s","J4s","J3s","J2s","T9s","T9o","T8s","T8o","T7s","T6s","T5s","T3s","98s","98o","97s","97o","96s","95s","87s","87o","86s","85s","84s","76s","76o","75s","74s","65s","64s","63s","54s","53s","43s"]},
+ "SB-15":{p:55.1,h:["AA","KK","QQ","JJ","TT","99","88","77","66","55","44","33","22","AKs","AKo","AQs","AQo","AJs","AJo","ATs","ATo","A9s","A9o","A8s","A8o","A7s","A7o","A6s","A6o","A5s","A5o","A4s","A4o","A3s","A3o","A2s","A2o","KQs","KQo","KJs","KJo","KTs","KTo","K9s","K9o","K8s","K8o","K7s","K7o","K6s","K6o","K5s","K5o","K4s","K4o","K3s","K3o","K2s","QJs","QJo","QTs","QTo","Q9s","Q9o","Q8s","Q8o","Q7s","Q6s","Q5s","Q4s","Q3s","Q2s","JTs","JTo","J9s","J9o","J8s","J8o","J7s","J6s","J5s","J4s","T9s","T9o","T8s","T8o","T7s","T6s","T5s","98s","98o","97s","96s","95s","87s","87o","86s","85s","84s","76s","76o","75s","74s","65s","64s","54s","53s","43s"]},
+};
+var PF_MODE="open";
+var NASH_POS=["MP","CO","BTN","SB"],NASH_STACKS=[6,8,10,12,15];
+var POS_LABEL2={MP:"MP (אמצעית)",CO:"Cutoff",BTN:"Button",SB:"Small Blind"};
 var curPF=null;
 function pfNext(){
-  var bucket=pick(Object.keys(PF_RAW)),pos=pick(["MP","CO","BTN"]),stack=pick(BUCKET_STACKS[bucket]),h=randHandDisplay();
-  curPF={bucket:bucket,pos:pos,stack:stack,shove:PF_SETS[bucket][pos].has(h.canon)};
+  var h=randHandDisplay();
+  if(PF_MODE==="open"){
+    var pos=pick(NASH_POS),st=pick(NASH_STACKS),key=pos+"-"+st;
+    curPF={mode:"open",pos:pos,stack:st,key:key,shove:NASH[key].h.indexOf(h.canon)>=0};
+    document.getElementById("pf-scenario").textContent="מקפלים אליך — Shove או Fold?";
+  }else{
+    var b=pick(Object.keys(PF_RAW)),p2=pick(["MP","CO","BTN"]),s2=pick(BUCKET_STACKS[b]);
+    curPF={mode:"threebet",bucket:b,pos:p2,stack:s2,shove:PF_SETS[b][p2].has(h.canon)};
+    document.getElementById("pf-scenario").textContent="פתחו לפניך — 3-bet Shove או Fold?";
+  }
   document.getElementById("pf-hand").innerHTML=h.disp;
-  document.getElementById("pf-stack").textContent=stack;
-  document.getElementById("pf-pos").textContent=POS_LABEL[pos];
-  document.getElementById("pf-fb").className="feedback";document.getElementById("pf-nextrow").style.display="none";
+  document.getElementById("pf-stack").textContent=curPF.stack;
+  document.getElementById("pf-pos").textContent=POS_LABEL2[curPF.pos]||curPF.pos;
+  document.getElementById("pf-fb").className="feedback";
+  document.getElementById("pf-nextrow").style.display="none";
 }
 function pfAnswer(choseShove){
   if(!curPF||document.getElementById("pf-nextrow").style.display!=="none")return;
   var ok=(choseShove===curPF.shove);record("pushfold",ok);
-  var fb=document.getElementById("pf-fb"),verdict=curPF.shove?"שאב 🚀":"קיפול 🚮",rangeTxt=PF_RAW[curPF.bucket][curPF.pos].join(", ");
-  var extra=curPF.bucket==="23-30"?" בעומק הזה לרוב עדיף 3-bet קטן על all-in.":"";
+  var fb=document.getElementById("pf-fb"),verdict=curPF.shove?"Shove 🚀":"Fold 🚮",detail;
+  if(curPF.mode==="open"){
+    var d=NASH[curPF.key];
+    detail="<b>Open-shove</b> מ-"+(POS_LABEL2[curPF.pos])+" ב-<b>"+curPF.stack+"bb</b>: הטווח הוא <b>"+d.p+"%</b> מהידיים."+
+      "<div class='mini' style='margin-top:6px'>מחושב לפי <b>Nash equilibrium</b> (chipEV, סטאקים שווים, BB ante) — לא הערכה.</div>";
+  }else{
+    detail="<b>3-bet Shove</b> מ-"+(POS_LABEL2[curPF.pos])+" ב-<b>"+curPF.stack+"bb</b> (Shove מעל מי שפתח): <code class=\'rr\'>"+PF_RAW[curPF.bucket][curPF.pos].join(", ")+"</code>"+
+      "<div class='mini' style='margin-top:6px'>טווח צר יותר מ-Open-shove, כי מי שפתח כבר הראה חוזק.</div>";
+  }
   fb.className="feedback show "+(ok?"good":"err");
-  fb.innerHTML=(ok?"✅ נכון! ":"❌ לא — התשובה: <b>"+verdict+"</b>")+
-    "<div style='margin-top:8px'>ב-<b>"+curPF.stack+"bb</b> מ-<b>"+POS_LABEL[curPF.pos]+"</b> טווח השאב: <code class='rr'>"+rangeTxt+"</code>."+extra+" 🔸 זכור: chipEV — קרוב לבועה מהדקים.</div>";
+  fb.innerHTML=(ok?"✅ נכון! ":"❌ לא — התשובה: <b>"+verdict+"</b>")+"<div style='margin-top:8px'>"+detail+" 🔸 קרוב לבועה מהדקים.</div>";
   document.getElementById("pf-nextrow").style.display="";
 }
+document.querySelectorAll("#pfmode .chip").forEach(function(c){c.onclick=function(){
+  document.querySelectorAll("#pfmode .chip").forEach(function(x){x.classList.remove("active");});
+  c.classList.add("active");PF_MODE=c.dataset.pf;pfNext();};});
 document.addEventListener("keydown",function(e){if(e.key==="Enter"&&document.getElementById("p-pushfold").classList.contains("active")&&document.getElementById("pf-nextrow").style.display!=="none")pfNext();});
 
 /* ============================================================
    ICM & SPOT QUIZ
    ============================================================ */
 var SPOTS=[
- {c:"icm",q:"<b>Bubble</b> (השולחן האחרון לפני הפרסים). יש לך <b>12bb</b> עם <b>T♠T♥</b>. שחקן עם <b>7bb</b> עושה all-in לפניך. בקאש זה קלל קל. בטורניר?",o:["קלל","קיפול","depends"],a:1,why:"Fold. אם תפסיד אתה יוצא בלי פרס; אם תנצח הרווחת רק ~14bb. ה-ICM אומר שהסיכון גדול בהרבה מהתועלת — ההחלטה ההפוכה מקאש."},
- {c:"icm",q:"<b>Final Table</b>, 6 שחקנים. יש לך <b>35bb</b>. שחקן עם <b>18bb</b> עושה all-in באמצע, ולך <b>A♣Q♦</b>. בקאש קוראים. בטורניר?",o:["קלל","קיפול","raise"],a:1,why:"Fold. AQo מול טווח all-in של 18bb היא רק מעט מעל 50%, והסיכון הכספי עצום בשולחן גמר. chipEV חיובי אבל $EV שלילי."},
- {c:"icm",q:"נשארו <b>3 שחקנים</b>. אתה 2nd עם <b>25bb</b>, המנהיג 55bb, ולך <b>A♠9♦</b> ב-BB. ה-SB (השלישי, 20bb) עושה all-in. מה עושים?",o:["קלל","קיפול — ICM","raise"],a:1,why:"Fold. גם אם זה +EV בצ'יפים, זה −EV בכסף: אם תפסיד תישאר עם ~5bb; אם תנצח תהפוך לשני בפער קטן. הקפיצה בפרס לא מצדיקה את הסיכון."},
- {c:"icm",q:"18 שחקנים, <b>11 בתשלום</b> (קרוב לבועה). יש לך <b>14bb</b> ב-CO עם <b>8♥8♠</b>. שחקן 40bb פותח 2.2bb מ-MP. הכי נכון?",o:["קלל ולראות פלופ","קיפול","3-bet All-in"],a:1,why:"קרוב לבועה עם סטאק בינוני — 88 כאן לרוב Fold. טווח פותח 40bb מ-MP חזק; קלל משאיר אותך OOP, ו-3bet-שאב מסכן את כל הסטאק ממש לפני הכסף."},
- {c:"icm",q:"אותו מצב אבל מוקדם — <b>50 שחקנים</b> נשארו, <b>8♥8♠</b>, 14bb, פותחים לפניך מ-MP. לעומת קרוב-לבועה?",o:["יותר אגרסיבי (3bet-שאב סביר)","אותו דבר","יותר שמרני"],a:0,why:"רחוק מהבועה אין לחץ ICM כמעט — 88 עם 14bb הוא 3-bet All-in סטנדרטי. אותה יד משנה ערך דרמטית לפי שלב הטורניר. זה לב ה-ICM."},
- {c:"icm",q:"<b>סאטלייט</b>: N הראשונים מקבלים כרטיס שווה-ערך, ואתה כבר <b>מובטח בנוחות</b> (30bb). מישהו all-in 25bb לתוך <b>A♠A♥</b> שלך ב-BB. מה עושים?",o:["קלל — אלות","קיפול — כבר בפנים","raise"],a:1,why:"בסאטלייט, אם אתה כבר מובטח — כל צ'יפ נוסף כמעט חסר ערך, אבל הפסד מסכן את הכרטיס. מקפלים אפילו AA. המצב הכי קיצוני של ICM."},
- {c:"icm",q:"<b>Bubble</b>, אתה <b>צ'יפ-לידר</b>. סטאק קצר all-in ולך <b>K♠Q♠</b> ב-BB, מכסה בקלות. מה עושים?",o:["קלל — לוחץ, סיכון קטן","קיפול","depends"],a:0,why:"כצ'יפ-לידר הסיכון היחסי קטן וניצחון מחסל יריב. KQs מול טווח שאב רחב של קצר = קלל קל. כאן ICM דווקא מעודד ללחוץ — בניגוד לסטאק בינוני."},
- {c:"pushfold",q:"טורניר מאוחר. <b>6bb</b> ב-<b>UTG</b>, היד <b>9♦8♦</b>. מה עושים?",o:["All-in","קיפול","לימפ"],a:0,why:"בסטאק 5-7bb, 98s שאב סטנדרטי גם מ-UTG. (בעומק 10-15bb זה Fold מ-UTG.) הבעיה בד\"כ שהיריב קורא רחב מדי — לא השאב שלך."},
- {c:"pushfold",q:"<b>10bb</b> ב-<b>Button</b>, מקפלים אליך, <b>K♣9♦</b>. שאב או קיפול?",o:["All-in","קיפול","min-raise"],a:0,why:"טווח השאב מה-BTN ב-10bb רחב מאוד (~40-50%). K9o בפנים — לוקח בליינדים בתדירות גבוהה."},
- {c:"pushfold",q:"<b>25bb</b>, פתחו לפניך מ-CO ואתה ב-BTN עם <b>A♣J♦</b>. הכי טוב בד\"כ?",o:["3-bet All-in או קיפול","קלל בלבד","min-raise/fold"],a:0,why:"ב-25bb, כשפתחו לפניך, ה-Call הכי מסוכן (בלי אופציות אחרי הפלופ). AJo — או 3-bet-שאב או קיפול. זו הטעות הנפוצה של מנוסים."},
- {c:"postflop",q:"פתחת BTN, ה-BB קילל. פלופ <b>A♠7♦2♣</b> (יבש). ה-BB check. אתה ה-PFR. הכי GTO?",o:["c-bet קטן (~⅓) בתדירות גבוהה","c-bet פוט","check back"],a:0,why:"בורד A-high יבש — יתרון טווח ו-nut ברור. c-bet קטן על כמעט כל הטווח: זול, לוקח פוטים, מכחיש equity."},
- {c:"postflop",q:"פתחת מ-UTG, ה-BB קילל. פלופ <b>9♥7♥6♠</b> (רטוב). ה-BB check. נכון יותר?",o:["check בתדירות גבוהה","c-bet גדול על כל הטווח","all-in"],a:0,why:"הבורד פוגע בטווח ה-BB יותר מבטווח פתיחת UTG. מוותרים על יתרון הטווח — בודקים הרבה."},
- {c:"bluff",q:"ריבר, הבורד השלים <b>שלושה לבבות</b>. אין לך זוג אבל אתה מחזיק <b>A♥</b> (חוסם פלאש-גבוה). GTO?",o:["בלוף — חוסם את הצבע","ויתור","קלל"],a:0,why:"עקרון החסימות: A♥ מפחית קומבינציות פלאש חזק אצל היריב → הוא מקפל יותר. הידיים הכי טובות לבלף."},
- {c:"bluff",q:"היריב מהמר <b>פוט מלא</b> על הריבר. לפי MDF צריך להגן ~50%, והיד שלך <b>bluff-catcher</b> בתחתית. GTO?",o:["מערבב (indifferent)","תמיד קלל","תמיד קיפול"],a:0,why:"בנקודת האיזון ה-bluff-catcher אדיש (EV קלל = EV קיפול). GTO מערבב בתדירות ששומרת אותך בלתי-ניתן-לניצול."},
+ {c:"icm",q:"<b>Bubble</b> (השולחן האחרון לפני הפרסים). יש לך <b>12bb</b> עם <b><span class='cards'>T♠T♥</span></b>. שחקן עם <b>7bb</b> עושה all-in לפניך. בקאש זה Call קל. בטורניר?",o:["Call","Fold","depends"],a:1,why:"Fold. אם תפסיד אתה יוצא בלי פרס; אם תנצח הרווחת רק ~14bb. ה-ICM אומר שהסיכון גדול בהרבה מהתועלת — ההחלטה ההפוכה מקאש."},
+ {c:"icm",q:"<b>Final Table</b>, 6 שחקנים. יש לך <b>35bb</b>. שחקן עם <b>18bb</b> עושה all-in באמצע, ולך <b><span class='cards'>A♣Q♦</span></b>. בקאש עושים Call. בטורניר?",o:["Call","Fold","raise"],a:1,why:"Fold. AQo מול טווח all-in של 18bb היא רק מעט מעל 50%, והסיכון הכספי עצום בשולחן גמר. chipEV חיובי אבל $EV שלילי."},
+ {c:"icm",q:"נשארו <b>3 שחקנים</b>. אתה 2nd עם <b>25bb</b>, המנהיג 55bb, ולך <b><span class='cards'>A♠9♦</span></b> ב-BB. ה-SB (השלישי, 20bb) עושה all-in. מה עושים?",o:["Call","Fold — ICM","raise"],a:1,why:"Fold. גם אם זה +EV בצ'יפים, זה −EV בכסף: אם תפסיד תישאר עם ~5bb; אם תנצח תהפוך לשני בפער קטן. הקפיצה בפרס לא מצדיקה את הסיכון."},
+ {c:"icm",q:"18 שחקנים, <b>11 בתשלום</b> (קרוב לבועה). יש לך <b>14bb</b> ב-CO עם <b><span class='cards'>8♥8♠</span></b>. שחקן 40bb פותח 2.2bb מ-MP. הכי נכון?",o:["Call ולראות פלופ","Fold","3-bet All-in"],a:1,why:"קרוב לבועה עם סטאק בינוני — 88 כאן לרוב Fold. טווח פותח 40bb מ-MP חזק; Call משאיר אותך OOP, ו-3bet-Shove מסכן את כל הסטאק ממש לפני הכסף."},
+ {c:"icm",q:"אותו מצב אבל מוקדם — <b>50 שחקנים</b> נשארו, <b><span class='cards'>8♥8♠</span></b>, 14bb, פותחים לפניך מ-MP. לעומת קרוב-לבועה?",o:["יותר אגרסיבי (3bet-Shove סביר)","אותו דבר","יותר שמרני"],a:0,why:"רחוק מהבועה אין לחץ ICM כמעט — 88 עם 14bb הוא 3-bet All-in סטנדרטי. אותה יד משנה ערך דרמטית לפי שלב הטורניר. זה לב ה-ICM."},
+ {c:"icm",q:"<b>סאטלייט</b>: N הראשונים מקבלים כרטיס שווה-ערך, ואתה כבר <b>מובטח בנוחות</b> (30bb). מישהו all-in 25bb לתוך <b><span class='cards'>A♠A♥</span></b> שלך ב-BB. מה עושים?",o:["Call — אלות","Fold — כבר בפנים","raise"],a:1,why:"בסאטלייט, אם אתה כבר מובטח — כל צ'יפ נוסף כמעט חסר ערך, אבל הפסד מסכן את הכרטיס. מקפלים אפילו AA. המצב הכי קיצוני של ICM."},
+ {c:"icm",q:"<b>Bubble</b>, אתה <b>צ'יפ-לידר</b>. סטאק קצר all-in ולך <b><span class='cards'>K♠Q♠</span></b> ב-BB, מכסה בקלות. מה עושים?",o:["Call — לוחץ, סיכון קטן","Fold","depends"],a:0,why:"כצ'יפ-לידר הסיכון היחסי קטן וניצחון מחסל יריב. KQs מול טווח Shove רחב של קצר = Call קל. כאן ICM דווקא מעודד ללחוץ — בניגוד לסטאק בינוני."},
+ {c:"pushfold",q:"טורניר מאוחר. <b>6bb</b> ב-<b>UTG</b>, היד <b><span class='cards'>9♦8♦</span></b>. מה עושים?",o:["All-in","Fold","Limp"],a:0,why:"בסטאק 5-7bb, 98s Shove סטנדרטי גם מ-UTG. (בעומק 10-15bb זה Fold מ-UTG.) הבעיה בד\"כ שהיריב קורא רחב מדי — לא ה-Shove שלך."},
+ {c:"pushfold",q:"<b>10bb</b> ב-<b>Button</b>, מקפלים אליך, <b><span class='cards'>K♣9♦</span></b>. Shove או Fold?",o:["All-in","Fold","min-raise"],a:0,why:"טווח ה-Shove מה-BTN ב-10bb רחב מאוד (~40-50%). K9o בפנים — לוקח בליינדים בתדירות גבוהה."},
+ {c:"pushfold",q:"<b>25bb</b>, פתחו לפניך מ-CO ואתה ב-BTN עם <b><span class='cards'>A♣J♦</span></b>. הכי טוב בד\"כ?",o:["3-bet All-in או Fold","Call בלבד","Min-raise / Fold"],a:0,why:"ב-25bb, כשפתחו לפניך, ה-Call הכי מסוכן (בלי אופציות אחרי הפלופ). AJo — או 3-bet-Shove או Fold. זו הטעות הנפוצה של מנוסים."},
+ {c:"postflop",q:"פתחת BTN, ה-BB קילל. פלופ <b><span class='cards'>A♠7♦2♣</span></b> (יבש). ה-BB check. אתה ה-PFR. הכי GTO?",o:["c-bet קטן (~⅓) בתדירות גבוהה","c-bet פוט","check back"],a:0,why:"בורד A-high יבש — יתרון טווח ו-nut ברור. c-bet קטן על כמעט כל הטווח: זול, לוקח פוטים, מכחיש equity."},
+ {c:"postflop",q:"פתחת מ-UTG, ה-BB קילל. פלופ <b><span class='cards'>9♥7♥6♠</span></b> (רטוב). ה-BB check. נכון יותר?",o:["check בתדירות גבוהה","c-bet גדול על כל הטווח","all-in"],a:0,why:"הבורד פוגע בטווח ה-BB יותר מבטווח פתיחת UTG. מוותרים על יתרון הטווח — בודקים הרבה."},
+ {c:"bluff",q:"ריבר, הבורד השלים <b>שלושה לבבות</b>. אין לך זוג אבל אתה מחזיק <b><span class='cards'>A♥</span></b> (חוסם פלאש-גבוה). GTO?",o:["בלוף — חוסם את הצבע","ויתור","Call"],a:0,why:"עקרון החסימות: <span class='cards'>A♥</span> מפחית קומבינציות פלאש חזק אצל היריב → הוא מקפל יותר. הידיים הכי טובות לבלף."},
+ {c:"bluff",q:"היריב מהמר <b>פוט מלא</b> על הריבר. לפי MDF צריך להגן ~50%, והיד שלך <b>bluff-catcher</b> בתחתית. GTO?",o:["מערבב (indifferent)","תמיד Call","תמיד Fold"],a:0,why:"בנקודת האיזון ה-bluff-catcher אדיש (EV Call = EV Fold). GTO מערבב בתדירות ששומרת אותך בלתי-ניתן-לניצול."},
  {c:"bluff",q:"היריב מהמר <b>הימור-יתר 2× פוט</b> על הריבר. כמה עליך להגן (MDF)?",o:["~33%","~50%","~67%"],a:0,why:"MDF = Pot/(Pot+Bet) = 100/300 = 33%. הימור גדול → מגנים על פחות. אל תיפול למלכודת 'להגן יותר מדי'."}
 ];
 var spotCat="all",spotPool=[],spotIdx=0,curSpot=null;
@@ -923,7 +987,7 @@ function genMath(mode){
   if(mode==="mdf"){var ans=100*pot/(pot+bet);
     return {topic:"mdf",unit:"%",tol:1.5,ans:ans,q:"הקופה <b>$"+pot+"</b>. היריב מהמר <b>$"+bet+"</b> ("+fr.txt+"). כמה אחוז מהטווח חובה להגן?",formula:"MDF = Pot/(Pot+Bet) = "+pot+"/"+(pot+bet)+" = "+ans.toFixed(1)+"%",why:"אם תגן פחות — בלוף בגודל הזה מרוויח אוטומטית. הימור גדול → מגנים פחות."};}
   if(mode==="potodds"){var pn=pot+bet,call=bet,a=100*call/(pn+call);
-    return {topic:"potodds",unit:"%",tol:1.5,ans:a,q:"בקופה עכשיו <b>$"+pn+"</b> (כולל הימור היריב). לקלל אתה משלם <b>$"+call+"</b>. כמה אקוויטי צריך שהקלל יהיה רווחי בדיוק?",formula:"Equity = Call/(Pot+Call) = "+call+"/"+(pn+call)+" = "+a.toFixed(1)+"%",why:"סף האיזון: יותר מזה — קלל רווחי; פחות — זריקה."};}
+    return {topic:"potodds",unit:"%",tol:1.5,ans:a,q:"בקופה עכשיו <b>$"+pn+"</b> (כולל הימור היריב). לעשות Call אתה משלם <b>$"+call+"</b>. כמה אקוויטי צריך שה-Call יהיה רווחי בדיוק?",formula:"Equity = Call/(Pot+Call) = "+call+"/"+(pn+call)+" = "+a.toFixed(1)+"%",why:"סף האיזון: יותר מזה — Call רווחי; פחות — זריקה."};}
   var V=pick(VALUES),bl=V*bet/(pot+bet),ans2=Math.round(bl);
   return {topic:"combos",unit:"קומבינציות",tol:0.6,ans:ans2,integer:true,q:"יש לך <b>"+V+"</b> קומבינציות ערך שאיתן אתה מהמר על הריבר בגודל <b>"+fr.txt+"</b>. כמה קומבינציות בלוף לאיזון GTO?",formula:"Bluffs = Value × Bet/(Pot+Bet) = "+V+"×"+bet+"/"+(pot+bet)+" = "+bl.toFixed(1)+" ≈ "+ans2,why:"היחס ערך:בלוף בפוט מלא = 2:1, בחצי פוט 3:1. הימור גדול → יותר בלופים."};
 }
@@ -1058,22 +1122,22 @@ var LESSONS=[
   body:"בקאש כל צ'יפ שווה אותו דבר. בטורניר — לא. ככל שמתקרבים לפרסים, כל צ'יפ שאתה מסכן שווה יותר כסף ממה שאתה יכול לזכות. דוגמה: 4 שחקנים, פרסים 1000/500/300/200. אם לכולם 10,000 צ'יפ — ה-EV שלך בכסף הוא 500$. עכשיו אם לך 25,000 ולכל אחד מהשאר 5,000 — ה-EV שלך כ-850-900$, למרות שיש לך 'רק' חצי מהצ'יפים. <b>המסקנה:</b> סטאק גדול → שחק שמרן (כל צ'יפ יקר). סטאק קצר → אגרסיבי (אתה כבר מת אם לא תפעל).",
   take:["צ'יפים ≠ כסף","סטאק גדול = לשחק שמרן","סטאק קצר = לשחק אגרסיבי"],cta:{tab:"spot",label:"תרגל ICM"}},
  {id:"stack",ico:"📏",mins:2,title:"עומק סטאק — למה bb קובע הכל",
-  body:"כמה בליינדים (bb) יש לך זה הנתון הכי חשוב לפני כל החלטה. <b>100bb</b> — עמוק, הרבה פוסטפלופ. <b>40bb</b> — עדיין גמיש. <b>20-30bb</b> — אזור ה-3bet/fold. <b>15bb ומטה</b> — Push/Fold טהור. אותה יד משוחקת אחרת לגמרי לפי העומק: 88 עם 14bb זה שאב, עם 40bb זה קלל/רייז.",
+  body:"כמה בליינדים (bb) יש לך זה הנתון הכי חשוב לפני כל החלטה. <b>100bb</b> — עמוק, הרבה פוסטפלופ. <b>40bb</b> — עדיין גמיש. <b>20-30bb</b> — אזור ה-3bet/fold. <b>15bb ומטה</b> — Push/Fold טהור. אותה יד משוחקת אחרת לגמרי לפי העומק: 88 עם 14bb זה Shove, עם 40bb זה Call/רייז.",
   take:["bb קובע את כל ההחלטה","15bb ומטה = Push/Fold","אותה יד = החלטה אחרת לפי עומק"],cta:{tab:"pushfold",label:"תרגל Push/Fold"}},
  {id:"pf",ico:"♠️",mins:3,title:"Push/Fold — הכלי הכי חשוב בטורניר",
-  body:"עם 15bb ומטה, ברוב המצבים ההחלטה היא שאב-או-קיפול. יש טווחים מדויקים לפי סטאק ופוזיציה (הטבלה המלאה בלשונית '📖 מדריך'). ככל שהסטאק קטן יותר — דוחפים יותר ידיים. ככל שהפוזיציה מאוחרת יותר (Button) — רחב יותר; מ-MP צר. זה הכלי שהכי משפיע על התוצאות שלך.",
-  take:["≤15bb: שאב או קיפול","סטאק קצר יותר → טווח רחב יותר","BTN רחב, MP צר"],cta:{tab:"pushfold",label:"תרגל עכשיו"}},
+  body:"עם 15bb ומטה, ברוב המצבים ההחלטה היא Shove-או-Fold. יש טווחים מדויקים לפי סטאק ופוזיציה (הטבלה המלאה בלשונית '📖 מדריך'). ככל שהסטאק קטן יותר — דוחפים יותר ידיים. ככל שהפוזיציה מאוחרת יותר (Button) — רחב יותר; מ-MP צר. זה הכלי שהכי משפיע על התוצאות שלך.",
+  take:["≤15bb: Shove או Fold","סטאק קצר יותר → טווח רחב יותר","BTN רחב, MP צר"],cta:{tab:"pushfold",label:"תרגל עכשיו"}},
  {id:"zone",ico:"🎯",mins:3,title:"אזור 20-30bb — איפה מנוסים טועים",
-  body:"20-30bb הוא האזור שהכי כואב לשחקנים מנוסים. הטעות הנפוצה: לקרוא 3-bet עם AJ / KQ / 88-99 במקום 4bet-שאב או קיפול. <b>הכלל:</b> אם פתחו לפניך — ברוב המקרים קיפול או 3-bet All-in. ה-Call הכי מסוכן (משחק OOP בלי אופציות אחרי הפלופ). כשאתה פותח — היה אגרסיבי בגניבות מ-CO / BTN / SB.",
-  take:["אל תעשה flat-call ב-25bb","קיפול או 3bet-שאב","גנוב הרבה מ-CO/BTN"],cta:{tab:"spot",label:"ספוטים"}},
+  body:"20-30bb הוא האזור שהכי כואב לשחקנים מנוסים. הטעות הנפוצה: לקרוא 3-bet עם AJ / KQ / 88-99 במקום 4bet-Shove או Fold. <b>הכלל:</b> אם פתחו לפניך — ברוב המקרים Fold או 3-bet All-in. ה-Call הכי מסוכן (משחק OOP בלי אופציות אחרי הפלופ). כשאתה פותח — היה אגרסיבי בגניבות מ-CO / BTN / SB.",
+  take:["אל תעשה flat-call ב-25bb","Fold או 3bet-Shove","גנוב הרבה מ-CO/BTN"],cta:{tab:"spot",label:"ספוטים"}},
  {id:"open",ico:"📋",mins:2,title:"טווחי פתיחה לפי שלב הטורניר",
   body:"ככל שמתקדמים בטורניר — מצמצמים טווחים ב-30-40%. <b>מוקדם</b> (40+ שחקנים): CO ~25%, BTN 40-45%. <b>קרוב לבועה:</b> CO 12-14%, BTN 18-22%. <b>Final Table:</b> CO 10-12%, BTN 15-18%. הטבלה המלאה בלשונית '📖 מדריך'.",
   take:["מאוחר יותר = צר יותר","BTN תמיד רחב מ-CO","קרוב לבועה = הידוק חד"],cta:{tab:"ref",label:"לטבלאות"}},
  {id:"icmspots",ico:"🧩",mins:3,title:"ICM בפועל — מתי לקפל AK / TT / AQ",
-  body:"3 מצבים קלאסיים שקורים רק בטורניר: <b>(1)</b> בבועה, 12bb עם TT מול שאב 7bb — Fold (בקאש קלל קל). <b>(2)</b> שולחן גמר, 35bb עם AQ מול שאב 18bb — Fold. <b>(3)</b> נשארו 3, A9 ב-BB מול שאב — Fold גם אם +EV בצ'יפים. השאלה שתמיד תשאל אחרי כל יד: <i>'האם זו אותה החלטה בקאש? אם לא — למה ICM שינה אותה?'</i>",
+  body:"3 מצבים קלאסיים שקורים רק בטורניר: <b>(1)</b> בבועה, 12bb עם TT מול Shove 7bb — Fold (בקאש Call קל). <b>(2)</b> שולחן גמר, 35bb עם AQ מול Shove 18bb — Fold. <b>(3)</b> נשארו 3, A9 ב-BB מול Shove — Fold גם אם +EV בצ'יפים. השאלה שתמיד תשאל אחרי כל יד: <i>'האם זו אותה החלטה בקאש? אם לא — למה ICM שינה אותה?'</i>",
   take:["בבועה מקפלים גם ידיים חזקות","chipEV חיובי ≠ $EV חיובי","תמיד לשאול: קאש מול טורניר?"],cta:{tab:"spot",label:"תרגל ICM"}},
  {id:"math",ico:"🧮",mins:3,title:"המתמטיקה — MDF, Pot Odds, איזון בלוף",
-  body:"שלוש נוסחאות שמנחות איזון: <b>MDF</b> (כמה להגן) = Pot/(Pot+Bet). <b>Pot Odds</b> (כמה אקוויטי צריך לקלל) = Call/(Pot+Call). <b>יחס ערך:בלוף</b> — בהימור פוט מלא 2:1, בחצי פוט 3:1. לא צריך לחשב חי בשולחן — צריך שהמספרים יהיו אינטואיציה.",
+  body:"שלוש נוסחאות שמנחות איזון: <b>MDF</b> (כמה להגן) = Pot/(Pot+Bet). <b>Pot Odds</b> (כמה אקוויטי צריך לעשות Call) = Call/(Pot+Call). <b>יחס ערך:בלוף</b> — בהימור פוט מלא 2:1, בחצי פוט 3:1. לא צריך לחשב חי בשולחן — צריך שהמספרים יהיו אינטואיציה.",
   take:["MDF = Pot/(Pot+Bet)","הימור גדול → מגנים פחות","פוט מלא = 2:1 ערך:בלוף"],cta:{tab:"math",label:"תרגל מתמטיקה"}},
  {id:"blockers",ico:"🃏",mins:2,title:"חסימות ובלופים על הריבר",
   body:"בלוף טוב אינו אקראי — הוא נשען על חסימות. אם אתה מחזיק את ה-A של הצבע, יש פחות פלאשים חזקים ביד היריב → הוא מקפל יותר → הבלוף משתלם. על הריבר, בלי ערך show-down, בלוף מאוזן הוא הדרך היחידה לנצח את הפוט.",
@@ -1113,9 +1177,9 @@ function renderLearn(){
 var DAILY_TARGET=18;
 function v(id){return (document.getElementById(id).value||"").trim();}
 function pfItem(){var b=pick(Object.keys(PF_RAW)),ps=pick(["MP","CO","BTN"]),st=pick(BUCKET_STACKS[b]),h=randHandDisplay();var sh=PF_SETS[b][ps].has(h.canon);
- return {topic:"pushfold",kind:"choice",prompt:"שאב או קיפול?",
+ return {topic:"pushfold",kind:"choice",prompt:"Shove או Fold?",
   sub:'<div class="handbig" style="font-size:34px;margin:2px 0">'+h.disp+'</div><div class="mini" style="text-align:center">'+st+'bb · '+POS_LABEL[ps]+'</div>',
-  options:["🚀 שאב","🚮 קיפול"],correct:sh?0:1,explain:"ב-"+st+"bb מ-"+POS_LABEL[ps]+" טווח השאב: "+PF_RAW[b][ps].join(", ")};}
+  options:["🚀 Shove","🚮 Fold"],correct:sh?0:1,explain:"ב-"+st+"bb מ-"+POS_LABEL[ps]+" טווח ה-Shove: "+PF_RAW[b][ps].join(", ")};}
 function spotItem(cats){var pool=SPOTS.filter(function(x){return !cats||cats.indexOf(x.c)>=0;});var sp=pick(pool);
  return {topic:sp.c,kind:"choice",prompt:sp.q,sub:"",options:sp.o,correct:sp.a,explain:sp.why};}
 function mathItem(){var m=genMath("mixed");return {topic:m.topic,kind:"num",prompt:m.q,answer:m.ans,tol:m.tol,unit:m.unit,integer:m.integer,explain:m.formula+" — "+m.why};}
@@ -1190,7 +1254,7 @@ function handAdd(){var h=v("h-hand");if(!h){toast("איזו יד?");return;}
  POKER.hands.push({id:"h"+Date.now(),date:todayKey(),stage:v("h-stage"),stack:stk,pos:v("h-pos"),hand:h,action:v("h-action"),result:v("h-result"),notes:v("h-notes")});
  ["h-hand","h-stack","h-pos","h-stage","h-action","h-result","h-notes"].forEach(function(id){document.getElementById(id).value="";});
  renderHands();scheduleSave();toast("היד נשמרה לספרייה");}
-function handHint(stack,stage){if(stack&&stack<=15)return "בעומק "+stack+"bb זה אזור Push/Fold — שאב או קיפול. בדוק מול טווחי הסטאק ב-📖 מדריך.";
+function handHint(stack,stage){if(stack&&stack<=15)return "בעומק "+stack+"bb זה אזור Push/Fold — Shove או Fold. בדוק מול טווחי הסטאק ב-📖 מדריך.";
  if(stage&&/בוע|גמר|final|itm|כסף/i.test(stage))return "שלב עם לחץ ICM — שאל: האם זו אותה החלטה בקאש? אם לא, ה-ICM מצדיק לשחק הדוק יותר.";
  return "שאל תמיד: קאש מול טורניר? ומה עומק הסטאק שלי?";}
 function handDel(id){POKER.hands=(POKER.hands||[]).filter(function(x){return x.id!==id;});renderHands();scheduleSave();}
@@ -1230,7 +1294,7 @@ function initHero(){var q=document.getElementById("heroQuote");if(q)q.textConten
    ============================================================ */
 var TOUR=[
  {sel:'.tab[data-tab="learn"]',t:"מתחילים כאן 📚",x:"10 שיעורים קצרים שמלמדים GTO ו-ICM מאפס. עבור עליהם לפי הסדר."},
- {sel:'.tab[data-tab="pushfold"]',t:"אחר כך: תרגול ♠️",x:"Push/Fold — שאב או קיפול לפי עומק הסטאק. הכלי הכי חשוב בטורניר."},
+ {sel:'.tab[data-tab="pushfold"]',t:"אחר כך: תרגול ♠️",x:"Push/Fold — Shove או Fold לפי עומק הסטאק. הכלי הכי חשוב בטורניר."},
  {sel:'.tab[data-tab="spot"]',t:"ICM 🎯",x:"ההחלטות שמבדילות טורניר מקאש — מתי לקפל גם יד חזקה."},
  {sel:'#daily-card',t:"אימון יומי",x:"יעד של 18 החלטות ביום. עקביות בונה רצף ימים 🔥."},
  {sel:'.tab[data-tab="warmup"]',t:"לפני טורניר 🔥",x:"חימום מהיר של 5 דקות כדי להיכנס בראש נכון."},
