@@ -208,6 +208,24 @@
   .seat.acted{border-color:#f59e0b}
   .seat.folded{opacity:.35}
   .actlog{background:rgba(0,0,0,.22);border-right:3px solid var(--gold);border-radius:8px;padding:9px 12px;font-size:13px;line-height:1.6;margin:8px 0}
+
+  /* progress calendar */
+  .calnav{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .calh{text-align:center;font-size:11px;color:var(--muted);padding:3px 0;font-weight:700}
+  .cald{min-height:52px;border-radius:8px;background:var(--card2);border:1px solid var(--line);padding:4px 5px;cursor:pointer;font-size:11px;display:flex;flex-direction:column;justify-content:space-between}
+  .cald.empty{opacity:.2;cursor:default;background:transparent;border-color:transparent}
+  .cald.sel{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+  .cald.today .dn{color:#fff;text-decoration:underline}
+  .cald .dn{font-weight:800;color:var(--muted)}
+  .cald .dots{font-size:10px;line-height:1.15;letter-spacing:-1px}
+  .cald.l1{background:rgba(233,196,106,.14)}
+  .cald.l2{background:rgba(233,196,106,.30)}
+  .cald.l3{background:rgba(233,196,106,.50)}
+  .cald.l3 .dn,.cald.l2 .dn{color:#2a2005}
+  .tlday{margin-bottom:15px;border-right:2px solid var(--line);padding-right:12px}
+  .tldate{color:var(--gold);font-weight:800;font-size:13px;margin-bottom:5px}
+  .tlitem{font-size:13px;color:#cfe3da;margin:3px 0;line-height:1.5}
 </style>
 </head>
 <body>
@@ -233,6 +251,7 @@
     <div class="tab" data-tab="sim">🎲 סימולטור</div>
     <div class="tab" data-tab="warmup">🔥 חימום</div>
     <div class="tab" data-tab="exam">📝 מבחן</div>
+    <div class="tab" data-tab="cal">📅 לוח התקדמות</div>
     <div class="tab" data-tab="journal">📓 יומן</div>
     <div class="tab" data-tab="upcoming">🗓️ טורנירים</div>
     <div class="tab" data-tab="career">📈 קריירה</div>
@@ -456,6 +475,27 @@
     <div class="card" id="ex-card" style="display:none"><div id="ex-quiz"></div></div>
   </div>
 
+  <!-- ===== CALENDAR ===== -->
+  <div class="panel" id="p-cal">
+    <div class="card">
+      <h3>📅 לוח ההתקדמות</h3>
+      <div class="mini">כל יום מציג מה תרגלת, מה למדת ומה שיחקת. ככל שהיום צהוב יותר — תרגלת יותר. לחיצה על יום פותחת את הפירוט.</div>
+      <div class="calnav" style="margin-top:12px">
+        <button class="btn ghost" style="padding:8px 14px" onclick="calMove(-1)">← קודם</button>
+        <b id="cal-title" style="font-size:16px"></b>
+        <button class="btn ghost" style="padding:8px 14px" onclick="calMove(1)">הבא →</button>
+      </div>
+      <div class="cal" id="cal-head"></div>
+      <div class="cal" id="cal-grid" style="margin-top:5px"></div>
+      <div id="cal-day" style="margin-top:14px"></div>
+    </div>
+    <div class="card">
+      <h3>🕘 ציר זמן</h3>
+      <div class="mini">כל הפעילות בסדר כרונולוגי, מהחדש לישן.</div>
+      <div id="cal-timeline" style="margin-top:12px"></div>
+    </div>
+  </div>
+
   <!-- ===== JOURNAL ===== -->
   <div class="panel" id="p-journal">
     <div class="card">
@@ -677,6 +717,8 @@ var POKER={_updated_at:null,settings:{currency:"$"},
   journal:[],goals_custom:[],lessons_done:{},exams:[],upcoming:[],hands:[]};
 var TOPIC_LABELS={pushfold:"Push/Fold",icm:"ICM / קאש-מול-טורניר",postflop:"Postflop",bluff:"בלוף/חסימות",mdf:"MDF (הגנה)",potodds:"Pot Odds",combos:"Bluff Combos"};
 function pick(a){return a[Math.floor(Math.random()*a.length)];}
+function logEvent(t,x){POKER.log=POKER.log||[];POKER.log.push({d:todayKey(),ts:new Date().toISOString(),t:t,x:x});
+  if(POKER.log.length>3000)POKER.log=POKER.log.slice(-3000);}
 function todayKey(){return new Date().toISOString().slice(0,10);}
 function cur(){return (POKER.settings&&POKER.settings.currency)||"$";}
 function money(n){var s=(n<0?"-":"")+cur()+Math.abs(Math.round(n)).toLocaleString("en-US");return s;}
@@ -687,9 +729,10 @@ function record(topic,ok){
   var s=POKER.stats;ensureTopic(topic);s.answered++;s.by_topic[topic].a++;
   var dk=todayKey();if(!s.daily[dk])s.daily[dk]={a:0,c:0};s.daily[dk].a++;
   if(ok){s.correct++;s.by_topic[topic].c++;s.daily[dk].c++;s.streak++;if(s.streak>s.best)s.best=s.streak;}else s.streak=0;
+  if(s.daily[dk].a===DAILY_TARGET)logEvent('goal','השלמת את היעד היומי ('+DAILY_TARGET+' החלטות)');
   renderOverview();scheduleSave();
 }
-function migrate(){if(!POKER.settings)POKER.settings={currency:"$"};if(!POKER.journal)POKER.journal=[];if(!POKER.goals_custom)POKER.goals_custom=[];if(!POKER.lessons_done)POKER.lessons_done={};if(!POKER.exams)POKER.exams=[];if(!POKER.upcoming)POKER.upcoming=[];if(!POKER.hands)POKER.hands=[];if(!POKER.sim)POKER.sim={level:1,unlocked:1,stats:{}};if(!POKER.stats)POKER.stats={answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}};}
+function migrate(){if(!POKER.settings)POKER.settings={currency:"$"};if(!POKER.journal)POKER.journal=[];if(!POKER.goals_custom)POKER.goals_custom=[];if(!POKER.lessons_done)POKER.lessons_done={};if(!POKER.exams)POKER.exams=[];if(!POKER.upcoming)POKER.upcoming=[];if(!POKER.hands)POKER.hands=[];if(!POKER.sim)POKER.sim={level:1,unlocked:1,stats:{}};if(!POKER.log)POKER.log=[];if(!POKER.stats)POKER.stats={answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}};}
 function loadLocal(){try{var r=localStorage.getItem("poker_training_v1");if(r){var j=JSON.parse(r);if(j&&j.stats)POKER=j;}}catch(e){}migrate();}
 function saveLocal(){try{localStorage.setItem("poker_training_v1",JSON.stringify(POKER));}catch(e){}}
 async function loadCloud(){
@@ -733,6 +776,7 @@ function go(tab){
   if(tab==="career")renderCareer();
   if(tab==="ref")renderGlossary();
   if(tab==="icmlab"){if(!curICM)genICM();}
+  if(tab==="cal")renderCal();
   if(tab==="sim"){renderSimMode();renderSimLevels();if(!curSim)genSim();}
   if(tab==="journal"){renderJournal();renderHands();}
   if(tab==="exam")renderExam();
@@ -767,6 +811,7 @@ function journalAdd(){
     entrants:parseInt(document.getElementById("j-field").value)||null,
     notes:document.getElementById("j-notes").value.trim(),created_at:new Date().toISOString()};
   POKER.journal.push(e);
+  logEvent('tournament',(e.series||'טורניר')+(e.venue?' · '+e.venue:'')+' · Buy-in '+money(e.buyin+e.reentry)+((+e.cash)>0?' · זכייה '+money(e.cash):' · ללא כסף'));
   ["j-venue","j-series","j-buyin","j-reentry","j-cash","j-pos","j-field","j-notes"].forEach(function(id){document.getElementById(id).value="";});
   renderJournal();renderOverview();scheduleSave();toast("הטורניר נשמר ✓");
 }
@@ -1234,7 +1279,8 @@ function goSimLevel(n){
   renderSimMode();renderSimLevels();genSim();
 }
 function lessonsDoneCount(){var d=POKER.lessons_done||{},n=0;LESSONS.forEach(function(l){if(d[l.id])n++;});return n;}
-function toggleLesson(id){POKER.lessons_done=POKER.lessons_done||{};POKER.lessons_done[id]=!POKER.lessons_done[id];renderLearn();renderOverview();scheduleSave();}
+function toggleLesson(id){POKER.lessons_done=POKER.lessons_done||{};POKER.lessons_done[id]=!POKER.lessons_done[id];
+ if(POKER.lessons_done[id]){var _L=LESSONS.filter(function(x){return x.id===id;})[0];if(_L)logEvent('lesson',_L.title);}renderLearn();renderOverview();scheduleSave();}
 function goLesson(tab){go(tab);}
 function renderLearn(){
   var list=document.getElementById("learnlist");if(!list)return;list.innerHTML="";
@@ -1299,6 +1345,7 @@ function warmupStart(){var seq=["pf","icm","pf","math","icm","pf","icm","math","
  document.getElementById("wu-intro").style.display="none";document.getElementById("wu-card").style.display="block";
  quizStart(document.getElementById("wu-quiz"),items,true,warmupDone);}
 function warmupDone(qz){
+ logEvent('warmup','חימום לפני טורניר: '+qz.score+'/'+qz.items.length);
  document.getElementById("wu-quiz").innerHTML='<div style="text-align:center"><div class="handbig" style="font-size:28px">🎯 מוכן לשולחן</div><div class="stat" style="display:inline-block;min-width:150px;margin-top:6px"><div class="n">'+qz.score+'/'+qz.items.length+'</div><div class="l">ציון חימום</div></div></div>'+
  '<div class="note" style="margin-top:14px"><b>3 תזכורות לפני שאתה יושב:</b><br>• בכל יד שאל: "האם זו אותה החלטה בקאש? אם לא — למה ICM שינה אותה?"<br>• סטאק קצר = אגרסיבי · סטאק גדול קרוב לבועה = שמרן.<br>• שחק החלטות, לא תוצאות. נשימה אחרי כל bad-beat.</div>'+
  '<div class="hero-quote" style="margin-top:12px">“'+pick(HERO_QUOTES)+'”</div>'+
@@ -1310,7 +1357,7 @@ function examStart(){var items=[];for(var i=0;i<10;i++){var r=Math.random();item
  document.getElementById("ex-intro").style.display="none";document.getElementById("ex-card").style.display="block";
  quizStart(document.getElementById("ex-quiz"),items,false,examDone);}
 function examDone(qz){var pct=Math.round(100*qz.score/qz.items.length);
- POKER.exams=POKER.exams||[];POKER.exams.push({date:todayKey(),score:qz.score,total:qz.items.length,pct:pct});scheduleSave();
+ POKER.exams=POKER.exams||[];POKER.exams.push({date:todayKey(),score:qz.score,total:qz.items.length,pct:pct});logEvent('exam','מבחן: '+pct+' ('+qz.score+'/'+qz.items.length+')');scheduleSave();
  var grade=pct>=90?"מצוין! 🏆":(pct>=70?"טוב מאוד 👍":(pct>=50?"בדרך הנכונה":"צריך עוד תרגול"));
  var review=qz.answers.map(function(a,i){return '<div class="opt '+(a.ok?"correct":"wrong")+'" style="cursor:default"><b>'+(i+1)+'.</b> '+(a.ok?"✅ ":"❌ ")+'<span style="font-size:13px">'+a.q.explain+'</span></div>';}).join("");
  document.getElementById("ex-quiz").innerHTML='<div style="text-align:center"><div class="handbig" style="font-size:44px;color:var(--gold)">'+pct+'</div><div class="mini">'+qz.score+'/'+qz.items.length+' · '+grade+'</div></div>'+
@@ -1341,7 +1388,7 @@ function handAdd(){var h=v("h-hand");if(!h){toast("איזו יד?");return;}
  POKER.hands=POKER.hands||[];var stk=parseInt(document.getElementById("h-stack").value)||null;
  POKER.hands.push({id:"h"+Date.now(),date:todayKey(),stage:v("h-stage"),stack:stk,pos:v("h-pos"),hand:h,action:v("h-action"),result:v("h-result"),notes:v("h-notes")});
  ["h-hand","h-stack","h-pos","h-stage","h-action","h-result","h-notes"].forEach(function(id){document.getElementById(id).value="";});
- renderHands();scheduleSave();toast("היד נשמרה לספרייה");}
+ logEvent('hand','ניתוח יד: '+h);renderHands();scheduleSave();toast("היד נשמרה לספרייה");}
 function handHint(stack,stage){if(stack&&stack<=15)return "בעומק "+stack+"bb זה אזור Push/Fold — Shove או Fold. בדוק מול טווחי הסטאק ב-📖 מדריך.";
  if(stage&&/בוע|גמר|final|itm|כסף/i.test(stage))return "שלב עם לחץ ICM — שאל: האם זו אותה החלטה בקאש? אם לא, ה-ICM מצדיק לשחק הדוק יותר.";
  return "שאל תמיד: קאש מול טורניר? ומה עומק הסטאק שלי?";}
@@ -1729,6 +1776,63 @@ function ansSim(k){
     '<div class="mini" style="margin-top:8px">📐 מקור ההערכה: '+c.src+'</div>';
   document.getElementById("sim-next").style.display="";
   renderSimLevels();scheduleSave();
+}
+
+/* ============================================================
+   PROGRESS CALENDAR
+   ============================================================ */
+var CAL_ICON={lesson:"📚",exam:"📝",tournament:"📓",hand:"🃏",warmup:"🔥",goal:"🎯"};
+var calCur=new Date(), calSel=null;
+function ymd(d){return d.toISOString().slice(0,10);}
+function calMove(n){calCur=new Date(calCur.getFullYear(),calCur.getMonth()+n,1);renderCal();}
+function dayEvents(k){return (POKER.log||[]).filter(function(e){return e.d===k;});}
+function renderCal(){
+  var head=document.getElementById("cal-head");if(!head)return;
+  head.innerHTML=["א","ב","ג","ד","ה","ו","ש"].map(function(x){return '<div class="calh">'+x+'</div>';}).join("");
+  var y=calCur.getFullYear(),m=calCur.getMonth();
+  var MN=["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+  document.getElementById("cal-title").textContent=MN[m]+" "+y;
+  var first=new Date(y,m,1).getDay(), days=new Date(y,m+1,0).getDate();
+  var g="",i;
+  for(i=0;i<first;i++)g+='<div class="cald empty"></div>';
+  var tk=todayKey();
+  for(i=1;i<=days;i++){
+    var k=y+"-"+String(m+1).padStart(2,"0")+"-"+String(i).padStart(2,"0");
+    var pr=(POKER.stats.daily[k]||{a:0}).a, ev=dayEvents(k);
+    var lvl=pr>=DAILY_TARGET?"l3":(pr>=8?"l2":(pr>0?"l1":""));
+    var icons=[];ev.forEach(function(e){if(icons.indexOf(CAL_ICON[e.t])<0)icons.push(CAL_ICON[e.t]);});
+    g+='<div class="cald '+lvl+(k===tk?" today":"")+(k===calSel?" sel":"")+'" onclick="calPick(\''+k+'\')">'+
+       '<div class="dn">'+i+'</div><div class="dots">'+(icons.join("")||(pr?"·":""))+'</div></div>';
+  }
+  document.getElementById("cal-grid").innerHTML=g;
+  renderCalDay();renderTimeline();
+}
+function calPick(k){calSel=(calSel===k?null:k);renderCal();}
+function renderCalDay(){
+  var box=document.getElementById("cal-day");if(!box)return;
+  if(!calSel){box.innerHTML='<div class="mini">בחר יום כדי לראות פירוט.</div>';return;}
+  var pr=POKER.stats.daily[calSel]||{a:0,c:0}, ev=dayEvents(calSel);
+  var h='<div class="note"><b>'+calSel+'</b><br>';
+  h+= pr.a?('תרגול: <b>'+pr.a+'</b> החלטות · דיוק <b>'+Math.round(100*pr.c/pr.a)+'%</b>'+(pr.a>=DAILY_TARGET?" · ✅ יעד יומי הושלם":"")):"לא תרגלת ביום הזה.";
+  if(ev.length){h+='<div style="margin-top:8px">';ev.forEach(function(e){h+='<div class="tlitem">'+(CAL_ICON[e.t]||"•")+' '+e.x+'</div>';});h+='</div>';}
+  h+='</div>';box.innerHTML=h;
+}
+function renderTimeline(){
+  var box=document.getElementById("cal-timeline");if(!box)return;
+  var days={},keys=[];
+  (POKER.log||[]).forEach(function(e){if(!days[e.d]){days[e.d]=[];keys.push(e.d);}days[e.d].push(e);});
+  Object.keys(POKER.stats.daily||{}).forEach(function(k){if(!days[k]){days[k]=[];keys.push(k);}});
+  keys.sort().reverse();
+  if(!keys.length){box.innerHTML='<div class="mini">עוד אין פעילות. כל תרגול, שיעור וטורניר יופיעו כאן.</div>';return;}
+  var h="";
+  keys.slice(0,45).forEach(function(k){
+    var pr=POKER.stats.daily[k]||{a:0,c:0};
+    h+='<div class="tlday"><div class="tldate">'+k+'</div>';
+    if(pr.a)h+='<div class="tlitem">🎯 תרגול: '+pr.a+' החלטות · דיוק '+Math.round(100*pr.c/pr.a)+'%'+(pr.a>=DAILY_TARGET?" ✅":"")+'</div>';
+    days[k].forEach(function(e){h+='<div class="tlitem">'+(CAL_ICON[e.t]||"•")+' '+e.x+'</div>';});
+    h+='</div>';
+  });
+  box.innerHTML=h;
 }
 
 /* ---------- hero quotes ---------- */
