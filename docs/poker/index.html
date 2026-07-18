@@ -380,6 +380,10 @@
     <div class="card">
       <h3>🎲 סימולטור שולחן מלא</h3>
       <div class="note">שולחן של 9 עם סטאקים שונים, רצף פעולות אמיתי, ואתה צריך להחליט. הרמות נפתחות בהדרגה — צריך <b>70% דיוק על 10 יד לפחות</b> כדי לפתוח את הבאה.</div>
+      <div class="chips" id="simmode">
+        <div class="chip active" data-sm="levels">📶 לפי רמות (מתקדם בהדרגה)</div>
+        <div class="chip" data-sm="mixed">🎲 מעורב — כל הסימולציות</div>
+      </div>
       <div class="lvls" id="simlvls"></div>
       <div id="sim-body"></div>
     </div>
@@ -729,7 +733,7 @@ function go(tab){
   if(tab==="career")renderCareer();
   if(tab==="ref")renderGlossary();
   if(tab==="icmlab"){if(!curICM)genICM();}
-  if(tab==="sim"){renderSimLevels();if(!curSim)genSim();}
+  if(tab==="sim"){renderSimMode();renderSimLevels();if(!curSim)genSim();}
   if(tab==="journal"){renderJournal();renderHands();}
   if(tab==="exam")renderExam();
   if(tab==="upcoming")renderUpcoming();
@@ -1570,9 +1574,18 @@ var SIM_LEVELS=[
  {n:4,t:"מול 3-bet",d:"פתחת וקיבלת 3-bet"},
  {n:5,t:"ICM לחוץ",d:"Bubble / Final Table"}
 ];
-function simState(){POKER.sim=POKER.sim||{level:1,unlocked:1,stats:{}};return POKER.sim;}
+function simState(){POKER.sim=POKER.sim||{level:1,unlocked:1,stats:{}};if(!POKER.sim.mode)POKER.sim.mode='levels';return POKER.sim;}
 function simAcc(l){var st=simState().stats[l]||{a:0,c:0};return st.a?100*st.c/st.a:0;}
 function simCanUnlock(l){var st=simState().stats[l]||{a:0,c:0};return st.a>=10&&simAcc(l)>=70;}
+function renderSimMode(){
+  var S=simState();
+  document.querySelectorAll("#simmode .chip").forEach(function(c){
+    c.classList.toggle("active",c.dataset.sm===S.mode);
+    c.onclick=function(){S.mode=c.dataset.sm;renderSimMode();renderSimLevels();genSim();scheduleSave();};
+  });
+  var lv=document.getElementById("simlvls");
+  if(lv)lv.style.display=(S.mode==="mixed")?"none":"flex";
+}
 function renderSimLevels(){
   var S=simState(),box=document.getElementById("simlvls");if(!box)return;
   // recompute unlock
@@ -1597,7 +1610,7 @@ function handTier(c){
 }
 var curSim=null;
 function genSim(){
-  var S=simState(),L=S.level;
+  var S=simState(),L=(S.mode==='mixed')?(1+Math.floor(Math.random()*5)):S.level;
   var stage = (L===5)?(Math.random()<0.5?"bubble":"final"):"mid";
   var stacks=[],i;
   for(i=0;i<9;i++)stacks.push(7+Math.floor(Math.random()*33));
@@ -1668,6 +1681,7 @@ function genSim(){
 }
 function renderSim(){
   var c=curSim,h='';
+  h+='<div class="qmeta">🎯 '+(SIM_LEVELS[c.L-1]?SIM_LEVELS[c.L-1].t:"")+(simState().mode==="mixed"?" · מצב מעורב":" · רמה "+c.L)+'</div>';
   if(c.stage!=="mid")h+='<div class="qmeta">'+(c.stage==="bubble"?"🫧 Bubble — עוד אחד ואתם בכסף":"🏆 Final Table — קפיצות פרס גדולות")+'</div>';
   h+='<div class="seats">';
   for(var i=0;i<9;i++){
