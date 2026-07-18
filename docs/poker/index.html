@@ -226,6 +226,14 @@
   .tlday{margin-bottom:15px;border-right:2px solid var(--line);padding-right:12px}
   .tldate{color:var(--gold);font-weight:800;font-size:13px;margin-bottom:5px}
   .tlitem{font-size:13px;color:#cfe3da;margin:3px 0;line-height:1.5}
+
+  .cald.lrn{background:rgba(13,148,136,.28);border-color:#0e7490}
+  .cald.lrn .dn{color:#d7f5ee}
+  .calsum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 4px}
+  .calsum div{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center;font-size:12px}
+  .calsum b{display:block;font-size:18px;color:var(--gold)}
+  .daysec{margin-top:9px}
+  .daysec h5{margin:0 0 4px;font-size:13px;color:var(--gold)}
 </style>
 </head>
 <body>
@@ -479,12 +487,13 @@
   <div class="panel" id="p-cal">
     <div class="card">
       <h3>📅 לוח ההתקדמות</h3>
-      <div class="mini">כל יום מציג מה תרגלת, מה למדת ומה שיחקת. ככל שהיום צהוב יותר — תרגלת יותר. לחיצה על יום פותחת את הפירוט.</div>
+      <div class="mini">כל יום מציג מה <b>למדת</b>, מה <b>תרגלת</b> ומה <b>שיחקת</b>. צהוב = תרגול (ככל שמלא יותר — תרגלת יותר) · טורקיז = יום של לימוד. לחיצה על יום פותחת פירוט מלא.</div>
       <div class="calnav" style="margin-top:12px">
         <button class="btn ghost" style="padding:8px 14px" onclick="calMove(-1)">← קודם</button>
         <b id="cal-title" style="font-size:16px"></b>
         <button class="btn ghost" style="padding:8px 14px" onclick="calMove(1)">הבא →</button>
       </div>
+      <div class="calsum" id="cal-sum"></div>
       <div class="cal" id="cal-head"></div>
       <div class="cal" id="cal-grid" style="margin-top:5px"></div>
       <div id="cal-day" style="margin-top:14px"></div>
@@ -1793,18 +1802,22 @@ function renderCal(){
   var MN=["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
   document.getElementById("cal-title").textContent=MN[m]+" "+y;
   var first=new Date(y,m,1).getDay(), days=new Date(y,m+1,0).getDate();
-  var g="",i;
+  var g="",i,tk=todayKey(),sumP=0,sumL=0,sumT=0;
   for(i=0;i<first;i++)g+='<div class="cald empty"></div>';
-  var tk=todayKey();
   for(i=1;i<=days;i++){
     var k=y+"-"+String(m+1).padStart(2,"0")+"-"+String(i).padStart(2,"0");
     var pr=(POKER.stats.daily[k]||{a:0}).a, ev=dayEvents(k);
-    var lvl=pr>=DAILY_TARGET?"l3":(pr>=8?"l2":(pr>0?"l1":""));
+    var les=ev.filter(function(e){return e.t==="lesson";}).length;
+    var tor=ev.filter(function(e){return e.t==="tournament";}).length;
+    if(pr>0)sumP++; sumL+=les; sumT+=tor;
+    var lvl=pr>=DAILY_TARGET?"l3":(pr>=8?"l2":(pr>0?"l1":(les?"lrn":"")));
     var icons=[];ev.forEach(function(e){if(icons.indexOf(CAL_ICON[e.t])<0)icons.push(CAL_ICON[e.t]);});
     g+='<div class="cald '+lvl+(k===tk?" today":"")+(k===calSel?" sel":"")+'" onclick="calPick(\''+k+'\')">'+
        '<div class="dn">'+i+'</div><div class="dots">'+(icons.join("")||(pr?"·":""))+'</div></div>';
   }
   document.getElementById("cal-grid").innerHTML=g;
+  var sm=document.getElementById("cal-sum");
+  if(sm)sm.innerHTML='<div><b>'+sumP+'</b>ימי תרגול</div><div><b>'+sumL+'</b>שיעורים שנלמדו</div><div><b>'+sumT+'</b>טורנירים</div>';
   renderCalDay();renderTimeline();
 }
 function calPick(k){calSel=(calSel===k?null:k);renderCal();}
@@ -1812,9 +1825,19 @@ function renderCalDay(){
   var box=document.getElementById("cal-day");if(!box)return;
   if(!calSel){box.innerHTML='<div class="mini">בחר יום כדי לראות פירוט.</div>';return;}
   var pr=POKER.stats.daily[calSel]||{a:0,c:0}, ev=dayEvents(calSel);
-  var h='<div class="note"><b>'+calSel+'</b><br>';
-  h+= pr.a?('תרגול: <b>'+pr.a+'</b> החלטות · דיוק <b>'+Math.round(100*pr.c/pr.a)+'%</b>'+(pr.a>=DAILY_TARGET?" · ✅ יעד יומי הושלם":"")):"לא תרגלת ביום הזה.";
-  if(ev.length){h+='<div style="margin-top:8px">';ev.forEach(function(e){h+='<div class="tlitem">'+(CAL_ICON[e.t]||"•")+' '+e.x+'</div>';});h+='</div>';}
+  function sec(title,list){
+    if(!list.length)return "";
+    return '<div class="daysec"><h5>'+title+'</h5>'+list.map(function(t){return '<div class="tlitem">'+t+'</div>';}).join("")+'</div>';
+  }
+  var les=ev.filter(function(e){return e.t==="lesson";}).map(function(e){return "📚 "+e.x;});
+  var play=ev.filter(function(e){return e.t==="tournament";}).map(function(e){return "📓 "+e.x;});
+  var drill=ev.filter(function(e){return ["exam","warmup","goal","hand"].indexOf(e.t)>=0;}).map(function(e){return (CAL_ICON[e.t]||"•")+" "+e.x;});
+  var h='<div class="note"><b>'+calSel+'</b>';
+  if(!pr.a && !ev.length){h+='<div class="mini" style="margin-top:6px">אין פעילות ביום הזה.</div>';}
+  h+=sec("📚 לימוד",les);
+  if(pr.a)h+=sec("🎯 תרגול",["תרגלת <b>"+pr.a+"</b> החלטות · דיוק <b>"+Math.round(100*pr.c/pr.a)+"%</b>"+(pr.a>=DAILY_TARGET?" · ✅ יעד יומי הושלם":"")]);
+  h+=sec("🎲 פעילות נוספת",drill);
+  h+=sec("📓 משחק",play);
   h+='</div>';box.innerHTML=h;
 }
 function renderTimeline(){
@@ -1823,13 +1846,14 @@ function renderTimeline(){
   (POKER.log||[]).forEach(function(e){if(!days[e.d]){days[e.d]=[];keys.push(e.d);}days[e.d].push(e);});
   Object.keys(POKER.stats.daily||{}).forEach(function(k){if(!days[k]){days[k]=[];keys.push(k);}});
   keys.sort().reverse();
-  if(!keys.length){box.innerHTML='<div class="mini">עוד אין פעילות. כל תרגול, שיעור וטורניר יופיעו כאן.</div>';return;}
+  if(!keys.length){box.innerHTML='<div class="mini">עוד אין פעילות. כל לימוד, תרגול וטורניר יופיעו כאן.</div>';return;}
   var h="";
   keys.slice(0,45).forEach(function(k){
-    var pr=POKER.stats.daily[k]||{a:0,c:0};
+    var pr=POKER.stats.daily[k]||{a:0,c:0},ev=days[k];
     h+='<div class="tlday"><div class="tldate">'+k+'</div>';
+    ev.filter(function(e){return e.t==="lesson";}).forEach(function(e){h+='<div class="tlitem">📚 למד: '+e.x+'</div>';});
     if(pr.a)h+='<div class="tlitem">🎯 תרגול: '+pr.a+' החלטות · דיוק '+Math.round(100*pr.c/pr.a)+'%'+(pr.a>=DAILY_TARGET?" ✅":"")+'</div>';
-    days[k].forEach(function(e){h+='<div class="tlitem">'+(CAL_ICON[e.t]||"•")+' '+e.x+'</div>';});
+    ev.filter(function(e){return e.t!=="lesson";}).forEach(function(e){h+='<div class="tlitem">'+(CAL_ICON[e.t]||"•")+' '+e.x+'</div>';});
     h+='</div>';
   });
   box.innerHTML=h;
