@@ -191,6 +191,23 @@
   .eqbar{height:10px;background:var(--card2);border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:4px}
   .eqbar>div{height:100%}
   .verdict{font-size:18px;font-weight:800;text-align:center;margin:6px 0}
+
+  /* simulator */
+  .lvls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
+  .lvl{flex:1;min-width:92px;text-align:center;padding:10px 6px;border-radius:12px;background:var(--card2);border:1px solid var(--line);cursor:pointer;font-size:12px}
+  .lvl.active{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#3a2b06;border-color:var(--gold);font-weight:700}
+  .lvl.locked{opacity:.42;cursor:not-allowed}
+  .lvl .ln{font-size:16px;font-weight:800}
+  .seats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
+  @media(max-width:560px){.seats{grid-template-columns:repeat(2,1fr)}}
+  .seat{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:7px 9px;font-size:12px}
+  .seat .sp{color:var(--muted);font-size:11px}
+  .seat .ss{font-weight:800;font-size:14px}
+  .seat.hero{border-color:var(--gold);background:rgba(233,196,106,.12)}
+  .seat.hero .sp{color:var(--gold)}
+  .seat.acted{border-color:#f59e0b}
+  .seat.folded{opacity:.35}
+  .actlog{background:rgba(0,0,0,.22);border-right:3px solid var(--gold);border-radius:8px;padding:9px 12px;font-size:13px;line-height:1.6;margin:8px 0}
 </style>
 </head>
 <body>
@@ -213,6 +230,7 @@
     <div class="tab" data-tab="spot">🎯 ICM</div>
     <div class="tab" data-tab="math">🧮 Math</div>
     <div class="tab" data-tab="icmlab">🧠 ICM Lab</div>
+    <div class="tab" data-tab="sim">🎲 סימולטור</div>
     <div class="tab" data-tab="warmup">🔥 חימום</div>
     <div class="tab" data-tab="exam">📝 מבחן</div>
     <div class="tab" data-tab="journal">📓 יומן</div>
@@ -354,6 +372,16 @@
       <div class="row-actions" id="sp-nextrow" style="display:none">
         <button class="btn primary" onclick="spotNext()">הבא ←</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== SIMULATOR ===== -->
+  <div class="panel" id="p-sim">
+    <div class="card">
+      <h3>🎲 סימולטור שולחן מלא</h3>
+      <div class="note">שולחן של 9 עם סטאקים שונים, רצף פעולות אמיתי, ואתה צריך להחליט. הרמות נפתחות בהדרגה — צריך <b>70% דיוק על 10 יד לפחות</b> כדי לפתוח את הבאה.</div>
+      <div class="lvls" id="simlvls"></div>
+      <div id="sim-body"></div>
     </div>
   </div>
 
@@ -657,7 +685,7 @@ function record(topic,ok){
   if(ok){s.correct++;s.by_topic[topic].c++;s.daily[dk].c++;s.streak++;if(s.streak>s.best)s.best=s.streak;}else s.streak=0;
   renderOverview();scheduleSave();
 }
-function migrate(){if(!POKER.settings)POKER.settings={currency:"$"};if(!POKER.journal)POKER.journal=[];if(!POKER.goals_custom)POKER.goals_custom=[];if(!POKER.lessons_done)POKER.lessons_done={};if(!POKER.exams)POKER.exams=[];if(!POKER.upcoming)POKER.upcoming=[];if(!POKER.hands)POKER.hands=[];if(!POKER.stats)POKER.stats={answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}};}
+function migrate(){if(!POKER.settings)POKER.settings={currency:"$"};if(!POKER.journal)POKER.journal=[];if(!POKER.goals_custom)POKER.goals_custom=[];if(!POKER.lessons_done)POKER.lessons_done={};if(!POKER.exams)POKER.exams=[];if(!POKER.upcoming)POKER.upcoming=[];if(!POKER.hands)POKER.hands=[];if(!POKER.sim)POKER.sim={level:1,unlocked:1,stats:{}};if(!POKER.stats)POKER.stats={answered:0,correct:0,streak:0,best:0,by_topic:{},daily:{}};}
 function loadLocal(){try{var r=localStorage.getItem("poker_training_v1");if(r){var j=JSON.parse(r);if(j&&j.stats)POKER=j;}}catch(e){}migrate();}
 function saveLocal(){try{localStorage.setItem("poker_training_v1",JSON.stringify(POKER));}catch(e){}}
 async function loadCloud(){
@@ -701,6 +729,7 @@ function go(tab){
   if(tab==="career")renderCareer();
   if(tab==="ref")renderGlossary();
   if(tab==="icmlab"){if(!curICM)genICM();}
+  if(tab==="sim"){renderSimLevels();if(!curSim)genSim();}
   if(tab==="journal"){renderJournal();renderHands();}
   if(tab==="exam")renderExam();
   if(tab==="upcoming")renderUpcoming();
@@ -1528,6 +1557,153 @@ function calcICM(){
   }
   h+='</table><div class="mini" style="margin-top:8px">שים לב: אחוז הצ׳יפים תמיד גבוה מאחוז הכסף אצל הסטאק הגדול — זה בדיוק ICM.</div>';
   document.getElementById("ic-out").innerHTML=h;
+}
+
+/* ============================================================
+   TABLE SIMULATOR — 9-handed, 5 progressive levels
+   ============================================================ */
+var SEATS9=["UTG","UTG+1","MP","MP+1","HJ","CO","BTN","SB","BB"];
+var SIM_LEVELS=[
+ {n:1,t:"Push/Fold",d:"מקפלים אליך, סטאק קצר"},
+ {n:2,t:"מול Shove",d:"מישהו שאב — Call או Fold"},
+ {n:3,t:"מול Open",d:"פתחו לפניך, סטאק בינוני"},
+ {n:4,t:"מול 3-bet",d:"פתחת וקיבלת 3-bet"},
+ {n:5,t:"ICM לחוץ",d:"Bubble / Final Table"}
+];
+function simState(){POKER.sim=POKER.sim||{level:1,unlocked:1,stats:{}};return POKER.sim;}
+function simAcc(l){var st=simState().stats[l]||{a:0,c:0};return st.a?100*st.c/st.a:0;}
+function simCanUnlock(l){var st=simState().stats[l]||{a:0,c:0};return st.a>=10&&simAcc(l)>=70;}
+function renderSimLevels(){
+  var S=simState(),box=document.getElementById("simlvls");if(!box)return;
+  // recompute unlock
+  for(var l=1;l<5;l++){if(simCanUnlock(l)&&S.unlocked<l+1)S.unlocked=l+1;}
+  box.innerHTML="";
+  SIM_LEVELS.forEach(function(L){
+    var locked=L.n>S.unlocked, st=S.stats[L.n]||{a:0,c:0};
+    var d=document.createElement("div");
+    d.className="lvl"+(S.level===L.n?" active":"")+(locked?" locked":"");
+    d.innerHTML='<div class="ln">'+(locked?"🔒":L.n)+'</div><div>'+L.t+'</div><div class="sp" style="font-size:10px;color:var(--muted)">'+(st.a?Math.round(simAcc(L.n))+"% · "+st.a:L.d)+'</div>';
+    if(!locked)d.onclick=function(){S.level=L.n;genSim();renderSimLevels();scheduleSave();};
+    box.appendChild(d);
+  });
+}
+function handTier(c){
+  if(["AA","KK","QQ","AKs","AKo"].indexOf(c)>=0)return "premium";
+  if(["JJ","TT","AQs","AQo","AJs","KQs"].indexOf(c)>=0)return "strong";
+  if(["99","88","77","ATs","AJo","KQo","KJs","QJs","JTs"].indexOf(c)>=0)return "medium";
+  if(c.length===2)return "speculative";
+  if(c[2]==="s"&&"AKQJT".indexOf(c[0])>=0)return "speculative";
+  return "weak";
+}
+var curSim=null;
+function genSim(){
+  var S=simState(),L=S.level;
+  var stage = (L===5)?(Math.random()<0.5?"bubble":"final"):"mid";
+  var stacks=[],i;
+  for(i=0;i<9;i++)stacks.push(7+Math.floor(Math.random()*33));
+  var heroIdx,actorIdx=-1,act="",opts,correct,why,src,heroStack;
+  var hand=randHandDisplay(),tier=handTier(hand.canon);
+
+  if(L===1){
+    heroIdx=2+Math.floor(Math.random()*5); // MP..BTN
+    heroStack=8+Math.floor(Math.random()*8); stacks[heroIdx]=heroStack;
+    var posKey=["MP","MP","MP","CO","CO","BTN","BTN"][heroIdx-2]||"CO";
+    var near=[6,8,10,12,15].reduce(function(a,b){return Math.abs(b-heroStack)<Math.abs(a-heroStack)?b:a;});
+    var rng=NASH[posKey+"-"+near];
+    var sh=rng.h.indexOf(hand.canon)>=0;
+    act="כולם קיפלו אליך.";
+    opts=[{k:"shove",l:"🚀 Shove (All-in)"},{k:"fold",l:"🚮 Fold"}];
+    correct=sh?"shove":"fold";
+    src="טווחי Nash שחושבו במערכת";
+    why="Open-shove מ-"+posKey+" ב-"+heroStack+"bb = "+rng.p+"% מהידיים. היד שלך "+(sh?"בפנים":"בחוץ")+".";
+  } else if(L===2||L===5&&Math.random()<0.5){
+    heroIdx=8; heroStack=10+Math.floor(Math.random()*25); stacks[8]=heroStack;
+    actorIdx=2+Math.floor(Math.random()*5);
+    var sS=6+Math.floor(Math.random()*10); stacks[actorIdx]=sS;
+    var pos2=["MP","MP","MP","CO","CO","BTN","BTN"][actorIdx-2]||"CO";
+    var near2=[6,8,10,12,15].reduce(function(a,b){return Math.abs(b-sS)<Math.abs(a-sS)?b:a;});
+    var rng2=NASH[pos2+"-"+near2].h;
+    var eff=Math.min(heroStack,sS);
+    var pays=(stage==="bubble")?[34,22,16,12,9,7,0,0,0]:[30,20,14,10.5,8,6.5,5,3.5,2.5];
+    var f=stacks.slice();f[8]=heroStack-1;f[actorIdx]=sS+1.5;
+    var w=stacks.slice();w[8]=heroStack+eff+0.5;w[actorIdx]=sS-eff;
+    var lo=stacks.slice();lo[8]=heroStack-eff;lo[actorIdx]=sS+eff+0.5;
+    var evF=icmEV(f,pays)[8],evW=icmEV(w,pays)[8];
+    var evL=(lo[8]>0)?icmEV(lo,pays)[8]:0;
+    var req=(evW-evL)>0?100*(evF-evL)/(evW-evL):100;
+    var actual=eqVsRangeHand(hand.canon,rng2);
+    act="שחקן מ-"+pos2+" עשה Shove ל-"+sS+"bb. אתה ב-BB.";
+    opts=[{k:"call",l:"Call"},{k:"fold",l:"🚮 Fold"}];
+    correct=(actual>=req)?"call":"fold";
+    src="מנוע ICM (Malmuth-Harville) + מטריצת אקוויטי";
+    why="ה-Equity שלך מול טווח ה-Shove: <b>"+actual.toFixed(1)+"%</b>. נדרש לפי ICM: <b>"+req.toFixed(1)+"%</b>.";
+  } else if(L===3){
+    heroIdx=5+Math.floor(Math.random()*2); // CO/BTN
+    heroStack=20+Math.floor(Math.random()*21); stacks[heroIdx]=heroStack;
+    actorIdx=Math.floor(Math.random()*(heroIdx-1));
+    act="שחקן מ-"+SEATS9[actorIdx]+" פתח ל-2.2bb. כולם קיפלו עד אליך.";
+    opts=[{k:"3bet",l:"3-bet"},{k:"call",l:"Call"},{k:"fold",l:"🚮 Fold"}];
+    if(tier==="premium"||tier==="strong")correct="3bet";
+    else if(tier==="medium")correct=(heroStack>=30)?"call":"fold";
+    else if(tier==="speculative")correct=(heroStack>=30)?"call":"fold";
+    else correct="fold";
+    src="הכללים שנלמדו בשיעור 20-30bb";
+    why="בעומק "+heroStack+"bb מול Open מוקדם: ידיים חזקות → 3-bet; ידיים בינוניות → Call רק בעומק 30bb+ ובפוזיציה, אחרת Fold. היד שלך מסווגת <b>"+tier+"</b>.";
+  } else {
+    heroIdx=5+Math.floor(Math.random()*2);
+    heroStack=22+Math.floor(Math.random()*19); stacks[heroIdx]=heroStack;
+    actorIdx=7+Math.floor(Math.random()*2); // SB/BB (behind hero)
+    act="פתחת ל-2.2bb מ-"+SEATS9[heroIdx]+", ו-"+SEATS9[actorIdx]+" עשה <b>3-bet</b> ל-7bb.";
+    opts=[{k:"shove",l:"🚀 4-bet Shove"},{k:"call",l:"Call"},{k:"fold",l:"🚮 Fold"}];
+    if(tier==="premium")correct="shove";
+    else if(tier==="strong")correct=(heroStack<=30)?"shove":"call";
+    else correct="fold";
+    src="הכללים שנלמדו בשיעור 20-30bb";
+    why="מול 3-bet בעומק "+heroStack+"bb: או Fold או 4-bet Shove. ה-Call הוא הטעות הנפוצה של מנוסים (OOP בלי אופציות אחרי הפלופ). היד שלך <b>"+tier+"</b>.";
+    if(stage==="bubble"&&correct==="shove"&&tier==="strong"){correct="fold";why+=" ⚠ בבועה מהדקים עוד — ידיים גבוליות הופכות ל-Fold.";}
+  }
+  curSim={L:L,stage:stage,stacks:stacks,heroIdx:heroIdx,actorIdx:actorIdx,act:act,
+          opts:opts,correct:correct,why:why,src:src,hand:hand,heroStack:stacks[heroIdx]};
+  renderSim();
+}
+function renderSim(){
+  var c=curSim,h='';
+  if(c.stage!=="mid")h+='<div class="qmeta">'+(c.stage==="bubble"?"🫧 Bubble — עוד אחד ואתם בכסף":"🏆 Final Table — קפיצות פרס גדולות")+'</div>';
+  h+='<div class="seats">';
+  for(var i=0;i<9;i++){
+    var cls="seat"+(i===c.heroIdx?" hero":"")+(i===c.actorIdx?" acted":"");
+    h+='<div class="'+cls+'"><div class="sp">'+SEATS9[i]+(i===c.heroIdx?" (אתה)":"")+'</div><div class="ss">'+Math.round(c.stacks[i])+'bb</div></div>';
+  }
+  h+='</div><div class="actlog">'+c.act+'</div>';
+  h+='<div class="handbig" style="font-size:36px">'+c.hand.disp+'</div>';
+  h+='<div class="opts" id="sim-opts"></div><div class="feedback" id="sim-fb"></div>';
+  h+='<div class="row-actions" id="sim-next" style="display:none"><button class="btn primary" onclick="genSim()">הבא ←</button></div>';
+  document.getElementById("sim-body").innerHTML=h;
+  var ob=document.getElementById("sim-opts");
+  c.opts.forEach(function(o){var d=document.createElement("div");d.className="opt";d.innerHTML=o.l;
+    d.onclick=function(){ansSim(o.k);};ob.appendChild(d);});
+}
+function ansSim(k){
+  if(document.getElementById("sim-next").style.display!=="none")return;
+  var c=curSim,ok=(k===c.correct),S=simState();
+  S.stats[c.L]=S.stats[c.L]||{a:0,c:0};S.stats[c.L].a++;if(ok)S.stats[c.L].c++;
+  record(c.L===2?"icm":"pushfold",ok);
+  var opts=document.getElementById("sim-opts").children;
+  for(var i=0;i<opts.length;i++){
+    opts[i].onclick=null;
+    if(c.opts[i].k===c.correct)opts[i].classList.add("correct");
+    else if(c.opts[i].k===k)opts[i].classList.add("wrong");
+    else opts[i].classList.add("dim");
+  }
+  var lbl=c.opts.filter(function(o){return o.k===c.correct;})[0].l;
+  var fb=document.getElementById("sim-fb");
+  fb.className="feedback show "+(ok?"good":"err");
+  fb.innerHTML=(ok?"✅ נכון!":"❌ לא נכון.")+
+    '<div style="margin-top:10px;font-size:16px">✔️ ההחלטה הנכונה: <b style="color:var(--gold)">'+lbl+'</b></div>'+
+    '<div style="margin-top:8px"><b>למה?</b> '+c.why+'</div>'+
+    '<div class="mini" style="margin-top:8px">📐 מקור ההערכה: '+c.src+'</div>';
+  document.getElementById("sim-next").style.display="";
+  renderSimLevels();scheduleSave();
 }
 
 /* ---------- hero quotes ---------- */
