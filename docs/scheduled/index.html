@@ -182,9 +182,9 @@
 
   function statusFor(t) {
     if (!t.enabled) return { cls: "off", txt: "OFF" };
-    if (!t.lastRunAt) return { cls: "never", txt: "✗ נכשל" };
+    if (!t.lastRunAt) return { cls: "off", txt: "⏳ טרם רצה" };
     const h = (Date.now() - new Date(t.lastRunAt).getTime()) / 3600000;
-    let lim = t.frequency === "hourly" ? 1.2 : (t.frequency === "weekly" ? 24 * 8 : 25);
+    let lim = t.frequency === "hourly" ? 1.2 : (t.frequency === "monthly" ? 24 * 31 : (t.frequency === "weekly" ? 24 * 8 : 25));
     return h > lim ? { cls: "late", txt: "⚠ LATE" } : { cls: "ok", txt: "OK" };
   }
 
