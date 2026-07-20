@@ -8,8 +8,6 @@ Lauren ONLY IF something needs her attention. Specifically:
 For each upcoming event within the next 4 weeks (the "action window"):
   - Does it have a per-event landing page on events.themakeupblowout.com?
     (Source of truth: LANDING_PAGES map in launch/index.html, fallback HEAD probe)
-  - Does it have a hero.png in the events repo?
-    (HEAD probe to events.themakeupblowout.com/_assets/events/<slug>/hero.png)
   - Does it have an insta_reel_url in launch/notes.json?
 
 If anything is missing on a <4-week-out event → ONE SMS to Lauren listing all
@@ -116,16 +114,11 @@ def main() -> int:
         url     = f"{EVENTS_BASE}/events/{evkey_full}/"
         live    = in_map or head_check(url)
 
-        # Check 2: hero.png exists?
-        hero_url = f"{EVENTS_BASE}/_assets/events/{evkey_full}/hero.png"
-        hero    = head_check(hero_url)
-
-        # Check 3: insta_reel_url set in notes?
+        # Check 2: insta_reel_url set in notes?
         ig      = bool((notes.get(evkey_short) or {}).get("insta_reel_url"))
 
         missing = []
         if not live: missing.append("דף נחיתה")
-        if not hero: missing.append("hero.png")
         if not ig:   missing.append("IG Reel URL")
 
         status = "OK" if not missing else f"MISSING: {', '.join(missing)}"
