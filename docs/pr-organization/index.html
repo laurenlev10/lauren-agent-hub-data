@@ -597,7 +597,21 @@ const RUN = {
     const venue = get("venue"); if (venue) document.getElementById("f-hotel").value = venue;
     const start = get("start_date") || get("start"); if (start) document.getElementById("f-start").value = start;
     const end = get("end_date") || get("end"); if (end) document.getElementById("f-end").value = end;
-    const url = get("event_url"); if (url) document.getElementById("f-event-url").value = url;
+    // Event landing URL — auto-derive the ENGLISH event page even when the launch
+    // button only passes reel_link (share page) and no explicit event_url.
+    let url = get("event_url");
+    if (!url) {
+      const reel = get("reel_link");
+      if (reel) {
+        // strip /share.html /share-es.html /tiktok.html etc. -> the English event page base
+        url = reel.replace(/\/(share|share-es|tiktok|tiktok-es)\.html.*$/i, "/");
+      } else if (city && year) {
+        // fallback: build slug from City, ST + year -> events.themakeupblowout.com/events/<slug>/
+        const slug = city.toLowerCase().replace(/,/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + year;
+        url = "https://events.themakeupblowout.com/events/" + slug + "/";
+      }
+    }
+    if (url) document.getElementById("f-event-url").value = url;
   })();
 
   // Note: event_url is NOT auto-computed. Lauren provides the exact URL from her site
