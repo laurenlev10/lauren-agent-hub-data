@@ -310,7 +310,7 @@ const RUN = {
   </div>
 
   <div class="card">
-    <h2 style="margin-top:0">תוצאת ריצה אחרונה</h2>
+    <h2 style="margin-top:0">פניות לעסקים בעיר זו</h2>
     <div id="run-summary"></div>
     <div id="candidates-list"></div>
   </div>
@@ -396,32 +396,24 @@ const RUN = {
     return { load, save, setToken, getToken };
   })();
 
-  if (!RUN || RUN.status === "empty" || !RUN.event) {
-    if (sumEl) sumEl.innerHTML = '<div class="status-empty">עוד לא הרצנו — מלאי את הטופס למעלה לריצה ראשונה.</div>';
-    return;
-  }
+  // ---------- City-aware run selection ----------
+  // The dashboard shows the run for the city passed in the URL (?city=...),
+  // NOT just the last agent run. Each city's run is stored per-city in runs.json,
+  // so opening Modesto shows Modesto, opening Santa Maria shows Santa Maria.
+  function slugifyCity(c){ return (c || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
+  function nameSlug(n){ return (n || "").toLowerCase().replace(/[^a-z0-9א-ת]+/g, "-").slice(0, 60); }
 
-  const ev = RUN.event;
-  const drafts = RUN.drafts || RUN.candidates || [];
-  const forms  = RUN.phase_2_forms || [];
-  const phones = RUN.phone_only || [];
-  const totalFound = drafts.length + forms.length + phones.length;
+  const RUNS_URL = `https://raw.githubusercontent.com/laurenlev10/lauren-agent-hub-data/main/docs/pr-organization/runs.json?t=${Date.now()}`;
 
-  // --- Summary header ---
-  sumEl.innerHTML = `
-    <div><b>${ev.city}</b> · ${ev.venue || ""} ${ev.eventLandingUrl ? '· <a href="' + ev.eventLandingUrl + '" target="_blank" style="color:var(--accent2);font-weight:700">דף האירוע ↗</a>' : ""}</div>
-    <div style="font-size:12px;color:var(--muted);margin-top:4px">${RUN.date} · ${RUN.time}</div>
-    <div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-size:13px">
-      <span>📧 Phase 1 (Drafts): <b>${drafts.length}</b></span>
-      <span>📋 Phase 2 (Forms): <b>${forms.length}</b></span>
-      <span>📞 Phone-only: <b>${phones.length}</b></span>
-      <span>סה"כ נמצאו: <b>${totalFound}</b></span>
-    </div>
-    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted)">
-      <span id="sync-status">⟳ טוען sync…</span>
-      <button id="sync-token-btn" style="margin-left:auto;padding:4px 10px;border-radius:6px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:12px">⚙ GitHub Token</button>
-    </div>
-  `;
+  // Target city = URL param if present, else the baked run's city (direct visits).
+  const _urlParams = new URL(location.href).searchParams;
+  const _urlCity = (_urlParams.get("city") || "").trim();
+  const targetCity = _urlCity || (RUN && RUN.event && RUN.event.city) || "";
+  const targetSlug = slugifyCity(targetCity);
+
+  // Seed the per-city store with the baked RUN (back-compat), runs.json overlays it.
+  let RUNS = {};
+  if (RUN && RUN.event && RUN.event.city) RUNS[slugifyCity(RUN.event.city)] = RUN;
 
   // --- Status options ---
   const STATUS_OPTIONS = [
@@ -435,37 +427,26 @@ const RUN = {
     { value: "irrelevant",    label: "⏭ לא רלוונטי" },
   ];
 
-  // --- Notes state (per-org status only; notes textarea removed per Lauren request) ---
-  const citySlug = (ev.city || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  function nameSlug(n) { return (n || "").toLowerCase().replace(/[^a-z0-9א-ת]+/g, "-").slice(0, 60); }
-  function keyFor(n)   { return `${citySlug}+${nameSlug(n)}`; }
+  // --- Notes state (per-org status only), keyed by <citySlug>+<nameSlug> ---
+  function keyFor(n){ return `${targetSlug}+${nameSlug(n)}`; }
   const LS_KEY = "pr_notes_v1";
-  function loadLocal() { try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch(e) { return {}; } }
-  function saveLocal(s) { try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch(e){} }
+  function loadLocal(){ try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch(e){ return {}; } }
+  function saveLocal(s){ try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch(e){} }
   let notesState = loadLocal();
 
-  RemoteSync.load().then(remote => {
-    if (remote && typeof remote === "object") {
-      Object.keys(remote).forEach(k => { notesState[k] = remote[k]; });
-      saveLocal(notesState);
-      attachStatus();
-    }
-  });
-
-  function getEntry(n) { return notesState[keyFor(n)] || { status: "" }; }
-  function setEntry(n, partial) {
+  function getEntry(n){ return notesState[keyFor(n)] || { status: "" }; }
+  function setEntry(n, partial){
     const k = keyFor(n);
     notesState[k] = { ...(notesState[k] || {}), ...partial, updated: new Date().toISOString() };
     saveLocal(notesState);
     RemoteSync.save(notesState);
   }
 
-  // --- Render rows: simple table-like layout, name | contact | status ---
-  function escHtml(s) {
+  function escHtml(s){
     return (s || "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
-  function rowHtml(item, kind) {
+  function rowHtml(item, kind){
     const e = getEntry(item.name);
     const opts = STATUS_OPTIONS.map(o => `<option value="${o.value}"${o.value === e.status ? ' selected' : ''}>${o.label}</option>`).join("");
     let contact = "";
@@ -477,11 +458,12 @@ const RUN = {
       contact = `<a href="tel:${escHtml(item.phone.replace(/[^0-9+]/g, ""))}" style="color:#1f2937">${escHtml(item.phone)}</a>`;
     }
     const cat = item.category ? `<div style="font-size:11px;color:#9ca3af">${escHtml(item.category)}</div>` : "";
+    const note = item.note ? `<div style="font-size:11px;color:#9ca3af;margin-top:2px">${escHtml(item.note)}</div>` : "";
     return `
       <tr data-key="${keyFor(item.name)}">
         <td style="padding:10px 12px;border-bottom:1px solid #f3f4f6">
           <div style="font-weight:600;color:#111">${escHtml(item.name)}</div>
-          ${cat}
+          ${cat}${note}
         </td>
         <td style="padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;word-break:break-all">${contact}</td>
         <td style="padding:10px 12px;border-bottom:1px solid #f3f4f6;width:160px">
@@ -493,7 +475,7 @@ const RUN = {
     `;
   }
 
-  function sectionHtml(title, items, kind, color, openByDefault) {
+  function sectionHtml(title, items, kind, color, openByDefault){
     if (!items || items.length === 0) return "";
     const colLabel = kind === "draft" ? "אימייל" : kind === "form" ? "טופס" : "טלפון";
     return `
@@ -514,18 +496,7 @@ const RUN = {
     `;
   }
 
-  if (totalFound === 0) {
-    listEl.innerHTML = '<div class="status-empty">לא נמצאו מועמדים בריצה הזאת.</div>';
-  } else {
-    listEl.innerHTML =
-      '<style>details[open] > summary .caret { transform: rotate(90deg); }</style>' +
-      sectionHtml("📧 Phase 1 — טיוטות מוכנות לשליחה ב-pr@", drafts, "draft", "#166534", true) +
-      sectionHtml("📋 Phase 2 — טפסים למילוי ידני", forms, "form", "#92400e", false) +
-      sectionHtml("📞 רק טלפון (אין אימייל ציבורי)", phones, "phone", "#9f1239", false);
-    attachStatus();
-  }
-
-  function attachStatus() {
+  function attachStatus(){
     document.querySelectorAll(".pr-status").forEach(sel => {
       const name = sel.getAttribute("data-name");
       const e = getEntry(name);
@@ -533,6 +504,75 @@ const RUN = {
       sel.addEventListener("change", () => setEntry(name, { status: sel.value }));
     });
   }
+
+  // --- Render the active city's run (or a clean per-city empty state) ---
+  function renderActive(){
+    const activeRun = RUNS[targetSlug];
+    const cityLabel = escHtml(targetCity || "העיר");
+
+    if (!activeRun || !activeRun.event) {
+      // No run for THIS city yet — do NOT show another city's run.
+      sumEl.innerHTML = `
+        <div style="font-size:15px"><b>${cityLabel}</b></div>
+        <div style="margin-top:10px;padding:16px;background:#fffbeb;border:1px dashed var(--border);border-radius:10px;color:#92400e;font-size:14px;line-height:1.6">
+          עדיין לא בוצע חיפוש PR ל<b>${cityLabel}</b>.<br>
+          מלאי את הטופס למעלה ולחצי "📋 העתיקי פקודה" כדי להריץ את הסוכן לעיר הזו.<br>
+          <span style="font-size:12px;color:var(--muted)">הפניות והסטטוסים של כל עיר נשמרים בנפרד — פה יופיעו רק העסקים של ${cityLabel}.</span>
+        </div>`;
+      listEl.innerHTML = "";
+      return;
+    }
+
+    const ev = activeRun.event;
+    const drafts = activeRun.drafts || activeRun.candidates || [];
+    const forms  = activeRun.phase_2_forms || [];
+    const phones = activeRun.phone_only || [];
+    const totalFound = drafts.length + forms.length + phones.length;
+
+    sumEl.innerHTML = `
+      <div><b>${escHtml(ev.city)}</b> · ${escHtml(ev.venue || "")} ${ev.eventLandingUrl ? '· <a href="' + escHtml(ev.eventLandingUrl) + '" target="_blank" style="color:var(--accent2);font-weight:700">דף האירוע ↗</a>' : ""}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${escHtml(activeRun.date || "")} · ${escHtml(activeRun.time || "")}</div>
+      <div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-size:13px">
+        <span>📧 Phase 1 (Drafts): <b>${drafts.length}</b></span>
+        <span>📋 Phase 2 (Forms): <b>${forms.length}</b></span>
+        <span>📞 Phone-only: <b>${phones.length}</b></span>
+        <span>סה"כ נמצאו: <b>${totalFound}</b></span>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted)">
+        <span id="sync-status">⟳ טוען sync…</span>
+        <button id="sync-token-btn" style="margin-left:auto;padding:4px 10px;border-radius:6px;border:1px solid #d1d5db;background:#fff;cursor:pointer;font-size:12px">⚙ GitHub Token</button>
+      </div>
+    `;
+
+    if (totalFound === 0) {
+      listEl.innerHTML = '<div class="status-empty">לא נמצאו מועמדים בריצה הזאת.</div>';
+    } else {
+      listEl.innerHTML =
+        '<style>details[open] > summary .caret { transform: rotate(90deg); }</style>' +
+        sectionHtml("📧 Phase 1 — טיוטות מוכנות לשליחה ב-pr@", drafts, "draft", "#166534", true) +
+        sectionHtml("📋 Phase 2 — טפסים למילוי ידני", forms, "form", "#92400e", false) +
+        sectionHtml("📞 רק טלפון (אין אימייל ציבורי)", phones, "phone", "#9f1239", false);
+      attachStatus();
+    }
+  }
+
+  // Load per-city runs + notes, then render the target city.
+  Promise.all([
+    fetch(RUNS_URL, { cache: "no-store" }).then(r => r.ok ? r.json() : {}).catch(() => ({})),
+    RemoteSync.load()
+  ]).then(([runsData, remoteNotes]) => {
+    if (runsData && typeof runsData === "object") {
+      Object.keys(runsData).forEach(k => { RUNS[k] = runsData[k]; });
+    }
+    if (remoteNotes && typeof remoteNotes === "object") {
+      Object.keys(remoteNotes).forEach(k => { notesState[k] = remoteNotes[k]; });
+      saveLocal(notesState);
+    }
+    renderActive();
+  });
+
+  // First paint from whatever we already have (baked RUN), refined after fetch.
+  renderActive();
 
   document.addEventListener("click", e => {
     if (e.target && e.target.id === "sync-token-btn") {
