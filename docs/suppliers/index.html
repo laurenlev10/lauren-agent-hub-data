@@ -149,6 +149,7 @@ function compactRow(iv){
    "<td style='text-align:center'>"+(bk?"<span class='tag' style='background:#dbeafe;color:#1e40af'>🏦 "+money(bk.bank_amount)+"</span>":"<span class='tag' style='background:#fef9c3;color:#854d0e' title='סומן שולם ידנית — הבנק עוד לא אישר'>✋ ממתין לבנק</span>")+"</td>"+
    "<td style='font-size:12px'>"+esc(pdv)+"</td>"+
    "<td style='font-size:12px'>"+esc(pm)+"</td>"+
+   "<td style='font-size:12px;color:#64748b' title='"+esc(rec(iv.id).note||"")+"'>"+esc(rec(iv.id).note||"")+"</td>"+
    "<td style='color:#cbd5e1;text-align:center'>✏️</td></tr>";
 }
 function openSup(name){
@@ -165,7 +166,7 @@ function openSup(name){
    "<div class='sc out'><div class='v'>"+money(openTot)+"</div><div class='l'>נותר לתשלום</div></div>"+
    "<div class='sc paid'><div class='v'>"+paid.length+"</div><div class='l'>✓ שולמו</div></div>"+
    "<div class='sc'><div class='v'>"+money(tot)+"</div><div class='l'>סה״כ</div></div></div>";
- h+="<table><tr><th>סטטוס</th><th>תאריך</th><th>אירוע</th><th>סכום</th><th>מס׳ חשבונית</th><th>תשלום</th><th>תאריך תשלום</th><th>אופן</th><th></th></tr>";
+ h+="<table><tr><th>סטטוס</th><th>תאריך</th><th>אירוע</th><th>סכום</th><th>מס׳ חשבונית</th><th>תשלום</th><th>תאריך תשלום</th><th>אופן</th><th>📝 הערה</th><th></th></tr>";
  const rowHtml=(iv)=>{
    const r=rec(iv.id); const bk=bkFor(iv.id);
    const paidChk=(typeof r.paid==='boolean')?r.paid:!!bk; const isOpen=!paidChk;
@@ -185,17 +186,18 @@ function openSup(name){
      "<td style='text-align:center'>"+pay+"</td>"+
      "<td><input class='pdate' type='date' id='dt-"+iv.id+"' value='"+esc(pdv)+"' onchange=\"save('"+iv.id+"')\"></td>"+
      "<td><select id='pm-"+iv.id+"' onchange=\"save('"+iv.id+"')\"><option value=''>—</option>"+opts+"</select></td>"+
+     "<td><input id='note-"+iv.id+"' value='"+esc(r.note||"")+"' placeholder='📝 הערה' style='width:150px' onchange=\"save('"+iv.id+"')\"></td>"+
      "<td><button class='del' onclick=\"delInv('"+iv.id+"',"+(iv.manual?"true":"false")+")\">מחק</button></td></tr>";
  };
  open.forEach(iv=>h+=rowHtml(iv));
- if(paid.length)h+="<tr class='sep'><td colspan='9' style='background:#f1f5f9;color:#64748b;font-size:12px;font-weight:700;padding:6px 10px'>— שולמו ("+paid.length+") —</td></tr>";
+ if(paid.length)h+="<tr class='sep'><td colspan='10' style='background:#f1f5f9;color:#64748b;font-size:12px;font-weight:700;padding:6px 10px'>— שולמו ("+paid.length+") —</td></tr>";
  paid.forEach(iv=>h+=(EXPANDED.has(iv.id)?rowHtml(iv):compactRow(iv)));
  const sn=esc(name).replace(/'/g,"\\'");
  h+="<tr class='addrow'><td>➕</td><td><input type='date' id='add-date'></td>"+
     "<td><input id='add-event' placeholder='אירוע / תיאור'></td>"+
     "<td><input id='add-amount' placeholder='סכום'></td>"+
     "<td colspan='3'><input id='add-invno' placeholder='מס׳ חשבונית (לא חובה)'></td>"+
-    "<td colspan='2'><button onclick=\"addMan('"+sn+"')\">+ הוסף חשבונית</button></td></tr>";
+    "<td colspan='3'><button onclick=\"addMan('"+sn+"')\">+ הוסף חשבונית</button></td></tr>";
  h+="</table>";
  document.getElementById("app").innerHTML=h;
 }
@@ -222,7 +224,8 @@ async function save(id){
  const r={invoice_number:(document.getElementById("no-"+id)||{}).value||"",
    paid:(document.getElementById("pd-"+id)||{}).checked||false,
    paid_date:(document.getElementById("dt-"+id)||{}).value||"",
-   payment_method:(document.getElementById("pm-"+id)||{}).value||""};
+   payment_method:(document.getElementById("pm-"+id)||{}).value||"",
+   note:(document.getElementById("note-"+id)||{}).value||""};
  const m=await putFile(PAY_FILE,cur=>{cur=cur||{invoices:{}};if(!cur.invoices)cur.invoices={};cur.invoices[id]=Object.assign({},cur.invoices[id]||{},r);return cur;},"supplier-payment: "+id);
  if(m){PAY=m;toast("✓ נשמר");}
 }
