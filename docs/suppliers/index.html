@@ -177,7 +177,7 @@ function openSup(name){
    const opts=METHODS.map(m=>"<option "+(pmv===m?"selected":"")+">"+m+"</option>").join("")+(["Card","ACH","Bank"].includes(pmv)?"<option selected>"+pmv+"</option>":"");
    const st=isOpen?"<span class='pill no'>🔴 פתוחה</span>":"<span class='pill ok'>✓ שולם</span>";
    let pay="<input type='checkbox' class='paidbox' id='pd-"+iv.id+"' "+(paidChk?"checked":"")+" onchange=\"save('"+iv.id+"')\">";
-   if(isOpen){ pay+="<br><button style='background:#0369a1;margin-top:4px;padding:4px 9px;font-size:12px' onclick=\"openLinkPicker('"+iv.id+"')\">🔗 קשר חיוב</button>"; }
+   if(!bk){ pay+="<br><button style='background:#0369a1;margin-top:4px;padding:4px 9px;font-size:12px' onclick=\"openLinkPicker('"+iv.id+"')\">🔗 קשר חיוב</button>"; pay+=reconBadge(r,bk); }
    else { if(bk)pay+=" <a href='https://bookkeeping.themakeupblowout.com/?txn="+bk.bank_txn_id+"' target='_blank' class='tag' style='background:#dbeafe;color:#1e40af;text-decoration:none' title='שולם מהבנק'>🏦 "+money(bk.bank_amount)+"</a> <span onclick=\"rejectMatch('"+iv.id+"','"+bk.bank_txn_id+"')\" title='ביטול שיוך שגוי' style='cursor:pointer;color:#b91c1c;font-size:12px'>✗</span>"; pay+=reconBadge(r,bk); }
    return "<tr class='"+(iv.manual?"man ":"")+(isOpen?"openrow":"donerow")+"'>"+
      "<td>"+st+"</td>"+
@@ -372,13 +372,14 @@ function renderUnmatched(){
 function modal(html){ let m=document.getElementById('mdl'); if(!m){m=document.createElement('div');m.id='mdl';m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:99';document.body.appendChild(m);} m.innerHTML="<div style='background:#fff;border-radius:12px;padding:18px;max-width:620px;width:92%;max-height:80vh;overflow:auto'>"+html+"<div style='text-align:center;margin-top:10px'><button onclick=\"closeModal()\" style='background:#6b7280'>סגור</button></div></div>"; m.style.display='flex'; }
 function closeModal(){const m=document.getElementById('mdl');if(m)m.style.display='none';}
 
-function openLinkPicker(invId){ // from an invoice -> pick a bank charge
- const sup=VIEW; const all=unmatchedCharges();
- const pref=all.filter(c=>c.supplier_guess===sup), rest=all.filter(c=>c.supplier_guess!==sup);
- const ordered=pref.concat(rest);
- let h="<h3>🔗 בחרי חיוב מהבנק לקישור</h3><div class='sub'>"+esc(invName(invId))+"</div>";
- if(!ordered.length)h+="<div class='sub'>אין חיובים ללא שיוך.</div>";
- h+="<table>"+ordered.map(c=>"<tr><td>"+esc(c.date)+"</td><td class='num'>"+money(c.amount)+"</td><td style='font-size:12px'>"+esc(c.desc)+"</td><td>"+(c.supplier_guess?"<span class='tag'>"+esc(c.supplier_guess)+"</span>":"")+"</td><td><button onclick=\"linkInvoiceToCharge('"+invId+"','"+c.id+"')\">בחר</button></td></tr>").join('')+"</table>";
+function filterLP(el){var q=(el.value||'').toLowerCase();var rs=document.querySelectorAll('#lptbl tr[data-row]');for(var i=0;i<rs.length;i++){var t=rs[i].getAttribute('data-txt')||'';rs[i].style.display=(t.indexOf(q)>-1)?'':'none';}}
+function openLinkPicker(invId){ // from an invoice -> search & pick a bank charge
+ const io=invObjOf(invId); const amt=io?effAmt(io):0; const all=unmatchedCharges().slice();
+ all.sort((a,b)=>Math.abs((+a.amount)-amt)-Math.abs((+b.amount)-amt));
+ let h="<h3>🔗 חיפוש חיוב מהבנק לקישור</h3><div class='sub'>"+esc(invName(invId))+" · <b>"+money(amt)+"</b></div>";
+ h+="<input id='lpq' placeholder='🔍 חיפוש לפי סכום / תאריך / תיאור' oninput=\"filterLP(this)\" style='width:100%;padding:8px;margin:8px 0;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:6px'>";
+ if(!all.length)h+="<div class='sub'>אין חיובים ללא שיוך.</div>";
+ h+="<table id='lptbl'><tr><th>קרבה</th><th>תאריך</th><th>סכום</th><th>תיאור</th><th>ספק</th><th></th></tr>"+all.map(c=>{const diff=Math.round(((+c.amount)-amt)*100)/100;const close=Math.abs(diff)<=1?"🎯":(Math.abs(diff)<=Math.max(5,amt*0.03)?"≈":"");const txt=esc(((c.date||'')+" "+c.amount+" "+money(c.amount)+" "+(c.desc||'')+" "+(c.supplier_guess||'')).toLowerCase().replace(/'/g,''));return "<tr data-row data-txt='"+txt+"'><td>"+close+(diff?" <span style='font-size:11px;color:#94a3b8'>"+(diff>0?'+':'')+diff+"</span>":"")+"</td><td>"+esc(c.date)+"</td><td class='num'>"+money(c.amount)+"</td><td style='font-size:12px'>"+esc(c.desc)+"</td><td>"+(c.supplier_guess?"<span class='tag'>"+esc(c.supplier_guess)+"</span>":"")+"</td><td><button onclick=\"linkInvoiceToCharge('"+invId+"','"+c.id+"')\">בחר</button></td></tr>";}).join('')+"</table>";
  modal(h);
 }
 function allOpenInvoices(){ const out=[]; supNames().forEach(name=>{ supInvoices(name).forEach(iv=>{ if(!bkFor(iv.id)) out.push(Object.assign({_sup:name},iv)); }); }); return out; }
