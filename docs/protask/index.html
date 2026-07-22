@@ -157,6 +157,21 @@
 
   /* PRINT */
   #printArea{display:none}
+  .est-box{border:1px solid #e5dcff;background:#faf7ff;border-radius:12px;padding:12px 14px;margin-top:14px}
+  .est-h{font-size:13px;font-weight:800;color:#6b21a8;margin-bottom:8px}
+  .est-h span{font-size:11px;font-weight:600;color:#9ca3af}
+  .mrgn-pre{display:flex;gap:6px}
+  .mrgn-pre button{flex:1;padding:8px 0;border:1px solid #e5e7eb;background:#fff;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer;color:#6b7280}
+  .mrgn-pre button.on{background:#6b21a8;color:#fff;border-color:#6b21a8}
+  .est-res{display:flex;gap:16px;flex-wrap:wrap;background:#1a1333;color:#fff;border-radius:10px;padding:10px 14px;margin-top:10px;font-size:13px}
+  .est-res b{color:#fff;margin-inline-start:4px}
+  .est-res .p b{color:#f2b705;font-size:18px}
+  .est-res span{color:#d8cfe6}
+  table.ref{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px}
+  table.ref td{padding:4px 7px;border-bottom:1px solid #eee}
+  table.ref td.r{text-align:left;font-weight:800;color:#111827}
+  table.ref tr.sel td{background:#fffdf3;color:#6b21a8}
+  .qc-label,.qc-amt{width:100%;padding:6px 8px;border:1px solid #e5e7eb;border-radius:7px;font-size:13px}
   @media print{
     body{background:#fff;padding:0}
     body.printing > *:not(#printArea){display:none !important}
@@ -221,6 +236,7 @@
   <div class="tabs">
     <button class="tab active" data-sec="dashboard">📊 סקירה</button>
     <button class="tab" data-sec="invoices">🧾 חשבוניות</button>
+    <button class="tab" data-sec="quotes">📄 הצעות מחיר</button>
     <button class="tab" data-sec="income">💵 הכנסות</button>
     <button class="tab" data-sec="clients">👥 לקוחות</button>
     <button class="tab" data-sec="expenses">💳 הוצאות</button>
@@ -268,6 +284,28 @@
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <div class="tbl-wrap"><table id="invoicesTbl"></table></div>
+    </div>
+  </div>
+
+  <!-- QUOTES -->
+  <div class="section" id="sec-quotes">
+    <div class="section-head">
+      <h2>📄 הצעות מחיר</h2>
+      <button class="btn btn-primary" id="newQuoteBtn">+ הצעת מחיר חדשה</button>
+    </div>
+    <p class="hint" style="margin-top:-6px;margin-bottom:14px">מחשבון עלות+מרווח בנוי בתוך יצירת ההצעה. ברירת מחדל: 50% מקדמה עם אישור ההצעה, 50% בסיום. הצעה שאושרה הופכת אוטומטית לחשבונית.</p>
+    <div class="filter-bar">
+      <input id="qSearch" placeholder="חיפוש לפי מספר / לקוח...">
+      <select id="qStatusFilter">
+        <option value="">כל הסטטוסים</option>
+        <option value="draft">טיוטה</option>
+        <option value="sent">נשלח</option>
+        <option value="accepted">אושר</option>
+        <option value="declined">נדחה</option>
+      </select>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="tbl-wrap"><table id="quotesTbl"></table></div>
     </div>
   </div>
 
@@ -406,6 +444,76 @@
   </div>
 </div>
 
+<!-- QUOTE MODAL -->
+<div class="overlay" id="quoteOverlay">
+  <div class="modal">
+    <h3>📄 <span id="qModalTitle">הצעת מחיר חדשה</span><button class="modal-close" data-close="quoteOverlay">×</button></h3>
+    <div class="grid3">
+      <div class="field"><label>מספר הצעה</label><input id="qNumber" dir="ltr" readonly></div>
+      <div class="field"><label>תאריך</label><input id="qDate" type="date"></div>
+      <div class="field"><label>בתוקף עד</label><input id="qValid" type="date"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>לקוח</label><select id="qClient"></select></div>
+      <div class="field"><label>סטטוס</label>
+        <select id="qStatus">
+          <option value="draft">טיוטה</option>
+          <option value="sent">נשלח</option>
+          <option value="accepted">אושר</option>
+          <option value="declined">נדחה</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="est-box">
+      <div class="est-h">🧮 מחשבון עלות ומרווח <span>(פנימי — הלקוח לא רואה)</span></div>
+      <div class="tbl-wrap"><table class="li-tbl"><thead><tr><th>עלות</th><th style="width:120px">סכום $</th><th style="width:34px"></th></tr></thead><tbody id="qCostBody"></tbody></table></div>
+      <button class="btn btn-ghost btn-sm" id="qAddCostBtn" style="margin-top:6px">+ עלות</button>
+      <label style="font-size:12.5px;font-weight:700;color:#374151;display:block;margin:12px 0 6px">אחוז מרווח</label>
+      <div class="mrgn-pre" id="qMarginPresets"></div>
+      <input id="qMargin" type="number" step="1" dir="ltr" value="50" style="margin-top:6px">
+      <div class="est-res">
+        <span>עלות <b id="qEstCost">$0.00</b></span>
+        <span>מרווח <b id="qEstProfit">$0.00</b></span>
+        <span class="p">מחיר ללקוח <b id="qEstPrice">$0.00</b></span>
+      </div>
+      <table class="ref" id="qRefTab"></table>
+      <button class="btn btn-purple btn-sm" id="qApplyEstBtn" style="margin-top:8px">← החל כמחיר ההצעה (שורה אחת)</button>
+    </div>
+
+    <label style="font-size:12.5px;font-weight:700;color:#374151;display:block;margin:14px 0 6px">פריטים (מה שהלקוח רואה)</label>
+    <div class="tbl-wrap">
+      <table class="li-tbl" id="qliTable">
+        <thead><tr><th class="li-desc">תיאור</th><th style="width:70px">כמות</th><th style="width:100px">מחיר ליח׳</th><th style="width:100px">סה״כ</th><th style="width:34px"></th></tr></thead>
+        <tbody id="qliBody"></tbody>
+      </table>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="qAddLineBtn" style="margin-top:8px">+ שורה</button>
+
+    <div class="grid3" style="margin-top:14px">
+      <div class="field"><label>הנחה ($)</label><input id="qDiscount" type="number" step="0.01" dir="ltr" value="0"></div>
+      <div class="field"><label>מס / מע״מ (%)</label><input id="qTax" type="number" step="0.01" dir="ltr" value="0"></div>
+      <div class="field"><label>מקדמה (%)</label><input id="qDeposit" type="number" step="1" dir="ltr" value="50"></div>
+    </div>
+    <div class="field"><label>הערות</label><textarea id="qNotes" placeholder="הערות שיופיעו בתחתית ההצעה"></textarea></div>
+
+    <div class="totals">
+      <div class="tr"><span>ביניים</span><span id="qTotSub">$0.00</span></div>
+      <div class="tr"><span>הנחה</span><span id="qTotDisc">-$0.00</span></div>
+      <div class="tr"><span>מס</span><span id="qTotTax">$0.00</span></div>
+      <div class="tr grand"><span>סה״כ</span><span id="qTotGrand">$0.00</span></div>
+      <div class="tr"><span>מקדמה עכשיו</span><span id="qDepShow">$0.00</span></div>
+      <div class="tr"><span>יתרה בסיום</span><span id="qBalShow">$0.00</span></div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="saveQuoteBtn">💾 שמירה</button>
+      <button class="btn btn-purple" id="printQuoteBtn">🖨️ הדפסה / PDF</button>
+      <button class="btn btn-ghost" data-close="quoteOverlay">ביטול</button>
+    </div>
+  </div>
+</div>
+
 <!-- CLIENT MODAL -->
 <div class="overlay" id="clientOverlay">
   <div class="modal small">
@@ -508,6 +616,9 @@
     biz_phone: "",
     biz_addr: "",
     logo_url: "../_assets/protask-logo.png",
+    quote_prefix: "PTQ-",
+    next_quote_num: 2001,
+    quote_deposit_pct: 50,
     invoice_prefix: "PTR-",
     next_invoice_num: 1001,
     tax_rate: 0,
@@ -516,7 +627,7 @@
     invoice_footer: "Thank you for your business!"
   };
 
-  var DATA = { _updated_at: null, settings: {}, clients: [], invoices: [], income: [], expenses: [] };
+  var DATA = { _updated_at: null, settings: {}, clients: [], invoices: [], income: [], expenses: [], quotes: [] };
   var saving = false;
 
   //── helpers ────────────────────────────────────────────
@@ -567,13 +678,14 @@
       if (r.ok){
         var j = await r.json();
         if (j && typeof j === "object"){
-          DATA = Object.assign({ _updated_at:null, settings:{}, clients:[], invoices:[], income:[], expenses:[] }, j);
+          DATA = Object.assign({ _updated_at:null, settings:{}, clients:[], invoices:[], income:[], expenses:[], quotes:[] }, j);
         }
       }
     } catch(e){ console.warn("loadState failed", e); }
     DATA.settings = Object.assign({}, DEFAULT_SETTINGS, DATA.settings || {});
     DATA.clients = DATA.clients || []; DATA.invoices = DATA.invoices || [];
     DATA.income = DATA.income || []; DATA.expenses = DATA.expenses || [];
+    DATA.quotes = DATA.quotes || [];
   }
 
   async function getSha(){
@@ -614,6 +726,7 @@
     document.querySelectorAll(".section").forEach(function(s){ s.classList.toggle("active", s.id==="sec-"+name); });
     if (name==="dashboard") renderDashboard();
     if (name==="invoices") renderInvoices();
+    if (name==="quotes") renderQuotes();
     if (name==="income") renderIncome();
     if (name==="clients") renderClients();
     if (name==="expenses") renderExpenses();
@@ -879,6 +992,256 @@
   }
 
   //── INCOME ─────────────────────────────────────────────
+  //== QUOTES =============================================
+  var QUOTE_PRESETS = [20,30,40,50];
+  var STD_COSTS = ["השכרת רכב","דלק","עובד","מלון","טיסה"];
+  var qMarginVal = 50;
+
+  function qTotals(q){
+    var sub = (q.items||[]).reduce(function(s,it){ return s + num(it.qty)*num(it.price); }, 0);
+    var disc = num(q.discount);
+    var taxable = Math.max(0, sub - disc);
+    var tax = taxable * num(q.tax_rate) / 100;
+    var grand = taxable + tax;
+    var dp = num(q.deposit_pct==null?50:q.deposit_pct);
+    var dep = grand * dp / 100;
+    return { sub:sub, disc:disc, tax:tax, grand:grand, dep:dep, bal:grand-dep };
+  }
+  function qStatusLabel(s){ return {draft:"טיוטה", sent:"נשלח", accepted:"אושר", declined:"נדחה"}[s] || s; }
+  function qPill(s){ return s==="accepted"?"paid":(s==="declined"?"overdue":(s==="draft"?"draft":"unpaid")); }
+
+  function renderQuotes(){
+    var query = ($("qSearch").value||"").toLowerCase();
+    var sf = $("qStatusFilter").value;
+    var list = DATA.quotes.slice().sort(function(a,b){ return (b.issue_date||"").localeCompare(a.issue_date||"") || (b.number||"").localeCompare(a.number||""); });
+    list = list.filter(function(i){
+      if (sf && i.status !== sf) return false;
+      if (!query) return true;
+      return (i.number||"").toLowerCase().indexOf(query)>=0 || clientName(i.client_id).toLowerCase().indexOf(query)>=0;
+    });
+    var t = $("quotesTbl");
+    if (!list.length){ t.innerHTML = '<tr><td class="empty">אין הצעות מחיר. לחצי על "הצעת מחיר חדשה".</td></tr>'; return; }
+    var h = '<thead><tr><th>מספר</th><th>לקוח</th><th>תאריך</th><th>בתוקף עד</th><th class="num">סכום</th><th>סטטוס</th><th></th></tr></thead><tbody>';
+    list.forEach(function(i){
+      h += '<tr><td><b>'+esc(i.number)+'</b></td><td>'+esc(clientName(i.client_id))+'</td><td>'+fmtDate(i.issue_date)+'</td>'+
+        '<td>'+fmtDate(i.valid_until)+'</td><td class="num">'+money(qTotals(i).grand)+'</td>'+
+        '<td><span class="pill '+qPill(i.status)+'">'+qStatusLabel(i.status)+'</span></td>'+
+        '<td class="row-actions">'+
+        '<button class="btn btn-sm btn-ghost" data-edit-q="'+i.id+'">✏️</button>'+
+        '<button class="btn btn-sm btn-purple" data-print-q="'+i.id+'">🖨️</button>'+
+        (i.status!=="accepted"? '<button class="btn btn-sm btn-purple" data-accept-q="'+i.id+'">✓ לחשבונית</button>':'')+
+        '<button class="btn btn-sm btn-danger" data-del-q="'+i.id+'">🗑️</button>'+
+        '</td></tr>';
+    });
+    t.innerHTML = h + '</tbody>';
+  }
+
+  var editingQuoteId = null;
+  function openQuote(id){
+    editingQuoteId = id;
+    fillClientSelect($("qClient"));
+    var q;
+    if (id){
+      q = DATA.quotes.find(function(x){ return x.id===id; });
+      $("qModalTitle").textContent = "עריכת הצעה " + q.number;
+    } else {
+      var s = DATA.settings;
+      q = { id:null, number:(s.quote_prefix||"PTQ-")+(s.next_quote_num||2001), client_id:(DATA.clients[0]||{}).id||"",
+        issue_date: todayISO(), valid_until: addDays(todayISO(), 14),
+        items:[{desc:"",qty:1,price:0}], discount:0, tax_rate:num(s.tax_rate),
+        deposit_pct:num(s.quote_deposit_pct==null?50:s.quote_deposit_pct), status:"draft", notes:"",
+        cost_items: STD_COSTS.map(function(l){ return {label:l, amount:0}; }), margin_pct:50 };
+      $("qModalTitle").textContent = "הצעת מחיר חדשה";
+    }
+    $("qNumber").value = q.number;
+    $("qDate").value = q.issue_date;
+    $("qValid").value = q.valid_until || "";
+    $("qClient").value = q.client_id || "";
+    $("qStatus").value = q.status || "draft";
+    $("qDiscount").value = q.discount || 0;
+    $("qTax").value = q.tax_rate || 0;
+    $("qDeposit").value = (q.deposit_pct==null?50:q.deposit_pct);
+    $("qNotes").value = q.notes || "";
+    qMarginVal = num(q.margin_pct==null?50:q.margin_pct);
+    $("qMargin").value = qMarginVal;
+    renderQCosts(q.cost_items && q.cost_items.length ? q.cost_items : STD_COSTS.map(function(l){ return {label:l,amount:0}; }));
+    renderQLineItems(q.items && q.items.length ? q.items : [{desc:"",qty:1,price:0}]);
+    recalcEstimate();
+    recalcQuote();
+    openOverlay("quoteOverlay");
+  }
+
+  function qCostRow(c){
+    var tr = document.createElement("tr");
+    tr.innerHTML = '<td><input class="qc-label" type="text" value="'+esc(c.label)+'" placeholder="עלות"></td>'+
+      '<td><input class="qc-amt" type="number" step="0.01" dir="ltr" value="'+esc(c.amount)+'"></td>'+
+      '<td><button class="li-del" title="מחק">×</button></td>';
+    tr.querySelector(".li-del").addEventListener("click", function(){ tr.remove(); recalcEstimate(); });
+    tr.querySelectorAll("input").forEach(function(inp){ inp.addEventListener("input", recalcEstimate); });
+    return tr;
+  }
+  function renderQCosts(costs){ var b=$("qCostBody"); b.innerHTML=""; costs.forEach(function(c){ b.appendChild(qCostRow(c)); }); }
+  function collectQCosts(){ var a=[]; Array.prototype.forEach.call($("qCostBody").children, function(tr){ a.push({label:tr.querySelector(".qc-label").value, amount:num(tr.querySelector(".qc-amt").value)}); }); return a; }
+  function renderQMarginPresets(){
+    $("qMarginPresets").innerHTML = QUOTE_PRESETS.map(function(p){ return '<button type="button" class="'+(p===qMarginVal?"on":"")+'" data-mrg="'+p+'">'+p+'%</button>'; }).join("");
+    Array.prototype.forEach.call($("qMarginPresets").children, function(btn){ btn.addEventListener("click", function(){ setQMargin(num(btn.dataset.mrg)); }); });
+  }
+  function setQMargin(v){ qMarginVal = num(v); $("qMargin").value = qMarginVal; recalcEstimate(); }
+  function recalcEstimate(){
+    var cost = collectQCosts().reduce(function(s,c){ return s+num(c.amount); }, 0);
+    var price = Math.round(cost*(1+qMarginVal/100));
+    $("qEstCost").textContent = money(cost);
+    $("qEstProfit").textContent = money(price-cost);
+    $("qEstPrice").textContent = money(price);
+    $("qRefTab").innerHTML = QUOTE_PRESETS.map(function(p){ var pr=Math.round(cost*(1+p/100)); return '<tr class="'+(p===qMarginVal?"sel":"")+'"><td>מרווח '+p+'%</td><td class="r">'+money(pr)+'</td></tr>'; }).join("");
+    renderQMarginPresets();
+    window._qEstPrice = price;
+  }
+  function applyEstimate(){
+    var price = window._qEstPrice || 0;
+    renderQLineItems([{desc:"Professional service - full job (transport, labor, travel & lodging as required).", qty:1, price:price}]);
+    recalcQuote();
+    toast("המחיר הוחל כשורה אחת בהצעה", "ok");
+  }
+
+  function qLineRow(it){
+    var tr = document.createElement("tr");
+    tr.innerHTML = '<td><input class="qli-desc-i" type="text" value="'+esc(it.desc)+'" placeholder="תיאור השירות"></td>'+
+      '<td><input class="qli-qty" type="number" step="0.01" dir="ltr" value="'+esc(it.qty)+'"></td>'+
+      '<td><input class="qli-price" type="number" step="0.01" dir="ltr" value="'+esc(it.price)+'"></td>'+
+      '<td class="qli-line num" style="font-variant-numeric:tabular-nums">'+money(num(it.qty)*num(it.price))+'</td>'+
+      '<td><button class="li-del" title="מחק">×</button></td>';
+    tr.querySelector(".li-del").addEventListener("click", function(){ tr.remove(); if(!$("qliBody").children.length) $("qliBody").appendChild(qLineRow({desc:"",qty:1,price:0})); recalcQuote(); });
+    tr.querySelectorAll("input").forEach(function(inp){ inp.addEventListener("input", recalcQuote); });
+    return tr;
+  }
+  function renderQLineItems(items){ var b=$("qliBody"); b.innerHTML=""; items.forEach(function(it){ b.appendChild(qLineRow(it)); }); }
+  function collectQItems(){ var items=[]; Array.prototype.forEach.call($("qliBody").children, function(tr){ items.push({desc:tr.querySelector(".qli-desc-i").value, qty:num(tr.querySelector(".qli-qty").value), price:num(tr.querySelector(".qli-price").value)}); }); return items; }
+  function recalcQuote(){
+    Array.prototype.forEach.call($("qliBody").children, function(tr){ var q=num(tr.querySelector(".qli-qty").value), p=num(tr.querySelector(".qli-price").value); tr.querySelector(".qli-line").textContent = money(q*p); });
+    var draft = { items: collectQItems(), discount: num($("qDiscount").value), tax_rate: num($("qTax").value), deposit_pct: num($("qDeposit").value) };
+    var t = qTotals(draft);
+    $("qTotSub").textContent = money(t.sub);
+    $("qTotDisc").textContent = "-" + money(t.disc);
+    $("qTotTax").textContent = money(t.tax);
+    $("qTotGrand").textContent = money(t.grand);
+    $("qDepShow").textContent = money(t.dep);
+    $("qBalShow").textContent = money(t.bal);
+  }
+
+  function readQuoteForm(){
+    return { number:$("qNumber").value, client_id:$("qClient").value, issue_date:$("qDate").value, valid_until:$("qValid").value,
+      items: collectQItems(), discount:num($("qDiscount").value), tax_rate:num($("qTax").value), deposit_pct:num($("qDeposit").value),
+      status:$("qStatus").value, notes:$("qNotes").value, cost_items: collectQCosts(), margin_pct: qMarginVal };
+  }
+  async function saveQuote(){
+    var f = readQuoteForm();
+    if (!f.client_id){ toast("בחרי לקוח להצעה", "warn"); return; }
+    if (!f.items.some(function(it){ return it.desc || it.price; })){ toast("הוסיפי לפחות פריט אחד", "warn"); return; }
+    if (editingQuoteId){
+      var q = DATA.quotes.find(function(x){ return x.id===editingQuoteId; });
+      Object.assign(q, f);
+    } else {
+      var n = { id: uid(), created_at: new Date().toISOString() };
+      Object.assign(n, f);
+      DATA.quotes.push(n);
+      DATA.settings.next_quote_num = num(DATA.settings.next_quote_num||2001) + 1;
+    }
+    closeOverlay("quoteOverlay");
+    renderQuotes();
+    await saveState("protask: save quote " + f.number);
+  }
+  async function deleteQuote(id){
+    var q = DATA.quotes.find(function(x){ return x.id===id; });
+    if (!q) return;
+    if (!confirm("למחוק את הצעה " + q.number + "?")) return;
+    DATA.quotes = DATA.quotes.filter(function(x){ return x.id!==id; });
+    renderQuotes();
+    await saveState("protask: delete quote " + q.number);
+  }
+  async function acceptQuote(id){
+    var q = DATA.quotes.find(function(x){ return x.id===id; });
+    if (!q) return;
+    if (!confirm("לאשר את הצעה " + q.number + " וליצור ממנה חשבונית?")) return;
+    q.status = "accepted";
+    var s = DATA.settings;
+    var inv = { id: uid(), created_at: new Date().toISOString(), paid_date:null,
+      number: (s.invoice_prefix||"PTR-") + (s.next_invoice_num||1),
+      client_id: q.client_id, issue_date: todayISO(), due_date: addDays(todayISO(), termDays(s.payment_terms)),
+      items: (q.items||[]).map(function(it){ return {desc:it.desc, qty:it.qty, price:it.price}; }),
+      discount: num(q.discount), tax_rate: num(q.tax_rate), status:"unpaid",
+      notes: "נוצר מהצעת מחיר " + q.number + ". תנאי תשלום: 50% מקדמה עם האישור, 50% בסיום." };
+    DATA.invoices.push(inv);
+    DATA.settings.next_invoice_num = num(DATA.settings.next_invoice_num) + 1;
+    renderQuotes();
+    var ok = await saveState("protask: quote " + q.number + " accepted -> invoice " + inv.number);
+    if (ok) toast("✓ ההצעה אושרה · נוצרה חשבונית " + inv.number, "ok");
+  }
+
+  function printQuote(qOrId){
+    var q = typeof qOrId === "string" ? DATA.quotes.find(function(x){ return x.id===qOrId; }) : qOrId;
+    if (!q) return;
+    var s = DATA.settings, c = DATA.clients.find(function(x){ return x.id===q.client_id; }) || {};
+    var t = qTotals(q);
+    var dp = num(q.deposit_pct==null?50:q.deposit_pct);
+    var rows = (q.items||[]).filter(function(it){ return it.desc || it.qty || it.price; }).map(function(it){
+      return '<tr><td>'+esc(it.desc)+'</td><td class="r">'+esc(it.qty)+'</td><td class="r">'+money(it.price)+'</td><td class="r">'+money(num(it.qty)*num(it.price))+'</td></tr>';
+    }).join("");
+    var bizLines = [s.biz_addr, s.biz_phone, s.biz_email, s.biz_web].filter(Boolean).join("\n");
+    var billLines = [c.address, c.phone, c.email].filter(Boolean).join("\n");
+    var html =
+      '<div class="inv-sheet">'+
+        '<div class="inv-top">'+
+          '<div class="inv-biz">'+
+            (s.logo_url? '<img src="'+esc(s.logo_url)+'" alt="logo">':'')+
+            '<div class="bn">'+esc(s.biz_name||"")+'</div>'+
+            (s.biz_legal_name? '<div class="lgl">'+esc(s.biz_legal_name)+'</div>':'')+
+            (s.ein? '<div class="ein">EIN: '+esc(s.ein)+'</div>':'')+
+            '<div class="bd">'+esc(bizLines)+'</div>'+
+          '</div>'+
+          '<div class="inv-meta">'+
+            '<p class="ti" style="color:#6b21a8">QUOTE</p>'+
+            '<p class="mr"><b>No:</b> '+esc(q.number)+'</p>'+
+            '<p class="mr"><b>Date:</b> '+fmtDate(q.issue_date)+'</p>'+
+            '<p class="mr"><b>Valid until:</b> '+fmtDate(q.valid_until)+'</p>'+
+          '</div>'+
+        '</div>'+
+        '<div class="billto"><div class="h">Bill To</div><div class="nm">'+esc(c.name||"—")+'</div><div class="ad">'+esc(billLines)+'</div></div>'+
+        '<table class="items"><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Unit</th><th class="r">Amount</th></tr></thead><tbody>'+
+          (rows || '<tr><td colspan="4">—</td></tr>')+
+        '</tbody></table>'+
+        '<div class="sum">'+
+          '<div class="sr"><span>Subtotal</span><span>'+money(t.sub)+'</span></div>'+
+          (t.disc? '<div class="sr"><span>Discount</span><span>-'+money(t.disc)+'</span></div>':'')+
+          '<div class="sr"><span>Tax ('+num(q.tax_rate)+'%)</span><span>'+money(t.tax)+'</span></div>'+
+          '<div class="sr tot"><span>Total</span><span>'+money(t.grand)+'</span></div>'+
+        '</div>'+
+        '<div style="display:flex;gap:14px;margin-top:18px;-webkit-print-color-adjust:exact;print-color-adjust:exact">'+
+          '<div style="flex:1;border:1px solid #f2b705;background:#fffdf3;border-radius:8px;padding:12px 14px">'+
+            '<div style="font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:#c99503;font-weight:800">Deposit - '+dp+'% due now</div>'+
+            '<div style="font-size:20px;font-weight:800;color:#111827">'+money(t.dep)+'</div>'+
+            '<div style="font-size:11px;color:#6b7280">Due upon acceptance, before work begins</div>'+
+          '</div>'+
+          '<div style="flex:1;border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px">'+
+            '<div style="font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:#9ca3af;font-weight:800">Balance - '+(100-dp)+'% on completion</div>'+
+            '<div style="font-size:20px;font-weight:800;color:#111827">'+money(t.bal)+'</div>'+
+            '<div style="font-size:11px;color:#6b7280">Due upon completion of the work</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="notes" style="margin-top:14px"><b>Payment Terms:</b> A '+dp+'% deposit ('+money(t.dep)+') is required upon acceptance of this quote and before any work begins. The remaining '+(100-dp)+'% balance ('+money(t.bal)+') is due upon completion of the work.'+(s.zelle? ' Payment accepted via Zelle: '+esc(s.zelle)+'.':'')+'</div>'+
+        (q.notes? '<div class="notes"><b>Notes:</b> '+esc(q.notes)+'</div>':'')+
+        '<div style="display:flex;gap:40px;margin-top:26px">'+
+          '<div style="flex:1;border-top:1px solid #9ca3af;padding-top:5px;font-size:11px;color:#6b7280">Client signature / Date - acceptance</div>'+
+          '<div style="flex:1;border-top:1px solid #9ca3af;padding-top:5px;font-size:11px;color:#6b7280">'+esc(s.biz_name||"")+' - authorized</div>'+
+        '</div>'+
+        (s.invoice_footer? '<div class="foot">'+esc(s.invoice_footer)+'</div>':'')+
+      '</div>';
+    $("printArea").innerHTML = html;
+    document.body.classList.add("printing");
+    window.print();
+    setTimeout(function(){ document.body.classList.remove("printing"); }, 400);
+  }
+
   function renderIncome(){
     var paid = DATA.invoices.filter(function(i){ return i.status==="paid"; }).map(function(i){
       return { kind:"invoice", id:i.id, date: paidInvoiceDate(i), label:"חשבונית "+i.number, client_id:i.client_id, amount: invTotals(i).grand, method:"—" };
@@ -1067,6 +1430,23 @@
     $("newClientBtn").addEventListener("click", function(){ openClient(null); });
     $("newIncomeBtn").addEventListener("click", function(){ openIncome(null); });
     $("newExpenseBtn").addEventListener("click", function(){ openExpense(null); });
+    $("newQuoteBtn").addEventListener("click", function(){ if(!DATA.clients.length){ toast("הוסיפי לקוח אחד לפחות לפני יצירת הצעה", "warn"); showSection("clients"); return; } openQuote(null); });
+    $("qAddCostBtn").addEventListener("click", function(){ $("qCostBody").appendChild(qCostRow({label:"",amount:0})); recalcEstimate(); });
+    $("qAddLineBtn").addEventListener("click", function(){ $("qliBody").appendChild(qLineRow({desc:"",qty:1,price:0})); });
+    $("qMargin").addEventListener("input", function(){ qMarginVal = num($("qMargin").value); recalcEstimate(); });
+    $("qApplyEstBtn").addEventListener("click", applyEstimate);
+    $("qDiscount").addEventListener("input", recalcQuote);
+    $("qTax").addEventListener("input", recalcQuote);
+    $("qDeposit").addEventListener("input", recalcQuote);
+    $("saveQuoteBtn").addEventListener("click", saveQuote);
+    $("printQuoteBtn").addEventListener("click", function(){
+      if (!$("qClient").value){ toast("בחרי לקוח", "warn"); return; }
+      var preview = readQuoteForm();
+      if (editingQuoteId){ var q = DATA.quotes.find(function(x){return x.id===editingQuoteId;}); printQuote(Object.assign({}, q, preview)); }
+      else printQuote(preview);
+    });
+    $("qSearch").addEventListener("input", renderQuotes);
+    $("qStatusFilter").addEventListener("change", renderQuotes);
 
     $("addLineBtn").addEventListener("click", function(){ $("liBody").appendChild(lineRow({desc:"",qty:1,price:0})); });
     $("invDiscount").addEventListener("input", recalcInvoice);
@@ -1096,7 +1476,7 @@
 
     // delegated row actions
     document.addEventListener("click", function(e){
-      var el = e.target.closest("[data-edit-inv],[data-print-inv],[data-paid-inv],[data-del-inv],[data-edit-cl],[data-del-cl],[data-edit-inc],[data-del-inc],[data-edit-exp],[data-del-exp]");
+      var el = e.target.closest("[data-edit-inv],[data-print-inv],[data-paid-inv],[data-del-inv],[data-edit-cl],[data-del-cl],[data-edit-inc],[data-del-inc],[data-edit-exp],[data-del-exp],[data-edit-q],[data-print-q],[data-del-q],[data-accept-q]");
       if (!el) return;
       if (el.dataset.editInv!=null) openInvoice(el.dataset.editInv);
       else if (el.dataset.printInv!=null) printInvoice(el.dataset.printInv);
@@ -1108,6 +1488,10 @@
       else if (el.dataset.delInc!=null) deleteIncome(el.dataset.delInc);
       else if (el.dataset.editExp!=null) openExpense(el.dataset.editExp);
       else if (el.dataset.delExp!=null) deleteExpense(el.dataset.delExp);
+      else if (el.dataset.editQ!=null) openQuote(el.dataset.editQ);
+      else if (el.dataset.printQ!=null) printQuote(el.dataset.printQ);
+      else if (el.dataset.delQ!=null) deleteQuote(el.dataset.delQ);
+      else if (el.dataset.acceptQ!=null) acceptQuote(el.dataset.acceptQ);
     });
   }
 
