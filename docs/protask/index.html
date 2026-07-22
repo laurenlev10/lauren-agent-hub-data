@@ -172,6 +172,8 @@
   table.ref td.r{text-align:left;font-weight:800;color:#111827}
   table.ref tr.sel td{background:#fffdf3;color:#6b21a8}
   .qc-label,.qc-amt{width:100%;padding:6px 8px;border:1px solid #e5e7eb;border-radius:7px;font-size:13px}
+  .modal.preview{max-width:860px}
+  .preview-sheet{background:#fff;border:1px solid var(--line);border-radius:10px;max-height:68vh;overflow:auto;margin-bottom:6px}
   @media print{
     body{background:#fff;padding:0}
     body.printing > *:not(#printArea){display:none !important}
@@ -508,8 +510,21 @@
 
     <div class="modal-foot">
       <button class="btn btn-primary" id="saveQuoteBtn">💾 שמירה</button>
+      <button class="btn btn-ghost" id="previewQuoteBtn">👁️ תצוגה מקדימה</button>
       <button class="btn btn-purple" id="printQuoteBtn">🖨️ הדפסה / PDF</button>
       <button class="btn btn-ghost" data-close="quoteOverlay">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<!-- QUOTE PREVIEW -->
+<div class="overlay" id="previewOverlay">
+  <div class="modal preview">
+    <h3>👁️ <span>תצוגה מקדימה של ההצעה</span><button class="modal-close" data-close="previewOverlay">×</button></h3>
+    <div id="previewBody" class="preview-sheet"></div>
+    <div class="modal-foot">
+      <button class="btn btn-purple" id="previewPrintBtn">🖨️ הדפסה / PDF</button>
+      <button class="btn btn-ghost" data-close="previewOverlay">סגירה</button>
     </div>
   </div>
 </div>
@@ -1027,7 +1042,7 @@
         '<td>'+fmtDate(i.valid_until)+'</td><td class="num">'+money(qTotals(i).grand)+'</td>'+
         '<td><span class="pill '+qPill(i.status)+'">'+qStatusLabel(i.status)+'</span></td>'+
         '<td class="row-actions">'+
-        '<button class="btn btn-sm btn-ghost" data-edit-q="'+i.id+'">✏️</button>'+
+        '<button class="btn btn-sm btn-ghost" data-view-q="'+i.id+'">👁️</button>'+'<button class="btn btn-sm btn-ghost" data-edit-q="'+i.id+'">✏️</button>'+
         '<button class="btn btn-sm btn-purple" data-print-q="'+i.id+'">🖨️</button>'+
         (i.status!=="accepted"? '<button class="btn btn-sm btn-purple" data-accept-q="'+i.id+'">✓ לחשבונית</button>':'')+
         '<button class="btn btn-sm btn-danger" data-del-q="'+i.id+'">🗑️</button>'+
@@ -1178,9 +1193,7 @@
     if (ok) toast("✓ ההצעה אושרה · נוצרה חשבונית " + inv.number, "ok");
   }
 
-  function printQuote(qOrId){
-    var q = typeof qOrId === "string" ? DATA.quotes.find(function(x){ return x.id===qOrId; }) : qOrId;
-    if (!q) return;
+  function quoteSheetHTML(q){
     var s = DATA.settings, c = DATA.clients.find(function(x){ return x.id===q.client_id; }) || {};
     var t = qTotals(q);
     var dp = num(q.deposit_pct==null?50:q.deposit_pct);
@@ -1236,10 +1249,22 @@
         '</div>'+
         (s.invoice_footer? '<div class="foot">'+esc(s.invoice_footer)+'</div>':'')+
       '</div>';
-    $("printArea").innerHTML = html;
+    return html;
+  }
+  function printQuote(qOrId){
+    var q = typeof qOrId === "string" ? DATA.quotes.find(function(x){ return x.id===qOrId; }) : qOrId;
+    if (!q) return;
+    $("printArea").innerHTML = quoteSheetHTML(q);
     document.body.classList.add("printing");
     window.print();
     setTimeout(function(){ document.body.classList.remove("printing"); }, 400);
+  }
+  function previewQuote(qOrId){
+    var q = typeof qOrId === "string" ? DATA.quotes.find(function(x){ return x.id===qOrId; }) : qOrId;
+    if (!q) return;
+    window._previewQ = q;
+    $("previewBody").innerHTML = quoteSheetHTML(q);
+    openOverlay("previewOverlay");
   }
 
   function renderIncome(){
@@ -1447,6 +1472,13 @@
     });
     $("qSearch").addEventListener("input", renderQuotes);
     $("qStatusFilter").addEventListener("change", renderQuotes);
+    $("previewQuoteBtn").addEventListener("click", function(){
+      if (!$("qClient").value){ toast("בחרי לקוח", "warn"); return; }
+      var preview = readQuoteForm();
+      if (editingQuoteId){ var q = DATA.quotes.find(function(x){return x.id===editingQuoteId;}); previewQuote(Object.assign({}, q, preview)); }
+      else previewQuote(preview);
+    });
+    $("previewPrintBtn").addEventListener("click", function(){ if(window._previewQ) printQuote(window._previewQ); });
 
     $("addLineBtn").addEventListener("click", function(){ $("liBody").appendChild(lineRow({desc:"",qty:1,price:0})); });
     $("invDiscount").addEventListener("input", recalcInvoice);
@@ -1476,7 +1508,7 @@
 
     // delegated row actions
     document.addEventListener("click", function(e){
-      var el = e.target.closest("[data-edit-inv],[data-print-inv],[data-paid-inv],[data-del-inv],[data-edit-cl],[data-del-cl],[data-edit-inc],[data-del-inc],[data-edit-exp],[data-del-exp],[data-edit-q],[data-print-q],[data-del-q],[data-accept-q]");
+      var el = e.target.closest("[data-edit-inv],[data-print-inv],[data-paid-inv],[data-del-inv],[data-edit-cl],[data-del-cl],[data-edit-inc],[data-del-inc],[data-edit-exp],[data-del-exp],[data-edit-q],[data-print-q],[data-del-q],[data-accept-q],[data-view-q]");
       if (!el) return;
       if (el.dataset.editInv!=null) openInvoice(el.dataset.editInv);
       else if (el.dataset.printInv!=null) printInvoice(el.dataset.printInv);
@@ -1492,6 +1524,7 @@
       else if (el.dataset.printQ!=null) printQuote(el.dataset.printQ);
       else if (el.dataset.delQ!=null) deleteQuote(el.dataset.delQ);
       else if (el.dataset.acceptQ!=null) acceptQuote(el.dataset.acceptQ);
+      else if (el.dataset.viewQ!=null) previewQuote(el.dataset.viewQ);
     });
   }
 
