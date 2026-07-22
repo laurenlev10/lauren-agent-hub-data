@@ -68,6 +68,8 @@ function slug(s){return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace
 const RAW_BASE="https://raw.githubusercontent.com/"+REPO+"/main/docs/state/";
 async function freshJson(file){
  const bust="?_="+Date.now();
+ const tok=(localStorage.getItem("lauren_gh_token_v1")||"").trim();
+ if(tok){ try{ const r=await fetch("https://api.github.com/repos/"+REPO+"/contents/docs/state/"+file+"?ref=main&t="+Date.now(),{headers:{Authorization:"token "+tok,Accept:"application/vnd.github+json"},cache:"no-store"}); if(r.ok){ const j=await r.json(); return JSON.parse(decodeURIComponent(escape(atob((j.content||"").replace(/\n/g,""))))); } }catch(e){} }
  try{const r=await fetch(RAW_BASE+file+bust,{cache:"no-store"});if(r.ok)return await r.json();}catch(e){}
  try{const r=await fetch("../state/"+file+bust,{cache:"no-store"});if(r.ok)return await r.json();}catch(e){}
  return null;
