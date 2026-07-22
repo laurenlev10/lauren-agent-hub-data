@@ -373,14 +373,48 @@ function modal(html){ let m=document.getElementById('mdl'); if(!m){m=document.cr
 function closeModal(){const m=document.getElementById('mdl');if(m)m.style.display='none';}
 
 function filterLP(el){var q=(el.value||'').toLowerCase();var rs=document.querySelectorAll('#lptbl tr[data-row]');for(var i=0;i<rs.length;i++){var t=rs[i].getAttribute('data-txt')||'';rs[i].style.display=(t.indexOf(q)>-1)?'':'none';}}
-function openLinkPicker(invId){ // from an invoice -> search & pick a bank charge
- const io=invObjOf(invId); const amt=io?effAmt(io):0; const all=unmatchedCharges().slice();
+function openLinkPicker(invId){ // from an invoice -> search & pick ANY bank charge (full list)
+ const io=invObjOf(invId); const amt=io?effAmt(io):0;
+ const mb=matchedBankIds(); const ig=new Set((LINKS.ignored||[]).map(String));
+ const rev={};
+ for(const k in (LINKS.links||{})){ rev[String(LINKS.links[k])]=k; }
+ for(const k in (BANK.matched||{})){ const t=(BANK.matched[k]||{}).bank_txn_id; if(t!=null) rev[String(t)]=k; }
+ const all=(BANK.bank_charges||[]).slice();
  all.sort((a,b)=>Math.abs((+a.amount)-amt)-Math.abs((+b.amount)-amt));
  let h="<h3>🔗 חיפוש חיוב מהבנק לקישור</h3><div class='sub'>"+esc(invName(invId))+" · <b>"+money(amt)+"</b></div>";
- h+="<input id='lpq' placeholder='🔍 חיפוש לפי סכום / תאריך / תיאור' oninput=\"filterLP(this)\" style='width:100%;padding:8px;margin:8px 0;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:6px'>";
- if(!all.length)h+="<div class='sub'>אין חיובים ללא שיוך.</div>";
- h+="<table id='lptbl'><tr><th>קרבה</th><th>תאריך</th><th>סכום</th><th>תיאור</th><th>ספק</th><th></th></tr>"+all.map(c=>{const diff=Math.round(((+c.amount)-amt)*100)/100;const close=Math.abs(diff)<=1?"🎯":(Math.abs(diff)<=Math.max(5,amt*0.03)?"≈":"");const txt=esc(((c.date||'')+" "+c.amount+" "+money(c.amount)+" "+(c.desc||'')+" "+(c.supplier_guess||'')).toLowerCase().replace(/'/g,''));return "<tr data-row data-txt='"+txt+"'><td>"+close+(diff?" <span style='font-size:11px;color:#94a3b8'>"+(diff>0?'+':'')+diff+"</span>":"")+"</td><td>"+esc(c.date)+"</td><td class='num'>"+money(c.amount)+"</td><td style='font-size:12px'>"+esc(c.desc)+"</td><td>"+(c.supplier_guess?"<span class='tag'>"+esc(c.supplier_guess)+"</span>":"")+"</td><td><button onclick=\"linkInvoiceToCharge('"+invId+"','"+c.id+"')\">בחר</button></td></tr>";}).join('')+"</table>";
+ h+="<div class='sub' style='color:#64748b'>מוצגים כל "+all.length+" החיובים בבנק, ממוינים לפי קרבה לסכום. 🟢 פנוי = עדיין לא שויך.</div>";
+ h+="<input id='lpq' placeholder='🔍 חיפוש לפי סכום / תאריך / תיאור / ספק' oninput=\"filterLP(this)\" style='width:100%;padding:8px;margin:8px 0;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:6px'>";
+ h+="<table id='lptbl'><tr><th>קרבה</th><th>תאריך</th><th>סכום</th><th>תיאור</th><th>ספק</th><th>סטטוס</th><th></th></tr>"+all.map(c=>{
+   const cid=String(c.id);
+   const diff=Math.round(((+c.amount)-amt)*100)/100;
+   const close=Math.abs(diff)<=1?"🎯":(Math.abs(diff)<=Math.max(5,amt*0.03)?"≈":"");
+   const used=mb.has(cid); const ignored=ig.has(cid); const owner=rev[cid];
+   let status,action;
+   if(used){ status="<span class='tag' style='background:#e0e7ff;color:#3730a3'>🔗 "+esc(owner?invName(owner):'משויך')+"</span>"; action="<button style='background:#64748b;font-size:12px' onclick=\"moveChargeToInvoice('"+invId+"','"+cid+"')\">↤ העבר לכאן</button>"; }
+   else if(ignored){ status="<span class='tag' style='background:#fee2e2;color:#991b1b'>🚫 התעלמת</span>"; action="<button onclick=\"linkInvoiceToCharge('"+invId+"','"+cid+"')\">בחר</button>"; }
+   else { status="<span class='tag' style='background:#dcfce7;color:#166534'>🟢 פנוי</span>"; action="<button onclick=\"linkInvoiceToCharge('"+invId+"','"+cid+"')\">בחר</button>"; }
+   const txt=esc(((c.date||'')+" "+c.amount+" "+money(c.amount)+" "+(c.desc||'')+" "+(c.supplier_guess||'')+" "+(owner?invName(owner):'')).toLowerCase().replace(/'/g,''));
+   return "<tr data-row data-txt='"+txt+"'"+(used?" style='opacity:.72'":"")+"><td>"+close+(diff?" <span style='font-size:11px;color:#94a3b8'>"+(diff>0?'+':'')+diff+"</span>":"")+"</td><td>"+esc(c.date)+"</td><td class='num'>"+money(c.amount)+"</td><td style='font-size:12px'>"+esc(c.desc)+"</td><td>"+(c.supplier_guess?"<span class='tag'>"+esc(c.supplier_guess)+"</span>":"")+"</td><td>"+status+"</td><td>"+action+"</td></tr>";
+ }).join('')+"</table>";
  modal(h);
+}
+async function moveChargeToInvoice(invId,bankId){
+ const bid=String(bankId);
+ let manualOwner=null,autoOwner=null;
+ for(const k in (LINKS.links||{})){ if(String(LINKS.links[k])===bid){manualOwner=k;break;} }
+ for(const k in (BANK.matched||{})){ if(String((BANK.matched[k]||{}).bank_txn_id)===bid){autoOwner=k;break;} }
+ const owner=manualOwner||autoOwner;
+ if(owner===invId){ toast("כבר מקושר לכאן"); return; }
+ if(!confirm('החיוב משויך כעת ל: "'+(owner?invName(owner):'?')+'".\nלנתק משם ולקשר לחשבונית הנוכחית?')) return;
+ toast("מעביר…");
+ if(manualOwner) delete LINKS.links[manualOwner];
+ if(autoOwner && BANK.matched) delete BANK.matched[autoOwner];
+ LINKS.links[invId]=bid;
+ LINKS.rejected=(LINKS.rejected||[]).filter(x=>x!==(invId+"|"+bid));
+ if(autoOwner) LINKS.rejected=[...new Set([...(LINKS.rejected||[]),autoOwner+"|"+bid])];
+ const m=await saveLinks("supplier-move: "+bid+" -> "+invId);
+ if(autoOwner){ await putFile(BANK_FILE,cur=>{ if(cur&&cur.matched) delete cur.matched[autoOwner]; return cur; },"supplier-move bank: "+autoOwner); }
+ if(m){toast("✓ הועבר");closeModal();route();}
 }
 function allOpenInvoices(){ const out=[]; supNames().forEach(name=>{ supInvoices(name).forEach(iv=>{ if(!bkFor(iv.id)) out.push(Object.assign({_sup:name},iv)); }); }); return out; }
 function pickInvoiceForCharge(bankId){ // from a bank charge -> pick an invoice
