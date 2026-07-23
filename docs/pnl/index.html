@@ -89,7 +89,7 @@ function computeInvLive(ev){
    const ordInv=ords.reduce((a,o)=>a+f(o.invoice_total_usd),0);
    const ordShip=ords.reduce((a,o)=>a+f(o.shipping_cost_usd),0);
    let anom=false;
-   if(supInv>0&&est>0&&supInv>3*est&&supInv>1000){anom=true;supInv=0;supShip=0;}
+   if(supInv>0&&est>0&&supInv>3*est&&supInv>1000){anom=true;}
    const total=supInv>0?supInv:ordInv, sh=supInv>0?supShip:ordShip;
    const name=(s.name||(ords[0]&&ords[0].supplier_name)||code);
    lines.push({supplier:name,invoiced:+total.toFixed(2),shipping:+sh.toFixed(2),estimate:+est.toFixed(2),status:anom?"anomaly-excluded":(total>0?"invoiced":"no-invoice")});
@@ -256,7 +256,7 @@ function render(){
  const inv=(INV_LIVE&&INV_LIVE.lines&&INV_LIVE.lines.length)?INV_LIVE.lines:(d.inventory_lines||[]);
  const invLiveBadge=(INV_LIVE&&INV_LIVE.lines&&INV_LIVE.lines.length)?" <span class='pend' style='background:#fee2e2;color:#b91c1c;border-color:#fca5a5;font-size:11px'>🔴 חי — מתעדכן מיידית מחשבוניות המלאי</span>":"";
  h+="<div class='card'><h2>📦 מלאי לפי ספק"+invLiveBadge+"</h2><table><tr><th>ספק</th><th>חשבונית</th><th>משלוח</th><th>סטטוס</th></tr>"+
-   (inv.length?inv.map(x=>"<tr><td>"+esc(x.supplier)+"</td><td class='num'>"+money(x.invoiced)+"</td><td class='num'>"+money(x.shipping)+"</td><td>"+(x.status==="anomaly-excluded"?"⚠ הוחרג":(x.status==="invoiced"?"✓":"—"))+"</td></tr>").join(""):"<tr><td colspan=4>אין נתוני חשבוניות</td></tr>")+"</table></div>";
+   (inv.length?inv.map(x=>"<tr><td>"+esc(x.supplier)+"</td><td class='num'>"+money(x.invoiced)+"</td><td class='num'>"+money(x.shipping)+"</td><td>"+(x.status==="anomaly-excluded"?"⚠ לבדיקה":(x.status==="invoiced"?"✓":"—"))+"</td></tr>").join(""):"<tr><td colspan=4>אין נתוני חשבוניות</td></tr>")+"</table></div>";
 
  // mystery box
  const mb=d.mystery_box||{};
